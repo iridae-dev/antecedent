@@ -6,10 +6,13 @@
 )]
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use antecedent_core::{
-    CausalRng, ExecutionContext, ExpressionFault, Intervention, PolicyReads, Value, ValueExpr,
-    VariableId, reason_code,
+    BatchCallback, CallbackError, CallbackImplementation, CallbackOutput, CallbackSpec, CausalRng,
+    ExecutionContext, ExpressionFault, Intervention, InterventionSequence, PinnedDependency,
+    PolicyReads, Portability, SequencedIntervention, TemporalPolicy, Value, ValueExpr, VariableId,
+    reason_code,
 };
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_model::{
@@ -557,7 +560,8 @@ fn each_route_is_licensed_separately() {
             assert_eq!(code, reason_code!("policy_route_not_licensed"));
             assert_eq!(detail, "intervention_program.identification_requires_hard_level");
         }
-        other @ antecedent_model::RouteDecision::Licensed => {
+        other @ (antecedent_model::RouteDecision::Licensed
+        | antecedent_model::RouteDecision::LicensedUnder { .. }) => {
             panic!("a transform has no observational identification, got {other:?}")
         }
     }
@@ -600,7 +604,10 @@ fn each_route_is_licensed_separately() {
             antecedent_model::RouteDecision::Refused { code, .. } => {
                 assert_eq!(code, reason_code!("policy_dependency_circular"));
             }
-            other @ antecedent_model::RouteDecision::Licensed => panic!("{route:?}: {other:?}"),
+            other @ (antecedent_model::RouteDecision::Licensed
+            | antecedent_model::RouteDecision::LicensedUnder { .. }) => {
+                panic!("{route:?}: {other:?}")
+            }
         }
     }
 }
@@ -753,4 +760,311 @@ fn expression_faults_surface_from_intervention_validation() {
             fault: ExpressionFault::OutputType { found: antecedent_core::ExprType::Boolean }
         })
     );
+}
+
+type CallbackFn = dyn Fn(&[&[f64]], &mut [f64]) -> Result<(), CallbackError> + Send + Sync;
+
+/// A Rust closure standing in for a caller-supplied batch function; counts its calls.
+struct ClosureCallback {
+    spec: CallbackSpec,
+    calls: AtomicUsize,
+    function: Box<CallbackFn>,
+}
+
+impl std::fmt::Debug for ClosureCallback {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ClosureCallback({})", self.spec.name)
+    }
+}
+
+impl BatchCallback for ClosureCallback {
+    fn spec(&self) -> &CallbackSpec {
+        &self.spec
+    }
+
+    fn call(&self, inputs: &[&[f64]], out: &mut [f64]) -> Result<(), CallbackError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        (self.function)(inputs, out)
+    }
+}
+
+fn callback(
+    name: &str,
+    arity: usize,
+    output: CallbackOutput,
+    implementation: CallbackImplementation,
+    function: impl Fn(&[&[f64]], &mut [f64]) -> Result<(), CallbackError> + Send + Sync + 'static,
+) -> Arc<ClosureCallback> {
+    Arc::new(ClosureCallback {
+        spec: CallbackSpec {
+            name: name.into(),
+            inputs: (0..arity).map(|i| format!("x{i}")).collect::<Vec<_>>().into(),
+            output,
+            dependencies: Arc::from([PinnedDependency {
+                name: "numpy".into(),
+                version: "2.0.0".into(),
+            }]),
+            implementation,
+        },
+        calls: AtomicUsize::new(0),
+        function: Box::new(function),
+    })
+}
+
+fn runtime(
+    name: &str,
+    arity: usize,
+    function: impl Fn(&[&[f64]], &mut [f64]) -> Result<(), CallbackError> + Send + Sync + 'static,
+) -> Arc<ClosureCallback> {
+    callback(name, arity, CallbackOutput::Real, CallbackImplementation::Runtime, function)
+}
+
+#[allow(clippy::unnecessary_wraps, reason = "the signature is the batch callback contract")]
+fn price_floor(inputs: &[&[f64]], out: &mut [f64]) -> Result<(), CallbackError> {
+    for (o, x) in out.iter_mut().zip(inputs[0]) {
+        *o = 10.0_f64.max(0.85 * x);
+    }
+    Ok(())
+}
+
+#[test]
+fn a_callback_floor_equals_the_expression_floor_on_every_node_with_one_call_per_batch() {
+    let (model, _) = pricing_chain();
+    let floor = runtime("floor", 1, price_floor);
+    let by_callback = [Intervention::transform(
+        var(0),
+        ValueExpr::callback(floor.clone(), [ValueExpr::generated()]),
+    )];
+    let by_expression = [Intervention::transform(
+        var(0),
+        ValueExpr::constant(10.0).max(ValueExpr::constant(0.85).mul(ValueExpr::generated())),
+    )];
+    let n = 2_000;
+    let (a, b) = (draw(&model, &by_callback, n), draw(&model, &by_expression, n));
+    for node in 0..3 {
+        let (ca, cb) = (column(&a, node), column(&b, node));
+        assert!(ca.iter().zip(&cb).all(|(x, y)| x.to_bits() == y.to_bits()), "node {node}");
+    }
+    assert_eq!(floor.calls.load(Ordering::SeqCst), 1, "one call for the whole batch");
+    // A second draw with the same seed is bit-identical (determinism across runs).
+    let again = draw(&model, &by_callback, n);
+    assert_eq!(column(&a, 2), column(&again, 2));
+}
+
+#[test]
+fn callback_inputs_are_reads_like_any_expression_variable() {
+    let (model, _) = pricing_chain();
+    // demand := f(price) is an assignment from an ancestor: evaluated after price.
+    let double = runtime("double", 1, |inputs, out| {
+        for (o, x) in out.iter_mut().zip(inputs[0]) {
+            *o = 2.0 * x;
+        }
+        Ok(())
+    });
+    let assign =
+        Intervention::assign(var(1), ValueExpr::callback(double.clone(), [ValueExpr::var(var(0))]));
+    let drawn = draw(&model, &[assign], 500);
+    let (price, demand) = (column(&drawn, 0), column(&drawn, 1));
+    assert!(price.iter().zip(&demand).all(|(p, d)| *d == 2.0 * p));
+
+    // price := f(revenue) closes a cycle through the graph.
+    let circular =
+        Intervention::assign(var(0), ValueExpr::callback(double.clone(), [ValueExpr::var(var(2))]));
+    expect_refusal(
+        &model,
+        &[circular],
+        reason_code!("policy_dependency_circular"),
+        "intervention_program.dependency_circular",
+    );
+    // A read of a variable the model does not have is unavailable.
+    let unknown =
+        Intervention::assign(var(1), ValueExpr::callback(double.clone(), [ValueExpr::var(var(9))]));
+    expect_refusal(
+        &model,
+        &[unknown],
+        reason_code!("policy_dependency_unavailable"),
+        "intervention_program.variable_not_in_model",
+    );
+    // A history read has no window on a static model.
+    let history = Intervention::assign(
+        var(1),
+        ValueExpr::callback(double.clone(), [ValueExpr::lag(var(0), 1)]),
+    );
+    expect_refusal(
+        &model,
+        &[history],
+        reason_code!("policy_history_unavailable"),
+        "intervention_program.history_unavailable",
+    );
+    // An assignment cannot hand its own generated value to the callback.
+    let generated =
+        Intervention::assign(var(1), ValueExpr::callback(double.clone(), [ValueExpr::generated()]));
+    expect_refusal(
+        &model,
+        &[generated],
+        reason_code!("policy_dependency_unavailable"),
+        "intervention_program.generated_value_unavailable",
+    );
+    // Arguments must match the declared inputs.
+    let arity = Intervention::assign(var(1), ValueExpr::callback(double, []));
+    expect_refusal(
+        &model,
+        &[arity],
+        reason_code!("invalid_argument"),
+        "intervention_program.callback_declaration",
+    );
+}
+
+#[test]
+fn callback_outputs_are_validated_and_failures_keep_their_message() {
+    let (model, _) = pricing_chain();
+    let run = |callback: Arc<ClosureCallback>| {
+        let iv = Intervention::transform(
+            var(0),
+            ValueExpr::callback(callback, [ValueExpr::generated()]),
+        );
+        let mut rng = CausalRng::from_seed(3);
+        let mut ws = MechanismWorkspace::default();
+        sample_interventional(&model, &[iv], 16, &mut rng, &mut ws, &ExecutionContext::for_tests(1))
+    };
+    let invalid = reason_code!("policy_callback_output_invalid");
+
+    // Not finite: refused, never replaced by a default.
+    let nan = runtime("nan_at_three", 1, |inputs, out| {
+        out.copy_from_slice(inputs[0]);
+        out[3] = f64::NAN;
+        Ok(())
+    });
+    let error = run(nan).expect_err("NaN output");
+    assert_eq!(
+        refusal(&error),
+        (invalid.to_string(), "intervention_program.callback_output".into())
+    );
+    assert!(
+        error.to_string().contains("row 3") && error.to_string().contains("nan_at_three"),
+        "{error}"
+    );
+
+    // A wrong length reported by the callback.
+    let short = runtime("short", 1, |_, out| {
+        Err(CallbackError::WrongLength { got: out.len() - 1, expected: out.len() })
+    });
+    let error = run(short).expect_err("short output");
+    assert_eq!(refusal(&error).0, invalid);
+    assert!(error.to_string().contains("expected exactly 16"), "{error}");
+
+    // Declared support: levels and range.
+    let levels = callback(
+        "levels",
+        1,
+        CallbackOutput::levels([0.0, 1.0]),
+        CallbackImplementation::Runtime,
+        |_, out| {
+            out.fill(0.0);
+            out[5] = 2.0;
+            Ok(())
+        },
+    );
+    let error = run(levels).expect_err("outside the declared levels");
+    assert_eq!(refusal(&error).0, invalid);
+    assert!(error.to_string().contains("row 5"), "{error}");
+    let ranged = callback(
+        "ranged",
+        1,
+        CallbackOutput::Range { lower: 0.0, upper: 1.0 },
+        CallbackImplementation::Runtime,
+        |inputs, out| {
+            out.copy_from_slice(inputs[0]);
+            Ok(())
+        },
+    );
+    assert_eq!(refusal(&run(ranged).expect_err("prices exceed [0, 1]")).0, invalid);
+
+    // The callback's own failure surfaces with its message.
+    let raising = runtime("raising", 1, |_, _| {
+        Err(CallbackError::Raised { message: "ValueError: no demand model for region 7".into() })
+    });
+    let error = run(raising).expect_err("callback raised");
+    assert_eq!(
+        refusal(&error),
+        (
+            reason_code!("policy_callback_failed").to_string(),
+            "intervention_program.callback_failed".into()
+        )
+    );
+    assert!(error.to_string().contains("ValueError: no demand model for region 7"), "{error}");
+}
+
+#[test]
+fn a_callback_is_licensed_for_simulation_and_conditionally_for_counterfactuals() {
+    let (model, _) = pricing_chain();
+    let floor = runtime("floor", 1, price_floor);
+    let policy =
+        Intervention::transform(var(0), ValueExpr::callback(floor, [ValueExpr::generated()]));
+    let support = policy_support(&model, std::slice::from_ref(&policy));
+    assert!(support.simulation.is_licensed());
+    assert!(support.simulation.assumption().is_none());
+    assert!(support.counterfactual.is_licensed());
+    let assumption = support.counterfactual.assumption().expect("a conditional licence");
+    assert!(
+        assumption.contains("floor") && assumption.contains("declared inputs alone"),
+        "{assumption}"
+    );
+    let antecedent_model::RouteDecision::Refused { code, .. } = &support.identification else {
+        panic!("a callback has no observational identification");
+    };
+    assert_eq!(code, reason_code!("policy_route_not_licensed"));
+}
+
+#[test]
+fn only_a_recoverable_callback_has_a_durable_form() {
+    let digest = "ab".repeat(32);
+    let recoverable = callback(
+        "floor",
+        1,
+        CallbackOutput::Real,
+        CallbackImplementation::Recoverable {
+            source_sha256: digest.clone(),
+            entry_point: "floor".into(),
+        },
+        price_floor,
+    );
+    let bound = runtime("closure", 1, price_floor);
+    let with = |c: Arc<ClosureCallback>| {
+        Intervention::transform(var(0), ValueExpr::callback(c, [ValueExpr::generated()]))
+    };
+
+    let closed_form = Intervention::transform(var(0), ValueExpr::generated().neg());
+    assert_eq!(closed_form.portability(), Portability::Portable);
+
+    let Portability::Recoverable(records) = with(recoverable.clone()).portability() else {
+        panic!("a recoverable callback is exportable as a record");
+    };
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].source_sha256, digest);
+    // The consumer verifies the record against the implementation it supplies.
+    records[0].verify(&recoverable.spec).unwrap();
+    let tampered = callback(
+        "floor",
+        1,
+        CallbackOutput::Real,
+        CallbackImplementation::Recoverable {
+            source_sha256: "cd".repeat(32),
+            entry_point: "floor".into(),
+        },
+        price_floor,
+    );
+    assert_eq!(records[0].verify(&tampered.spec).unwrap_err().field, "source_sha256");
+    assert!(records[0].verify(&bound.spec).is_err());
+
+    // One runtime binding anywhere makes the whole program non-exportable.
+    let sequence = Intervention::sequence(InterventionSequence::new(vec![
+        SequencedIntervention::new(with(recoverable), TemporalPolicy::pulse(0)),
+        SequencedIntervention::new(with(bound), TemporalPolicy::pulse(1)),
+    ]));
+    let portability = sequence.portability();
+    assert_eq!(portability, Portability::RuntimeBound { callbacks: vec!["closure".into()] });
+    let refusal = portability.export_refusal().expect("export refused");
+    assert_eq!(refusal.code, reason_code!("policy_callback_not_portable"));
+    assert!(refusal.message.contains("closure"), "{}", refusal.message);
 }

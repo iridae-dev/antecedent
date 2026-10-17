@@ -35,6 +35,7 @@
 
 pub mod assumption;
 pub mod calibration_basis;
+pub mod callback;
 pub mod diagnostic;
 pub mod error;
 pub mod execution;
@@ -66,6 +67,10 @@ pub use assumption::{
     AssumptionStatus, ParametricAssumption, PriorAssumption,
 };
 pub use calibration_basis::CalibrationBasis;
+pub use callback::{
+    BatchCallback, CallbackCall, CallbackError, CallbackImplementation, CallbackOutput,
+    CallbackRefusal, CallbackSpec, PinnedDependency, Portability, RecoveryMismatch, RecoveryRecord,
+};
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use execution::{

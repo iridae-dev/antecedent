@@ -11,6 +11,8 @@ mod cross_world_execution;
 mod cross_world_execution_temporal;
 #[path = "noise_replay_abduction.rs"]
 mod noise_replay_abduction;
+#[path = "policy_routes.rs"]
+mod policy_routes;
 #[path = "temporal_cross_world.rs"]
 mod temporal_cross_world;
 #[path = "transported_path_specific.rs"]

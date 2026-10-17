@@ -87,6 +87,7 @@ nav:
     - Inverse queries and decisions on composed and transported sources: guides/inverse-and-decision-reach.md
     - Finite-SCM discretization: guides/finite-scm-discretization.md
     - Noise replay: guides/noise-replay.md
+    - Intrinsic causal influence: guides/intrinsic-influence.md
     - Programmable interventions: guides/intervention-programs.md
     - Mechanism selection: guides/mechanism-selection.md
     - Composed uncertainty: guides/composed-uncertainty.md

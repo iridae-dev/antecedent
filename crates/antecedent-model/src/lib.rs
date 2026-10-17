@@ -28,6 +28,7 @@ pub mod overlay;
 pub mod program;
 pub mod registry;
 pub mod sample;
+pub mod temporal_rollout;
 pub mod tree;
 
 pub use basis::{BasisTerm, ParentBasis};
@@ -63,7 +64,7 @@ pub use noise_replay::{
 pub use overlay::{InterventionOverlay, ModelView};
 pub use program::{
     NodeProgram, PolicyRefusal, PolicyRoute, PolicySupport, ProgramKind, RouteDecision,
-    apply_node_program, policy_support,
+    apply_node_program, history_slot, policy_support,
 };
 pub use registry::{
     MechanismAssignment, MechanismCandidate, MechanismFamily, MechanismRegistry, MechanismTyping,
@@ -77,6 +78,7 @@ pub use sample::{
     sample_with_overlay_into, soft_to_slot,
 };
 pub use sample::{NodeEvaluation, NodeNoise, evaluate_node};
+pub use temporal_rollout::{TemporalNoise, TemporalPath, TemporalPlan, rollout_temporal};
 pub use tree::TreeEnsemble;
 
 /// Crate version.

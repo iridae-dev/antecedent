@@ -41,6 +41,8 @@ mod joint_law_propagation_bounds;
 mod mechanism_composition_artifact;
 #[path = "observation_query_artifact.rs"]
 mod observation_query_artifact;
+#[path = "policy_program_execution.rs"]
+mod policy_program_execution;
 #[path = "provider_envelope.rs"]
 mod provider_envelope;
 #[path = "scientific_bridge_artifact.rs"]

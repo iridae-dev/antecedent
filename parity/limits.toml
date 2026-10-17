@@ -2210,3 +2210,12 @@ documentation = [{ path = "crates/antecedent-model/src/falsify.rs", constant = "
 guard = { path = "crates/antecedent-model/src/falsify.rs", pattern = "if\\ self\\.n_permutations\\ >\\ MAX_GRAPH_PERMUTATIONS\\ \\{" }
 refusal = { path = "crates/antecedent-model/src/falsify.rs", pattern = "if\\ self\\.n_permutations\\ >\\ MAX_GRAPH_PERMUTATIONS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent-model/src/falsify.rs", pattern = "\\binvalid_inputs_are_refused\\b" }
+
+[[bound]]
+record = "gcm.attribution.intrinsic_influence"
+key = "max_exact_players"
+implementation = [{ path = "crates/antecedent-attribution/src/intrinsic_influence.rs", constant = "INTRINSIC_MAX_EXACT_PLAYERS" }]
+documentation = [{ path = "crates/antecedent-attribution/src/intrinsic_influence.rs", constant = "INTRINSIC_MAX_EXACT_PLAYERS" }]
+guard = { path = "crates/antecedent-attribution/src/intrinsic_influence.rs", pattern = "if\\ n_players\\ >\\ INTRINSIC_MAX_EXACT_PLAYERS\\ \\{" }
+refusal = { path = "crates/antecedent-attribution/src/intrinsic_influence.rs", pattern = "if\\ n_players\\ >\\ INTRINSIC_MAX_EXACT_PLAYERS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+scope_fixture = { path = "crates/antecedent-attribution/tests/intrinsic_influence.rs", pattern = "\\bexact_allocation_above_its_bound_and_invalid_settings_are_refused\\b" }

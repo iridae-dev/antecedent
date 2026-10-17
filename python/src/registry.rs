@@ -60,6 +60,9 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_native_classes(m)?;
     gcm_api::register(m)?;
     graph_falsification_api::register(m)?;
+    super::intrinsic_influence_api::register(m)?;
+    super::intervention_callback_api::register(m)?;
+    super::intervention_program_api::register(m)?;
     state_api::register(m)?;
     prepared_api::register(m)?;
     bayesian::register(m)?;

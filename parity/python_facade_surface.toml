@@ -1860,6 +1860,12 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
+rust = "antecedent::gcm::attribute_intrinsic_influence"
+kind = "fn"
+status = "bound"
+python = "antecedent.intrinsic_influence.intrinsic_influence"
+
+[[entry]]
 rust = "antecedent::gcm::attribute_path_specific"
 kind = "fn"
 status = "bound"
@@ -1894,6 +1900,12 @@ rust = "antecedent::gcm::counterfactual_ite"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.counterfactual_ite"
+
+[[entry]]
+rust = "antecedent::gcm::counterfactual_policy"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_programs.counterfactual_policy"
 
 [[entry]]
 rust = "antecedent::gcm::evaluate_graph"
@@ -1942,6 +1954,12 @@ rust = "antecedent::gcm::sample_do"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.sample_do"
+
+[[entry]]
+rust = "antecedent::gcm::sample_temporal_policy"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_programs.sample_temporal_policy"
 
 [[entry]]
 rust = "antecedent::gcm::sample_interventional_distribution"

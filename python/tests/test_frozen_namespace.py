@@ -436,6 +436,10 @@ _EXPECTED_STAGE_ALL = {
         "GraphFalsification",
         "MarkovImplicationTest",
         "evaluate_graph",
+        "ComponentUncertainty",
+        "IntrinsicInfluence",
+        "SourceInfluence",
+        "intrinsic_influence",
     },
     "graph": {
         "Admg",

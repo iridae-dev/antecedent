@@ -149,7 +149,9 @@ impl GraphFalsificationConfig {
 
 /// A typed refusal: the registered reason code, the namespaced detail, and the message.
 fn refuse(code: &'static str, detail: &'static str, message: &'static str) -> ModelError {
-    ModelError::Unsupported { message: format!("reason={code}: {detail}: {message}") }
+    ModelError::Unsupported {
+        message: format!("{}{code}: {detail}: {message}", antecedent_core::reason_code::PREFIX),
+    }
 }
 
 /// How a graph permutation falsification ended.

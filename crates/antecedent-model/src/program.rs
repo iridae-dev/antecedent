@@ -7,6 +7,10 @@
 //! counterfactual world evaluation all call it, so a policy means the same thing on
 //! every route.
 //!
+//! A temporal route supplies history by laying its value batch out with one extra block of
+//! columns per step back ([`history_slot`]) and compiling with [`NodeProgram::compile_windowed`];
+//! a lagged read is then a load like any other, so the executor is unchanged.
+//!
 //! Two semantics, kept distinct:
 //!
 //! * **Transform** runs after the node's mechanism produced its value (parents, noise,
@@ -28,8 +32,8 @@ use std::collections::BinaryHeap;
 use std::sync::Arc;
 
 use antecedent_core::{
-    ArithOp, CompareOp, ExecutionContext, ExpressionFault, Intervention, LogicOp, PolicyReads,
-    ValueExpr, VariableId, clip_value, reason_code,
+    ArithOp, CallbackCall, CallbackError, CompareOp, ExecutionContext, ExpressionFault,
+    Intervention, LogicOp, PolicyReads, ValueExpr, VariableId, clip_value, reason_code,
 };
 use antecedent_graph::DenseNodeId;
 
@@ -141,6 +145,26 @@ fn refusal_history_not_past(subject: String) -> PolicyRefusal {
     }
 }
 
+fn refusal_history_beyond_window(subject: String) -> PolicyRefusal {
+    PolicyRefusal {
+        code: reason_code!("policy_history_unavailable"),
+        detail: "intervention_program.history_beyond_window",
+        subject,
+        remedy: "read no further back than the route's declared history window, or widen the \
+                 window",
+    }
+}
+
+pub(crate) fn refusal_history_not_yet_observed(subject: String) -> PolicyRefusal {
+    PolicyRefusal {
+        code: reason_code!("policy_history_unavailable"),
+        detail: "intervention_program.history_not_yet_observed",
+        subject,
+        remedy: "start the policy once enough steps exist for its deepest look-back, or supply \
+                 initial history",
+    }
+}
+
 pub(crate) fn refusal_directive_conflict(subject: String) -> PolicyRefusal {
     PolicyRefusal {
         code: reason_code!("policy_directive_conflict"),
@@ -197,6 +221,38 @@ fn refusal_route(subject: String) -> PolicyRefusal {
     }
 }
 
+fn refusal_callback_declaration(subject: String) -> PolicyRefusal {
+    PolicyRefusal {
+        code: reason_code!("invalid_argument"),
+        detail: "intervention_program.callback_declaration",
+        subject,
+        remedy: "declare a named callback with distinct input labels, one argument per input, \
+                 and a well-formed output",
+    }
+}
+
+/// Refusal for a callback that raised or returned an output violating its declaration.
+fn refusal_callback(call: &CallbackCall, node: usize, error: &CallbackError) -> PolicyRefusal {
+    let subject = format!("callback {} on dense node {node}: {error}", call.spec().name);
+    if error.is_raised() {
+        PolicyRefusal {
+            code: reason_code!("policy_callback_failed"),
+            detail: "intervention_program.callback_failed",
+            subject,
+            remedy: "fix the callback; its failure is reported as raised and never replaced by \
+                     a default value",
+        }
+    } else {
+        PolicyRefusal {
+            code: reason_code!("policy_callback_output_invalid"),
+            detail: "intervention_program.callback_output",
+            subject,
+            remedy: "return one finite real value per row inside the declared output, or widen \
+                     the declaration",
+        }
+    }
+}
+
 /// Map an expression fault to the policy refusal it is.
 fn refusal_for_fault(fault: ExpressionFault, subject: String) -> PolicyRefusal {
     match fault {
@@ -207,6 +263,9 @@ fn refusal_for_fault(fault: ExpressionFault, subject: String) -> PolicyRefusal {
         ExpressionFault::ZeroLag => refusal_history_not_past(subject),
         ExpressionFault::GeneratedInAssignment => refusal_generated_unavailable(subject),
         ExpressionFault::DeclaredReadsMismatch => refusal_undeclared_read(subject),
+        ExpressionFault::CallbackArity { .. } | ExpressionFault::CallbackDeclaration => {
+            refusal_callback_declaration(subject)
+        }
         // Remaining faults (non-finite constant, size bound) describe a malformed tree.
         _ => refusal_expression_invalid("intervention_program.expression_invalid", subject),
     }
@@ -224,6 +283,8 @@ enum Op {
     Not,
     Logic(LogicOp),
     Select,
+    /// The `k`-th callback of the program, applied to the argument columns on the stack.
+    Callback(usize),
 }
 
 /// A validated, flattened program for one node.
@@ -233,6 +294,14 @@ pub struct NodeProgram {
     expr: ValueExpr,
     ops: Arc<[Op]>,
     reads: Arc<[DenseNodeId]>,
+    /// Columns of the value batch holding lagged copies (see [`history_slot`]); empty
+    /// unless the program reads history.
+    lag_slots: Arc<[usize]>,
+    /// Deepest look-back, in steps (zero when the program reads no history).
+    max_lag: u32,
+    /// Callback calls in emission order; `Op::Callback(k)` runs `callbacks[k]`.
+    callbacks: Arc<[CallbackCall]>,
+    /// Work columns the executor needs, including one for a callback's output.
     max_stack: usize,
 }
 
@@ -257,6 +326,27 @@ impl NodeProgram {
         expr: &ValueExpr,
         declared: &PolicyReads,
     ) -> Result<Self, PolicyRefusal> {
+        Self::compile_windowed(model, target, kind, expr, declared, 0)
+    }
+
+    /// [`Self::compile`] for a route that keeps `window` steps of history, so the program
+    /// may read a variable up to `window` steps back. A window of zero is the static case.
+    ///
+    /// The lagged reads are loads from the history columns of a batch laid out by
+    /// [`history_slot`]; the route fills those columns before each step and the one
+    /// executor ([`apply_node_program`]) reads them like any other column.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::compile`]; a read deeper than `window` is a history refusal.
+    pub fn compile_windowed(
+        model: &CompiledCausalModel,
+        target: VariableId,
+        kind: ProgramKind,
+        expr: &ValueExpr,
+        declared: &PolicyReads,
+        window: u32,
+    ) -> Result<Self, PolicyRefusal> {
         let verb = match kind {
             ProgramKind::Transform => "transform",
             ProgramKind::Assign => "assign",
@@ -264,11 +354,24 @@ impl NodeProgram {
         let label = |what: &str| format!("{verb} of {target}: {what}");
         expr.validate_program(kind == ProgramKind::Transform, declared)
             .map_err(|fault| refusal_for_fault(fault, label(&fault.to_string())))?;
-        if let Some((variable, lag)) = declared.history.first() {
-            return Err(refusal_history_unavailable(label(&format!(
-                "reads {variable} at lag {lag}, but a static model has no history window"
-            ))));
+        let mut lag_slots = Vec::with_capacity(declared.history.len());
+        for (variable, lag) in declared.history.iter() {
+            if window == 0 {
+                return Err(refusal_history_unavailable(label(&format!(
+                    "reads {variable} at lag {lag}, but a static model has no history window"
+                ))));
+            }
+            if *lag > window {
+                return Err(refusal_history_beyond_window(label(&format!(
+                    "reads {variable} at lag {lag}, beyond the history window of {window} steps"
+                ))));
+            }
+            let dense = model.dense_of(*variable).ok_or_else(|| {
+                refusal_unknown_variable(label(&format!("reads {variable}, absent from the model")))
+            })?;
+            lag_slots.push(history_slot(model.n_nodes(), dense.as_usize(), *lag));
         }
+        let max_lag = declared.history.iter().map(|(_, lag)| *lag).max().unwrap_or(0);
         let mut reads = Vec::with_capacity(declared.current.len());
         for variable in declared.current.iter() {
             let dense = model.dense_of(*variable).ok_or_else(|| {
@@ -279,11 +382,15 @@ impl NodeProgram {
         if let Some(slot_support) = categorical_support(model, target) {
             let admitted = match expr.as_constant() {
                 Some(level) => slot_support.contains(&level),
-                None => {
-                    expr.is_binary_valued()
-                        && slot_support.contains(&0.0)
-                        && slot_support.contains(&1.0)
-                }
+                None => match expr.callback_levels() {
+                    // Every returned value is checked against these levels at execution.
+                    Some(levels) => levels.iter().all(|level| slot_support.contains(level)),
+                    None => {
+                        expr.is_binary_valued()
+                            && slot_support.contains(&0.0)
+                            && slot_support.contains(&1.0)
+                    }
+                },
             };
             if !admitted {
                 return Err(refusal_categorical_output(label(
@@ -295,7 +402,22 @@ impl NodeProgram {
         let mut depth = 0usize;
         let mut max_stack = 0usize;
         emit(model, expr, &mut ops, &mut depth, &mut max_stack);
-        Ok(Self { kind, expr: expr.clone(), ops: ops.into(), reads: reads.into(), max_stack })
+        // Collected in the order `emit` places the `Op::Callback` indices.
+        let callbacks: Vec<CallbackCall> = expr.callbacks().into_iter().cloned().collect();
+        if !callbacks.is_empty() {
+            // One more column than the value stack ever holds: a callback's output.
+            max_stack += 1;
+        }
+        Ok(Self {
+            kind,
+            expr: expr.clone(),
+            ops: ops.into(),
+            reads: reads.into(),
+            lag_slots: lag_slots.into(),
+            max_lag,
+            callbacks: callbacks.into(),
+            max_stack,
+        })
     }
 
     /// Whether this program transforms the generated value or assigns.
@@ -315,6 +437,21 @@ impl NodeProgram {
     pub fn reads(&self) -> &[DenseNodeId] {
         &self.reads
     }
+
+    /// Deepest look-back in steps; zero when the program reads no history.
+    #[must_use]
+    pub fn max_lag(&self) -> u32 {
+        self.max_lag
+    }
+}
+
+/// Column of a history-carrying value batch that holds `dense` node's value `lag` steps back.
+///
+/// The batch has `n_nodes * (window + 1)` columns: the current step's columns first, then
+/// one block of `n_nodes` columns per step back. Static batches have only the first block.
+#[must_use]
+pub fn history_slot(n_nodes: usize, dense: usize, lag: u32) -> usize {
+    n_nodes.saturating_mul(lag as usize).saturating_add(dense)
 }
 
 fn categorical_support(model: &CompiledCausalModel, target: VariableId) -> Option<Arc<[f64]>> {
@@ -347,6 +484,11 @@ fn emit(
             // Reads were resolved before emission; an unresolved one cannot reach here.
             let dense = model.dense_of(*v).map_or(0, DenseNodeId::as_usize);
             push(ops, Op::Read(dense), depth, max_stack);
+        }
+        ValueExpr::Lag { variable, lag } => {
+            // The window check ran before emission, so the variable resolves.
+            let dense = model.dense_of(*variable).map_or(0, DenseNodeId::as_usize);
+            push(ops, Op::Read(history_slot(model.n_nodes(), dense, *lag)), depth, max_stack);
         }
         ValueExpr::Neg(a) => {
             emit(model, a, ops, depth, max_stack);
@@ -390,8 +532,22 @@ fn emit(
         }
         // A boolean is already 0/1 in a column; the conversion is a type-level act only.
         ValueExpr::Indicator(a) => emit(model, a, ops, depth, max_stack),
-        // A history read is refused before emission, and `ValueExpr` is non-exhaustive across
-        // crates, so an unknown node cannot validate; neither produces a usable slot.
+        ValueExpr::Callback(call) => {
+            for arg in call.args() {
+                emit(model, arg, ops, depth, max_stack);
+            }
+            let k = ops.iter().filter(|op| matches!(op, Op::Callback(_))).count();
+            ops.push(Op::Callback(k));
+            match call.args().len() {
+                0 => {
+                    *depth += 1;
+                    *max_stack = (*max_stack).max(*depth);
+                }
+                arity => *depth -= arity - 1,
+            }
+        }
+        // `ValueExpr` is non-exhaustive across crates, so an unknown node cannot validate and
+        // never produces a usable slot.
         _ => push(ops, Op::Const(f64::NAN), depth, max_stack),
     }
 }
@@ -463,9 +619,33 @@ fn step_columns(op: Op, scratch: &mut [f64], mut sp: usize, n: usize) -> usize {
             sp -= 2;
         }
         // Loads are handled by the caller, which owns the value batch.
-        Op::Const(_) | Op::Generated | Op::Read(_) => {}
+        Op::Const(_) | Op::Generated | Op::Read(_) | Op::Callback(_) => {}
     }
     sp
+}
+
+/// Run one callback once over the whole batch: its argument columns are the top
+/// `arity` stack entries, its output is validated against its declaration, and it
+/// replaces them. Returns the new stack height.
+fn step_callback(
+    call: &CallbackCall,
+    node: usize,
+    scratch: &mut [f64],
+    sp: usize,
+    n: usize,
+    work: usize,
+) -> Result<usize, ModelError> {
+    let arity = call.args().len();
+    let base = sp - arity;
+    let (stack, tail) = scratch.split_at_mut(work * n);
+    let out = &mut tail[..n];
+    let inputs: Vec<&[f64]> = (base..sp).map(|slot| &stack[slot * n..(slot + 1) * n]).collect();
+    call.callback()
+        .call(&inputs, out)
+        .and_then(|()| call.spec().output.validate(out))
+        .map_err(|error| refusal_callback(call, node, &error).into_error())?;
+    stack[base * n..(base + 1) * n].copy_from_slice(out);
+    Ok(base + 1)
 }
 
 /// Run `program` for `node` over every row of `values`, writing the node's column.
@@ -497,7 +677,10 @@ pub fn apply_node_program(
 ) -> Result<(), ModelError> {
     let n = values.n_rows;
     let n_nodes = values.n_nodes;
-    if node >= n_nodes || program.reads.iter().any(|d| d.as_usize() >= n_nodes) {
+    if node >= n_nodes
+        || program.reads.iter().any(|d| d.as_usize() >= n_nodes)
+        || program.lag_slots.iter().any(|slot| *slot >= n_nodes)
+    {
         return Err(ModelError::Shape {
             message: "intervention program refers to a node outside the value batch".into(),
         });
@@ -535,6 +718,16 @@ pub fn apply_node_program(
                 scratch[sp * n..(sp + 1) * n]
                     .copy_from_slice(&values.values[dense * n..(dense + 1) * n]);
                 sp += 1;
+            }
+            Op::Callback(k) => {
+                sp = step_callback(
+                    &program.callbacks[k],
+                    node,
+                    scratch,
+                    sp,
+                    n,
+                    program.max_stack - 1,
+                )?;
             }
             op => sp = step_columns(op, scratch, sp, n),
         }
@@ -683,6 +876,12 @@ pub enum PolicyRoute {
 pub enum RouteDecision {
     /// The route may run the policy.
     Licensed,
+    /// The route may run the policy provided a stated assumption holds; the assumption
+    /// is part of the licence and is reported with every result.
+    LicensedUnder {
+        /// The assumption the licence rests on.
+        assumption: String,
+    },
     /// The route refuses the policy.
     Refused {
         /// Registered reason code.
@@ -698,7 +897,16 @@ impl RouteDecision {
     /// Whether the route is licensed.
     #[must_use]
     pub fn is_licensed(&self) -> bool {
-        matches!(self, Self::Licensed)
+        matches!(self, Self::Licensed | Self::LicensedUnder { .. })
+    }
+
+    /// The assumption a conditional licence rests on.
+    #[must_use]
+    pub fn assumption(&self) -> Option<&str> {
+        match self {
+            Self::LicensedUnder { assumption } => Some(assumption),
+            _ => None,
+        }
     }
 
     fn from_error(error: &ModelError) -> Self {
@@ -749,6 +957,12 @@ impl PolicySupport {
 /// layer's hard levels: a `Set`, or an `Assign` that folds to a constant. A transform of
 /// the generated value depends on each unit's own noise, and an assignment from other
 /// variables is a function, not a level, so both stay simulation-only.
+///
+/// A batch callback is licensed for simulation. Counterfactual execution replays abduced
+/// noise through the callback, which is well defined only if its output depends on its
+/// declared inputs alone (no hidden state, clock or randomness), so that licence is
+/// conditional and says so. A callback is a function, not a level, so it is never
+/// identified observationally.
 #[must_use]
 pub fn policy_support(
     model: &CompiledCausalModel,
@@ -764,7 +978,39 @@ pub fn policy_support(
     } else {
         identification_decision(interventions)
     };
-    PolicySupport { simulation: execution.clone(), counterfactual: execution, identification }
+    let counterfactual = match (&execution, callback_names(interventions)) {
+        (RouteDecision::Licensed, names) if !names.is_empty() => RouteDecision::LicensedUnder {
+            assumption: format!(
+                "callback {} returns a function of its declared inputs alone: replaying abduced \
+                 noise through it is counterfactual only if it holds no hidden state, clock or \
+                 randomness (not verified)",
+                names.join(", ")
+            ),
+        },
+        _ => execution.clone(),
+    };
+    PolicySupport { simulation: execution, counterfactual, identification }
+}
+
+/// Names of the callbacks any intervention (or sequence step) applies.
+fn callback_names(interventions: &[Intervention]) -> Vec<String> {
+    let mut names = Vec::new();
+    for iv in interventions {
+        match iv {
+            Intervention::Transform { expr, .. } | Intervention::Assign { expr, .. } => {
+                names.extend(expr.callbacks().iter().map(|c| c.spec().name.clone()));
+            }
+            Intervention::Sequence(seq) => {
+                let steps: Vec<Intervention> =
+                    seq.steps.iter().map(|step| step.intervention.clone()).collect();
+                names.extend(callback_names(&steps));
+            }
+            _ => {}
+        }
+    }
+    names.sort();
+    names.dedup();
+    names
 }
 
 fn identification_decision(interventions: &[Intervention]) -> RouteDecision {

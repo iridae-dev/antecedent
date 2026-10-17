@@ -20,6 +20,7 @@ implementation_deviations = [
  "Reads of other variables are of their current-draw values after any intervention on them; the dependency order adds each program's reads to the graph's parent edges, and a read that closes a cycle is refused rather than iterated to a fixed point.",
  "Observational identification is licensed only when the program folds to a constant (a hard level); a transform or an assignment that reads other variables is simulation and counterfactual-execution only, since its interventional law is not a point mass at a level.",
  "Counterfactual execution replays the abduced noise through the transform; for categorical noise the rank-preservation disclosure of the counterfactual engine applies unchanged.",
+ "Temporal execution is a rollout of the one-slice model: lagged reads load realised values of earlier steps from a history window laid out beside the current columns, so the shared executor is unchanged; the slice model has no lagged parents of its own, so history enters a rollout only through value programs.",
  "Division, clipping with inverted bounds and any non-finite result are refused at execution; both branches of a conditional are evaluated and only the selected value is used.",
 ]
 
@@ -29,4 +30,7 @@ test_sources = [
  "crates/antecedent-model/tests/intervention_programs.rs (hand simulation on identical noise, scalar interpreter, Gaussian closed forms)",
  "crates/antecedent-counterfactual/src/engine.rs unit tests (forward sampling and counterfactual replay agree)",
  "crates/antecedent-io-core/src/query_wire.rs unit tests (wire round trip)",
+ "crates/antecedent-counterfactual/tests/policy_routes.rs (sampling, counterfactual execution and temporal rollout agree bit for bit on shared noise; hand recursions with lagged reads)",
+ "crates/antecedent-io-core/src/policy_program_artifact.rs and tests/policy_program_execution.rs (versioned encoding, identity, tamper and version refusals, replay)",
+ "python/tests/test_intervention_programs.py (Python programs run the same executor; identity pinned to the Rust digest)",
 ]

@@ -17,6 +17,7 @@
 use std::fmt;
 use std::sync::Arc;
 
+use crate::callback::{CallbackCall, CallbackOutput, Portability};
 use crate::ids::VariableId;
 
 /// Largest number of nodes an expression may hold.
@@ -241,6 +242,10 @@ pub enum ValueExpr {
     },
     /// Explicit boolean-to-number conversion (`true` is `1`, `false` is `0`).
     Indicator(Box<ValueExpr>),
+    /// A caller-supplied batch callback applied to numeric argument expressions. A
+    /// runtime binding: it executes in this process only and is not portable (see
+    /// [`ValueExpr::portability`]).
+    Callback(CallbackCall),
 }
 
 /// Why an expression is not a valid node program.
@@ -286,6 +291,17 @@ pub enum ExpressionFault {
     /// The declared read set differs from the variables the expression references.
     #[error("declared reads differ from the variables the expression references")]
     DeclaredReadsMismatch,
+    /// A callback is applied to a different number of arguments than it declares inputs.
+    #[error("a callback declares {declared} inputs but is applied to {supplied} arguments")]
+    CallbackArity {
+        /// Inputs the callback declares.
+        declared: usize,
+        /// Arguments supplied.
+        supplied: usize,
+    },
+    /// A callback's declaration is malformed (name, input labels, output or recovery data).
+    #[error("a callback declaration is malformed")]
+    CallbackDeclaration,
 }
 
 /// The variables a program reads, as declared by its author.
@@ -480,6 +496,15 @@ impl ValueExpr {
         Self::Indicator(Box::new(self))
     }
 
+    /// A batch callback applied to `args`, one numeric expression per declared input.
+    #[must_use]
+    pub fn callback(
+        callback: std::sync::Arc<dyn crate::callback::BatchCallback>,
+        args: impl Into<Arc<[Self]>>,
+    ) -> Self {
+        Self::Callback(CallbackCall::new(callback, args))
+    }
+
     /// Whether the expression reads the node's own generated value.
     #[must_use]
     pub fn reads_generated(&self) -> bool {
@@ -498,6 +523,7 @@ impl ValueExpr {
                     || then_branch.reads_generated()
                     || else_branch.reads_generated()
             }
+            Self::Callback(call) => call.args().iter().any(Self::reads_generated),
         }
     }
 
@@ -532,6 +558,14 @@ impl ValueExpr {
                 then_branch: go(then_branch)?,
                 else_branch: go(else_branch)?,
             },
+            Self::Callback(call) => {
+                let args = call
+                    .args()
+                    .iter()
+                    .map(|a| a.try_map_variables(&mut *map))
+                    .collect::<Result<Vec<_>, E>>()?;
+                Self::Callback(call.with_args(args))
+            }
         })
     }
 
@@ -565,6 +599,11 @@ impl ValueExpr {
                 condition.collect_reads(current, history);
                 then_branch.collect_reads(current, history);
                 else_branch.collect_reads(current, history);
+            }
+            Self::Callback(call) => {
+                for arg in call.args() {
+                    arg.collect_reads(current, history);
+                }
             }
         }
     }
@@ -651,6 +690,22 @@ impl ValueExpr {
                 want(a, ExprType::Boolean, count)?;
                 Ok(ExprType::Number)
             }
+            Self::Callback(call) => {
+                if !call.spec().is_well_formed() {
+                    return Err(ExpressionFault::CallbackDeclaration);
+                }
+                let declared = call.spec().inputs.len();
+                if declared != call.args().len() {
+                    return Err(ExpressionFault::CallbackArity {
+                        declared,
+                        supplied: call.args().len(),
+                    });
+                }
+                for arg in call.args() {
+                    want(arg, ExprType::Number, count)?;
+                }
+                Ok(ExprType::Number)
+            }
         }
     }
 
@@ -690,7 +745,83 @@ impl ValueExpr {
             Self::If { then_branch, else_branch, .. } => {
                 then_branch.is_binary_valued() && else_branch.is_binary_valued()
             }
+            Self::Callback(call) => matches!(
+                &call.spec().output,
+                CallbackOutput::Levels(levels) if levels.iter().all(|l| *l == 0.0 || *l == 1.0)
+            ),
             _ => false,
+        }
+    }
+
+    /// The declared levels when the expression is a bare callback with a level output;
+    /// execution validates every returned value against them.
+    #[must_use]
+    pub fn callback_levels(&self) -> Option<&[f64]> {
+        match self {
+            Self::Callback(call) => match &call.spec().output {
+                CallbackOutput::Levels(levels) => Some(levels),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Every callback call in the expression, in left-to-right leaf order (the order the
+    /// program compiler emits them in).
+    #[must_use]
+    pub fn callbacks(&self) -> Vec<&CallbackCall> {
+        let mut found = Vec::new();
+        self.collect_callbacks(&mut found);
+        found
+    }
+
+    fn collect_callbacks<'a>(&'a self, found: &mut Vec<&'a CallbackCall>) {
+        match self {
+            Self::Const(_) | Self::Generated | Self::Var(_) | Self::Lag { .. } => {}
+            Self::Neg(a) | Self::Not(a) | Self::Indicator(a) => a.collect_callbacks(found),
+            Self::Arith { lhs, rhs, .. }
+            | Self::Compare { lhs, rhs, .. }
+            | Self::Logic { lhs, rhs, .. } => {
+                lhs.collect_callbacks(found);
+                rhs.collect_callbacks(found);
+            }
+            Self::Clip { value, lower, upper } => {
+                value.collect_callbacks(found);
+                lower.collect_callbacks(found);
+                upper.collect_callbacks(found);
+            }
+            Self::If { condition, then_branch, else_branch } => {
+                condition.collect_callbacks(found);
+                then_branch.collect_callbacks(found);
+                else_branch.collect_callbacks(found);
+            }
+            Self::Callback(call) => {
+                for arg in call.args() {
+                    arg.collect_callbacks(found);
+                }
+                found.push(call);
+            }
+        }
+    }
+
+    /// Whether the expression can leave the process. Closed-form expressions are
+    /// portable; a callback is portable only as a verifiable recovery record.
+    #[must_use]
+    pub fn portability(&self) -> Portability {
+        let mut records = Vec::new();
+        let mut bound = Vec::new();
+        for call in self.callbacks() {
+            match call.spec().recovery_record() {
+                Some(record) => records.push(record),
+                None => bound.push(call.spec().name.clone()),
+            }
+        }
+        if !bound.is_empty() {
+            Portability::RuntimeBound { callbacks: bound }
+        } else if records.is_empty() {
+            Portability::Portable
+        } else {
+            Portability::Recoverable(records)
         }
     }
 
@@ -719,7 +850,9 @@ impl ValueExpr {
             Self::Const(c) => c.get(),
             Self::Generated => generated?,
             Self::Var(v) => current(*v)?,
-            Self::Lag { .. } => return None,
+            // A history read has no value in a scalar lookup, and a callback is a batch
+            // function with possible side effects that the reference interpreter never calls.
+            Self::Lag { .. } | Self::Callback(_) => return None,
             Self::Neg(a) => -go(a)?,
             Self::Arith { op, lhs, rhs } => op.apply(go(lhs)?, go(rhs)?),
             Self::Clip { value, lower, upper } => clip_value(go(value)?, go(lower)?, go(upper)?),

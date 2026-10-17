@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use crate::callback::Portability;
 use crate::ids::{DynamicRuleId, VariableId};
 use crate::value::Value;
 use crate::value_expr::{ExpressionFault, PolicyReads, ValueExpr};
@@ -545,6 +546,24 @@ impl Intervention {
                 } else {
                     None
                 }
+            }
+        }
+    }
+
+    /// Whether the intervention can leave the process: closed-form interventions are
+    /// portable, a callback program only as a verifiable recovery record, and a program
+    /// with a runtime-bound callback not at all. Encoders for artifacts, identities and
+    /// the wire call this and refuse on [`Portability::RuntimeBound`].
+    #[must_use]
+    pub fn portability(&self) -> Portability {
+        match self {
+            Self::Transform { expr, .. } | Self::Assign { expr, .. } => expr.portability(),
+            Self::Sequence(seq) => seq
+                .steps
+                .iter()
+                .fold(Portability::Portable, |acc, step| acc.and(step.intervention.portability())),
+            Self::Set { .. } | Self::Shift { .. } | Self::Stochastic { .. } | Self::Soft { .. } => {
+                Portability::Portable
             }
         }
     }

@@ -86,6 +86,7 @@ mod graphs;
 mod identification_details;
 mod interference_saturation_api;
 mod interrupt;
+mod intrinsic_influence_api;
 mod inverse_outcome_api;
 mod inverse_query_api;
 mod joint_law_propagation_api;
@@ -140,6 +141,8 @@ mod registry;
 mod sequential_evaluation_api;
 pub(crate) use registry::transport_defaults;
 mod interface_contract_api;
+mod intervention_callback_api;
+mod intervention_program_api;
 mod provider_callbacks_api;
 mod repair_api;
 mod response_api;
@@ -838,8 +841,20 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
         RustCausalError::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
         RustCausalError::Validate(e) => CausalValidateError::new_err(e.to_string()),
         RustCausalError::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
+        // A model or attribution refusal that names its reason code is the one refusal
+        // class too.
+        RustCausalError::Model(e @ antecedent_model::ModelError::Unsupported { .. })
+            if reason_code_in_message(&e.to_string()).is_some() =>
+        {
+            unsupported_py_err(e.to_string())
+        }
         RustCausalError::Model(e) => CausalModelError::new_err(e.to_string()),
         RustCausalError::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
+        RustCausalError::Attribution(e @ antecedent_attribution::AttributionError::Message(_))
+            if reason_code_in_message(&e.to_string()).is_some() =>
+        {
+            unsupported_py_err(e.to_string())
+        }
         RustCausalError::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
         RustCausalError::Serialization(e) => crate::serialization_err(e.to_string()),
         RustCausalError::Data(e) => CausalDataError::new_err(e.to_string()),

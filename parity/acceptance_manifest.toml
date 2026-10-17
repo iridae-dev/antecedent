@@ -3588,7 +3588,7 @@ configuration = { policy = "x[t] := x[t+1]", route = "temporal" }
 expected = { kind = "refusal", outputs = ["names the offending lag reference"], refusal = "policy temporal history unavailable" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 3699781, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/policy_routes.rs::history_the_route_cannot_supply_is_refused" }
 
 [[case]]
 id = "policy_unsupported_execution_route_refused"
@@ -3728,7 +3728,7 @@ configuration = { rows = 5000, policy = "x := max(1, 0.85 * x)", routes = ["samp
 expected = { kind = "value", outputs = ["applying the policy to identical noise gives identical interventional values on each route", "counterfactual units match the policy applied to inferred noise", "temporal step values equal the static map at each step"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each route runs the same compiled overlay; the cost is the sum of the sampling, counterfactual and temporal runs on a few thousand units." }
 dataset = { generator = "linear_gaussian_panel_known_dynamics", seed = 5251575, n = 5000, steps = 12, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/policy_routes.rs::policy_semantics_agree_across_sampling_counterfactual_and_temporal_routes" }
 
 [[case]]
 id = "policy_rust_and_python_share_execution_logic"
@@ -3738,7 +3738,7 @@ configuration = { rows = 5000, policy = "x := clip(x, -1, 1)", compare = "rust_v
 expected = { kind = "value", outputs = ["Rust and Python draws bit-identical under the same seed", "identical policy identity in both"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each route runs the same compiled overlay; the cost is the sum of the sampling, counterfactual and temporal runs on a few thousand units." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 7055769, n = 5000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/policy_python_parity.rs::a_price_floor_draws_the_same_bits_from_rust_as_from_python" }
 
 [[case]]
 id = "policy_identity_changes_target_and_contract_identity"
@@ -3748,7 +3748,7 @@ configuration = { rows = 2000, policies = ["x := max(10, 0.85 * x)", "x := max(1
 expected = { kind = "value", outputs = ["target identity differs when the expression differs", "contract identity differs when the expression differs", "identical expressions give identical identities"] }
 targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Identity is a hash of the canonical expression and does not depend on row count." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 8442721, n = 2000, price_location = 3.0, price_scale = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io-core/src/identity.rs::a_policy_expression_moves_target_question_and_program_identities" }
 
 [[case]]
 id = "portable_policy_artifact_round_trips"
@@ -3758,7 +3758,7 @@ configuration = { rows = 10000, policy = "price := max(10, 0.85 * price)", encod
 expected = { kind = "value", outputs = ["loaded policy expression equals the saved expression", "draws after load are bit-identical to draws before save", "artifact carries an encoding version"] }
 targets = { runtime_seconds = 120, memory_bytes = 1073741824, rationale = "Encoding is canonical text of the expression plus the fitted model; load adds one parse and one validation." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 4045294, n = 10000, price_location = 3.0, price_scale = 0.4, demand_slope = -0.8, revenue_noise = 0.5, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io-core/tests/policy_program_execution.rs::a_saved_policy_replays_with_the_same_identity_and_the_same_draws" }
 
 [[case]]
 id = "portable_policy_artifact_replay_is_reproducible"
@@ -3778,7 +3778,7 @@ configuration = { artifact_encoding_version = "future" }
 expected = { kind = "refusal", outputs = ["names the encoding version and the supported versions"], refusal = "artifact encoding version" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Version check precedes any decode." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 3378747, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io-core/src/policy_program_artifact.rs::a_future_encoding_version_is_refused_before_its_body_is_read" }
 
 [[case]]
 id = "portable_policy_artifact_tampered_expression_refused"
@@ -3788,7 +3788,7 @@ configuration = { tamper = "expression_text_edited" }
 expected = { kind = "refusal", outputs = ["identity mismatch reported before replay"], refusal = "artifact identity mismatch" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Identity verification is a hash over the stored expression." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 9061050, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io-core/src/policy_program_artifact.rs::an_edited_expression_is_an_identity_mismatch" }
 
 [[case]]
 id = "mechanism_selection_recovers_quadratic_family"
@@ -4038,7 +4038,7 @@ configuration = { rows = 200000, model = "y = 2 a + 3 b + c", noise_sd = [1, 0.5
 expected = { kind = "value", outputs = ["each contribution within Monte Carlo error of coefficient^2 * noise variance", "total contribution equals the analytic target variance"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Exact Shapley over a handful of noise players needs 2^k coalitions each with one conditional-expectation estimate." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 5630873, n = 200000, truth = "y = 2 a + 3 b + c with independent Gaussian noise; contribution_j = (sum of path weights from u_j)^2 * Var(u_j)", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::a_linear_chain_recovers_squared_path_coefficients_times_noise_variance" }
 
 [[case]]
 id = "intrinsic_influence_shapley_efficiency_identity_holds"
@@ -4048,7 +4048,7 @@ configuration = { rows = 200000, players = 4 }
 expected = { kind = "value", outputs = ["contributions sum to Var(Y) minus the allocation residual", "residual within the stated inner-simulation error"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Exact Shapley over a handful of noise players needs 2^k coalitions each with one conditional-expectation estimate." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 6921234, n = 200000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::shapley_efficiency_holds_within_estimation_error" }
 
 [[case]]
 id = "intrinsic_influence_players_are_upstream_noise_and_own_noise"
@@ -4058,7 +4058,7 @@ configuration = { rows = 100000, target = "c" }
 expected = { kind = "value", outputs = ["players are exactly the upstream noise terms and the target's own noise", "downstream noise terms absent"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Exact Shapley over a handful of noise players needs 2^k coalitions each with one conditional-expectation estimate." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 7323753, n = 100000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::only_ancestors_of_the_target_and_the_target_are_sources" }
 
 [[case]]
 id = "intrinsic_influence_nonlinear_model_matches_numerical_integration"
@@ -4068,7 +4068,7 @@ configuration = { rows = 200000, model = "y = a^2 + b" }
 expected = { kind = "value", outputs = ["contributions match independent quadrature of Var(E[Y | U_S])", "efficiency identity holds"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Nonlinear conditional expectations need an inner simulation per coalition." }
 dataset = { generator = "nonlinear_dag_known_structure", seed = 2582670, n = 200000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::a_nonlinear_mechanism_matches_the_moment_closed_form" }
 
 [[case]]
 id = "intrinsic_influence_refuses_correlated_noise"
@@ -4078,7 +4078,7 @@ configuration = { rows = 10000, noise_correlation = 0.5 }
 expected = { kind = "refusal", outputs = ["names the correlated noise pair"], refusal = "intrinsic influence correlated noise" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "The check is a static model property." }
 dataset = { generator = "correlated_noise_model", seed = 4401104, n = 10000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::a_latent_common_cause_between_two_parents_is_refused_naming_the_pair" }
 
 [[case]]
 id = "intrinsic_influence_refuses_latent_confounding"
@@ -4088,7 +4088,7 @@ configuration = { rows = 10000, latent_confounder = true }
 expected = { kind = "refusal", outputs = ["names the confounded pair"], refusal = "intrinsic influence latent confounding" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "The check is a static graph property." }
 dataset = { generator = "latent_confounded_model", seed = 8747869, n = 10000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::a_bidirected_edge_is_refused" }
 
 [[case]]
 id = "intrinsic_influence_reuses_coalition_cache"
@@ -4098,7 +4098,7 @@ configuration = { rows = 100000, players = 6, permutations = 200 }
 expected = { kind = "value", outputs = ["distinct coalitions evaluated at most once", "cache hit count reported"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Exact Shapley over a handful of noise players needs 2^k coalitions each with one conditional-expectation estimate." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3479947, n = 100000, truth = "five-parent linear target", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::each_coalition_is_simulated_once_and_the_cache_is_reused" }
 
 [[case]]
 id = "attribution_uncertainty_reports_contributions_total_variance_and_residual"
@@ -4108,7 +4108,7 @@ configuration = { rows = 100000, players = 4 }
 expected = { kind = "value", outputs = ["per-source contributions", "total target variance", "allocation residual", "method and compute budget"] }
 targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 1446889, n = 100000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::the_result_records_the_method_and_budget" }
 
 [[case]]
 id = "attribution_uncertainty_separates_permutation_and_inner_simulation_error"
@@ -4118,7 +4118,7 @@ configuration = { rows = 100000, players = 6, permutations = 100 }
 expected = { kind = "value", outputs = ["permutation error and inner simulation error reported separately", "each shrinks with its own budget while the other is held fixed"] }
 targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 9271049, n = 100000, truth = "five-parent linear target", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::permutation_and_simulation_errors_shrink_with_their_own_budgets" }
 
 [[case]]
 id = "attribution_uncertainty_marks_mechanism_fitting_uncertainty_unquantified"
@@ -4128,7 +4128,7 @@ configuration = { rows = 5000, fitted_mechanisms = true }
 expected = { kind = "value", outputs = ["mechanism fitting uncertainty marked not quantified", "no total-uncertainty claim made"] }
 targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3691105, n = 5000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::every_interval_names_its_component_and_unmeasured_ones_say_so" }
 
 [[case]]
 id = "attribution_uncertainty_permutation_only_interval_not_labelled_total"
@@ -4138,7 +4138,7 @@ configuration = { rows = 100000, interval = "permutation_only" }
 expected = { kind = "value", outputs = ["interval labelled as permutation error only", "total uncertainty field left unquantified"] }
 targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2673392, n = 100000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-attribution/tests/intrinsic_influence.rs::every_interval_names_its_component_and_unmeasured_ones_say_so" }
 
 [[case]]
 id = "attribution_uncertainty_exact_enumeration_has_zero_permutation_error"

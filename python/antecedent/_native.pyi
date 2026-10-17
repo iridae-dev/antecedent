@@ -2060,6 +2060,7 @@ class FittedGcm:
         shifts: dict[str, float] | None = None,
         seed: int = 0,
         threads: int | None = None,
+        programs: list[tuple[str, str, BatchCallbackHandle, list[str | None]]] | None = None,
     ) -> GcmSampleResult: ...
     def counterfactual_ite(
         self,
@@ -2181,6 +2182,39 @@ def fit_gcm(
     splits: str = "shuffled",
     purge: int = 0,
 ) -> FittedGcm: ...
+class BatchCallbackHandle:
+    def __init__(
+        self,
+        function: Callable[..., Any],
+        name: str,
+        inputs: list[str],
+        output_kind: str,
+        output_params: list[float],
+        dependencies: list[tuple[str, str]],
+        source_sha256: str | None = None,
+        entry_point: str | None = None,
+    ) -> None: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def inputs(self) -> list[str]: ...
+    @property
+    def recoverable(self) -> bool: ...
+    def recovery_record(self) -> dict[str, Any] | None: ...
+
+def callback_export_refusal(
+    callbacks: list[BatchCallbackHandle],
+) -> tuple[str, str] | None: ...
+def verify_callback_recovery(
+    name: str,
+    inputs: list[str],
+    output_kind: str,
+    output_params: list[float],
+    source_sha256: str,
+    entry_point: str,
+    dependencies: list[tuple[str, str]],
+    supplied: BatchCallbackHandle,
+) -> None: ...
 def evaluate_graph(
     names: list[str],
     columns: Sequence[Any],
@@ -2199,6 +2233,54 @@ def evaluate_graph(
     threads: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
+def attribute_intrinsic_influence(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, str]],
+    target: str,
+    *,
+    independent_noise: bool = False,
+    bidirected_edges: list[tuple[str, str]] | None = None,
+    allocation: str = "auto",
+    n_permutations: int = 200,
+    outer_draws: int = 200,
+    inner_draws: int = 40,
+    replicates: int = 4,
+    fit_bootstrap: int = 0,
+    level: float = 0.95,
+    max_sources: int = 64,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def sample_policy(
+    fitted: FittedGcm,
+    policies: str,
+    n: int,
+    seed: int,
+    threads: int | None = None,
+) -> GcmSampleResult: ...
+def counterfactual_policy(
+    fitted: FittedGcm,
+    policies: str,
+    outcomes: list[str],
+    seed: int,
+    threads: int | None = None,
+) -> dict[str, NDArray[np.float64]]: ...
+def sample_temporal_policy(
+    fitted: FittedGcm,
+    policies: str,
+    n_rows: int,
+    n_steps: int,
+    window: int,
+    seed: int,
+    start: int = 0,
+    history: list[dict[str, list[float]]] | None = None,
+    threads: int | None = None,
+) -> list[GcmSampleResult]: ...
+def encode_policy_program(names: list[str], policies: str) -> bytes: ...
+def decode_policy_program(names: list[str], data: bytes) -> str: ...
+def policy_program_identity(names: list[str], policies: str) -> str: ...
 def load_float64_columns(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],

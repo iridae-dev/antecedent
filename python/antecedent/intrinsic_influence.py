@@ -1,0 +1,153 @@
+"""Intrinsic causal influence: how much of a target's variance each noise term explains.
+
+See :func:`intrinsic_influence`. Every interval on the result names the uncertainty component
+it covers (Shapley permutation sampling, nested simulation, or mechanism fitting); no combined
+interval is offered, and a component that was not measured says so rather than reading zero.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any, Literal
+
+from ._data import as_columns
+from ._native import attribute_intrinsic_influence as _attribute_intrinsic_influence
+
+Component = Literal["permutation_sampling", "simulation", "mechanism_fit"]
+
+
+@dataclass(frozen=True)
+class ComponentUncertainty:
+    """One uncertainty component of one contribution.
+
+    ``status`` is ``"quantified"`` (``stderr`` and a Student-t interval ``ci_low`` to
+    ``ci_high`` at ``level`` with ``df`` degrees of freedom, for this component only),
+    ``"not_applicable"`` (the component does not arise, for example no permutation is sampled
+    when every coalition is enumerated) or ``"unquantified"`` (it arises but was not measured;
+    this is not zero uncertainty). ``reason`` explains the last two.
+    """
+
+    component: Component
+    status: Literal["quantified", "not_applicable", "unquantified"]
+    stderr: float | None = None
+    ci_low: float | None = None
+    ci_high: float | None = None
+    level: float | None = None
+    df: float | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class SourceInfluence:
+    """Variance share of one noise term with its per-component uncertainty."""
+
+    source: str
+    contribution: float
+    uncertainty: tuple[ComponentUncertainty, ...]
+
+    def component(self, name: Component) -> ComponentUncertainty:
+        """The uncertainty entry for ``name``."""
+        for entry in self.uncertainty:
+            if entry.component == name:
+                return entry
+        raise KeyError(name)
+
+
+@dataclass(frozen=True)
+class IntrinsicInfluence:
+    """Result of :func:`intrinsic_influence`.
+
+    ``allocation_residual`` is ``total_variance`` minus the sum of the contributions. The
+    variance game has ``v(empty) = 0`` and ``v(all) = Var(target)``, so the true residual is
+    zero and this is the efficiency gap left by estimation error; ``allocation_residual_stderr``
+    is its simulation standard error.
+    """
+
+    target: str
+    sources: tuple[SourceInfluence, ...]
+    total_variance: float
+    total_variance_stderr: float
+    allocation_residual: float
+    allocation_residual_stderr: float
+    level: float
+    method: dict[str, Any]
+    budget: dict[str, int]
+
+
+def intrinsic_influence(
+    data: Any,
+    edges: Sequence[tuple[str, str]],
+    target: str,
+    *,
+    independent_noise: bool = False,
+    bidirected_edges: Sequence[tuple[str, str]] | None = None,
+    allocation: Literal["auto", "exact", "permutation"] = "auto",
+    n_permutations: int = 200,
+    outer_draws: int = 200,
+    inner_draws: int = 40,
+    replicates: int = 4,
+    fit_bootstrap: int = 0,
+    level: float = 0.95,
+    max_sources: int = 64,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> IntrinsicInfluence:
+    """Attribute the variance of ``target`` to the noise terms of its ancestors and itself.
+
+    The mechanisms are fitted to ``data`` on the DAG ``edges``; the game
+    ``v(S) = Var(E[target | noise of S])`` is then estimated by nested Monte Carlo through batch
+    noise replay (Janzing et al. 2024, "Quantifying intrinsic causal contributions via structure
+    preserving interventions", AISTATS), and split among the sources by Shapley values.
+
+    The model's noise terms must be independent, and the caller says so: pass
+    ``independent_noise=True`` or the declared structure's ``bidirected_edges`` (any
+    bidirected edge, i.e. a latent common cause, is refused). Without either the call is
+    refused.
+
+    ``allocation="auto"`` enumerates every coalition up to ten sources and samples
+    ``n_permutations`` permutations above that. ``outer_draws``, ``inner_draws`` and
+    ``replicates`` size the nested simulation; ``fit_bootstrap`` (0 for none, otherwise at
+    least 10) refits the mechanisms on that many row-bootstrap resamples of ``data`` to
+    quantify mechanism-fitting uncertainty, which is otherwise reported ``unquantified``.
+    """
+    names, columns = as_columns(data)
+    raw = json.loads(
+        _attribute_intrinsic_influence(
+            names,
+            columns,
+            [(str(a), str(b)) for a, b in edges],
+            target,
+            independent_noise=independent_noise,
+            bidirected_edges=(
+                None
+                if bidirected_edges is None
+                else [(str(a), str(b)) for a, b in bidirected_edges]
+            ),
+            allocation=allocation,
+            n_permutations=n_permutations,
+            outer_draws=outer_draws,
+            inner_draws=inner_draws,
+            replicates=replicates,
+            fit_bootstrap=fit_bootstrap,
+            level=level,
+            max_sources=max_sources,
+            seed=seed,
+            threads=threads,
+            cancel=cancel,
+        )
+    )
+    sources = tuple(
+        SourceInfluence(
+            source=s["source"],
+            contribution=s["contribution"],
+            uncertainty=tuple(ComponentUncertainty(**u) for u in s["uncertainty"]),
+        )
+        for s in raw.pop("sources")
+    )
+    return IntrinsicInfluence(sources=sources, **raw)
+
+
+__all__ = ["ComponentUncertainty", "IntrinsicInfluence", "SourceInfluence", "intrinsic_influence"]

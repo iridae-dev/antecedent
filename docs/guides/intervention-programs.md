@@ -59,7 +59,8 @@ policies are applied in dependency order whatever the order they are declared in
 | `policy_history_unavailable` | `history_unavailable`, `history_not_past` | a lagged read on a static model, or a look-back of zero steps |
 
 Conditional sampling refuses to condition on a node carrying a program. Nested counterfactuals
-and the temporal response paths refuse programs rather than ignore them.
+and the closed-form temporal response paths refuse programs rather than ignore them; the
+temporal rollout below executes them.
 
 ## Licensing by route
 
@@ -79,3 +80,82 @@ and the temporal response paths refuse programs rather than ignore them.
 `InterventionWire` gains `transform` and `assign` arms carrying the expression tree
 (`ValueExprWire`) and the declared reads. Released interventions encode unchanged and the new
 arms appear only when a program is present, so existing identities are unaffected.
+
+## Batch callbacks
+
+A `ValueExpr::callback(callback, args)` node applies a caller-supplied `BatchCallback` to numeric
+argument expressions (variables, the node's own generated value, or any expression). The same
+executor runs it, once per batch with whole columns, so its inputs are ordinary reads for
+circularity, availability and history checks. Python reaches it through
+`antecedent.intervention_callbacks` (`InterventionCallback`, `CallbackProgram`, `sample_do`).
+
+Every output is validated before it reaches the draws: length, a one-dimensional real dtype,
+finiteness, and the declared support (a range or a set of levels; a level set must lie in a
+categorical node's support). An exception inside the callback is reported with its own message;
+nothing is replaced by a default or `nan`.
+
+| Code | Detail | When |
+| --- | --- | --- |
+| `policy_callback_failed` | `intervention_program.callback_failed` | the callback raised |
+| `policy_callback_output_invalid` | `intervention_program.callback_output` | wrong length or dtype, a non-finite value, a value outside the declared support |
+| `policy_callback_not_portable` | `policy_callback.runtime_binding` | an artifact, identity or wire encoder met a runtime-bound callback |
+| `policy_callback_unrecoverable` | `policy_callback.recovery_mismatch` | a recovery record does not match the implementation supplied for replay |
+
+A callback is licensed for simulation. Counterfactual execution is licensed under a stated
+assumption (`RouteDecision::LicensedUnder`): the callback returns a function of its declared
+inputs alone, with no hidden state, clock or randomness. That assumption is not verifiable from a
+function and is reported with the licence. A callback is a function, not a level, so it has no
+observational identification.
+
+### Portability
+
+A callback is a runtime binding. `Intervention::portability()` returns `Portable` for closed-form
+programs, `RuntimeBound` when any callback is an in-process function, and `Recoverable` when every
+callback was declared from self-contained source. Encoders refuse `RuntimeBound` with
+`Portability::export_refusal()`. A recoverable callback leaves the process only as a
+`RecoveryRecord`: name, input labels, output declaration, the SHA-256 of the exact source text, the
+entry point and the pinned dependency versions. It never carries code. The consumer supplies the
+source and `RecoveryRecord::verify` (Python: `recover_callback`) compares every field before
+replay; pinned versions must also be installed. Source declared this way may not import, reach
+dunder attributes or use `eval`/`exec`/`open`, and runs with a fixed set of builtins and only the
+declared modules, so its behaviour is a function of the text and the pins. That is an identity
+guarantee, not a security sandbox.
+
+## Across time
+
+`rollout_temporal` (`antecedent-model`) evaluates the one-slice model once per step under a
+scheduled `InterventionSequence`. A program may read `ValueExpr::lag(v, k)`: the realised value of
+`v` `k` steps back, up to the plan's `window`. The rollout lays its value batch out with one block
+of columns per step back and refills those blocks from the realised steps before every step; the
+program compiles with `NodeProgram::compile_windowed`, so a lagged read is a load like any other
+and the executor (`apply_node_program`) and the per-node precedence (`evaluate_node`) are exactly
+the ones static sampling and counterfactual world evaluation call.
+
+Noise is drawn from the caller's stream (`TemporalNoise::Draw`) or replayed from retained per-step
+columns (`TemporalNoise::Retained`; `CounterfactualEngine::predict_temporal` abduces nothing
+itself and takes one `ExogenousPosterior` per step). On shared noise a program therefore gives the
+same values on the sampling, counterfactual and temporal routes, bit for bit, and a lag-free
+program is the static counterfactual step by step.
+
+`initial_history` supplies the steps before time zero, most recent first. A look-back that
+reaches before the first available step is refused at the step where it happens, and a read deeper
+than the window at compile time; both are `policy_history_unavailable`
+(`history_not_yet_observed`, `history_beyond_window`). A window of zero is the static model.
+
+## Portable encoding
+
+`antecedent_io::policy_program_artifact` encodes a program (any mix of transforms, assignments and
+released interventions, with lagged reads) as its canonical wire form under an encoding version
+and the digest of that form (`encode_policy_program`, `decode_policy_program`,
+`policy_program_identity`). A decoder reads the version before the body and refuses a version it
+does not define (`UnsupportedVersion`), recomputes the digest (an edited expression is an identity
+mismatch), and re-validates every program, so edited declared reads are refused. The same wire
+form enters target, question and program identities through the query that carries the
+interventions; a query without a program encodes byte for byte as before. A program holding a
+runtime-bound callback has no encoding and is refused with `policy_callback_not_portable` before
+any byte is written.
+
+From Python, `antecedent.intervention_programs` builds programs (`transform`, `assign`, `var`,
+`lag`, `generated`, `maximum`, `clip`, `where`, ...) as the library's wire text and runs them with
+`sample_policy`, `counterfactual_policy` and `sample_temporal_policy`; it evaluates nothing itself.
+

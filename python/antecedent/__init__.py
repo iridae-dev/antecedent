@@ -390,6 +390,8 @@ _LAZY_MODULES: tuple[str, ...] = (
     "execution_attempt",
     "functional_source",
     "interface_contract",
+    "intervention_callbacks",
+    "intervention_programs",
     "inverse",
     "inverse_query",
     "inverse_sources",
@@ -464,6 +466,8 @@ if _TYPE_CHECKING:
     from . import execution_attempt as execution_attempt
     from . import functional_source as functional_source
     from . import interface_contract as interface_contract
+    from . import intervention_callbacks as intervention_callbacks
+    from . import intervention_programs as intervention_programs
     from . import inverse as inverse
     from . import inverse_query as inverse_query
     from . import inverse_sources as inverse_sources

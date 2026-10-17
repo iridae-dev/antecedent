@@ -176,7 +176,7 @@ impl InterventionOverlay {
     ) -> Result<Self, ModelError> {
         let mut overlay = Self::observational(model.n_nodes());
         for iv in interventions {
-            apply_intervention(model, &mut overlay, iv, true)?;
+            apply_intervention(model, &mut overlay, iv, true, 0)?;
         }
         // Checked once here rather than per-variant inside `apply_intervention`: the
         // conflict is order-independent, and any future shift-producing variant is
@@ -197,10 +197,25 @@ impl InterventionOverlay {
         seq: &InterventionSequence,
         t: i32,
     ) -> Result<Self, ModelError> {
+        Self::from_sequence_with_history(model, seq, t, 0)
+    }
+
+    /// [`Self::from_sequence_at`] for a temporal route that keeps `window` steps of history,
+    /// so a value program active at `t` may read a variable up to `window` steps back.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_sequence_at`]; a history read deeper than `window` is refused.
+    pub fn from_sequence_with_history(
+        model: &CompiledCausalModel,
+        seq: &InterventionSequence,
+        t: i32,
+        window: u32,
+    ) -> Result<Self, ModelError> {
         let mut overlay = Self::observational(model.n_nodes());
         for step in seq.steps.iter() {
             if temporal_active(&step.temporal, t)? {
-                apply_intervention(model, &mut overlay, &step.intervention, true)?;
+                apply_intervention(model, &mut overlay, &step.intervention, true, window)?;
             }
         }
         // Only steps active at `t` compose, so a set and a shift that never overlap in
@@ -251,6 +266,7 @@ fn apply_intervention(
     overlay: &mut InterventionOverlay,
     iv: &Intervention,
     allow_nested_sequence: bool,
+    window: u32,
 ) -> Result<(), ModelError> {
     match iv {
         Intervention::Set { variable, value } => {
@@ -317,10 +333,10 @@ fn apply_intervention(
             Ok(())
         }
         Intervention::Transform { variable, expr, reads } => {
-            apply_program(model, overlay, *variable, ProgramKind::Transform, expr, reads)
+            apply_program(model, overlay, *variable, ProgramKind::Transform, expr, reads, window)
         }
         Intervention::Assign { variable, expr, reads } => {
-            apply_program(model, overlay, *variable, ProgramKind::Assign, expr, reads)
+            apply_program(model, overlay, *variable, ProgramKind::Assign, expr, reads, window)
         }
         Intervention::Sequence(seq) => {
             if !allow_nested_sequence {
@@ -341,7 +357,7 @@ fn apply_intervention(
                             .into(),
                     });
                 }
-                apply_intervention(model, overlay, &step.intervention, false)?;
+                apply_intervention(model, overlay, &step.intervention, false, window)?;
             }
             Ok(())
         }
@@ -356,9 +372,10 @@ fn apply_program(
     kind: ProgramKind,
     expr: &ValueExpr,
     reads: &PolicyReads,
+    window: u32,
 ) -> Result<(), ModelError> {
     let dense = require_dense(model, variable)?;
-    let program = NodeProgram::compile(model, variable, kind, expr, reads)
+    let program = NodeProgram::compile_windowed(model, variable, kind, expr, reads, window)
         .map_err(PolicyRefusal::into_error)?;
     let idx = dense.as_usize();
     // A repeated identical program is idempotent; a different one on the same node has no

@@ -9,8 +9,9 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
     CompiledCausalModel, InterventionOverlay, MechanismSlot, MechanismWorkspace, NodeEvaluation,
-    NodeNoise, NoiseInferenceMode, ParentBatch, ValueBatchMut, evaluate_column, evaluate_node,
-    infer_noise_column_rng, sample_noise_column,
+    NodeNoise, NoiseInferenceMode, ParentBatch, TemporalNoise, TemporalPath, TemporalPlan,
+    ValueBatchMut, evaluate_column, evaluate_node, infer_noise_column_rng, rollout_temporal,
+    sample_noise_column,
 };
 
 use crate::error::CounterfactualError;
@@ -339,6 +340,50 @@ impl CounterfactualEngine {
     ) -> Result<CounterfactualResult, CounterfactualError> {
         let mode = PredictMode { allow_nested, outcomes_only: true };
         self.predict_impl(exo, worlds, outcomes, mode, ws, ctx)
+    }
+
+    /// Counterfactual rollout over time: replay abduced per-step noise through the model
+    /// under the plan's scheduled interventions, with the plan's history window.
+    ///
+    /// This is [`antecedent_model::rollout_temporal`] on retained noise: the per-node
+    /// precedence and the value-program executor are the ones [`Self::predict`] and
+    /// forward sampling use, so a policy (including a lagged read of earlier realised
+    /// steps) means the same thing here as on every other route. `exo_steps[t]` holds the
+    /// noise abduced from the factual units at step `t`; the plan's `n_steps` must equal
+    /// its length.
+    ///
+    /// # Errors
+    ///
+    /// Noise that does not match the model, rows or steps, a policy reading history that
+    /// does not exist yet, or overlay / evaluation failures.
+    pub fn predict_temporal(
+        &self,
+        exo_steps: &[ExogenousPosterior],
+        plan: &TemporalPlan<'_>,
+        ws: &mut MechanismWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<TemporalPath, CounterfactualError> {
+        let n_nodes = self.model.n_nodes();
+        if exo_steps.len() != plan.n_steps {
+            return Err(CounterfactualError::model_msg(
+                "one exogenous posterior per step is required",
+            ));
+        }
+        for exo in exo_steps {
+            if exo.n_units != plan.n_rows
+                || exo.n_nodes != n_nodes
+                || plan.n_rows.checked_mul(n_nodes) != Some(exo.noise.len())
+            {
+                return Err(CounterfactualError::model_msg(
+                    "exogenous posterior shape does not match model and rows",
+                ));
+            }
+        }
+        let retained: Vec<Arc<[f64]>> =
+            exo_steps.iter().map(|exo| Arc::clone(&exo.noise)).collect();
+        let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, PREDICT_STREAM);
+        let noise = TemporalNoise::Retained { steps: &retained, policy_rng: &mut rng };
+        Ok(rollout_temporal(&self.model, plan, noise, ws, ctx)?)
     }
 
     fn resolve_outcomes(

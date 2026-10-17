@@ -5,6 +5,8 @@
 
 #[path = "per_population_discovery_facade.rs"]
 mod per_population_discovery_facade;
+#[path = "policy_python_parity.rs"]
+mod policy_python_parity;
 #[path = "policy_value_route.rs"]
 mod policy_value_route;
 #[path = "population_license.rs"]

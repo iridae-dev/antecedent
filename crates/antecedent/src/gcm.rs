@@ -30,12 +30,15 @@ use crate::error::CausalError;
 
 pub use antecedent_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
-    DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
-    MechanismChangeMethod, PopulationDoContrast, RobustChangeOptions, RootCauseRank,
-    StructureChangeOptions, UnitChangeResult, arrow_strengths, detect_mechanism_changes,
+    ComponentStatus, ComponentUncertainty, DifferenceMeasure, DistributionChangeOptions,
+    FeatureRelevance, INTRINSIC_MAX_EXACT_PLAYERS, IntrinsicAllocation, IntrinsicBudget,
+    IntrinsicInfluenceQuery, IntrinsicInfluenceResult, IntrinsicMethod, MechanismChangeDetection,
+    MechanismChangeMethod, NoiseIndependence, PartialStderr, PopulationDoContrast,
+    RobustChangeOptions, RootCauseRank, ShapleyMethod, SourceInfluence, StructureChangeOptions,
+    UncertaintyComponent, UnitChangeResult, arrow_strengths, detect_mechanism_changes,
     distribution_change, distribution_change_robust, distribution_change_with_row_weights,
-    feature_relevance, path_decompose, population_do_contrast, root_cause_rank, score_anomalies,
-    score_anomalies_with, structure_change, unit_change,
+    feature_relevance, intrinsic_influence, path_decompose, population_do_contrast,
+    root_cause_rank, score_anomalies, score_anomalies_with, structure_change, unit_change,
 };
 pub use antecedent_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
@@ -50,8 +53,9 @@ pub use antecedent_model::{
     McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismSlot,
     MechanismTyping, MechanismWorkspace, ModelCollection, ModelError, ModelEvaluator,
     NodeFamilyConstraint, ProbabilisticCausalModel, SelectionOptions, SelectionPolicy,
-    SelectionProvenance, SelectionRule, StructuralCausalModel, ValidationSplits,
-    WeightingDoSampler, interventional_mean, sample_interventional, sample_observational,
+    SelectionProvenance, SelectionRule, StructuralCausalModel, TemporalNoise, TemporalPath,
+    TemporalPlan, ValidationSplits, WeightingDoSampler, interventional_mean, sample_interventional,
+    sample_observational,
 };
 
 /// Fitted GCM plus per-node assignment records.
@@ -693,6 +697,46 @@ pub fn sample_do(
     sample_interventional(model, interventions, n, rng, &mut ws, ctx).map_err(CausalError::from)
 }
 
+/// Abduction once, then the factual units replayed under `interventions`, which may carry
+/// value programs (`Intervention::transform` / `Intervention::assign`). The retained noise
+/// goes through the same per-node precedence and program executor as [`sample_do`], so a
+/// policy gives the same values on the factual rows of an invertible model on both routes.
+///
+/// # Errors
+///
+/// Abduction / prediction failures, or a refused policy.
+pub fn counterfactual_policy(
+    model: CompiledCausalModel,
+    data: &TabularData,
+    interventions: &[Intervention],
+    outcomes: &[VariableId],
+    ctx: &ExecutionContext,
+) -> Result<CounterfactualResult, CausalError> {
+    let engine = CounterfactualEngine::new(model);
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
+    let mut ws = MechanismWorkspace::default();
+    let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(interventions) };
+    Ok(engine.predict(&exo, &[world], outcomes, false, &mut ws, ctx)?)
+}
+
+/// Roll the model out over time under a scheduled intervention sequence, drawing fresh noise.
+/// A value program may read earlier realised steps through `plan.window` (see
+/// [`antecedent_model::rollout_temporal`]).
+///
+/// # Errors
+///
+/// Rollout failures: shape, a policy reading history that does not exist yet, or a refused
+/// program.
+pub fn sample_temporal_policy(
+    model: &CompiledCausalModel,
+    plan: &TemporalPlan<'_>,
+    rng: &mut CausalRng,
+    ctx: &ExecutionContext,
+) -> Result<TemporalPath, CausalError> {
+    let mut ws = MechanismWorkspace::default();
+    Ok(antecedent_model::rollout_temporal(model, plan, TemporalNoise::Draw(rng), &mut ws, ctx)?)
+}
+
 /// Abduction once, then unit-level ITE for binary hard interventions on `treatment`.
 ///
 /// # Errors
@@ -828,6 +872,28 @@ pub fn anomaly_attribution_query_with(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Vec<AnomalyScores>, CausalError> {
     score_anomalies_with(model, data, query, ctx).map_err(CausalError::from)
+}
+
+/// Intrinsic causal influence: the Shapley split of `query.target`'s variance among the
+/// exogenous noise terms of its ancestors and itself, with permutation-sampling, simulation and
+/// mechanism-fit uncertainty reported as separate components.
+///
+/// `noise` must declare the noise terms independent (or pass a structure without bidirected
+/// edges); `data`, when supplied with a requested bootstrap, is resampled to quantify
+/// mechanism-fitting uncertainty, which is otherwise marked unquantified.
+///
+/// # Errors
+///
+/// Coded refusals for undeclared or correlated noise, unsupported mechanisms, oversized plans
+/// and invalid settings; model or replay failures; cancellation.
+pub fn attribute_intrinsic_influence(
+    model: &CompiledCausalModel,
+    noise: NoiseIndependence<'_>,
+    data: Option<&TabularData>,
+    query: &IntrinsicInfluenceQuery,
+    ctx: &ExecutionContext,
+) -> Result<IntrinsicInfluenceResult, CausalError> {
+    intrinsic_influence(model, noise, data, query, ctx).map_err(CausalError::from)
 }
 
 /// Distribution-change attribution (pinned baseline-GCM parity).

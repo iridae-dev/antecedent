@@ -77,6 +77,7 @@ pub mod migrate;
 pub mod mmap_file;
 pub mod observation_query_artifact;
 pub mod plan_wire;
+pub mod policy_program_artifact;
 pub mod posterior;
 pub mod prior_bank;
 pub mod provenance_wire;

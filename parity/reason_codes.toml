@@ -7,7 +7,7 @@
 id = "no_interval_reported"
 applies_to = ["calibration"]
 meaning = "The cell reports no interval; nothing to calibrate."
-max_uses = 249
+max_uses = 250
 # Eligibility: a licensed cell may cite this code only for these queries,
 # which report a point quantity without a sampling interval.
 queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution", "AverageEffect", "InterventionResponse", "InterventionalDistribution", "PathSpecificEffect", "ResponseCurve", "TransportQuery", "TemporalConditionalPulse", "TemporalConditionalSustained", "AverageDerivative", "PointDerivative", "Elasticity", "SemiElasticity", "DirectionalDerivative", "ResponseJacobian"]
@@ -751,9 +751,29 @@ meaning = "A value program produces a type its node cannot hold: a boolean writt
 [[code]]
 id = "policy_history_unavailable"
 applies_to = ["runtime_refusal"]
-meaning = "A value program reads temporal history that the route cannot supply: a lagged read on a static model with no declared history window, or a look-back of zero steps (a future value does not exist when the policy applies). The refusal names the offending reference."
+meaning = "A value program reads temporal history that the route cannot supply: a lagged read on a static model with no declared history window, a look-back deeper than the route's declared window, a look-back that reaches before the first available step of a temporal rollout, or a look-back of zero steps (a future value does not exist when the policy applies). The refusal names the offending reference and, for a rollout, the step."
 
 [[code]]
 id = "policy_route_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "A policy is licensed for some execution routes but not the one requested. Simulation and counterfactual execution accept any valid program; observational identification accepts only programs that reduce to a hard level (a set, or an assignment that folds to a constant). The refusal names the route and the routes the policy is licensed for."
+
+[[code]]
+id = "policy_callback_failed"
+applies_to = ["runtime_refusal"]
+meaning = "A caller-supplied batch callback in a value program raised while it ran (a Python exception, for instance). The refusal carries the callback's own error message and the callback's name; a failure is never turned into a missing value or a default."
+
+[[code]]
+id = "policy_callback_output_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A batch callback returned an output that violates its declaration: the wrong number of values, a dtype that is not real-valued, a non-finite value, or a value outside the declared support or levels. The refusal names the callback, the first offending row and the declaration."
+
+[[code]]
+id = "policy_callback_not_portable"
+applies_to = ["runtime_refusal"]
+meaning = "A value program contains a callback that is a runtime binding (an in-process function with no verifiable recoverable implementation), so no artifact, identity or wire encoding can carry it. A callback is exportable only when declared with a content digest of its self-contained source and pinned dependency versions that the consumer re-verifies; the refusal names the callback."
+
+[[code]]
+id = "policy_callback_unrecoverable"
+applies_to = ["runtime_refusal"]
+meaning = "A recovery record for a callback does not verify against the implementation supplied for replay: the source digest, entry point, input labels, output declaration or a pinned dependency version differs, or a pinned dependency is not installed. The refusal names the first mismatching field."

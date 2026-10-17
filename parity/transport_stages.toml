@@ -12295,3 +12295,15 @@ guarantee = "graph_node_permutation_comparison_of_local_markov_violations_diagno
 evidence_test = "crates/antecedent-model/src/falsify.rs"
 evidence_assertion = "a_graph_claiming_false_independencies_is_rejected"
 notes = "Diagnostic only; no fitted mechanism and no error-rate claim. Distinct from the shuffled-outcome likelihood baseline of ModelEvaluator."
+
+[[routes]]
+route = "antecedent.gcm.attribute_intrinsic_influence"
+stage = "evaluate"
+status = "licensed"
+graph = "caller_declared_dag_with_independent_noise"
+evidence = "linear_gaussian_closed_form_variance_contributions"
+functional = "shapley_value_of_noise_terms_in_the_variance_game_var_of_conditional_expectation_given_noise_coordinates"
+guarantee = "variance_shapley_of_noise_terms_unbiased_nested_coalition_values_component_standard_errors_uncalibrated"
+evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
+evidence_assertion = "a_linear_chain_recovers_squared_path_coefficients_times_noise_variance"
+notes = "Point attribution with permutation, simulation and mechanism-fit components reported separately and never combined; correlated or latent-confounded noise is refused."

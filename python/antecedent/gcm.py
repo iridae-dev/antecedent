@@ -22,6 +22,12 @@ from .discovery import (
     run_static_discovery,
 )
 from .graph_falsification import GraphFalsification, MarkovImplicationTest, evaluate_graph
+from .intrinsic_influence import (
+    ComponentUncertainty,
+    IntrinsicInfluence,
+    SourceInfluence,
+    intrinsic_influence,
+)
 
 
 def _run_static_discovery(data, discovery, *, seed: int, threads: int | None):
@@ -137,11 +143,15 @@ def attribute_distribution_change_discovered(
 
 
 __all__ = [
+    "ComponentUncertainty",
     "GraphFalsification",
+    "IntrinsicInfluence",
     "MarkovImplicationTest",
+    "SourceInfluence",
     "anomaly_attribution_discovered",
     "attribute_distribution_change_discovered",
     "attribute_paths_discovered",
     "evaluate_graph",
     "fit_gcm_discovered",
+    "intrinsic_influence",
 ]

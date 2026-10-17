@@ -575,15 +575,30 @@ pub enum ValueExprWire {
     },
 }
 
+/// Refuse a program no durable encoding can carry: one that contains a callback bound to
+/// the running process.
+fn refuse_runtime_bound(portability: &antecedent_core::Portability) -> Result<(), IoError> {
+    match portability.export_refusal() {
+        Some(refusal) => Err(IoError::Refused { code: refusal.code, message: refusal.message }),
+        None => Ok(()),
+    }
+}
+
 impl ValueExprWire {
     /// Encode.
     ///
     /// # Errors
     ///
-    /// Unknown expression or operator variants.
+    /// A program that cannot leave the process (a runtime-bound callback:
+    /// `policy_callback_not_portable`), or unknown expression or operator variants.
     pub fn from_domain(expr: &ValueExpr) -> Result<Self, IoError> {
+        refuse_runtime_bound(&expr.portability())?;
+        Self::encode(expr)
+    }
+
+    fn encode(expr: &ValueExpr) -> Result<Self, IoError> {
         use antecedent_core::{ArithOp, CompareOp, LogicOp};
-        let boxed = |e: &ValueExpr| Self::from_domain(e).map(Box::new);
+        let boxed = |e: &ValueExpr| Self::encode(e).map(Box::new);
         Ok(match expr {
             ValueExpr::Const(c) => Self::Const { value: c.get() },
             ValueExpr::Generated => Self::Generated,
@@ -641,6 +656,16 @@ impl ValueExprWire {
                 then_branch: boxed(then_branch)?,
                 else_branch: boxed(else_branch)?,
             },
+            ValueExpr::Callback(call) => {
+                return Err(IoError::Refused {
+                    code: antecedent_core::reason_code!("policy_callback_not_portable"),
+                    message: format!(
+                        "policy_callback.wire_form_unavailable: callback {} is recoverable, but \
+                         the expression wire carries closed-form expressions only",
+                        call.spec().name
+                    ),
+                });
+            }
             other => {
                 return Err(IoError::Convert(format!("unsupported ValueExpr: {other:?}")));
             }
@@ -808,6 +833,7 @@ impl InterventionWire {
     ///
     /// Unknown intervention variants.
     pub fn from_domain(iv: &Intervention) -> Result<Self, IoError> {
+        refuse_runtime_bound(&iv.portability())?;
         Ok(match iv {
             Intervention::Set { variable, value } => {
                 Self::Set { variable: variable.raw(), value: ValueWire::from_value(value) }

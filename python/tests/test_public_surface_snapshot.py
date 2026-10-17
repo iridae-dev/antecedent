@@ -396,6 +396,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "descriptive",
         "dose_grid",
         "interface_contract",
+        "intervention_callbacks",
+        "intervention_programs",
         "inverse",
         "inverse_query",
         "latent_class",
@@ -434,6 +436,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "vector_treatment",
         "missing",
         "graph_falsification",
+        "intrinsic_influence",
     },
     "AnalysisResult": {
         "artifact",

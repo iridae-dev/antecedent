@@ -26,7 +26,7 @@ use antecedent_attribution::{
 use antecedent_core::{
     AllocationMethod, AttributionComponents, CausalRng, ChangeAttributionQuery, ComponentId,
     ExecutionContext, Intervention, MechanismChangeQuery, PathSpecificEffectQuery,
-    PopulationSelector, ShapleyConfig, UnitChangeQuery, Value, VariableId,
+    PopulationSelector, ShapleyConfig, UnitChangeQuery, Value, ValueExpr, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::Dag;
@@ -38,10 +38,14 @@ use numpy::{PyArray1, PyArrayMethods};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
+use crate::intervention_callback_api::{PyBatchCallbackHandle, program_intervention};
 use crate::{
     GcmIteResult, GcmSampleResult, dag_from_named_edges, detach_catch, py_err,
     py_execution_context, py_msg,
 };
+
+/// `(mode, variable, callback, inputs)` of one callback program; see `FittedGcm.sample_do`.
+type CallbackProgramArgs = (String, String, Py<PyBatchCallbackHandle>, Vec<Option<String>>);
 
 fn var_name(names: &[String], id: VariableId) -> String {
     names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("V{}", id.raw()))
@@ -480,7 +484,13 @@ impl PyFittedGcm {
     /// a mechanism's sensitivity rather than overriding it outright. A variable
     /// named in both maps is rejected: it cannot be simultaneously pinned and
     /// shifted.
-    #[pyo3(signature = (interventions, n, *, shifts=None, seed=0, threads=None))]
+    ///
+    /// `programs` (optional) are batch-callback programs, each
+    /// `(mode, variable, callback, inputs)` with `mode` `"assign"` or `"transform"` and
+    /// `inputs` variable names (`None` passes the node's own generated value, transforms
+    /// only). The callback runs once per batch inside the sampler; its inputs are
+    /// dependency-checked like any read, and its output is validated against its declaration.
+    #[pyo3(signature = (interventions, n, *, shifts=None, seed=0, threads=None, programs=None))]
     fn sample_do(
         &self,
         py: Python<'_>,
@@ -489,6 +499,7 @@ impl PyFittedGcm {
         shifts: Option<HashMap<String, f64>>,
         seed: u64,
         threads: Option<u32>,
+        programs: Option<Vec<CallbackProgramArgs>>,
     ) -> PyResult<GcmSampleResult> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
@@ -511,6 +522,17 @@ impl PyFittedGcm {
             for (name, delta) in shifts.into_iter().flatten() {
                 let id = data.schema().id_of(&name).map_err(py_err)?;
                 ints.push(Intervention::shift(id, Value::f64(delta)));
+            }
+            for (mode, variable, callback, inputs) in programs.iter().flatten() {
+                let id = data.schema().id_of(variable).map_err(py_err)?;
+                let args = inputs
+                    .iter()
+                    .map(|input| match input {
+                        Some(name) => data.schema().id_of(name).map(ValueExpr::var).map_err(py_err),
+                        None => Ok(ValueExpr::generated()),
+                    })
+                    .collect::<PyResult<Vec<_>>>()?;
+                ints.push(program_intervention(mode, id, callback.get(), args)?);
             }
             let ctx = Self::ctx(seed, threads);
             let mut rng = CausalRng::from_seed(seed);

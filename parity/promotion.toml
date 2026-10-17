@@ -18892,3 +18892,70 @@ activation_disposition = "new_diagnostic_route_no_inferential_guarantee"
 allocation_status = "frozen_harness_compiled_measurement_pending"
 measurement_design_status = "no_calibration_design_diagnostic_only"
 truth_grid_allocation = "None: the route makes no error-rate claim, so no calibration design is allocated."
+
+[[record]]
+id = "gcm.attribution.intrinsic_influence"
+capability = "gcm.attribution.intrinsic_influence"
+inference_inventory_disposition = "outputs_listed"
+status = "promoted"
+consumer_question = "How much of a target's variance is each upstream noise term (and the target's own) responsible for, and how well is that split determined by the simulation, the permutation sample and the fitted mechanisms separately?"
+theorem = "For a structural model with mutually independent exogenous noises U and target Y = f(U), the game v(S) = Var(E[Y | U_S]) satisfies v(empty) = 0 and v(all) = Var(Y), so its Shapley values split Var(Y) exactly (efficiency); for a linear model with independent noise v(S) is the sum over S of squared total path coefficient times noise variance, so each Shapley value is that term. With outer groups of inner draws, the sample variance of the group means has expectation Var(E[Y | U_S]) + E[Var(Y | U_S)]/inner and the mean within-group sample variance has expectation E[Var(Y | U_S)], so their corrected difference is unbiased for v(S). Not inherited: the corrected estimator can be negative, the Shapley values of estimated coalition values satisfy efficiency only up to estimation error, the standard errors are uncalibrated, and independence of the noise terms is a caller declaration rather than a checked property."
+reference = "Janzing, Bloebaum, Mastakouri, Faller, Minorics and Budhathoki (2024) Quantifying intrinsic causal contributions via structure preserving interventions, AISTATS; provenance/gcm.attribution.intrinsic_influence.toml"
+guarantee = "variance_shapley_of_noise_terms_unbiased_nested_coalition_values_component_standard_errors_uncalibrated"
+graph_class = "A caller-declared static DAG with fitted mechanisms and mutually independent exogenous noise terms; bidirected edges and latent common causes are refused."
+population_semantics = "The structural model's own law: noise is drawn from the fitted mechanisms, no rows of the data enter except through the optional mechanism-fit bootstrap."
+evidence_family = "Linear Gaussian chain and collider with closed-form contributions, a product mechanism with interaction whose Shapley values are Var(ab)/2, and a quadratic mechanism whose contribution is the moment closed form Var(a^2) = 2."
+provider = "Native implementation; batch noise replay and the Shapley estimator are the library's own."
+estimand = "the Shapley value of each noise term in the variance game v(S) = Var(E[Y | U_S]), the target variance, and the allocation residual"
+inference_claim = "none"
+owners = ["antecedent-attribution", "antecedent", "python/antecedent"]
+identity_inputs = ["compiled model and fitted mechanisms", "target", "noise independence declaration", "allocation rule and permutation count", "outer, inner and replicate draw counts", "bootstrap replicate count", "interval level", "seed", "data when a bootstrap is requested"]
+wire_changes = ["None: the result is a value with no artifact section."]
+compatibility = "Additive: existing attribution routes and result types are unchanged; the component-explicit uncertainty types are new."
+search = false
+bounds = { cancellation = true, max_exact_players = 10, contract = "antecedent_core::ExecutionContext", operation_limit = "coalition values times draws per value within the shared coalition sample ceiling" }
+surface = ["python/antecedent/intrinsic_influence.py"]
+surface_rust = ["crates/antecedent-attribution/src/intrinsic_influence.rs"]
+surface_pyo3 = ["python/src/intrinsic_influence_api.rs"]
+surface_values = ["IntrinsicInfluenceQuery", "IntrinsicAllocation", "NoiseIndependence", "IntrinsicInfluenceResult", "SourceInfluence", "ComponentUncertainty", "ComponentStatus", "UncertaintyComponent", "PartialStderr", "ShapleyMethod", "IntrinsicMethod", "IntrinsicBudget", "IntrinsicInfluence"]
+refusals = [
+  { code = "invalid_argument", detail = "intrinsic_influence.invalid_settings", when = "Outer draws, inner draws or replicate batches are below 2, the level is outside (0, 1), max_sources is zero, a permutation count is below 2, or a fit bootstrap has fewer than 10 replicates." },
+  { code = "invalid_argument", detail = "intrinsic_influence.structure_mismatch", when = "The declared structure does not have the model's nodes and directed edges." },
+  { code = "route_not_supported", detail = "intrinsic_influence.noise_independence_undeclared", when = "Neither independent noise nor a structure was declared." },
+  { code = "route_not_supported", detail = "intrinsic_influence.correlated_noise", when = "The declared structure has a bidirected edge (a latent common cause or correlated noise); the message names the pair." },
+  { code = "route_not_supported", detail = "intrinsic_influence.mechanism_unfitted", when = "A source has no fitted mechanism." },
+  { code = "route_not_supported", detail = "intrinsic_influence.noise_not_row_independent", when = "A source is a state-space mechanism whose noise is serially dependent across rows." },
+  { code = "route_not_supported", detail = "intrinsic_influence.target_not_continuous", when = "The target is a categorical variable." },
+  { code = "route_not_supported", detail = "intrinsic_influence.exact_players_exceed_bound", when = "Exact allocation is requested for more sources than the exact bound." },
+  { code = "route_not_supported", detail = "intrinsic_influence.draw_budget_exceeded", when = "Planned coalition values times draws per value exceed the simulation ceiling, or the draw counts overflow." },
+]
+routes = [{ name = "antecedent.gcm.attribute_intrinsic_influence", stage = "evaluate", status = "licensed", claim = "none", covers = ["attribute_intrinsic_influence", "intrinsic_influence"] }]
+fixtures = [
+  { id = "gcm.attribution.intrinsic_influence.linear_chain.positive", role = "positive", intent = "On a linear Gaussian chain the contributions equal the squared total path coefficients times the noise variances within the estimator's standard errors, and sum to the target variance.", evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs", evidence_assertion = "a_linear_chain_recovers_squared_path_coefficients_times_noise_variance" },
+  { id = "gcm.attribution.intrinsic_influence.correlated_noise.negative", role = "negative", intent = "A bidirected edge, undeclared independence, unfitted or serially dependent mechanisms, a categorical target, an oversized exact request and invalid settings are refused with their details.", evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs", evidence_assertion = "a_bidirected_edge_is_refused" },
+  { id = "gcm.attribution.intrinsic_influence.seeded_result.artifact", role = "artifact", intent = "A consumer re-running with the same seed reproduces the contributions and the total variance bit for bit.", evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs", evidence_assertion = "the_same_seed_reproduces_the_result_and_a_different_seed_does_not" },
+  { id = "gcm.attribution.intrinsic_influence.python_chain.positive", role = "positive", intent = "The Python surface recovers the closed-form contributions of a fitted chain within the reported component uncertainty and marks an unrequested mechanism-fit component unquantified.", evidence_test = "python/tests/test_intrinsic_influence.py", evidence_assertion = "test_contributions_match_the_closed_form_within_the_reported_uncertainty" },
+]
+
+[[record.inference_outputs]]
+fields = ["sources", "total_variance", "allocation_residual", "method", "budget"]
+method = "Shapley values of the variance game v(S) = Var(E[Y | U_S]) with coalition values from nested Monte Carlo over batch noise replay, and the per-component standard errors of permutation sampling, replicate-batch simulation and the mechanism-fit bootstrap."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-attribution"
+operation_or_object = "antecedent_attribution::intrinsic_influence"
+public_producers = ["antecedent.gcm.attribute_intrinsic_influence"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-attribution/src/intrinsic_influence.rs"
+truth_design = "Closed-form linear Gaussian chain and collider, a product mechanism and a quadratic mechanism with analytic Shapley values; fixed-seed finite fixtures, not a repeated-sampling study of the standard errors."
+truth_fixtures = ["gcm.attribution.intrinsic_influence.linear_chain.positive"]
+nominal_level = "none; the component standard errors and Student-t intervals are uncalibrated diagnostics"
+acceptance_threshold = "Contributions within six times the larger of the derived and the reported standard error of the closed form at fixed seeds in crates/antecedent-attribution/tests/intrinsic_influence.rs; no coverage threshold is claimed."
+measurement_suite = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "A point attribution with component standard errors: no total-uncertainty statement, no coverage claim, and independence of the noise terms rests on the caller's declaration."
+activation_disposition = "new_diagnostic_route_no_inferential_guarantee"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "no_calibration_design_diagnostic_only"
+truth_grid_allocation = "None: the route makes no coverage claim, so no calibration design is allocated."

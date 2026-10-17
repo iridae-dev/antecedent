@@ -2703,6 +2703,88 @@ mod tests {
         assert_eq!(intervention_label(&set), "set:0=1");
     }
 
+    /// The released encoding of a policy-free intervention, written independently of the
+    /// serde derive as a generic CBOR value: a program-free query must keep these bytes, so
+    /// every identity digested over it is unchanged.
+    #[test]
+    fn a_policy_free_intervention_keeps_its_released_cbor_encoding() {
+        use ciborium::Value;
+        let text = |s: &str| Value::Text(s.into());
+        let released = Value::Map(vec![(
+            text("set"),
+            Value::Map(vec![
+                (text("variable"), Value::Integer(0.into())),
+                (text("value"), Value::Map(vec![(text("float64"), Value::Float(1.0))])),
+            ]),
+        )]);
+        let mut released_bytes = Vec::new();
+        ciborium::into_writer(&released, &mut released_bytes).unwrap();
+        let wire = InterventionWire::from_domain(&antecedent_core::Intervention::set(
+            VariableId::from_raw(0),
+            antecedent_core::Value::f64(1.0),
+        ))
+        .unwrap();
+        assert_eq!(crate::convert::to_cbor(&wire).unwrap(), released_bytes);
+        let decoded: InterventionWire = crate::convert::from_cbor(&released_bytes).unwrap();
+        assert_eq!(decoded, wire);
+    }
+
+    #[test]
+    fn a_policy_expression_moves_target_question_and_program_identities() {
+        use antecedent_core::{Intervention, ResponseFunctional, ResponseQuery, ValueExpr};
+        let (schema, _, _) = schema_and_query();
+        let (t, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let floor = |slope: f64| {
+            let policy = Intervention::transform(
+                t,
+                ValueExpr::constant(10.0)
+                    .max(ValueExpr::constant(slope).mul(ValueExpr::generated())),
+            );
+            CausalQuery::Response(ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome: y,
+                interventions: std::sync::Arc::from([policy]),
+            }))
+        };
+        let digests = |slope: f64| {
+            let target = target_wire(&schema, &floor(slope));
+            let target_digest = digest_wire(IdentityDomain::Target, &target).unwrap();
+            let question = digest_wire(IdentityDomain::Target, &target.question()).unwrap();
+            let program = program_digest(&ProgramIdentityWire {
+                format: IDENTITY_FORMAT,
+                target: *target_digest.as_bytes(),
+                identification: [0; 32],
+                identification_product: None,
+                completion_budget: None,
+                commitments: InferentialCommitmentsWire {
+                    format: IDENTITY_FORMAT,
+                    estimator: None,
+                    resolved_estimator: None,
+                    identifier: None,
+                    inference: "frequentist".into(),
+                    validation_suite: None,
+                    interval_method: "analytic_se".into(),
+                    se_kind: None,
+                    prior_required: false,
+                },
+                functional_program: None,
+                checked_aipw_lowering: None,
+                checked_frontdoor_lowering: None,
+                checked_iv_lowering: None,
+                checked_linear_adjustment_lowering: None,
+                checked_functional_response_grid: None,
+                checked_nested_counterfactual: None,
+            })
+            .unwrap();
+            (target_digest, question, program)
+        };
+        let base = digests(0.85);
+        assert_eq!(base, digests(0.85), "identical expressions give identical identities");
+        let changed = digests(0.9);
+        assert_ne!(base.0, changed.0, "target");
+        assert_ne!(base.1, changed.1, "question");
+        assert_ne!(base.2, changed.2, "program");
+    }
+
     use antecedent_core::{
         AverageEffectQuery, CausalQuery, CausalSchemaBuilder, Lag, MeasurementSpec,
         RandomizedEffectQuery, RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
