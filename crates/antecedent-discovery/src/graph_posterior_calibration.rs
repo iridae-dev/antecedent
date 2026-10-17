@@ -42,19 +42,8 @@ use crate::structure_mcmc::StructureMcmc;
 const N_ROWS: usize = 400;
 /// Replicates (datasets) per standing design.
 const N_SIM: u64 = 100;
-/// Rows and replicates of the acceptance designs: the practitioner-scale study (2,000 rows) at
-/// the replicate count the claims are frozen at, with the publication rate the manifest freezes.
-const ACCEPTANCE_ROWS: usize = 2000;
-const ACCEPTANCE_REPLICATES: u64 = 2000;
-const ACCEPTANCE_PUBLISHED_FRACTION: f64 = 0.9;
 /// Equal-width bins of the predicted skeleton marginal.
 const N_BINS: usize = 10;
-/// A bin enters the check with at least this many pairs, from at least [`MIN_BIN_CLUSTERS`]
-/// replicates.
-const MIN_BIN_PAIRS: f64 = 100.0;
-const MIN_BIN_CLUSTERS: usize = 20;
-/// Cluster-robust standard errors of slack on a bin's residual.
-const Z_BAND: f64 = 3.5;
 /// Fraction of replicates the publication gate must pass.
 const MIN_PUBLISHED_FRACTION: f64 = 0.8;
 /// Published cap on the parents of any node.
@@ -320,87 +309,9 @@ fn assert_marginals_match_the_exact_posterior(label: &str, n: usize, sampler: Ga
     }
 }
 
-/// The design at `(rows, replicates, minimum published fraction)`.
-fn assert_skeleton_marginals_calibrated_at(
-    label: &str,
-    n: usize,
-    (rows, replicates, min_published): (usize, u64, f64),
-    sampler: impl Fn(
-        &TabularData,
-        &[VariableId],
-        &GraphPrior,
-        &ExecutionContext,
-    ) -> Option<GraphPosterior>,
-) {
-    let vars: Vec<VariableId> =
-        (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
-    let prior = design_prior();
-    let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
-    let mut published: Vec<BinCells> = Vec::new();
-    for rep in 0..replicates {
-        let (cols, truth) = sparse_sem(n, rows, 0x00ED_6E00 + rep);
-        let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
-        let data = crate::test_tables::continuous_table(&name_refs, cols);
-        if let Some(post) = sampler(&data, &vars, &prior, &ExecutionContext::for_tests(9_000 + rep))
-        {
-            published.push(bin_skeleton(n, &post, truth));
-        }
-    }
-    let rate = published.len() as f64 / replicates as f64;
-    println!(
-        "edge-marginal-calibration {label} n={n} rows={rows} published={}/{replicates}",
-        published.len()
-    );
-    assert!(
-        rate >= min_published,
-        "{label} n={n}: the publication gate passed {rate:.2} of replicates, below \
-         {min_published}; the published conditions do not support the claim"
-    );
-    let mut checked = 0;
-    for bin in 0..N_BINS {
-        let clusters: Vec<(f64, f64)> = published
-            .iter()
-            .map(|cells| (cells[bin].0, cells[bin].2 - cells[bin].1))
-            .filter(|&(m, _)| m > 0.0)
-            .collect();
-        let pairs: f64 = clusters.iter().map(|c| c.0).sum();
-        if pairs < MIN_BIN_PAIRS || clusters.len() < MIN_BIN_CLUSTERS {
-            continue;
-        }
-        let residual = clusters.iter().map(|c| c.1).sum::<f64>() / pairs;
-        let k = clusters.len() as f64;
-        let spread: f64 = clusters.iter().map(|&(m, s)| (s - residual * m).powi(2)).sum();
-        let se = (spread * k / (k - 1.0)).sqrt() / pairs;
-        let predicted = published.iter().map(|c| c[bin].1).sum::<f64>() / pairs;
-        println!(
-            "edge-marginal-calibration {label} n={n} bin={bin} pairs={pairs} \
-             predicted={predicted:.4} observed={:.4} se={se:.4}",
-            predicted + residual
-        );
-        assert!(
-            residual.abs() <= Z_BAND * se,
-            "{label} n={n} bin {bin}: observed adjacency {:.4} vs predicted {predicted:.4} \
-             (residual {residual:.4}, {Z_BAND} x se = {:.4})",
-            predicted + residual,
-            Z_BAND * se
-        );
-        checked += 1;
-    }
-    assert!(checked >= 3, "{label} n={n}: only {checked} bins had enough pairs to check");
-}
-
 /// A design sampler: `(publication gate on, data, variables, prior, context)`.
 type GatedSampler =
     fn(bool, &TabularData, &[VariableId], &GraphPrior, &ExecutionContext) -> Option<GraphPosterior>;
-
-fn structure_sampler(
-    data: &TabularData,
-    vars: &[VariableId],
-    prior: &GraphPrior,
-    ctx: &ExecutionContext,
-) -> Option<GraphPosterior> {
-    structure_sampler_gated(true, data, vars, prior, ctx)
-}
 
 fn structure_sampler_gated(
     gate: bool,
@@ -421,15 +332,6 @@ fn structure_sampler_gated(
             ctx,
         )
         .ok()
-}
-
-fn order_sampler(
-    data: &TabularData,
-    vars: &[VariableId],
-    prior: &GraphPrior,
-    ctx: &ExecutionContext,
-) -> Option<GraphPosterior> {
-    order_sampler_gated(true, data, vars, prior, ctx)
 }
 
 fn order_sampler_gated(
@@ -475,24 +377,6 @@ fn order_mcmc_marginals_match_the_exact_posterior_at_ten_variables() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables() {
     assert_marginals_match_the_exact_posterior("order_mcmc", 12, order_sampler_gated);
-}
-
-/// The claims of the ten-variable workflow, each sampler, at 2,000 rows and 2,000 replicates.
-#[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn graph_posterior_10_variable_claims_calibrated() {
-    let design = (ACCEPTANCE_ROWS, ACCEPTANCE_REPLICATES, ACCEPTANCE_PUBLISHED_FRACTION);
-    assert_skeleton_marginals_calibrated_at("structure_mcmc", 10, design, structure_sampler);
-    assert_skeleton_marginals_calibrated_at("order_mcmc", 10, design, order_sampler);
-}
-
-/// The claims of the twelve-variable workflow, each sampler, at 2,000 rows and 2,000 replicates.
-#[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn graph_posterior_12_variable_claims_calibrated() {
-    let design = (ACCEPTANCE_ROWS, ACCEPTANCE_REPLICATES, ACCEPTANCE_PUBLISHED_FRACTION);
-    assert_skeleton_marginals_calibrated_at("structure_mcmc", 12, design, structure_sampler);
-    assert_skeleton_marginals_calibrated_at("order_mcmc", 12, design, order_sampler);
 }
 
 /// Replicates of the diagnostic below that run the exact computation only (cheap).

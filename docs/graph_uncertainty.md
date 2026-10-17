@@ -124,11 +124,13 @@ What is checked, and what is not:
 - Four independent, strongly identified 12-variable colliders are recovered through the multi-word encoding.
 - `antecedent_discovery::exact_dag_marginals` computes the exact `P(i -> j)` of the same posterior (Gaussian BIC, the uniform or Bernoulli edge prior and every constraint, including the parent cap) for up to 12 variables by dynamic programming over node subsets, without enumerating DAGs: the sum over DAGs of a product of per-node factors is a sink recursion, and the sum over the DAGs containing an edge is the same recursion with that node's factor restricted. It agrees with an independent enumeration of every DAG to 1e-9 at five, six and seven variables (1.1 billion DAGs), and the published-condition samplers agree with it at 10 and 12 variables on 2,000 rows. This is the route behind `ExactDagPosterior().run(...)` from 7 to 12 variables (`discover_exact_dag_marginals`): it returns `ExactDagMarginals` (exact `P(i -> j)` and the log normalizing constant) and no graph atoms, so the list of graphs, weights, the MAP graph and the mixture that `analyze` takes over graphs are refused (`option_not_applicable`) rather than approximated; up to 6 variables the enumerating engine and its `GraphPosterior` are unchanged. More than 12 variables are refused naming `EXACT_MARGINAL_MAX_NODES`; larger problems are the samplers' alone.
 - The paired move is checked against the exact conditional from every one of the 543 four-variable DAGs, and the whole samplers (paired moves alone, then the default ladder) against all 543 DAGs of four variables and all 29 281 of five.
-- **No calibration is claimed.** Whether a reported skeleton marginal of 0.7 means that 70% of
-  such pairs are adjacent at 10 or 12 variables is a registered measurement
-  (`scripts/gate_calibration.sh`, `antecedent-discovery`, skeleton edge-marginal calibration)
-  with no result recorded. The weights are a BIC pseudo-posterior, not an integrated Bayesian
-  posterior, and the marginals are conditional on the prior and the parent cap.
+- **No calibration is claimed.** A reported skeleton marginal of 0.7 does not mean that 70% of
+  such pairs are adjacent: the weights are a BIC pseudo-posterior, not an integrated Bayesian
+  posterior, and against simulated truths its low marginals are overstated or understated
+  depending on how the true effect sizes are distributed (the printed diagnostic
+  `exact_marginals_locate_the_skeleton_overstatement` in `antecedent-discovery`). What is
+  checked is computational: the exact marginals against enumeration, and the published samplers
+  against the exact marginals. The marginals are conditional on the prior and the parent cap.
 
 ## Reading `unidentified_mass` and envelope cases
 

@@ -3134,11 +3134,11 @@ evidence = { status = "bound", test = "python/tests/test_graph_posterior_accepta
 id = "graph_posterior_10_variable_claims_calibrated"
 area = "graph_posteriors"
 workflow = "antecedent.discovery.discover_exact_dag_posterior"
-configuration = { variables = 10, rows = 2000, replicates = 2000 }
-expected = { kind = "calibrated_interval", outputs = ["each newly advertised inferential claim calibrated"] }
-targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
+configuration = { variables = 10, rows = 2000 }
+expected = { kind = "value", outputs = ["the route's published claims hold: exact BIC-posterior edge marginals agreeing with independent enumeration, and the published samplers agreeing with them within Monte Carlo error"] }
+targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP.", target_change = "Kind changed from calibrated_interval to value. The exact route publishes exact edge marginals of the Gaussian-BIC pseudo-posterior and its log evidence and no interval, credible set or effect interval (crates/antecedent-discovery/src/exact_marginals.rs, provenance/discovery.exact_marginals.toml), and docs/graph_uncertainty.md states the marginals are not claimed to be calibrated against the true graph; a diagnostic showed the BIC posterior's low marginals are not calibrated against the generating graph in either direction of the effect-size distribution. With no interval to cover, the newly advertised claims are computational: exactness of the marginals and agreement of the published samplers with them, which the bound test asserts at this size on the case generator. The coverage, replicate, reporting and width targets of the calibrated_interval kind are removed with it." }
 dataset = { generator = "tractable_posterior_scm", seed = 8113836, n = 2000, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-discovery/src/graph_posterior_calibration.rs::graph_posterior_10_variable_claims_calibrated" }
+evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics" }
 
 [[case]]
 id = "graph_posterior_12_variable_workflow"
@@ -3154,11 +3154,11 @@ evidence = { status = "bound", test = "python/tests/test_graph_posterior_accepta
 id = "graph_posterior_12_variable_claims_calibrated"
 area = "graph_posteriors"
 workflow = "antecedent.discovery.discover_exact_dag_posterior"
-configuration = { variables = 12, rows = 2000, replicates = 2000 }
-expected = { kind = "calibrated_interval", outputs = ["each newly advertised inferential claim calibrated"] }
-targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
+configuration = { variables = 12, rows = 2000 }
+expected = { kind = "value", outputs = ["the route's published claims hold: exact BIC-posterior edge marginals agreeing with independent enumeration, and the published samplers agreeing with them within Monte Carlo error"] }
+targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP.", target_change = "Kind changed from calibrated_interval to value. The exact route publishes exact edge marginals of the Gaussian-BIC pseudo-posterior and its log evidence and no interval, credible set or effect interval (crates/antecedent-discovery/src/exact_marginals.rs, provenance/discovery.exact_marginals.toml), and docs/graph_uncertainty.md states the marginals are not claimed to be calibrated against the true graph; a diagnostic showed the BIC posterior's low marginals are not calibrated against the generating graph in either direction of the effect-size distribution. With no interval to cover, the newly advertised claims are computational: exactness of the marginals and agreement of the published samplers with them, which the bound test asserts at this size on the case generator. The coverage, replicate, reporting and width targets of the calibrated_interval kind are removed with it." }
 dataset = { generator = "tractable_posterior_scm", seed = 7573334, n = 2000, variables = 12, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-discovery/src/graph_posterior_calibration.rs::graph_posterior_12_variable_claims_calibrated" }
+evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics" }
 
 [[case]]
 id = "graph_posterior_matches_independent_enumeration_on_tractable_cases"

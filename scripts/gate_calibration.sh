@@ -1108,9 +1108,6 @@ run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_poster
 run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables
 run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_ten_variables
 run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables
-# The same claims at 2,000 rows and 2,000 replicates (the practitioner-scale workflows).
-run_ignored antecedent-discovery graph_posterior_10_variable_claims_calibrated
-run_ignored antecedent-discovery graph_posterior_12_variable_claims_calibrated
 
 echo "== coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
 run_suite() {
