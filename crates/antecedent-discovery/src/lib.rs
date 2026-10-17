@@ -44,6 +44,7 @@ pub mod adjacency_mask;
 pub mod ci;
 pub mod ci_screened_posterior;
 pub mod combinations;
+pub mod conflict_resolution;
 pub mod constraints;
 pub mod dbn_posterior;
 pub mod discriminating_paths;

@@ -144,8 +144,8 @@ ran on, so a per-dataset recovery or error-rate claim stays closed.
 
 For ten to twenty variables with undirected edges elsewhere in the class,
 `sample_split_parent_set_effect::estimate_parent_set_effect` accepts the class when every edge
-incident to the treatment is oriented, lists the other unresolved edges without completing
-them, and reports the total effect (linear) or the intervention mean ratio (log-linear). See
+incident to the treatment is oriented (the same way under every choice among conflicting
+colliders), lists the other unresolved edges without completing them, and reports the total effect (linear) or the intervention mean ratio (log-linear). See
 [selective discovery](../selective-discovery.md) for the conditions it is measured under.
 
 ## What is refused, and the remedy
@@ -164,6 +164,6 @@ them, and reports the total effect (linear) or the intervention mean ratio (log-
 | Content-identical populations | `selective_discovery.pooled_population_data` | Supply disjoint population rows |
 | Interval after reusing the same rows to select and analyse | `cell_not_licensed` (`selective_discovery.downstream_interval_not_licensed`) | Split the rows and use `sample_split_effect` |
 | Effect after discovery with an unresolved structure, an unfinished search, or outside five to seven variables | `cell_not_licensed` (`split_effect.structure_unresolved`, `split_effect.search_not_finished`, `split_effect.variable_count_not_measured`) | Use a fully orientable table, or analyse under a declared graph |
-| Effect after discovery with an undirected edge at the treatment, a log-linear column that is not positive, or a declared degree above four | `cell_not_licensed` (`parent_set_effect.treatment_parents_ambiguous`, `parent_set_effect.degree_above_supported`) or `invalid_argument` (`parent_set_effect.log_linear_input_not_positive`) | Orient the named edges, supply positive columns, or declare a degree of at most four |
+| Effect after discovery with an undirected edge at the treatment, a log-linear column that is not positive, or a declared degree above four | `cell_not_licensed` (`parent_set_effect.treatment_parents_ambiguous`, `parent_set_effect.treatment_orientation_depends_on_conflict`, `parent_set_effect.conflict_resolution_budget`, `parent_set_effect.degree_above_supported`) or `invalid_argument` (`parent_set_effect.log_linear_input_not_positive`) | Orient the named edges, supply positive columns, or declare a degree of at most four |
 | Attestation without a current coverage record, or outside its measured row range | `cell_not_licensed` (`measured_inference.record_not_attesting`) | Measure the construction at this coordinate |
 | Temporal, panel or clustered rows in a split, or a non-float64 column | `selective_discovery.split_unsupported_rows` | Materialize rows, or use a design for dependent rows |

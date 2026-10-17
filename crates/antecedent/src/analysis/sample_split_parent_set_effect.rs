@@ -14,7 +14,10 @@
 //!    treatment is oriented**. Unrelated edges may stay undirected: they are listed on the
 //!    result ([`ParentSetEffect::unresolved_edges`]) and never completed. An undirected edge at
 //!    the treatment is refused, naming the edges, because the class then holds graphs with
-//!    different parent sets;
+//!    different parent sets. Conflicting orientation evidence elsewhere does not refuse: the
+//!    skeleton is oriented again under every choice among the conflicting colliders (at most
+//!    eight), and the run is refused only if those choices orient the treatment's edges
+//!    differently, no choice removes the conflict, or more colliders are implicated;
 //! 5. the effect is estimated on the analysis rows by adjusting for the treatment's parents:
 //!    the total effect per unit for a linear study, and for a log-linear study the
 //!    intervention mean ratio `exp(shift * beta)` of multiplying the treatment by `exp(shift)`,
@@ -103,8 +106,11 @@ pub struct ParentSetEffect {
 /// above [`SUPPORTED_MAX_DEGREE`] (`parent_set_effect.degree_above_supported`), non-positive
 /// values in a log-linear study (`parent_set_effect.log_linear_input_not_positive`), a refused
 /// or unfinished discovery, an undirected edge at the treatment
-/// (`parent_set_effect.treatment_parents_ambiguous`), an outcome oriented into the treatment,
-/// or a singular adjusted regression.
+/// (`parent_set_effect.treatment_parents_ambiguous`), conflicting orientation evidence whose
+/// resolutions disagree about the treatment's edges
+/// (`parent_set_effect.treatment_orientation_depends_on_conflict`) or implicate more colliders
+/// than are compared (`parent_set_effect.conflict_resolution_budget`), an outcome oriented into
+/// the treatment, or a singular adjusted regression.
 pub fn estimate_parent_set_effect(
     data: &TabularData,
     treatment: VariableId,

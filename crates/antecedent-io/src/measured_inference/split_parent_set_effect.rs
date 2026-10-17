@@ -15,6 +15,14 @@
 //! class in which some edge incident to the treatment is undirected contains graphs with
 //! different parent sets; it is refused, with the edges named, and no member is chosen.
 //!
+//! Orientation conflicts elsewhere in the graph do not refuse the run. PC marks an edge as a
+//! conflict when its colliders disagree, and the orientation applied first has already
+//! propagated, so the conflict is evidence that some colliders are wrong, not a statement about
+//! the treatment. The treatment's parents are accepted when its edges are oriented the same way
+//! in every choice among the conflicting colliders ([`treatment_parent_set_under_conflicts`]);
+//! a choice-dependent orientation, a conflict no choice removes, or more conflicting colliders
+//! than [`MAX_CONFLICTING_COLLIDERS`] is refused.
+//!
 //! A linear study reports the total effect: the treatment coefficient with the ordinary
 //! least-squares Student interval. A log-linear study declares, before any data are read, that
 //! every searched column is positive and enters the analysis as its natural logarithm; discovery
@@ -40,11 +48,17 @@ use super::{
 use crate::IoError;
 use antecedent_core::{CalibrationBasis, ExecutionContext, IdentityDomain, RngFactory, VariableId};
 use antecedent_data::TabularData;
+use antecedent_discovery::PcSepsets;
+use antecedent_discovery::conflict_resolution::{
+    ConflictResolution, IncidentOrientation, resolve_incident_orientation,
+};
+use antecedent_discovery::constraints::DiscoveryConstraints;
 use antecedent_discovery::selective::reuse::{SplitRule, split_rows};
 use antecedent_discovery::selective::{
-    CiTestSpec, DiscoveredStructure, Mark, StaticAlgorithm, StaticDiscoveryContract,
+    CiTestSpec, DiscoveredStructure, Mark, NativeResult, StaticAlgorithm, StaticDiscoveryContract,
     StaticSelectiveDiscovery, StructureClass, StructureEdge,
 };
+use antecedent_graph::Cpdag;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -98,6 +112,10 @@ pub const ACCEPTANCE: &str = "treatment_parent_set_unambiguous";
 pub const TOTAL_EFFECT: &str = "total_effect";
 /// Scalar name of a log-linear study's intervention mean ratio.
 pub const MEAN_RATIO: &str = "intervention_mean_ratio";
+/// Most colliders implicated in orientation conflicts that are resolved to decide the treatment's
+/// edges: the treatment's orientation is compared across `2^8` resolutions of the skeleton, and a
+/// class with more implicated colliders is refused rather than compared in part.
+pub const MAX_CONFLICTING_COLLIDERS: usize = 8;
 const MAX_ROWS: usize = 1 << 20;
 const FORMAT_VERSION: u32 = 1;
 const PARENT_LIMIT_DIAGNOSTIC: &str = "parent_limit_removed_adjacencies";
@@ -431,6 +449,89 @@ pub fn treatment_parent_set(
     treatment: u32,
     outcome: u32,
 ) -> Result<TreatmentNeighbourhood, IoError> {
+    neighbourhood(structure, names, treatment, outcome, None)
+}
+
+/// What PC's orientation was computed from: the evidence the colliders are re-derived from.
+#[derive(Clone, Copy, Debug)]
+pub struct ConflictEvidence<'a> {
+    /// The discovered graph; only its adjacencies are read.
+    pub graph: &'a Cpdag,
+    /// The separating sets PC recorded.
+    pub sepsets: &'a PcSepsets,
+    /// The background knowledge PC was given.
+    pub constraints: &'a DiscoveryConstraints,
+    /// The searched variables, in graph node order.
+    pub variables: &'a [VariableId],
+}
+
+/// The parent set of `treatment` in a class whose orientation evidence conflicts somewhere.
+///
+/// PC marks an edge as a conflict when two colliders disagree about it, and the orientation
+/// applied first has already propagated, so a conflict anywhere can reach the treatment's edges
+/// through Meek propagation. Only the treatment's edges matter to the estimand. The skeleton is
+/// therefore oriented again under every choice among the implicated colliders (each is kept or
+/// declared a non-collider, at most `max_colliders` of them) and the parent set
+/// is accepted when the treatment's edges come out the same in every choice that leaves no
+/// conflict. Edges elsewhere keep their conflict mark and are listed as unresolved.
+///
+/// # Errors
+/// As [`treatment_parent_set`]; `parent_set_effect.treatment_orientation_depends_on_conflict`
+/// when two consistent resolutions orient the treatment's edges differently,
+/// `parent_set_effect.conflict_resolution_budget` when more than `max_colliders` colliders are
+/// implicated (the route passes [`MAX_CONFLICTING_COLLIDERS`]), and
+/// `parent_set_effect.search_not_finished` when no choice of colliders removes the conflict.
+pub fn treatment_parent_set_under_conflicts(
+    structure: &DiscoveredStructure,
+    evidence: &ConflictEvidence<'_>,
+    names: &[String],
+    treatment: u32,
+    outcome: u32,
+    max_colliders: usize,
+) -> Result<TreatmentNeighbourhood, IoError> {
+    let resolution = resolve_incident_orientation(
+        evidence.graph,
+        evidence.sepsets,
+        evidence.constraints,
+        evidence.variables,
+        VariableId::from_raw(treatment),
+        max_colliders,
+    )
+    .map_err(|error| malformed("parent_set_effect.discovery_failed", &error.to_string()))?;
+    match resolution {
+        ConflictResolution::Invariant(orientation) => {
+            neighbourhood(structure, names, treatment, outcome, Some(&orientation))
+        }
+        ConflictResolution::Varies => Err(refused(
+            "parent_set_effect.treatment_orientation_depends_on_conflict",
+            "the discovery met conflicting orientation evidence and the choices among the \
+             conflicting colliders orient the treatment's edges differently, so the treatment's \
+             parents are not determined",
+        )),
+        ConflictResolution::Unresolvable => Err(refused(
+            "parent_set_effect.search_not_finished",
+            "the discovery met conflicting orientation evidence that no choice among the \
+             colliders removes",
+        )),
+        ConflictResolution::BudgetExceeded { implicated, budget } => Err(refused(
+            "parent_set_effect.conflict_resolution_budget",
+            &format!(
+                "{implicated} colliders are implicated in conflicting orientation evidence, \
+                 above the {budget} whose choices are compared"
+            ),
+        )),
+    }
+}
+
+/// The treatment's neighbourhood in `structure`. With `resolved`, the treatment's edges are
+/// those of the resolved orientation and the structure's own marks on them are not read.
+fn neighbourhood(
+    structure: &DiscoveredStructure,
+    names: &[String],
+    treatment: u32,
+    outcome: u32,
+    resolved: Option<&IncidentOrientation>,
+) -> Result<TreatmentNeighbourhood, IoError> {
     if structure.class() != StructureClass::Cpdag {
         return Err(refused(
             "parent_set_effect.structure_class",
@@ -456,6 +557,9 @@ pub fn treatment_parent_set(
             ));
         }
         let incident = edge.a.variable == treatment || edge.b.variable == treatment;
+        if incident && resolved.is_some() {
+            continue;
+        }
         if let Some(reason) = unresolved_reason(edge) {
             if incident {
                 ambiguous.push((edge.a.variable, edge.b.variable, reason));
@@ -475,6 +579,15 @@ pub fn treatment_parent_set(
         } else if source == treatment {
             children.push(sink);
         }
+    }
+    if let Some(orientation) = resolved {
+        parents.extend_from_slice(&orientation.parents);
+        children.extend_from_slice(&orientation.children);
+        directed.extend(orientation.parents.iter().map(|&parent| (parent, treatment)));
+        directed.extend(orientation.children.iter().map(|&child| (treatment, child)));
+        ambiguous.extend(orientation.undirected.iter().map(|&other| {
+            (other.min(treatment), other.max(treatment), "undirected_in_equivalence_class")
+        }));
     }
     if !ambiguous.is_empty() {
         let label = |v: u32| names.get(v as usize).map_or_else(|| format!("#{v}"), Clone::clone);
@@ -647,14 +760,20 @@ impl ParentSetEffectRun {
 }
 
 /// Execute the measured construction: transform as declared, split, discover on one part,
-/// accept only a finished class whose treatment edges are all oriented, and estimate on the
-/// other part.
+/// accept only a finished class whose treatment edges are all oriented (the same way under every
+/// choice among conflicting colliders), and estimate on the other part.
 ///
 /// # Errors
 /// An invalid source or one outside the measured variable counts and degree, non-positive
-/// log-linear inputs, a refused discovery, a search that exhausted a bound, met conflicting
-/// orientation evidence or was cut by the parent limit, a treatment edge left undirected, or
-/// the refusals of [`adjusted_effect`].
+/// log-linear inputs, a refused discovery, a search that exhausted a bound or was cut by the
+/// parent limit, conflicting orientation evidence that no choice resolves, that orients the
+/// treatment's edges differently by choice or that implicates more than
+/// [`MAX_CONFLICTING_COLLIDERS`] colliders, a treatment edge left undirected, or the refusals of
+/// [`adjusted_effect`].
+#[allow(
+    clippy::too_many_lines,
+    reason = "discovery, the parent-limit and conflict refusals and the adjusted fit read one search outcome"
+)]
 pub fn run(
     source: &ParentSetEffectSource,
     ctx: &ExecutionContext,
@@ -709,10 +828,10 @@ pub fn run(
     let outcome = adapter.outcome().ok_or_else(|| {
         malformed("parent_set_effect.discovery_failed", "the discovery run retained no outcome")
     })?;
-    if outcome.search_incomplete || outcome.orientation_conflict {
+    if outcome.search_incomplete {
         return Err(refused(
             "parent_set_effect.search_not_finished",
-            "the discovery search exhausted a bound or met conflicting orientation evidence",
+            "the discovery search exhausted a bound",
         ));
     }
     if outcome.diagnostics.iter().any(|(code, _)| code.ends_with(PARENT_LIMIT_DIAGNOSTIC)) {
@@ -726,8 +845,33 @@ pub fn run(
             ),
         ));
     }
-    let neighbourhood =
-        treatment_parent_set(&outcome.structure, &source.names, source.treatment, source.outcome)?;
+    let neighbourhood = match (&outcome.native, outcome.orientation_conflict) {
+        (_, false) => treatment_parent_set(
+            &outcome.structure,
+            &source.names,
+            source.treatment,
+            source.outcome,
+        )?,
+        (NativeResult::StaticCpdag(native), true) => treatment_parent_set_under_conflicts(
+            &outcome.structure,
+            &ConflictEvidence {
+                graph: &native.evidence.graph,
+                sepsets: &native.sepsets,
+                constraints: &contract.constraints,
+                variables: &contract.variables,
+            },
+            &source.names,
+            source.treatment,
+            source.outcome,
+            MAX_CONFLICTING_COLLIDERS,
+        )?,
+        (_, true) => {
+            return Err(refused(
+                "parent_set_effect.search_not_finished",
+                "the discovery met conflicting orientation evidence",
+            ));
+        }
+    };
     let coefficient = adjusted_effect(
         &split.analysis,
         source.treatment,
@@ -851,4 +995,149 @@ pub fn consume_measured(
     let measured = measure(&wire.source, ctx)?;
     compare_replay(&wire, &measured)?;
     Ok(measured)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use antecedent_core::Lag;
+    use antecedent_discovery::Pc;
+    use antecedent_graph::{DenseNodeId, MarkedEdge};
+
+    use super::*;
+
+    const NODES: u32 = 7;
+    // Nodes 0 -> 1 <- 2 are a collider at the node 1. Nodes 3, 4, 5, 6 are the edge 3 - 4 that
+    // the collider 3 -> 4 <- 5 orients one way and the collider 4 -> 3 <- 6 the other.
+    const SEPARATORS: [(u32, u32); 3] = [(0, 2), (3, 5), (4, 6)];
+
+    fn id(raw: u32) -> DenseNodeId {
+        DenseNodeId::from_raw(raw)
+    }
+
+    fn names() -> Vec<String> {
+        (0..NODES).map(|i| format!("v{i}")).collect()
+    }
+
+    fn variables() -> Vec<VariableId> {
+        (0..NODES).map(VariableId::from_raw).collect()
+    }
+
+    fn sepsets() -> PcSepsets {
+        SEPARATORS
+            .iter()
+            .map(|&(a, b)| {
+                let empty: Arc<[(VariableId, Lag)]> = Arc::from(Vec::new());
+                (
+                    (
+                        VariableId::from_raw(a),
+                        Lag::CONTEMPORANEOUS,
+                        VariableId::from_raw(b),
+                        Lag::CONTEMPORANEOUS,
+                    ),
+                    empty,
+                )
+            })
+            .collect()
+    }
+
+    /// The class PC returns: the collider at 1 oriented, the edge 3 - 4 in conflict and the
+    /// other edges of the second component open.
+    fn conflicted_class() -> Cpdag {
+        let mut graph = Cpdag::with_variables(NODES);
+        graph.insert_directed(id(0), id(1)).unwrap();
+        graph.insert_directed(id(2), id(1)).unwrap();
+        graph.insert_marked(MarkedEdge::conflict(id(3), id(4))).unwrap();
+        graph.insert_undirected(id(4), id(5)).unwrap();
+        graph.insert_undirected(id(3), id(6)).unwrap();
+        graph
+    }
+
+    /// The same class with the edge 3 - 4 oriented and no conflict anywhere.
+    fn conflict_free_class() -> Cpdag {
+        let mut graph = conflicted_class();
+        graph.remove_edge(id(3), id(4)).unwrap();
+        graph.insert_directed(id(3), id(4)).unwrap();
+        graph
+    }
+
+    fn under_conflicts(
+        treatment: u32,
+        max_colliders: usize,
+    ) -> Result<TreatmentNeighbourhood, IoError> {
+        let class = conflicted_class();
+        let constraints = Pc::new().constraints;
+        let separators = sepsets();
+        let variables = variables();
+        treatment_parent_set_under_conflicts(
+            &DiscoveredStructure::from_cpdag(&class),
+            &ConflictEvidence {
+                graph: &class,
+                sepsets: &separators,
+                constraints: &constraints,
+                variables: &variables,
+            },
+            &names(),
+            treatment,
+            6,
+            max_colliders,
+        )
+    }
+
+    fn detail(error: &IoError) -> String {
+        error.to_string()
+    }
+
+    #[test]
+    fn a_conflict_away_from_the_treatment_gives_the_conflict_free_parent_set() {
+        let conflicted = under_conflicts(1, MAX_CONFLICTING_COLLIDERS).unwrap();
+        let free = treatment_parent_set(
+            &DiscoveredStructure::from_cpdag(&conflict_free_class()),
+            &names(),
+            1,
+            6,
+        )
+        .unwrap();
+        assert_eq!(conflicted.parents, vec![0, 2]);
+        assert_eq!(conflicted.parents, free.parents);
+        assert_eq!(conflicted.children, free.children);
+        assert!(
+            conflicted
+                .unresolved
+                .iter()
+                .any(|p| (p.a, p.b) == (3, 4) && p.reason == "orientation_conflict"),
+            "the conflicted edge is listed, not hidden: {:?}",
+            conflicted.unresolved
+        );
+    }
+
+    #[test]
+    fn the_unconflicted_route_still_reads_the_class_as_returned() {
+        let free = treatment_parent_set(
+            &DiscoveredStructure::from_cpdag(&conflict_free_class()),
+            &names(),
+            1,
+            6,
+        )
+        .unwrap();
+        assert_eq!((free.parents, free.children), (vec![0, 2], Vec::new()));
+    }
+
+    #[test]
+    fn a_conflict_that_changes_the_treatments_parents_is_refused() {
+        let error = under_conflicts(3, MAX_CONFLICTING_COLLIDERS).unwrap_err();
+        assert!(
+            detail(&error).contains("parent_set_effect.treatment_orientation_depends_on_conflict"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn more_implicated_colliders_than_the_budget_are_refused_with_both_counts() {
+        let error = under_conflicts(1, 1).unwrap_err();
+        let text = detail(&error);
+        assert!(text.contains("parent_set_effect.conflict_resolution_budget"), "{text}");
+        assert!(text.contains("2 colliders") && text.contains("above the 1"), "{text}");
+    }
 }

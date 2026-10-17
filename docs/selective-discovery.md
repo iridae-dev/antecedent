@@ -315,7 +315,17 @@ declared analysis scale:
    (`ParentSetEffect.unresolved_edges`, with `treatment_parents`, `treatment_children` and the
    acceptance reason) and nothing completes them. An undirected edge at the treatment is refused
    with the edges named (`parent_set_effect.treatment_parents_ambiguous`): the class then holds
-   graphs with different parent sets, and no member is chosen.
+   graphs with different parent sets, and no member is chosen. PC marks an edge as a conflict
+   when two colliders disagree about it, and the orientation applied first has already
+   propagated; such a conflict anywhere in the graph is evidence that some colliders are wrong,
+   not a statement about the treatment. The skeleton is therefore oriented again under every
+   choice among the implicated colliders (each kept, or declared a non-collider; at most eight),
+   and the class is accepted when the treatment's edges come out the same in every choice that
+   leaves no conflict. Conflicting edges elsewhere are listed as unresolved with the reason
+   `orientation_conflict`. A choice-dependent orientation of the treatment's edges is refused
+   (`parent_set_effect.treatment_orientation_depends_on_conflict`), as are more than eight
+   implicated colliders (`parent_set_effect.conflict_resolution_budget`) and a conflict no choice
+   removes (`parent_set_effect.search_not_finished`).
 4. **Estimate on the other half.** Adjust for the treatment's parents. A linear study reports
    the total effect with the least-squares Student interval. A log-linear study reports the
    intervention mean ratio `exp(shift * beta)` of multiplying the treatment by `exp(shift)`
