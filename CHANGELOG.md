@@ -15,6 +15,8 @@ Changes since 2.4.0. Released identities, artifact encodings and goldens are unc
 - **Transport, survival and policy value.** Transport across discovered PAG and temporal structures with block-bootstrap intervals, target-native utilities for transported policies, observational survival effects and policy values, effects after discovery on an unambiguous treatment parent set, and finite SCMs whose mechanisms share exogenous terms.
 - **Treatment levels and identifiers.** Declared active and control levels across estimators, label-declared levels in Python, and named identifiers through refresh.
 - **Bayesian draw controls.** An opt-in supported minimum draw count, endpoint Monte Carlo error with a refusal above tolerance, and draws and seed in the replay identity.
+- **Graph posterior samplers above eight variables.** An eight-replica tempering ladder, covered-edge reversals that walk each Markov equivalence class, and an order-relocate move for order MCMC; published samplers match the exact posterior marginals of their score within Monte Carlo error. At eight or fewer variables the draws are unchanged.
+- **Adaptive participant trials.** The anytime-valid confidence sequence is the predictable plug-in empirical-Bernstein sequence (Waudby-Smith and Ramdas) at alpha/K per arm; released contracts keep and replay their mixture-Hoeffding sequence.
 - Rust and Python examples for each capability, pinned DoWhy 0.14 comparisons computed at test time, a feature-conformance gate and benches for program execution and noise replay.
 
 ### Fixed
@@ -24,6 +26,10 @@ Changes since 2.4.0. Released identities, artifact encodings and goldens are unc
 - A Laplace posterior with fewer than 1,000 declared draws publishes the exchangeable-rank interval of its own draws, so a loaded posterior passes its integrity check.
 - GES no longer refuses a node with more undirected neighbours than the parent limit, and background knowledge on an edge GES has already directed no longer raises a graph error.
 - An unchanged participant column no longer refuses an identifier refresh.
+- Bayesian CPDAG and PAG graph-posterior effects publish their credible interval when every completion returns the same estimand; ADMG graph-posterior responses keep the atom's credible interval or band, and a lone covering ADMG atom keeps its bootstrap standard error.
+- The default completion budget is restored to the audit allowance the fixed ceiling had, so temporal PAG class audits complete and publish their bands.
+- A parent-set effect after discovery is refused for an orientation conflict only when some resolution of the conflict changes the treatment's parents (`parent_set_effect.treatment_orientation_depends_on_conflict`, `parent_set_effect.conflict_resolution_budget`); conflicts elsewhere in the graph are listed as unresolved.
+- The graph-posterior publication gate also requires every chain's edge marginals to agree with the pooled ones (with the excursion error for edges a chain rarely flips) and the rank-normalized split R-hat of the log target to stay at most 1.1, so a posterior whose chains settled on different marginals is withheld instead of published.
 
 ### Changed
 
