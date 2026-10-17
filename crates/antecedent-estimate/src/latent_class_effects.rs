@@ -575,6 +575,8 @@ fn class_design(problem: &Problem, weights: &[f64]) -> DesignSummary {
 fn e_step(problem: &Problem, params: &Params, resp: &mut [Vec<f64>]) -> f64 {
     let k = params.weights.len();
     let mut logs = vec![0.0; k];
+    let log_weight: Vec<f64> = params.weights.iter().map(|w| w.ln()).collect();
+    let log_variance: Vec<f64> = params.sigma2.iter().map(|s2| (TWO_PI * s2).ln()).collect();
     let mut total = 0.0;
     for i in 0..problem.n {
         let zi = problem.row(i);
@@ -582,7 +584,7 @@ fn e_step(problem: &Problem, params: &Params, resp: &mut [Vec<f64>]) -> f64 {
         for c in 0..k {
             let resid = problem.y[i] - dot(zi, &params.beta[c]);
             let s2 = params.sigma2[c];
-            let term = params.weights[c].ln() - 0.5 * ((TWO_PI * s2).ln() + resid * resid / s2);
+            let term = log_weight[c] - 0.5 * (log_variance[c] + resid * resid / s2);
             logs[c] = term;
             if term > max {
                 max = term;
