@@ -22,6 +22,11 @@ python3 scripts/release_evidence_report.py --self-test
 python3 scripts/decision_exit_report_cli_selftest.py
 python3 scripts/check_prerequisites.py --self-test
 python3 scripts/check_acceptance_manifest.py --self-test
+python3 scripts/test_check_acceptance_manifest.py
+python3 scripts/test_check_release_closure.py
+python3 scripts/test_generate_calibration_backlog.py
+python3 scripts/test_ci_workflow.py
+bash scripts/gate_scale_cases.sh --self-test
 python3 scripts/run_evidence_rows_selftest.py
 python3 scripts/test_calibration_groups.py
 python3 scripts/test_calibration_key_aliases.py

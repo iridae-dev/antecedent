@@ -5,15 +5,22 @@ Every `[[case]]` names a public workflow, a supported configuration, the require
 outputs, frozen targets and a simulated representative dataset. Evidence starts as
 `planned`; a `bound` case names `<path>::<fn>` and the test file must define that
 function (Rust `fn name`, Python `def name`). `--require-bound` fails on any planned
-case and is used at release closure.
+case and is used at release closure. A bound case must also name a real test: a
+live (not skipped, not deferred) function that asserts, never a script that merely
+documents a limit, and its evidence may not be an audit, a configurable limit, a
+failed measurement, documentation-only narrowing or a deferral. An `#[ignore]` test
+closes only a `calibrated_interval` case or a release-only scale case run by a named
+gate script (`scripts/gate_*.sh`).
 
     python3 scripts/check_acceptance_manifest.py
     python3 scripts/check_acceptance_manifest.py --require-bound
     python3 scripts/check_acceptance_manifest.py --self-test
+    python3 scripts/check_acceptance_manifest.py --scale-cases   # JSON for scripts/run_scale_cases.py
 """
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 import tomllib
@@ -47,6 +54,27 @@ MIN_REPORTING_RATE = 0.90
 RATE_KEYS = ("min_reporting_rate", "nominal_coverage", "coverage_floor", "min_power",
              "min_best_arm_identification_rate", "simultaneous_coverage_floor",
              "max_false_superiority_rate")
+
+
+SCALE_GATE = "scripts/gate_scale_cases.sh"
+# Where an ignored release-only scale test may live: an integration test or the crate's own tests.
+SCALE_TARGET = re.compile(r"crates/(?P<crate>[^/]+)/(?:tests/(?P<target>[^/]+)|src/.+)\.rs$")
+EVIDENCE_FIELDS = frozenset({"status", "test"})
+# What can never close a case, however it is spelled in the evidence.
+FORBIDDEN_CLOSURE_KINDS = frozenset({
+    "audit", "limit", "configurable_limit", "failed_measurement", "documentation_only",
+    "documentation_narrowing", "deferral", "deferred",
+})
+DEFERRED_TEST = re.compile(
+    r"\btodo!|\bunimplemented!|pytest\.(?:skip|xfail)|mark\.(?:skip|xfail)|unittest\.skip"
+    r"|\bskipTest\b|\bexpectedFailure\b|#\[should_panic"
+)
+# An assertion, or a helper whose job is to assert (the calibration gate, `expect_*`, `check_*`).
+ASSERTS = re.compile(
+    r"\b(?:assert\w*|expect\w*|verify\w*|require\w*|gate)\s*[!(]|\bassert\b|\.raises\(|\bpanic!"
+    r"|unwrap_err|is_err\(\)|\bself\.assert"
+)
+RUST_TEST_ATTRIBUTE = re.compile(r"#\[(?:tokio::)?test\b|#\[rstest|#\[test_case")
 
 
 PLANNING_TOKEN = re.compile(r"item|v\d+|[a-z]\d+")
@@ -154,11 +182,134 @@ def case_problems(case: dict[str, Any]) -> list[str]:
         if "n" in dataset and not _positive_number(dataset["n"]):
             errors.append(f"{prefix}: dataset.n must be positive")
 
-    errors.extend(evidence_problems(prefix, case["evidence"]))
+    errors.extend(evidence_problems(prefix, case["evidence"], kind=kind))
     return errors
 
 
-def evidence_problems(prefix: str, evidence: Any, root: Path = ROOT) -> list[str]:
+_DEFINITION = {
+    ".rs": r"^(\s*)(?:pub(?:\([a-z]+\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+{name}\b",
+    ".py": r"^(\s*)(?:async\s+)?def\s+{name}\b",
+}
+_CALLED = {".rs": re.compile(r"\b([A-Za-z_]\w*)\s*[(!]"), ".py": re.compile(r"\b([A-Za-z_]\w*)\s*\(")}
+
+
+def _attributes_above(lines: list[str], index: int) -> str:
+    """Attribute, decorator and comment lines directly above line `index`, multi-line attributes whole."""
+    above: list[str] = []
+    in_attribute = False
+    for previous in reversed(lines[:index]):
+        stripped = previous.strip()
+        if stripped.startswith(("#[", "@", "//")):
+            in_attribute = False
+        elif in_attribute or stripped.endswith("]"):
+            in_attribute = not stripped.startswith("#[")
+        else:
+            break
+        above.append(previous)
+    return "\n".join(above)
+
+
+def test_source(text: str, suffix: str, name: str) -> tuple[str, str] | None:
+    """The attributes above `name` and its source (signature included); `None` if undefined."""
+    lines = text.splitlines()
+    pattern = re.compile(_DEFINITION[suffix].format(name=re.escape(name)))
+    for index, line in enumerate(lines):
+        match = pattern.match(line)
+        if not match:
+            continue
+        indent = match.group(1)
+        body = [line]
+        for following in lines[index + 1:]:
+            if suffix == ".rs":
+                if following == f"{indent}}}":
+                    break
+            elif following.strip() and not following.startswith((indent + " ", indent + "\t")):
+                break
+            body.append(following)
+        return _attributes_above(lines, index), "\n".join(body)
+    return None
+
+
+def with_helpers(text: str, suffix: str, source: str, depth: int = 3) -> str:
+    """`source` followed by the same-file helpers it calls, to `depth` levels."""
+    if depth == 0:
+        return source
+    expanded = [source]
+    for helper in sorted(set(_CALLED[suffix].findall(source))):
+        found = test_source(text, suffix, helper)
+        if found is not None and found[1] != source:
+            expanded.append(with_helpers(text, suffix, found[1], depth - 1))
+    return "\n".join(expanded)
+
+
+def scale_gate_wired(root: Path) -> bool:
+    """Whether the release-candidate gate runs the release-only scale cases (SCALE_GATE)."""
+    gate, candidate = root / SCALE_GATE, root / "scripts/gate_release_candidate.sh"
+    return gate.is_file() and candidate.is_file() and SCALE_GATE in candidate.read_text(encoding="utf-8")
+
+
+def scale_cases(data: dict[str, Any], root: Path = ROOT) -> list[dict[str, Any]]:
+    """The bound `#[ignore]` release-only scale tests the scale gate must run, with their budgets."""
+    cases = []
+    for case in data.get("case", []):
+        evidence = case.get("evidence", {})
+        if evidence.get("status") != "bound" or case["expected"]["kind"] == "calibrated_interval":
+            continue
+        path, name = evidence["test"].split("::", 1)[0], evidence["test"].rsplit("::", 1)[1]
+        target = SCALE_TARGET.match(path)
+        source = root / path
+        if target is None or not source.is_file():
+            continue
+        found = test_source(source.read_text(encoding="utf-8"), ".rs", name)
+        if found is None or "#[ignore" not in found[0]:
+            continue
+        manifest = tomllib.loads((root / "crates" / target["crate"] / "Cargo.toml").read_text(encoding="utf-8"))
+        cases.append({
+            "case": case["id"], "package": manifest["package"]["name"], "target": target["target"],
+            "test": name, "runtime_seconds": case["targets"]["runtime_seconds"],
+            "memory_bytes": case["targets"]["memory_bytes"],
+        })
+    return cases
+
+
+def _checker_in_a_gate(root: Path, path: str) -> bool:
+    """A `scripts/check_*.py` or `gate_*.py` function stands for the checker a gate script runs."""
+    name = Path(path).name
+    return path.startswith("scripts/") and name.startswith(("check_", "gate_")) and any(
+        name in gate.read_text(encoding="utf-8") for gate in (root / "scripts").glob("gate_*.sh"))
+
+
+def closure_problems(prefix: str, evidence: dict[str, Any], kind: Any, root: Path,
+                     path: str, name: str, text: str, suffix: str) -> list[str]:
+    """A bound test must be a live asserting test, and no forbidden kind may close the case."""
+    errors: list[str] = []
+    for key in sorted(set(evidence) - EVIDENCE_FIELDS):
+        reason = "cannot close a case" if key in FORBIDDEN_CLOSURE_KINDS else "is not evidence"
+        errors.append(f"{prefix}: evidence.{key} {reason}; only a live test binds a case")
+    found = test_source(text, suffix, name)
+    if found is None:
+        return errors
+    decoration, source = found
+    bench = suffix == ".rs" and "/benches/" in f"/{path}"
+    checker = suffix == ".py" and _checker_in_a_gate(root, path)
+    where = f"{path}::{name}"
+    if suffix == ".rs" and not bench and not RUST_TEST_ATTRIBUTE.search(decoration):
+        errors.append(f"{prefix}: {where} is not a test function")
+    if suffix == ".py" and not checker and not name.startswith("test"):
+        errors.append(f"{prefix}: {where} is not a test function")
+    if "#[ignore" in decoration and kind != "calibrated_interval":
+        if SCALE_TARGET.match(path) is None or not scale_gate_wired(root):
+            errors.append(f"{prefix}: {where} is #[ignore]d and {SCALE_GATE} does not run it in the "
+                          "release-candidate gate; only a calibrated_interval case or a release-only "
+                          "scale case run by a named gate may bind an ignored test")
+    if DEFERRED_TEST.search(decoration + "\n" + source):
+        errors.append(f"{prefix}: {where} skips or defers its check")
+    if kind != "calibrated_interval" and not checker and not ASSERTS.search(with_helpers(text, suffix, source)):
+        errors.append(f"{prefix}: {where} asserts nothing; a limit that is only documented does not close a case")
+    return errors
+
+
+def evidence_problems(prefix: str, evidence: Any, root: Path = ROOT, kind: Any = None) -> list[str]:
     if not isinstance(evidence, dict) or evidence.get("status") not in STATUSES:
         return [f"{prefix}: evidence.status must be one of {sorted(STATUSES)}"]
     test = evidence.get("test")
@@ -176,9 +327,10 @@ def evidence_problems(prefix: str, evidence: Any, root: Path = ROOT) -> list[str
         pattern = rf"^\s*(?:async\s+)?def\s+{re.escape(name)}\b"
     else:
         return [f"{prefix}: test file {path} must be .rs or .py"]
-    if not re.search(pattern, source.read_text(encoding="utf-8"), re.MULTILINE):
+    text = source.read_text(encoding="utf-8")
+    if not re.search(pattern, text, re.MULTILINE):
         return [f"{prefix}: {path} does not define {name}"]
-    return []
+    return closure_problems(prefix, evidence, kind, root, path, name, text, source.suffix)
 
 
 def problems(data: dict[str, Any], require_bound: bool = False) -> list[str]:
@@ -253,8 +405,8 @@ def self_test() -> int:
     expect("planned with test", mutate(lambda c, d: c["evidence"].update(test="x::y")), "must not name a test")
     expect("bound without test", mutate(lambda c, d: c["evidence"].update(status="bound")), "evidence.test")
     expect("bound missing file", mutate(lambda c, d: c["evidence"].update(status="bound", test="nope/missing.rs::t")), "does not exist")
-    expect("bound ok", mutate(lambda c, d: c["evidence"].update(status="bound", test="scripts/check_acceptance_manifest.py::self_test")), None)
-    expect("bound missing fn", mutate(lambda c, d: c["evidence"].update(status="bound", test="scripts/check_acceptance_manifest.py::absent_fn")), "does not define")
+    expect("bound ok", mutate(lambda c, d: c["evidence"].update(status="bound", test="scripts/test_check_acceptance_manifest.py::test_require_bound_rejects_a_planned_case")), None)
+    expect("bound missing fn", mutate(lambda c, d: c["evidence"].update(status="bound", test="scripts/test_check_acceptance_manifest.py::absent_fn")), "does not define")
     expect("require bound", fixture(), "planned case at release closure", require_bound=True)
     if failures:
         print("check_acceptance_manifest self-test FAILED:")
@@ -269,6 +421,9 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if "--self-test" in args:
         return self_test()
+    if "--scale-cases" in args:
+        print(json.dumps(scale_cases(tomllib.loads(MANIFEST.read_text(encoding="utf-8")))))
+        return 0
     unknown = [a for a in args if a != "--require-bound"]
     if unknown:
         print(f"unknown arguments: {unknown}", file=sys.stderr)

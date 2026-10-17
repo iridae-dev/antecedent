@@ -12,8 +12,8 @@ copied_tests = false
 # The nested Monte Carlo estimator with its analysis-of-variance correction, the batch noise
 # replay, the replicate-batch simulation error, the permutation error from per-permutation
 # marginal contributions and the row-bootstrap mechanism-fit component are derived here.
-# The DOI below is the arXiv identifier recalled for this paper; no repository source cites it,
-# so it is unconfirmed and should be verified against the arXiv record before release.
+# Published in AISTATS 2024 (PMLR 238:2188-2196); the DOI is that of the arXiv record
+# (arXiv:2007.00714, v4).
 papers = [
  { title = "Quantifying intrinsic causal contributions via structure preserving interventions", doi = "10.48550/arXiv.2007.00714", sections = ["Section 3 (intrinsic causal contribution as a variance game over structure preserving interventions)", "Section 4 (Shapley symmetrization and the efficiency identity)"] },
 ]

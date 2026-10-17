@@ -160,6 +160,20 @@ def check_run(
     return problems
 
 
+def check_run_payload(
+    payload: dict[str, Any], head_sha: str | None, required: list[str], path: Path | None = None
+) -> list[str]:
+    """Problems with a `gh run view --json headSha,jobs` payload: the one acceptance rule for a CI run.
+
+    The run must have built `head_sha` (when given) and every display name of every
+    required job must have concluded `success`.
+    """
+    problems = []
+    if head_sha is not None and payload.get("headSha") != head_sha:
+        problems.append(f"CI run headSha {payload.get('headSha')} != HEAD {head_sha}")
+    return problems + check_run(payload.get("jobs") or [], required, path)
+
+
 def required_jobs(
     release: Path | None = None, path: Path | None = None
 ) -> tuple[list[str], list[str]]:
@@ -331,10 +345,7 @@ def main(argv: list[str]) -> int:
                 print("FAIL: check-run needs a run payload and at least one required job id")
                 return 1
             payload = json.loads(Path(rest[0]).read_text(encoding="utf-8"))
-            problems = []
-            if head_sha is not None and payload.get("headSha") != head_sha:
-                problems.append(f"CI run headSha {payload.get('headSha')} != HEAD {head_sha}")
-            problems += check_run(payload.get("jobs") or [], rest[1:])
+            problems = check_run_payload(payload, head_sha, rest[1:])
             if problems:
                 print("FAIL: required CI jobs not successful:")
                 for problem in problems:

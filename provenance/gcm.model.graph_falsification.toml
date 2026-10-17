@@ -13,8 +13,7 @@ copied_tests = false
 # permutation-test idea for evaluating a causal graph against data; the implication set,
 # the add-one Monte Carlo p-value, the exhaustive enumeration for small graphs and the
 # equivalence-share rule are derived here from those definitions.
-# The DOI below is the arXiv identifier recalled for this paper; no repository source cites it,
-# so it is unconfirmed and should be verified against the arXiv record before release.
+# Published in AAAI 2025 (vol. 39); the DOI is that of the arXiv record (arXiv:2305.09565).
 papers = [
  { title = "Toward Falsifying Causal Graphs Using a Permutation-Based Test", doi = "10.48550/arXiv.2305.09565", sections = ["Section 3 (violations of local Markov conditions compared with node permutations)", "Section 4 (informativeness through Markov equivalence)"] },
 ]

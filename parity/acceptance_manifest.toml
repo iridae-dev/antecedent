@@ -1978,7 +1978,7 @@ configuration = { coordinates = 17 }
 expected = { kind = "receipt", outputs = ["all 17 ready coordinates measured", "every failure resolved before its workflow closes"] }
 targets = { runtime_seconds = 3600, memory_bytes = 8589934592, rationale = "Evidence reconciliation reads registries and executes the existing workflows once per coordinate." }
 dataset = { generator = "registry_check", seed = 2930764, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_generate_calibration_backlog.py::test_ready_coordinates_must_be_measured_with_failures_resolved" }
 
 [[case]]
 id = "posterior_interval_with_2000_draws_calibrated"
@@ -3368,7 +3368,7 @@ configuration = { scope = "all manifest cases" }
 expected = { kind = "receipt", outputs = ["every documented example passes from an installed wheel"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 9574028, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_the_installed_wheel_step_runs_every_example_and_the_suite_outside_the_source_tree" }
 
 [[case]]
 id = "release_practitioner_scale_jobs_pass"
@@ -3378,7 +3378,7 @@ configuration = { scope = "all manifest cases" }
 expected = { kind = "receipt", outputs = ["every practitioner-scale case passes within frozen runtime and memory"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 9200522, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_a_practitioner_scale_case_needs_its_gate_registration_and_a_full_record" }
 
 [[case]]
 id = "release_refusal_boundaries_hold"
@@ -3388,7 +3388,7 @@ configuration = { scope = "all manifest cases" }
 expected = { kind = "receipt", outputs = ["every documented refusal boundary refuses"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 1867142, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_a_refusal_case_must_be_bound_to_a_live_asserting_test" }
 
 [[case]]
 id = "release_replay_reproduces_every_artifact"
@@ -3398,7 +3398,7 @@ configuration = { scope = "all manifest cases" }
 expected = { kind = "receipt", outputs = ["replay identity holds for each artifact consumer"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 1001911, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_artifact_cases_must_compare_the_replay_with_the_original" }
 
 [[case]]
 id = "release_ci_attestation_present"
@@ -3408,7 +3408,7 @@ configuration = { scope = "all manifest cases" }
 expected = { kind = "receipt", outputs = ["attestation covers the release candidate"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 6842468, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_ci_workflow.py::test_a_run_is_accepted_only_when_it_built_this_commit_with_every_required_job_green" }
 
 [[case]]
 id = "release_calibration_cells_have_two_thousand_replicates_and_monte_carlo_uncertainty"
@@ -3418,7 +3418,7 @@ configuration = { scope = "all manifest cases" }
 expected = { kind = "receipt", outputs = ["each cell at least 2,000 replicates with Monte Carlo uncertainty"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 3788635, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_calibrated_records_need_two_thousand_replicates_and_uncertainty" }
 
 [[case]]
 id = "release_independent_confirmation_after_tuning"
@@ -3428,7 +3428,7 @@ configuration = { scope = "all manifest cases" }
 expected = { kind = "receipt", outputs = ["confirmation run independent of tuning data"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 9085422, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_a_boundary_record_needs_a_confirmation_covering_the_case" }
 
 [[case]]
 id = "release_every_construction_bound_to_public_execution_and_current_source"
@@ -3438,7 +3438,7 @@ configuration = { scope = "all manifest cases" }
 expected = { kind = "receipt", outputs = ["bound to public route, current source and artifact consumers"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 6038570, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_check_release_closure.py::test_every_interval_case_binds_a_record_for_its_public_test_and_the_attested_gate" }
 
 [[case]]
 id = "release_audit_limit_failed_measurement_or_deferral_cannot_close_a_case"
@@ -3448,7 +3448,7 @@ configuration = { scope = "all manifest cases" }
 expected = { kind = "receipt", outputs = ["no case closed by an audit, configurable limit, failed measurement, documentation-only narrowing or deferral"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 5952526, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_check_acceptance_manifest.py::test_a_case_cannot_close_on_an_audit_limit_failed_measurement_or_deferral" }
 
 [[case]]
 id = "release_acceptance_manifest_has_no_planned_cases"
@@ -3458,7 +3458,7 @@ configuration = { scope = "all manifest cases" }
 expected = { kind = "receipt", outputs = ["checker passes with --require-bound"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 1248352, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_check_acceptance_manifest.py::test_require_bound_rejects_a_planned_case" }
 
 [[case]]
 id = "price_floor_policy_applies_to_every_realized_price"

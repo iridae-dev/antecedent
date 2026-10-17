@@ -14,7 +14,32 @@ from collections import Counter
 from _repo import REPO_ROOT as ROOT
 
 SOURCE = ROOT / "parity/support_licensed.toml"
+RECORDS = ROOT / "parity/coverage_records.toml"
 OUTPUT = ROOT / "parity/calibration_backlog.md"
+
+Coordinate = tuple[str, str, str, str]
+# The seventeen coordinates whose calibration was wired and ready to run: each must end up
+# measured with every failure resolved. Frozen so the receipt survives the backlog emptying.
+READY_COORDINATES: tuple[Coordinate, ...] = (
+    ("AverageEffect", "Admg", "graph_posterior", "Bayesian"),
+    ("AverageEffect", "Admg", "graph_posterior", "Frequentist"),
+    ("AverageEffect", "Cpdag", "graph_posterior", "Bayesian"),
+    ("AverageEffect", "Pag", "graph_posterior", "Bayesian"),
+    ("AverageEffect", "Pag", "graph_posterior", "Frequentist"),
+    ("ConditionalEffect", "Cpdag", "graph_posterior", "Bayesian"),
+    ("ConditionalEffect", "Cpdag", "graph_posterior", "Frequentist"),
+    ("ConditionalEffect", "Pag", "graph_posterior", "Bayesian"),
+    ("ConditionalEffect", "Pag", "graph_posterior", "Frequentist"),
+    ("InterventionResponse", "Admg", "graph_posterior", "Bayesian"),
+    ("InterventionResponse", "Pag", "graph_posterior", "Frequentist"),
+    ("ResponseCurve", "Admg", "graph_posterior", "Bayesian"),
+    ("ResponseCurve", "Cpdag", "graph_posterior", "Bayesian"),
+    ("ResponseCurve", "Dag", "graph_posterior", "Bayesian"),
+    ("ResponseCurve", "Dag", "graph_posterior", "Frequentist"),
+    ("ResponseCurve", "Pag", "graph_posterior", "Bayesian"),
+    ("ResponseCurve", "Pag", "graph_posterior", "Frequentist"),
+)
+UNRESOLVED_REASONS = frozenset({"estimator_grid_not_measured", "boundary_record"})
 
 
 def reviewed_ceiling() -> int:
@@ -56,10 +81,56 @@ def render() -> tuple[str, int]:
     return "\n".join(lines), len(gaps)
 
 
+def ready_coordinate_problems(
+    cells: list[dict], records: list[dict], ready: tuple[Coordinate, ...] = READY_COORDINATES
+) -> list[str]:
+    """Why a ready coordinate is not yet measured with every failure resolved; empty when it is.
+
+    Every cell of the coordinate must name coverage records that exist, none of the cell's
+    records may sit on a failed grid point (a boundary), and no cell may still carry an
+    unmeasured or boundary reason. The backlog regenerated after measurement then lists
+    no cell of these coordinates.
+    """
+    by_id = {record["id"]: record for record in records}
+    problems = []
+    for coordinate in ready:
+        label = " / ".join(coordinate)
+        members = [c for c in cells if (c["query"], c["graph_class"], c["structure"], c["inference"]) == coordinate]
+        if not members:
+            problems.append(f"{label}: no licensed cell")
+        for cell in members:
+            if cell.get("calibration_reason") in UNRESOLVED_REASONS:
+                problems.append(f"{label}: cell {cell['validation']} is still {cell['calibration_reason']}")
+            names = cell.get("calibration", [])
+            if not names:
+                problems.append(f"{label}: cell {cell['validation']} cites no coverage record")
+            for name in names:
+                record = by_id.get(name)
+                if record is None:
+                    problems.append(f"{label}: cited record {name} does not exist")
+                elif record.get("boundary") or any(p.get("boundary") for p in record.get("grid", [])):
+                    problems.append(f"{label}: record {name} has an unresolved failed grid point")
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--require-measured", action="store_true",
+                        help="fail unless every ready coordinate is measured with every failure resolved")
     args = parser.parse_args()
+    if args.require_measured:
+        problems = ready_coordinate_problems(
+            tomllib.loads(SOURCE.read_text(encoding="utf-8"))["cell"],
+            tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"])
+        for problem in problems:
+            print(f"FAIL: {problem}")
+        text, count = render()
+        if count or OUTPUT.read_text(encoding="utf-8") != text:
+            problems.append("backlog lists unmeasured cells or is stale")
+            print(f"FAIL: {OUTPUT.relative_to(ROOT)} lists {count} unmeasured cells (regenerate after measuring)")
+        print(f"Ready coordinates: {len(READY_COORDINATES)}, {len(problems)} problems")
+        return 1 if problems else 0
     text, count = render()
     ceiling = reviewed_ceiling()
     if count > ceiling:

@@ -145,8 +145,9 @@ if [[ "$section" == all || "$section" == inventory ]]; then
 echo "== docs vs support matrix =="
 bash scripts/gate_docs_support_matrix.sh
 
+echo "== acceptance manifest: every case bound to a live test =="
+python3 scripts/check_acceptance_manifest.py --require-bound
 echo "== published docs links resolve =="
-python3 scripts/check_acceptance_manifest.py
 python3 scripts/check_doc_links.py
 
 # Release closure: declared bounds agree across records, docs, Rust constants and Python
