@@ -205,7 +205,7 @@ checked_execution = [
   { estimator = "response.kennedy_dr", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
 limitations = "Each DAG atom is identified and estimated independently. Posterior graph weights, atom values, identified/unidentified/unevaluable mass, the pointwise identified set, and the conditional-on-identified mean are retained. Failed estimation is unevaluable, not unidentified: the atom keeps its identification status with no value, its mass is reported as unevaluable_mass (also in Python), and any unevaluable mass makes the result GraphDependent. Prepared clicks reuse the graph-posterior identification cache. The joint-IF SE is published only for a scalar aggregate; a multi-atom curve withholds its band (`estimate.response.graph_posterior.uncertainty_withheld`). Prepared handles refuse non-complete-observation queries before identification. Simultaneous bands are not claimed. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim. Under the interactive latency tier at most 16 identified atoms are fitted (the highest-posterior-weight atoms, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
-calibration_reason = "estimator_grid_not_measured"
+calibration = ["cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0", "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0_5", "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_1", "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__0_5", "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__1", "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0", "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0_5", "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_1", "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__0_5", "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__1"]
 
 [[cell]]
 query = "PulseEffect"
@@ -1463,7 +1463,7 @@ checked_execution = [
   { estimator = "response.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
 limitations = "Per-atom Bayesian g-computation supplies atom point responses. Posterior graph weights and all mass categories are retained; the conditional-on-identified point mean is probability-weighted. Failed estimation is unevaluable, not unidentified: the atom keeps its identification status with no value, its mass is reported as unevaluable_mass (also in Python), and any unevaluable mass makes the result GraphDependent. Prepared clicks reuse the identification cache. Multi-atom Bayesian aggregate intervals are withheld (`estimate.response.graph_posterior.uncertainty_withheld`): graph-specific dispersion and a frozen-weight aggregate are different objects. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim. Under the interactive latency tier at most 16 identified atoms are fitted (the highest-posterior-weight atoms, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
-calibration_reason = "estimator_grid_not_measured"
+calibration = ["cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage.a_0", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage.a_0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage.a_1", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage.a__0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage.a__1", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage.a_0", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage.a_0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage.a_1", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage.a__0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage.a__1"]
 
 [[cell]]
 query = "InterventionResponse"
@@ -4327,8 +4327,8 @@ evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_none_runs"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_pag_graph_posterior_effect_is_sealed_and_preserves_unidentified_mass" },
 ]
-limitations = "Each PAG posterior atom is evaluated with the existing class ATE envelope (completion enumeration is not posterior probability). Outer weights are posterior probabilities. Unidentified and unevaluable posterior mass are retained and not redistributed. Atoms that disagree on estimand identity publish an identified set / GraphDependent result rather than a scalar mixture. StructuralAggregationPolicy chooses SameEstimandWeightedMean, IdentifiedSetEnvelope, or GraphDependentAtoms. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each PAG posterior atom is evaluated with the existing class ATE envelope (completion enumeration is not posterior probability). Outer weights are posterior probabilities. Unidentified and unevaluable posterior mass are retained and not redistributed. Atoms that disagree on estimand identity publish an identified set / GraphDependent result rather than a scalar mixture. StructuralAggregationPolicy chooses SameEstimandWeightedMean, IdentifiedSetEnvelope, or GraphDependentAtoms. Cheap/full are licensed separately. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.pag.frequentist.analytic_se.l90.average_effect_pag_graph_posterior_frequentist_nominal_coverage", "cov.average_effect.pag.frequentist.analytic_se.l95.average_effect_pag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4344,8 +4344,8 @@ evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_none_runs"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
-limitations = "Each CPDAG posterior atom is evaluated with the existing class ATE envelope (completion enumeration is not posterior probability). Outer weights are posterior probabilities. Unidentified and unevaluable posterior mass are retained and not redistributed. Atoms that disagree on estimand identity publish an identified set / GraphDependent result rather than a scalar mixture. Priors do not upgrade unidentified atoms. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG posterior atom is evaluated with the existing class ATE envelope (completion enumeration is not posterior probability). Outer weights are posterior probabilities. Unidentified and unevaluable posterior mass are retained and not redistributed. Atoms that disagree on estimand identity publish an identified set / GraphDependent result rather than a scalar mixture. Priors do not upgrade unidentified atoms. Cheap/full are licensed separately. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_graph_posterior_bayesian_nominal_coverage", "cov.average_effect.cpdag.bayesian.posterior_quantile.l95.average_effect_cpdag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4361,8 +4361,8 @@ evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_none_runs"
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
-limitations = "Each PAG posterior atom is evaluated with the existing class ATE envelope (completion enumeration is not posterior probability). Outer weights are posterior probabilities. Unidentified and unevaluable posterior mass are retained and not redistributed. Atoms that disagree on estimand identity publish an identified set / GraphDependent result rather than a scalar mixture. Priors do not upgrade unidentified atoms. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each PAG posterior atom is evaluated with the existing class ATE envelope (completion enumeration is not posterior probability). Outer weights are posterior probabilities. Unidentified and unevaluable posterior mass are retained and not redistributed. Atoms that disagree on estimand identity publish an identified set / GraphDependent result rather than a scalar mixture. Priors do not upgrade unidentified atoms. Cheap/full are licensed separately. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.pag.bayesian.posterior_quantile.l90.average_effect_pag_graph_posterior_bayesian_nominal_coverage", "cov.average_effect.pag.bayesian.posterior_quantile.l95.average_effect_pag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4412,8 +4412,8 @@ evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_ful
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_pag_graph_posterior_effect_is_sealed_and_preserves_unidentified_mass" },
 ]
-limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained. Cheap runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained. Cheap runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.pag.frequentist.analytic_se.l90.average_effect_pag_graph_posterior_frequentist_nominal_coverage", "cov.average_effect.pag.frequentist.analytic_se.l95.average_effect_pag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4429,8 +4429,8 @@ evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_ful
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_pag_graph_posterior_effect_is_sealed_and_preserves_unidentified_mass" },
 ]
-limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained. Full runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained. Full runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.pag.frequentist.analytic_se.l90.average_effect_pag_graph_posterior_frequentist_nominal_coverage", "cov.average_effect.pag.frequentist.analytic_se.l95.average_effect_pag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4446,8 +4446,8 @@ evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_ful
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
-limitations = "Same class-posterior envelope as none: each CPDAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Cheap runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Same class-posterior envelope as none: each CPDAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Cheap runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_graph_posterior_bayesian_nominal_coverage", "cov.average_effect.cpdag.bayesian.posterior_quantile.l95.average_effect_cpdag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4463,8 +4463,8 @@ evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_ful
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
-limitations = "Same class-posterior envelope as none: each CPDAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Full runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Same class-posterior envelope as none: each CPDAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Full runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_graph_posterior_bayesian_nominal_coverage", "cov.average_effect.cpdag.bayesian.posterior_quantile.l95.average_effect_cpdag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4480,8 +4480,8 @@ evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_ful
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
-limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Cheap runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Cheap runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.pag.bayesian.posterior_quantile.l90.average_effect_pag_graph_posterior_bayesian_nominal_coverage", "cov.average_effect.pag.bayesian.posterior_quantile.l95.average_effect_pag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4497,8 +4497,8 @@ evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_ful
 checked_execution = [
   { estimator = "bayesian.gcomp", test = "crates/antecedent/tests/checked_bayesian_class_graph_posterior_effect_route_evidence.rs", assertion = "bayesian_class_graph_posterior_effect_is_sealed_across_atom_kinds_and_suites" },
 ]
-limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Full runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Full runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.pag.bayesian.posterior_quantile.l90.average_effect_pag_graph_posterior_bayesian_nominal_coverage", "cov.average_effect.pag.bayesian.posterior_quantile.l95.average_effect_pag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4515,8 +4515,8 @@ evidence_assertion = "admg_posterior_average_effect_none_runs"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs", assertion = "admg_graph_posterior_effect_is_sealed_for_both_inference_modes" },
 ]
-limitations = "Each ADMG posterior atom is identified with general.id and estimated with functional.effect. Outer weights are posterior probabilities. Unidentified mass is retained and not redistributed. ADMG atoms are single graphs, not MEC completions; bidirected edges are not coerced to Dag; completion enumeration is not posterior probability. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each ADMG posterior atom is identified with general.id and estimated with functional.effect. Outer weights are posterior probabilities. Unidentified mass is retained and not redistributed. ADMG atoms are single graphs, not MEC completions; bidirected edges are not coerced to Dag; completion enumeration is not posterior probability. Cheap/full are licensed separately. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_graph_posterior_frequentist_nominal_coverage", "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4533,8 +4533,8 @@ evidence_assertion = "admg_posterior_average_effect_none_runs"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs", assertion = "admg_graph_posterior_effect_is_sealed_for_both_inference_modes" },
 ]
-limitations = "Each ADMG posterior atom is identified with general.id and estimated with functional.effect (not bayesian.gcomp). Outer weights are posterior probabilities. Unidentified mass is retained and not redistributed. Priors do not upgrade unidentified atoms. ADMG atoms are single graphs, not MEC completions; bidirected edges are not coerced to Dag. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each ADMG posterior atom is identified with general.id and estimated with functional.effect (not bayesian.gcomp). Outer weights are posterior probabilities. Unidentified mass is retained and not redistributed. Priors do not upgrade unidentified atoms. ADMG atoms are single graphs, not MEC completions; bidirected edges are not coerced to Dag. Cheap/full are licensed separately. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_graph_posterior_bayesian_nominal_coverage", "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4550,8 +4550,8 @@ evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs", assertion = "admg_graph_posterior_effect_is_sealed_for_both_inference_modes" },
 ]
-limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not class completion enumeration or bayesian.gcomp). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained. Cheap runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not class completion enumeration or bayesian.gcomp). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained. Cheap runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_graph_posterior_frequentist_nominal_coverage", "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4567,8 +4567,8 @@ evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs", assertion = "admg_graph_posterior_effect_is_sealed_for_both_inference_modes" },
 ]
-limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not class completion enumeration or bayesian.gcomp). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained. Full runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not class completion enumeration or bayesian.gcomp). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained. Full runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_graph_posterior_frequentist_nominal_coverage", "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4584,8 +4584,8 @@ evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs", assertion = "admg_graph_posterior_effect_is_sealed_for_both_inference_modes" },
 ]
-limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not bayesian.gcomp or class completion enumeration). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained; priors do not upgrade unidentified atoms. Cheap runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not bayesian.gcomp or class completion enumeration). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained; priors do not upgrade unidentified atoms. Cheap runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_graph_posterior_bayesian_nominal_coverage", "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "AverageEffect"
@@ -4601,8 +4601,8 @@ evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs", assertion = "admg_graph_posterior_effect_is_sealed_for_both_inference_modes" },
 ]
-limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not bayesian.gcomp or class completion enumeration). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained; priors do not upgrade unidentified atoms. Full runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not bayesian.gcomp or class completion enumeration). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained; priors do not upgrade unidentified atoms. Full runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_graph_posterior_bayesian_nominal_coverage", "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "InterventionResponse"
@@ -4674,8 +4674,8 @@ evidence_assertion = "admg_graph_posterior_intervention_response_matches_identif
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters" },
 ]
-limitations = "Bayesian ADMG graph-posterior InterventionResponse uses functional.effect per atom with frozen posterior mixing; aggregate bands are withheld when multiple atoms contribute. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Bayesian ADMG graph-posterior InterventionResponse uses functional.effect per atom with frozen posterior mixing; aggregate bands are withheld when multiple atoms contribute. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.intervention_response.admg.bayesian.posterior_quantile.l90.intervention_response_admg_graph_posterior_bayesian_nominal_coverage", "cov.intervention_response.admg.bayesian.posterior_quantile.l95.intervention_response_admg_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "InterventionResponse"
@@ -4691,8 +4691,8 @@ evidence_assertion = "admg_graph_posterior_intervention_response_cheap_and_full_
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters" },
 ]
-limitations = "Bayesian cheap runs plugin-level overlap on the mixed intervention mean when StructuralAggregationPolicy is SameEstimandWeightedMean. Contrast-shaped ATE refuters are not licensed. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Bayesian cheap runs plugin-level overlap on the mixed intervention mean when StructuralAggregationPolicy is SameEstimandWeightedMean. Contrast-shaped ATE refuters are not licensed. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.intervention_response.admg.bayesian.posterior_quantile.l90.intervention_response_admg_graph_posterior_bayesian_nominal_coverage", "cov.intervention_response.admg.bayesian.posterior_quantile.l95.intervention_response_admg_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "InterventionResponse"
@@ -4708,8 +4708,8 @@ evidence_assertion = "admg_graph_posterior_intervention_response_cheap_and_full_
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs", assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters" },
 ]
-limitations = "Bayesian full runs plugin-level overlap plus sampling-stability on the mixed intervention mean when StructuralAggregationPolicy is SameEstimandWeightedMean. Contrast-shaped ATE refuters are not licensed. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Bayesian full runs plugin-level overlap plus sampling-stability on the mixed intervention mean when StructuralAggregationPolicy is SameEstimandWeightedMean. Contrast-shaped ATE refuters are not licensed. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.intervention_response.admg.bayesian.posterior_quantile.l90.intervention_response_admg_graph_posterior_bayesian_nominal_coverage", "cov.intervention_response.admg.bayesian.posterior_quantile.l95.intervention_response_admg_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "ResponseCurve"
@@ -4744,8 +4744,8 @@ evidence_assertion = "admg_graph_posterior_response_curve_matches_identified_ato
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/admg_response_curve_route_evidence.rs", assertion = "graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes" },
 ]
-limitations = "Bayesian MeanCurve on ADMG graph posterior mixes atom surfaces by frozen posterior weight when estimands agree; aggregate bands withheld across atoms. cheap/full are n/a. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Bayesian MeanCurve on ADMG graph posterior mixes atom surfaces by frozen posterior weight when estimands agree; aggregate bands withheld across atoms. cheap/full are n/a. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_graph_posterior_bayesian_pointwise_nominal_coverage.a_0", "cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_graph_posterior_bayesian_pointwise_nominal_coverage.a_1"]
 
 [[cell]]
 query = "PulseEffect"
@@ -9032,8 +9032,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.cpdag.frequentist.analytic_se.l90.conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage", "cov.conditional_effect.cpdag.frequentist.analytic_se.l95.conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "ConditionalEffect"
@@ -9049,8 +9049,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.cpdag.frequentist.analytic_se.l90.conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage", "cov.conditional_effect.cpdag.frequentist.analytic_se.l95.conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "ConditionalEffect"
@@ -9066,8 +9066,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.cpdag.frequentist.analytic_se.l90.conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage", "cov.conditional_effect.cpdag.frequentist.analytic_se.l95.conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "ConditionalEffect"
@@ -9083,8 +9083,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.cpdag.bayesian.posterior_quantile.l90.conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage", "cov.conditional_effect.cpdag.bayesian.posterior_quantile.l95.conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "ConditionalEffect"
@@ -9100,8 +9100,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.cpdag.bayesian.posterior_quantile.l90.conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage", "cov.conditional_effect.cpdag.bayesian.posterior_quantile.l95.conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "ConditionalEffect"
@@ -9117,8 +9117,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.cpdag.bayesian.posterior_quantile.l90.conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage", "cov.conditional_effect.cpdag.bayesian.posterior_quantile.l95.conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "ResponseCurve"
@@ -9270,8 +9270,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.pag.frequentist.analytic_se.l90.conditional_effect_pag_graph_posterior_frequentist_nominal_coverage", "cov.conditional_effect.pag.frequentist.analytic_se.l95.conditional_effect_pag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "ConditionalEffect"
@@ -9287,8 +9287,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.pag.frequentist.analytic_se.l90.conditional_effect_pag_graph_posterior_frequentist_nominal_coverage", "cov.conditional_effect.pag.frequentist.analytic_se.l95.conditional_effect_pag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "ConditionalEffect"
@@ -9304,8 +9304,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.linear.adjustment", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.pag.frequentist.analytic_se.l90.conditional_effect_pag_graph_posterior_frequentist_nominal_coverage", "cov.conditional_effect.pag.frequentist.analytic_se.l95.conditional_effect_pag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "ConditionalEffect"
@@ -9321,8 +9321,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.pag.bayesian.posterior_quantile.l90.conditional_effect_pag_graph_posterior_bayesian_nominal_coverage", "cov.conditional_effect.pag.bayesian.posterior_quantile.l95.conditional_effect_pag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "ConditionalEffect"
@@ -9338,8 +9338,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.pag.bayesian.posterior_quantile.l90.conditional_effect_pag_graph_posterior_bayesian_nominal_coverage", "cov.conditional_effect.pag.bayesian.posterior_quantile.l95.conditional_effect_pag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "ConditionalEffect"
@@ -9355,8 +9355,8 @@ evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
 checked_execution = [
   { estimator = "conditional.bayesian", test = "crates/antecedent/tests/checked_graph_posterior_conditional_route_evidence.rs", assertion = "graph_posterior_conditional_effect_is_sealed_across_atom_kinds_inferences_and_suites" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.conditional_effect.pag.bayesian.posterior_quantile.l90.conditional_effect_pag_graph_posterior_bayesian_nominal_coverage", "cov.conditional_effect.pag.bayesian.posterior_quantile.l95.conditional_effect_pag_graph_posterior_bayesian_nominal_coverage"]
 
 [[cell]]
 query = "ResponseCurve"
@@ -9372,8 +9372,8 @@ evidence_assertion = "class_posterior_graph_posterior_response_runs"
 checked_execution = [
   { estimator = "response.kennedy_dr", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.response_curve.pag.frequentist.analytic_se.l90.response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0", "cov.response_curve.pag.frequentist.analytic_se.l90.response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0_5", "cov.response_curve.pag.frequentist.analytic_se.l90.response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage.a_1", "cov.response_curve.pag.frequentist.analytic_se.l90.response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage.a__0_5", "cov.response_curve.pag.frequentist.analytic_se.l90.response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage.a__1", "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0", "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0_5", "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage.a_1", "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage.a__0_5", "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage.a__1"]
 
 [[cell]]
 query = "ResponseCurve"
@@ -9406,8 +9406,8 @@ evidence_assertion = "class_posterior_graph_posterior_response_runs"
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.intervention_response.pag.frequentist.analytic_se.l90.intervention_response_pag_graph_posterior_frequentist_nominal_coverage", "cov.intervention_response.pag.frequentist.analytic_se.l95.intervention_response_pag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "InterventionResponse"
@@ -9423,8 +9423,8 @@ evidence_assertion = "class_posterior_graph_posterior_intervention_response_chea
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.intervention_response.pag.frequentist.analytic_se.l90.intervention_response_pag_graph_posterior_frequentist_nominal_coverage", "cov.intervention_response.pag.frequentist.analytic_se.l95.intervention_response_pag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "InterventionResponse"
@@ -9440,8 +9440,8 @@ evidence_assertion = "class_posterior_graph_posterior_intervention_response_chea
 checked_execution = [
   { estimator = "response.intervention_gcomp", test = "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs", assertion = "graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference" },
 ]
-limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
-calibration_reason = "estimator_grid_not_measured"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. Coverage records bind the measured generating families and size ranges. A calibrated execution additionally requires current attestation and a matching construction."
+calibration = ["cov.intervention_response.pag.frequentist.analytic_se.l90.intervention_response_pag_graph_posterior_frequentist_nominal_coverage", "cov.intervention_response.pag.frequentist.analytic_se.l95.intervention_response_pag_graph_posterior_frequentist_nominal_coverage"]
 
 [[cell]]
 query = "InterventionResponse"
