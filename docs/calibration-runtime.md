@@ -38,6 +38,12 @@ source, seed domain, grid point and raw tally state, then compute only the new
 replicate indices. Conditional reported counts remain distinct from attempted
 counts. An extension is not an independent confirmation, and an old-domain
 extension does not acquire the newer prospective family-wise decision protocol.
+Archive the selected prebuild executables with their source, command and byte
+hashes before a shared target can overwrite them. Retain these small executable
+receipts alongside the raw logs and tally prefixes, rather than keeping every
+compiler cache. A later prefix completion can then reuse the exact producer
+without rebuilding a historical checkout.
+
 If a diagnostic array was not persisted, its printed extension median describes
 the new suffix only. For an upper-median width limit, independently passing that
 same limit in both the original and suffix blocks proves the combined sample
