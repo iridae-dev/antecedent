@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import unittest
+from unittest.mock import patch
 
 from _repo import ensure_scripts_on_path
 
@@ -276,6 +277,91 @@ class LegacyPrefixReplayRecipeTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "separate replay groups"):
             facets.legacy_prefix_replay_environments([record, {**record, "id": "other"}], history)
+
+
+class CoverageFamilyReplayRecipeTest(unittest.TestCase):
+    def fixture(self) -> tuple[dict, dict]:
+        import calibration_decision as decision
+
+        config = decision.config_for_manifest(
+            {"groups": [{"index": i, "label": f"case{i}"} for i in range(1, 758)]}
+        )
+        grid = []
+        for point, (planned, scored, covered) in enumerate(
+            ((400, 400, 380), (2000, 1900, 1805), (20000, 19500, 18525))
+        ):
+            value = decision.evaluate(config, planned, scored, covered, 0.95, False)
+            grid.append(
+                {
+                    "point": point,
+                    "replicates": scored,
+                    "observed": covered / scored,
+                    "role": "gated",
+                    "decision_protocol": value,
+                }
+            )
+        record = {
+            "id": "cov.family",
+            "calibration_sha": "7" * 40,
+            "nominal": 0.95,
+            "role": "gated",
+            "grid": grid,
+            "decision_protocol": grid[0]["decision_protocol"],
+        }
+        return record, config
+
+    def test_replays_the_original_family_domain_and_explicit_registered_attempts(self) -> None:
+        import calibration_decision as decision
+
+        record, config = self.fixture()
+        with patch("calibration_family.config_at_sha", return_value=config) as historical:
+            envs = facets.coverage_family_replay_environments([record])
+        historical.assert_called_once_with(record["calibration_sha"])
+        self.assertEqual([int(e["ANTECEDENT_CALIBRATION_NSIM"]) for e in envs], [400, 2000, 20000])
+        self.assertEqual([e["ANTECEDENT_CALIBRATION_GRID_POINTS"] for e in envs], ["0", "1", "2"])
+        for env in envs:
+            self.assertEqual(json.loads(env[decision.ENV]), config)
+            self.assertNotIn("ANTECEDENT_CALIBRATION_SHA", env)
+            self.assertNotIn("ANTECEDENT_CALIBRATION_CONFIRMATION", env)
+            self.assertNotIn("ANTECEDENT_CALIBRATION_PRIOR_TALLIES", env)
+
+    def test_historical_family_binding_tampered_counts_and_mixed_sources_fail_closed(self) -> None:
+        record, config = self.fixture()
+        with (
+            patch(
+                "calibration_family.config_at_sha",
+                return_value={**config, "family_digest": "f" * 64},
+            ),
+            self.assertRaisesRegex(ValueError, "frozen source roster"),
+        ):
+            facets.coverage_family_replay_environments([record])
+        changed = copy.deepcopy(record)
+        changed["grid"][1]["observed"] = 0.9
+        foreign_domain = copy.deepcopy(record)
+        foreign_domain["grid"][1]["decision_protocol"]["validation_domain"] = "other_domain"
+        for changed_record in (changed, foreign_domain):
+            with (
+                patch("calibration_family.config_at_sha", return_value=config),
+                self.assertRaises(ValueError),
+            ):
+                facets.coverage_family_replay_environments([changed_record])
+        for mixed in (
+            [record, {"id": "legacy"}],
+            [record, {**record, "calibration_sha": "8" * 40}],
+        ):
+            with self.assertRaisesRegex(ValueError, "separate replay groups"):
+                facets.coverage_family_replay_environments(mixed)
+
+    def test_named_boundary_without_an_attempt_receipt_is_not_guessed(self) -> None:
+        record, config = self.fixture()
+        record["grid"][1].pop("decision_protocol")
+        record["grid"][1]["role"] = "named_boundary"
+        with (
+            patch("calibration_family.config_at_sha", return_value=config),
+            self.assertRaisesRegex(ValueError, "explicit attempt receipt"),
+        ):
+            facets.coverage_family_replay_environments([record])
+        self.assertEqual(facets.coverage_family_replay_environments([{"id": "old"}]), [])
 
 
 if __name__ == "__main__":

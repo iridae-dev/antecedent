@@ -2170,6 +2170,72 @@ def legacy_prefix_replay_environments(
     ]
 
 
+def coverage_family_replay_environments(records: list[dict]) -> list[dict[str, str]]:
+    """Reproduce stored validation data without activating a new validation family."""
+    ensure_scripts_on_path()
+    import calibration_decision as decision
+    import calibration_family as family
+
+    active = [
+        "decision_protocol" in record
+        or any("decision_protocol" in point for point in record.get("grid", []))
+        for record in records
+    ]
+    if not any(active):
+        return []
+    if not all(active) or len({record.get("calibration_sha") for record in records}) != 1:
+        raise ValueError("mixed source or legacy/family data require separate replay groups")
+    source = records[0].get("calibration_sha")
+    if not isinstance(source, str) or not re.fullmatch(r"[0-9a-f]{40}", source):
+        raise ValueError("family replay requires its full original measured source SHA")
+    try:
+        expected_config = family.config_at_sha(source)
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ValueError("family replay cannot verify the original source manifest") from error
+    recipes = []
+    for record in records:
+        points = record.get("grid", [])
+        if (
+            len(points) != 3
+            or any(type(point.get("point")) is not int for point in points)
+            or {point.get("point") for point in points} != {0, 1, 2}
+        ):
+            raise ValueError("family replay requires complete recorded grid provenance")
+        recipe = {}
+        for point in points:
+            value = point.get("decision_protocol")
+            if value is None:
+                raise ValueError(
+                    "family replay needs an explicit attempt receipt for a named-boundary point"
+                )
+            decision.validate_decision(
+                value,
+                float(record["nominal"]),
+                observed=float(point["observed"]),
+                replicates=point["replicates"],
+                expected_config=expected_config,
+                role=point.get("role", record.get("role")),
+            )
+            recipe[point["point"]] = value["planned_replicates"]
+        if not any(
+            _bit_equal(record.get("decision_protocol"), point["decision_protocol"])
+            for point in points
+        ):
+            raise ValueError("family replay governing metadata differs from its grid")
+        recipes.append(recipe)
+    if any(recipe != recipes[0] for recipe in recipes[1:]):
+        raise ValueError("mixed family attempt budgets require separate replay groups")
+    return [
+        {
+            decision.ENV: decision.canonical_json(expected_config),
+            "ANTECEDENT_CALIBRATION_GRID_POINTS": str(point),
+            "ANTECEDENT_CALIBRATION_NSIM": str(budget),
+            "ANTECEDENT_CALIBRATION_RECHECK_NSIM": str(max(2000, budget + 1)),
+        }
+        for point, budget in sorted(recipes[0].items())
+    ]
+
+
 def replay_thread_environment(value: str | None) -> dict[str, str]:
     """Preserve an explicit execution cap without inheriting measurement settings."""
     if value is None:
@@ -2242,7 +2308,11 @@ def replay(
                 for rec in stored
                 if any(match.index == g.index for match in matches[str(rec["id"])])
             ]
-            group_invocations[g.index] = legacy_prefix_replay_environments(selected) or [{}]
+            group_invocations[g.index] = (
+                coverage_family_replay_environments(selected)
+                or legacy_prefix_replay_environments(selected)
+                or [{}]
+            )
             group_protocols[g.index] = {
                 **parent_replay_environment(selected),
                 **synthesis_replay_environment(selected),
