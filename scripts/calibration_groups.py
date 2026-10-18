@@ -753,7 +753,7 @@ def archive_logs() -> None:
     print(f"archived earlier logs and consoles to {destination}")
 
 
-def formal_decision_environment() -> dict[str, str]:
+def formal_decision_environment(groups: list[Group] | None = None) -> dict[str, str]:
     """Activate only a reviewed complete family, independently of the selected shard.
 
     Historical gate dry runs, smoke pilots and legacy replay do not call this.
@@ -767,6 +767,8 @@ def formal_decision_environment() -> dict[str, str]:
     if FIRST_NSIM not in {look["planned_replicates"] for look in decision.LOOKS}:
         raise SystemExit("suite coverage protocol requires a registered 400, 2000 or 20000 attempt look")
     config = family.current_config(ROOT)
+    if groups is not None:
+        family.validate_measurement_selection(config, [group.label for group in groups])
     return {decision.ENV: decision.canonical_json(config)}
 
 
@@ -785,7 +787,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
         print("nothing to measure: no record owes a re-measurement")
         return 0
     sha = measurement_source_sha()
-    decision_env = formal_decision_environment()
+    decision_env = formal_decision_environment(groups)
     archive_logs()
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     CONSOLE_DIR.mkdir(parents=True, exist_ok=True)

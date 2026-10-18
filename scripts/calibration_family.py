@@ -372,6 +372,62 @@ def config_at_sha(sha: str, root: Path = ROOT) -> dict:
     return validate_manifest(manifest, audit, root, sha)
 
 
+def followup_allocation(config: dict) -> tuple[str, dict] | None:
+    """A new random domain spends only its explicitly reserved construction slot."""
+    decision.validate_config(config)
+    domain = config["validation_domain"]
+    if domain == decision.LEGACY_DOMAIN:
+        return None
+    if domain == decision.HC3_DOMAIN:
+        return allocations.GROUP, {
+            "record_id": allocations.RECORD + "_variance_hc3",
+            "functional": allocations.FUNCTIONAL + ".variance_hc3",
+            "interval_method": "student_t_sandwich_effective_n",
+            "se_kind": "hc3_sampling_weighted",
+            "nominal": 0.95,
+        }
+    if domain == decision.PAG_DOMAIN:
+        entry = allocations.PAG_EXTENSION
+    elif domain == decision.PAG_CONFIDENCE_SET_DOMAIN:
+        entry = allocations.PAG_CONFIDENCE_SET_EXTENSION
+    else:
+        raise ValueError("unallocated followup validation domain")
+    return entry["group"]["label"], entry["new_slot"]
+
+
+def validate_measurement_selection(config: dict, labels: list[str]) -> None:
+    """Reject an unallocated new-domain group before build or numerical dispatch."""
+    allocation = followup_allocation(config)
+    if allocation is not None:
+        if not labels or set(labels) != {allocation[0]}:
+            raise ValueError("followup validation domain permits only its allocated group")
+        if (config["family_groups"], config["family_cells"]) != (757, 581376):
+            raise ValueError("followup validation changed the original risk budget")
+        if (
+            config["validation_domain"] == decision.HC3_DOMAIN
+            and os.environ.get("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", "3") != "3"
+        ):
+            raise ValueError("HC3 validation requires its allocated protocol3 construction")
+        return
+    original = json.loads(read_source(ROOT, MANIFEST_PATH, allocations.ORIGINAL_SOURCE))
+    roster = {group["label"] for group in original["groups"]}
+    if not set(labels) <= roster:
+        raise ValueError("legacy validation group is absent from the original roster")
+
+
+def validate_measurement_construction(config: dict, label: str, record: dict) -> None:
+    """No emitted foreign construction can inherit a reserved domain's evidence."""
+    allocation = followup_allocation(config)
+    if allocation is None:
+        return
+    expected_label, expected = allocation
+    if label != expected_label or any(
+        record.get("id" if key == "record_id" else key) != expected[key]
+        for key in ("record_id", "functional", "interval_method", "se_kind", "nominal")
+    ):
+        raise ValueError("unallocated construction in followup validation domain")
+
+
 def current_config(root: Path = ROOT) -> dict:
     return validate_manifest(
         json.loads((root / MANIFEST_PATH).read_text(encoding="utf-8")),

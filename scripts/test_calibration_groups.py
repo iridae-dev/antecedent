@@ -601,6 +601,32 @@ class EvidenceArchiveTest(unittest.TestCase):
 
 
 class FormalDecisionEnvironmentTest(unittest.TestCase):
+    def test_followup_foreign_group_stops_before_archiving_build_or_draws(self):
+        import json
+
+        import calibration_decision as decision
+        import calibration_family as family
+
+        roster = json.loads(
+            family.read_source(
+                groups.ROOT, family.MANIFEST_PATH, family.allocations.ORIGINAL_SOURCE
+            )
+        )["groups"]
+        config = decision.config_for_manifest(
+            {"groups": roster, "validation_domain": decision.PAG_CONFIDENCE_SET_DOMAIN}
+        )
+        foreign = groups.Group(1, roster[0]["label"], False, True)
+        with (
+            patch.object(groups, "measurement_source_sha", return_value="a" * 40),
+            patch.object(family, "current_config", return_value=config),
+            patch.object(groups, "archive_logs") as archive,
+            patch.object(groups, "prebuild") as build,
+            self.assertRaisesRegex(ValueError, "allocated group"),
+        ):
+            groups.run(groups.Selection([foreign], 0, {1: "selected"}), len(roster), 1)
+        archive.assert_not_called()
+        build.assert_not_called()
+
     def test_direct_run_source_binding_rejects_dirty_source(self):
         with (
             patch.object(groups.subprocess, "check_output", return_value=" M numerical.rs\n"),

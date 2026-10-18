@@ -69,6 +69,14 @@ def audit_logs(
             for line in text.splitlines()
             if line.startswith("calibration-record ")
         ]
+        allocation = family.followup_allocation(config)
+        if allocation is not None:
+            family.validate_measurement_selection(config, [groups[group]["label"]])
+            expected_id = allocation[1]["record_id"]
+            if not records or any(row.get("record_id") != expected_id for row in raw):
+                raise ValueError("unallocated or absent construction in followup validation")
+        for record in records:
+            family.validate_measurement_construction(config, groups[group]["label"], record)
         if records and any(
             "decision_protocol" not in record and record.get("role") != "named_boundary"
             for record in records

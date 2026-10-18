@@ -367,6 +367,17 @@ check() {
     fi
     return 0
   fi
+  if [ -n "${ANTECEDENT_CALIBRATION_DECISION_CONFIG:-}" ]; then
+    python3 - "$label" <<'PYALLOC'
+import json
+import os
+import sys
+sys.path.insert(0, "scripts")
+import calibration_decision as decision
+import calibration_family as family
+family.validate_measurement_selection(json.loads(os.environ[decision.ENV]), [sys.argv[1]])
+PYALLOC
+  fi
   local safe point shown
   mkdir -p "$LOG_DIR"
   safe="$(echo "${label}" | tr ' /:' '___')"

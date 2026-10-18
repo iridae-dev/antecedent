@@ -3,6 +3,7 @@
 import copy
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -134,6 +135,95 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
                 allocations.validate(changed, groups)
         with self.assertRaisesRegex(ValueError, "original roster"):
             allocations.validate(receipt, groups[:-1])
+
+    def test_followup_selection_allows_only_registered_group_and_construction(self):
+        groups = json.loads(
+            family.read_source(
+                family.ROOT, family.MANIFEST_PATH, family.allocations.ORIGINAL_SOURCE
+            )
+        )["groups"]
+        for domain in (
+            family.decision.HC3_DOMAIN,
+            family.decision.PAG_DOMAIN,
+            family.decision.PAG_CONFIDENCE_SET_DOMAIN,
+        ):
+            config = family.decision.config_for_manifest(
+                {"groups": groups, "validation_domain": domain}
+            )
+            label, expected = family.followup_allocation(config)
+            family.validate_measurement_selection(config, [label])
+            for selection in (["unallocated: test"], [g["label"] for g in groups]):
+                with (
+                    self.subTest(domain=domain),
+                    self.assertRaisesRegex(ValueError, "allocated group"),
+                ):
+                    family.validate_measurement_selection(config, selection)
+            record = {
+                k: expected[k] for k in ("functional", "interval_method", "se_kind", "nominal")
+            }
+            record["id"] = expected["record_id"]
+            family.validate_measurement_construction(config, label, record)
+            with self.assertRaisesRegex(ValueError, "unallocated construction"):
+                family.validate_measurement_construction(
+                    config, label, {**record, "functional": "old"}
+                )
+        legacy = family.decision.config_for_manifest(
+            {"groups": groups, "validation_domain": family.decision.LEGACY_DOMAIN}
+        )
+        family.validate_measurement_selection(legacy, [g["label"] for g in groups])
+        with self.assertRaisesRegex(ValueError, "original roster"):
+            family.validate_measurement_selection(legacy, ["future: foreign"])
+        hc3 = family.decision.config_for_manifest(
+            {"groups": groups, "validation_domain": family.decision.HC3_DOMAIN}
+        )
+        with (
+            patch.dict(os.environ, {"ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL": "2"}),
+            self.assertRaisesRegex(ValueError, "protocol3"),
+        ):
+            family.validate_measurement_selection(hc3, [family.allocations.GROUP])
+
+    def test_actual_gate_dispatch_rejects_foreign_followup_before_any_command(self):
+        groups = json.loads(
+            family.read_source(
+                family.ROOT, family.MANIFEST_PATH, family.allocations.ORIGINAL_SOURCE
+            )
+        )["groups"]
+        config = family.decision.config_for_manifest(
+            {"groups": groups, "validation_domain": family.decision.PAG_CONFIDENCE_SET_DOMAIN}
+        )
+        label, _ = family.followup_allocation(config)
+        gate = (family.ROOT / family.GATE_PATH).read_text(encoding="utf-8")
+        check = "check() {" + gate.split("\ncheck() {", 1)[1].split("\n}\n", 1)[0] + "\n}\n"
+        with tempfile.TemporaryDirectory() as directory:
+            script = "set -e\nGROUP_INDEX=0\nSHARD_N=''\nGRID_POINTS='0 1 2'\nCONFIRM_SUFFIX=''\nFAILED_COUNT=0\n"
+            script += (
+                "grid_group() { return 0; }\nrun_point() { echo DISPATCH; RUN_STATUS=0; }\n" + check
+            )
+            environment = {
+                **os.environ,
+                "ANTECEDENT_CALIBRATION_DRY_RUN": "",
+                family.decision.ENV: family.decision.canonical_json(config),
+                "LOG_DIR": directory,
+            }
+            denied = subprocess.run(
+                ["bash", "-c", script + "check 'foreign: test' true\n"],
+                cwd=family.ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(denied.returncode, 0)
+            self.assertIn("allocated group", denied.stderr)
+            self.assertNotIn("DISPATCH", denied.stdout)
+            allowed = subprocess.run(
+                ["bash", "-c", script + f"check '{label}' true\n"],
+                cwd=family.ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(allowed.returncode, 0, allowed.stderr)
+            self.assertEqual(allowed.stdout.count("DISPATCH"), 3)
 
     def test_current_domain_is_resolvable_by_the_immutable_source_reader(self):
         source = (family.ROOT / "scripts/calibration_decision.py").read_bytes()

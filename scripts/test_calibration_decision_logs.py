@@ -14,7 +14,9 @@ class DecisionLogTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.sha = "a" * 40
         self.roster = [{"index": 1, "label": "suite: test", "grid": True}]
-        self.config = decision.config_for_manifest({"groups": self.roster})
+        self.config = decision.config_for_manifest(
+            {"groups": self.roster, "validation_domain": decision.LEGACY_DOMAIN}
+        )
 
     def write(self, name="suite__test.p0.log", planned=400, covered=380, record=True, skip=0):
         log = self.root / name
@@ -71,6 +73,45 @@ class DecisionLogTests(unittest.TestCase):
 
     def audit(self, logs):
         return audit_logs(logs, self.sha, expected_config=self.config, roster=self.roster)
+
+    def test_followup_receipt_cannot_collect_another_construction_or_recordless_cell(self):
+        import calibration_family as family
+
+        self.roster = json.loads(
+            family.read_source(
+                family.ROOT, family.MANIFEST_PATH, family.allocations.ORIGINAL_SOURCE
+            )
+        )["groups"]
+        self.config = decision.config_for_manifest(
+            {"groups": self.roster, "validation_domain": decision.PAG_CONFIDENCE_SET_DOMAIN}
+        )
+        label, construction = family.followup_allocation(self.config)
+        stem = label.translate(str.maketrans(" /:", "___"))
+        log = self.write(name=stem + ".p0.log")
+        with self.assertRaisesRegex(ValueError, "unallocated"):
+            self.audit([log])
+        lines = []
+        for line in log.read_text(encoding="utf-8").splitlines():
+            if line.startswith("calibration-record "):
+                row = json.loads(line.partition(" ")[2])
+                row.update(
+                    {
+                        k: construction[k]
+                        for k in ("functional", "interval_method", "se_kind", "nominal")
+                    }
+                )
+                row["id"] = construction["record_id"]
+                line = "calibration-record " + json.dumps(row)
+            elif line.startswith("calibration-decision "):
+                row = json.loads(line.partition(" ")[2])
+                row["record_id"] = construction["record_id"]
+                line = "calibration-decision " + json.dumps(row)
+            lines.append(line)
+        log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self.assertTrue(self.audit([log]))
+        log = self.write(name=stem + ".p0.log", record=False)
+        with self.assertRaisesRegex(ValueError, "absent construction"):
+            self.audit([log])
 
     def test_raw_record_binding_preserves_valid_cross_language_roundoff(self):
         log = self.write(planned=20000, covered=19000)
