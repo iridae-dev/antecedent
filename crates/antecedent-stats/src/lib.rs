@@ -35,7 +35,10 @@ pub mod propensity;
 pub mod quantile;
 pub mod regularized;
 pub mod response;
+#[path = "ci/sparse_discrete.rs"]
+mod sparse_discrete;
 pub mod special;
+pub use sparse_discrete::SparseDiscreteCi;
 pub mod synthesis;
 pub mod synthesis_transport;
 #[cfg(test)]
@@ -141,7 +144,8 @@ pub use regularized::{
 };
 pub use response::{
     GaussianMixtureDensity, LocalPolynomialBiasCorrected, LocalPolynomialInfluence,
-    LocalPolynomialPoint, LocalQuadraticWorkspace, gaussian_density,
+    LocalPolynomialPoint, LocalQuadraticWorkspace, diagonal_low_rank_quadratic_traces,
+    gaussian_density, gaussian_local_quadratic_adjusted_influence_prechecked,
     gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_influence,
     gaussian_local_quadratic_influence_prechecked, gaussian_local_quadratic_influence_with,
     gaussian_local_quadratic_weighted, silverman_bandwidth, silverman_normal_reference_factor,
