@@ -7457,6 +7457,7 @@ pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityOp
 pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions::randomization: antecedent::analysis::discovered_transport_trial::TrialRandomization
 pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::alpha: f64
 pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::counts: [u64; 4]
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::estimation_strategy: alloc::string::String
 pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::members: alloc::vec::Vec<antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility>
 pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::original_enumeration_complete: bool
 pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::original_member_bound: u64
@@ -9467,6 +9468,7 @@ pub fn <antecedent::analysis::sample_split_analysis::SplitDiscovery>::fn analysi
 pub fn <antecedent::analysis::sample_split_analysis::SplitDiscovery>::fn check_analysis_table(&self, table: &antecedent_data::dataset::TabularData) -> core::result::Result<antecedent::analysis::sample_split_analysis::AnalysisBinding, antecedent_discovery::selective::refusal::SelectiveDiscoveryError>
 pub fn <antecedent::analysis::sample_split_analysis::SplitDiscovery>::fn discovery_row_ids(&self) -> &[usize]
 pub fn <antecedent::analysis::sample_split_analysis::SplitDiscovery>::fn estimate_analysis_effect(&self, request: &antecedent::analysis::sample_split_analysis::AnalysisEffectRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::sample_split_analysis::SplitAnalysisEffect, antecedent_estimate::error::EstimationError>
+pub fn <antecedent::analysis::sample_split_analysis::SplitDiscovery>::fn estimate_analysis_effect_hc1(&self, request: &antecedent::analysis::sample_split_analysis::AnalysisEffectRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::sample_split_analysis::SplitAnalysisEffect, antecedent_estimate::error::EstimationError>
 pub fn <antecedent::analysis::sample_split_analysis::SplitDiscovery>::fn request_unsplit_interval(&self) -> core::result::Result<core::convert::Infallible, antecedent_discovery::selective::refusal::SelectiveDiscoveryError>
 pub fn <antecedent::analysis::sample_split_analysis::SplitDiscovery>::fn verify(&self) -> core::result::Result<(), antecedent_discovery::selective::refusal::SelectiveDiscoveryError>
 pub fn <antecedent::analysis::sample_split_analysis::SplitDiscovery>::fn verify_against_source(&self, source: &antecedent_data::dataset::TabularData) -> core::result::Result<(), antecedent_discovery::selective::refusal::SelectiveDiscoveryError>
