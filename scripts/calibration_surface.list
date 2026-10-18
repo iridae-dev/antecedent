@@ -17,6 +17,9 @@
 #   other facets       A change invalidates only the records carrying the facet.
 #   key <facet> <field> <pattern>...
 #                      Records whose field matches a pattern carry the facet.
+#   key_all <facet> <field>=<glob>[,<glob>...] <field>=<glob>...
+#                      Every field clause must match; comma-separated patterns
+#                      within one clause are alternatives. Separate rules remain OR.
 #   allow <facet> <path> <name>...
 #                      A reviewed reference from a file outside the facet to
 #                      the facet's items, which cannot run the facet's code for
@@ -35,6 +38,10 @@
 # dependency change is.
 
 # ---- estimator implementations (longer path wins over core src/) -----------
+# Sparse-table null-reference provider is used by the declared discovered-transport
+# procedure. Existing dense GSquared and unrelated stats consumers are unchanged.
+estimator.discrete_ci crates/antecedent-stats/src/ci/sparse_discrete.rs
+key estimator.discrete_ci query DiscoveredTransport
 estimator.linear_adjustment crates/antecedent-estimate/src/adjustment.rs
 key estimator.linear_adjustment estimator linear.adjustment.*
 estimator.aipw crates/antecedent-estimate/src/aipw.rs
@@ -79,6 +86,8 @@ key estimator.multi_level_aipw estimator propensity.generalized_aipw
 estimator.rd crates/antecedent-estimate/src/rd.rs
 key estimator.rd estimator rd.*
 estimator.response crates/antecedent-estimate/src/response/
+estimator.response_levels crates/antecedent-estimate/src/response/curve.rs
+key_all estimator.response_levels estimator=response.kennedy_dr,response.intervention_gcomp query=ResponseCurve,InterventionResponse inference=Frequentist
 key estimator.response estimator response.kennedy_dr
 key estimator.response estimator response.gam_derivative
 key estimator.response estimator response.riesz_ade
@@ -280,19 +289,19 @@ key mechanism estimator gcm.*
 # The dispatch arm of AnalysisRoute::ChangeAttribution, and the NestedCounterfactual
 # arm, which executes the prepared gcm::NestedCounterfactualOperation (or compiles
 # one for an unprepared query): exactly the `key` queries.
-allow mechanism crates/antecedent/src/analysis/execute/dispatch.rs ChangeAttribution NestedCounterfactualOperation compile gcm nested_counterfactual
+allow mechanism crates/antecedent/src/analysis/execute/dispatch.rs ChangeAttribution NestedCounterfactualOperation PolicyValue compile gcm nested_counterfactual
 # Sibling re-exports of the gcm entry points and the checked counterfactual /
 # attribution operation types; every caller is checked by name.
 allow mechanism crates/antecedent/src/analysis/execute/mod.rs CheckedAttributionInfo CheckedAttributionOperation CheckedCounterfactualPlan CounterfactualProcedure anomaly_attribution_query_with attribute_distribution_change attribute_unit_change attribution_path checked_attribution counterfactual_ite fit_gcm gcm map_mechanism_fit mechanism_change_detection
 # CausalQuery::ChangeAttribution: the query enum variant named when a compiled
 # plan is labelled with its gcm identifier.
-allow mechanism crates/antecedent/src/analysis/execute/compile.rs ChangeAttribution
+allow mechanism crates/antecedent/src/analysis/execute/compile.rs ChangeAttribution PolicyValue
 # The contract's nested counterfactual fit snapshot, built only when the prepared
 # analysis retains a gcm::NestedCounterfactualOperation (the NestedCounterfactual
 # `key` query); every other contract leaves the slot empty.
-allow mechanism crates/antecedent/src/analysis/contract.rs NestedCounterfactualOperation gcm nested_counterfactual result_digest result_wire
+allow mechanism crates/antecedent/src/analysis/contract.rs NestedCounterfactualOperation PolicyValue UncertaintyComponent gcm nested_counterfactual policy_value result_digest result_wire
 # Result slots and payload enum variants holding the facet's outputs (types only).
-allow mechanism crates/antecedent/src/result.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
+allow mechanism crates/antecedent/src/result.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection PolicyValue UnitChangeResult antecedent_attribution gcm policy_value unit_change
 # CausalQuery::ChangeAttribution / a `unit_change` field: core names the facet shares.
 # Preparation also compiles and retains the checked counterfactual, nested
 # counterfactual and attribution operations for the Counterfactual,
@@ -360,6 +369,7 @@ suite.calibration_temporal_class crates/antecedent/tests/calibration_temporal_cl
 suite.class_posterior_calibration crates/antecedent/tests/class_posterior_calibration.rs
 suite.sample_split_effect_calibration crates/antecedent/tests/sample_split_effect_calibration.rs
 suite.sample_split_parent_set_effect_calibration crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs
+suite.sample_split_weighted_effect_calibration crates/antecedent/tests/sample_split_weighted_effect_calibration.rs
 suite.transport_statistical_calibration crates/antecedent/tests/transport_statistical_calibration.rs
 suite.discovered_transport_calibration crates/antecedent/tests/discovered_transport_calibration.rs
 suite.z_transport_surrogate_calibration crates/antecedent/tests/z_transport_surrogate_calibration.rs
@@ -441,7 +451,7 @@ allow design crates/antecedent/src/analysis/admg_conditional_transport.rs antece
 allow design crates/antecedent/src/analysis/batch.rs Prepared antecedent_io build prepare
 allow design crates/antecedent/src/analysis/batch_export.rs UncertaintyKind
 allow design crates/antecedent/src/analysis/batch_retarget.rs Prepared UncertaintyKind antecedent_io invalid names refused
-allow design crates/antecedent/src/analysis/builder.rs build finish names
+allow design crates/antecedent/src/analysis/builder.rs antecedent_io build finish names
 allow design crates/antecedent/src/analysis/candidate_screen_units.rs antecedent_io
 allow design crates/antecedent/src/analysis/categorical_treatment.rs antecedent_io consume evaluate export refusal seal
 allow design crates/antecedent/src/analysis/checked_bayesian_class_conditional.rs names prepare seal
@@ -486,7 +496,6 @@ allow design crates/antecedent/src/analysis/execute/checked_survival.rs names
 allow design crates/antecedent/src/analysis/execute/checked_temporal_class_mediation.rs Tail names
 allow design crates/antecedent/src/analysis/execute/checked_temporal_mediation.rs build
 allow design crates/antecedent/src/analysis/execute/checked_transport_trial.rs names
-allow design crates/antecedent/src/analysis/execute/class_envelope_se.rs prepare
 allow design crates/antecedent/src/analysis/execute/class_posterior.rs prepare
 allow design crates/antecedent/src/analysis/execute/class_posterior_response.rs build
 allow design crates/antecedent/src/analysis/execute/compile.rs antecedent_contract
@@ -494,7 +503,6 @@ allow design crates/antecedent/src/analysis/execute/dispatch.rs prepare
 allow design crates/antecedent/src/analysis/execute/mod.rs antecedent_contract antecedent_io
 allow design crates/antecedent/src/analysis/execute/panel_path.rs finish prepare
 allow design crates/antecedent/src/analysis/execute/response_path.rs evaluate prepare
-allow design crates/antecedent/src/analysis/execute/sequential_validation.rs prepare
 allow design crates/antecedent/src/analysis/execute/static_path.rs antecedent_io finish prepare
 allow design crates/antecedent/src/analysis/execute/temporal_class_posterior.rs names prepare
 allow design crates/antecedent/src/analysis/execute/temporal_effect_core.rs names prepare
@@ -538,7 +546,7 @@ allow design crates/antecedent/src/analysis/z_transport_sensitivity_artifact.rs 
 allow design crates/antecedent/src/callback_plan.rs antecedent_contract
 allow design crates/antecedent/src/class_prior.rs antecedent_io
 allow design crates/antecedent/src/discovery.rs Tail finish
-allow design crates/antecedent/src/gcm.rs build invalid refused
+allow design crates/antecedent/src/gcm.rs SelectionRule build invalid prepare refused
 allow design crates/antecedent/src/inference.rs DistributionArtifact antecedent_io distribution_artifact names
 allow design crates/antecedent/src/analysis/surface/io.rs antecedent_io
 allow design crates/antecedent/src/planner/logical.rs antecedent_contract
@@ -637,7 +645,7 @@ allow mechanism crates/antecedent-io-core/src/analysis_wire.rs invalid
 allow mechanism crates/antecedent-io-core/src/lib.rs MechanismSlotWire MechanismStoreWire ModelKindWire mechanism_wire mechanisms_from_wire mechanisms_to_wire result_digest transported_counterfactual_artifact
 allow mechanism crates/antecedent-validate/src/joint_mechanism_sensitivity.rs canonical evaluate
 allow mechanism crates/antecedent-validate/src/mechanism_sensitivity.rs evaluate invalid
-allow mechanism crates/antecedent/src/analysis/execute/route_input.rs ChangeAttribution
+allow mechanism crates/antecedent/src/analysis/execute/route_input.rs ChangeAttribution PolicyValue policy_value
 allow mechanism crates/antecedent/src/analysis/admg_conditional_transport.rs evaluate
 allow mechanism crates/antecedent/src/analysis/batch_retarget.rs invalid
 allow mechanism crates/antecedent/src/analysis/categorical_treatment.rs evaluate
@@ -651,14 +659,14 @@ allow mechanism crates/antecedent/src/analysis/effect_constancy.rs evaluate
 allow mechanism crates/antecedent/src/analysis/exact.rs evaluate
 allow mechanism crates/antecedent/src/analysis/execute/response_path.rs evaluate
 allow mechanism crates/antecedent/src/analysis/inverse_outcome.rs invalid
-allow mechanism crates/antecedent/src/analysis/inverse_query.rs evaluate
+allow mechanism crates/antecedent/src/analysis/inverse_query.rs SelectionRule evaluate
 allow mechanism crates/antecedent/src/analysis/learned_joint_closed.rs from_core invalid
 allow mechanism crates/antecedent/src/analysis/mixed_source.rs evaluate
 allow mechanism crates/antecedent/src/analysis/mz_transport.rs evaluate
 allow mechanism crates/antecedent/src/analysis/native_claims.rs invalid
 allow mechanism crates/antecedent/src/analysis/recalc_cell.rs invalid
 allow mechanism crates/antecedent/src/analysis/recovery.rs invalid
-allow mechanism crates/antecedent/src/analysis/statistical.rs canonical
+allow mechanism crates/antecedent/src/analysis/statistical.rs UncertaintyComponent canonical
 allow mechanism crates/antecedent/src/analysis/temporal_transport.rs evaluate
 allow mechanism crates/antecedent/src/analysis/transport_common.rs evaluate
 allow mechanism crates/antecedent/src/analysis/transport_grid.rs evaluate
@@ -802,7 +810,7 @@ allow design crates/antecedent/src/analysis/prepared/retarget.rs antecedent_cont
 allow design crates/antecedent/src/analysis/prepared/seal.rs names prepare
 allow design crates/antecedent/src/analysis/prepared/support.rs refusal
 allow mechanism crates/antecedent/src/analysis/conditional_study_ranking.rs canonical decode_parts
-allow mechanism crates/antecedent/src/analysis/prepared/execution.rs CheckedAttributionOperation CheckedCounterfactualPlan NestedCounterfactualOperation gcm
+allow mechanism crates/antecedent/src/analysis/prepared/execution.rs CheckedAttributionOperation CheckedCounterfactualPlan NestedCounterfactualOperation PolicyValue gcm
 allow mechanism crates/antecedent/src/analysis/prepared/execution_accessors.rs NestedCounterfactualOperation gcm nested_counterfactual
 allow mechanism crates/antecedent/src/analysis/prepared/info.rs CheckedAttributionInfo CheckedCounterfactualOperation NestedCounterfactualOperation gcm nested_counterfactual
 allow mechanism crates/antecedent/src/analysis/prepared/operations.rs evaluate
@@ -867,13 +875,13 @@ allow mechanism crates/antecedent-io-core/src/provider_verification_artifact.rs 
 allow mechanism crates/antecedent-io/src/sensitivity_artifact.rs decode_parts encode_parts
 allow mechanism crates/antecedent-validate/src/bayesian_checks/prior_sensitivity.rs evaluate
 allow mechanism crates/antecedent/src/analysis/contract/program_wire.rs nested_counterfactual
-allow mechanism crates/antecedent/src/analysis/execute/execute_helpers_route.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm
+allow mechanism crates/antecedent/src/analysis/execute/execute_helpers_route.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection PolicyValue UnitChangeResult antecedent_attribution gcm
 allow mechanism crates/antecedent/src/analysis/prepared/mod.rs CheckedAttributionInfo
 allow mechanism crates/antecedent/src/analysis/prepared/sealed/program.rs NestedCounterfactualOperation gcm
 allow mechanism crates/antecedent/src/analysis/prepared/sealed/static_route.rs CheckedAttributionOperation CheckedCounterfactualPlan
-allow mechanism crates/antecedent/src/analysis/prepared/sealers/mod.rs CheckedCounterfactualOperation NestedCounterfactualOperation gcm nested_counterfactual
+allow mechanism crates/antecedent/src/analysis/prepared/sealers/mod.rs CheckedCounterfactualOperation NestedCounterfactualOperation PolicyValue gcm nested_counterfactual policy_value
 allow mechanism crates/antecedent/src/analysis/prepared/sealers/static_query.rs ChangeAttribution CheckedAttributionOperation CheckedCounterfactualPlan CounterfactualProcedure nested_counterfactual
-allow mechanism crates/antecedent/src/analysis/query_license.rs ChangeAttribution
+allow mechanism crates/antecedent/src/analysis/query_license.rs ChangeAttribution PolicyValue
 allow mechanism crates/antecedent/src/counterfactual_id/artifact.rs check_bounds evaluate
 allow mechanism crates/antecedent/src/counterfactual_id/mod.rs evaluate
 allow mechanism crates/antecedent/src/cross_world/artifact.rs NestedOutcomeMechanism check_bounds gcm
@@ -964,7 +972,7 @@ allow registry_mirror crates/antecedent/src/analysis/recalc_receipt.rs registry
 allow registry_mirror crates/antecedent/src/analysis/statistical.rs interval_method
 allow registry_mirror crates/antecedent/src/analysis/z_transport.rs interval_method
 allow registry_mirror crates/antecedent/src/design.rs registry
-allow registry_mirror crates/antecedent/src/gcm.rs registry
+allow registry_mirror crates/antecedent/src/gcm.rs registry table
 allow registry_mirror crates/antecedent/src/support/matrix_data.rs CELL SNAPSHOT StaticTable leak_slice leak_str leak_strs table
 
 # New-package routes (measurement-error correction, evidence synthesis, mechanism
@@ -1074,8 +1082,8 @@ allow design crates/antecedent/src/analysis/per_population_discovery.rs antecede
 allow design crates/antecedent/src/analysis/predictive_assessment.rs antecedent_contract antecedent_io export refusal seal
 allow design crates/antecedent/src/analysis/prepared/info.rs antecedent_io
 allow design crates/antecedent/src/analysis/provider_callbacks.rs antecedent_contract antecedent_io refusal refused
-allow design crates/antecedent/src/analysis/sample_split_analysis.rs antecedent_contract finish refused
-allow design crates/antecedent/src/analysis/sample_split_effect.rs antecedent_io
+allow design crates/antecedent/src/analysis/sample_split_analysis.rs antecedent_contract finish prepare refused
+allow design crates/antecedent/src/analysis/sample_split_effect.rs antecedent_io names
 allow design crates/antecedent/src/analysis/sample_split_parent_set_effect.rs antecedent_io names
 allow design crates/antecedent/src/analysis/scientific_bridge.rs antecedent_contract antecedent_io export prepare quantity refusal seal
 allow design crates/antecedent/src/analysis/selective_discovery.rs NodeKind antecedent_contract finish refusal
@@ -1085,7 +1093,7 @@ allow design crates/antecedent/src/analysis/transport_handoff.rs antecedent_cont
 allow design crates/antecedent/src/analysis/transport_revalidation.rs ForwardClaim NodeKind TransportedResponse TransportedRoute TransportedValue antecedent_contract antecedent_design build decision_transported_source export finish forward_claim_digest inverse_forward_source inverse_query names quantity refusal
 allow design crates/antecedent/src/analysis/transport_sensitivity.rs REFERENCE_ACTION_ID SensitivityArtifact TRANSPORTED_ACTION_ID TRANSPORT_ASSUMPTION_RANGE_INTERPRETATION TRANSPORT_SENSITIVITY_VERSION TransportAssumptionRange TransportPremise TransportRoute TransportSensitivityRefusal TransportSensitivitySpec TransportedResponse TransportedRoute TransportedValue ViolationFamily antecedent_contract antecedent_design decision_transported_source design_crate design_exports quantity sensitivity_decision source_identity transport_assumption_range transport_sensitivity
 allow design crates/antecedent/src/analysis/transported_cohort.rs antecedent_io invalid
-allow design crates/antecedent/src/analysis/transported_constructors.rs ActionAlphabet AdaptiveTransportEstimate AdaptiveTransportPremises AdaptiveTransportRequest AdaptiveTransportedValue BridgeSelectionDiagram HistoryAlphabet MechanismStatus ModelMechanism SURROGATE_TRANSPORT_PREMISE_ID SelectionDiagram SequentialEvaluationError TemporalPolicyEvaluation TemporalPolicyRequest TemporalTarget TimeInvariance TransportDeclaration TransportPremises TransportReceipt TransportedContribution TransportedPolicyEvaluation TransportedPolicyRequest TransportedRefusal TransportedResponse TransportedRoute TransportedSurrogateBridge TransportedSynthesis TransportedSynthesisMethod TransportedSynthesisRefusal TrialMechanism TrialSelectionDiagram adaptive_trial_transport antecedent_contract antecedent_design decision_transported_source design_crate design_exports evaluate_temporal_policy evaluate_transported_policy period_population_label refusal sequential_evaluation synthesize_transported synthesize_transported_in_population temporal_policy_transport transport_adaptive_trial transported_bridge transported_policy transported_synthesis verify_adaptive_transport verify_temporal_policy verify_transported_policy
+allow design crates/antecedent/src/analysis/transported_constructors.rs ActionAlphabet ActionUtility AdaptiveTransportEstimate AdaptiveTransportPremises AdaptiveTransportRequest AdaptiveTransportedValue BridgeSelectionDiagram HistoryAlphabet MechanismStatus ModelMechanism SURROGATE_TRANSPORT_PREMISE_ID SelectionDiagram SequentialEvaluationError TargetUtility TemporalPolicyEvaluation TemporalPolicyRequest TemporalTarget TimeInvariance TransportDeclaration TransportPremises TransportReceipt TransportedContribution TransportedPolicyEvaluation TransportedPolicyRequest TransportedRefusal TransportedResponse TransportedRoute TransportedSurrogateBridge TransportedSynthesis TransportedSynthesisMethod TransportedSynthesisRefusal TrialMechanism TrialSelectionDiagram UtilityProvenance adaptive_trial_transport antecedent_contract antecedent_design decision_transported_source design_crate design_exports evaluate_temporal_policy evaluate_transported_policy period_population_label refusal sequential_evaluation synthesize_transported synthesize_transported_in_population temporal_policy_transport transport_adaptive_trial transported_bridge transported_policy transported_synthesis verify_adaptive_transport verify_temporal_policy verify_transported_policy
 allow design crates/antecedent/src/analysis/transported_measurement.rs NodeKind TransportReceipt antecedent_contract export
 allow design crates/antecedent/src/analysis/transported_mechanism.rs antecedent_contract antecedent_io export refusal seal
 
@@ -1287,12 +1295,12 @@ allow adaptive_interval crates/antecedent-estimate/src/nested_markov_uncertainty
 allow adaptive_interval crates/antecedent-estimate/src/recovery_sampled.rs antecedent_stats calibration_basis cancelled
 allow adaptive_interval crates/antecedent-estimate/src/temporal_dependent_interval.rs antecedent_stats calibration_basis
 allow adaptive_interval crates/antecedent-io/src/adaptive_inference_result_artifact.rs AdaptiveInferenceError ArmCounts BayesianPosterior Estimand GroupSequentialPlan OutcomeModelPrior PosteriorRule Sidedness SpendingFunction WeightScheme WeightedHistory WeightedOptions adaptive_inference adaptively_weighted_estimate anytime_valid_arm_sequences bayesian_posterior expected_loss_stopping group_sequential_decision refusal standardized_difference
-allow adaptive_interval crates/antecedent-io/src/categorical_treatment_artifact.rs bits
+allow adaptive_interval crates/antecedent-io/src/categorical_treatment_artifact.rs bits cancelled refusal
 allow adaptive_interval crates/antecedent-io/src/counterfactual_transport_artifact.rs refusal
 allow adaptive_interval crates/antecedent-io/src/cpdag_completion_artifact.rs cancelled refusal
 allow adaptive_interval crates/antecedent-io/src/dose_grid_functional_artifact.rs bits refusal
 allow adaptive_interval crates/antecedent-io/src/joint_bayesian_transport_artifact.rs refusal
-allow adaptive_interval crates/antecedent-io/src/latent_class_artifact.rs bits
+allow adaptive_interval crates/antecedent-io/src/latent_class_artifact.rs bits cancelled
 allow adaptive_interval crates/antecedent-io/src/learned_joint_transport_artifact.rs refusal
 allow adaptive_interval crates/antecedent-io/src/measured_inference/cohort_interval.rs calibration_basis
 allow adaptive_interval crates/antecedent-io/src/measured_inference/count_fitted_interval.rs bits calibration_basis
@@ -1300,7 +1308,7 @@ allow adaptive_interval crates/antecedent-io/src/measured_inference/nested.rs ca
 allow adaptive_interval crates/antecedent-io/src/measured_inference/recovery_temporal.rs calibration_basis refusal sequence
 allow adaptive_interval crates/antecedent-io/src/nested_markov_artifact.rs refusal
 allow adaptive_interval crates/antecedent-io/src/nested_markov_bayesian_artifact.rs calibration_basis refusal
-allow adaptive_interval crates/antecedent-io/src/nonlinear_mediation_artifact.rs bits
+allow adaptive_interval crates/antecedent-io/src/nonlinear_mediation_artifact.rs bits cancelled
 allow adaptive_interval crates/antecedent-io/src/recovery_artifact.rs refusal
 allow adaptive_interval crates/antecedent-io/src/recovery_chain_artifact.rs bits refusal
 allow adaptive_interval crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs bits refusal
@@ -1310,7 +1318,7 @@ allow adaptive_interval crates/antecedent-io/src/temporal_interval_artifact.rs s
 allow adaptive_interval crates/antecedent-io/src/temporal_refresh_artifact.rs refusal sequence
 allow adaptive_interval crates/antecedent-io/src/temporal_transport_artifact.rs refusal sequence
 allow adaptive_interval crates/antecedent-io/src/transport_scenario_artifact.rs refusal weighted
-allow adaptive_interval crates/antecedent-io/src/vector_treatment_artifact.rs bits
+allow adaptive_interval crates/antecedent-io/src/vector_treatment_artifact.rs bits cancelled refusal
 allow adaptive_interval crates/antecedent-io/src/width.rs bits
 allow adaptive_interval crates/antecedent/src/analysis/adaptive_procedure_declaration.rs AdaptiveInferenceRefusal AssignmentRule Attribution BetaPrior ContractGap ExposureModel FinalSelection OutcomeObservation ProcedureDeclaration ProcedureSpec Sidedness SpendingFunction StoppingRule adaptive_inference antecedent_stats boundaries cancelled group_sequential refusal
 allow adaptive_interval crates/antecedent/src/analysis/categorical_treatment.rs refusal
@@ -1559,7 +1567,7 @@ allow adaptive_interval crates/antecedent-validate/src/predictive_assessment/ref
 allow adaptive_interval crates/antecedent-validate/src/riesz.rs antecedent_stats
 allow adaptive_interval crates/antecedent-validate/src/sensitivity.rs antecedent_stats
 allow adaptive_interval crates/antecedent-validate/src/suite.rs antecedent_stats
-allow adaptive_interval crates/antecedent/src/analysis/adaptive_procedure_report.rs AdaptiveInferenceError AdaptiveInferenceRefusal AnalysisEstimator AnytimeReport Assigned AssignmentRule Attribution BayesianPosterior BayesianReport BetaPrior CellLabel ContractGap DERIVED_UNMEASURED DecisionReport Delivered Estimand EstimandStatement EstimatorLaw Functional GaussianMixtureLaw Gls InversionGrid InversionInterval ObservedTerminal OrderingPValues OutcomeKernel OutcomeStructure PosteriorMeanGap ProcedureLaw RepeatedMeasuresDeclaration RepeatedMeasuresDerivation RepeatedMeasuresRequest RepeatedMeasuresSpec SimulatedLaw SimulationRequest SimulationSummary StagewiseInference StagewiseLook StoppingRule UncertaintyParadigm UnitAssignment UnitSummary WithinUnitCorrelation adaptive_inference admit admit_repeated_measures antecedent_stats anytime_exclusion_probability anytime_valid_report bayesian_report cancelled decision_report derive_repeated_measures enumerate_law exact_fixed_contrast_law inversion_interval ordering_p_values posterior_mean_gaps premise_reason_code procedure_uncertainty simulate_procedure stagewise_inference
+allow adaptive_interval crates/antecedent/src/analysis/adaptive_procedure_report.rs AdaptiveInferenceError AdaptiveInferenceRefusal AnalysisEstimator AnytimeReport Assigned AssignmentRule Attribution BayesianPosterior BayesianReport BetaPrior CellLabel DERIVED_UNMEASURED DecisionReport Delivered Estimand EstimandStatement EstimatorLaw Functional GaussianMixtureLaw Gls InversionGrid InversionInterval ObservedTerminal OrderingPValues OutcomeKernel OutcomeStructure PosteriorMeanGap ProcedureLaw RepeatedMeasuresDeclaration RepeatedMeasuresDerivation RepeatedMeasuresRequest RepeatedMeasuresSpec ResourceBudget ResourceReceipt SimulatedLaw SimulationRequest SimulationSummary StagewiseInference StagewiseLook StoppingRule UncertaintyParadigm UnitAssignment UnitSummary WithinUnitCorrelation adaptive_inference admit admit_repeated_measures antecedent_stats anytime_exclusion_probability anytime_valid_report bayesian_report cancelled decision_report derive_repeated_measures_within enumerate_law exact_fixed_contrast_law inversion_interval ordering_p_values participant_procedure posterior_mean_gaps premise_reason_code procedure_uncertainty simulate_procedure_within stagewise_inference
 allow adaptive_interval crates/antecedent/src/analysis/batch.rs antecedent_stats
 allow adaptive_interval crates/antecedent/src/analysis/batch_retarget.rs antecedent_stats cancelled
 allow adaptive_interval crates/antecedent/src/analysis/contract/program_wire.rs antecedent_stats
@@ -1573,8 +1581,8 @@ allow adaptive_interval crates/antecedent/src/analysis/execute/checked_bayesian_
 allow adaptive_interval crates/antecedent/src/analysis/execute/checked_bayesian_robust_ate.rs cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/checked_bayesian_static_mediation.rs cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/checked_interference.rs antecedent_stats
-allow adaptive_interval crates/antecedent/src/analysis/execute/checked_panel_did.rs antecedent_stats
-allow adaptive_interval crates/antecedent/src/analysis/execute/checked_randomized.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_panel_did.rs antecedent_stats weighted
+allow adaptive_interval crates/antecedent/src/analysis/execute/checked_randomized.rs cancelled weighted
 allow adaptive_interval crates/antecedent/src/analysis/execute/checked_static_mediation.rs cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/checked_static_response.rs cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/class_envelope_se.rs cancelled
@@ -1607,3 +1615,48 @@ allow adaptive_interval crates/antecedent/src/gcm.rs cancelled
 allow adaptive_interval crates/antecedent/src/options.rs antecedent_stats
 allow adaptive_interval crates/antecedent/src/result.rs antecedent_stats
 suite.knn_matching_calibration crates/antecedent-estimate/tests/knn_matching_calibration.rs
+
+# Reviewed lexical collisions: local validation/cancellation/prepare helpers, crate names,
+# query variants and table variables below do not call the isolated numerical providers.
+# The participant/report facades call core antecedent_stats adaptive-procedure numerics,
+# not the measured adaptive_interval adapter; transported constructor additions are
+# export-only design types. Both cases retain their existing numerical facet dependencies.
+allow adaptive_interval crates/antecedent-estimate/src/observational_policy.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/observational_survival.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/propensity/knn.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/randomized_missing.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/sampling_weights.rs antecedent_stats
+allow adaptive_interval crates/antecedent-io/src/artifact_budget.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/adaptive_participant_procedure.rs AdaptiveInferenceRefusal ArmBorrowing BorrowingPlan CellLabel DERIVED_UNMEASURED LookDecision LookReading ParticipantDeclaration ParticipantHistory ParticipantRun ParticipantSimulation ParticipantSimulationRequest ParticipantSimulationSummary ParticipantSpec ResolvedArmPrior ResourceBudget adaptive_inference antecedent_stats cancelled run_participant_procedure_within simulate_participant_history simulate_participant_procedure_within
+allow adaptive_interval crates/antecedent/src/analysis/discovered_transport_estimate.rs bits
+allow adaptive_interval crates/antecedent/src/analysis/sample_split_analysis.rs antecedent_stats weighted
+allow adaptive_interval crates/antecedent/src/estimator_spec.rs weighted
+allow cross_world_interval crates/antecedent/src/analysis/observational_policy.rs refused
+allow cross_world_interval crates/antecedent/src/analysis/observational_survival.rs refused
+allow design crates/antecedent/src/analysis/adaptive_participant_procedure.rs antecedent_contract finish
+allow design crates/antecedent/src/analysis/builder/finish.rs antecedent_io
+allow design crates/antecedent/src/analysis/discovered_transport_estimate.rs antecedent_io consume decide export finish invalid
+allow design crates/antecedent/src/analysis/discovered_transport_temporal.rs finish invalid
+allow design crates/antecedent/src/analysis/execute/checked_panel_did/weighted.rs invalid
+allow design crates/antecedent/src/analysis/missing_data.rs antecedent_io names
+allow design crates/antecedent/src/analysis/observational_policy.rs evaluate invalid names refused
+allow design crates/antecedent/src/analysis/observational_survival.rs evaluate names refused
+allow mechanism crates/antecedent-estimate/src/observational_policy.rs invalid
+allow mechanism crates/antecedent-estimate/src/observational_survival.rs evaluate invalid
+allow mechanism crates/antecedent-estimate/src/propensity/weighting.rs evaluate
+allow mechanism crates/antecedent-estimate/src/sampling_weights.rs invalid
+allow mechanism crates/antecedent-estimate/src/temporal_adjustment.rs invalid
+allow mechanism crates/antecedent/src/analysis/builder/finish.rs PolicyValue
+allow mechanism crates/antecedent/src/analysis/contract/result_wire.rs policy_value
+allow mechanism crates/antecedent/src/analysis/decision_reliability.rs SelectionRule
+allow mechanism crates/antecedent/src/analysis/discovered_transport_estimate.rs identity_of invalid
+allow mechanism crates/antecedent/src/analysis/discovered_transport_temporal.rs invalid
+allow mechanism crates/antecedent/src/analysis/execute/checked_panel_did/weighted.rs invalid
+allow mechanism crates/antecedent/src/analysis/execute/checked_randomized.rs PolicyValue policy_value
+allow mechanism crates/antecedent/src/analysis/learned_trial.rs UncertaintyComponent
+allow mechanism crates/antecedent/src/analysis/observational_policy.rs evaluate invalid
+allow mechanism crates/antecedent/src/analysis/observational_survival.rs evaluate
+allow mechanism crates/antecedent/src/analysis/prepared/sealers/design.rs PolicyValue policy_value
+allow registry_mirror crates/antecedent-estimate/src/propensity/knn.rs table
+allow registry_mirror crates/antecedent-io-core/src/policy_program_artifact.rs records
+allow registry_mirror crates/antecedent/src/analysis/discovered_transport_estimate.rs table

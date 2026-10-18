@@ -286,6 +286,7 @@ class Surface:
     allows: dict[tuple[str, str], set[str]] = field(default_factory=dict)
     testmods: set[str] = field(default_factory=set)
     keys: list[tuple[str, str, list[str]]] = field(default_factory=list)
+    all_keys: list[tuple[str, list[tuple[str, list[str]]]]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -334,6 +335,21 @@ def load_surface(path: Path = LIST, text: str | None = None) -> Surface:
             if parts[1] in surface.testmods:
                 surface.errors.append(f"{where}: duplicate testmod for {parts[1]}")
             surface.testmods.add(parts[1])
+        elif parts[0] == "key_all":
+            clauses = []
+            fields = set()
+            valid = len(parts) >= 4
+            for raw_clause in parts[2:]:
+                key, separator, raw_patterns = raw_clause.partition("=")
+                patterns = raw_patterns.split(",")
+                if not separator or key not in RECORD_KEY_FIELDS or key in fields or not all(patterns):
+                    valid = False
+                fields.add(key)
+                clauses.append((key, patterns))
+            if not valid:
+                surface.errors.append(f"{where}: key_all <facet> <field>=<glob>[,<glob>...] <field>=<glob>... (distinct known fields)")
+                continue
+            surface.all_keys.append((parts[1], clauses))
         elif parts[0] == "key":
             if len(parts) < 4 or parts[2] not in RECORD_KEY_FIELDS:
                 surface.errors.append(
@@ -363,7 +379,7 @@ def load_surface(path: Path = LIST, text: str | None = None) -> Surface:
     for facet, _rel in surface.allows:
         if facet not in known or facet == CORE:
             surface.errors.append(f"{path.name}: allow names unknown or core facet {facet}")
-    for facet, _, _ in surface.keys:
+    for facet in [f for f, _, _ in surface.keys] + [f for f, _ in surface.all_keys]:
         if facet not in known or facet == CORE:
             surface.errors.append(f"{path.name}: key names unknown or core facet {facet}")
     return surface
@@ -673,6 +689,10 @@ def record_facets(rec: dict, surface: Surface, refs: References | None = None) -
     for facet, key, patterns in surface.keys:
         value = str(rec.get(key, ""))
         if any(fnmatch.fnmatchcase(value, pattern) for pattern in patterns):
+            facets.add(facet)
+    for facet, clauses in surface.all_keys:
+        if all(any(fnmatch.fnmatchcase(str(rec.get(key, "")), pattern) for pattern in patterns)
+               for key, patterns in clauses):
             facets.add(facet)
     return sorted(facets)
 
@@ -1830,6 +1850,40 @@ def load_replay_capture(out_dir: Path, source_sha: str, records: list[str]) -> d
     return payloads
 
 
+def parent_replay_environment(records: list[dict]) -> dict[str, str]:
+    """Select the real parent protocol from the evidence being replayed.
+
+    Legacy records predate the explicit three-quarter discovery split. They
+    must execute version 1, with its actual half split, original DGP and key;
+    this does not relabel a version-2 result as old evidence.
+    """
+    parent_path = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs"
+    versions = set()
+    for record in records:
+        if str(record.get("test", "")).rpartition("::")[0] != parent_path:
+            continue
+        functional = record.get("functional")
+        if not isinstance(functional, str) or not functional:
+            raise ValueError("parent replay requires the stored functional protocol")
+        if ".discovery_fraction_0_75" in functional:
+            versions.add(2)
+        elif ".discovery_fraction_" in functional:
+            raise ValueError(f"unknown parent discovery protocol in {functional!r}")
+        else:
+            versions.add(1)
+    if len(versions) > 1:
+        raise ValueError("mixed parent version-1/version-2 records require separate replay groups")
+    if not versions:
+        return {}
+    version = versions.pop()
+    out = {"ANTECEDENT_PARENT_PROTOCOL_VERSION": str(version)}
+    if version == 1:
+        out.update({"ANTECEDENT_CALIBRATION_NSIM": "400",
+                    "ANTECEDENT_CALIBRATION_RECHECK_NSIM": "2000",
+                    "ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM": "2000"})
+    return out
+
+
 def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
            waiver_file: Path = WAIVERS) -> int:
     surface = load_surface()
@@ -1877,12 +1931,23 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
             return 1
         for g in groups:
             plan[g.index] = g
+    group_protocols = {}
+    try:
+        for g in plan.values():
+            selected = [rec for rec in stored
+                        if any(match.index == g.index for match in matches[str(rec["id"])])]
+            group_protocols[g.index] = parent_replay_environment(selected)
+    except ValueError as error:
+        print(f"FAIL: {error}")
+        return 1
     print(
         f"replay of waiver {waiver_id} at {head}: {len(stored)} record(s), "
         f"{len(plan)} gate group(s)"
     )
     for g in plan.values():
-        print(f"  group {g.index}{' (long)' if g.long else ''}: {g.label}")
+        protocol = group_protocols[g.index].get("ANTECEDENT_PARENT_PROTOCOL_VERSION")
+        detail = f" [stored parent protocol {protocol}]" if protocol else ""
+        print(f"  group {g.index}{' (long)' if g.long else ''}: {g.label}{detail}")
     if dry_run:
         return 0
     out_dir = REPLAY_DIR / waiver_id
@@ -1896,18 +1961,11 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
         except (OSError, KeyError, ValueError, TypeError, SystemExit) as exc:
             print(f"FAIL: cannot reuse replay capture: {exc}")
             return 1
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if k
-        not in (
-            "ANTECEDENT_CALIBRATION_NSIM",
-            "ANTECEDENT_CALIBRATION_RECHECK_NSIM",
-            "ANTECEDENT_CALIBRATION_DRY_RUN",
-            "ANTECEDENT_CALIBRATION_GRID_POINT",
-            "ANTECEDENT_CALIBRATION_GRID_POINTS",
-        )
-    }
+    # An inherited smoke/recheck/confirmation setting cannot choose replay data.
+    # Protocol overrides are derived only from the stored group's records.
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith("ANTECEDENT_CALIBRATION_")
+           and k != "ANTECEDENT_PARENT_PROTOCOL_VERSION"}
     for g in ([] if reuse_capture else plan.values()):
         safe = _safe_label(g.label)
         names = group_log_names(safe)
@@ -1924,7 +1982,7 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
         status = subprocess.run(
             ["bash", str(ROOT / "scripts" / "gate_calibration.sh")],
             cwd=ROOT,
-            env={**env, "ANTECEDENT_CALIBRATION_SHARD": f"{g.index - 1}/{total}"},
+            env={**env, **group_protocols[g.index], "ANTECEDENT_CALIBRATION_SHARD": f"{g.index - 1}/{total}"},
         ).returncode
         for name in names:
             if (LOG_DIR / name).exists():
@@ -2579,6 +2637,18 @@ def self_test() -> int:
             _CODE_CACHE.clear()
 
     base = load_surface()
+    conjunctive = Surface(entries=[(CORE, "core.rs"), ("estimator.level", "level.rs")],
+                          all_keys=[("estimator.level", [("estimator", ["response.kennedy_dr"]),
+                                                         ("query", ["ResponseCurve"]),
+                                                         ("inference", ["Frequentist"])])])
+    curve_probe = {"estimator": "response.kennedy_dr", "query": "ResponseCurve", "inference": "Frequentist"}
+    expect("estimator.level" in record_facets(curve_probe, conjunctive)
+           and all("estimator.level" not in record_facets(curve_probe | change, conjunctive)
+                   for change in ({"query": "PointDerivative"}, {"estimator": "response.bayesian"}, {"inference": "Bayesian"})),
+           "key_all requires every field; unrelated derivative and Bayesian evidence stays outside the level facet")
+    broad = Surface(entries=conjunctive.entries, keys=[("estimator.level", "estimator", ["response.*"])])
+    expect(bool(surface_narrowing_problems(broad, conjunctive, [])),
+           "replacing a broad OR key with an extra query conjunction is reviewed narrowing")
     expect(
         _test_only_module("crates/antecedent-estimate/src/calibration_coverage.rs"),
         "#[cfg(test)] plus lint allows still marks a test-only module",
@@ -2779,10 +2849,31 @@ def self_test() -> int:
         est = str(rec.get("estimator", ""))
         if est.startswith("gcm."):
             continue
-        got = [f for f in record_facets(rec, base) if f.startswith("estimator.")]
+        carried = set(record_facets(rec, base))
+        got = [f for f in carried if f.startswith("estimator.")]
+        other_owner = next((owner for prefix, owner in (
+            ("adaptive.", "adaptive_interval"),
+            ("decision_reliability_", "design"),
+            ("joint_law.", "joint_law_composed"),
+            ("cross_world.", "cross_world_interval"),
+        ) if est.startswith(prefix)), None)
+        core_owned = {
+            "randomized_complete_neyman", "randomized_ancova_hc0", "randomized_independent_action_score",
+            "randomized_responder_complete_case", "randomized_responder_weighted", "randomized_neyman",
+            "randomized.ancova_itt", "randomized.neyman_itt",
+        }
+        if other_owner is not None or est in core_owned:
+            required = other_owner or CORE
+            if got or required not in carried:
+                split.append((est, sorted(carried)))
+            continue
         # Transport records can depend on both shared and route-specific
         # estimator surfaces. Keep every such attestation obligation explicit.
         expected = transport_facets.get(est)
+        if (est in ("response.kennedy_dr", "response.intervention_gcomp")
+                and rec.get("query") in ("ResponseCurve", "InterventionResponse")
+                and rec.get("inference") == "Frequentist"):
+            expected = {"estimator.response", "estimator.response_levels"}
         if expected is not None and set(got) != expected or expected is None and len(got) != 1:
             split.append((est, got))
     expect(
@@ -2870,6 +2961,39 @@ def self_test() -> int:
     return 0
 
 
+def surface_narrowing_problems(old: Surface, new: Surface, files: list[str]) -> list[str]:
+    """Conservative dependency inclusion, including directory shadows and key rules."""
+    problems = []
+    paths = sorted(set(old.paths) | {path for path in files if old.facet_of(path) is not None})
+    for path in paths:
+        previous, current = old.facet_of(path), new.facet_of(path)
+        if current is None:
+            problems.append(f"{path} left the calibration surface (was {previous})")
+        elif current not in (previous, CORE):
+            problems.append(f"{path} moved from facet {previous} to {current}, away from {CORE}")
+
+    def rules(surface: Surface) -> list[tuple[str, dict[str, list[str]]]]:
+        return [(facet, {key: patterns}) for facet, key, patterns in surface.keys] + [
+            (facet, dict(clauses)) for facet, clauses in surface.all_keys
+        ]
+
+    def covers(patterns: list[str], previous: str) -> bool:
+        # Glob-language inclusion is deliberately conservative. Equality and a
+        # universal glob are proofs; literal old values may match any new glob.
+        return any(pattern == previous or pattern == "*"
+                   or (not any(char in previous for char in "*?[")
+                       and fnmatch.fnmatchcase(previous, pattern)) for pattern in patterns)
+
+    current_rules = rules(new)
+    for facet, old_clauses in rules(old):
+        if not any(candidate == facet and set(clauses) <= set(old_clauses)
+                   and all(all(covers(patterns, previous) for previous in old_clauses[key])
+                           for key, patterns in clauses.items())
+                   for candidate, clauses in current_rules):
+            problems.append(f"{facet} key dependency rule was removed or narrowed: {old_clauses}")
+    return problems
+
+
 def widening_problems(base: str) -> list[str]:
     """How this tree's surface list narrows the list at `base`.
 
@@ -2885,14 +3009,10 @@ def widening_problems(base: str) -> list[str]:
     new = load_surface()
     if _git("diff", "--quiet", base, "--", "parity/calibration_waivers.toml").returncode != 0:
         return []
-    problems = []
-    for facet, path in old.entries:
-        now = new.facet_of(path)
-        if now is None:
-            problems.append(f"{path} left the calibration surface (was {facet})")
-        elif now not in (facet, CORE):
-            problems.append(f"{path} moved from facet {facet} to {now}, away from {CORE}")
-    return problems
+    tree = _git("ls-tree", "-r", "--name-only", base)
+    if tree.returncode != 0:
+        return [f"cannot enumerate calibration surface at {base}: {tree.stderr.strip()}"]
+    return surface_narrowing_problems(old, new, tree.stdout.splitlines())
 
 
 def main() -> int:

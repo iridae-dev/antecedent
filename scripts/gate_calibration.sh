@@ -80,6 +80,13 @@ first_pass_nsim() {
   test="${test#*: }"
   case "$1" in
     *"[grid point 0]"*|*"[grid point 2]"*)
+      # Legacy parent records replay the actual version-1 400/2000/400 plan.
+      # New acceptance minima belong to the version-2 three-quarter split.
+      if [ "${ANTECEDENT_PARENT_PROTOCOL_VERSION:-2}" = "1" ]; then
+        case "$1" in
+          sample_split_parent_set_effect_calibration:*) echo "$FIRST_NSIM"; return ;;
+        esac
+      fi
       case "$ACCEPTANCE_GRID_TESTS" in
         *" $test "*) ;;
         *) echo "$FIRST_NSIM"; return ;;

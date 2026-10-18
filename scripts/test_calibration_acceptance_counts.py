@@ -28,7 +28,7 @@ class AcceptanceReplicateCounts(unittest.TestCase):
         env = {
             key: value
             for key, value in os.environ.items()
-            if not key.startswith("ANTECEDENT_CALIBRATION_")
+            if not key.startswith("ANTECEDENT_CALIBRATION_") and key != "ANTECEDENT_PARENT_PROTOCOL_VERSION"
         }
         env.update(overrides)
         return [
@@ -54,6 +54,9 @@ class AcceptanceReplicateCounts(unittest.TestCase):
 
     def test_a_base_only_case_keeps_the_ordinary_extension_counts(self) -> None:
         self.assertEqual(self.counts(WEIGHTED), [400, 2000, 400])
+
+    def test_legacy_parent_replay_preserves_original_400_2000_400_plan(self) -> None:
+        self.assertEqual(self.counts(PARENT, ANTECEDENT_PARENT_PROTOCOL_VERSION="1"), [400, 2000, 400])
 
     def test_larger_explicit_counts_are_preserved(self) -> None:
         self.assertEqual(

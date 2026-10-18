@@ -80,6 +80,24 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         self.assertTrue(groups.measures("antecedent-estimate", "sampled_mediation_covariate_shift", record))
         self.assertFalse(groups.measures("antecedent-estimate", "sampled_latent_district", record))
 
+    def test_legacy_parent_record_does_not_attest_default_version_two_measurement(self) -> None:
+        group = groups.Group(1, "sample_split_parent_set_effect_calibration: parent_case", False, True)
+        legacy = {"id": "legacy", "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_case",
+                  "functional": "total_effect.variables_10.max_degree_4"}
+        current = {**legacy, "id": "current", "functional": legacy["functional"] + ".discovery_fraction_0_75"}
+        self.assertTrue(groups.measures(group.head, group.test_filter, legacy))
+        self.assertFalse(groups.measures_current_protocol(group, legacy))
+        self.assertTrue(groups.measures_current_protocol(group, current))
+        ledger = self.root / "empty-gates.toml"
+        ledger.write_text("".join(
+            f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\ncalibration_sha="legacy-sha"\n'
+            for point in range(3)
+        ))
+        for record, expected in ((legacy, [group]), (current, [])):
+            facets = SimpleNamespace(load_records=lambda: [record])
+            with patch.dict(sys.modules, {"calibration_facets": facets}), patch.object(groups, "GATE_REGISTRY", ledger):
+                self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
+
     def test_prebuild_groups_actual_package_targets_and_retains_lib_commands(self) -> None:
         candidates = self.candidates() + [groups.Group(8, "nested_bayesian: another", False, True)]
         with patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:
@@ -133,13 +151,14 @@ class EvidenceArchiveTest(unittest.TestCase):
         group = groups.Group(1, "suite: selected", False, False)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            with patch.object(groups, "FIRST_NSIM", 20000), patch.object(groups, "RECHECK_NSIM", 20001), patch.object(groups, "last_durations", return_value={}), patch.object(groups, "archive_logs"), patch.object(groups, "prebuild", return_value=0), patch.object(groups.subprocess, "check_output", return_value="a" * 40), patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, patch.object(groups, "LOG_DIR", root / "records"), patch.object(groups, "CONSOLE_DIR", root / "console"), patch.object(groups, "TIMINGS", root / "times.tsv"):
+            with patch.dict(groups.os.environ, {"ANTECEDENT_PARENT_PROTOCOL_VERSION": "1"}), patch.object(groups, "FIRST_NSIM", 20000), patch.object(groups, "RECHECK_NSIM", 20001), patch.object(groups, "last_durations", return_value={}), patch.object(groups, "archive_logs"), patch.object(groups, "prebuild", return_value=0), patch.object(groups.subprocess, "check_output", return_value="a" * 40), patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, patch.object(groups, "LOG_DIR", root / "records"), patch.object(groups, "CONSOLE_DIR", root / "console"), patch.object(groups, "TIMINGS", root / "times.tsv"):
                 self.assertEqual(groups.run(groups.Selection([group], 0, {1: "selected"}), 2, 1), 0)
                 self.assertEqual(run.call_count, 1)
                 env = run.call_args.kwargs["env"]
                 self.assertEqual(env["ANTECEDENT_CALIBRATION_NSIM"], "20000")
                 self.assertEqual(env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"], "20001")
                 self.assertEqual(env["ANTECEDENT_CALIBRATION_SHARD"], "0/2")
+                self.assertNotIn("ANTECEDENT_PARENT_PROTOCOL_VERSION", env)
 
     def test_run_preserves_historical_longest_first_without_current_pilot(self) -> None:
         short = groups.Group(1, "suite: short", False, False)

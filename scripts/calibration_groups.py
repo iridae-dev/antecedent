@@ -181,6 +181,15 @@ def measures(head: str, test_filter: str, rec: dict) -> bool:
     return same_file and test_filter in fn
 
 
+def measures_current_protocol(group: Group, record: dict) -> bool:
+    """Normal measurements target published defaults; replay still maps old protocols."""
+    if not measures(group.head, group.test_filter, record):
+        return False
+    if group.head == "sample_split_parent_set_effect_calibration":
+        return ".discovery_fraction_0_75" in str(record.get("functional", ""))
+    return True
+
+
 @cache
 def _workspace_packages(root: Path) -> tuple[tuple[str, Path], ...]:
     """Actual Cargo member names and directories, including member globs."""
@@ -257,10 +266,12 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
         chosen = []
         reasons = {}
         for group in groups:
-            if any(measures(group.head, group.test_filter, rec) for rec in records):
+            if any(measures_current_protocol(group, rec) for rec in records):
                 continue
             names = [group.safe + ("" if point is None else f".p{point}") for point in group.points]
-            if all(name in passed for name in names):
+            # Legacy recordless rows do not prove the new parent's explicit
+            # version-2 construction. Every parent group must emit its v2 record.
+            if group.head != "sample_split_parent_set_effect_calibration" and all(name in passed for name in names):
                 continue
             chosen.append(group)
             reasons[group.index] = "no coverage record or complete passed gate ledger"
@@ -272,7 +283,7 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
     matched: set[str] = set()
     recordless: list[Group] = []
     for group in groups:
-        if not any(measures(group.head, group.test_filter, rec) for rec in records):
+        if not any(measures_current_protocol(group, rec) for rec in records):
             if _suite_file(group.head):
                 reasons[group.index] = "no record in the registry"
             else:
@@ -391,7 +402,7 @@ def print_plan(selection: Selection, groups: list[Group], jobs: int) -> None:
         print(f"records owing a re-measurement: {selection.owed_records}")
     print(
         f"groups to run: {len(selection.groups)} of {len(groups)} "
-        f"(parallel jobs: {jobs}, worker threads per job: {threads}, cores: {CORES})"
+        f"(parallel jobs: {jobs}, worker threads per job: {threads}, cores: {CORES}; first-pass replicates: {FIRST_NSIM})"
     )
     # A recheck extends the first run from FIRST_NSIM to RECHECK_NSIM replicates,
     # so it costs (RECHECK_NSIM - FIRST_NSIM) / FIRST_NSIM of the first run.
@@ -503,7 +514,7 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
     started = time.monotonic()
     base_env = {
         k: v for k, v in os.environ.items()
-        if not k.startswith("ANTECEDENT_CALIBRATION_")
+        if not k.startswith("ANTECEDENT_CALIBRATION_") and k != "ANTECEDENT_PARENT_PROTOCOL_VERSION"
     }
     base_env.update({
         "ANTECEDENT_CALIBRATION_SMOKE": "1",
@@ -697,6 +708,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_CALIBRATION_TALLY_OUT",
             "ANTECEDENT_CALIBRATION_LOG_DIR",
             "ANTECEDENT_CALIBRATION_SMOKE",
+            "ANTECEDENT_PARENT_PROTOCOL_VERSION",
         )
     }
     # Each job's `map_replicates` gets its share of the cores, so `jobs` jobs
