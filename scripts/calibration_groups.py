@@ -559,10 +559,13 @@ def prebuild(groups: list[Group]) -> int:
         commands.append(
             ["cargo", "test", "--release", "-p", package, *feature_args, *tests, "--no-run"]
         )
-    for command in commands:
-        print(f"== build: {' '.join(command)}", flush=True)
-        if subprocess.run(command, cwd=ROOT).returncode != 0:
-            return 1
+    from _calibration_build_cache import guarded_release_cache
+
+    with guarded_release_cache(ROOT):
+        for command in commands:
+            print(f"== build: {' '.join(command)}", flush=True)
+            if subprocess.run(command, cwd=ROOT).returncode != 0:
+                return 1
     return 0
 
 

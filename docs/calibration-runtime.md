@@ -59,6 +59,23 @@ queue finishes. Limit the *sum* of simulation workers, independent replay and
 extension workers, and competing compiler or test workers. A per-process limit
 alone does not prevent oversubscription.
 
+When two same-version checkouts share a Cargo target directory, a successful
+`--no-run` alone does not prove that the executable matches the second checkout.
+An observed C30/e15 switch reused the C30 binary in 0.14 seconds even though the
+ranking test source differed: the second checkout's older file timestamps made
+Cargo call every local artifact fresh. This was caught before any e15 simulation.
+The rejected binary and source receipts were retained; only source-file timestamps
+were invalidated, leaving source bytes and Git identities unchanged.
+
+The calibration prebuild now serializes cooperating builds and fingerprints Cargo
+metadata plus crate sources and assets. It advances timestamps only for changed
+inputs before invoking Cargo, so older copied timestamps cannot hide different
+source bytes. A cache with no source receipt is invalidated once; an unchanged
+receipt or Python-only orchestration edit reuses its compiled inputs. The receipt
+records each content hash under the target directory. This guard does not replace
+exclusive cache ownership when using Cargo directly, and it never removes compiler
+artifacts, changes numerical methods, or alters measurement provenance.
+
 Keep the number of build caches bounded. Reuse one target directory for ordinary
 branch checks and retain a separate cache only when an active frozen measurement
 or attestation checkout needs it. Repeated target directories, feature sets and

@@ -20,6 +20,9 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
+        self.environment = patch.dict("os.environ", {"CARGO_TARGET_DIR": str(self.root / "target")})
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
         (self.root / "Cargo.toml").write_text(
             '[workspace]\nmembers=["crates/*"]\n', encoding="utf-8", newline="\n"
         )
