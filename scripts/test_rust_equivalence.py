@@ -352,6 +352,7 @@ class TerminalObserverTests(unittest.TestCase):
 
     def test_source_reads_scanners_macro_shadow_and_build_context_reject(self):
         cases = [
+            ("crates/antecedent-stats/src/shadow.rs", "extern crate hostile as std;"),
             (
                 "crates/antecedent-stats/src/shadow.rs",
                 "macro_rules! eprintln {($($t:tt)*)=>{panic!()}}",
@@ -368,6 +369,9 @@ class TerminalObserverTests(unittest.TestCase):
         for path, source in cases:
             with self.subTest(path=path, source=source):
                 self.assertIsNotNone(self.check(extra={path: source}))
+        manifest = self.new["crates/antecedent-stats/Cargo.toml"]
+        manifest = manifest.replace("[dependencies]", '[dependencies]\nstd = "1"')
+        self.assertIsNotNone(self.check(extra={"crates/antecedent-stats/Cargo.toml": manifest}))
         changed = self.new["python/src/defaults.rs"].replace(
             '.join("src")', '.join("../../crates")'
         )

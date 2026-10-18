@@ -718,6 +718,14 @@ def _terminal_test_observer(
             return "test observer lacks its exact immutable source tree"
         if problem := _compile_context(path, sources):
             return problem
+        manifest = tomllib.loads(sources[crate + "Cargo.toml"])
+        tables = [manifest, *manifest.get("target", {}).values()]
+        if any(
+            "std" in table.get(key, {})
+            for table in tables
+            for key in ("dependencies", "dev-dependencies", "build-dependencies")
+        ):
+            return "test observer crate renames a dependency into the std namespace"
         derived = set()
         for i, token in enumerate(before):
             if token == "derive" and before[i + 1 : i + 2] == ("(",):
@@ -821,6 +829,15 @@ def _terminal_test_observer(
                 for i in range(len(code))
             ):
                 return "test observer source has location/token introspection"
+            if rel.startswith(crate) and (
+                any(code[i : i + 2] in (("as", "std"), ("mod", "std")) for i in range(len(code)))
+                or any(
+                    (alias or imported[-1]) == "std"
+                    for _, _, use in _uses(code)
+                    for imported, alias in _use_paths(use)
+                )
+            ):
+                return "test observer crate has an unresolved std namespace binding"
             if rel.startswith(crate) and "macro_use" in code:
                 return "test observer crate has unresolved macro-use scope"
             if rel.startswith(crate) and any(
