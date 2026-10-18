@@ -120,6 +120,26 @@ pub fn identify_catalog_transport(
     identify_catalog_transport_metered(diagram, query, catalog, SidMeter::Limits(limits), ctx)
 }
 
+/// Prefer a certified minimal pretreatment standardization to a bindable target-first joint.
+///
+/// This structural search order avoids unnecessary high-dimensional target conditionals when
+/// a supplied source experiment and target covariate marginal already identify the response.
+/// It examines catalog availability and graph separation, never observed outcomes or empty
+/// sample cells. If no standardization binds, the usual target-first/source-first strategies
+/// remain available. Every returned derivation uses the existing independent proof checker.
+///
+/// # Errors
+/// As [`identify_catalog_transport`].
+pub fn identify_catalog_transport_standardization_first(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    catalog: &antecedent_core::EvidenceCatalog,
+    limits: SidLimits,
+    ctx: &ExecutionContext,
+) -> Result<CatalogTransportResult, IdentificationError> {
+    identify_catalog_transport_ordered(diagram, query, catalog, SidMeter::Limits(limits), ctx, true)
+}
+
 /// [`identify_catalog_transport`] charging `meter`: its own [`SidLimits`], or a
 /// shared budget that the recursive searches and every verification replay
 /// charge. The pretreatment-standardization subset search keeps its own count
@@ -140,12 +160,28 @@ pub(crate) fn identify_catalog_transport_metered(
     meter: SidMeter<'_>,
     ctx: &ExecutionContext,
 ) -> Result<CatalogTransportResult, IdentificationError> {
+    identify_catalog_transport_ordered(diagram, query, catalog, meter, ctx, false)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one checked search pipeline with a declared structural preference and unchanged legacy fallback"
+)]
+fn identify_catalog_transport_ordered(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    catalog: &antecedent_core::EvidenceCatalog,
+    meter: SidMeter<'_>,
+    ctx: &ExecutionContext,
+    standardization_first: bool,
+) -> Result<CatalogTransportResult, IdentificationError> {
     catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
     let limits = meter.limits();
     let mut engine = Engine::new_metered(diagram, query, meter, ctx)?;
     let state = engine.initial()?;
     let mut obligations = Vec::<Arc<str>>::new();
     let mut had_derivation = false;
+    let mut deferred_target = None;
     let mut result = engine.solve(state.clone(), false, 0)?;
     if result.is_none() {
         result = engine.solve(state.clone(), true, 0)?;
@@ -157,7 +193,11 @@ pub(crate) fn identify_catalog_transport_metered(
             match derivation.bind_catalog_validated(catalog) {
                 Ok(mut bound) => {
                     bound.searched = searched_stages(if strategy == 0 { 1 } else { 3 });
-                    return Ok(CatalogTransportResult::Identified(Box::new(bound)));
+                    if strategy == 0 && standardization_first {
+                        deferred_target = Some(bound);
+                    } else {
+                        return Ok(CatalogTransportResult::Identified(Box::new(bound)));
+                    }
                 }
                 Err(error) => obligations.push(Arc::from(error.to_string())),
             }
@@ -240,6 +280,10 @@ pub(crate) fn identify_catalog_transport_metered(
             engine.shared = shared.into_inner();
             let end = end?;
             if let Some(bound) = found {
+                return Ok(CatalogTransportResult::Identified(Box::new(bound)));
+            }
+            if let Some(mut bound) = deferred_target.take() {
+                bound.searched = searched_stages(2);
                 return Ok(CatalogTransportResult::Identified(Box::new(bound)));
             }
             obligations.push(Arc::from(pretreatment_obligation(

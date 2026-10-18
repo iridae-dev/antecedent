@@ -44,6 +44,7 @@
     reason = "the public error shape is kept as released; boxing the refusal would break callers that match on it"
 )]
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -60,7 +61,7 @@ use antecedent_graph::{Admg, SelectionDiagram};
 use antecedent_identify::discovered_transport::ancestral_subgraph;
 use antecedent_identify::{
     CatalogTransportResult, ClassicalTransportQuery, ClassicalTransportResult, SidLimits,
-    identify_catalog_transport, identify_classical_transport,
+    identify_catalog_transport_standardization_first, identify_classical_transport,
 };
 use antecedent_io::IoError;
 use serde::{Deserialize, Serialize};
@@ -857,6 +858,9 @@ fn is_evidence_gap(error: &IoError) -> bool {
 /// A member whose effect the complete sID derived, ready to bind to evidence.
 struct Identified {
     diagram: SelectionDiagram,
+    // Identification is conditional on the fixed graph and declared available regimes.
+    // Resampled rows change empirical laws and snapshot bindings, not this causal proof.
+    chosen_derivation: RefCell<Option<antecedent_identify::ClassicalTransportDerivation>>,
 }
 
 /// Run the complete sID on one member, or say why it did not identify.
@@ -878,7 +882,9 @@ fn identify_member(
         match identify_classical_transport(&diagram, &query, settings.evidence.sid_limits, ctx)
             .map_err(|e| estimation_failure(&e))?
         {
-            ClassicalTransportResult::Identified(_) => Ok(Identified { diagram }),
+            ClassicalTransportResult::Identified(_) => {
+                Ok(Identified { diagram, chosen_derivation: RefCell::new(None) })
+            }
             ClassicalTransportResult::NotCertified => {
                 Err(MemberOutcome::Unidentified { verdict: "not_certified" })
             }
@@ -921,7 +927,7 @@ fn evaluate_member(
     export: bool,
     ctx: &ExecutionContext,
 ) -> Result<MemberOutcome, DiscoveredTransportError> {
-    let Identified { diagram } = identified;
+    let Identified { diagram, chosen_derivation } = identified;
     let plans = plan_regimes(problem.treatment, columns, settings);
     let variables: BTreeSet<VariableId> =
         plans.iter().flat_map(|p| p.measured.iter().copied()).collect();
@@ -933,15 +939,27 @@ fn evaluate_member(
         source: Arc::clone(settings.source),
         target: Arc::clone(settings.target),
     };
-    let functional = match identify_catalog_transport(
-        diagram,
-        &query,
-        &catalog,
-        settings.evidence.sid_limits,
-        ctx,
-    )
-    .map_err(|error| estimation_failure(&error))?
-    {
+    let cached = chosen_derivation.borrow();
+    let selected = if let Some(derivation) = cached.as_ref() {
+        match derivation.bind_catalog(&catalog) {
+            Ok(functional) => CatalogTransportResult::Identified(Box::new(functional)),
+            Err(error) => CatalogTransportResult::MissingEvidence {
+                searched: Arc::from([Arc::from("fixed_causal_derivation_rebound")]),
+                obligations: Arc::from([Arc::from(error.to_string())]),
+            },
+        }
+    } else {
+        identify_catalog_transport_standardization_first(
+            diagram,
+            &query,
+            &catalog,
+            settings.evidence.sid_limits,
+            ctx,
+        )
+        .map_err(|error| estimation_failure(&error))?
+    };
+    drop(cached);
+    let functional = match selected {
         CatalogTransportResult::Identified(functional) => *functional,
         CatalogTransportResult::MissingEvidence { obligations, .. }
         | CatalogTransportResult::NotCertified { obligations, .. } => {
@@ -953,6 +971,9 @@ fn evaluate_member(
             });
         }
     };
+    if chosen_derivation.borrow().is_none() {
+        *chosen_derivation.borrow_mut() = Some(functional.derivation().clone());
+    }
     let samples = samples_of(&plans, &catalog, settings, columns)?;
     let treatment_cardinality = cardinalities.get(&problem.treatment).copied().unwrap_or(2);
     let at = settings
@@ -1067,6 +1088,14 @@ fn blocked_contrast_interval(
     length: u32,
     ctx: &ExecutionContext,
 ) -> Result<Option<(f64, f64, f64)>, DiscoveredTransportError> {
+    // Freeze the checked empirical functional on the original evidence before any draw.
+    // Only its catalog bindings and empirical laws are rebuilt on resampled rows.
+    if !matches!(
+        evaluate_member(identified, problem, columns, settings, 0, false, ctx)?,
+        MemberOutcome::Estimated(_)
+    ) {
+        return Ok(None);
+    }
     let requested = settings.evidence.bootstrap_replicates;
     let rows = |table: &Columns| table.values().next().map_or(0, Vec::len);
     let plan = antecedent_data::ResamplingPlan::CircularBlock { length: length as usize };
@@ -1120,6 +1149,10 @@ pub(crate) struct ClassFacts<'a> {
 }
 
 /// Run every member and summarise, or refuse.
+#[allow(
+    clippy::too_many_lines,
+    reason = "keep class-wide agreement, deferred shared inference and complete refusal accounting in one pipeline"
+)]
 pub(crate) fn estimate_class(
     class: &ClassFacts<'_>,
     problems: &[MemberProblem],
@@ -1311,6 +1344,17 @@ pub fn estimate_discovered_transport(
     evidence: &TransportEvidence<'_>,
     ctx: &ExecutionContext,
 ) -> Result<DiscoveredTransportEstimate, DiscoveredTransportError> {
+    estimate_selected_discovered_transport(report, query, evidence, None, None, ctx)
+}
+
+pub(crate) fn estimate_selected_discovered_transport(
+    report: &DiscoveredTransportReport,
+    query: &TransportQuery,
+    evidence: &TransportEvidence<'_>,
+    selected: Option<&[usize]>,
+    refined_identity: Option<[u8; 32]>,
+    ctx: &ExecutionContext,
+) -> Result<DiscoveredTransportEstimate, DiscoveredTransportError> {
     validate_evidence_query(query)?;
     let envelope = report.envelope();
     let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
@@ -1331,6 +1375,9 @@ pub fn estimate_discovered_transport(
     };
     let mut problems = Vec::with_capacity(envelope.members().len());
     for index in 0..envelope.members().len() {
+        if selected.is_some_and(|members| !members.contains(&index)) {
+            continue;
+        }
         let graph = envelope
             .member_graph(index)
             .ok_or_else(|| estimation_failure(&"a member graph cannot be rebuilt"))?;
@@ -1356,7 +1403,7 @@ pub fn estimate_discovered_transport(
         evidence,
     };
     let class = ClassFacts {
-        report_identity: *report.identity(),
+        report_identity: refined_identity.unwrap_or(*report.identity()),
         selection_targets: report.selection_targets(),
         unresolved: envelope.unresolved(),
         status: envelope.status(),
@@ -1370,7 +1417,7 @@ mod tests {
     use antecedent_graph::DenseNodeId;
 
     #[test]
-    fn a_treatment_trial_standardizes_without_inventing_a_covariate_trial() {
+    fn a_treatment_trial_standardizes_before_an_unsupported_target_joint() {
         let mut source_rows = [Vec::new(), Vec::new(), Vec::new()];
         for x in 0..2 {
             for z in 0..2 {
@@ -1406,7 +1453,8 @@ mod tests {
         let mut graph = Admg::with_variables(3);
         graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-        graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        // Target rows contain no X=1 observations. A target-first conditional is structurally
+        // identified but cannot estimate that cell; the available treatment trial can.
         let problem = MemberProblem {
             graph,
             selection: Arc::from([ids[2]]),
@@ -1430,6 +1478,34 @@ mod tests {
         assert!(same_number(estimate.means[1], 0.74));
         assert!(!estimate.expression.contains("V2:="));
         assert!(estimate.expression.contains("V0:="));
+        let ctx = ExecutionContext::for_tests(91);
+        let cached = identify_member(&problem, &settings, &ctx).unwrap().unwrap();
+        assert!(matches!(
+            evaluate_member(&cached, &problem, &columns, &settings, 0, false, &ctx).unwrap(),
+            MemberOutcome::Estimated(_)
+        ));
+        for offset in [0, 1] {
+            // A non-permutation resample changes source empirical probabilities; no fitted
+            // laws or row snapshots may be reused merely because the causal graph is fixed.
+            let source_indices: Vec<u32> = (0..40).map(|i| (2 * i + offset) % 40).collect();
+            let target_indices: Vec<u32> = (0..10).map(|i| (2 * i + offset) % 10).collect();
+            let resampled = EvidenceColumns {
+                source: gathered(&columns.source, &source_indices),
+                target: gathered(&columns.target, &target_indices),
+            };
+            let MemberOutcome::Estimated(rebound) =
+                evaluate_member(&cached, &problem, &resampled, &settings, 0, false, &ctx).unwrap()
+            else {
+                panic!("rebound sample")
+            };
+            let MemberOutcome::Estimated(fresh) =
+                estimate_member(&problem, &resampled, &settings, &ctx).unwrap()
+            else {
+                panic!("fresh sample")
+            };
+            assert_eq!(rebound.means, fresh.means);
+            assert_ne!(rebound.means, estimate.means);
+        }
     }
 
     #[test]

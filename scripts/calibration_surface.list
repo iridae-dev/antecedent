@@ -123,6 +123,12 @@ estimator.transport_empirical crates/antecedent-estimate/src/statistical_transpo
 key estimator.transport_empirical estimator transport.empirical_table_plugin
 key estimator.transport_empirical estimator transport.mz_joint_bootstrap
 key estimator.transport_empirical estimator transport.z_joint_sensitivity_endpoint_bootstrap
+estimator.transport_trial_compatibility crates/antecedent/src/analysis/discovered_transport_trial.rs
+key estimator.transport_trial_compatibility functional *trial_compatibility*
+# The trial test uses core ln_gamma, generic CBOR and CanonicalWriter; invalid is a local error closure.
+allow adaptive_interval crates/antecedent/src/analysis/discovered_transport_trial.rs antecedent_stats
+allow design crates/antecedent/src/analysis/discovered_transport_trial.rs antecedent_io export finish invalid
+allow mechanism crates/antecedent/src/analysis/discovered_transport_trial.rs invalid
 
 # Learned continuous-outcome trial transport: the cross-fitted augmented inverse-odds
 # score, its overlap gate and the whole-estimator joint outer bootstrap.

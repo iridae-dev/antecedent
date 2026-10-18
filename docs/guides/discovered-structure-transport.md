@@ -9,6 +9,7 @@ routes keep the two apart.
 | Transport over a discovered PAG class | `antecedent_identify::discovered_transport::transport_across_pag` | The same envelope over the PAG's maximal ancestral graphs |
 | Transport at a declared horizon over a discovered temporal class | `antecedent_identify::discovered_transport_temporal::transport_across_temporal_class` | A `TemporalTransportEnvelope` |
 | A point, a structural range or a refusal from the envelope and evidence | `analysis::discovered_transport_estimate::estimate_discovered_transport` | A `DiscoveredTransportEstimate` with a replayable artifact |
+| Experimental compatibility refinement of a static class | `analysis::discovered_transport_trial::estimate_trial_compatible_discovered_transport` | The unchanged original report, an explicit binary-trial test proof and an estimate over every retained member |
 | Discovery run per population | `antecedent_discovery::selective::populations::PerPopulationDiscovery` | One structure per population and an edge-by-edge comparison |
 | Discovery then analysis on a row split | `antecedent_discovery::selective::reuse::split_rows` | Disjoint discovery and analysis tables with a receipt |
 
@@ -89,10 +90,47 @@ reported as `max_lag`.
 
 ## Estimates: a point, a structural range or a refusal
 
-`estimate_discovered_transport` runs the complete sID derivation in every member
-against source experiment rows (the treatment column is the assignment) and target
-observational rows, integer-coded and complete, and evaluates the response at every
-grid level with the retained transport grid, one durable artifact per member.
+`estimate_discovered_transport` checks every member structurally, then searches for
+a checked formula against the actual available evidence: one source treatment trial
+and one target observational sample, integer-coded and complete. It never promotes
+another observed column to an experimental intervention. The catalog-aware search
+prefers a certified minimal pretreatment standardization, when available, over a
+larger target-joint factorization. This choice uses the graph and declared evidence
+availability, not observed outcomes or sample-cell counts. Each member retains its
+causal proof and transport grid.
+
+For independent, completely randomized binary source assignments and outcomes,
+`estimate_trial_compatible_discovered_transport` offers an explicit refinement.
+Declare `TrialCompatibilityOptions { alpha, randomization:
+TrialRandomization::CompletelyRandomized }` before inspecting rows. Assignments must
+be uniform given the treated count; common-probability Bernoulli assignment also
+qualifies after conditioning on that count. A member with
+no directed treatment-to-outcome path implies independence in that trial. A
+two-sided Fisher exact test rejects this one shared implication at the declared
+level; every no-path member is then explicitly rejected. All other members remain,
+and a point still requires agreement. This does not force an adjacency or modify
+the original discovered report.
+
+The refinement artifact retains the exact tested assignment/outcome rows, their
+canonical source identity, contingency counts, p-value, level, original member
+indices, every original graph and structural verdict, and every retention decision.
+`verify_trial_compatible_transport_estimate` rebuilds the original report identity,
+recomputes the test and graph-path decisions, and consumes every retained member
+grid. Its estimate identity binds the refinement, so it cannot be substituted for
+an estimate over the original unrefined class. Stratified or adaptive allocation
+needs a conditional randomization test and is not asserted by this entry point.
+
+The static complete-procedure calibration predeclares an FCI CI cutoff of
+`0.05 / 28`, using all unordered pairs of its eight measured variables, and 1023
+within-stratum permutations when the analytic CI test lacks support. The larger
+permutation budget makes that cutoff attainable. These choices are included in
+the discovery contract and calibration identity. This pair-based cutoff does not
+claim simultaneous error control over FCI's adaptively selected conditioning
+queries; coverage is measured for the complete procedure on the original DGP.
+At the manifest's 4,000-row static and six-variable temporal points, the harness
+also enforces reporting at least 90% of replicates and median interval width at
+most 1.5 times the simulated effect magnitude. Other grid points retain these
+diagnostics without extending the manifest's frozen usefulness scope.
 
 - **Point**: every member is identified and they agree (the same expression, or equal
   estimates).
@@ -117,6 +155,23 @@ is unmeasured. Python: `transport.discovered.{transport_across_temporal_class,
 transport_temporal_graph, estimate_discovered_temporal_transport}`.
 
 ## Per-population discovery
+
+For PCMCI+, opting into an adjustment that includes contemporaneous links uses the
+predeclared allowed directed-link family `(source, source_lag, target)`. It includes
+every allowed lagged link and both contemporary directions, excluding self-links
+at lag zero. A tested link uses its maximum MCI p-value; a PC1-removed or untested
+MCI link contributes p=1. Thus three unconstrained variables with lag one have 15
+family entries, and six with lag two have 102. The algorithm record and selective
+contract identity name `all_allowed_edges_mci_max_p_missing_p1.v1`. Historical
+lagged-only settings retain their original protocol.
+
+The discovered-transport temporal designs declare Holm adjustment over that family.
+This identifies the adjustment operation and its denominator; adaptive CI queries,
+orientation and class selection do not acquire an unconditional family-wise error
+theorem from that setting. Complete-procedure coverage includes all those steps and
+must be measured. Ordered bootstrap inference freezes the chosen causal derivation
+on the original evidence, then rebinds it to each resampled catalog and recomputes
+its empirical laws; it never reuses fitted probabilities across resamples.
 
 One declared contract is run on each population's rows separately, with its own
 statistic store and identity. Nothing is pooled. A difference between two

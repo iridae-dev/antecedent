@@ -20,12 +20,13 @@ use std::sync::Arc;
 use antecedent::analysis::discovered_transport::{
     DiscoveredTransportError, discover_and_transport,
 };
-use antecedent::analysis::discovered_transport_estimate::{
-    AnswerKind, TransportEvidence, estimate_discovered_transport,
-};
+use antecedent::analysis::discovered_transport_estimate::{AnswerKind, TransportEvidence};
 use antecedent::analysis::discovered_transport_temporal::{
     TemporalHorizon, estimate_discovered_temporal_transport,
     transport_discovered_temporal_structure,
+};
+use antecedent::analysis::discovered_transport_trial::{
+    TrialCompatibilityOptions, TrialRandomization, estimate_trial_compatible_discovered_transport,
 };
 use antecedent_core::{
     ContinuousDomain, ExecutionContext, GridSpec, Lag, ResponseFunctional, ResponseQuery,
@@ -36,14 +37,14 @@ use antecedent_discovery::selective::{
     CiTestSpec, StaticAlgorithm, StaticDiscoveryContract, TemporalAlgorithm,
     TemporalDiscoveryContract, TemporalSelectiveDiscovery,
 };
-use antecedent_stats::SparseDiscreteCi;
 use antecedent_stats::ci::{
     CiBatchRequest, CiWorkspace, ConditionalIndependenceTest, GSquared, SignificanceMethod,
     SymbolicCmi,
 };
+use antecedent_stats::{FdrAdjustment, MultipleTestingMethod, SparseDiscreteCi};
 use common::calibration::{
     Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
-    n_sim, stream_seed, unit_uniform,
+    n_sim, smoke, stream_seed, unit_uniform,
 };
 
 const INTERVAL: &str = "percentile_bootstrap";
@@ -53,6 +54,13 @@ fn discrete_ci() -> CiTestSpec {
     CiTestSpec::declared(
         "gsquared_analytic_sparse_fallback_symbolic_cmi_199_within_stratum_permutations",
         Arc::new(SparseDiscreteCi::new(199).unwrap()),
+    )
+}
+
+fn static_discrete_ci() -> CiTestSpec {
+    CiTestSpec::declared(
+        "gsquared_analytic_sparse_fallback_symbolic_cmi_1023_within_stratum_permutations",
+        Arc::new(SparseDiscreteCi::new(1023).unwrap()),
     )
 }
 
@@ -91,6 +99,9 @@ fn sparse_discrete_ci_uses_the_declared_permutation_null() {
 
 /// Why a replicate reported no interval, as a short stable label.
 fn refusal_label(error: &DiscoveredTransportError) -> String {
+    if std::env::var_os("ANTECEDENT_TRANSPORT_TRACE_REFUSAL").is_some() {
+        eprintln!("transport refusal detail: {error:?}");
+    }
     match error {
         DiscoveredTransportError::Refused(refusal) => refusal.detail.to_owned(),
         other => other.to_string().chars().take(96).collect(),
@@ -105,22 +116,53 @@ fn discovery_label(error: &impl std::fmt::Debug) -> String {
 /// Counts of the reasons replicates reported nothing, printed so a coverage shortfall that comes
 /// from the rate of reporting is told apart from one that comes from the intervals.
 #[derive(Default)]
-struct NonReports(BTreeMap<String, u32>);
+struct NonReports {
+    reasons: BTreeMap<String, u32>,
+    widths: Vec<f64>,
+    total: usize,
+}
 
 impl NonReports {
     /// Score one replicate's outcome, keeping the reason it reported nothing.
     fn interval(&mut self, outcome: Result<(f64, f64), String>) -> Option<(f64, f64)> {
+        self.total += 1;
         match outcome {
-            Ok(interval) => Some(interval),
+            Ok(interval)
+                if interval.0.is_finite() && interval.1.is_finite() && interval.0 <= interval.1 =>
+            {
+                self.widths.push(interval.1 - interval.0);
+                Some(interval)
+            }
+            Ok(_) => {
+                *self.reasons.entry("invalid_interval".into()).or_default() += 1;
+                None
+            }
             Err(reason) => {
-                *self.0.entry(reason).or_default() += 1;
+                *self.reasons.entry(reason).or_default() += 1;
                 None
             }
         }
     }
 
-    fn print(&self, test: &str) {
-        eprintln!("{test}: replicates that reported nothing, by reason: {:?}", self.0);
+    fn print(&self, test: &str, effect: f64, manifest_point: bool) {
+        eprintln!("{test}: replicates that reported nothing, by reason: {:?}", self.reasons);
+        let mut widths = self.widths.clone();
+        widths.sort_by(f64::total_cmp);
+        let median = widths.get(widths.len() / 2).copied().unwrap_or(f64::NAN);
+        #[allow(clippy::cast_precision_loss, reason = "bounded simulation replicate counts")]
+        let reporting_rate = widths.len() as f64 / self.total as f64;
+        let width_over_effect = median / effect.abs();
+        eprintln!(
+            "{test}: reporting_rate={reporting_rate:.6} median_width={median:.6} \
+             median_width_over_effect={width_over_effect:.6} manifest_point={manifest_point}"
+        );
+        if manifest_point && !smoke() {
+            assert!(reporting_rate >= 0.9, "frozen manifest reporting rate must be at least .9");
+            assert!(
+                width_over_effect.is_finite() && width_over_effect <= 1.5,
+                "frozen manifest median width must be at most 1.5 times the true effect"
+            );
+        }
     }
 }
 
@@ -207,7 +249,8 @@ fn construction() -> Construction {
         se_kind: "percentile".into(),
         dependence: "iid".into(),
         posterior: String::new(),
-        functional: "target_interventional_contrast".into(),
+        functional: "target_interventional_contrast.fci_pair_cutoff_0_05_over_28_sparse_1023.trial_compatibility_fisher_exact_alpha_0_01.v1"
+            .into(),
         identification: "discovered_class".into(),
         reported_level: REPORTED_LEVEL,
     }
@@ -240,9 +283,29 @@ fn pag_interval(
     let mut evidence = TransportEvidence::new(source, target);
     evidence.bootstrap_replicates = REPLICATES;
     evidence.limits.operations = 2_000_000_000;
-    let estimate = estimate_discovered_transport(&report, &query(), &evidence, ctx)
-        .map_err(|error| refusal_label(&error))?;
-    point_interval(&estimate)
+    let estimate = estimate_trial_compatible_discovered_transport(
+        &report,
+        &query(),
+        &evidence,
+        TrialCompatibilityOptions {
+            alpha: 0.01,
+            randomization: TrialRandomization::CompletelyRandomized,
+        },
+        ctx,
+    )
+    .map_err(|error| refusal_label(&error))?;
+    if std::env::var_os("ANTECEDENT_TRANSPORT_TRACE_TRIAL").is_some() {
+        eprintln!(
+            "trial compatibility: p={}, retained={:?}, members={:?}",
+            estimate.compatibility().p_value,
+            estimate.compatibility().retained_members(),
+            estimate.estimate().members().iter().map(|m| match m {
+                antecedent::analysis::discovered_transport_estimate::MemberOutcome::Estimated(e) => format!("{} => {:?}",e.expression,e.means),
+                other => format!("{other:?}"),
+            }).collect::<Vec<_>>()
+        );
+    }
+    point_interval(estimate.estimate())
 }
 
 #[test]
@@ -258,18 +321,24 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
             interval: INTERVAL,
         },
         REPORTED_LEVEL,
+    )
+    .labelled(
+        "fci_pair_cutoff_0_05_over_28_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_v1",
     );
     for (rep, outcome) in map_replicates(n_sim(), |rep| {
         let seed = rep.wrapping_mul(1_000_003);
         let source = study(n, false, seed);
         let target = study(n, true, seed ^ 0x5eed);
         let ctx = ExecutionContext::for_tests(rep);
-        let contract = StaticDiscoveryContract::new(
+        let mut contract = StaticDiscoveryContract::new(
             StaticAlgorithm::Fci,
             (0..8).map(VariableId::from_raw).collect(),
-            discrete_ci(),
+            static_discrete_ci(),
             rep,
         );
+        // Predeclare the cutoff using all 8 choose 2 variable pairs. FCI may select several
+        // conditioning queries for a pair; this does not assert FWER over those adaptive queries.
+        contract.constraints.alpha = 0.05 / 28.0;
         let interval = pag_interval(&contract, &source, &target, &ctx);
         (rep, interval)
     }) {
@@ -286,7 +355,11 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
         );
         tally.record(outcome, effect);
     }
-    non_reports.print("discovered_pag_transport_contrast_complete_procedure_coverage");
+    non_reports.print(
+        "discovered_pag_transport_contrast_complete_procedure_coverage",
+        effect,
+        n == 4000,
+    );
     tally.assert();
 }
 
@@ -341,6 +414,7 @@ fn temporal_construction() -> Construction {
         graph_class: "TemporalCpdag".into(),
         dependence: "block".into(),
         interval_method: "block_percentile_bootstrap".into(),
+        functional: "target_interventional_contrast.pcmci_plus_full_allowed_edge_holm_including_contemporaneous.v1".into(),
         ..construction()
     }
 }
@@ -363,18 +437,23 @@ fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
             interval: "block_percentile_bootstrap",
         },
         REPORTED_LEVEL,
-    );
+    )
+    .labelled("full_allowed_edge_holm_including_contemporaneous_v1");
     for outcome in map_replicates(n_sim(), |rep| {
         let seed = rep.wrapping_mul(1_000_003);
         let (source, source_table) = series(steps, false, seed);
         let (_, target_table) = series(steps, true, seed ^ 0x5eed);
         let ctx = ExecutionContext::for_tests(rep);
-        let contract = TemporalDiscoveryContract::new(
+        let mut contract = TemporalDiscoveryContract::new(
             TemporalAlgorithm::PcmciPlus,
             (0..3).map(VariableId::from_raw).collect(),
             discrete_ci(),
             rep,
         );
+        contract.fdr = Some(FdrAdjustment {
+            method: MultipleTestingMethod::Holm,
+            exclude_contemporaneous: false,
+        });
         temporal_interval(
             &contract,
             &source,
@@ -396,7 +475,11 @@ fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
         );
         tally.record(outcome, effect);
     }
-    non_reports.print("discovered_temporal_transport_contrast_complete_procedure_coverage");
+    non_reports.print(
+        "discovered_temporal_transport_contrast_complete_procedure_coverage",
+        effect,
+        false,
+    );
     tally.assert();
 }
 
@@ -450,7 +533,8 @@ fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverag
             interval: "block_percentile_bootstrap",
         },
         REPORTED_LEVEL,
-    );
+    )
+    .labelled("full_allowed_edge_holm_including_contemporaneous_v1");
     for outcome in map_replicates(n_sim(), |rep| {
         let seed = rep.wrapping_mul(1_000_003);
         let (source, source_table) = series_two_lags(steps, false, seed);
@@ -463,6 +547,10 @@ fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverag
             rep,
         );
         contract.constraints.temporal.max_lag = Lag::from_raw(2);
+        contract.fdr = Some(FdrAdjustment {
+            method: MultipleTestingMethod::Holm,
+            exclude_contemporaneous: false,
+        });
         temporal_interval(
             &contract,
             &source,
@@ -484,7 +572,10 @@ fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverag
         );
         tally.record(outcome, effect);
     }
-    non_reports
-        .print("discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage");
+    non_reports.print(
+        "discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage",
+        effect,
+        steps == 4000,
+    );
     tally.assert();
 }

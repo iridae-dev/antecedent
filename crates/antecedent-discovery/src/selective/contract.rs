@@ -414,6 +414,9 @@ fn stage_inputs(
             }
             Some(fdr) => {
                 w.word(1).word(method_tag(fdr.method)).word(u64::from(fdr.exclude_contemporaneous));
+                if settings.route == "temporal_pcmci_plus" && !fdr.exclude_contemporaneous {
+                    w.text("all_allowed_edges_mci_max_p_missing_p1.v1");
+                }
             }
         }),
     );

@@ -2179,7 +2179,10 @@ pub fn verify_s_hedge(
 mod catalog;
 use catalog::bind_distribution;
 pub(crate) use catalog::identify_catalog_transport_metered;
-pub use catalog::{CatalogTransportResult, identify_catalog_transport};
+pub use catalog::{
+    CatalogTransportResult, identify_catalog_transport,
+    identify_catalog_transport_standardization_first,
+};
 
 fn check_sid_memory(
     diagram: &SelectionDiagram,
