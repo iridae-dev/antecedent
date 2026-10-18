@@ -2073,6 +2073,20 @@ def weighted_cluster_replay_environment(records: list[dict]) -> dict[str, str]:
     return {"ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL": str(versions.pop())} if versions else {}
 
 
+def replay_thread_environment(value: str | None) -> dict[str, str]:
+    """Preserve an explicit execution cap without inheriting measurement settings."""
+    if value is None:
+        threads = 1
+    else:
+        try:
+            threads = int(value)
+        except ValueError as error:
+            raise ValueError("replay worker cap must be a positive integer") from error
+        if threads < 1:
+            raise ValueError("replay worker cap must be a positive integer")
+    return {"ANTECEDENT_CALIBRATION_THREADS": str(threads)}
+
+
 def replay(
     waiver_id: str, dry_run: bool, reuse_capture: bool = False, waiver_file: Path = WAIVERS
 ) -> int:
@@ -2123,6 +2137,7 @@ def replay(
             plan[g.index] = g
     group_protocols = {}
     try:
+        thread_env = replay_thread_environment(os.environ.get("ANTECEDENT_CALIBRATION_THREADS"))
         for g in plan.values():
             selected = [
                 rec
@@ -2176,6 +2191,7 @@ def replay(
             "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL",
         }
     }
+    env.update(thread_env)
     for g in [] if reuse_capture else plan.values():
         safe = _safe_label(g.label)
         names = group_log_names(safe)

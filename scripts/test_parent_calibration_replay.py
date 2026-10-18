@@ -161,5 +161,18 @@ class WeightedClusterReplayProtocolTest(unittest.TestCase):
         )
 
 
+class ReplayWorkerBudgetTest(unittest.TestCase):
+    def test_replay_defaults_to_one_worker_and_preserves_only_a_valid_cap(self) -> None:
+        self.assertEqual(
+            facets.replay_thread_environment(None), {"ANTECEDENT_CALIBRATION_THREADS": "1"}
+        )
+        self.assertEqual(
+            facets.replay_thread_environment(" 2 "), {"ANTECEDENT_CALIBRATION_THREADS": "2"}
+        )
+        for value in ("0", "-1", "1.5", "ten", ""):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "positive integer"):
+                facets.replay_thread_environment(value)
+
+
 if __name__ == "__main__":
     unittest.main()
