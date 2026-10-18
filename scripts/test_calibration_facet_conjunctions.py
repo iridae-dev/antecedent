@@ -86,5 +86,31 @@ class ConjunctiveFacetTest(unittest.TestCase):
         self.assertTrue(self.load("key_all core query=A inference=B").errors)
 
 
+class MatchingDependencyTest(unittest.TestCase):
+    def test_shared_matching_kernel_tracks_distance_and_knn_actual_dispatch(self) -> None:
+        surface = facets.load_surface()
+        records = [
+            {"id": "propensity", "estimator": "propensity.matching"},
+            {"id": "distance", "estimator": "distance.matching"},
+            {"id": "knn", "estimator": "estimate.knn_distance_matching/neighbors=3"},
+            {"id": "strata", "estimator": "propensity.stratification"},
+            {"id": "linear", "estimator": "linear.adjustment.ate"},
+        ]
+        for rec in records:
+            rec["calibration_sha"] = "a" * 40
+        expected = {
+            "matching.rs": {"propensity", "distance", "knn"},
+            "distance.rs": {"distance", "knn"},
+            "knn.rs": {"knn"},
+            "stratification.rs": {"strata"},
+        }
+        for file, ids in expected.items():
+            with self.subTest(file=file):
+                changed = {"a" * 40: [f"crates/antecedent-estimate/src/propensity/{file}"]}
+                owed = {row["id"] for assessment in facets.assess(
+                    surface, records, changed, refs=facets.References({}, [], [])
+                )
+                        for row in assessment.stale}
+                self.assertEqual(owed, ids)
 if __name__ == "__main__":
     unittest.main()

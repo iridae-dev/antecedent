@@ -80,6 +80,16 @@ estimator.propensity_weighting crates/antecedent-estimate/src/propensity/weighti
 key estimator.propensity_weighting estimator propensity.weighting
 estimator.propensity_matching crates/antecedent-estimate/src/propensity/matching.rs
 key estimator.propensity_matching estimator propensity.matching
+# Distance matching and its M-donor wrapper execute matching_contrast too.
+key estimator.propensity_matching estimator distance.matching
+key estimator.propensity_matching estimator estimate.knn_distance_matching*
+estimator.propensity_stratification crates/antecedent-estimate/src/propensity/stratification.rs
+key estimator.propensity_stratification estimator propensity.stratification
+estimator.distance_matching crates/antecedent-estimate/src/propensity/distance.rs
+key estimator.distance_matching estimator distance.matching
+key estimator.distance_matching estimator estimate.knn_distance_matching*
+estimator.knn_distance_matching crates/antecedent-estimate/src/propensity/knn.rs
+key estimator.knn_distance_matching estimator estimate.knn_distance_matching*
 estimator.multi_level_aipw crates/antecedent-estimate/src/propensity/generalized.rs
 estimator.multi_level_aipw crates/antecedent/src/analysis/multi_level_treatment.rs
 key estimator.multi_level_aipw estimator propensity.generalized_aipw
@@ -183,6 +193,9 @@ key identity.backdoor estimator conditional.linear.*
 key identity.backdoor estimator conditional.bayesian
 key identity.backdoor estimator propensity.weighting
 key identity.backdoor estimator propensity.matching
+key identity.backdoor estimator propensity.stratification
+key identity.backdoor estimator distance.matching
+key identity.backdoor estimator estimate.knn_distance_matching*
 key identity.backdoor estimator propensity.generalized_aipw
 key identity.backdoor estimator glm.*
 identity.frontdoor crates/antecedent-identify/src/frontdoor.rs

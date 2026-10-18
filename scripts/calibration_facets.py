@@ -2870,6 +2870,10 @@ def self_test() -> int:
         # Transport records can depend on both shared and route-specific
         # estimator surfaces. Keep every such attestation obligation explicit.
         expected = transport_facets.get(est)
+        if est == "distance.matching":
+            expected = {"estimator.distance_matching", "estimator.propensity_matching"}
+        if est.startswith("estimate.knn_distance_matching"):
+            expected = {"estimator.knn_distance_matching", "estimator.distance_matching", "estimator.propensity_matching"}
         if (est in ("response.kennedy_dr", "response.intervention_gcomp")
                 and rec.get("query") in ("ResponseCurve", "InterventionResponse")
                 and rec.get("inference") == "Frequentist"):
