@@ -185,12 +185,23 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
     """Normal measurements target published defaults; replay still maps old protocols."""
     if not measures(group.head, group.test_filter, record):
         return False
+    if group.head == "evidence_synthesis_calibration" and group.test_filter.startswith("pooled_random_effects_"):
+        return (record.get("interval_method") == "independent_gaussian_study_t"
+                and record.get("role") == "conservative_point")
     if group.head == "sample_split_parent_set_effect_calibration":
         return ".discovery_fraction_0_75" in str(record.get("functional", ""))
     protocol = current_group_protocol(group)
     if protocol:
         if protocol not in str(record.get("functional", "")):
             return False
+        if protocol == "interval_variance=heteroskedastic_arm_linear_training_hc3":
+            return (record.get("interval_method") == "population_linear_atc_hc3"
+                    and record.get("se_kind") == "population_linear_heteroskedastic_hc3"
+                    and str(record.get("functional", "")).startswith("untreated.mean+"))
+        if protocol == "interval_variance=homoskedastic_gaussian_arm_linear_population":
+            return (record.get("interval_method") == "population_linear_aipw_score"
+                    and record.get("se_kind") == "population_linear_homoskedastic"
+                    and "point_correction=arm_linear_projection" in str(record.get("functional", "")))
         if protocol == "weighting=balanced_linear_hc3":
             if group.test_filter == "weighted_ipw_hajek_interval":
                 return (record.get("interval_method") == "balanced_population_linear_score"
@@ -207,6 +218,10 @@ def current_group_protocol(group: Group) -> str | None:
     """Construction identity required before old test names count as measured."""
     if group.head == "weighted_interval_calibration":
         return {
+            "weighted_aipw_atc_interval": "interval_variance=heteroskedastic_arm_linear_training_hc3",
+            "weighted_aipw_interval": "interval_variance=homoskedastic_gaussian_arm_linear_population",
+            "weighted_dml_aipw_interval": "interval_variance=homoskedastic_gaussian_arm_linear_population",
+            "weighted_dr_learner_interval": "interval_variance=homoskedastic_gaussian_arm_linear_population",
             "weighted_matching_interval": "matching=population_linear",
             "weighted_distance_matching_interval": "matching=population_linear",
             "weighted_stratification_interval": "stratification=regression_linear_hc3",
@@ -550,7 +565,7 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
     started = time.monotonic()
     base_env = {
         k: v for k, v in os.environ.items()
-        if not k.startswith("ANTECEDENT_CALIBRATION_") and k != "ANTECEDENT_PARENT_PROTOCOL_VERSION"
+        if not k.startswith("ANTECEDENT_CALIBRATION_") and k not in {"ANTECEDENT_PARENT_PROTOCOL_VERSION", "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION"}
     }
     base_env.update({
         "ANTECEDENT_CALIBRATION_SMOKE": "1",
@@ -745,6 +760,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_CALIBRATION_LOG_DIR",
             "ANTECEDENT_CALIBRATION_SMOKE",
             "ANTECEDENT_PARENT_PROTOCOL_VERSION",
+            "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
         )
     }
     # Each job's `map_replicates` gets its share of the cores, so `jobs` jobs

@@ -1884,6 +1884,28 @@ def parent_replay_environment(records: list[dict]) -> dict[str, str]:
     return out
 
 
+
+def synthesis_replay_environment(records: list[dict]) -> dict[str, str]:
+    """Replay the genuine stored synthesis producer, rejecting mixed identities."""
+    path = "crates/antecedent/tests/evidence_synthesis_calibration.rs"
+    versions = set()
+    for record in records:
+        if str(record.get("test", "")).rpartition("::")[0] != path:
+            continue
+        if "::pooled_fixed_effect_" in str(record.get("test", "")):
+            continue
+        method = record.get("interval_method")
+        if method == "hksj_t":
+            versions.add(1)
+        elif method == "independent_gaussian_study_t" and record.get("role") == "conservative_point":
+            versions.add(2)
+        else:
+            raise ValueError(f"unknown stored synthesis replay protocol {method!r}")
+    if len(versions) > 1:
+        raise ValueError("mixed synthesis version-1/version-2 records require separate replay groups")
+    return {"ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION": str(versions.pop())} if versions else {}
+
+
 def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
            waiver_file: Path = WAIVERS) -> int:
     surface = load_surface()
@@ -1936,7 +1958,8 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
         for g in plan.values():
             selected = [rec for rec in stored
                         if any(match.index == g.index for match in matches[str(rec["id"])])]
-            group_protocols[g.index] = parent_replay_environment(selected)
+            group_protocols[g.index] = {**parent_replay_environment(selected),
+                                        **synthesis_replay_environment(selected)}
     except ValueError as error:
         print(f"FAIL: {error}")
         return 1
@@ -1947,6 +1970,9 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
     for g in plan.values():
         protocol = group_protocols[g.index].get("ANTECEDENT_PARENT_PROTOCOL_VERSION")
         detail = f" [stored parent protocol {protocol}]" if protocol else ""
+        synthesis = group_protocols[g.index].get("ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION")
+        if synthesis:
+            detail += f" [stored synthesis protocol {synthesis}]"
         print(f"  group {g.index}{' (long)' if g.long else ''}: {g.label}{detail}")
     if dry_run:
         return 0
@@ -1965,7 +1991,7 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
     # Protocol overrides are derived only from the stored group's records.
     env = {k: v for k, v in os.environ.items()
            if not k.startswith("ANTECEDENT_CALIBRATION_")
-           and k != "ANTECEDENT_PARENT_PROTOCOL_VERSION"}
+           and k not in {"ANTECEDENT_PARENT_PROTOCOL_VERSION", "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION"}}
     for g in ([] if reuse_capture else plan.values()):
         safe = _safe_label(g.label)
         names = group_log_names(safe)

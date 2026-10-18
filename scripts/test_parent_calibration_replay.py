@@ -42,5 +42,28 @@ class ParentReplayProtocolTest(unittest.TestCase):
         self.assertEqual(facets.parent_replay_environment([{"test": "crates/other/tests/suite.rs::case"}]), {})
 
 
+class SynthesisReplayProtocolTest(unittest.TestCase):
+    def record(self, method: str, role: str = "gated") -> dict:
+        return {"test": "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_five_studies",
+                "interval_method": method, "role": role}
+
+    def test_stored_method_selects_actual_legacy_or_new_producer(self) -> None:
+        self.assertEqual(facets.synthesis_replay_environment([self.record("hksj_t")]),
+                         {"ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION": "1"})
+        self.assertEqual(facets.synthesis_replay_environment([self.record("independent_gaussian_study_t", "conservative_point")]),
+                         {"ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION": "2"})
+
+    def test_unknown_or_mixed_identity_is_rejected(self) -> None:
+        for records in ([self.record("analytic_se")], [self.record("independent_gaussian_study_t")],
+                        [self.record("hksj_t"), self.record("independent_gaussian_study_t", "conservative_point")]):
+            with self.assertRaises(ValueError):
+                facets.synthesis_replay_environment(records)
+
+    def test_fixed_effect_and_other_suites_do_not_acquire_an_override(self) -> None:
+        fixed = {**self.record("analytic_se"), "test": "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_five_studies"}
+        self.assertEqual(facets.synthesis_replay_environment([fixed]), {})
+        self.assertEqual(facets.synthesis_replay_environment([{"test": "other::case"}]), {})
+
+
 if __name__ == "__main__":
     unittest.main()

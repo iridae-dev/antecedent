@@ -133,6 +133,42 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             else:
                 self.assertFalse(groups.measures_current_protocol(group, {**new, "id": old["id"]}))
 
+    def test_population_aipw_protocol_requires_actual_model_and_corrected_point_identity(self) -> None:
+        for name in ("weighted_aipw_interval", "weighted_dml_aipw_interval", "weighted_dr_learner_interval"):
+            group = groups.Group(1, f"weighted_interval_calibration: {name}", False, True)
+            record = {"id": "new", "test": f"crates/antecedent/tests/weighted_interval_calibration.rs::{name}",
+                      "interval_method": "population_linear_aipw_score", "se_kind": "population_linear_homoskedastic",
+                      "functional": "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection"}
+            self.assertTrue(groups.measures_current_protocol(group, record))
+            for field, value in (("interval_method", "analytic_se"), ("se_kind", "homoskedastic"),
+                                 ("functional", "all_observed.mean+point_correction=arm_linear_projection"),
+                                 ("functional", "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population")):
+                self.assertFalse(groups.measures_current_protocol(group, {**record, field: value}))
+
+    def test_atc_model_protocol_requires_heteroskedastic_control_target(self) -> None:
+        group = groups.Group(1, "weighted_interval_calibration: weighted_aipw_atc_interval", False, True)
+        record = {"test": "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_aipw_atc_interval",
+                  "interval_method": "population_linear_atc_hc3", "se_kind": "population_linear_heteroskedastic_hc3",
+                  "functional": "untreated.mean+interval_variance=heteroskedastic_arm_linear_training_hc3"}
+        self.assertTrue(groups.measures_current_protocol(group, record))
+        for field, value in (("interval_method", "analytic_se"), ("se_kind", "homoskedastic"),
+                             ("functional", "all_observed.mean+interval_variance=heteroskedastic_arm_linear_training_hc3"),
+                             ("functional", "untreated.mean")):
+            self.assertFalse(groups.measures_current_protocol(group, {**record, field: value}))
+
+    def test_gaussian_study_current_protocol_keeps_fixed_effect_and_requires_distinct_role(self) -> None:
+        for name in ("pooled_random_effects_five_studies", "pooled_random_effects_strong_heterogeneity_five_studies", "pooled_random_effects_homogeneous_five_studies"):
+            group = groups.Group(1, f"evidence_synthesis_calibration: {name}", False, True)
+            old = {"id": "old", "test": f"crates/antecedent/tests/evidence_synthesis_calibration.rs::{name}", "interval_method": "hksj_t", "role": "point"}
+            new = {**old, "id": "new", "interval_method": "independent_gaussian_study_t", "role": "conservative_point"}
+            self.assertFalse(groups.measures_current_protocol(group, old))
+            self.assertTrue(groups.measures_current_protocol(group, new))
+            self.assertFalse(groups.measures_current_protocol(group, {**new, "role": "point"}))
+            self.assertFalse(groups.measures_current_protocol(group, {**new, "interval_method": "hksj_t"}))
+        fixed = groups.Group(1, "evidence_synthesis_calibration: pooled_fixed_effect_five_studies", False, True)
+        record = {"test": "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_five_studies", "interval_method": "analytic_se"}
+        self.assertTrue(groups.measures_current_protocol(fixed, record))
+
     def test_recordless_knn_requires_protocol_marker_at_every_grid_point(self) -> None:
         group = groups.Group(1, "knn_matching_calibration: knn_matching_interval_ci_coverage", False, True)
         ledger = self.root / "knn-gates.toml"
