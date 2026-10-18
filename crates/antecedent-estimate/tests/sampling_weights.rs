@@ -1786,8 +1786,7 @@ fn a_clustered_causal_forest_subsamples_whole_clusters_and_reports_a_cluster_se(
 /// Public producer contracts on a complete factorial table with constant causal effect 2.
 /// This is a deterministic execution/invariance fixture, not a coverage experiment. The
 /// separate dense projector and training-coefficient tests supply numerical oracles.
-#[test]
-fn explicit_population_intervals_execute_on_known_truth_and_refuse_invalid_levels() {
+fn assert_explicit_population_interval_contract(method: usize) {
     let n = 240;
     let study = Study {
         t: (0..n).map(|i| ((i / 12) % 2) as f64).collect(),
@@ -1871,6 +1870,9 @@ fn explicit_population_intervals_execute_on_known_truth_and_refuse_invalid_level
     let ordinary = run(&study, 0.95);
     let scaled = run(&study.rescaled(17.0), 0.95);
     for (index, (ordinary, scaled)) in ordinary.into_iter().zip(scaled).enumerate() {
+        if index != method {
+            continue;
+        }
         let (point, lower, upper) = ordinary.unwrap();
         let scaled = scaled.unwrap();
         assert!(point.is_finite() && lower.is_finite() && upper.is_finite(), "method {index}");
@@ -1881,6 +1883,36 @@ fn explicit_population_intervals_execute_on_known_truth_and_refuse_invalid_level
         close(scaled.2, upper, 1e-8, "weight-scale invariant upper endpoint");
     }
     for level in [0.0, 1.0, f64::NAN] {
-        assert!(run(&study, level).into_iter().all(|result| result.is_err()));
+        assert!(run(&study, level).into_iter().nth(method).unwrap().is_err());
     }
+}
+
+#[test]
+fn explicit_population_ipw_linear_interval_preserves_contracts() {
+    assert_explicit_population_interval_contract(0);
+}
+
+#[test]
+fn explicit_population_ipw_cluster_score_interval_preserves_contracts() {
+    assert_explicit_population_interval_contract(1);
+}
+
+#[test]
+fn explicit_population_aipw_linear_interval_preserves_contracts() {
+    assert_explicit_population_interval_contract(2);
+}
+
+#[test]
+fn explicit_population_aipw_atc_hc3_interval_preserves_contracts() {
+    assert_explicit_population_interval_contract(3);
+}
+
+#[test]
+fn explicit_population_dml_linear_interval_preserves_contracts() {
+    assert_explicit_population_interval_contract(4);
+}
+
+#[test]
+fn explicit_population_dr_linear_interval_preserves_contracts() {
+    assert_explicit_population_interval_contract(5);
 }
