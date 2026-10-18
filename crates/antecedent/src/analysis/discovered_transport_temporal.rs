@@ -355,6 +355,7 @@ pub fn estimate_discovered_temporal_transport(
     evidence: &TransportEvidence<'_>,
     ctx: &ExecutionContext,
 ) -> Result<DiscoveredTransportEstimate, DiscoveredTransportError> {
+    super::discovered_transport_estimate::validate_evidence_query(query)?;
     let envelope = report.envelope();
     let window = envelope.window();
     let antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } =

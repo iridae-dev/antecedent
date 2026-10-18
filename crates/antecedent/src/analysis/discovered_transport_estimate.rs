@@ -2,7 +2,7 @@
 //!
 //! [`super::discovered_transport`] says which members of a class the structural rules certify.
 //! This module turns that into numbers, honestly. For every member of the class it runs the
-//! complete sID derivation on the member's graph, binds the formula it derives to the supplied
+//! catalog-aware sID derivation on the member's graph, binds the formula it derives to the supplied
 //! source and target evidence, and evaluates the response at every grid level with the retained
 //! transport grid (one durable artifact per member). The members are then summarised, never
 //! mixed:
@@ -22,6 +22,9 @@
 //! Source rows come from an experiment on the treatment: each row's treatment value is the
 //! experimental assignment, so the rows with one value are a sample of the experimental world
 //! `do(treatment = value)`. Target rows are an observational sample of the target population.
+//! Catalog-aware identification may use only those two supplied regimes. A requested
+//! intervention on another measured column is not an experiment, and no source observational
+//! regime is inferred from a randomized trial. Other experiment catalogs need an explicit grid.
 //! Every column is a non-negative integer code; the domain of a variable is `0..=max` over both
 //! tables. Rows must be complete: nothing is dropped silently.
 //!
@@ -56,7 +59,8 @@ use antecedent_expr::{Assignment, ExactEvaluationLimits, InterventionAssignment}
 use antecedent_graph::{Admg, SelectionDiagram};
 use antecedent_identify::discovered_transport::ancestral_subgraph;
 use antecedent_identify::{
-    ClassicalTransportQuery, ClassicalTransportResult, SidLimits, identify_classical_transport,
+    CatalogTransportResult, ClassicalTransportQuery, ClassicalTransportResult, SidLimits,
+    identify_catalog_transport, identify_classical_transport,
 };
 use antecedent_io::IoError;
 use serde::{Deserialize, Serialize};
@@ -554,6 +558,23 @@ fn invalid_evidence(message: String) -> DiscoveredTransportError {
     })
 }
 
+/// This two-table adapter supplies one treatment trial, not an arbitrary experiment catalog.
+pub(crate) fn validate_evidence_query(
+    query: &TransportQuery,
+) -> Result<(), DiscoveredTransportError> {
+    let Some((treatment, _)) = query.response.functional.primary_pair() else {
+        return Err(invalid_evidence("the query names no treatment".to_owned()));
+    };
+    if query.source_experiments.as_ref() != [treatment] || query.catalog.is_some() {
+        return Err(invalid_evidence(
+            "the two-table evidence route requires exactly the declared treatment experiment; \
+             use an explicit transport grid for other experimental regimes or a supplied catalog"
+                .to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 /// Source and target columns the members are estimated from.
 pub(crate) struct EvidenceColumns {
     pub(crate) source: Columns,
@@ -663,31 +684,27 @@ struct RegimePlan {
     measured: Vec<VariableId>,
 }
 
-/// The catalog the derivation's leaves require, the regimes and their bindings.
-fn plan_regimes(leaves: &[antecedent_expr::LeafSignature]) -> Vec<RegimePlan> {
-    let mut groups: BTreeMap<(Arc<str>, Vec<VariableId>), BTreeSet<VariableId>> = BTreeMap::new();
-    for leaf in leaves {
-        let mut interventions: Vec<VariableId> =
-            leaf.intervention.iter().map(|a| a.variable).collect();
-        interventions.sort_unstable();
-        interventions.dedup();
-        let measured = groups
-            .entry((Arc::clone(&leaf.binding.population), interventions.clone()))
-            .or_default();
-        measured.extend(leaf.variables.iter().copied());
-        measured.extend(leaf.conditioned_on.iter().copied());
-        measured.extend(interventions);
-    }
-    groups
-        .into_iter()
-        .enumerate()
-        .map(|(index, ((population, interventions), measured))| RegimePlan {
-            id: RegimeId::from_raw(u32::try_from(index).unwrap_or(u32::MAX)),
-            population,
-            interventions,
-            measured: measured.into_iter().collect(),
-        })
-        .collect()
+/// Actual supplied regimes: the target observational sample and the source treatment trial.
+/// A formula's requests never establish the existence of additional experiments.
+fn plan_regimes(
+    treatment: VariableId,
+    columns: &EvidenceColumns,
+    settings: &Settings<'_>,
+) -> Vec<RegimePlan> {
+    vec![
+        RegimePlan {
+            id: RegimeId::from_raw(0),
+            population: Arc::clone(settings.target),
+            interventions: Vec::new(),
+            measured: columns.target.keys().copied().collect(),
+        },
+        RegimePlan {
+            id: RegimeId::from_raw(1),
+            population: Arc::clone(settings.source),
+            interventions: vec![treatment],
+            measured: columns.source.keys().copied().collect(),
+        },
+    ]
 }
 
 fn catalog_of(
@@ -840,7 +857,6 @@ fn is_evidence_gap(error: &IoError) -> bool {
 /// A member whose effect the complete sID derived, ready to bind to evidence.
 struct Identified {
     diagram: SelectionDiagram,
-    derivation: antecedent_identify::ClassicalTransportDerivation,
 }
 
 /// Run the complete sID on one member, or say why it did not identify.
@@ -862,9 +878,7 @@ fn identify_member(
         match identify_classical_transport(&diagram, &query, settings.evidence.sid_limits, ctx)
             .map_err(|e| estimation_failure(&e))?
         {
-            ClassicalTransportResult::Identified(derivation) => {
-                Ok(Identified { diagram, derivation: *derivation })
-            }
+            ClassicalTransportResult::Identified(_) => Ok(Identified { diagram }),
             ClassicalTransportResult::NotCertified => {
                 Err(MemberOutcome::Unidentified { verdict: "not_certified" })
             }
@@ -907,18 +921,35 @@ fn evaluate_member(
     export: bool,
     ctx: &ExecutionContext,
 ) -> Result<MemberOutcome, DiscoveredTransportError> {
-    let Identified { diagram, derivation } = identified;
-    let leaves = derivation.arena().leaf_signatures(derivation.root());
-    let plans = plan_regimes(&leaves);
+    let Identified { diagram } = identified;
+    let plans = plan_regimes(problem.treatment, columns, settings);
     let variables: BTreeSet<VariableId> =
         plans.iter().flat_map(|p| p.measured.iter().copied()).collect();
     let cardinalities = domain_cardinalities(columns, &variables)?;
     let catalog = catalog_of(&plans, &cardinalities, diagram, settings, columns)?;
-    let functional = match derivation.bind_catalog(&catalog) {
-        Ok(functional) => functional,
-        Err(error) => {
+    let query = ClassicalTransportQuery {
+        outcomes: Arc::from([problem.outcome]),
+        treatments: Arc::from([problem.treatment]),
+        source: Arc::clone(settings.source),
+        target: Arc::clone(settings.target),
+    };
+    let functional = match identify_catalog_transport(
+        diagram,
+        &query,
+        &catalog,
+        settings.evidence.sid_limits,
+        ctx,
+    )
+    .map_err(|error| estimation_failure(&error))?
+    {
+        CatalogTransportResult::Identified(functional) => *functional,
+        CatalogTransportResult::MissingEvidence { obligations, .. }
+        | CatalogTransportResult::NotCertified { obligations, .. } => {
             return Ok(MemberOutcome::Unestimable {
-                detail: format!("the formula does not bind to the evidence: {error}"),
+                detail: format!(
+                    "no formula binds to the supplied treatment experiment and target \
+                     observational sample: {obligations:?}"
+                ),
             });
         }
     };
@@ -1280,6 +1311,7 @@ pub fn estimate_discovered_transport(
     evidence: &TransportEvidence<'_>,
     ctx: &ExecutionContext,
 ) -> Result<DiscoveredTransportEstimate, DiscoveredTransportError> {
+    validate_evidence_query(query)?;
     let envelope = report.envelope();
     let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
         &query.response.functional
@@ -1336,6 +1368,111 @@ pub fn estimate_discovered_transport(
 mod tests {
     use super::*;
     use antecedent_graph::DenseNodeId;
+
+    #[test]
+    fn a_treatment_trial_standardizes_without_inventing_a_covariate_trial() {
+        let mut source_rows = [Vec::new(), Vec::new(), Vec::new()];
+        for x in 0..2 {
+            for z in 0..2 {
+                for draw in 0..10 {
+                    source_rows[0].push(f64::from(x));
+                    source_rows[1].push(f64::from(draw < 1 + 4 * x + 3 * z));
+                    source_rows[2].push(f64::from(z));
+                }
+            }
+        }
+        let target_rows =
+            [vec![0.0; 10], vec![0.0; 10], vec![0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]];
+        let table = |rows: &[Vec<f64>; 3]| {
+            TabularData::from_f64_columns([
+                ("x", rows[0].as_slice()),
+                ("y", rows[1].as_slice()),
+                ("z", rows[2].as_slice()),
+            ])
+            .unwrap()
+        };
+        let source = table(&source_rows);
+        let target = table(&target_rows);
+        let evidence = TransportEvidence::new(&source, &target);
+        let population = Arc::from("source");
+        let target_population = Arc::from("target");
+        let settings = Settings {
+            levels: &[0.0, 1.0],
+            source: &population,
+            target: &target_population,
+            evidence: &evidence,
+        };
+        let ids = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+        graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let problem = MemberProblem {
+            graph,
+            selection: Arc::from([ids[2]]),
+            treatment: ids[0],
+            outcome: ids[1],
+        };
+        let columns = EvidenceColumns {
+            source: columns_of(&source, &ids).unwrap(),
+            target: columns_of(&target, &ids).unwrap(),
+        };
+        let MemberOutcome::Estimated(estimate) =
+            estimate_member(&problem, &columns, &settings, &ExecutionContext::for_tests(91))
+                .unwrap()
+        else {
+            panic!(
+                "the available treatment trial and target covariate marginal identify the response"
+            )
+        };
+        // Independent standardization oracle: .2*(.1+.4*x) + .8*(.4+.4*x).
+        assert!(same_number(estimate.means[0], 0.34));
+        assert!(same_number(estimate.means[1], 0.74));
+        assert!(!estimate.expression.contains("V2:="));
+        assert!(estimate.expression.contains("V0:="));
+    }
+
+    #[test]
+    fn supplied_regimes_do_not_promote_observed_covariates_to_experiments() {
+        let x = [0.0, 0.0, 1.0, 1.0];
+        let z = [0.0, 1.0, 0.0, 1.0];
+        let source =
+            TabularData::from_f64_columns([("x", x.as_slice()), ("z", z.as_slice())]).unwrap();
+        let evidence = TransportEvidence::new(&source, &source);
+        let population = Arc::from("source");
+        let target = Arc::from("target");
+        let settings = Settings {
+            levels: &[0.0, 1.0],
+            source: &population,
+            target: &target,
+            evidence: &evidence,
+        };
+        let treatment = VariableId::from_raw(0);
+        let covariate = VariableId::from_raw(1);
+        let columns = EvidenceColumns {
+            source: columns_of(&source, &[treatment, covariate]).unwrap(),
+            target: columns_of(&source, &[treatment, covariate]).unwrap(),
+        };
+        let plans = plan_regimes(treatment, &columns, &settings);
+        let graph = Admg::with_variables(2);
+        let diagram = SelectionDiagram::try_new(graph, Vec::new()).unwrap();
+        let cardinalities =
+            domain_cardinalities(&columns, &BTreeSet::from([treatment, covariate])).unwrap();
+        let catalog = catalog_of(&plans, &cardinalities, &diagram, &settings, &columns).unwrap();
+        assert_eq!(catalog.regimes.len(), 2);
+        let source_regime = catalog.regimes.iter().find(|r| r.population == population).unwrap();
+        assert_eq!(source_regime.kind, RegimeKind::Experimental);
+        assert_eq!(source_regime.interventions.as_ref(), [treatment]);
+        let target_regime = catalog.regimes.iter().find(|r| r.population == target).unwrap();
+        assert_eq!(target_regime.kind, RegimeKind::Observational);
+        assert!(target_regime.interventions.is_empty());
+        let samples = samples_of(&plans, &catalog, &settings, &columns).unwrap();
+        for sample in samples.iter().filter(|s| s.population == population) {
+            assert_eq!(sample.interventions.len(), 1);
+            assert_eq!(sample.interventions[0].variable, treatment);
+            assert!(sample.columns.contains_key(&covariate));
+        }
+    }
 
     #[test]
     fn a_common_class_bootstrap_matches_one_member_and_keeps_every_proof() {
