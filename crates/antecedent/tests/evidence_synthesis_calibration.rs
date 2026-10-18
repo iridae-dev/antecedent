@@ -132,6 +132,17 @@ fn replicate(
     seed: u64,
     replicate: u64,
 ) -> Option<(antecedent::analysis::evidence_ledger::PooledIntervalCandidate, f64)> {
+    replicate_with_protocol(design, studies, n, seed, replicate, protocol_version())
+}
+
+fn replicate_with_protocol(
+    design: Design,
+    studies: usize,
+    n: usize,
+    seed: u64,
+    replicate: u64,
+    protocol: u32,
+) -> Option<(antecedent::analysis::evidence_ledger::PooledIntervalCandidate, f64)> {
     let mut rng = Rng(grid_seed(seed + replicate));
     let mut session = StudyBuilder::evidence_ledger();
     let mut summaries = Vec::with_capacity(studies);
@@ -157,17 +168,82 @@ fn replicate(
     let rms_se =
         (summaries.iter().map(|s| s.variance).sum::<f64>() / summaries.len() as f64).sqrt();
     let ctx = ExecutionContext::for_tests(seed + replicate);
+    // A predeclared consumer witness at the first counter of each legacy grid
+    // exercises the actual artifact implementation without adding a serialization
+    // workload to every Monte Carlo draw. The native producer/tally remains the
+    // stored construction; this is not a new consumer-coverage claim.
+    let witness =
+        ((design.fixed_effect || protocol == 1) && replicate == 0).then(|| summaries.clone());
     let request = PoolingRequest { label: "pooled".to_owned(), summaries, replaces: None };
     let result = if design.fixed_effect {
         session.pool_summaries(request, PoolingDeclaration::Independent, &ctx).ok()?.result
-    } else if protocol_version() == 1 {
+    } else if protocol == 1 {
         session.random_effects(request, BetweenStudy::DerSimonianLaird, &ctx).ok()?.result
     } else {
         session.pool_gaussian_studies(request, &ctx).ok()?.result
     };
     let candidate = session.pooled_interval_candidate(result).ok()?;
+    if let Some(summaries) = witness {
+        let export = session
+            .export("legacy-synthesis-calibration-replay")
+            .expect("legacy synthesis producer must seal its real artifact");
+        let consumed = antecedent::analysis::evidence_ledger::consume_evidence_ledger_artifact(
+            &export.bytes,
+            Some(&export.identity),
+        )
+        .expect("legacy synthesis artifact must independently replay");
+        assert_eq!(consumed.identity(), export.identity);
+        let recomputed = consumed
+            .synthesis_of(result)
+            .expect("consumer must recompute the original synthesis result");
+        let mean = recomputed.values[0];
+        let half = if design.fixed_effect {
+            assert_eq!(recomputed.method, "fixed_effect_inverse_variance");
+            antecedent_stats::normal_ppf(0.5 + LEVEL / 2.0) * recomputed.values[1].sqrt()
+        } else {
+            assert_eq!(recomputed.method, "random_effects_dersimonian_laird");
+            let tau_squared = recomputed.values[2];
+            let precision: Vec<f64> =
+                summaries.iter().map(|s| 1.0 / (s.variance + tau_squared)).collect();
+            let total: f64 = precision.iter().sum();
+            let spread: f64 = precision
+                .iter()
+                .zip(&summaries)
+                .map(|(w, s)| w * (s.estimate - mean) * (s.estimate - mean))
+                .sum();
+            let variance = (spread / (studies - 1) as f64).max(1.0) / total;
+            antecedent_stats::student_t_ppf(0.5 + LEVEL / 2.0, (studies - 1) as f64)
+                * variance.sqrt()
+        };
+        assert_eq!(mean.to_bits(), candidate.estimate.to_bits(), "consumer mean changed");
+        assert_eq!(
+            (mean - half).to_bits(),
+            candidate.lower.to_bits(),
+            "consumer lower endpoint changed"
+        );
+        assert_eq!(
+            (mean + half).to_bits(),
+            candidate.upper.to_bits(),
+            "consumer upper endpoint changed"
+        );
+        eprintln!(
+            "calibration-replay synthesis_artifact_verified method={} studies={studies} rows={n} first_counter=0",
+            recomputed.method,
+        );
+    }
     let half_width = (candidate.upper - candidate.lower) / 2.0;
     Some((candidate, half_width / rms_se))
+}
+
+#[test]
+fn legacy_synthesis_first_counter_roundtrips_the_real_artifact_without_changing_intervals() {
+    for design in [Design::FIXED_EFFECT, Design::MODERATE, Design::STRONG] {
+        for studies in [5, 15, 30] {
+            let (candidate, _) = replicate_with_protocol(design, studies, 75, 91_100, 0, 1)
+                .expect("legacy producer and artifact consumer");
+            assert_eq!(candidate.method, if design.fixed_effect { "wald_z" } else { "hksj_t" });
+        }
+    }
 }
 
 /// Largest median ratio of the interval half-width to the root-mean-square
