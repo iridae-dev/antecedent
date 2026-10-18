@@ -136,13 +136,13 @@ Transport is the same `analyze` call. Its `data` and `graph` are not the quickst
 
 Wrap an ordinary question. Source identity, intervention regime, and sampling are scientific claims on `evidence`; the table only supplies columns and a snapshot digest.
 
-Run the self-contained [statistical transport example](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/transport_statistical.py):
+Run the self-contained [statistical transport example](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/transport_statistical.py):
 
 ```bash
 python examples/python/transport_statistical.py
 ```
 
-It constructs its own trial table, graph, target and evidence declaration before calling `analyze`. Use the [exact-law example](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/transport_exact.py) to compare a supplied law with empirical evidence. Both examples assert their own identification and answer boundaries.
+It constructs its own trial table, graph, target and evidence declaration before calling `analyze`. Use the [exact-law example](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/transport_exact.py) to compare a supplied law with empirical evidence. Both examples assert their own identification and answer boundaries.
 
 
 `EmpiricalTable` is the default provider. `LearnedCategorical` and `TrialAipw` change the assumption set and must be passed explicitly. If the formula is identified but a joint is unbound, `identify(...).inspect()` and `result.answer.detail` name the missing evidence.

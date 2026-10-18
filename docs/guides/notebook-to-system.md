@@ -8,7 +8,7 @@ Start with one reviewed question, then preserve its meaning as observations, des
 python examples/python/notebook_to_system_24.py
 ```
 
-Install the matching package or development checkout using [installation](../installation.md). The [companion notebook](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/notebook_to_system_24.ipynb) presents the same journey interactively.
+Install the matching package or development checkout using [installation](../installation.md). The [companion notebook](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/notebook_to_system_24.ipynb) presents the same journey interactively.
 
 ## 1. Prepare the question before fitting
 

@@ -94,7 +94,7 @@ base, the base and twice the base):
 
 | Declared dependence | Measured generator | Cases in the measurement design | Cases in the shipped records |
 | --- | --- | --- | --- |
-| `iid` | independent standard normal outcomes | 400 to 1,600; 1,600 to 6,400; 6,400 to 25,600; 25,600 to 102,400 (so 10,000, 30,000 and 100,000 cases lie inside) | 400 to 1,600 |
+| `iid` | independent standard normal outcomes | 400 to 1,600; 1,600 to 6,400; 6,400 to 25,600; 25,600 to 102,400 (so 10,000, 30,000 and 100,000 cases lie inside) | 400 to 102,400 |
 | `cluster` | clusters of five cases with a shared cluster effect | 800 to 3,200 (160 to 640 clusters) | 800 to 3,200 |
 | `serial` | stationary AR(1) outcomes, `phi = 0.5`, lag `floor(n^(1/3))` | 1,600 to 6,400 | 1,600 to 6,400 |
 

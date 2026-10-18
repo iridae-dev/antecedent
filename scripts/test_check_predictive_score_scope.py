@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -59,8 +60,10 @@ class PredictiveScoreScopeTest(unittest.TestCase):
         )
 
     def test_a_widened_shipped_range_is_found(self) -> None:
+        records = tomllib.loads((REPO_ROOT / scope.RECORDS_FILE).read_text(encoding="utf-8"))
+        low, high = scope.record_ranges(records)[0]["iid"]
         findings = self.audit_with(
-            scope.DOC_FILE, "| 400 to 1,600 |", "| 400 to 6,400 |"
+            scope.DOC_FILE, f"| {low:,} to {high:,} |", f"| {low:,} to {high * 2:,} |"
         )
         self.assertTrue(
             any(f.startswith("shipped_range_mismatch") for f in findings), findings
