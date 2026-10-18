@@ -24,17 +24,17 @@ use antecedent_io::IoError;
 use serde::{Deserialize, Serialize};
 
 use super::discovered_transport::{
-    DISCOVERED_TRANSPORT_REASON, DiscoveredTransportError, DiscoveredTransportRefusal,
-    DiscoveredTransportReport, MemberVerdict,
+    DiscoveredTransportError, DiscoveredTransportRefusal, DiscoveredTransportReport, MemberVerdict,
 };
 use super::discovered_transport_estimate::{
     DiscoveredTransportEstimate, TransportAnswer, TransportEvidence, VerifiedEstimate, columns_of,
-    estimate_selected_discovered_transport, validate_evidence_query,
-    verify_discovered_transport_estimate,
+    estimate_selected_discovered_transport, validate_evidence_query, verify_trial_member_estimate,
 };
 
 const PROOF_FORMAT: &str = "antecedent.discovered_transport.trial_compatibility.v1";
 const ESTIMATE_FORMAT: &str = "antecedent.discovered_transport.trial_estimate.v1";
+const MAX_TRIAL_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
+const MAX_TRIAL_ARTIFACT_MEMBERS: usize = 4096;
 
 /// Actual assignment design asserted for the source trial.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -134,6 +134,38 @@ pub struct TrialCompatibilityProof {
 }
 
 impl TrialCompatibilityProof {
+    fn validate_replay_budget(&self, limits: ExactEvaluationLimits) -> Result<usize, IoError> {
+        let exceeded = || IoError::Convert("trial compatibility replay budget exceeded".into());
+        if self.members.len() > MAX_TRIAL_ARTIFACT_MEMBERS {
+            return Err(exceeded());
+        }
+        let mut work = self
+            .source_trial_rows
+            .len()
+            .checked_mul(4)
+            .and_then(|rows| rows.checked_add(self.original_selection_targets.len()))
+            .ok_or_else(exceeded)?;
+        for member in &self.members {
+            // Directed-path replay scans the edge list once per newly reachable layer.
+            // At most twice the number of edges plus two vertices can be visited.
+            let edges = member.directed_edges.len();
+            let path_work = edges
+                .checked_mul(2)
+                .and_then(|vertices| vertices.checked_add(2))
+                .and_then(|vertices| vertices.checked_mul(edges.max(1)))
+                .ok_or_else(exceeded)?;
+            work = work
+                .checked_add(path_work)
+                .and_then(|n| n.checked_add(member.bidirected_edges.len()))
+                .and_then(|n| n.checked_add(member.confounded_edges.len()))
+                .ok_or_else(exceeded)?;
+        }
+        if work > limits.operations {
+            return Err(exceeded());
+        }
+        Ok(work)
+    }
+
     /// Original envelope indices retained after the one experimental test.
     #[must_use]
     pub fn retained_members(&self) -> Vec<usize> {
@@ -222,7 +254,6 @@ impl TrialCompatibilityProof {
             || self.treatment == self.outcome
             || self.members.is_empty()
             || self.source_trial_rows.len() > 1_000_000
-            || fisher_exact(self.counts)? != self.p_value
         {
             return Err(bad());
         }
@@ -237,6 +268,11 @@ impl TrialCompatibilityProof {
             || trial_identity(self.treatment, self.outcome, &self.source_trial_rows)
                 != self.source_trial_identity
         {
+            return Err(bad());
+        }
+        // Counts must first be reconstructed from the bounded rows. Untrusted
+        // u64 counts must never reach Fisher's margin additions or mass loop.
+        if fisher_exact(counts)? != self.p_value {
             return Err(bad());
         }
         for (index, member) in self.members.iter().enumerate() {
@@ -300,21 +336,28 @@ struct TrialEstimateWire {
 }
 
 /// Replay the experimental test, all graph-path decisions and every retained member grid.
+/// The operation limit bounds the compatibility proof and each retained grid separately;
+/// at most 4096 grids can be replayed. Stored grid limits retain their original identity.
 ///
 /// # Errors
-/// A test, decision, refined identity or retained grid that does not replay.
+/// An artifact above 16 MiB or 4096 original members, a proof exceeding the
+/// caller's operation budget, or a test, decision, identity or grid that does not replay.
 pub fn verify_trial_compatible_transport_estimate(
     bytes: &[u8],
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
 ) -> Result<(TrialCompatibilityProof, VerifiedEstimate), IoError> {
+    if bytes.len() > MAX_TRIAL_ARTIFACT_BYTES {
+        return Err(IoError::Convert("trial compatibility artifact byte budget exceeded".into()));
+    }
     let wire: TrialEstimateWire = antecedent_io::from_cbor(bytes)?;
     if wire.format != ESTIMATE_FORMAT {
         return Err(IoError::Convert("unsupported trial estimate format".into()));
     }
+    wire.proof.validate_replay_budget(limits)?;
     wire.proof.validate()?;
-    let mut verified = verify_discovered_transport_estimate(&wire.estimate, limits, ctx)?;
     let retained = wire.proof.retained_members();
+    let mut verified = verify_trial_member_estimate(&wire.estimate, limits, ctx, retained.len())?;
     if verified.report_identity != wire.proof.identity()
         || verified.members != (0..retained.len()).collect::<Vec<_>>()
     {
@@ -341,10 +384,7 @@ pub fn verify_trial_compatible_transport_estimate(
     clippy::too_many_lines,
     reason = "one auditable pipeline records the exact test inputs, every graph decision and all retained estimation artifacts"
 )]
-#[allow(
-    clippy::float_cmp,
-    reason = "trial inputs must be exact binary zero/one codes"
-)]
+#[allow(clippy::float_cmp, reason = "trial inputs must be exact binary zero/one codes")]
 pub fn estimate_trial_compatible_discovered_transport(
     report: &DiscoveredTransportReport,
     query: &TransportQuery,
@@ -356,7 +396,7 @@ pub fn estimate_trial_compatible_discovered_transport(
     validate_evidence_query(query)?;
     let refuse = |detail, remedy: String| {
         DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
-            code: DISCOVERED_TRANSPORT_REASON,
+            code: antecedent_core::reason_code!("discovered_structure_unresolved"),
             detail,
             unresolved: report.envelope().unresolved().to_vec(),
             exhausted_search_bounds: 0,
@@ -632,38 +672,94 @@ mod tests {
             verify_trial_compatible_transport_estimate(&bytes, evidence.limits, &ctx).unwrap();
         assert_eq!(verified.members, proof.retained_members());
         assert_eq!(proof, refined.proof);
-        let mut tampered: TrialEstimateWire = antecedent_io::from_cbor(&bytes).unwrap();
+        assert_trial_replay_budgets(&bytes, evidence.limits, &ctx);
+        assert_trial_tampering_rejected(&bytes, evidence.limits, &ctx);
+    }
+
+    fn assert_trial_tampering_rejected(
+        bytes: &[u8],
+        limits: ExactEvaluationLimits,
+        ctx: &ExecutionContext,
+    ) {
+        let mut tampered: TrialEstimateWire = antecedent_io::from_cbor(bytes).unwrap();
+        tampered.proof.counts = [u64::MAX; 4];
+        assert!(
+            verify_trial_compatible_transport_estimate(
+                &antecedent_io::to_cbor(&tampered).unwrap(),
+                limits,
+                ctx,
+            )
+            .is_err()
+        );
+        let mut tampered: TrialEstimateWire = antecedent_io::from_cbor(bytes).unwrap();
         tampered.proof.source_trial_rows[0][1] ^= 1;
         assert!(
             verify_trial_compatible_transport_estimate(
                 &antecedent_io::to_cbor(&tampered).unwrap(),
-                evidence.limits,
-                &ctx
+                limits,
+                ctx
             )
             .is_err()
         );
-        let mut tampered: TrialEstimateWire = antecedent_io::from_cbor(&bytes).unwrap();
+        let mut tampered: TrialEstimateWire = antecedent_io::from_cbor(bytes).unwrap();
         tampered.proof.members[0].retained = !tampered.proof.members[0].retained;
         assert!(
             verify_trial_compatible_transport_estimate(
                 &antecedent_io::to_cbor(&tampered).unwrap(),
-                evidence.limits,
-                &ctx
+                limits,
+                ctx
             )
             .is_err()
         );
         // Even a change to a rejected member's latent graph must remain bound to the
         // original report, rather than merely passing the directed-path decision again.
-        let mut tampered: TrialEstimateWire = antecedent_io::from_cbor(&bytes).unwrap();
+        let mut tampered: TrialEstimateWire = antecedent_io::from_cbor(bytes).unwrap();
         tampered.proof.members[0].bidirected_edges.push((0, 1));
         assert!(
             verify_trial_compatible_transport_estimate(
                 &antecedent_io::to_cbor(&tampered).unwrap(),
-                evidence.limits,
-                &ctx
+                limits,
+                ctx
             )
             .is_err()
         );
+    }
+
+    fn assert_trial_replay_budgets(
+        bytes: &[u8],
+        limits: ExactEvaluationLimits,
+        ctx: &ExecutionContext,
+    ) {
+        let no_work = ExactEvaluationLimits { operations: 0, ..limits };
+        assert!(
+            verify_trial_compatible_transport_estimate(bytes, no_work, ctx)
+                .unwrap_err()
+                .to_string()
+                .contains("replay budget")
+        );
+        let mut too_many: TrialEstimateWire = antecedent_io::from_cbor(bytes).unwrap();
+        too_many.proof.members =
+            vec![too_many.proof.members[0].clone(); MAX_TRIAL_ARTIFACT_MEMBERS + 1];
+        assert!(
+            verify_trial_compatible_transport_estimate(
+                &antecedent_io::to_cbor(&too_many).unwrap(),
+                limits,
+                ctx,
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("replay budget")
+        );
+    }
+    #[test]
+    fn trial_consumer_checks_byte_budget_before_decoding() {
+        let error = verify_trial_compatible_transport_estimate(
+            &vec![0; MAX_TRIAL_ARTIFACT_BYTES + 1],
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("byte budget"));
     }
     #[test]
     fn fisher_exact_matches_hand_enumerated_margin_conditioning() {

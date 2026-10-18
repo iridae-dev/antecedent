@@ -353,10 +353,31 @@ pub fn verify_discovered_transport_estimate(
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
 ) -> Result<VerifiedEstimate, IoError> {
+    verify_estimate_with_member_count(bytes, limits, ctx, None)
+}
+
+pub(crate) fn verify_trial_member_estimate(
+    bytes: &[u8],
+    limits: ExactEvaluationLimits,
+    ctx: &ExecutionContext,
+    expected_members: usize,
+) -> Result<VerifiedEstimate, IoError> {
+    verify_estimate_with_member_count(bytes, limits, ctx, Some(expected_members))
+}
+
+fn verify_estimate_with_member_count(
+    bytes: &[u8],
+    limits: ExactEvaluationLimits,
+    ctx: &ExecutionContext,
+    expected_members: Option<usize>,
+) -> Result<VerifiedEstimate, IoError> {
     let mismatch = |what: &str| IoError::Convert(format!("discovered transport estimate: {what}"));
     let wire: EstimateWire = antecedent_io::from_cbor(bytes)?;
     if wire.format != ESTIMATE_FORMAT {
         return Err(mismatch("unsupported format"));
+    }
+    if expected_members.is_some_and(|expected| wire.members.len() != expected) {
+        return Err(mismatch("trial refinement member count differs before replay"));
     }
     let report_identity: [u8; 32] =
         wire.report_identity.as_slice().try_into().map_err(|_| mismatch("report identity"))?;
