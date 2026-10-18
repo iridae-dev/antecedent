@@ -4,7 +4,7 @@
 //! The study is a sparse connected linear-Gaussian model (`common::sparse_scm`) with design
 //! weights of coefficient of variation 0.8 that depend on no outcome. Oracles: the effect is the
 //! weighted least-squares coefficient of the treatment given the treatment's true parents on
-//! the analysis rows, with its HC1 sandwich standard error, both solved here from the normal
+//! the analysis rows, with its HC3 sandwich standard error, both solved here from the normal
 //! equations; the weighted population's effect is the structural total effect, computed from
 //! the coefficients alone; the effective sample size is the Kish size of the rows used.
 
@@ -115,7 +115,7 @@ fn rule() -> SplitRule {
 
 /// Weighted least squares of `y` on an intercept, `x` and `adjustment` over the rows of
 /// positive weight, weights normalized to mean one over those rows: the coefficient of `x` and
-/// its HC1 sandwich standard error `(X'WX)^-1 [sum (w e)^2 x x'] (X'WX)^-1 n / (n - k)`.
+/// its HC3 sandwich with each residual divided by `1 - w x' (X'WX)^-1 x`.
 fn weighted_ols(x: &[f64], y: &[f64], adjustment: &[Vec<f64>], weights: &[f64]) -> (f64, f64) {
     let rows: Vec<usize> = (0..x.len()).filter(|&i| weights[i] > 0.0).collect();
     let n = rows.len() as f64;
@@ -143,7 +143,10 @@ fn weighted_ols(x: &[f64], y: &[f64], adjustment: &[Vec<f64>], weights: &[f64]) 
     for &i in &rows {
         let r = design(i);
         let fitted: f64 = r.iter().zip(&beta).map(|(a, b)| a * b).sum();
-        let scaled = weights[i] * scale * (y[i] - fitted);
+        let weight = weights[i] * scale;
+        let leverage = weight
+            * (0..k).map(|a| (0..k).map(|b| r[a] * bread[a][b] * r[b]).sum::<f64>()).sum::<f64>();
+        let scaled = weight * (y[i] - fitted) / (1.0 - leverage);
         for a in 0..k {
             for b in 0..k {
                 meat[a][b] += scaled * scaled * r[a] * r[b];
@@ -156,7 +159,7 @@ fn weighted_ols(x: &[f64], y: &[f64], adjustment: &[Vec<f64>], weights: &[f64]) 
             variance += bread[1][a] * meat[a][b] * bread[b][1];
         }
     }
-    (beta[1], (variance * n / (n - k as f64)).sqrt())
+    (beta[1], variance.sqrt())
 }
 
 /// The analysis rows' columns of the study, in the part's row order.

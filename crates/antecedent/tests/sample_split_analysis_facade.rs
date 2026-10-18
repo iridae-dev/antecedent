@@ -347,9 +347,9 @@ fn reusing_the_rows_that_selected_is_refused_and_the_ledger_sees_the_overlap() {
     );
 }
 
-/// Weighted least squares of `y` on `[1, x]` over rows of positive weight, and the HC1 sandwich
-/// standard error of the slope, from the normal equations.
-fn weighted_slope(x: &[f64], y: &[f64], weights: &[f64]) -> (f64, f64) {
+/// Weighted least squares of `y` on `[1, x]` over rows of positive weight, and an HC1 or HC3 sandwich
+/// standard error of the slope, from independent normal equations.
+fn weighted_slope(x: &[f64], y: &[f64], weights: &[f64], hc3: bool) -> (f64, f64) {
     let rows: Vec<usize> = (0..x.len()).filter(|&i| weights[i] > 0.0).collect();
     let n = rows.len() as f64;
     let scale = n / rows.iter().map(|&i| weights[i]).sum::<f64>();
@@ -372,9 +372,12 @@ fn weighted_slope(x: &[f64], y: &[f64], weights: &[f64]) -> (f64, f64) {
     for &i in &rows {
         let e = y[i] - intercept - slope * x[i];
         let v = [1.0, x[i]];
+        let leverage = w(i)
+            * (0..2).map(|a| (0..2).map(|b| v[a] * inv[a][b] * v[b]).sum::<f64>()).sum::<f64>();
+        let residual = if hc3 { e / (1.0 - leverage) } else { e };
         for a in 0..2 {
             for b in 0..2 {
-                meat[a][b] += (w(i) * e).powi(2) * v[a] * v[b];
+                meat[a][b] += (w(i) * residual).powi(2) * v[a] * v[b];
             }
         }
     }
@@ -384,7 +387,8 @@ fn weighted_slope(x: &[f64], y: &[f64], weights: &[f64]) -> (f64, f64) {
             variance += inv[1][a] * meat[a][b] * inv[b][1];
         }
     }
-    (slope, (variance * n / (n - 2.0)).sqrt())
+    let correction = if hc3 { 1.0 } else { n / (n - 2.0) };
+    (slope, (variance * correction).sqrt())
 }
 
 #[test]
@@ -409,9 +413,16 @@ fn the_analysis_part_is_estimated_under_its_own_weights_with_its_effective_size(
     let x = rows.float64_values(VariableId::from_raw(0)).unwrap();
     let y = rows.float64_values(VariableId::from_raw(1)).unwrap();
     let analysis_weights = split.analysis_weights().unwrap();
-    let (slope, se) = weighted_slope(&x, &y, analysis_weights);
+    let (slope, se) = weighted_slope(&x, &y, analysis_weights, true);
     assert!((effect.effect - slope).abs() < 1e-9, "{} vs {slope}", effect.effect);
     assert!((effect.standard_error - se).abs() < 1e-9, "{} vs {se}", effect.standard_error);
+
+    assert_eq!(effect.se_kind, antecedent_estimate::AnalyticSeKind::Hc3);
+    let legacy = split.estimate_analysis_effect_hc1(&request, &ctx()).unwrap();
+    let (_, legacy_se) = weighted_slope(&x, &y, analysis_weights, false);
+    assert_eq!(legacy.se_kind, antecedent_estimate::AnalyticSeKind::Hc1);
+    assert_eq!(legacy.effect.to_bits(), effect.effect.to_bits());
+    assert!((legacy.standard_error - legacy_se).abs() < 1e-9);
 
     // The weights' accounting: zero-weight rows are counted, the Kish size is the part's own.
     let record = effect.sampling_weights.expect("a weighted analysis part reports its record");
@@ -449,6 +460,6 @@ fn an_unweighted_analysis_part_reports_no_weight_record() {
     let rows = split.analysis_rows();
     let x = rows.float64_values(VariableId::from_raw(0)).unwrap();
     let y = rows.float64_values(VariableId::from_raw(1)).unwrap();
-    let (slope, se) = weighted_slope(&x, &y, &vec![1.0; x.len()]);
+    let (slope, se) = weighted_slope(&x, &y, &vec![1.0; x.len()], true);
     assert!((effect.effect - slope).abs() < 1e-9 && (effect.standard_error - se).abs() < 1e-9);
 }

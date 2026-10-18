@@ -8,13 +8,15 @@
 //! parent limit four) on the discovery rows under their weights, acceptance when the search
 //! finished and treatment incident orientations agree in every conflict-free resolution, and the
 //! sampling-weighted least-squares effect of the treatment given its discovered parents on the
-//! held-out analysis quarter, with the Student interval at the effective sample size
+//! held-out analysis quarter, with the HC3 leverage-corrected sandwich and Student interval at
+//! the effective sample size
 //! (`SplitAnalysisEffect::interval`, level 0.95).
 //!
 //! Three quarters for discovery reduces confounder-selection error under unequal survey
 //! weights; analysis remains independent of discovery. Conflict resolution is exhaustive and
 //! bounded, and refuses when the treatment neighbourhood is not invariant. Version one
-//! (the half split with global conflict refusal) remains available only for exact legacy replay.
+//! (the half split with global conflict refusal) and version two (the three-quarter split with
+//! HC1) remain available only for exact legacy replay.
 //!
 //! # Design
 //!
@@ -90,17 +92,19 @@ fn v(index: usize) -> VariableId {
     VariableId::from_raw(u32::try_from(index).expect("small index"))
 }
 
-const CURRENT_PROTOCOL: &str = "discovery_fraction_0_75.conflict_resolution_treatment_invariant";
+const ALLOCATION_PROTOCOL: &str = "discovery_fraction_0_75.conflict_resolution_treatment_invariant";
+const CURRENT_PROTOCOL: &str =
+    "discovery_fraction_0_75.conflict_resolution_treatment_invariant.variance_hc3";
 
 fn protocol_version() -> u32 {
     static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
     *VERSION.get_or_init(|| {
         let raw =
-            std::env::var("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL").unwrap_or_else(|_| "2".into());
+            std::env::var("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL").unwrap_or_else(|_| "3".into());
         raw.parse::<u32>()
             .ok()
-            .filter(|version| matches!(version, 1 | 2))
-            .unwrap_or_else(|| panic!("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL={raw}: want 1 or 2"))
+            .filter(|version| matches!(version, 1..=3))
+            .unwrap_or_else(|| panic!("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL={raw}: want 1, 2 or 3"))
     })
 }
 
@@ -117,11 +121,14 @@ fn construction_for_protocol(version: u32) -> Construction {
         inference: "Frequentist".into(),
         estimator: "linear.adjustment.ate.sampling_weighted".into(),
         interval_method: INTERVAL.into(),
-        se_kind: "hc1_sampling_weighted".into(),
+        se_kind: if version == 3 { "hc3_sampling_weighted" } else { "hc1_sampling_weighted" }
+            .into(),
         dependence: "iid".into(),
         posterior: String::new(),
         functional: if version == 1 {
             "weighted_population_total_effect".into()
+        } else if version == 2 {
+            format!("weighted_population_total_effect.{ALLOCATION_PROTOCOL}")
         } else {
             format!("weighted_population_total_effect.{CURRENT_PROTOCOL}")
         },
@@ -195,7 +202,7 @@ fn replicate(rep: u64) -> Option<((f64, f64), f64)> {
     let response = u32::try_from(scm.outcome).ok()?;
     let neighbourhood = match (&outcome.native, outcome.orientation_conflict) {
         (_, false) => treatment_parent_set(&outcome.structure, &scm.names, treatment, response),
-        (NativeResult::StaticCpdag(native), true) if protocol_version() == 2 => {
+        (NativeResult::StaticCpdag(native), true) if protocol_version() >= 2 => {
             treatment_parent_set_under_conflicts(
                 &outcome.structure,
                 &ConflictEvidence {
@@ -220,7 +227,12 @@ fn replicate(rep: u64) -> Option<((f64, f64), f64)> {
         levels: (0.0, 1.0),
         clusters: None,
     };
-    let effect = split.estimate_analysis_effect(&request, &ctx).ok()?;
+    let effect = if protocol_version() == 3 {
+        split.estimate_analysis_effect(&request, &ctx)
+    } else {
+        split.estimate_analysis_effect_hc1(&request, &ctx)
+    }
+    .ok()?;
     let interval = effect.interval(REPORTED_LEVEL).ok()?;
     if !(interval.lower.is_finite() && interval.upper.is_finite()) {
         return None;
@@ -242,6 +254,8 @@ fn weighted_split_effect_interval_calibrated() {
         REPORTED_LEVEL,
     );
     if protocol_version() == 2 {
+        tally = tally.labelled(ALLOCATION_PROTOCOL);
+    } else if protocol_version() == 3 {
         tally = tally.labelled(CURRENT_PROTOCOL);
     }
     let mut widths = Vec::new();
@@ -298,13 +312,17 @@ fn weighted_split_effect_interval_calibrated() {
 #[test]
 fn weighted_split_protocol_preserves_legacy_identity_and_declares_independent_allocation() {
     let legacy = construction_for_protocol(1);
-    let current = construction_for_protocol(2);
+    let intermediate = construction_for_protocol(2);
+    let current = construction_for_protocol(3);
     assert_eq!(discovery_fraction(1).to_bits(), 0.5_f64.to_bits());
     assert_eq!(discovery_fraction(2).to_bits(), 0.75_f64.to_bits());
+    assert_eq!(discovery_fraction(3).to_bits(), 0.75_f64.to_bits());
     assert_eq!(legacy.functional, "weighted_population_total_effect");
     assert_eq!(current.functional, format!("{}.{}", legacy.functional, CURRENT_PROTOCOL));
     assert_eq!(current.interval_method, legacy.interval_method);
-    assert_eq!(current.se_kind, legacy.se_kind);
+    assert_eq!(intermediate.functional, format!("{}.{}", legacy.functional, ALLOCATION_PROTOCOL));
+    assert_eq!(intermediate.se_kind, legacy.se_kind);
+    assert_eq!(current.se_kind, "hc3_sampling_weighted");
     assert_eq!(current.estimator, legacy.estimator);
     assert_eq!(current.reported_level.to_bits(), legacy.reported_level.to_bits());
 }

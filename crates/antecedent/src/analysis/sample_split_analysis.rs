@@ -27,7 +27,7 @@
 //! normalization and uncertainty are stated on [`SplitAnalysisEffect`]: the effect in the
 //! weighted population the analysis part's weights represent, conditional on the selected
 //! graph; weights are normalized to mean one over the rows used (the estimate is the same
-//! under any rescaling); the standard error is the sampling-weighted sandwich (HC1, or the
+//! under any rescaling); the standard error is the sampling-weighted sandwich (HC3, or the
 //! cluster sandwich over declared analysis-part clusters); rows of weight zero are excluded and
 //! counted; and the Kish effective sample size is reported beside the row count. The interval
 //! it supports ([`SplitAnalysisEffect::interval`]) is a Student interval at the effective sample
@@ -383,8 +383,9 @@ pub struct AnalysisEffectRequest {
 /// they are normalized to mean one over the rows used. The weight sum is reported unnormalized
 /// and is never read as a population size.
 ///
-/// **Uncertainty.** The standard error is the sampling-weighted HC1 sandwich, or the cluster
-/// sandwich when clusters are declared; [`Self::interval`] turns it into a Student interval
+/// **Uncertainty.** The standard error is the sampling-weighted sandwich recorded by
+/// [`Self::se_kind`] (HC3 by default, or explicit historical HC1), or the cluster sandwich
+/// when clusters are declared; [`Self::interval`] turns it into a Student interval
 /// at the effective sample size, labelled with its unmeasured whole-method calibration.
 ///
 /// **Effective sample size.** The Kish size of the weights of the rows used is in
@@ -479,7 +480,9 @@ impl SplitDiscovery {
     /// Estimate a linear effect on the analysis part, weighted by the part's own weights.
     ///
     /// The estimate rests on the analysis rows alone, so it is conditional on the selected
-    /// graph and never reuses the rows discovery saw; the returned binding says so.
+    /// graph and never reuses the rows discovery saw; the returned binding says so. Independent
+    /// rows use HC3, correcting each residual for its weighted regression leverage. Declared
+    /// clusters keep their cluster sandwich.
     ///
     /// # Errors
     ///
@@ -489,6 +492,31 @@ impl SplitDiscovery {
         &self,
         request: &AnalysisEffectRequest,
         ctx: &ExecutionContext,
+    ) -> Result<SplitAnalysisEffect, EstimationError> {
+        self.estimate_analysis_effect_with_kind(request, ctx, AnalyticSeKind::Hc3)
+    }
+
+    /// Estimate the same effect with the historical HC1 independent-row sandwich.
+    ///
+    /// This explicit construction retains the original point, variance and interval for
+    /// legacy replay. The ordinary entry point uses HC3 to correct finite-sample leverage.
+    /// Declared clusters retain their cluster sandwich in either entry point.
+    ///
+    /// # Errors
+    /// The same receipt, data and fit errors as [`Self::estimate_analysis_effect`].
+    pub fn estimate_analysis_effect_hc1(
+        &self,
+        request: &AnalysisEffectRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<SplitAnalysisEffect, EstimationError> {
+        self.estimate_analysis_effect_with_kind(request, ctx, AnalyticSeKind::Hc1)
+    }
+
+    fn estimate_analysis_effect_with_kind(
+        &self,
+        request: &AnalysisEffectRequest,
+        ctx: &ExecutionContext,
+        se_kind: AnalyticSeKind,
     ) -> Result<SplitAnalysisEffect, EstimationError> {
         let binding =
             self.check_analysis_table(self.analysis_rows()).map_err(|error| match error {
@@ -517,9 +545,8 @@ impl SplitDiscovery {
             Arc::from(request.adjustment.clone()),
             functional,
         );
-        let mut estimator = LinearAdjustmentAte::new()
-            .with_bootstrap_replicates(0)
-            .with_se_kind(AnalyticSeKind::Hc1);
+        let mut estimator =
+            LinearAdjustmentAte::new().with_bootstrap_replicates(0).with_se_kind(se_kind);
         if let Some(weights) = self.analysis_weights() {
             estimator = estimator.with_sampling_weights(SamplingWeights::new(weights.to_vec())?);
         }
@@ -538,7 +565,7 @@ impl SplitDiscovery {
         Ok(SplitAnalysisEffect {
             effect: fit.ate,
             standard_error: fit.se_analytic(),
-            se_kind: fit.uncertainty.analytic.kind.unwrap_or(AnalyticSeKind::Hc1),
+            se_kind: fit.uncertainty.analytic.kind.unwrap_or(se_kind),
             sampling_weights: fit.diagnostics.sampling_weights,
             rows: fit.provenance.n_obs.unwrap_or(0),
             coefficients: 2 + request.adjustment.len() as u64,
