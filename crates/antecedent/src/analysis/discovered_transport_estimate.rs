@@ -1529,7 +1529,10 @@ mod tests {
             };
             assert!(same_number(estimate.means[0], expected[0]));
             assert!(same_number(estimate.means[1], expected[1]));
-            assert!(same_number(estimate.contrast, if prefer { 0.48 } else { 0.45 }));
+            assert!(same_number(
+                estimate.contrast.expect("both declared levels are evaluated"),
+                if prefer { 0.48 } else { 0.45 }
+            ));
             assert_eq!(estimate.expression.contains("Σ"), prefer);
         }
     }
