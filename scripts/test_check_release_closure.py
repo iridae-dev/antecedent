@@ -130,6 +130,16 @@ class ReleaseClosureTest(unittest.TestCase):
         self.assertEqual(closure.case_size(target), 1500)
         self.assertEqual(closure.split_size_problems(target), [])
 
+    def test_parent_split_case_cannot_borrow_a_legacy_half_split_record(self) -> None:
+        target = case("parent", "calibrated_interval",
+                      "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::design",
+                      configuration={"participants": 2000, "analysis_rows": 500,
+                                     "discovery_fraction": 0.75})
+        legacy = record(test=target["evidence"]["test"], functional="total_effect.variables_15")
+        current = {**legacy, "id": "v2",
+                   "functional": "total_effect.variables_15.discovery_fraction_0_75.topology_layered"}
+        self.assertEqual(closure.records_of(target, [legacy, current]), [current])
+
     def test_calibrated_records_need_two_thousand_replicates_and_uncertainty(self) -> None:
         data = self.calibrated()
         self.assertEqual(closure.calibrated_record_problems(data, [record()]), [])

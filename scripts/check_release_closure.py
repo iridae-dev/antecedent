@@ -151,6 +151,10 @@ def records_of(case: dict[str, Any], records: list[dict[str, Any]]) -> list[dict
     for record in records:
         if record.get("test") not in (wanted, wanted.rsplit("::", 1)[1]):
             continue
+        if "sample_split_parent_set_effect_calibration.rs::" in wanted:
+            fraction = case["configuration"].get("discovery_fraction")
+            if fraction != 0.75 or "discovery_fraction_0_75" not in record.get("functional", "").split("."):
+                continue
         if not math.isclose(record.get("nominal", math.nan), targets.get("nominal_coverage", math.nan), abs_tol=1e-9):
             continue
         if size is not None and not record["n_min"] <= size <= record["n_max"]:
