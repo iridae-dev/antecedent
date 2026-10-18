@@ -13,10 +13,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::float_cmp,
-    reason = "binary codes and deterministic proof replay require exact comparisons"
-)]
 #![expect(
     clippy::result_large_err,
     reason = "match the shared public discovered-transport refusal type without breaking callers"
@@ -210,6 +206,10 @@ impl TrialCompatibilityProof {
         writer.finish()
     }
 
+    #[allow(
+        clippy::float_cmp,
+        reason = "independent proof replay must reproduce the stored p-value exactly"
+    )]
     fn validate(&self) -> Result<(), IoError> {
         let bad =
             || IoError::Convert("discovered trial compatibility proof does not replay".into());
@@ -340,6 +340,10 @@ pub fn verify_trial_compatible_transport_estimate(
 #[allow(
     clippy::too_many_lines,
     reason = "one auditable pipeline records the exact test inputs, every graph decision and all retained estimation artifacts"
+)]
+#[allow(
+    clippy::float_cmp,
+    reason = "trial inputs must be exact binary zero/one codes"
 )]
 pub fn estimate_trial_compatible_discovered_transport(
     report: &DiscoveredTransportReport,

@@ -631,7 +631,11 @@ fn domain_cardinalities(
             }
         }
         // Domains are at most `MAX_LEVELS_PER_VARIABLE`, which fits a `u32` exactly.
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "validated finite non-negative integer codes are bounded by the supported domain"
+        )]
         let levels = max as u32 + 1;
         if levels > MAX_LEVELS_PER_VARIABLE {
             return Err(invalid_evidence(format!(
@@ -982,7 +986,10 @@ fn evaluate_member(
         .map(|level| {
             if level.fract() == 0.0 && *level >= 0.0 && *level < f64::from(treatment_cardinality) {
                 // A level is a small non-negative integer code, checked just above.
-                #[allow(clippy::cast_possible_truncation)]
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "the treatment code is an integer within the checked u32 domain"
+                )]
                 Ok(Assignment::from_pairs([(problem.treatment, Value::Int64(*level as i64))]))
             } else {
                 Err(invalid_evidence(format!(
