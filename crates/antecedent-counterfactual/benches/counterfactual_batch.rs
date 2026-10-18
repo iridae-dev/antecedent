@@ -11,8 +11,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use antecedent_core::{
-    CausalSchemaBuilder, ExecutionContext, Intervention, MeasurementSpec, RoleHint, SmallRoleSet,
-    Value, ValueExpr, ValueType, VariableId,
+    ArithOp, CausalSchemaBuilder, ExecutionContext, Intervention, MeasurementSpec, RoleHint,
+    SmallRoleSet, Value, ValueExpr, ValueType, VariableId,
 };
 use antecedent_counterfactual::{
     AbductionMissingPolicy, CounterfactualEngine, CounterfactualWorld, ExogenousPosterior,
@@ -34,7 +34,7 @@ const POLICY_ROWS: usize = 1_000_000;
 /// one per operator, the finiteness check and the store), so its marginal cost over a world
 /// without the program is bounded by a small multiple of the same expression as a direct loop.
 const MAX_REGRESSION: f64 = 6.0;
-const REPEATS: usize = 5;
+const REPEATS: usize = 11;
 
 fn engine() -> (CounterfactualEngine, TabularData) {
     let n = 100usize;
@@ -152,20 +152,24 @@ fn chain_exogenous() -> (CounterfactualEngine, ExogenousPosterior) {
 }
 
 /// The price floor as a direct loop over one column: what the executor's marginal cost is
-/// measured against. Fastest of `REPEATS` passes over a fresh copy of `column`.
-fn native_floor(column: &[f64]) -> Duration {
-    let mut best = Duration::MAX;
-    let mut scratch = column.to_vec();
-    for _ in 0..REPEATS {
-        scratch.copy_from_slice(column);
-        let started = Instant::now();
-        for v in &mut scratch {
-            *v = 1.0_f64.max(0.85 * *v);
-        }
-        best = best.min(started.elapsed());
-        black_box(&scratch);
+/// measured against. Use the public program arithmetic, including NaN propagation,
+/// and its finite-output validation. `f64::max` alone has different semantics and omits
+/// a required pass, making it an artificially cheap reference on some CPUs.
+fn native_floor(column: &[f64], scratch: &mut [f64]) -> Duration {
+    scratch.copy_from_slice(column);
+    let started = Instant::now();
+    for v in scratch.iter_mut() {
+        *v = native_floor_value(*v);
     }
-    best
+    let largest = scratch.iter().map(|v| v.to_bits() & !(1_u64 << 63)).max().unwrap_or(0);
+    assert!(black_box(largest) < f64::INFINITY.to_bits(), "direct policy must be finite");
+    let elapsed = started.elapsed();
+    black_box(scratch);
+    elapsed
+}
+
+fn native_floor_value(value: f64) -> f64 {
+    ArithOp::Max.apply(1.0, ArithOp::Mul.apply(0.85, value))
 }
 
 /// Batch counterfactual execution of a value-program policy against a world without one.
@@ -173,6 +177,13 @@ fn native_floor(column: &[f64]) -> Duration {
 /// Streaming (outcomes only) and retained results agree bit for bit, one context and
 /// workspace serve every execution, and the policy costs at most the regression margin.
 fn bench_cf_policy(c: &mut Criterion) {
+    // Reference semantics, outside all measured regions. In particular, f64::max
+    // would silently turn the NaN case into 1.0 instead of preserving the refusal.
+    for (value, expected) in [(-0.0, 1.0_f64), (0.0, 1.0), (2.0, 1.7), (f64::NEG_INFINITY, 1.0)] {
+        assert_eq!(native_floor_value(value).to_bits(), expected.to_bits());
+    }
+    assert!(native_floor_value(f64::NAN).is_nan());
+    assert_eq!(native_floor_value(f64::INFINITY).to_bits(), f64::INFINITY.to_bits());
     let (eng, exo) = chain_exogenous();
     let ctx = ExecutionContext::for_tests(1);
     let outcome = VariableId::from_raw(2);
@@ -228,17 +239,32 @@ fn bench_cf_policy(c: &mut Criterion) {
         streamed.outcome_column(0, node).unwrap().iter().map(|v| v.to_bits()).collect();
     assert_eq!(retained_bits, streamed_bits, "streaming must equal retained");
 
-    // Regression gate: the policy world against the world without one, interleaved and
-    // compared by the fastest repetition.
+    // Regression gate: pair the policy and plain worlds, alternate their order, and
+    // measure the equivalent direct kernel alongside each pair. The median paired
+    // ratio avoids subtracting independent minima or a single scheduler interruption.
     run(&policy, &mut ws);
-    let (mut without, mut with) = (Duration::MAX, Duration::MAX);
-    for _ in 0..REPEATS {
-        without = without.min(run(&plain, &mut ws));
-        with = with.min(run(&policy, &mut ws));
+    run(&plain, &mut ws);
+    // The root mechanism generates 1 + noise, rather than the raw noise itself.
+    let generated: Vec<f64> = exo.noise[..POLICY_ROWS].iter().map(|noise| 1.0 + noise).collect();
+    let column = generated.as_slice();
+    let mut scratch = column.to_vec();
+    native_floor(column, &mut scratch);
+    let mut samples = Vec::with_capacity(REPEATS);
+    for repeat in 0..REPEATS {
+        let (without, with) = if repeat % 2 == 0 {
+            (run(&plain, &mut ws), run(&policy, &mut ws))
+        } else {
+            let with = run(&policy, &mut ws);
+            (run(&plain, &mut ws), with)
+        };
+        let native = native_floor(column, &mut scratch);
+        let marginal = with.saturating_sub(without);
+        let ratio = marginal.as_secs_f64() / native.as_secs_f64().max(1e-9);
+        samples.push((ratio, marginal, with, without, native));
     }
-    let native = native_floor(&exo.noise[..POLICY_ROWS]);
-    let marginal = with.saturating_sub(without);
-    let ratio = marginal.as_secs_f64() / native.as_secs_f64().max(1e-9);
+    samples.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let (ratio, marginal, with, without, native) = samples[REPEATS / 2];
+    eprintln!("paired median policy overhead: {ratio:.2}x ({marginal:?}); direct {native:?}");
     assert!(
         ratio <= MAX_REGRESSION,
         "the policy program added {marginal:?} to a counterfactual world ({with:?} vs \
