@@ -135,6 +135,14 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
         with self.assertRaisesRegex(ValueError, "original roster"):
             allocations.validate(receipt, groups[:-1])
 
+    def test_current_domain_is_resolvable_by_the_immutable_source_reader(self):
+        source = (family.ROOT / "scripts/calibration_decision.py").read_bytes()
+        with patch.object(family, "read_source", return_value=source):
+            self.assertEqual(
+                family.source_validation_domain(family.ROOT, "0" * 40),
+                family.decision.PAG_CONFIDENCE_SET_DOMAIN,
+            )
+
     def test_pag_confidence_set_reserves_distinct_slot_without_resetting_spent_risk(self):
         allocations = family.allocations
         receipt = json.loads((family.ROOT / allocations.PATH).read_text(encoding="utf-8"))
