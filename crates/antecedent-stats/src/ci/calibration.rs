@@ -1539,6 +1539,9 @@ mod tests {
         );
         let coverage = 1.0 - f64::from(rej) / f64::from(ran);
         assert!(coverage >= 0.93, "coverage {coverage} ({rej}/{ran} rejections) below 0.93");
+        eprintln!(
+            "calibration-assertion-receipt {{\"profile\":\"gpdc_nystrom_conditional_null.v1\",\"rows\":8000,\"attempted\":{trials},\"reported\":{ran},\"rejected\":{rej},\"alpha\":{alpha:.17},\"conditional_nonrejection\":{coverage:.17},\"width\":\"not_applicable\"}}"
+        );
     }
 
     /// AR(1) Z and independent AR(1) arm noise: `X ⊥ Y | Z` with serial dependence, block 20.
