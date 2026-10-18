@@ -766,7 +766,7 @@ mod tests {
         // Margins (2,2),(2,2): masses 1/6,4/6,1/6. Extreme two-sided p=1/3.
         assert!((fisher_exact([2, 0, 0, 2]).unwrap() - 1.0 / 3.0).abs() < 1e-12);
         assert!((fisher_exact([1, 1, 1, 1]).unwrap() - 1.0).abs() < 1e-12);
-        assert_eq!(fisher_exact([10, 0, 10, 0]).unwrap(), 1.0);
+        assert_eq!(fisher_exact([10, 0, 10, 0]).unwrap().to_bits(), 1.0_f64.to_bits());
         assert!(fisher_exact([0, 0, 0, 0]).is_err());
     }
 

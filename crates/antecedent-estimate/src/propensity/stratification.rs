@@ -935,7 +935,7 @@ mod tests {
         let z =
             [-2., -1.8, -1.6, -1.4, -1.6, -1.4, -1.2, -1., 0., 0.2, 0.4, 0.6, 0.4, 0.6, 0.8, 1.];
         let stratum: Vec<usize> = (0..16).map(|row| usize::from(row >= 8)).collect();
-        let weights: Vec<f64> = (0..16).map(|row| 1.0 + (row % 3) as f64).collect();
+        let weights: Vec<f64> = (0..16).map(|row| 1.0 + f64::from(row % 3)).collect();
         let outcome: Vec<f64> = (0..16)
             .map(|i| z[i] + 0.4 * stratum[i] as f64 + treatment[i] * (1.0 + 0.5 * z[i]))
             .collect();

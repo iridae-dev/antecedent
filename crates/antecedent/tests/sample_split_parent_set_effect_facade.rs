@@ -560,8 +560,8 @@ fn version_one_sources_replay_the_half_split_and_keep_their_original_basis() {
     let mut source = ParentSetEffectSource::new(
         study.scm.names.clone(),
         (0..10).map(|i| study.data.float64_values(v(i)).unwrap()).collect(),
-        study.scm.treatment as u32,
-        study.scm.outcome as u32,
+        u32::try_from(study.scm.treatment).expect("small treatment index"),
+        u32::try_from(study.scm.outcome).expect("small outcome index"),
         SPLIT_SEED,
         SEED,
         Transformation::Linear,

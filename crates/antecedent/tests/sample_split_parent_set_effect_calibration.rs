@@ -225,6 +225,10 @@ fn unordered(a: u32, b: u32) -> (u32, u32) {
     (a.min(b), a.max(b))
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "keep one complete discovery, admission, estimation and recovery audit together per replicate"
+)]
 fn replicate(design: Design, variant: Variant, skewed: bool, rep: u64) -> Replicate {
     let variables = design.variables;
     let seed = stream_seed(0x5E7_0017 + variables as u64, rep);

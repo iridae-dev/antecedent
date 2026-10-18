@@ -1196,7 +1196,7 @@ mod tests {
         let mut coefficients = vec![1.0 / n as f64; n];
         for i in 0..n {
             let donor = (0..n)
-                .filter(|&j| treatment[i] != treatment[j])
+                .filter(|&j| treatment[i].to_bits() != treatment[j].to_bits())
                 .min_by(|&a, &b| {
                     let distance = |j: usize| {
                         (0..2)

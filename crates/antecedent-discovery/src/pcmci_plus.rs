@@ -946,8 +946,8 @@ mod tests {
             .map(|s| (s.link.source.raw(), s.link.source_lag.raw(), s.link.target.raw()))
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(expected, actual);
-        assert_eq!(family.iter().filter(|s| s.p_value == 1.0).count(), 12);
-        let selected: Vec<_> = family.iter().filter(|s| s.p_value < 1.0).cloned().collect();
+        assert_eq!(family.iter().filter(|s| s.p_value.to_bits() == 1.0_f64.to_bits()).count(), 12);
+        let selected: Vec<_> = family.iter().filter(|s| s.p_value < 1.0).copied().collect();
         let bh = Some(FdrAdjustment::bh().with_exclude_contemporaneous(false));
         assert_eq!(threshold_scored_links(selected, bh, 0.05).len(), 3);
         assert_eq!(threshold_scored_links(family.clone(), bh, 0.05).len(), 1);

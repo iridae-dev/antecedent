@@ -278,6 +278,10 @@ mod tests {
     use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "retain explicit matrix indices in the independent dense outcome-basis oracle"
+    )]
     fn training_coefficient_matches_independent_dense_ridge_fit_for_every_outcome_basis() {
         let n = 40;
         let p = 2;
@@ -288,15 +292,19 @@ mod tests {
         let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
         let w: Vec<f64> = (0..n).map(|i| 0.5 + (i % 7) as f64 / 4.0).collect();
         let e: Vec<f64> = (0..n).map(|i| 0.25 + (i % 5) as f64 / 10.0).collect();
-        let folds: Vec<u32> = (0..n).map(|i| ((i / 2) % 5) as u32).collect();
+        let folds: Vec<u32> =
+            (0..n).map(|i| u32::try_from((i / 2) % 5).expect("five folds")).collect();
         for ridge in [0.0, 1.0] {
             let h = point_coefficients(&x, n, p, &t, &w, &e, &folds, ridge).unwrap();
             for basis in 0..n {
                 let mut predictions = [vec![0.0; n], vec![0.0; n]];
                 for fold in 0..5 {
                     for arm in 0..2 {
-                        let rows: Vec<usize> =
-                            (0..n).filter(|&i| folds[i] != fold && t[i] == arm as f64).collect();
+                        let rows: Vec<usize> = (0..n)
+                            .filter(|&i| {
+                                folds[i] != fold && t[i].to_bits() == (arm as f64).to_bits()
+                            })
+                            .collect();
                         let m = rows.len();
                         let design: Vec<f64> = (0..p)
                             .flat_map(|c| {
