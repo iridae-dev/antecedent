@@ -257,6 +257,11 @@ impl TrialCompatibilityProof {
         reason = "independent proof replay must reproduce the stored p-value exactly"
     )]
     fn validate(&self) -> Result<(), IoError> {
+        self.validate_with_empty(false)
+    }
+
+    #[allow(clippy::float_cmp, reason = "proof replay checks the exact original Fisher result")]
+    fn validate_with_empty(&self, allow_empty: bool) -> Result<(), IoError> {
         let bad =
             || IoError::Convert("discovered trial compatibility proof does not replay".into());
         if self.format != PROOF_FORMAT
@@ -302,7 +307,7 @@ impl TrialCompatibilityProof {
                 return Err(bad());
             }
         }
-        if self.retained_members().is_empty() {
+        if !allow_empty && self.retained_members().is_empty() {
             return Err(bad());
         }
         Ok(())
@@ -415,6 +420,41 @@ pub fn estimate_trial_compatible_discovered_transport(
     options: TrialCompatibilityOptions,
     ctx: &ExecutionContext,
 ) -> Result<TrialCompatibleTransportEstimate, DiscoveredTransportError> {
+    let proof = trial_compatibility_proof(report, query, evidence, options)?;
+    let retained = proof.retained_members();
+    if retained.is_empty() {
+        return Err(DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
+            code: antecedent_core::reason_code!("discovered_structure_unresolved"),
+            detail: "discovered_transport.trial_rejects_every_member",
+            unresolved: report.envelope().unresolved().to_vec(),
+            exhausted_search_bounds: 0,
+            unknown_selection_targets: Vec::new(),
+            member_reasons: Vec::new(),
+            remedy: "the declared randomized trial rejects the common no-effect implication of every discovered member; revisit discovery rather than invent an edge".into(),
+        }));
+    }
+    let estimate = estimate_selected_discovered_transport(
+        report,
+        query,
+        evidence,
+        Some(&retained),
+        Some(proof.identity()),
+        ctx,
+    )?;
+    Ok(TrialCompatibleTransportEstimate { estimate, proof })
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "retain the exact existing trial validation and refinement protocol"
+)]
+#[allow(clippy::float_cmp, reason = "trial inputs must be exact binary codes")]
+fn trial_compatibility_proof(
+    report: &DiscoveredTransportReport,
+    query: &TransportQuery,
+    evidence: &TransportEvidence<'_>,
+    options: TrialCompatibilityOptions,
+) -> Result<TrialCompatibilityProof, DiscoveredTransportError> {
     let alpha = options.alpha;
     validate_evidence_query(query)?;
     let refuse = |detail, remedy: String| {
@@ -543,19 +583,434 @@ pub fn estimate_trial_compatible_discovered_transport(
         p_value,
         members,
     };
-    let retained = proof.retained_members();
-    if retained.is_empty() {
-        return Err(refuse("discovered_transport.trial_rejects_every_member", "the declared randomized trial rejects the common no-effect implication of every discovered member; revisit discovery rather than invent an edge".into()));
+    Ok(proof)
+}
+
+const CONFIDENCE_SET_FORMAT: &str = "antecedent.discovered_transport.trial_confidence_set.v1";
+
+/// Caller-declared support of every potential outcome in both populations.
+/// Observed rows are checked against it; finite observations cannot prove this assumption.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TransportOutcomeSupport {
+    /// Scientific lower support bound, not an empirical minimum.
+    pub lower: f64,
+    /// Scientific upper support bound, not an empirical maximum.
+    pub upper: f64,
+}
+
+/// Whether a set uses an identified sampling interval or only logical outcome support.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrialConfidenceSetKind {
+    /// Every retained member identifies the same functional and a sampling interval exists.
+    IdentifiedSamplingInterval,
+    /// No point effect is asserted; the set follows from declared outcome support alone.
+    LogicalSupportBound,
+}
+
+/// Scientific reason for a logical support set. Operational failures never enter this enum.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrialLogicalBoundReason {
+    /// The declared trial rejected every original no-directed-effect member.
+    TrialRejectsEveryMember,
+    /// Completed identification did not identify the effect in every retained member.
+    ClassNotIdentified,
+    /// Identified retained members disagree on their empirical causal functional.
+    StructuralRange,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TrialConfidenceSetWire {
+    format: String,
+    execution_seed: u64,
+    input_identity: [u8; 32],
+    support: TransportOutcomeSupport,
+    proof: TrialCompatibilityProof,
+    kind: TrialConfidenceSetKind,
+    reason: Option<TrialLogicalBoundReason>,
+    lower: f64,
+    upper: f64,
+    // Retain the actual existing member artifacts for both point and structural-range results.
+    estimate: Option<Vec<u8>>,
+}
+
+/// A bounded-outcome whole-procedure set, distinct from a point transport answer.
+///
+/// A logical set asserts no identified point and is not a successful sampling interval.
+/// An identified set retains the existing 95% sampling construction unchanged. Neither
+/// branch claims complete-procedure calibration without its own currently attesting record.
+#[derive(Clone, Debug)]
+pub struct TrialCompatibleTransportConfidenceSet {
+    wire: TrialConfidenceSetWire,
+    retained_estimate: Option<TrialCompatibleTransportEstimate>,
+}
+
+impl TrialCompatibleTransportConfidenceSet {
+    /// Versioned identity of this whole-procedure set construction.
+    #[must_use]
+    pub const fn method(&self) -> &'static str {
+        CONFIDENCE_SET_FORMAT
     }
-    let estimate = estimate_selected_discovered_transport(
-        report,
-        query,
-        evidence,
-        Some(&retained),
-        Some(proof.identity()),
-        ctx,
-    )?;
-    Ok(TrialCompatibleTransportEstimate { estimate, proof })
+    /// Canonical seal of report, query, support, options, seed and both complete input tables.
+    #[must_use]
+    pub const fn input_identity(&self) -> &[u8; 32] {
+        &self.wire.input_identity
+    }
+    /// Original bootstrap/execution seed; replay requires the same seed and scientific inputs.
+    #[must_use]
+    pub const fn execution_seed(&self) -> u64 {
+        self.wire.execution_seed
+    }
+    /// The actual inferential branch; logical sets must not count as point reporting.
+    #[must_use]
+    pub const fn kind(&self) -> TrialConfidenceSetKind {
+        self.wire.kind
+    }
+    /// The set endpoints for the last-minus-first binary treatment mean contrast.
+    #[must_use]
+    pub const fn bounds(&self) -> (f64, f64) {
+        (self.wire.lower, self.wire.upper)
+    }
+    /// Scientific fallback reason, absent only for identified sampling intervals.
+    #[must_use]
+    pub const fn logical_reason(&self) -> Option<TrialLogicalBoundReason> {
+        self.wire.reason
+    }
+    /// Caller-declared potential-outcome support used by this construction.
+    #[must_use]
+    pub const fn outcome_support(&self) -> TransportOutcomeSupport {
+        self.wire.support
+    }
+    /// Original report, trial observations and all graph compatibility decisions.
+    #[must_use]
+    pub const fn compatibility(&self) -> &TrialCompatibilityProof {
+        &self.wire.proof
+    }
+    /// Actual original estimate, when the retained class could be estimated.
+    /// A structural-range estimate remains a range, not a point.
+    #[must_use]
+    pub const fn retained_estimate(&self) -> Option<&TrialCompatibleTransportEstimate> {
+        self.retained_estimate.as_ref()
+    }
+    /// This computed set does not automatically bind a whole-procedure coverage record.
+    #[must_use]
+    pub const fn calibration(&self) -> &'static str {
+        "not_bound_to_this_execution"
+    }
+    /// Canonical identity of the method, inputs, support, branch, proof and retained artifacts.
+    ///
+    /// # Errors
+    /// Artifact encoding failure.
+    pub fn identity(&self) -> Result<[u8; 32], IoError> {
+        let mut writer = CanonicalWriter::new(CONFIDENCE_SET_FORMAT);
+        writer.bytes(&self.export()?);
+        Ok(writer.finish())
+    }
+    /// Export a receipt for replay **against the original report, query and datasets**.
+    /// This receipt is not a self-contained data container or a calibration license.
+    ///
+    /// # Errors
+    /// Encoding failure or the shared 16 MiB artifact bound is exceeded.
+    pub fn export(&self) -> Result<Vec<u8>, IoError> {
+        let bytes = antecedent_io::to_cbor(&self.wire)?;
+        if bytes.len() > MAX_TRIAL_ARTIFACT_BYTES {
+            return Err(IoError::Convert(
+                "trial confidence-set artifact byte budget exceeded".into(),
+            ));
+        }
+        Ok(bytes)
+    }
+}
+
+fn confidence_set_invalid(message: impl Into<String>) -> DiscoveredTransportError {
+    DiscoveredTransportError::Estimation(message.into())
+}
+
+// Validate and bind the supported request and ALL supplied rows before scientific fallback.
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the complete bounded request and bind both supplied evidence tables before fallback"
+)]
+#[allow(clippy::float_cmp, reason = "the binary contrast and exact row codes define this protocol")]
+fn confidence_set_input_identity(
+    report: &DiscoveredTransportReport,
+    query: &TransportQuery,
+    evidence: &TransportEvidence<'_>,
+    options: TrialCompatibilityOptions,
+    support: TransportOutcomeSupport,
+    ctx: &ExecutionContext,
+) -> Result<[u8; 32], DiscoveredTransportError> {
+    use antecedent_core::{GridSpec, ResponseFunctional, ResponseQuery};
+    use antecedent_data::TableView;
+    query.validate().map_err(|e| confidence_set_invalid(e.to_string()))?;
+    validate_evidence_query(query)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(confidence_set_invalid("cancelled"));
+    }
+    let ResponseFunctional::MeanCurve { outcome, treatment } = &query.response.functional else {
+        return Err(confidence_set_invalid(
+            "confidence sets require a binary treatment mean curve",
+        ));
+    };
+    let GridSpec::Values(levels) = &treatment.grid else {
+        return Err(confidence_set_invalid(
+            "confidence sets require the explicit binary grid [0,1]",
+        ));
+    };
+    if levels.as_ref() != [0.0, 1.0]
+        || query.response != ResponseQuery::new(query.response.functional.clone())
+        || !support.lower.is_finite()
+        || !support.upper.is_finite()
+        || support.lower >= support.upper
+        || !(support.upper - support.lower).is_finite()
+        || evidence.bootstrap_replicates < crate::result::PERCENTILE_95_MIN_REPLICATES
+        || evidence.limits.operations == 0
+        || evidence.limits.depth == 0
+        || evidence.sid_limits.steps == 0
+        || evidence.sid_limits.depth == 0
+        || evidence.target_sampling != antecedent_core::TargetSampling::RepresentativeSample
+    {
+        return Err(confidence_set_invalid(
+            "invalid confidence-set request, support, sampling or budget",
+        ));
+    }
+    let mut writer = CanonicalWriter::new(CONFIDENCE_SET_FORMAT);
+    writer
+        .bytes(report.identity())
+        .text(&query.source_population)
+        .text(&query.target_population)
+        .word(u64::from(treatment.variable.raw()))
+        .word(u64::from(outcome.raw()))
+        .word(support.lower.to_bits())
+        .word(support.upper.to_bits())
+        .word(options.alpha.to_bits())
+        .text("completely_randomized")
+        .word(ctx.rng.master_seed())
+        .word(u64::from(evidence.bootstrap_replicates))
+        .word(evidence.limits.operations as u64)
+        .word(evidence.limits.depth as u64)
+        .word(evidence.sid_limits.steps as u64)
+        .word(evidence.sid_limits.depth as u64);
+    for (population, data) in [("source", evidence.source), ("target", evidence.target)] {
+        if data.row_count() > 1_000_000
+            || data
+                .row_count()
+                .checked_mul(data.schema().len())
+                .is_none_or(|cells| cells > evidence.limits.operations)
+        {
+            return Err(confidence_set_invalid("confidence-set input replay budget exceeded"));
+        }
+        let variables: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
+        let columns = columns_of(data, &variables)?;
+        writer.text(population).word(data.row_count() as u64).word(variables.len() as u64);
+        if data.row_count() == 0 {
+            return Err(confidence_set_invalid("empty confidence-set evidence"));
+        }
+        for variable in data.schema().variables() {
+            writer.word(u64::from(variable.id.raw())).text(&variable.name);
+            for value in &columns[&variable.id] {
+                let value = value.filter(|v| v.is_finite()).ok_or_else(|| {
+                    confidence_set_invalid("confidence-set evidence requires complete finite rows")
+                })?;
+                if ctx.cancellation.is_cancelled() {
+                    return Err(confidence_set_invalid("cancelled"));
+                }
+                if value < 0.0
+                    || value.fract() != 0.0
+                    || value
+                        >= f64::from(super::discovered_transport_estimate::MAX_LEVELS_PER_VARIABLE)
+                {
+                    return Err(confidence_set_invalid(
+                        "confidence-set evidence requires supported nonnegative integer codes",
+                    ));
+                }
+                if variable.id == *outcome && (value < support.lower || value > support.upper) {
+                    return Err(confidence_set_invalid(
+                        "observed outcome lies outside declared potential-outcome support",
+                    ));
+                }
+                writer.word(value.to_bits());
+            }
+        }
+    }
+    Ok(writer.finish())
+}
+
+// The legacy summary detail prefers unidentified over unestimable when both occur.
+// Permit only completed scientific verdicts, never mixed provider/support/budget failures.
+fn scientific_nonidentification(refusal: &DiscoveredTransportRefusal) -> bool {
+    refusal.detail == "discovered_transport.class_not_identified"
+        && refusal.exhausted_search_bounds == 0
+        && refusal.unknown_selection_targets.is_empty()
+        && !refusal.member_reasons.is_empty()
+        && refusal.member_reasons.iter().all(|(_, reason)| {
+            matches!(reason.as_str(), "not_certified" | "proven_non_transportable")
+        })
+}
+
+/// Compute a binary-trial mean-contrast confidence set with an explicit support fallback.
+///
+/// The caller asserts finite potential-outcome support `[a,b]` in both populations. All
+/// observed outcomes are checked, but this scientific assumption is not learned from rows.
+/// Completed scientific nonidentification returns `[a-b,b-a]` with no point assertion.
+/// Identified sampling intervals keep the existing bootstrap level and endpoints unchanged.
+/// Report point-reporting and set widths separately when calibrating the whole procedure.
+///
+/// # Errors
+/// Invalid/missing data, an unsupported query (this route requires the complete mean curve
+/// at explicit treatment levels `[0,1]`), fewer than 40 requested bootstrap draws, invalid support, cancellation,
+/// incomplete enumeration, search/evaluation limits, or a member that cannot be estimated.
+#[allow(
+    clippy::too_many_lines,
+    reason = "explicitly distinguish sampling success from the three scientific logical-bound branches"
+)]
+pub fn estimate_trial_compatible_transport_confidence_set(
+    report: &DiscoveredTransportReport,
+    query: &TransportQuery,
+    evidence: &TransportEvidence<'_>,
+    options: TrialCompatibilityOptions,
+    support: TransportOutcomeSupport,
+    ctx: &ExecutionContext,
+) -> Result<TrialCompatibleTransportConfidenceSet, DiscoveredTransportError> {
+    let input_identity =
+        confidence_set_input_identity(report, query, evidence, options, support, ctx)?;
+    let proof = trial_compatibility_proof(report, query, evidence, options)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(confidence_set_invalid("cancelled"));
+    }
+    proof
+        .validate_replay_budget(evidence.limits)
+        .and_then(|_| proof.validate_with_empty(true))
+        .map_err(|e| confidence_set_invalid(e.to_string()))?;
+    let retained = proof.retained_members();
+    let mut retained_estimate = None;
+    let reason = if retained.is_empty() {
+        Some(TrialLogicalBoundReason::TrialRejectsEveryMember)
+    } else {
+        match estimate_selected_discovered_transport(
+            report,
+            query,
+            evidence,
+            Some(&retained),
+            Some(proof.identity()),
+            ctx,
+        ) {
+            Ok(estimate) => {
+                let is_range = estimate.answer().kind
+                    == super::discovered_transport_estimate::AnswerKind::StructuralRange;
+                if !is_range && estimate.answer().interval.is_none() {
+                    return Err(confidence_set_invalid(
+                        "identified point has no successful requested sampling interval",
+                    ));
+                }
+                retained_estimate =
+                    Some(TrialCompatibleTransportEstimate { estimate, proof: proof.clone() });
+                is_range.then_some(TrialLogicalBoundReason::StructuralRange)
+            }
+            Err(DiscoveredTransportError::Refused(refusal))
+                if scientific_nonidentification(&refusal) =>
+            {
+                Some(TrialLogicalBoundReason::ClassNotIdentified)
+            }
+            Err(error) => return Err(error),
+        }
+    };
+    let (kind, lower, upper) = if reason.is_some() {
+        (
+            TrialConfidenceSetKind::LogicalSupportBound,
+            support.lower - support.upper,
+            support.upper - support.lower,
+        )
+    } else {
+        let interval = retained_estimate
+            .as_ref()
+            .and_then(|e| e.answer().interval)
+            .filter(|i| i.low.is_finite() && i.high.is_finite() && i.low <= i.high)
+            .ok_or_else(|| {
+                confidence_set_invalid("missing or invalid identified sampling interval")
+            })?;
+        (TrialConfidenceSetKind::IdentifiedSamplingInterval, interval.low, interval.high)
+    };
+    let estimate = retained_estimate
+        .as_ref()
+        .map(TrialCompatibleTransportEstimate::export)
+        .transpose()
+        .map_err(|e| confidence_set_invalid(e.to_string()))?;
+    Ok(TrialCompatibleTransportConfidenceSet {
+        wire: TrialConfidenceSetWire {
+            format: CONFIDENCE_SET_FORMAT.into(),
+            execution_seed: ctx.rng.master_seed(),
+            input_identity,
+            support,
+            proof,
+            kind,
+            reason,
+            lower,
+            upper,
+            estimate,
+        },
+        retained_estimate,
+    })
+}
+
+/// Verify a set receipt **against the original report, query, datasets and execution seed**.
+///
+/// Validates the independent Fisher/graph proof and, when present, retained member-grid
+/// artifacts; then reruns the bounded endpoint against the supplied inputs, including the
+/// original bootstrap, so neither a forged refusal reason nor substituted interval can pass.
+/// The datasets are not embedded. This operation grants no calibration authority.
+///
+/// # Errors
+/// An artifact above 16 MiB, incompatible inputs/support/options/seed, any tampered result,
+/// or the same cancellation/resource errors as estimation. Supplied evidence limits apply.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "replay requires the complete original scientific request and caller bounds"
+)]
+pub fn verify_trial_compatible_transport_confidence_set_against(
+    bytes: &[u8],
+    report: &DiscoveredTransportReport,
+    query: &TransportQuery,
+    evidence: &TransportEvidence<'_>,
+    options: TrialCompatibilityOptions,
+    support: TransportOutcomeSupport,
+    ctx: &ExecutionContext,
+) -> Result<TrialCompatibleTransportConfidenceSet, IoError> {
+    let bad = || {
+        IoError::Convert(
+            "trial confidence-set receipt does not replay against supplied inputs".into(),
+        )
+    };
+    if bytes.len() > MAX_TRIAL_ARTIFACT_BYTES {
+        return Err(bad());
+    }
+    let wire: TrialConfidenceSetWire = antecedent_io::from_cbor(bytes)?;
+    if wire.format != CONFIDENCE_SET_FORMAT {
+        return Err(bad());
+    }
+    let input = confidence_set_input_identity(report, query, evidence, options, support, ctx)
+        .map_err(|_| bad())?;
+    if wire.input_identity != input || wire.support != support {
+        return Err(bad());
+    }
+    wire.proof.validate_replay_budget(evidence.limits)?;
+    wire.proof.validate_with_empty(true)?;
+    if let Some(estimate) = &wire.estimate {
+        let (proof, _) =
+            verify_trial_compatible_transport_estimate(estimate, evidence.limits, ctx)?;
+        if proof != wire.proof {
+            return Err(bad());
+        }
+    }
+    let replay = estimate_trial_compatible_transport_confidence_set(
+        report, query, evidence, options, support, ctx,
+    )
+    .map_err(|_| bad())?;
+    if replay.wire != wire || replay.export()?.as_slice() != bytes {
+        return Err(bad());
+    }
+    Ok(replay)
 }
 
 fn has_directed_path(edges: &[(u32, u32)], treatment: u32, outcome: u32) -> bool {
@@ -627,6 +1082,581 @@ mod tests {
     use antecedent_data::TabularData;
     use antecedent_discovery::selective::{CiTestSpec, StaticAlgorithm, StaticDiscoveryContract};
     use std::sync::Arc;
+
+    fn confidence_fixture(
+        independent_discovery: bool,
+    ) -> (DiscoveredTransportReport, TransportQuery, TabularData, ExecutionContext) {
+        let x: Vec<f64> = (0..200).map(|i| f64::from(i >= 100)).collect();
+        let y: Vec<f64> = (0..200).map(|i| f64::from(i < 20 || (100..180).contains(&i))).collect();
+        let source =
+            TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let independent: Vec<f64> = (0..200).map(|i| f64::from(i % 2 == 0)).collect();
+        let discovery =
+            TabularData::from_f64_columns([("x", x.as_slice()), ("y", independent.as_slice())])
+                .unwrap();
+        let treatment = VariableId::from_raw(0);
+        let query = TransportQuery::new(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: ContinuousDomain::new(
+                    treatment,
+                    GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
+            }),
+            "trial",
+            "target",
+            [treatment],
+        );
+        let contract = StaticDiscoveryContract::new(
+            StaticAlgorithm::Fci,
+            vec![treatment, VariableId::from_raw(1)],
+            CiTestSpec::declared(
+                "gsquared_analytic",
+                Arc::new(antecedent_stats::ci::GSquared::new()),
+            ),
+            71,
+        );
+        let ctx = ExecutionContext::for_tests(71);
+        let report = super::super::discovered_transport::discover_and_transport(
+            &contract,
+            if independent_discovery { &discovery } else { &source },
+            &[],
+            &query,
+            32,
+            &ctx,
+        )
+        .unwrap()
+        .transport
+        .unwrap();
+        (report, query, source, ctx)
+    }
+    fn confidence_options() -> TrialCompatibilityOptions {
+        TrialCompatibilityOptions {
+            alpha: 0.01,
+            randomization: TrialRandomization::CompletelyRandomized,
+        }
+    }
+    fn binary_support() -> TransportOutcomeSupport {
+        TransportOutcomeSupport { lower: 0.0, upper: 1.0 }
+    }
+
+    fn bound_bits(set: &TrialCompatibleTransportConfidenceSet) -> [u64; 2] {
+        let (low, high) = set.bounds();
+        [low.to_bits(), high.to_bits()]
+    }
+
+    #[test]
+    fn confidence_set_preserves_the_real_identified_sampling_interval_and_replays() {
+        let (report, query, source, ctx) = confidence_fixture(false);
+        let mut evidence = TransportEvidence::new(&source, &source);
+        evidence.bootstrap_replicates = 64;
+        let original = estimate_trial_compatible_discovered_transport(
+            &report,
+            &query,
+            &evidence,
+            confidence_options(),
+            &ctx,
+        )
+        .unwrap();
+        let set = estimate_trial_compatible_transport_confidence_set(
+            &report,
+            &query,
+            &evidence,
+            confidence_options(),
+            binary_support(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(set.kind(), TrialConfidenceSetKind::IdentifiedSamplingInterval);
+        let interval = original.answer().interval.unwrap();
+        assert_eq!(bound_bits(&set), [interval.low.to_bits(), interval.high.to_bits()]);
+        assert_eq!(set.retained_estimate().unwrap().answer(), original.answer());
+        assert_eq!(set.calibration(), "not_bound_to_this_execution");
+        let replay = verify_trial_compatible_transport_confidence_set_against(
+            &set.export().unwrap(),
+            &report,
+            &query,
+            &evidence,
+            confidence_options(),
+            binary_support(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(replay.identity().unwrap(), set.identity().unwrap());
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one real logical-bound receipt is challenged against every independent input and wire component"
+    )]
+    fn rejected_class_returns_declared_support_not_a_point_or_empirical_range() {
+        let (report, query, source, ctx) = confidence_fixture(true);
+        let mut evidence = TransportEvidence::new(&source, &source);
+        evidence.bootstrap_replicates = 64;
+        assert!(
+            estimate_trial_compatible_discovered_transport(
+                &report,
+                &query,
+                &evidence,
+                confidence_options(),
+                &ctx
+            )
+            .is_err()
+        );
+        let support = TransportOutcomeSupport { lower: -2.0, upper: 3.0 };
+        let set = estimate_trial_compatible_transport_confidence_set(
+            &report,
+            &query,
+            &evidence,
+            confidence_options(),
+            support,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(set.kind(), TrialConfidenceSetKind::LogicalSupportBound);
+        assert_eq!(set.logical_reason(), Some(TrialLogicalBoundReason::TrialRejectsEveryMember));
+        assert_eq!(bound_bits(&set), [(-5.0_f64).to_bits(), 5.0_f64.to_bits()]);
+        assert!(set.retained_estimate().is_none());
+        assert!(set.compatibility().retained_members().is_empty());
+        // Target outcomes need not be supplied for a valid logical bound.
+        let target_x: Vec<f64> = (0..200).map(|i| f64::from(i >= 100)).collect();
+        let target = TabularData::from_f64_columns([("x", target_x.as_slice())]).unwrap();
+        let target_covariates_only = TransportEvidence { target: &target, ..evidence };
+        let without_target_outcomes = estimate_trial_compatible_transport_confidence_set(
+            &report,
+            &query,
+            &target_covariates_only,
+            confidence_options(),
+            support,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(without_target_outcomes.kind(), TrialConfidenceSetKind::LogicalSupportBound);
+        let bytes = set.export().unwrap();
+        verify_trial_compatible_transport_confidence_set_against(
+            &bytes,
+            &report,
+            &query,
+            &evidence,
+            confidence_options(),
+            support,
+            &ctx,
+        )
+        .unwrap();
+        for which in 0..8 {
+            let mut altered: TrialConfidenceSetWire = antecedent_io::from_cbor(&bytes).unwrap();
+            match which {
+                0 => altered.lower = -4.0,
+                1 => altered.reason = Some(TrialLogicalBoundReason::ClassNotIdentified),
+                2 => altered.kind = TrialConfidenceSetKind::IdentifiedSamplingInterval,
+                3 => altered.format.push_str(".forged"),
+                4 => altered.proof.members[0].directed_edges.push((0, 1)),
+                5 => altered.support.lower = -1.0,
+                6 => altered.proof.original_enumeration_complete = false,
+                _ => altered.input_identity[0] ^= 1,
+            }
+            assert!(
+                verify_trial_compatible_transport_confidence_set_against(
+                    &antecedent_io::to_cbor(&altered).unwrap(),
+                    &report,
+                    &query,
+                    &evidence,
+                    confidence_options(),
+                    support,
+                    &ctx
+                )
+                .is_err()
+            );
+        }
+        let (other_report, _, _, _) = confidence_fixture(false);
+        assert!(
+            verify_trial_compatible_transport_confidence_set_against(
+                &bytes,
+                &other_report,
+                &query,
+                &evidence,
+                confidence_options(),
+                support,
+                &ctx
+            )
+            .is_err()
+        );
+        let mut other_query = query.clone();
+        other_query.target_population = "another_target".into();
+        assert!(
+            verify_trial_compatible_transport_confidence_set_against(
+                &bytes,
+                &report,
+                &other_query,
+                &evidence,
+                confidence_options(),
+                support,
+                &ctx
+            )
+            .is_err()
+        );
+        let wrong_seed = ExecutionContext::for_tests(72);
+        assert!(
+            verify_trial_compatible_transport_confidence_set_against(
+                &bytes,
+                &report,
+                &query,
+                &evidence,
+                confidence_options(),
+                support,
+                &wrong_seed
+            )
+            .is_err()
+        );
+        // Same schema and support, different actual source/target data must not replay.
+        let x = vec![0.0; 200];
+        let y = vec![1.0; 200];
+        let changed =
+            TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        for changed_evidence in [
+            TransportEvidence { source: &changed, ..evidence },
+            TransportEvidence { target: &changed, ..evidence },
+        ] {
+            assert!(
+                verify_trial_compatible_transport_confidence_set_against(
+                    &bytes,
+                    &report,
+                    &query,
+                    &changed_evidence,
+                    confidence_options(),
+                    support,
+                    &ctx
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn structural_range_is_retained_without_becoming_an_identified_point() {
+        // Observational discovery returns X-Z-Y with no compelled collider. In a target
+        // whose Z mechanism shifts, X->Z->Y and Z->X,Z->Y have different do(X) laws.
+        // The source X trial has no marginal effect, so Fisher retains both possibilities.
+        let table = |cell_counts: [usize; 4]| {
+            let (mut x, mut y, mut z) = (Vec::new(), Vec::new(), Vec::new());
+            for (cell, count) in cell_counts.into_iter().enumerate() {
+                let treatment = i32::try_from(cell / 2).unwrap();
+                let shift = i32::try_from(cell % 2).unwrap();
+                for row in 0..count {
+                    x.push(f64::from(treatment));
+                    z.push(f64::from(shift));
+                    y.push(f64::from(row < count * (if shift == 0 { 1 } else { 4 }) / 5));
+                }
+            }
+            TabularData::from_f64_columns([
+                ("x", x.as_slice()),
+                ("y", y.as_slice()),
+                ("z", z.as_slice()),
+            ])
+            .unwrap()
+        };
+        // Exact factorization with ample counts in every CI conditioning cell.
+        let discovery = table([800, 200, 200, 800]);
+        let source = table([100, 100, 100, 100]);
+        let target = table([20, 80, 80, 20]);
+        let (_, query, _, ctx) = confidence_fixture(false);
+        let contract = StaticDiscoveryContract::new(
+            StaticAlgorithm::Pc,
+            (0..3).map(VariableId::from_raw).collect(),
+            CiTestSpec::declared(
+                "gsquared_analytic",
+                Arc::new(antecedent_stats::ci::GSquared::new()),
+            ),
+            71,
+        );
+        let report = super::super::discovered_transport::discover_and_transport(
+            &contract,
+            &discovery,
+            &[VariableId::from_raw(2)],
+            &query,
+            64,
+            &ctx,
+        )
+        .unwrap()
+        .transport
+        .unwrap();
+        let mut evidence = TransportEvidence::new(&source, &target);
+        evidence.bootstrap_replicates = 64;
+        let set = estimate_trial_compatible_transport_confidence_set(
+            &report,
+            &query,
+            &evidence,
+            confidence_options(),
+            binary_support(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(set.logical_reason(), Some(TrialLogicalBoundReason::StructuralRange));
+        assert_eq!(bound_bits(&set), [(-1.0_f64).to_bits(), 1.0_f64.to_bits()]);
+        let answer = set.retained_estimate().unwrap().answer();
+        assert_eq!(
+            answer.kind,
+            super::super::discovered_transport_estimate::AnswerKind::StructuralRange
+        );
+        assert!(answer.levels[0].low < answer.levels[0].high);
+        assert!(answer.interval.is_none());
+        verify_trial_compatible_transport_confidence_set_against(
+            &set.export().unwrap(),
+            &report,
+            &query,
+            &evidence,
+            confidence_options(),
+            binary_support(),
+            &ctx,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn confidence_set_support_requests_and_resources_fail_closed() {
+        let (report, query, source, ctx) = confidence_fixture(true);
+        let mut evidence = TransportEvidence::new(&source, &source);
+        evidence.bootstrap_replicates = 64;
+        for support in [
+            TransportOutcomeSupport { lower: 0.0, upper: 0.5 },
+            TransportOutcomeSupport { lower: 1.0, upper: 0.0 },
+            TransportOutcomeSupport { lower: f64::NEG_INFINITY, upper: 1.0 },
+            TransportOutcomeSupport { lower: -f64::MAX, upper: f64::MAX },
+        ] {
+            assert!(
+                estimate_trial_compatible_transport_confidence_set(
+                    &report,
+                    &query,
+                    &evidence,
+                    confidence_options(),
+                    support,
+                    &ctx
+                )
+                .is_err()
+            );
+        }
+        let mut no_boot = evidence;
+        no_boot.bootstrap_replicates = 0;
+        assert!(
+            estimate_trial_compatible_transport_confidence_set(
+                &report,
+                &query,
+                &no_boot,
+                confidence_options(),
+                binary_support(),
+                &ctx
+            )
+            .is_err()
+        );
+        let mut no_work = evidence;
+        no_work.limits.operations = 0;
+        assert!(
+            estimate_trial_compatible_transport_confidence_set(
+                &report,
+                &query,
+                &no_work,
+                confidence_options(),
+                binary_support(),
+                &ctx
+            )
+            .is_err()
+        );
+        let mut no_sid = evidence;
+        no_sid.sid_limits.steps = 0;
+        assert!(
+            estimate_trial_compatible_transport_confidence_set(
+                &report,
+                &query,
+                &no_sid,
+                confidence_options(),
+                binary_support(),
+                &ctx
+            )
+            .is_err()
+        );
+        let cancelled = ExecutionContext::for_tests(71);
+        cancelled.cancellation.cancel();
+        assert!(
+            estimate_trial_compatible_transport_confidence_set(
+                &report,
+                &query,
+                &evidence,
+                confidence_options(),
+                binary_support(),
+                &cancelled
+            )
+            .is_err()
+        );
+        assert!(
+            verify_trial_compatible_transport_confidence_set_against(
+                &vec![0; MAX_TRIAL_ARTIFACT_BYTES + 1],
+                &report,
+                &query,
+                &evidence,
+                confidence_options(),
+                binary_support(),
+                &ctx
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn selected_latent_cause_returns_a_scientific_set_after_completed_identification() {
+        let mut x = Vec::new();
+        let mut y = Vec::new();
+        let mut z = Vec::new();
+        for treatment in 0..2 {
+            for shift in 0..2 {
+                for row in 0..100 {
+                    x.push(f64::from(treatment));
+                    z.push(f64::from(shift));
+                    y.push(f64::from(row < 10 + 30 * treatment + 20 * shift));
+                }
+            }
+        }
+        let source = TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap();
+        let (_, query, _, ctx) = confidence_fixture(false);
+        let contract = StaticDiscoveryContract::new(
+            StaticAlgorithm::Fci,
+            (0..3).map(VariableId::from_raw).collect(),
+            CiTestSpec::declared(
+                "gsquared_analytic",
+                Arc::new(antecedent_stats::ci::GSquared::new()),
+            ),
+            71,
+        );
+        let report = super::super::discovered_transport::discover_and_transport(
+            &contract,
+            &source,
+            &[VariableId::from_raw(2)],
+            &query,
+            64,
+            &ctx,
+        )
+        .unwrap()
+        .transport
+        .unwrap();
+        let mut evidence = TransportEvidence::new(&source, &source);
+        evidence.bootstrap_replicates = 64;
+        let error = estimate_trial_compatible_discovered_transport(
+            &report,
+            &query,
+            &evidence,
+            confidence_options(),
+            &ctx,
+        )
+        .unwrap_err();
+        let DiscoveredTransportError::Refused(refusal) = error else {
+            panic!("expected scientific refusal")
+        };
+        assert!(scientific_nonidentification(&refusal));
+        let set = estimate_trial_compatible_transport_confidence_set(
+            &report,
+            &query,
+            &evidence,
+            confidence_options(),
+            binary_support(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(set.logical_reason(), Some(TrialLogicalBoundReason::ClassNotIdentified));
+        assert_eq!(set.kind(), TrialConfidenceSetKind::LogicalSupportBound);
+        assert!(set.retained_estimate().is_none());
+        verify_trial_compatible_transport_confidence_set_against(
+            &set.export().unwrap(),
+            &report,
+            &query,
+            &evidence,
+            confidence_options(),
+            binary_support(),
+            &ctx,
+        )
+        .unwrap();
+        let mut small = evidence;
+        small.sid_limits.steps = 1;
+        assert!(
+            estimate_trial_compatible_transport_confidence_set(
+                &report,
+                &query,
+                &small,
+                confidence_options(),
+                binary_support(),
+                &ctx
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn minimum_bootstrap_request_is_enforced_before_both_scientific_branches() {
+        for independent_discovery in [false, true] {
+            let (report, query, source, ctx) = confidence_fixture(independent_discovery);
+            let mut evidence = TransportEvidence::new(&source, &source);
+            evidence.bootstrap_replicates = 39;
+            assert!(
+                estimate_trial_compatible_transport_confidence_set(
+                    &report,
+                    &query,
+                    &evidence,
+                    confidence_options(),
+                    binary_support(),
+                    &ctx
+                )
+                .is_err()
+            );
+            evidence.bootstrap_replicates = 40;
+            let set = estimate_trial_compatible_transport_confidence_set(
+                &report,
+                &query,
+                &evidence,
+                confidence_options(),
+                binary_support(),
+                &ctx,
+            )
+            .unwrap();
+            assert_eq!(
+                set.kind(),
+                if independent_discovery {
+                    TrialConfidenceSetKind::LogicalSupportBound
+                } else {
+                    TrialConfidenceSetKind::IdentifiedSamplingInterval
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn mixed_missing_evidence_is_not_scientific_nonidentification() {
+        let refusal = |reasons: Vec<&str>| DiscoveredTransportRefusal {
+            code: antecedent_core::reason_code!("discovered_structure_unresolved"),
+            detail: "discovered_transport.class_not_identified",
+            unresolved: Vec::new(),
+            exhausted_search_bounds: 0,
+            unknown_selection_targets: Vec::new(),
+            member_reasons: reasons.into_iter().enumerate().map(|(i, r)| (i, r.into())).collect(),
+            remedy: String::new(),
+        };
+        assert!(scientific_nonidentification(&refusal(vec![
+            "not_certified",
+            "proven_non_transportable"
+        ])));
+        assert!(!scientific_nonidentification(&refusal(vec![])));
+        assert!(!scientific_nonidentification(&refusal(vec![
+            "not_certified",
+            "no formula binds to the supplied treatment experiment"
+        ])));
+        assert!(!scientific_nonidentification(&refusal(vec![
+            "proven_non_transportable",
+            "evaluation budget exceeded"
+        ])));
+    }
 
     #[test]
     fn a_real_trial_refines_an_ambiguous_class_and_replays_every_decision() {
