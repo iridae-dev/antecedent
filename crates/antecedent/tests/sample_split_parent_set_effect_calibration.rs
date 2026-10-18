@@ -4,11 +4,11 @@
 //!
 //! The procedure under test is the facade's construction
 //! (`antecedent::analysis::sample_split_parent_set_effect`): the declared transformation, a
-//! seeded half split, PC with the partial-correlation test (`alpha = 0.01`, conditioning-set
-//! size and parent limit equal to the declared maximum degree of four) on the discovery half,
+//! seeded three-to-one split, PC with the partial-correlation test (`alpha = 0.01`, conditioning-set
+//! size and parent limit equal to the declared maximum degree of four) on the discovery rows,
 //! acceptance of the class when every edge incident to the treatment is oriented (nuisance
 //! edges may stay undirected), and the least-squares effect of the treatment on the outcome
-//! adjusted for the treatment's parents on the analysis half. A replicate scores the 95%
+//! adjusted for the treatment's parents on the independent analysis quarter. A replicate scores the 95%
 //! interval against the truth computed from the structural coefficients alone: the total
 //! effect (linear) or the intervention mean ratio of multiplying the treatment by `e`
 //! (log-linear).
@@ -21,7 +21,7 @@
 //! count, the declared degree, any background knowledge and the topology (through the
 //! functional), so no record borrows another's evidence and none widens the fully directed
 //! five-to-seven-variable record. Total participants are `grid_n(2000)`: 1,000, 2,000 and 4,000,
-//! half to each part. The three topologies of `common::sparse_scm` (`hub_confounded_multi_path`,
+//! three quarters to discovery and one quarter to analysis. The three topologies of `common::sparse_scm` (`hub_confounded_multi_path`,
 //! `layered_multi_mediator_nuisance` and `confounded_direct_and_mediated`, which has a direct
 //! edge from the treatment to the outcome plus a mediated path under confounding) have weights
 //! redrawn until the strong-faithfulness margin `sparse_scm::MIN_MARGIN` holds. A table does not
@@ -59,6 +59,9 @@
 //! variables (linear), pooled over the topologies, and is keyed under its own label so it can
 //! never govern a gated record. A boundary record states where the construction stops holding;
 //! it is not a failure.
+//! These stress records score the whole procedure: a refusal counts as a miss, including when
+//! every replicate refuses. Their `whole_procedure` functional and requested-participant scope
+//! distinguish them from the conditional coverage and successful analysis-row scope above.
 //!
 //! * `weak_signal`: coefficients of magnitude 0.1 to 0.25, below the published margin.
 //! * `cancelling_path`: the confounder's coefficient on the outcome cancels the mediated path
@@ -100,6 +103,20 @@ const INTERVAL: &str = "analytic_se";
 const LOG_SHIFT: f64 = 1.0;
 /// Rows of the intervention simulations that give the truth.
 const TRUTH_ROWS: usize = 2_000;
+
+/// Explicit replay of a previously measured version-one source. Ordinary measurements exercise
+/// the current facade; legacy replay executes the real original producer and retains its keys.
+fn protocol_version() -> u32 {
+    static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *VERSION.get_or_init(|| {
+        let raw =
+            std::env::var("ANTECEDENT_PARENT_PROTOCOL_VERSION").unwrap_or_else(|_| "2".into());
+        raw.parse::<u32>()
+            .ok()
+            .filter(|version| matches!(version, 1 | 2))
+            .unwrap_or_else(|| panic!("ANTECEDENT_PARENT_PROTOCOL_VERSION={raw}: want 1 or 2"))
+    })
+}
 
 /// The frozen median-width target at `participants` total participants.
 fn width_target(participants: usize) -> f64 {
@@ -235,15 +252,53 @@ fn replicate(design: Design, variant: Variant, skewed: bool, rep: u64) -> Replic
         ParentSetOptions::linear(design.degree())
     };
     let ctx = ExecutionContext::for_tests(seed);
-    let estimate = estimate_parent_set_effect_with_knowledge(
-        &data,
-        VariableId::from_raw(scm.treatment as u32),
-        VariableId::from_raw(scm.outcome as u32),
-        options,
-        knowledge_of(&scm, design.regime),
-        stream_seed(seed, 3),
-        &ctx,
-    )
+    let (reported, basis, parents, directed, unresolved) = if protocol_version() == 1 {
+        use antecedent_io::measured_inference::split_parent_set_effect::{
+            ParentSetEffectSource, run,
+        };
+        let mut source = ParentSetEffectSource::new(
+            scm.names.clone(),
+            columns,
+            scm.treatment as u32,
+            scm.outcome as u32,
+            stream_seed(seed, 3),
+            ctx.rng.master_seed(),
+            options.transformation,
+            options.max_degree,
+            options.log_shift,
+        );
+        source.version = 1;
+        source.knowledge = knowledge_of(&scm, design.regime);
+        run(&source, &ctx).map(|execution| {
+            let basis = execution.keyed_basis_for(design.topology.name());
+            (
+                execution.reported,
+                basis,
+                execution.neighbourhood.parents,
+                execution.neighbourhood.directed,
+                execution.neighbourhood.unresolved,
+            )
+        })
+    } else {
+        estimate_parent_set_effect_with_knowledge(
+            &data,
+            VariableId::from_raw(scm.treatment as u32),
+            VariableId::from_raw(scm.outcome as u32),
+            options,
+            knowledge_of(&scm, design.regime),
+            stream_seed(seed, 3),
+            &ctx,
+        )
+        .map(|estimate| {
+            (
+                estimate.reported().clone(),
+                estimate.keyed_basis_for(design.topology.name()),
+                estimate.treatment_parents().to_vec(),
+                estimate.directed_edges().to_vec(),
+                estimate.unresolved_edges().to_vec(),
+            )
+        })
+    }
     .map_err(|error| match error {
         IoError::Refused { message, .. } => {
             message.split_once(": ").map_or(message.clone(), |(detail, _)| detail.to_owned())
@@ -252,7 +307,6 @@ fn replicate(design: Design, variant: Variant, skewed: bool, rep: u64) -> Replic
     })?;
     let mut true_parents: Vec<u32> = scm.treatment_parents().iter().map(|&p| p as u32).collect();
     true_parents.sort_unstable();
-    let reported = estimate.reported();
     // Truth by simulating the intervention, independently of the estimator.
     let truth_seed = stream_seed(seed, 4);
     let truth = if log {
@@ -264,18 +318,18 @@ fn replicate(design: Design, variant: Variant, skewed: bool, rep: u64) -> Replic
         scm.edges().into_iter().map(|(a, b)| (a as u32, b as u32)).collect();
     let true_skeleton: BTreeSet<(u32, u32)> =
         true_edges.iter().map(|&(a, b)| unordered(a, b)).collect();
-    let directed: BTreeSet<(u32, u32)> = estimate.directed_edges().iter().copied().collect();
+    let directed: BTreeSet<(u32, u32)> = directed.into_iter().collect();
     let found_skeleton: BTreeSet<(u32, u32)> = directed
         .iter()
         .map(|&(a, b)| unordered(a, b))
-        .chain(estimate.unresolved_edges().iter().map(|e| unordered(e.a, e.b)))
+        .chain(unresolved.iter().map(|e| unordered(e.a, e.b)))
         .collect();
     let count = |n: usize| n as u32;
     Ok(Scored {
         interval: (reported.lower, reported.upper),
         truth,
-        construction: bound(&estimate.keyed_basis_for(design.topology.name())),
-        parents_recovered: estimate.treatment_parents() == true_parents.as_slice(),
+        construction: bound(&basis),
+        parents_recovered: parents == true_parents,
         skeleton: (
             count(found_skeleton.intersection(&true_skeleton).count()),
             count(found_skeleton.len()),
@@ -387,6 +441,7 @@ fn print_summary(test: &str, runs: &[Replicate]) -> (f64, f64, f64) {
 }
 
 fn gated(test: &'static str, design: Design) {
+    eprintln!("calibration-protocol parent_set_source_version={}", protocol_version());
     let runs = map_replicates(n_sim(), |rep| replicate(design, Variant::Licensed, false, rep));
     let (share, median, covered) = print_summary(test, &runs);
     let dgp = match design.transformation {
@@ -396,7 +451,9 @@ fn gated(test: &'static str, design: Design) {
         }
     };
     let key = RecordKey { test, dgp, interval: INTERVAL };
-    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let tally = CoverageTally::for_record(key, LEVEL);
+    let mut tally =
+        if protocol_version() == 1 { tally } else { tally.labelled("discovery_fraction_0_75") };
     for scored in runs.iter().flatten() {
         tally.bind(&scored.construction.0, scored.construction.1);
         tally.record(Some(scored.interval), scored.truth);
@@ -414,6 +471,7 @@ fn gated(test: &'static str, design: Design) {
 /// A named boundary at fifteen variables (linear), pooled over the topologies and keyed under
 /// its own label.
 fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
+    eprintln!("calibration-protocol parent_set_source_version={}", protocol_version());
     let topologies = Topology::for_degree(4);
     let runs = map_replicates(n_sim(), |rep| {
         let design = Design {
@@ -422,21 +480,7 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
             topology: topologies[(rep as usize) % topologies.len()],
             regime: Regime::None,
         };
-        replicate(design, variant, skewed, rep).map(|mut scored| {
-            // The record pools the topologies, so its key names the pool, not the topology
-            // this replicate happened to draw.
-            let functional = &scored.construction.0.functional;
-            let pooled = functional.split_once(".topology_").map_or_else(
-                || functional.clone(),
-                |(head, tail)| {
-                    let rest = tail.split_once('.').map_or("", |(_, rest)| rest);
-                    let rest = if rest.is_empty() { String::new() } else { format!(".{rest}") };
-                    format!("{head}.topology_pooled{rest}")
-                },
-            );
-            scored.construction.0.functional = format!("{pooled}.named_boundary:{label}");
-            scored
-        })
+        replicate(design, variant, skewed, rep)
     });
     print_summary(test, &runs);
     let key = RecordKey {
@@ -444,14 +488,60 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
         dgp: "crates/antecedent/tests/common/sparse_scm.rs::simulate",
         interval: INTERVAL,
     };
-    if runs.iter().flatten().next().is_none() {
-        eprintln!("{test}: no replicate reported an interval; no record is emitted");
+    if protocol_version() == 1 {
+        // Replay the historical conditional stress record exactly, including its original
+        // pooled functional and the absence of a record when every execution refused.
+        if runs.iter().flatten().next().is_none() {
+            eprintln!("{test}: no replicate reported an interval; no record is emitted");
+            return;
+        }
+        let mut tally = CoverageTally::for_record(key, LEVEL);
+        for scored in runs.iter().flatten() {
+            let mut construction = scored.construction.0.clone();
+            let head = construction.functional.split_once(".topology_").unwrap().0;
+            construction.functional = format!("{head}.topology_pooled.named_boundary:{label}");
+            tally.bind(&construction, scored.construction.1);
+            tally.record(Some(scored.interval), scored.truth);
+        }
+        tally.emit_named_boundary();
         return;
     }
-    let mut tally = CoverageTally::for_record(key, LEVEL);
-    for scored in runs.iter().flatten() {
-        tally.bind(&scored.construction.0, scored.construction.1);
-        tally.record(Some(scored.interval), scored.truth);
+    // Bind the attempted request, not a successful interval: the whole-procedure stress
+    // measure remains defined when discovery refuses every draw. No success-dependent scope
+    // facts are supplied, and this functional cannot match the nominal conditional route.
+    let construction = Construction {
+        query: "AverageEffect".into(),
+        graph_class: "Cpdag".into(),
+        structure: antecedent_io::measured_inference::split_parent_set_effect::PARENT_SET_STRUCTURE
+            .into(),
+        modality: "tabular".into(),
+        inference: "Frequentist".into(),
+        estimator: antecedent_io::measured_inference::split_parent_set_effect::LINEAR_ESTIMATOR
+            .into(),
+        interval_method: INTERVAL.into(),
+        se_kind: "homoskedastic".into(),
+        dependence: "disjoint_rows".into(),
+        posterior: String::new(),
+        functional: format!(
+            "total_effect.variables_15.max_degree_4.discovery_fraction_0_75.topology_pooled.named_boundary:{label}.whole_procedure"
+        ),
+        identification: "point".into(),
+        reported_level: LEVEL,
+    };
+    let requested = ScopeFacts {
+        row_count: grid_n(BASE_ROWS) as u64,
+        replicates_ok: None,
+        posterior_draws: None,
+        unidentified_mass: 0.0,
+    };
+    let mut tally =
+        CoverageTally::for_record(key, LEVEL).labelled("discovery_fraction_0_75.whole_procedure");
+    for run in &runs {
+        tally.bind(&construction, requested);
+        match run {
+            Ok(scored) => tally.record(Some(scored.interval), scored.truth),
+            Err(_) => tally.record(None, 0.0),
+        }
     }
     tally.emit_named_boundary();
 }

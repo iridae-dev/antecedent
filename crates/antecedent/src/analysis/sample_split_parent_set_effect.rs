@@ -6,7 +6,8 @@
 //!
 //! 1. the analysis scale is declared first ([`Transformation`]): `linear`, or `log_linear`,
 //!    which requires every searched column to be positive and analyses its natural logarithm;
-//! 2. the rows are split by a seeded permutation, half to discovery and half to analysis;
+//! 2. a seeded permutation assigns three quarters of the rows to discovery and the remaining
+//!    quarter to independent analysis (version-one sources still replay their original half split);
 //! 3. PC with the partial-correlation test (`alpha = 0.01`) runs on the discovery rows only,
 //!    with a conditioning-set size and a parent limit equal to the declared maximum graph
 //!    degree (at most four);
@@ -55,9 +56,9 @@ use antecedent_io::measured_inference::split_parent_set_effect::{
 use super::sample_split_effect::table_roles;
 
 pub use antecedent_io::measured_inference::split_parent_set_effect::{
-    ACCEPTANCE, Knowledge, LINEAR_ESTIMATOR, LOG_LINEAR_ESTIMATOR, MAX_VARIABLES, MEAN_RATIO,
-    MIN_VARIABLES, PARENT_SET_STRUCTURE, SUPPORTED_MAX_DEGREE, TOPOLOGIES, TOTAL_EFFECT,
-    Transformation, governing_topologies,
+    ACCEPTANCE, DISCOVERY_FRACTION, Knowledge, LINEAR_ESTIMATOR, LOG_LINEAR_ESTIMATOR,
+    MAX_VARIABLES, MEAN_RATIO, MIN_VARIABLES, PARENT_SET_STRUCTURE, SUPPORTED_MAX_DEGREE,
+    TOPOLOGIES, TOTAL_EFFECT, Transformation, governing_topologies,
 };
 
 /// The declared analysis family of one parent-set study.

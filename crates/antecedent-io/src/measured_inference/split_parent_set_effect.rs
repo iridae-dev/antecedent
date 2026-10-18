@@ -38,8 +38,7 @@
 //! discovered graph is never certified.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::split_effect::{
-    ALPHA, AdjustedEffect, CI_TEST, DISCOVERY_FRACTION, LEVEL, SPLIT_DEPENDENCE, adjusted_effect,
-    discovery_refusal,
+    ALPHA, AdjustedEffect, CI_TEST, LEVEL, SPLIT_DEPENDENCE, adjusted_effect, discovery_refusal,
 };
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, build_report,
@@ -117,7 +116,10 @@ pub const MEAN_RATIO: &str = "intervention_mean_ratio";
 /// class with more implicated colliders is refused rather than compared in part.
 pub const MAX_CONFLICTING_COLLIDERS: usize = 8;
 const MAX_ROWS: usize = 1 << 20;
-const FORMAT_VERSION: u32 = 1;
+const FORMAT_VERSION: u32 = 2;
+/// Share assigned to discovery by version-two parent-set sources. Discovery requires more
+/// information than the held-out coefficient fit; the remainder stays independent for inference.
+pub const DISCOVERY_FRACTION: f64 = 0.75;
 const PARENT_LIMIT_DIAGNOSTIC: &str = "parent_limit_removed_adjacencies";
 
 /// The scale on which the analysis runs, declared before any data are read.
@@ -210,7 +212,8 @@ impl Knowledge {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ParentSetEffectSource {
-    /// Format version.
+    /// Protocol version: one replays the original half split; two assigns three quarters to
+    /// discovery and carries a distinct calibration key.
     pub version: u32,
     /// Column names, in variable order; every column is searched.
     pub names: Vec<String>,
@@ -237,6 +240,9 @@ pub struct ParentSetEffectSource {
 }
 
 impl ParentSetEffectSource {
+    fn discovery_fraction(&self) -> f64 {
+        if self.version == 1 { 0.5 } else { DISCOVERY_FRACTION }
+    }
     /// Build a source from float columns. Unequal column lengths, a non-finite value or a
     /// declaration outside the construction is refused at execution, not here.
     #[must_use]
@@ -299,7 +305,7 @@ impl ParentSetEffectSource {
 
     fn validate(&self) -> Result<usize, IoError> {
         let k = self.columns.len();
-        if self.version != FORMAT_VERSION || self.names.len() != k {
+        if !matches!(self.version, 1 | FORMAT_VERSION) || self.names.len() != k {
             return Err(malformed(
                 "parent_set_effect.source_invalid",
                 "unknown format version or names and columns of different counts",
@@ -691,6 +697,8 @@ pub struct ParentSetEffectRun {
     pub knowledge: String,
     /// Searched variables.
     pub variables: usize,
+    /// Declared discovery share of the source protocol.
+    pub discovery_fraction: f64,
     /// Rows discovery used.
     pub discovery_rows: u64,
     /// Rows the effect was estimated on.
@@ -709,10 +717,11 @@ impl ParentSetEffectRun {
     #[must_use]
     pub fn keyed_basis_for(&self, topology: &str) -> CalibrationBasis {
         let functional = format!(
-            "{}.variables_{}.max_degree_{}{}.topology_{topology}",
+            "{}.variables_{}.max_degree_{}{}{}.topology_{topology}",
             self.transformation.scalar(),
             self.variables,
             self.max_degree,
+            if self.discovery_fraction > 0.5 { ".discovery_fraction_0_75" } else { "" },
             if self.knowledge.is_empty() {
                 String::new()
             } else {
@@ -788,7 +797,7 @@ pub fn run(
         &variables,
         SplitRule::SeededPermutation {
             seed: source.split_seed,
-            discovery_fraction: DISCOVERY_FRACTION,
+            discovery_fraction: source.discovery_fraction(),
         },
     )
     .map_err(|error| discovery_refusal(&error))?;
@@ -889,6 +898,7 @@ pub fn run(
         log_shift: source.log_shift,
         knowledge: source.knowledge.as_ref().map(Knowledge::label).unwrap_or_default(),
         variables: k,
+        discovery_fraction: source.discovery_fraction(),
         discovery_rows: split.receipt.n_discovery as u64,
         analysis_rows: split.receipt.n_analysis as u64,
         receipt_identity: split.receipt.identity,
@@ -912,7 +922,7 @@ pub fn measure(source_bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredIn
             executed.transformation.estimator(),
             CI_TEST,
             ALPHA,
-            DISCOVERY_FRACTION,
+            executed.discovery_fraction,
             LEVEL,
             source.treatment,
             source.outcome,
@@ -937,7 +947,7 @@ pub fn measure(source_bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredIn
         "max_cond_size":executed.max_degree,"max_parents":executed.max_degree,
         "transformation":executed.transformation.name(),
         "log_shift":executed.log_shift,
-        "discovery_fraction":DISCOVERY_FRACTION,
+        "discovery_fraction":executed.discovery_fraction,
         "discovery_rows":executed.discovery_rows,"analysis_rows":executed.analysis_rows,
         "variables":executed.variables,
         "acceptance":ACCEPTANCE,

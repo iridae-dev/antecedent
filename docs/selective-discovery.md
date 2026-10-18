@@ -302,8 +302,8 @@ declared analysis scale:
    every searched column to be positive (`parent_set_effect.log_linear_input_not_positive`,
    naming the column), and the natural logarithm is applied to every column before the split,
    so discovery and estimation both run on the declared scale.
-2. **Split and discover.** A seeded half split; PC with the partial-correlation test
-   (alpha 0.01) on the discovery half, with a conditioning-set size and a parent limit equal to
+2. **Split and discover.** A seeded split assigns three quarters of the participants to discovery;
+   PC with the partial-correlation test (alpha 0.01) on the discovery rows, with a conditioning-set size and a parent limit equal to
    the declared maximum degree. A degree above four is refused
    (`parent_set_effect.degree_above_supported`, naming the declared and the supported degree). If
    the parent limit removes an adjacency no test separated, the orientations rest on the limit and
@@ -326,7 +326,7 @@ declared analysis scale:
    (`parent_set_effect.treatment_orientation_depends_on_conflict`), as are more than eight
    implicated colliders (`parent_set_effect.conflict_resolution_budget`) and a conflict no choice
    removes (`parent_set_effect.search_not_finished`).
-4. **Estimate on the other half.** Adjust for the treatment's parents. A linear study reports
+4. **Estimate on the independent quarter.** Adjust for the treatment's parents. A linear study reports
    the total effect with the least-squares Student interval. A log-linear study reports the
    intervention mean ratio `exp(shift * beta)` of multiplying the treatment by `exp(shift)`
    (shift 1 reports `exp(beta)`), its interval the exponential image of the log-scale Student
@@ -334,12 +334,19 @@ declared analysis scale:
 
 Each configuration is its own calibration key: structure
 `discovered_sample_split.treatment_parent_set`, the estimator of the declared transformation and
-a functional naming the variable count, the declared degree, any background knowledge and the
-topology, so no record is borrowed from the fully directed five-to-seven-variable construction
+a functional naming the variable count, the declared degree, the discovery allocation, any
+background knowledge and the topology, so no record is borrowed from the fully directed five-to-seven-variable construction
 or from another count. The measured grid is ten, fifteen and twenty variables at 1,000, 2,000
-and 4,000 participants (half to each part), gated separately for each transformation and each
-topology, in `crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs`. The
-topologies are connected graphs with confounding, mediators and nuisance variables:
+and 4,000 participants (three quarters to discovery and one quarter to analysis), gated separately for each transformation and each
+topology, in `crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs`.
+
+Three quarters go to discovery because resolving the graph needs more information than the
+held-out coefficient fit; all reporting, coverage and width targets remain unchanged. New
+sources use protocol version two and a `discovery_fraction_0_75` calibration key. Version-one
+sources replay their original half split and retain their original key; evidence from one
+allocation cannot license the other.
+
+The topologies are connected graphs with confounding, mediators and nuisance variables:
 `hub_confounded_multi_path` (a hub confounds the treatment and the outcome; the effect runs
 through a mediator), `layered_multi_mediator_nuisance` (two mediators in series and a
 mediator-outcome confounder) and `confounded_direct_and_mediated` (a direct edge and a mediated

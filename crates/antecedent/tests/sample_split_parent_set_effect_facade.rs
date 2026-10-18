@@ -10,10 +10,9 @@
 
 #![allow(clippy::float_cmp, reason = "the declared level and replayed values are compared exactly")]
 use antecedent::analysis::sample_split_analysis::{SplitRule, split_rows};
-use antecedent::analysis::sample_split_effect::DISCOVERY_FRACTION;
 use antecedent::analysis::sample_split_parent_set_effect::{
-    Knowledge, LINEAR_ESTIMATOR, LOG_LINEAR_ESTIMATOR, PARENT_SET_STRUCTURE, ParentSetEffect,
-    ParentSetOptions, Transformation, estimate_parent_set_effect,
+    DISCOVERY_FRACTION, Knowledge, LINEAR_ESTIMATOR, LOG_LINEAR_ESTIMATOR, PARENT_SET_STRUCTURE,
+    ParentSetEffect, ParentSetOptions, Transformation, estimate_parent_set_effect,
     estimate_parent_set_effect_with_knowledge,
 };
 use antecedent_core::{ExecutionContext, VariableId};
@@ -27,7 +26,9 @@ mod sparse_scm;
 use sparse_scm::{MAX_DEGREE, Scm, Topology, Variant, invert};
 
 const SEED: u64 = 4_242;
-const SPLIT_SEED: u64 = 17;
+// This deterministic fixture admits both the historical half split and the version-two
+// three-quarter discovery split; calibration keeps its separate, fixed seed schedule.
+const SPLIT_SEED: u64 = 19;
 const ROWS: usize = 4_000;
 const WEIGHT_SEED: u64 = 0x5EED_0011;
 const DATA_SEED: u64 = 0xDA7A_0022;
@@ -260,14 +261,14 @@ fn the_total_effect_is_the_least_squares_coefficient_given_the_true_parents_on_t
     let scm = &study.scm;
     let result = estimate(&study, ParentSetOptions::linear(4));
     let rows = analysis_rows(&study, false);
-    assert_eq!(result.analysis_rows(), (ROWS / 2) as u64);
-    assert_eq!(result.discovery_rows(), (ROWS / 2) as u64);
+    assert_eq!(result.analysis_rows(), (ROWS / 4) as u64);
+    assert_eq!(result.discovery_rows(), (3 * ROWS / 4) as u64);
     let (coefficient, se) =
         least_squares(&rows, scm.treatment, scm.outcome, &scm.treatment_parents());
     let reported = result.reported();
     assert!((reported.point - coefficient).abs() < 1e-9, "{} vs {coefficient}", reported.point);
     assert!((reported.standard_error - se).abs() < 1e-9);
-    // A Student quantile on about 2000 degrees of freedom times the standard error.
+    // A Student quantile on about 1000 degrees of freedom times the standard error.
     let half_width = (reported.upper - reported.lower) / 2.0;
     assert!((half_width / se - 1.961).abs() < 5e-3, "{}", half_width / se);
     // The split is a partition: the receipt's row sets share no row.
@@ -533,7 +534,7 @@ fn the_basis_is_keyed_under_its_own_structure_estimator_and_variable_count() {
     assert_eq!(&*basis.dependence, "disjoint_rows");
     assert_eq!(
         &*basis.functional,
-        "total_effect.variables_10.max_degree_4.topology_hub_confounded_multi_path"
+        "total_effect.variables_10.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path"
     );
     // A table does not announce its topology: attestation needs every topology's record.
     let bases = estimate(&study, ParentSetOptions::linear(4)).keyed_bases();
@@ -541,16 +542,64 @@ fn the_basis_is_keyed_under_its_own_structure_estimator_and_variable_count() {
     assert_eq!(
         functionals,
         [
-            "total_effect.variables_10.max_degree_4.topology_hub_confounded_multi_path",
-            "total_effect.variables_10.max_degree_4.topology_layered_multi_mediator_nuisance",
-            "total_effect.variables_10.max_degree_4.topology_confounded_direct_and_mediated",
+            "total_effect.variables_10.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path",
+            "total_effect.variables_10.max_degree_4.discovery_fraction_0_75.topology_layered_multi_mediator_nuisance",
+            "total_effect.variables_10.max_degree_4.discovery_fraction_0_75.topology_confounded_direct_and_mediated",
         ]
     );
-    assert_eq!(basis.row_count, (ROWS / 2) as u64);
+    assert_eq!(basis.row_count, (ROWS / 4) as u64);
     // Never the keys of the fully directed construction or of a declared graph.
     assert_ne!(&*basis.structure, "discovered_sample_split");
     assert_ne!(&*basis.estimator, "sample_split.pc_parcorr.linear_adjustment");
     assert_ne!(&*basis.structure, "fixed");
+}
+
+#[test]
+fn version_one_sources_replay_the_half_split_and_keep_their_original_basis() {
+    let study = study(Topology::HubConfoundedMultiPath, 10, false, ROWS);
+    let mut source = ParentSetEffectSource::new(
+        study.scm.names.clone(),
+        (0..10).map(|i| study.data.float64_values(v(i)).unwrap()).collect(),
+        study.scm.treatment as u32,
+        study.scm.outcome as u32,
+        SPLIT_SEED,
+        SEED,
+        Transformation::Linear,
+        4,
+        None,
+    );
+    assert_eq!(source.version, 2);
+    let current = antecedent_io::measured_inference::split_parent_set_effect::run(&source, &ctx())
+        .expect("version-two execution");
+    source.version = 1;
+    let old = antecedent_io::measured_inference::split_parent_set_effect::run(&source, &ctx())
+        .expect("version-one execution");
+    assert_eq!(old.discovery_rows, (ROWS / 2) as u64);
+    assert_eq!(old.analysis_rows, (ROWS / 2) as u64);
+    assert_eq!(current.discovery_rows, (3 * ROWS / 4) as u64);
+    assert_eq!(current.analysis_rows, (ROWS / 4) as u64);
+    assert_eq!(
+        &*old.keyed_basis().functional,
+        "total_effect.variables_10.max_degree_4.topology_hub_confounded_multi_path"
+    );
+    assert_ne!(current.keyed_basis().functional, old.keyed_basis().functional);
+    assert_ne!(current.receipt_identity, old.receipt_identity);
+    let variables: Vec<VariableId> = (0..10).map(v).collect();
+    let half = split_rows(
+        &study.data,
+        &variables,
+        SplitRule::SeededPermutation { seed: SPLIT_SEED, discovery_fraction: 0.5 },
+    )
+    .unwrap();
+    let original = antecedent_io::measured_inference::split_effect::adjusted_effect(
+        &half.analysis,
+        source.treatment,
+        source.outcome,
+        &old.neighbourhood.parents,
+        old.coefficient.level,
+    )
+    .unwrap();
+    assert_eq!(old.coefficient, original);
 }
 
 #[test]
@@ -573,7 +622,7 @@ fn a_source_that_states_another_format_or_roles_is_refused() {
     assert_eq!(source.to_bytes().unwrap(), result.source_artifact());
 
     let mut other_version = source.clone();
-    other_version.version = 2;
+    other_version.version = 3;
     let error = antecedent::analysis::sample_split_parent_set_effect::measure_source(
         &other_version.to_bytes().unwrap(),
         &ctx(),

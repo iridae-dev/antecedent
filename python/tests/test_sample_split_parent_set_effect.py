@@ -152,7 +152,8 @@ def test_a_linear_study_reports_the_total_effect_and_the_unresolved_edges() -> N
     assert estimate.transformation == "linear"
     assert set(estimate.treatment_parents) == {"h", "p"}
     assert set(estimate.treatment_children) == {"m"}
-    assert estimate.discovery_rows == estimate.analysis_rows == ROWS // 2
+    assert estimate.discovery_rows == 3 * ROWS // 4
+    assert estimate.analysis_rows == ROWS // 4
     assert estimate.level == pytest.approx(0.95)
     assert estimate.lower < estimate.effect < estimate.upper
     assert abs(estimate.effect - TRUTH) <= 4 * estimate.standard_error
@@ -189,7 +190,7 @@ def test_a_log_linear_study_reports_an_intervention_mean_ratio() -> None:
     assert estimate.basis["estimator"] == "parent_set_split.pc_parcorr.log_linear_mean_ratio"
     assert (
         estimate.basis["functional"]
-        == "intervention_mean_ratio.variables_10.max_degree_4.topology_hub_confounded_multi_path"
+        == "intervention_mean_ratio.variables_10.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path"
     )
 
 
@@ -226,9 +227,9 @@ def test_the_basis_is_keyed_under_its_own_structure_and_never_the_directed_route
     assert basis["dependence"] == "disjoint_rows"
     assert (
         basis["functional"]
-        == "total_effect.variables_10.max_degree_4.topology_hub_confounded_multi_path"
+        == "total_effect.variables_10.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path"
     )
-    assert basis["row_count"] == ROWS // 2
+    assert basis["row_count"] == ROWS // 4
     assert basis["structure"] != "discovered_sample_split"
 
 
@@ -382,7 +383,7 @@ def test_an_unmeasured_variable_count_is_computed_and_never_attested() -> None:
     )
     assert (
         estimate.basis["functional"]
-        == "total_effect.variables_12.max_degree_4.topology_hub_confounded_multi_path"
+        == "total_effect.variables_12.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path"
     )
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as info:
         estimate.measure()

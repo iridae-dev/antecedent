@@ -32,7 +32,9 @@
 //! form from the true neighbourhoods (at most [`MAX_DEGREE`] members of one endpoint's
 //! neighbours) is at least [`MIN_MARGIN`] in magnitude, whenever the set does not d-separate the
 //! pair and is no larger than the smallest set that does. Conditioning sets larger than the
-//! smallest separating set never decide a pair, because PC removes it there.
+//! smallest separating set never decide a pair, because PC removes it there. The additional
+//! tests formed from still-standing false adjacencies can be inspected with
+//! [`Scm::population_pc_margin`]; they do not change admission to this measured family.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -279,7 +281,8 @@ impl Scm {
         for _ in 0..100_000 {
             let admitted = Self::draw(&shape, topology, variant, &mut stream).filter(|scm| {
                 variant != Variant::Licensed
-                    || (scm.margin() >= MIN_MARGIN && scm.total_effect().abs() >= MIN_TOTAL_EFFECT)
+                    || (scm.total_effect().abs() >= MIN_TOTAL_EFFECT
+                        && scm.margin_with_cutoff(MIN_MARGIN, false) >= MIN_MARGIN)
             });
             if let Some(scm) = admitted {
                 return scm;
@@ -439,8 +442,23 @@ impl Scm {
     }
 
     /// The strong-faithfulness margin the family publishes (see the module documentation):
-    /// the smallest absolute population partial correlation PC's decisions rest on.
+    /// the smallest absolute population partial correlation over the true-neighbourhood sets.
     pub fn margin(&self) -> f64 {
+        self.margin_with_cutoff(0.0, false)
+    }
+
+    /// Diagnostic margin including every relevant test PC makes on the population covariance,
+    /// including conditioning sets formed from false adjacencies it has not removed yet.
+    /// This diagnostic never rejects or redraws a member of the measured family.
+    pub fn population_pc_margin(&self) -> f64 {
+        self.margin_with_cutoff(0.0, true)
+    }
+
+    /// Admission only needs to know whether the margin clears `cutoff`: stop at the first
+    /// counterexample. This preserves every accepted draw and its stream position while
+    /// avoiding the rest of the margin search on rejected draws. A zero cutoff computes
+    /// the full minimum for the public diagnostic.
+    fn margin_with_cutoff(&self, cutoff: f64, population_tests: bool) -> f64 {
         let p = self.variables();
         let cov = self.covariance();
         let edges = self.edges();
@@ -484,8 +502,61 @@ impl Scm {
                 for &(size, r) in &sets {
                     if r >= SEPARATED && separating.is_none_or(|k| size <= k) {
                         margin = margin.min(r);
+                        if margin < cutoff {
+                            return margin;
+                        }
                     }
                 }
+            }
+        }
+        if !population_tests {
+            return margin;
+        }
+        // PC forms its conditioning sets from the adjacencies still standing at each depth, not
+        // from the true neighbours: a pair that is only separated at a later depth is still
+        // adjacent while a true edge is tested, and the sets it contributes (for example the
+        // outcome in the set that tests the treatment's mediator edge) can leave the true
+        // edge's partial correlation near zero. Run PC on the population: every test that does
+        // not separate a true edge, or a pair with a common neighbour, must also clear the
+        // margin.
+        let mut standing: Vec<Vec<bool>> =
+            (0..p).map(|u| (0..p).map(|v| u != v).collect()).collect();
+        for depth in 0..=MAX_DEGREE {
+            for u in 0..p {
+                for v in u + 1..p {
+                    if !standing[u][v] {
+                        continue;
+                    }
+                    let near = |w: usize| -> Vec<usize> {
+                        (0..p).filter(|&q| q != w && q != u + v - w && standing[w][q]).collect()
+                    };
+                    let mut candidates = combinations(&near(u), depth);
+                    candidates.extend(combinations(&near(v), depth));
+                    candidates.sort();
+                    candidates.dedup();
+                    let relevant = adjacent(u, v) || !neighbours[u].is_disjoint(&neighbours[v]);
+                    for given in candidates {
+                        let r = partial(u, v, &given).abs();
+                        if r < SEPARATED {
+                            standing[u][v] = false;
+                            standing[v][u] = false;
+                            break;
+                        }
+                        if relevant {
+                            margin = margin.min(r);
+                            if margin < cutoff {
+                                return margin;
+                            }
+                        }
+                    }
+                }
+            }
+            let widest = (0..p)
+                .map(|v| standing[v].iter().filter(|&&s| s).count().saturating_sub(1))
+                .max()
+                .unwrap_or(0);
+            if widest < depth + 1 {
+                break;
             }
         }
         margin
@@ -603,6 +674,21 @@ impl Scm {
         }
         columns
     }
+}
+
+/// Every subset of `pool` with `size` members, in lexicographic order.
+fn combinations(pool: &[usize], size: usize) -> Vec<Vec<usize>> {
+    if size == 0 {
+        return vec![Vec::new()];
+    }
+    let mut out = Vec::new();
+    for (k, &first) in pool.iter().enumerate() {
+        for mut rest in combinations(&pool[k + 1..], size - 1) {
+            rest.insert(0, first);
+            out.push(rest);
+        }
+    }
+    out
 }
 
 /// Inverse by Gauss-Jordan elimination with partial pivoting.
