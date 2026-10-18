@@ -459,9 +459,23 @@ fn temporal_construction() -> Construction {
         graph_class: "TemporalCpdag".into(),
         dependence: "block".into(),
         interval_method: "block_percentile_bootstrap".into(),
+        se_kind: "percentile".into(),
         functional: "target_interventional_contrast.pcmci_plus_full_allowed_edge_holm_including_contemporaneous.v1".into(),
         ..construction()
     }
+}
+
+#[test]
+fn temporal_construction_keeps_its_own_percentile_sampling_identity() {
+    let temporal = temporal_construction();
+    let pag = construction();
+    assert_eq!(temporal.graph_class, "TemporalCpdag");
+    assert_eq!(temporal.dependence, "block");
+    assert_eq!(temporal.interval_method, "block_percentile_bootstrap");
+    assert_eq!(temporal.se_kind, "percentile");
+    assert_eq!(pag.se_kind, "percentile_or_logical_support");
+    assert_ne!(temporal.interval_method, pag.interval_method);
+    assert_ne!(temporal.functional, pag.functional);
 }
 
 /// Complete-procedure coverage of the temporal contrast interval: PCMCI+ on the source series,
