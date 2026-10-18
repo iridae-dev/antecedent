@@ -106,6 +106,30 @@ class ReleaseClosureTest(unittest.TestCase):
     def calibrated(self) -> dict[str, Any]:
         return {"case": [case("cal", "calibrated_interval", "crates/c/tests/t.rs::design")]}
 
+    def test_split_enrollment_binds_the_actual_analysis_grid_and_rejects_false_sizes(self) -> None:
+        data = self.calibrated()
+        target = data["case"][0]
+        target["configuration"] = {"participants": 2000, "analysis_rows": 500,
+                                   "discovery_fraction": 0.75}
+        rec = record(grid=[
+            {**record()["grid"][0], "point": 0, "n_min": 250, "n_max": 250,
+             "replicates": 400},
+            {**record()["grid"][0], "point": 1, "n_min": 500, "n_max": 500},
+            {**record()["grid"][0], "point": 2, "n_min": 1000, "n_max": 1000,
+             "replicates": 400}])
+        self.assertEqual(closure.calibrated_record_problems(data, [rec]), [])
+        rec["grid"][1]["replicates"] = 1999
+        self.assertTrue(any("point 1" in p and "below 2000" in p
+                            for p in closure.calibrated_record_problems(data, [rec])))
+        target["configuration"]["analysis_rows"] = 1000
+        self.assertEqual(closure.records_of(target, [rec]), [])
+        self.assertTrue(any("analysis_rows must equal" in p
+                            for p in closure.calibrated_record_problems(data, [rec])))
+        target["configuration"] = {"participants": 3000, "analysis_rows": 1500,
+                                   "discovery_fraction": 0.5}
+        self.assertEqual(closure.case_size(target), 1500)
+        self.assertEqual(closure.split_size_problems(target), [])
+
     def test_calibrated_records_need_two_thousand_replicates_and_uncertainty(self) -> None:
         data = self.calibrated()
         self.assertEqual(closure.calibrated_record_problems(data, [record()]), [])

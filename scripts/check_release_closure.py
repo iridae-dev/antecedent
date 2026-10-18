@@ -143,6 +143,8 @@ def replay_identity_problems(data: dict[str, Any], root: Path = ROOT) -> list[st
 
 def records_of(case: dict[str, Any], records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Coverage records the case's bound test emitted at the case's nominal level and size."""
+    if split_size_problems(case):
+        return []
     targets, size = case["targets"], case_size(case)
     wanted = case["evidence"]["test"]
     matched = []
@@ -157,7 +159,26 @@ def records_of(case: dict[str, Any], records: list[dict[str, Any]]) -> list[dict
     return matched
 
 
+def split_size_problems(case: dict[str, Any]) -> list[str]:
+    """Check declared enrollment-to-analysis binding without changing enrollment claims."""
+    config = case["configuration"]
+    if not {"analysis_rows", "discovery_fraction"}.intersection(config):
+        return []
+    total, rows, fraction = (config.get(k) for k in (
+        "participants", "analysis_rows", "discovery_fraction"))
+    if (type(total) is not int or total <= 0 or type(rows) is not int or rows <= 0
+            or isinstance(fraction, bool) or not isinstance(fraction, (int, float))
+            or not math.isfinite(fraction) or not 0 < fraction < 1
+            or not math.isclose(rows, total * (1 - fraction), rel_tol=0, abs_tol=1e-9)):
+        return [f"{case['id']}: analysis_rows must equal participants * (1 - discovery_fraction) "
+                "with positive integer counts and a declared fraction in (0, 1)"]
+    return []
+
+
 def case_size(case: dict[str, Any]) -> int | None:
+    """Estimator record scope uses analysis rows; enrollment remains in the manifest."""
+    if "analysis_rows" in case["configuration"]:
+        return case["configuration"]["analysis_rows"]
     return next((case["configuration"][k] for k in ("participants", "rows", "steps")
                  if isinstance(case["configuration"].get(k), int)), None)
 
@@ -194,6 +215,7 @@ def calibrated_record_problems(data: dict[str, Any], records: list[dict[str, Any
     problems = []
     for case in calibrated(data):
         cid, targets = case["id"], case["targets"]
+        problems.extend(split_size_problems(case))
         matched = records_of(case, records)
         if not matched:
             problems.append(f"{cid}: no coverage record from {case['evidence']['test']} at nominal "

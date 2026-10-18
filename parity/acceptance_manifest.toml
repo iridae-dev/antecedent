@@ -1304,7 +1304,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_weig
 id = "weighted_split_effect_interval_calibrated"
 area = "discovery_splitting"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { participants = 3000, weights = "unequal_survey", variables = 10 }
+configuration = { participants = 3000, analysis_rows = 1500, discovery_fraction = 0.5, weights = "unequal_survey", variables = 10 }
 expected = { kind = "calibrated_interval", outputs = ["weighted held-out interval"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Weighted held-out uncertainty is a new construction. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "survey_weighted_sparse_scm", seed = 2762083, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1314,7 +1314,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_weig
 id = "discovery_then_estimation_linear_hub_confounded_multi_path_10_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 1000, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 5944510, n = 1000, variables = 10, topology = "hub_confounded_multi_path", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1324,7 +1324,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_hub_confounded_multi_path_10_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 2000, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 1276048, n = 2000, variables = 10, topology = "hub_confounded_multi_path", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1334,7 +1334,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_hub_confounded_multi_path_10_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 4000, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 7497548, n = 4000, variables = 10, topology = "hub_confounded_multi_path", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1344,7 +1344,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_hub_confounded_multi_path_15_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 1000, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 2229736, n = 1000, variables = 15, topology = "hub_confounded_multi_path", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1354,7 +1354,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_hub_confounded_multi_path_15_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 2000, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 3417286, n = 2000, variables = 15, topology = "hub_confounded_multi_path", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1364,7 +1364,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_hub_confounded_multi_path_15_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 4000, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 7425818, n = 4000, variables = 15, topology = "hub_confounded_multi_path", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1374,7 +1374,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_hub_confounded_multi_path_20_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 1000, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 8258170, n = 1000, variables = 20, topology = "hub_confounded_multi_path", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1384,7 +1384,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_hub_confounded_multi_path_20_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 2000, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 8287700, n = 2000, variables = 20, topology = "hub_confounded_multi_path", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1394,7 +1394,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_hub_confounded_multi_path_20_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 4000, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 8702536, n = 4000, variables = 20, topology = "hub_confounded_multi_path", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1404,7 +1404,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_layered_multi_mediator_nuisance_10_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 1000, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 2364838, n = 1000, variables = 10, topology = "layered_multi_mediator_nuisance", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1414,7 +1414,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_layered_multi_mediator_nuisance_10_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 2000, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 4585160, n = 2000, variables = 10, topology = "layered_multi_mediator_nuisance", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1424,7 +1424,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_layered_multi_mediator_nuisance_10_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 4000, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 1672148, n = 4000, variables = 10, topology = "layered_multi_mediator_nuisance", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1434,7 +1434,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_layered_multi_mediator_nuisance_15_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 1000, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 3338096, n = 1000, variables = 15, topology = "layered_multi_mediator_nuisance", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1444,7 +1444,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_layered_multi_mediator_nuisance_15_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 2000, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 6604638, n = 2000, variables = 15, topology = "layered_multi_mediator_nuisance", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1454,7 +1454,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_layered_multi_mediator_nuisance_15_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 4000, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 2787394, n = 4000, variables = 15, topology = "layered_multi_mediator_nuisance", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1464,7 +1464,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_layered_multi_mediator_nuisance_20_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 1000, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 2278498, n = 1000, variables = 20, topology = "layered_multi_mediator_nuisance", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1474,7 +1474,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_layered_multi_mediator_nuisance_20_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 2000, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 4390604, n = 2000, variables = 20, topology = "layered_multi_mediator_nuisance", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1484,7 +1484,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_linear_layered_multi_mediator_nuisance_20_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 4000, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 5277648, n = 4000, variables = 20, topology = "layered_multi_mediator_nuisance", transformation = "linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1494,7 +1494,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_hub_confounded_multi_path_10_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 1000, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 2265230, n = 1000, variables = 10, topology = "hub_confounded_multi_path", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1504,7 +1504,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_hub_confounded_multi_path_10_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 2000, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 5991968, n = 2000, variables = 10, topology = "hub_confounded_multi_path", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1514,7 +1514,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_hub_confounded_multi_path_10_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 4000, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 9342524, n = 4000, variables = 10, topology = "hub_confounded_multi_path", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1524,7 +1524,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_hub_confounded_multi_path_15_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 1000, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 3695768, n = 1000, variables = 15, topology = "hub_confounded_multi_path", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1534,7 +1534,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_hub_confounded_multi_path_15_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 2000, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 6504310, n = 2000, variables = 15, topology = "hub_confounded_multi_path", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1544,7 +1544,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_hub_confounded_multi_path_15_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 4000, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 3859242, n = 4000, variables = 15, topology = "hub_confounded_multi_path", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1554,7 +1554,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_hub_confounded_multi_path_20_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 1000, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 3332874, n = 1000, variables = 20, topology = "hub_confounded_multi_path", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1564,7 +1564,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_hub_confounded_multi_path_20_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 2000, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 4725348, n = 2000, variables = 20, topology = "hub_confounded_multi_path", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1574,7 +1574,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_hub_confounded_multi_path_20_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 4000, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "hub_confounded_multi_path", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 2785336, n = 4000, variables = 20, topology = "hub_confounded_multi_path", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1584,7 +1584,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_layered_multi_mediator_nuisance_10_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 1000, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 9933093, n = 1000, variables = 10, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1594,7 +1594,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_layered_multi_mediator_nuisance_10_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 2000, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 8963851, n = 2000, variables = 10, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1604,7 +1604,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_layered_multi_mediator_nuisance_10_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 10, participants = 4000, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 10, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 6625879, n = 4000, variables = 10, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1614,7 +1614,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_layered_multi_mediator_nuisance_15_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 1000, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 4765683, n = 1000, variables = 15, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1624,7 +1624,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_layered_multi_mediator_nuisance_15_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 2000, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 3270365, n = 2000, variables = 15, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1634,7 +1634,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_layered_multi_mediator_nuisance_15_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 15, participants = 4000, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 15, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 6837825, n = 4000, variables = 15, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1644,7 +1644,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_layered_multi_mediator_nuisance_20_variables_1000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 1000, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 1000, analysis_rows = 250, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.6, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 3904737, n = 1000, variables = 20, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1654,7 +1654,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_layered_multi_mediator_nuisance_20_variables_2000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 2000, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 1381967, n = 2000, variables = 20, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1664,7 +1664,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "discovery_then_estimation_log_linear_layered_multi_mediator_nuisance_20_variables_4000"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split"
-configuration = { variables = 20, participants = 4000, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
+configuration = { variables = 20, participants = 4000, analysis_rows = 1000, discovery_fraction = 0.75, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", max_degree = 4, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage of independently computed intervention truth", "reporting denominator and refusals", "widths", "graph recovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.3, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "sparse_connected_scm", seed = 9133523, n = 4000, variables = 20, topology = "layered_multi_mediator_nuisance", transformation = "log_linear", truth = "independent_intervention_computation", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1684,7 +1684,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "knowledge_regime_required_edges_discovery_then_estimation_validated"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split with background knowledge"
-configuration = { variables = 10, participants = 2000, constraint = "required_edges", replicates = 2000 }
+configuration = { variables = 10, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, constraint = "required_edges", replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage with constraints applied", "reporting denominator"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "constrained_discovery_scm", seed = 7307316, n = 2000, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1694,7 +1694,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "knowledge_regime_forbidden_edges_discovery_then_estimation_validated"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split with background knowledge"
-configuration = { variables = 10, participants = 2000, constraint = "forbidden_edges", replicates = 2000 }
+configuration = { variables = 10, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, constraint = "forbidden_edges", replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage with constraints applied", "reporting denominator"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "constrained_discovery_scm", seed = 5878495, n = 2000, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1704,7 +1704,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "knowledge_regime_tiers_discovery_then_estimation_validated"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split with background knowledge"
-configuration = { variables = 10, participants = 2000, constraint = "tiers", replicates = 2000 }
+configuration = { variables = 10, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, constraint = "tiers", replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage with constraints applied", "reporting denominator"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "constrained_discovery_scm", seed = 3876807, n = 2000, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1714,7 +1714,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_pare
 id = "knowledge_regime_parent_limits_discovery_then_estimation_validated"
 area = "discovery_validation"
 workflow = "antecedent.selective_discovery.discover_on_split with background knowledge"
-configuration = { variables = 10, participants = 2000, constraint = "parent_limits", replicates = 2000 }
+configuration = { variables = 10, participants = 2000, analysis_rows = 500, discovery_fraction = 0.75, constraint = "parent_limits", replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["coverage with constraints applied", "reporting denominator"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_width = 0.42, rationale = "Each replicate reruns discovery, acceptance and estimation; width target scales as 1/sqrt(n) from 0.60 on a unit effect at 1,000 rows. Reporting >= 0.90 is the release rule; 0.93 coverage floor allows about two Monte Carlo standard errors at 2,000 replicates." }
 dataset = { generator = "constrained_discovery_scm", seed = 9949280, n = 2000, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
