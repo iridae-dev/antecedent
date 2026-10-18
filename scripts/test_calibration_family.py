@@ -135,6 +135,34 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
         with self.assertRaisesRegex(ValueError, "original roster"):
             allocations.validate(receipt, groups[:-1])
 
+    def test_pag_successor_preserves_hc3_history_and_rejects_slot_reuse(self):
+        allocations = family.allocations
+        receipt = json.loads((family.ROOT / allocations.PATH).read_text(encoding="utf-8"))
+        groups = json.loads(
+            family.read_source(family.ROOT, family.MANIFEST_PATH, allocations.ORIGINAL_SOURCE)
+        )["groups"]
+        historical = copy.deepcopy(receipt)
+        historical.pop("pag_trial_shift_extension")
+        allocations.validate(historical, groups, family.decision.HC3_DOMAIN)
+        with self.assertRaisesRegex(ValueError, "prospective cumulative"):
+            allocations.validate(historical, groups, family.decision.PAG_DOMAIN)
+        allocations.validate(receipt, groups, family.decision.PAG_DOMAIN)
+        for key, value in (
+            ("slot", 1),
+            ("planned_replicates", 20000),
+            ("validation_domain", family.decision.LEGACY_DOMAIN),
+        ):
+            changed = copy.deepcopy(receipt)
+            changed["pag_trial_shift_extension"]["new_slot"][key] = value
+            with self.assertRaisesRegex(ValueError, "PAG cumulative"):
+                allocations.validate(changed, groups, family.decision.PAG_DOMAIN)
+        old_hc3 = family.config_at_sha("da811c715e4d1961ca0cba7356467e34f2ec25e1")
+        self.assertEqual(old_hc3["validation_domain"], family.decision.HC3_DOMAIN)
+        self.assertEqual(
+            old_hc3["family_digest"],
+            "806de9511ace7382c6be49d81f4822ad24a58f27d3c59a6dd58adcc62c58ca0a",
+        )
+
     def test_manifest_binds_complete_roster_and_review(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

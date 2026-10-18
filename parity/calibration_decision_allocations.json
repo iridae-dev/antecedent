@@ -76,5 +76,57 @@
   ],
   "risk_scope": "One cumulative original risk budget; the new domain changes independent validation data, not the available risk. Slots1and2 are distinct hypotheses within the same original256pergroup/grid cap. Old protocol2spending remains spent; no retry or replacement of its failure.",
   "selection_history": "HC3protocol3was chosen after development and observed70protocol2failure. It is fixed before the new independent validation outcomes. The initial70source roster did not contain protocol3; conditional independent validation and a distinct unused hypothesis slot justify its additional allocation.",
-  "source_possible_union": "Weighted split has3source-defined protocol identities including historical1; at most2receive prospective allocations. The complete757group roster and original maximum162-cell source-possible bound remain within256pergroup/grid. Unknown slots, construction changes or extra looks require an explicit reviewed append-only extension before outcomes."
+  "source_possible_union": "Weighted split has3source-defined protocol identities including historical1; at most2receive prospective allocations. The complete757group roster and original maximum162-cell source-possible bound remain within256pergroup/grid. Unknown slots, construction changes or extra looks require an explicit reviewed append-only extension before outcomes.",
+  "pag_trial_shift_extension": {
+    "group": {
+      "index": 684,
+      "label": "discovered_transport_calibration: discovered_pag_transport_contrast_complete_procedure_coverage",
+      "grid": true
+    },
+    "original_source": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+    "old_slot": {
+      "slot": 1,
+      "record_id": "cov.discovered_transport.pag.frequentist.percentile_bootstrap.l95.discovered_pag_transport_contrast_complete_procedure_coverage.fci_pair_cutoff_0_05_over_28_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_v1",
+      "validation_domain": "release_2_4_1_validation_v1",
+      "status": "spent_including_failed_point",
+      "looks_by_point": {
+        "0": [
+          400,
+          2000
+        ],
+        "1": [
+          2000
+        ],
+        "2": [
+          400,
+          2000
+        ]
+      },
+      "raw_log_sha256": {
+        "0initial": "7d51ebbd6677a34fe58fb8bd0dc42d6167e1cc718b3e832531d8a59d4f1e16e5",
+        "0recheck": "50ddfd48a1e86fb33adb7f78e799e1af5fcee05e50729b80af9d3678194384bd",
+        "1initial": "7cb075c54befc1ce65b33b21dc41785db854342363690828847d452be063e22b",
+        "2initial": "9ce8211abe5c5114f02a1a8264d71dc3edb8d3afef85f9f6e9d60dfa537b565f",
+        "2recheck": "363e4d65e645f9595dbf5ffc5659543a75870ac0f302c0cf498f9cf9ef223e9e"
+      }
+    },
+    "new_slot": {
+      "slot": 2,
+      "functional": "target_interventional_contrast.fci_pair_cutoff_0_05_over_28_sparse_1023.trial_compatibility_fisher_exact_alpha_0_01.declared_selection_joint_pretreatment_standardization",
+      "record_id": "cov.discovered_transport.pag.frequentist.percentile_bootstrap.l95.discovered_pag_transport_contrast_complete_procedure_coverage.fci_pair_cutoff_0_05_over_28_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization",
+      "validation_domain": "release_2_4_1_pag_trial_shift_validation_v1",
+      "status": "reserved_before_outcomes",
+      "planned_replicates": 2000,
+      "look_weight": 0.25,
+      "grid_points": [
+        0,
+        1,
+        2
+      ],
+      "nominal": 0.95,
+      "interval_method": "percentile_bootstrap",
+      "se_kind": "percentile"
+    },
+    "selection_history": "The new joint pretreatment shift standardization was chosen after observing the original PAG failure. It is fixed before new independent validation. Original slot1 spending is retained; slot2 uses the original family budget, not a fresh alpha."
+  }
 }

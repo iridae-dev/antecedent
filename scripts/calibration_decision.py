@@ -16,8 +16,10 @@ from typing import Any
 ID = "suite_coverage_fwer.v1"
 ENV = "ANTECEDENT_CALIBRATION_DECISION_CONFIG"
 LEGACY_DOMAIN = "release_2_4_1_validation_v1"
-DOMAIN = "release_2_4_1_weighted_hc3_validation_v1"
-DOMAINS = frozenset({LEGACY_DOMAIN, DOMAIN})
+HC3_DOMAIN = "release_2_4_1_weighted_hc3_validation_v1"
+DOMAIN = "release_2_4_1_pag_trial_shift_validation_v1"
+PAG_DOMAIN = DOMAIN
+DOMAINS = frozenset({LEGACY_DOMAIN, HC3_DOMAIN, PAG_DOMAIN})
 ALPHA = 0.05
 GRID_POINTS = 3
 CELL_CAP = 256

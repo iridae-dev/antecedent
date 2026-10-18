@@ -147,6 +147,29 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             ):
                 self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
 
+    def test_pag_trial_shift_requires_its_distinct_functional_and_record(self) -> None:
+        group = groups.Group(
+            684,
+            "discovered_transport_calibration: discovered_pag_transport_contrast_complete_procedure_coverage",
+            False,
+            True,
+        )
+        legacy = {
+            "id": "cov.legacy_v1",
+            "test": "crates/antecedent/tests/discovered_transport_calibration.rs::discovered_pag_transport_contrast_complete_procedure_coverage",
+            "functional": "target_interventional_contrast.v1",
+            "interval_method": "percentile_bootstrap",
+        }
+        marker = "declared_selection_joint_pretreatment_standardization"
+        current = {
+            **legacy,
+            "functional": "target_interventional_contrast." + marker,
+            "id": "cov.new_" + marker,
+        }
+        self.assertFalse(groups.measures_current_protocol(group, legacy))
+        self.assertTrue(groups.measures_current_protocol(group, current))
+        self.assertFalse(groups.measures_current_protocol(group, {**current, "id": legacy["id"]}))
+
     def test_upgraded_weighted_protocols_require_new_records_despite_old_gate_success(self) -> None:
         for name, marker in (
             ("weighted_matching_interval", "matching=population_linear"),

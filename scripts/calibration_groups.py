@@ -194,6 +194,11 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
                 and record.get("se_kind") == "hc3_sampling_weighted"
                 and record.get("interval_method") == "student_t_sandwich_effective_n"
                 and str(record.get("id", "")).endswith("." + marker.replace(".", "_")))
+    if group.head == "discovered_transport_calibration" and group.test_filter == "discovered_pag_transport_contrast_complete_procedure_coverage":
+        marker = "declared_selection_joint_pretreatment_standardization"
+        return (str(record.get("functional", "")).endswith("." + marker)
+                and str(record.get("id", "")).endswith("_" + marker)
+                and record.get("interval_method") == "percentile_bootstrap")
     if group.head == "sample_split_parent_set_effect_calibration":
         return ".discovery_fraction_0_75" in str(record.get("functional", ""))
     protocol = current_group_protocol(group)
@@ -329,6 +334,10 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
             protocol = current_group_protocol(group)
             record_required = group.head in {"sample_split_parent_set_effect_calibration", "sample_split_weighted_effect_calibration"} or (
                 group.head == "weighted_interval_calibration" and protocol is not None
+            )
+            record_required = record_required or (
+                group.head == "discovered_transport_calibration" and
+                group.test_filter == "discovered_pag_transport_contrast_complete_procedure_coverage"
             )
             if not record_required and all(
                 name in passed and (protocol is None or passed[name].get("protocol") == protocol)

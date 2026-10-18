@@ -333,7 +333,7 @@ def build_manifest(root: Path = ROOT, audit: dict | None = None) -> dict:
 
 def allocation_digest(root: Path, sha: str | None, groups: list[dict]) -> str:
     raw = read_source(root, allocations.PATH, sha)
-    allocations.validate(json.loads(raw), groups)
+    allocations.validate(json.loads(raw), groups, source_validation_domain(root, sha))
     return _sha(raw)
 
 
