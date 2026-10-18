@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 from pathlib import Path
 
 
@@ -82,4 +83,19 @@ def from_registry(records: list[dict], root: Path) -> list[dict[str, str]]:
     path = root / "parity" / "calibration_original_replay_recipes.json"
     if not path.exists():
         return []
-    return replay_environments(records, json.loads(path.read_text(encoding="utf-8")))
+    registry = json.loads(path.read_text(encoding="utf-8"))
+    result = replay_environments(records, registry)
+    if result:
+        by_id = {row["record_id"]: row for row in registry["records"]}
+        for record in records:
+            producer = record["test"].partition("::")[0]
+            actual_blob = subprocess.check_output(
+                ["git", "rev-parse", f"{record['calibration_sha']}:{producer}"],
+                cwd=root,
+                text=True,
+            ).strip()
+            if any(
+                point["producer_blob"] != actual_blob for point in by_id[record["id"]]["points"]
+            ):
+                raise ValueError("original replay recipe producer differs from measured source")
+    return result

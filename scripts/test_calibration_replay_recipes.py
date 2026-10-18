@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 import calibration_facets as facets
-from _calibration_replay_recipes import replay_environments
+from _calibration_replay_recipes import from_registry, replay_environments
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -36,6 +36,10 @@ class OriginalReplayRecipeTest(unittest.TestCase):
                         env["ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM"],
                         env["ANTECEDENT_CALIBRATION_NSIM"],
                     )
+
+    def test_actual_producer_blobs_resolve_at_each_historical_source(self) -> None:
+        for entry in self.registry["records"]:
+            self.assertTrue(from_registry([self.records[entry["record_id"]]], ROOT))
 
     def test_parent_legacy_middle400_is_preserved_despite_current_minimum2000(self) -> None:
         entry = next(
