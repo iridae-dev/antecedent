@@ -176,7 +176,16 @@ fn estimate_policy(
     evaluation: PolicyEvaluation,
     seed: u64,
 ) -> Option<antecedent_estimate::observational_policy::PolicyValueEstimate> {
-    ObservationalPolicyValue::new(vec![0.0, 1.0], PolicyObjective::Maximize, evaluation)
+    // The assignment is `expit(z)` for a standard-normal `z`, so a fitted propensity falls below
+    // the default 0.01 floor on a scored row in about one to two percent of replicates (a
+    // covariate beyond four and a half standard deviations in 1000 to 3000 rows). The design
+    // satisfies positivity (the true propensity is positive everywhere), so the request explicitly lowers
+    // the numerical floor to reduce avoidable refusals. Every attempted replicate remains in
+    // the calibration denominator; an extreme fitted propensity can still refuse.
+    let mut request =
+        ObservationalPolicyValue::new(vec![0.0, 1.0], PolicyObjective::Maximize, evaluation);
+    request.min_propensity = 1e-3;
+    request
         .estimate(
             &PolicyData {
                 outcome: &data.outcome,
