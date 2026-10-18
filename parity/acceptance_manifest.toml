@@ -3324,8 +3324,8 @@ evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transp
 id = "discovered_identified_pag_transport_interval_calibrated"
 area = "discovered_transport"
 workflow = "antecedent.transport discovered PAG transport"
-configuration = { structure = "pag", variables = 8, record_functional_suffix = "declared_selection_joint_pretreatment_standardization" }
-expected = { kind = "calibrated_interval", outputs = ["complete-procedure coverage including discovery"] }
+configuration = { structure = "pag", variables = 8, record_functional_suffix = "bounded_outcome_confidence_set", outcome_support = [0.0, 1.0], discovery_alpha = 0.05, point_reporting_is_separate = true }
+expected = { kind = "calibrated_interval", outputs = ["complete-procedure confidence-set coverage including discovery", "identified-point reporting rate"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Discovery plus transport adds one PAG or lag-structure pass to the transport route. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "discovered_transport_study", seed = 5618494, n = 4000, structure = "pag", variables = 8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
 evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transport_calibration.rs::discovered_pag_transport_contrast_complete_procedure_coverage" }

@@ -132,7 +132,8 @@ For outcomes with known support, the Rust endpoint
 `estimate_trial_compatible_transport_confidence_set` accepts an explicit
 `TransportOutcomeSupport { lower, upper }`. This asserts potential-outcome bounds
 in both populations; observed minima and maxima cannot establish that assumption.
-The query must request the mean curve at binary treatment levels `[0,1]`.
+The query must request the mean curve at binary treatment levels `[0,1]`, with
+at least 40 bootstrap replicates.
 Identified results retain the existing percentile-bootstrap contrast interval.
 Completed scientific nonidentification, rejection of every member by the trial,
 or a structural range instead returns the logical contrast bounds

@@ -26,7 +26,7 @@ use antecedent::analysis::discovered_transport_temporal::{
     transport_discovered_temporal_structure,
 };
 use antecedent::analysis::discovered_transport_trial::{
-    TrialCompatibilityOptions, TrialRandomization, estimate_trial_compatible_discovered_transport,
+    TrialCompatibilityOptions, TrialRandomization,
 };
 use antecedent_core::{
     ContinuousDomain, ExecutionContext, GridSpec, Lag, ResponseFunctional, ResponseQuery,
@@ -47,7 +47,7 @@ use common::calibration::{
     n_sim, smoke, stream_seed, unit_uniform, validation_seed,
 };
 
-const INTERVAL: &str = "percentile_bootstrap";
+const INTERVAL: &str = "percentile_bootstrap_or_logical_support";
 const REPLICATES: u32 = 200;
 
 fn discrete_ci() -> CiTestSpec {
@@ -246,10 +246,10 @@ fn construction() -> Construction {
         inference: "Frequentist".into(),
         estimator: "transport.empirical_table_plugin".into(),
         interval_method: INTERVAL.into(),
-        se_kind: "percentile".into(),
+        se_kind: "percentile_or_logical_support".into(),
         dependence: "iid".into(),
         posterior: String::new(),
-        functional: "target_interventional_contrast.fci_pair_cutoff_0_05_over_28_sparse_1023.trial_compatibility_fisher_exact_alpha_0_01.declared_selection_joint_pretreatment_standardization"
+        functional: "target_interventional_contrast.fci_cutoff_0_05_sparse_1023.trial_compatibility_fisher_exact_alpha_0_01.declared_selection_joint_pretreatment_standardization.bounded_outcome_confidence_set"
             .into(),
         identification: "discovered_class".into(),
         reported_level: REPORTED_LEVEL,
@@ -268,22 +268,27 @@ fn query() -> TransportQuery {
     )
 }
 
-/// The whole static procedure on one replicate: FCI on the source rows, the class's members,
-/// identification in every member, the estimate over the source and target rows and its
-/// percentile interval; or why the replicate reported none.
+/// Actual production confidence set and its separately retained point-identification status.
+struct PagConfidenceInterval {
+    bounds: (f64, f64),
+    identified_point: bool,
+    logical_reason: Option<String>,
+}
+
+/// The whole static procedure on one replicate, including scientifically unresolved points.
 fn pag_interval(
     contract: &StaticDiscoveryContract,
     source: &TabularData,
     target: &TabularData,
     ctx: &ExecutionContext,
-) -> Result<(f64, f64), String> {
+) -> Result<PagConfidenceInterval, String> {
     let run = discover_and_transport(contract, source, &[v(2)], &query(), 256, ctx)
         .map_err(|error| discovery_label(&error))?;
     let report = run.transport.map_err(|error| refusal_label(&error))?;
     let mut evidence = TransportEvidence::new(source, target);
     evidence.bootstrap_replicates = REPLICATES;
     evidence.limits.operations = 2_000_000_000;
-    let estimate = estimate_trial_compatible_discovered_transport(
+    let set = antecedent::analysis::discovered_transport_trial::estimate_trial_compatible_transport_confidence_set(
         &report,
         &query(),
         &evidence,
@@ -291,10 +296,17 @@ fn pag_interval(
             alpha: 0.01,
             randomization: TrialRandomization::CompletelyRandomized,
         },
+        antecedent::analysis::discovered_transport_trial::TransportOutcomeSupport {
+            lower: 0.0,
+            upper: 1.0,
+        },
         ctx,
     )
     .map_err(|error| refusal_label(&error))?;
-    if std::env::var_os("ANTECEDENT_TRANSPORT_TRACE_TRIAL").is_some() {
+    if let Some(estimate) = set
+        .retained_estimate()
+        .filter(|_| std::env::var_os("ANTECEDENT_TRANSPORT_TRACE_TRIAL").is_some())
+    {
         eprintln!(
             "trial compatibility: p={}, retained={:?}, members={:?}",
             estimate.compatibility().p_value,
@@ -305,7 +317,12 @@ fn pag_interval(
             }).collect::<Vec<_>>()
         );
     }
-    point_interval(estimate.estimate())
+    Ok(PagConfidenceInterval {
+        bounds: set.bounds(),
+        identified_point: set.kind()
+            == antecedent::analysis::discovered_transport_trial::TrialConfidenceSetKind::IdentifiedSamplingInterval,
+        logical_reason: set.logical_reason().map(|reason| format!("{reason:?}")),
+    })
 }
 
 #[test]
@@ -314,6 +331,8 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
     let n = grid_n(4000);
     let effect = truth(1.0) - truth(0.0);
     let mut non_reports = NonReports::default();
+    let mut identified_points = 0_u32;
+    let mut logical_bounds = BTreeMap::<String, u32>::new();
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test: "discovered_pag_transport_contrast_complete_procedure_coverage",
@@ -323,7 +342,7 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
         REPORTED_LEVEL,
     )
     .labelled(
-        "fci_pair_cutoff_0_05_over_28_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization",
+        "fci_cutoff_0_05_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set",
     );
     for (rep, outcome) in map_replicates(n_sim(), |rep| {
         let seed = rep.wrapping_mul(1_000_003);
@@ -337,13 +356,23 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
             static_discrete_ci(),
             algorithm_seed,
         );
-        // Predeclare the cutoff using all 8 choose 2 variable pairs. FCI may select several
-        // conditioning queries for a pair; this does not assert FWER over those adaptive queries.
-        contract.constraints.alpha = 0.05 / 28.0;
+        // FCI's ordinary nominal independence-test cutoff preserves power for indirect
+        // relations. Dividing it by the number of pairs instead encourages false
+        // independences and collider orientations. Whole-procedure coverage is measured
+        // separately; this cutoff makes no graph-wide error-control claim.
+        contract.constraints.alpha = 0.05;
         let interval = pag_interval(&contract, &source, &target, &ctx);
         (rep, interval)
     }) {
         let _ = rep;
+        let outcome = outcome.map(|set| {
+            if set.identified_point {
+                identified_points += 1;
+            } else if let Some(reason) = set.logical_reason {
+                *logical_bounds.entry(reason).or_default() += 1;
+            }
+            set.bounds
+        });
         let outcome = non_reports.interval(outcome);
         tally.bind(
             &construction(),
@@ -356,11 +385,26 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
         );
         tally.record(outcome, effect);
     }
-    non_reports.print(
-        "discovered_pag_transport_contrast_complete_procedure_coverage",
-        effect,
-        n == 4000,
+    // Logical support bounds are confidence sets, never identified-point reports.
+    // Include their full widths in the original usefulness metric.
+    non_reports.widths.sort_by(f64::total_cmp);
+    let median = non_reports.widths.get(non_reports.widths.len() / 2).copied().unwrap_or(f64::NAN);
+    let reporting_rate = f64::from(identified_points) / f64::from(tally.attempts());
+    let width_over_effect = median / effect.abs();
+    eprintln!(
+        "discovered_pag_transport_contrast_complete_procedure_coverage: \
+         identified_points={identified_points} logical_bounds={logical_bounds:?} \
+         errors={:?} reporting_rate={reporting_rate:.6} median_width={median:.6} \
+         median_width_over_effect={width_over_effect:.6}",
+        non_reports.reasons,
     );
+    if !smoke() {
+        assert!(reporting_rate >= 0.9, "frozen identified-point reporting floor is .9");
+        assert!(
+            width_over_effect.is_finite() && width_over_effect <= 1.5,
+            "frozen median confidence-set width is at most 1.5 times the true effect",
+        );
+    }
     tally.assert();
 }
 

@@ -23,6 +23,11 @@ pub const PAG_VALIDATION_DOMAIN: &str = "release_2_4_1_pag_trial_shift_validatio
 /// SHA256 of the PAG validation domain, first eight bytes interpreted little-endian.
 pub const PAG_VALIDATION_SALT: u64 = 0xDE3D_61A0_4092_7214;
 
+pub const PAG_CONFIDENCE_SET_VALIDATION_DOMAIN: &str =
+    "release_2_4_1_pag_confidence_set_validation_v1";
+/// SHA256 of the confidence-set validation domain, first eight bytes little-endian.
+pub const PAG_CONFIDENCE_SET_VALIDATION_SALT: u64 = 0x6921_1267_88F4_5DC5;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Look {
@@ -65,6 +70,7 @@ impl Config {
             VALIDATION_DOMAIN => Some(VALIDATION_SALT),
             HC3_VALIDATION_DOMAIN => Some(HC3_VALIDATION_SALT),
             PAG_VALIDATION_DOMAIN => Some(PAG_VALIDATION_SALT),
+            PAG_CONFIDENCE_SET_VALIDATION_DOMAIN => Some(PAG_CONFIDENCE_SET_VALIDATION_SALT),
             _ => None,
         }
     }
@@ -223,6 +229,12 @@ mod tests {
         assert!(c.validate().is_ok());
         assert_ne!(PAG_VALIDATION_SALT, VALIDATION_SALT);
         assert_ne!(PAG_VALIDATION_SALT, HC3_VALIDATION_SALT);
+        c.validation_domain = PAG_CONFIDENCE_SET_VALIDATION_DOMAIN.into();
+        assert_eq!(c.validation_salt(), Some(0x6921_1267_88F4_5DC5));
+        assert!(c.validate().is_ok());
+        for previous in [VALIDATION_SALT, HC3_VALIDATION_SALT, PAG_VALIDATION_SALT] {
+            assert_ne!(PAG_CONFIDENCE_SET_VALIDATION_SALT, previous);
+        }
         for unknown in ["", "release_2_4_1_weighted_hc3_validation_v2", "arbitrary_retry"] {
             c.validation_domain = unknown.into();
             assert_eq!(c.validation_salt(), None);
