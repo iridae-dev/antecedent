@@ -1194,19 +1194,19 @@ test = "python/tests/test_parameter_bindings.py::test_dose_units_reaches_plan"
 [[ux_contract]]
 area = "retained_study"
 operations = ["identification", "inspect_plan", "last_result", "reprepare", "result.refute"]
-test = "python/tests/test_python_ux_24.py::test_prepared_identification_and_inspection_are_retained"
+test = "python/tests/test_notebook_to_system.py::test_prepared_identification_and_inspection_are_retained"
 
 [[ux_contract]]
 area = "frozen_design_rebinding"
 operations = ["estimate", "refresh", "study.refute", "result.refute"]
-test = "python/tests/test_python_ux_24.py::test_every_design_rebinding_path_is_guarded_and_atomic"
+test = "python/tests/test_notebook_to_system.py::test_every_design_rebinding_path_is_guarded_and_atomic"
 
 [[ux_contract]]
 area = "bytes_first_persistence"
 operations = ["export", "artifact", "artifacts.inspect", "load"]
-test = "python/tests/test_python_ux_24.py::test_specialized_artifact_dispatch_and_fresh_process_replay"
+test = "python/tests/test_notebook_to_system.py::test_specialized_artifact_dispatch_and_fresh_process_replay"
 
 [[ux_contract]]
 area = "checked_mean_handoff"
 operations = ["results.MeanSource", "as_mean_source", "decision.Contract.evaluate", "inverse_query.InverseQuery.evaluate"]
-test = "python/tests/test_python_ux_24.py::test_bridge_is_a_complete_checked_mean_producer"
+test = "python/tests/test_notebook_to_system.py::test_bridge_is_a_complete_checked_mean_producer"

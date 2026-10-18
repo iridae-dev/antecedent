@@ -14,7 +14,7 @@ For a source build, follow [installation](../docs/installation.md#build-from-sou
 
 ```bash
 python examples/python/analysis_workflow.py
-python examples/python/notebook_to_system_24.py
+python examples/python/notebook_to_system.py
 jupyter lab examples/notebooks
 cargo run -p antecedent --example ate_quickstart
 ```
@@ -33,7 +33,7 @@ All datasets are simulated. Runtime estimates assume a warm installed environmen
 | **Artifact consumer** — Check independent consumption, wrong identity and altered bytes. <details><summary>Claim scope</summary>Identity-bound consumption, wrong-identity and malformed-container refusals; loading does not recreate a live study.</details> | beginner / up to 1 min | none | [python](python/artifact_consumer.py) |
 | **Artifact producer** — Store bytes and a separately retainable producer expectation. <details><summary>Claim scope</summary>Separately retainable scientific identity and bytes; saving does not establish real-world causal validity.</details> | beginner / up to 1 min | none | [python](python/artifact_producer.py) |
 | **CausalState workflow** — Update an analysis as data arrive and identify outdated results <details><summary>Claim scope</summary>State updates and explicit stale-result handling as observations arrive.</details> | beginner / up to 1 min | none | [python](python/causal_state_workflow.py) · [rust](rust/causal_state_workflow.rs) |
-| **Notebook to system** — Retain identification, refute an execution, guard design updates, compose a mean and consume bytes in a fresh process. <details><summary>Claim scope</summary>Retained average effect, randomized ITT, declared mean composition, and independent identity-bound consumption.</details> | beginner / up to 5 min | pandas, matplotlib, ipykernel | [python](python/notebook_to_system_24.py) · [notebook](notebooks/notebook_to_system_24.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/notebook_to_system_24.ipynb) |
+| **Notebook to system** — Retain identification, refute an execution, guard design updates, compose a mean and consume bytes in a fresh process. <details><summary>Claim scope</summary>Retained average effect, randomized ITT, declared mean composition, and independent identity-bound consumption.</details> | beginner / up to 5 min | pandas, matplotlib, ipykernel | [python](python/notebook_to_system.py) · [notebook](notebooks/notebook_to_system.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/notebook_to_system.ipynb) |
 | **Refusal and repair** — Refuse changed design assignments and an unlicensed interval, then use valid neighboring routes. <details><summary>Claim scope</summary>Changed randomized-design bindings and an unlicensed composed interval; explicit repreparation preserves the preceding result.</details> | beginner / up to 1 min | none | [python](python/refusal_recipes.py) |
 | **Bring your own table** — Read a temporary CSV, check numeric columns, prepare and inspect an average effect. <details><summary>Claim scope</summary>Reviewed numeric table and declared DAG average effect; missing values require an explicit observation policy.</details> | beginner / up to 1 min | pandas | [python](python/your_data.py) |
 

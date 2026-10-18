@@ -297,11 +297,11 @@ runtime = "up to 1 min"
 claim = "Replay of a compiled model on retained noise with fixed, redrawn and coalition coordinates; closed-form variances on a linear Gaussian chain."
 
 [[example]]
-id = "notebook_to_system_24"
+id = "notebook_to_system"
 title = "Notebook to system"
 summary = "Retain identification, refute an execution, guard design updates, compose a mean and consume bytes in a fresh process."
-python = "examples/python/notebook_to_system_24.py"
-notebook = "examples/notebooks/notebook_to_system_24.ipynb"
+python = "examples/python/notebook_to_system.py"
+notebook = "examples/notebooks/notebook_to_system.ipynb"
 topic = "Start and reuse"
 level = "beginner"
 dependencies = ["pandas", "matplotlib", "ipykernel"]

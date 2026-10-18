@@ -329,6 +329,18 @@ are XORed into the existing seed salt. Source SHA, family, grid and domain must 
 saved tallies. Fresh-seed confirmations are outside this protocol's allocated risk
 and are refused. Smoke pilots and legacy replays retain their original semantics.
 
+Scientific methods, reusable examples and behavioral tests are named for their
+purpose, independently of the package release. A method revision may have its own
+version when its definition changes. Package versions belong in packaging,
+release materials and explicit historical-compatibility fixtures.
+
+New calibration seed domains must describe the statistical procedure and its
+revision, for example `pag_bounded_outcome_confidence_set_validation_v1`.
+Existing domain strings, their derived salts, allocations and collected evidence
+are immutable historical identities, including experiments already reserved before
+outcomes. Do not rename them as a cleanup: an evidence-safe migration needs an
+explicit review of every reference, seed stream and cumulative risk allocation.
+
 A method revision informed by earlier results needs a new independent validation
 domain and an unused cumulative hypothesis slot before new outcomes are observed.
 `parity/calibration_decision_allocations.json` retains the original risk budget and

@@ -1,4 +1,4 @@
-"""Notebook-to-system contracts for the 2.4 Python interfaces."""
+"""Notebook-to-system contracts for retained Python interfaces."""
 
 from __future__ import annotations
 
