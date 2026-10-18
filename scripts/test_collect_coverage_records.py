@@ -320,9 +320,11 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                 self.assertEqual(gates.call_args.args[1]["old-gate"]["calibration_sha"], "old-sha")
 
     def test_defer_generated_requires_unchanged_support_cells(self) -> None:
-        with patch.object(sys, "argv", ["collector", "--defer-generated"]):
-            with self.assertRaisesRegex(SystemExit, "requires --no-cells"):
-                collector.main()
+        with (
+            patch.object(sys, "argv", ["collector", "--defer-generated"]),
+            self.assertRaisesRegex(SystemExit, "requires --no-cells"),
+        ):
+            collector.main()
 
     def test_selected_cell_sync_leaves_other_cells_byte_identical(self) -> None:
         source = (
