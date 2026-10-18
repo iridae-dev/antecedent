@@ -912,6 +912,10 @@ def prove(
 ) -> str | None:
     """None only when the restricted equivalence proof succeeds."""
     try:
+        if kind == "rust_temporal_construction_metadata":
+            from _temporal_capture_transfer import prove_sources
+
+            return prove_sources(path, old, new)
         if kind == "rust_reviewed_test_lint":
             return _reviewed_test_lint(path, old, new, old_sources, new_sources)
         if kind == "rust_terminal_test_observer":

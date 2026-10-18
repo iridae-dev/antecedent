@@ -1193,6 +1193,7 @@ RUST_EQUIVALENCE_KINDS = frozenset(
         "rust_pub_use_addition",
         "rust_terminal_test_observer",
         "rust_reviewed_test_lint",
+        "rust_temporal_construction_metadata",
     }
 )
 EQUIVALENCE_KINDS = (
@@ -1979,6 +1980,14 @@ def replay_payloads(label_logs: list[Path]) -> dict[str, dict]:
 def load_replay_capture(out_dir: Path, source_sha: str, records: list[str]) -> dict[str, dict]:
     """Verify raw captured logs against an exact source/selection, without running work."""
     capture = json.loads(read_text(out_dir / "raw-replay-capture.json"))
+    if capture.get("version") == 3:
+        from _temporal_capture_transfer import load_composite
+
+        return load_composite(out_dir, capture, source_sha, records, ROOT, replay_payloads, _bit_equal)
+    if capture.get("version") == 2:
+        from _temporal_capture_transfer import load_transfer
+
+        return load_transfer(out_dir, capture, source_sha, records, ROOT, replay_payloads, _bit_equal)
     if capture.get("version") != 1 or capture.get("source_sha") != source_sha:
         raise ValueError("capture does not bind this exact source commit")
     if capture.get("records") != records:
