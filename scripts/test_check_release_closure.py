@@ -157,6 +157,16 @@ class ReleaseClosureTest(unittest.TestCase):
         self.assertEqual(closure.case_size(target), 3000)
         self.assertEqual(closure.records_of(target, [legacy, current]), [current])
 
+        target["configuration"].update(interval_variance="hc3_sampling_weighted",
+                                       record_functional_suffix="variance_hc3")
+        hc3 = {**current, "id": "v3", "se_kind": "hc3_sampling_weighted",
+               "functional": current["functional"] + ".variance_hc3"}
+        self.assertEqual(closure.records_of(target, [legacy, current, hc3]), [hc3])
+        wrong_variance = {**hc3, "se_kind": "hc1_sampling_weighted"}
+        wrong_suffix = {**hc3, "functional": current["functional"] + ".variance_hc3_extra"}
+        for wrong in (wrong_variance, wrong_suffix):
+            self.assertEqual(closure.records_of(target, [wrong]), [])
+
     def test_calibrated_records_need_two_thousand_replicates_and_uncertainty(self) -> None:
         data = self.calibrated()
         self.assertEqual(closure.calibrated_record_problems(data, [record()]), [])

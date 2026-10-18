@@ -161,6 +161,12 @@ def records_of(case: dict[str, Any], records: list[dict[str, Any]]) -> list[dict
                 and not {"discovery_fraction_0_75", "conflict_resolution_treatment_invariant"}
                     .issubset(record.get("functional", "").split("."))):
             continue
+        variance = case["configuration"].get("interval_variance")
+        if variance is not None and record.get("se_kind") != variance:
+            continue
+        suffix = case["configuration"].get("record_functional_suffix")
+        if suffix is not None and record.get("functional", "").rsplit(".", 1)[-1] != suffix:
+            continue
         if not math.isclose(record.get("nominal", math.nan), targets.get("nominal_coverage", math.nan), abs_tol=1e-9):
             continue
         if size is not None and not record["n_min"] <= size <= record["n_max"]:
