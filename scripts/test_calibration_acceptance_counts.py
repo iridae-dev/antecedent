@@ -74,6 +74,26 @@ class AcceptanceReplicateCounts(unittest.TestCase):
             with patch.dict(globals(), SETUP=setup):
                 self.assertEqual(self.counts(group), [400, 2000, 400])
 
+    def test_ranking_configured_budgets_receive_the_minimum_at_their_actual_point(self) -> None:
+        for test in (
+            "selection_corrected_three_candidates_l95",
+            "selection_corrected_five_candidates_l95",
+            "selection_corrected_sixteen_candidates_l95",
+            "selection_corrected_thirty_two_candidates_l95",
+            "selection_corrected_one_hundred_candidates_l95",
+            "selection_corrected_sixteen_candidates_budget_32768_l95",
+        ):
+            self.assertEqual(
+                self.counts(f"decision_reliability_interval_calibration: {test}"),
+                [400, 2000, 2000],
+            )
+        self.assertEqual(
+            self.counts(
+                "decision_reliability_interval_calibration: selection_corrected_four_candidates_l95"
+            ),
+            [400, 2000, 400],
+        )
+
     def test_grid_point_declaration_is_validated(self) -> None:
         import check_acceptance_manifest as manifest
 
