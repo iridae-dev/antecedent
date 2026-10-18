@@ -242,7 +242,7 @@ class EvidenceArchiveTest(unittest.TestCase):
         group = groups.Group(1, "suite: selected", False, False)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            with patch.dict(groups.os.environ, {"ANTECEDENT_PARENT_PROTOCOL_VERSION": "1"}), patch.object(groups, "FIRST_NSIM", 20000), patch.object(groups, "RECHECK_NSIM", 20001), patch.object(groups, "last_durations", return_value={}), patch.object(groups, "archive_logs"), patch.object(groups, "prebuild", return_value=0), patch.object(groups.subprocess, "check_output", return_value="a" * 40), patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, patch.object(groups, "LOG_DIR", root / "records"), patch.object(groups, "CONSOLE_DIR", root / "console"), patch.object(groups, "TIMINGS", root / "times.tsv"):
+            with patch.object(groups, "measurement_source_sha", return_value="a"*40), patch.object(groups, "formal_decision_environment", return_value={}), patch.dict(groups.os.environ, {"ANTECEDENT_PARENT_PROTOCOL_VERSION": "1"}), patch.object(groups, "FIRST_NSIM", 20000), patch.object(groups, "RECHECK_NSIM", 20001), patch.object(groups, "last_durations", return_value={}), patch.object(groups, "archive_logs"), patch.object(groups, "prebuild", return_value=0), patch.object(groups.subprocess, "check_output", return_value="a" * 40), patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, patch.object(groups, "LOG_DIR", root / "records"), patch.object(groups, "CONSOLE_DIR", root / "console"), patch.object(groups, "TIMINGS", root / "times.tsv"):
                 self.assertEqual(groups.run(groups.Selection([group], 0, {1: "selected"}), 2, 1), 0)
                 self.assertEqual(run.call_count, 1)
                 env = run.call_args.kwargs["env"]
@@ -256,12 +256,42 @@ class EvidenceArchiveTest(unittest.TestCase):
         long = groups.Group(2, "suite: long", False, False)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            with patch.object(groups, "last_durations", return_value={short.label: 1, long.label: 100}), patch.object(groups, "pilot_timings", return_value={}), patch.object(groups, "archive_logs"), patch.object(groups, "prebuild", return_value=0), patch.object(groups.subprocess, "check_output", return_value="a" * 40), patch.object(groups, "LOG_DIR", root / "records"), patch.object(groups, "CONSOLE_DIR", root / "console"), patch.object(groups, "ThreadPoolExecutor") as executor:
+            with patch.object(groups, "measurement_source_sha", return_value="a"*40), patch.object(groups, "formal_decision_environment", return_value={}), patch.object(groups, "last_durations", return_value={short.label: 1, long.label: 100}), patch.object(groups, "pilot_timings", return_value={}), patch.object(groups, "archive_logs"), patch.object(groups, "prebuild", return_value=0), patch.object(groups.subprocess, "check_output", return_value="a" * 40), patch.object(groups, "LOG_DIR", root / "records"), patch.object(groups, "CONSOLE_DIR", root / "console"), patch.object(groups, "ThreadPoolExecutor") as executor:
                 executor.return_value.__enter__.return_value.map.return_value = []
                 selection = groups.Selection([short, long], 0, {1: "missing", 2: "missing"})
                 self.assertEqual(groups.run(selection, 2, 2), 0)
                 scheduled = executor.return_value.__enter__.return_value.map.call_args.args[1]
                 self.assertEqual(scheduled, [(long, None), (short, None)])
+
+
+class FormalDecisionEnvironmentTest(unittest.TestCase):
+    def test_direct_run_source_binding_rejects_dirty_source(self):
+        with patch.object(groups.subprocess, "check_output", return_value=" M numerical.rs\n"):
+            with self.assertRaisesRegex(SystemExit, "clean committed source"):
+                groups.measurement_source_sha()
+        with patch.object(groups.subprocess, "check_output", side_effect=["", "a"*40]):
+            self.assertEqual(groups.measurement_source_sha(), "a"*40)
+
+    def test_complete_family_overrides_foreign_selected_config(self):
+        import json
+        import calibration_decision as decision
+        import calibration_family as family
+        config=decision.config_for_manifest({'groups':[{'label':'one'},{'label':'two'}]})
+        with patch.object(family,'current_config',return_value=config) as validate, \
+             patch.dict(groups.os.environ,{decision.ENV:'foreign small family'}), \
+             patch.object(groups,'FIRST_NSIM',400):
+            result=groups.formal_decision_environment()
+        validate.assert_called_once_with(groups.ROOT)
+        self.assertEqual(json.loads(result[decision.ENV]),config)
+        self.assertEqual(config['family_cells'],2*3*256)
+
+    def test_confirmation_and_unregistered_budget_fail_closed(self):
+        with patch.dict(groups.os.environ,{'ANTECEDENT_CALIBRATION_CONFIRMATION':'1'}):
+            with self.assertRaisesRegex(SystemExit,'confirmation'):
+                groups.formal_decision_environment()
+        with patch.object(groups,'FIRST_NSIM',401):
+            with self.assertRaisesRegex(SystemExit,'registered'):
+                groups.formal_decision_environment()
 
 
 if __name__ == "__main__":

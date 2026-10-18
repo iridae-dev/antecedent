@@ -735,18 +735,47 @@ def archive_logs() -> None:
     print(f"archived earlier logs and consoles to {destination}")
 
 
+def formal_decision_environment() -> dict[str, str]:
+    """Activate only a reviewed complete family, independently of the selected shard.
+
+    Historical gate dry runs, smoke pilots and legacy replay do not call this.
+    A caller's inherited config cannot substitute a smaller family or seed domain.
+    """
+    import calibration_decision as decision
+    import calibration_family as family
+
+    if os.environ.get("ANTECEDENT_CALIBRATION_CONFIRMATION"):
+        raise SystemExit("fresh-seed confirmation has no allocated risk in suite coverage protocol v1")
+    if FIRST_NSIM not in {look["planned_replicates"] for look in decision.LOOKS}:
+        raise SystemExit("suite coverage protocol requires a registered 400, 2000 or 20000 attempt look")
+    config = family.current_config(ROOT)
+    return {decision.ENV: decision.canonical_json(config)}
+
+
+def measurement_source_sha() -> str:
+    """Direct runner entry points must obey the same source binding as the wrapper."""
+    if subprocess.check_output(
+        ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True
+    ).strip():
+        raise SystemExit("formal measurement requires a clean committed source checkout; raw logs are retained")
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+
+
 def run(selection: Selection, total: int, jobs: int) -> int:
     groups = selection.groups
     if not groups:
         print("nothing to measure: no record owes a re-measurement")
         return 0
+    sha = measurement_source_sha()
+    decision_env = formal_decision_environment()
     archive_logs()
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     CONSOLE_DIR.mkdir(parents=True, exist_ok=True)
     if prebuild(groups) != 0:
         print("FAIL: the calibration tests do not build")
         return 1
-    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    if measurement_source_sha() != sha:
+        raise SystemExit("measurement source changed during prebuild; raw logs are retained")
     threads = threads_per_job(jobs)
     env = {
         k: v
@@ -766,8 +795,11 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_CALIBRATION_SMOKE",
             "ANTECEDENT_PARENT_PROTOCOL_VERSION",
             "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
+            "ANTECEDENT_CALIBRATION_DECISION_CONFIG",
+            "ANTECEDENT_CALIBRATION_VALIDATION_DOMAIN",
         )
     }
+    env.update(decision_env)
     # Each job's `map_replicates` gets its share of the cores, so `jobs` jobs
     # fill the machine without oversubscribing it. RUST_TEST_THREADS is left
     # alone: every gate invocation runs one exact test.
@@ -833,6 +865,8 @@ def run(selection: Selection, total: int, jobs: int) -> int:
         f"measured {len(groups)} group(s) as {len(tasks)} grid job(s) in "
         f"{_clock(time.monotonic() - started)}"
     )
+    if measurement_source_sha() != sha:
+        raise SystemExit("measurement source changed during execution; raw logs are retained")
     if failed:
         print(f"FAIL: {len(failed)} grid job(s) failed the calibration gate:")
         for label in sorted(failed):

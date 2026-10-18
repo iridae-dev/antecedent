@@ -29,6 +29,9 @@ python3 scripts/test_ci_workflow.py
 bash scripts/gate_scale_cases.sh --self-test
 python3 scripts/run_evidence_rows_selftest.py
 python3 scripts/test_calibration_groups.py
+python3 scripts/test_calibration_decision.py
+python3 scripts/test_calibration_family.py
+python3 scripts/test_calibration_decision_logs.py
 python3 scripts/test_calibration_key_aliases.py
 python3 scripts/test_collect_coverage_records.py
 python3 scripts/test_coverage_snapshot_attestation.py

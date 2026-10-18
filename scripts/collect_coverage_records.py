@@ -90,6 +90,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import calibration_decision as coverage_decision
+import calibration_family as coverage_family
+import calibration_decision_logs as coverage_decision_logs
 import re
 import subprocess
 import sys
@@ -160,7 +163,7 @@ FIELDS = (
 # A boundary record that passed an independent confirmation also states the
 # confirmation's points (shaped like `grid`) and the `confirmed_passing_range`
 # they establish (`confirmed_passing_range`).
-OPTIONAL_FIELDS = ("one_sided", "conservative_point", "confirmation", "confirmed_passing_range")
+OPTIONAL_FIELDS = ("decision_protocol", "one_sided", "conservative_point", "confirmation", "confirmed_passing_range")
 # Coverage roles a grid point may carry. `gated` passes the two-sided band and
 # precision floor/ceiling; `named_boundary` is a documented under-coverage;
 # `reported_level` is an unasserted second level; `one_sided` passes a floor at
@@ -230,6 +233,7 @@ GRID_POINTS = 3
 # Fields measured per grid point; every other emitted field is the construction
 # and provenance, which must be the same at every point.
 POINT_FIELDS = (
+    "decision_protocol",
     "n_min",
     "n_max",
     "replicates_min",
@@ -325,6 +329,7 @@ def record_lines(
                     f"{log.name}: record {rid} carries no grid_point; it was measured before "
                     "the sample-size grid, so re-measure it with scripts/gate_calibration.sh"
                 )
+            validate_point_decision(payload)
             point = int(payload["grid_point"])
             if not 0 <= point < GRID_POINTS:
                 raise SystemExit(f"{log.name}: record {rid} at grid point {point}")
@@ -343,9 +348,28 @@ def record_lines(
     return out
 
 
+def validate_point_decision(payload: dict, *, expected_config: dict | None = None,
+                            final: bool = False) -> None:
+    """Audit stored counts; only the governing final look claims compatibility."""
+    value = payload.get("decision_protocol")
+    if value is None:
+        return
+    try:
+        coverage_decision.validate_decision(value, float(payload["nominal"]),
+            observed=float(payload["observed"]), replicates=int(payload["replicates"]),
+            expected_config=expected_config, role=str(payload["role"]) if final else None)
+    except (ValueError, TypeError, KeyError) as error:
+        raise SystemExit(f"invalid coverage decision: {error}") from error
+
+
+def grid_fields_valid(point: dict) -> bool:
+    return set(point) in (set(GRID_ENTRY_FIELDS), set(GRID_ENTRY_FIELDS) | {"decision_protocol"})
+
+
 def grid_entry(payload: dict) -> dict:
     """The registry's `grid` entry of one measured point."""
     return {
+        **({"decision_protocol": payload["decision_protocol"]} if "decision_protocol" in payload else {}),
         "point": int(payload["grid_point"]),
         "n_min": int(payload["n_min"]),
         "n_max": int(payload["n_max"]),
@@ -383,6 +407,8 @@ def attach_confirmation(rid: str, record: dict, points: dict[int, dict]) -> None
     establishes. Refused unless the confirmation measured the same construction,
     sample sizes and roles as the measurement; ignored for records with nothing
     to recover (not a boundary, or a named boundary, which documents a limit)."""
+    if "decision_protocol" in record or any("decision_protocol" in p for p in points.values()):
+        raise SystemExit(f"record {rid}: fresh-seed confirmation is not allocated risk in suite coverage protocol v1")
     if not record["boundary"] or record["role"] == "named_boundary":
         return
     entries = []
@@ -432,6 +458,15 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
         )
     ordered = [points[k] for k in range(GRID_POINTS)]
     first = ordered[0]
+    configs = [{key: p["decision_protocol"][key] for key in coverage_decision.CONFIG_FIELDS}
+               if "decision_protocol" in p else None for p in ordered]
+    active_configs = [config for config in configs if config is not None]
+    if (any(config != active_configs[0] for config in active_configs)
+            or (active_configs and any(config is None and p['role']!='named_boundary'
+                                      for config,p in zip(configs,ordered,strict=True)))):
+        raise SystemExit(f"record {rid}: grid points mix coverage decision families or legacy protocols")
+    for payload in ordered:
+        validate_point_decision(payload, final=True)
     for payload in ordered[1:]:
         differs = sorted(
             key
@@ -495,6 +530,8 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
         role=role,
         grid=[grid_entry(p) for p in ordered],
     )
+    if "decision_protocol" in governing:
+        record["decision_protocol"] = governing["decision_protocol"]
     return record
 
 
@@ -580,6 +617,10 @@ def check_logs(logs: list[Path], sha: str) -> None:
             )
     if problems:
         raise SystemExit("cannot collect these logs:\n  " + "\n  ".join(problems))
+    try:
+        coverage_decision_logs.audit_logs(logs, sha)
+    except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
+        raise SystemExit(f"invalid frozen-family decision log: {error}") from error
 
 
 GATES_HEADER = """# Pass/fail calibration groups that emit no coverage record (CI Type I error,
@@ -595,6 +636,10 @@ GATES_HEADER = """# Pass/fail calibration groups that emit no coverage record (C
 def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
     """A row per record-less group log: which group, how many tests passed, at which commit."""
     rows: dict[str, dict] = {}
+    try:
+        decisions = coverage_decision_logs.audit_logs(logs, sha)
+    except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
+        raise SystemExit(f"invalid frozen-family decision ledger: {error}") from error
     for log in logs:
         text = read_text(log, errors="ignore")
         if is_confirmation_log(log) or log.name.endswith(".recheck.log") or any(
@@ -607,6 +652,14 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
             "passed": passed,
             "calibration_sha": sha,
         }
+        raw = [{"log": name, **row, "record_id": row["record_id"] or ""} for name, entries in decisions.items()
+               if name in {log.name, log.name.removesuffix(".log") + ".recheck.log"}
+               for row in entries]
+        contexts = [json.loads(line.partition(" ")[2]) for line in text.splitlines()
+                    if line.startswith("calibration-decision-context ")]
+        if contexts:
+            rows[log.name.removesuffix(".log")]["coverage_decisions"] = raw
+            rows[log.name.removesuffix(".log")]["decision_protocol"] = contexts[0]
         protocols = {line.removeprefix("CALIBRATION_GATE_PROTOCOL ").strip()
                      for line in text.splitlines() if line.startswith("CALIBRATION_GATE_PROTOCOL ")}
         if protocols:
@@ -627,6 +680,9 @@ def write_gate_ledger(rows: dict[str, dict], keep: dict[str, dict] | None = None
             f"passed = {int(row['passed'])}",
             f"calibration_sha = {toml_value('calibration_sha', row['calibration_sha'])}",
         ]
+        for optional in ("decision_protocol", "coverage_decisions"):
+            if optional in row:
+                lines.append(f"{optional} = {toml_value(optional, row[optional])}")
         if "protocol" in row:
             lines.append(f"protocol = {toml_value('protocol', row['protocol'])}")
         lines.append("")
@@ -678,6 +734,11 @@ def load_records(
     if verify_logs and not smoke:
         logs = drop_failed_confirmations(logs)
         check_logs(logs, sha)
+    if not verify_logs and not smoke:
+        try:
+            coverage_decision_logs.audit_logs(logs, sha)
+        except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
+            raise SystemExit(f"invalid frozen-family decision log: {error}") from error
     records = merged_records(logs, smoke, None if smoke or not verify_logs else sha)
     # A pass/fail-only re-run (the record-less groups) measures no record but still
     # refreshes the group ledger; --keep-attested keeps every record that stands.

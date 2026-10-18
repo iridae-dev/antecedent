@@ -44,7 +44,7 @@ use antecedent_stats::ci::{
 use antecedent_stats::{FdrAdjustment, MultipleTestingMethod, SparseDiscreteCi};
 use common::calibration::{
     Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
-    n_sim, smoke, stream_seed, unit_uniform,
+    n_sim, smoke, stream_seed, unit_uniform, validation_seed,
 };
 
 const INTERVAL: &str = "percentile_bootstrap";
@@ -93,8 +93,8 @@ fn sparse_discrete_ci_uses_the_declared_permutation_null() {
     let expected = SymbolicCmi::new()
         .test_batch(&permutation, &request, &mut CiWorkspace::default(), &ctx)
         .unwrap();
-    assert_eq!(actual.results[0].statistic, expected.results[0].statistic);
-    assert_eq!(actual.results[0].p_value, expected.results[0].p_value);
+    assert_eq!(actual.results[0].statistic.to_bits(), expected.results[0].statistic.to_bits());
+    assert_eq!(actual.results[0].p_value.to_bits(), expected.results[0].p_value.to_bits());
 }
 
 /// Why a replicate reported no interval, as a short stable label.
@@ -329,12 +329,13 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
         let seed = rep.wrapping_mul(1_000_003);
         let source = study(n, false, seed);
         let target = study(n, true, seed ^ 0x5eed);
-        let ctx = ExecutionContext::for_tests(rep);
+        let algorithm_seed = validation_seed(rep);
+        let ctx = ExecutionContext::for_tests(algorithm_seed);
         let mut contract = StaticDiscoveryContract::new(
             StaticAlgorithm::Fci,
             (0..8).map(VariableId::from_raw).collect(),
             static_discrete_ci(),
-            rep,
+            algorithm_seed,
         );
         // Predeclare the cutoff using all 8 choose 2 variable pairs. FCI may select several
         // conditioning queries for a pair; this does not assert FWER over those adaptive queries.
@@ -443,12 +444,13 @@ fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
         let seed = rep.wrapping_mul(1_000_003);
         let (source, source_table) = series(steps, false, seed);
         let (_, target_table) = series(steps, true, seed ^ 0x5eed);
-        let ctx = ExecutionContext::for_tests(rep);
+        let algorithm_seed = validation_seed(rep);
+        let ctx = ExecutionContext::for_tests(algorithm_seed);
         let mut contract = TemporalDiscoveryContract::new(
             TemporalAlgorithm::PcmciPlus,
             (0..3).map(VariableId::from_raw).collect(),
             discrete_ci(),
-            rep,
+            algorithm_seed,
         );
         contract.fdr = Some(FdrAdjustment {
             method: MultipleTestingMethod::Holm,
@@ -539,12 +541,13 @@ fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverag
         let seed = rep.wrapping_mul(1_000_003);
         let (source, source_table) = series_two_lags(steps, false, seed);
         let (_, target_table) = series_two_lags(steps, true, seed ^ 0x5eed);
-        let ctx = ExecutionContext::for_tests(rep);
+        let algorithm_seed = validation_seed(rep);
+        let ctx = ExecutionContext::for_tests(algorithm_seed);
         let mut contract = TemporalDiscoveryContract::new(
             TemporalAlgorithm::PcmciPlus,
             (0..6).map(VariableId::from_raw).collect(),
             discrete_ci(),
-            rep,
+            algorithm_seed,
         );
         contract.constraints.temporal.max_lag = Lag::from_raw(2);
         contract.fdr = Some(FdrAdjustment {

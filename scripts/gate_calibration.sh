@@ -224,6 +224,11 @@ export ANTECEDENT_CALIBRATION_SHA="$MEASURED_SHA"
 
 stamp_log() {
   printf 'calibration-measured-at %s\n' "$MEASURED_SHA" >>"$1"
+  # Preserve the prospective seed domain even for noncoverage groups that
+  # use common RNG helpers but never emit a CoverageTally decision.
+  if [ -n "${ANTECEDENT_CALIBRATION_DECISION_CONFIG:-}" ]; then
+    printf 'calibration-decision-context %s\n' "$ANTECEDENT_CALIBRATION_DECISION_CONFIG" >>"$1"
+  fi
 }
 
 # A group that matches no test exits 0 ("running 0 tests"), so a renamed test

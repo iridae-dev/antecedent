@@ -313,6 +313,24 @@ Without `--all`, the selection has three parts:
   discovery FPR, SBC, `gate_response_calibration.sh`). Nothing can attest those
   gates, so they run with every re-measurement.
 
+Formal runner measurements use `suite_coverage_fwer.v1` after the complete source
+family and hypothesis audit are frozen in `scripts/calibration_family_manifest.json`
+and `scripts/calibration_family_labels.json`. Its exact binomial coverage decisions
+allocate total risk 0.05 across every source gate group, three grid slots, 256
+source-possible coverage cells per group/grid, and predetermined 400/2,000/20,000
+attempt looks with weights 1/2, 1/4, 1/4. Selection and sharding never shrink this
+family. The fixed `release_2_4_1_validation_v1` seed domain supplies fresh validation
+data; its SHA256 first eight bytes, interpreted little-endian, are XORed into the
+existing seed salt. Source SHA, family, grid and domain must agree when extending
+saved tallies. Fresh-seed confirmations are outside this protocol's allocated risk
+and are refused. Smoke pilots and legacy replays retain their original semantics.
+
+This controls false rejections of coverage compatibility for that frozen validation
+family. It does not establish exact nominal coverage or control every usefulness,
+reporting, width or other scientific check. Record counts and all intermediate raw
+decisions remain durable, including a first look superseded by its registered
+recheck. Earlier collected evidence retains its original decision protocol.
+
 Use `--missing-only` to finish an incomplete collection while existing evidence awaits
 reviewed waivers. It selects groups with neither matching coverage records nor a
 complete passed entry in `parity/calibration_gates.toml`, irrespective of facet drift.
@@ -326,7 +344,8 @@ collector rejects unlisted collisions and any replacement ID lacking both old an
 fresh evidence. For a fixed higher-precision protocol, add `--replicates 20000` before measuring;
 the chosen budget applies only to the selected groups. The default remains 400
 (with the existing 2,000-replicate precision recheck). Runs starting at 2,000 or
-more replicates apply the precision rule directly, without an extra extension.
+more replicates apply their registered final-look decision directly, without an extra extension.
+The formal family protocol accepts only these three registered replicate budgets.
 Decide the budget before examining results, retain the outcomes, and do not search
 seeds or repeat until a pass. These options do not
 waive drift: the final attestation gate still requires actual replay waivers or new

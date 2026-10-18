@@ -43,7 +43,7 @@ use antecedent_kernels::{sigmoid, standard_normal};
 use antecedent_stats::GlmFamily;
 use common::calibration::{
     Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, grid_n,
-    map_replicates, n_sim,
+    map_replicates, n_sim, validation_seed,
 };
 
 const INTERVAL: &str = "analytic_se";
@@ -97,7 +97,9 @@ fn population_unit(rng: &mut CausalRng, shock: f64, effect: Effect) -> (f64, f64
 /// with a high rate, which tilts the weighted population away from the one the truth speaks
 /// for.) The final cluster is cut at `n` rows.
 fn sample(n: usize, seed: u64, effect: Effect, clustered: bool) -> Sample {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5A01);
+    let mut rng = ExecutionContext::for_tests(validation_seed(seed))
+        .rng
+        .stream_for(StreamDomain::Test, 0x5A01);
     let mut out = Sample { t: vec![], y: vec![], z: vec![], w: vec![], cluster: vec![] };
     let mut group = 0_u32;
     while out.t.len() < n {
@@ -275,7 +277,9 @@ fn aipw(sample: &Sample) -> Option<EffectEstimate> {
 /// Sampled units whose outcome is binary: `P(Y = 1 | T, z) = σ(-0.3 + 0.8 T + 0.6 z)`, with the
 /// same informative sampling and treatment assignment as [`sample`].
 fn binary_sample(n: usize, seed: u64) -> Sample {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5A04);
+    let mut rng = ExecutionContext::for_tests(validation_seed(seed))
+        .rng
+        .stream_for(StreamDomain::Test, 0x5A04);
     let mut out = Sample { t: vec![], y: vec![], z: vec![], w: vec![], cluster: vec![] };
     while out.t.len() < n {
         let z = standard_normal(&mut rng);
@@ -407,7 +411,9 @@ fn aipw_cluster_dml(sample: &Sample) -> Option<EffectEstimate> {
 /// probability one half, so the weights are the only thing separating the sample from the
 /// population.
 fn randomized(sample: &Sample, seed: u64) -> Option<((f64, f64), u64)> {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5A02);
+    let mut rng = ExecutionContext::for_tests(validation_seed(seed))
+        .rng
+        .stream_for(StreamDomain::Test, 0x5A02);
     let n = sample.t.len();
     let assigned: Vec<bool> = (0..n).map(|_| rng.next_f64() < 0.5).collect();
     let outcome: Vec<f64> = (0..n)
@@ -432,7 +438,9 @@ fn randomized(sample: &Sample, seed: u64) -> Option<((f64, f64), u64)> {
 /// population and the truth is its effect (a fixed number of inclusions per cluster would give
 /// low-inclusion clusters more population subjects).
 fn panel(clusters_per_arm: usize, seed: u64) -> Option<((f64, f64), u64)> {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5A03);
+    let mut rng = ExecutionContext::for_tests(validation_seed(seed))
+        .rng
+        .stream_for(StreamDomain::Test, 0x5A03);
     let (mut subjects, mut clusters, mut treated, mut post) = (vec![], vec![], vec![], vec![]);
     let (mut outcome, mut weights) = (vec![], vec![]);
     let mut subject = 0_usize;
@@ -470,7 +478,7 @@ fn panel(clusters_per_arm: usize, seed: u64) -> Option<((f64, f64), u64)> {
         .query(query)
         .build()
         .ok()?
-        .run(&ExecutionContext::for_tests(seed))
+        .run(&ExecutionContext::for_tests(validation_seed(seed)))
         .ok()?;
     let fit = result.panel_did()?;
     let radius = Z95 * fit.standard_error;
@@ -1295,7 +1303,9 @@ fn weighted_aipw_cluster_dml_interval() {
 /// `exp(-0.3 + 0.8 T + 0.6 z)` times a mean-one Gamma(2) multiplier, with the informative
 /// sampling and assignment of [`sample`].
 fn count_sample(n: usize, seed: u64) -> Sample {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5A05);
+    let mut rng = ExecutionContext::for_tests(validation_seed(seed))
+        .rng
+        .stream_for(StreamDomain::Test, 0x5A05);
     let mut out = Sample { t: vec![], y: vec![], z: vec![], w: vec![], cluster: vec![] };
     while out.t.len() < n {
         let z = standard_normal(&mut rng);

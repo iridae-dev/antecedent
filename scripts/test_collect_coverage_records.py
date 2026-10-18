@@ -824,5 +824,54 @@ class GateProtocolTest(unittest.TestCase):
                 collector.gate_ledger([new], "a" * 40)
 
 
+
+class FamilyDecisionRecordTest(unittest.TestCase):
+    def config(self):
+        return collector.coverage_decision.config_for_manifest({'groups':[{'label':'one'}]})
+
+    def point(self,k=0,covered=1879,planned=2000):
+        value=collector.coverage_decision.evaluate(self.config(),planned,planned,covered,0.95,False)
+        return _point(k,covered/planned,'gated',replicates=planned,decision_protocol=value)
+
+    def test_near_nominal_monte_carlo_miss_retains_exact_metadata_each_grid(self):
+        points={k:self.point(k,1879+k) for k in range(3)}
+        record=collector.merge_grid('id',points)
+        self.assertEqual(record['decision_protocol'],points[0]['decision_protocol'])
+        self.assertEqual([p['decision_protocol']['covered'] for p in record['grid']],[1879,1880,1881])
+        self.assertTrue(all(collector.grid_fields_valid(p) for p in record['grid']))
+
+    def test_named_boundary_grid_point_retains_its_separate_boundary_role(self):
+        points={k:self.point(k) for k in range(3)}
+        points[0]=_point(0,0.8,'named_boundary',boundary=True)
+        record=collector.merge_grid('id',points)
+        self.assertEqual(record['role'],'named_boundary')
+        self.assertNotIn('decision_protocol',record)
+        self.assertIn('decision_protocol',record['grid'][1])
+
+    def test_false_counts_incompatible_final_and_mixed_family_are_rejected(self):
+        bad=self.point(); bad['decision_protocol']['covered']+=1
+        with self.assertRaisesRegex(SystemExit,'counts|p_value|compatibility'):
+            collector.merge_grid('id',{k:{**bad,'grid_point':k,'n_min':100*(k+1),'n_max':100*(k+1)} for k in range(3)})
+        with self.assertRaisesRegex(SystemExit,'incompatible'):
+            collector.merge_grid('id',{k:self.point(k,1500) for k in range(3)})
+        points={k:self.point(k) for k in range(3)}
+        del points[1]['decision_protocol']
+        with self.assertRaisesRegex(SystemExit,'mix coverage decision'):
+            collector.merge_grid('id',points)
+
+    def test_intermediate_incompatible_look_is_audited_without_claiming_a_pass(self):
+        payload=self.point(0,300,400)
+        collector.validate_point_decision(payload)
+        with self.assertRaisesRegex(SystemExit,'incompatible'):
+            collector.validate_point_decision(payload,final=True)
+
+    def test_fresh_confirmation_rejected_and_optional_metadata_roundtrips(self):
+        record=collector.merge_grid('id',{k:self.point(k) for k in range(3)})
+        with self.assertRaisesRegex(SystemExit,'confirmation'):
+            collector.attach_confirmation('id',record,{0:self.point()})
+        encoded=collector.toml_value('grid',record['grid'])
+        decoded=collector.tomllib.loads('grid = '+encoded)['grid']
+        self.assertEqual(decoded,record['grid'])
+
 if __name__ == "__main__":
     unittest.main()

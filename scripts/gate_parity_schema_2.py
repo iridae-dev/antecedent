@@ -295,7 +295,25 @@ if cr.is_file():
         role = str(rec["role"])
         boundary = bool(rec["boundary"])
 
+        def family_pass(point: dict, lower_only: bool) -> bool | None:
+            value = point.get("decision_protocol")
+            if value is None:
+                return None
+            try:
+                expected = collector.coverage_family.config_at_sha(str(rec["calibration_sha"]))
+                checked = collector.coverage_decision.validate_decision(value, nominal,
+                    observed=float(point["observed"]), replicates=int(point["replicates"]),
+                    expected_config=expected)
+                if checked["lower_only"] != lower_only:
+                    raise ValueError("decision tail does not match the asserted coverage role")
+                return checked["compatible"]
+            except (ValueError, TypeError, KeyError, OSError, subprocess.CalledProcessError) as error:
+                problems.append(f"{label}: invalid frozen-family coverage decision: {error}")
+                return False
+
         def nominal_pass(point: dict, nominal=nominal) -> bool:
+            if (compatible := family_pass(point, False)) is not None:
+                return compatible
             lo, hi, floor, ceiling = _band(nominal, int(point["replicates"]))
             observed = float(point["observed"])
             # The harness reruns a point that shortfalls the level by more than
@@ -314,6 +332,8 @@ if cr.is_file():
             return lo <= observed <= hi
 
         def one_sided_pass(point: dict, nominal=nominal) -> bool:
+            if (compatible := family_pass(point, True)) is not None:
+                return compatible
             # A one-sided (at least nominal) target: the lower edge of the band and,
             # from PRECISION_N_SIM, the precision floor; no upper band and no ceiling,
             # since over-coverage is what a conservative interval claims
@@ -340,7 +360,7 @@ if cr.is_file():
                 f"({collector.GRID_POINTS}); re-measure with scripts/measure_calibration.sh"
             )
             continue
-        if any(sorted(p) != sorted(collector.GRID_ENTRY_FIELDS) for p in grid):
+        if any(not collector.grid_fields_valid(p) for p in grid):
             problems.append(
                 f"{label}: grid points must carry exactly {', '.join(collector.GRID_ENTRY_FIELDS)}"
             )
@@ -370,6 +390,12 @@ if cr.is_file():
                 f"{label}: observed / mcse / replicates must be the governing grid point's "
                 f"(point {governing['point']})"
             )
+        if rec.get("decision_protocol") != governing.get("decision_protocol"):
+            problems.append(f"{label}: decision_protocol must be the governing grid point's")
+        if any("decision_protocol" not in p and p["role"] != "named_boundary" for p in grid) and any("decision_protocol" in p for p in grid):
+            problems.append(f"{label}: cannot mix legacy and frozen-family decisions across the grid")
+        if "decision_protocol" in rec and rec.get("confirmation") is not None:
+            problems.append(f"{label}: fresh confirmation has no risk allocation in suite coverage protocol v1")
         for point in grid:
             where = f"{label} grid point {point['point']}"
             for field in ("observed", "mcse"):
@@ -381,7 +407,7 @@ if cr.is_file():
             if int(point["n_min"]) < 1 or int(point["n_max"]) < int(point["n_min"]):
                 problems.append(f"{where}: measured row-count range is empty")
             point_role = str(point["role"])
-            passes = nominal_pass(point)
+            passes = one_sided_pass(point) if point_role in {"one_sided", "conservative_point"} else nominal_pass(point)
             if point_role == "gated":
                 if point["boundary"]:
                     problems.append(f"{where}: a gated point cannot be a boundary")
@@ -426,7 +452,7 @@ if cr.is_file():
                 not isinstance(confirmation, list)
                 or not confirmation
                 or not all(isinstance(p, dict) for p in confirmation)
-                or any(sorted(p) != sorted(collector.GRID_ENTRY_FIELDS) for p in confirmation)
+                or any(not collector.grid_fields_valid(p) for p in confirmation)
             ):
                 problems.append(
                     f"{label}: confirmation must list points carrying exactly "
@@ -520,6 +546,11 @@ else:
         if not isinstance(g.get("passed"), int) or g["passed"] < 1:
             problems.append(f"{label}: no passed test recorded")
         gate_sha = str(g.get("calibration_sha", ""))
+        if "decision_protocol" in g or "coverage_decisions" in g:
+            try:
+                collector.coverage_decision_logs.validate_ledger(g, collector.coverage_family.config_at_sha(gate_sha))
+            except (ValueError, KeyError, TypeError, OSError, subprocess.CalledProcessError) as error:
+                problems.append(f"{label}: invalid frozen-family recordless ledger: {error}")
         if not re.fullmatch(r"[0-9a-f]{40}", gate_sha) or set(gate_sha) == {"0"}:
             problems.append(f"{label}: calibration_sha must be a real 40 lowercase hex commit")
 
