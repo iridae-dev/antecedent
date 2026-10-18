@@ -109,7 +109,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             group = groups.Group(1, f"weighted_interval_calibration: {name}", False, True)
             old = {"id": "old", "test": f"crates/antecedent/tests/weighted_interval_calibration.rs::{name}",
                    "functional": "all_observed.mean", "interval_method": "analytic_se"}
-            new = {**old, "id": "new", "functional": old["functional"] + "+" + marker,
+            new = {**old, "id": "new." + marker.partition("=")[2], "functional": old["functional"] + "+" + marker,
                    "interval_method": "balanced_population_score" if "weighting=" in marker else "analytic_se"}
             ledger = self.root / "weighted-gates.toml"
             ledger.write_text("".join(f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\n'
@@ -122,6 +122,8 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
                     self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
             if "weighting=" in marker:
                 self.assertFalse(groups.measures_current_protocol(group, {**new, "interval_method": "analytic_se"}))
+            else:
+                self.assertFalse(groups.measures_current_protocol(group, {**new, "id": old["id"]}))
 
     def test_recordless_knn_requires_protocol_marker_at_every_grid_point(self) -> None:
         group = groups.Group(1, "knn_matching_calibration: knn_matching_interval_ci_coverage", False, True)

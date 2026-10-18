@@ -193,6 +193,8 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
             return False
         if protocol == "weighting=balanced_linear_hc3":
             return record.get("interval_method") == "balanced_population_score"
+        if protocol in {"matching=population_linear", "stratification=regression_linear_hc3"}:
+            return str(record.get("id", "")).endswith("." + protocol.partition("=")[2])
     return True
 
 
