@@ -113,6 +113,12 @@ that retained the draws digest, the candidate-set digest, the decision, or the
 selecting and validating stream identities also refuses a consistently resealed
 forgery. New draws are a new assessment; nothing is refreshed in place.
 
+An artifact retains its original closed-route snapshot when later calibration
+opens a route. Replay accepts this conservative historical snapshot only when
+its refusals are canonical and include every currently closed route. The stored
+digest and every other report field still compare exactly. Historical refusals
+do not grant licenses: publication checks the current calibration independently.
+
 ## Calibration decision
 
 Published ranking and optimality probabilities, and intervals for a selected

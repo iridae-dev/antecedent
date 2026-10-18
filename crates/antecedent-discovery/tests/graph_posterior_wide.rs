@@ -175,7 +175,9 @@ fn run_order(
             &mut DiscoveryWorkspace::default(),
             &ExecutionContext::for_tests(seed),
         )
-        .unwrap()
+        .unwrap_or_else(|error| {
+            panic!("order MCMC n_vars={} config={engine:?}: {error}", vars.len())
+        })
 }
 
 /// Every cell within `0.03 + 5 x` its own Monte-Carlo standard error of the reference.
@@ -914,8 +916,9 @@ fn exact_marginals_respect_the_parent_cap_and_refuse_beyond_their_size() {
     assert!(refused.to_string().contains("at most 12 variables"), "{refused}");
 }
 
-/// The published-condition samplers against the exact posterior at ten and twelve variables on
-/// 2,000 rows: every edge marginal within `0.03 + 5 x` its Monte-Carlo standard error.
+/// Both samplers against the exact posterior at ten and twelve variables on 2,000 rows:
+/// every edge marginal within `0.03 + 5 x` its Monte-Carlo standard error. The order
+/// sampler gets longer chains here than the separate published-workflow checks.
 #[test]
 fn samplers_agree_with_the_exact_marginals_at_ten_and_twelve_variables() {
     for (label, k, coef, seed) in [("ten", 5, 0.5, 4_867_969), ("twelve", 6, 1.0, 5_398_576)] {
@@ -935,7 +938,12 @@ fn samplers_agree_with_the_exact_marginals_at_ten_and_twelve_variables() {
         assert!(structure.diagnostics.converged, "{label} structure: {:?}", structure.diagnostics);
         assert_marginals_match(&format!("{label} structure"), &structure, &exact.edge_marginals);
         assert_chain_diagnostics_consistent(&format!("{label} structure"), &structure);
-        let order = run_order(&published_order(), &data, &vars, &prior, 22);
+        // This exact-oracle comparison uses twice the order-chain effort of the
+        // workflow checks. Floating score differences across platforms can change
+        // a finite chain trajectory; retain the production publication gate and
+        // give its convergence checks more sampling headroom, never a wider bar.
+        let order_engine = OrderMcmc::new().with_schedule(4, 12_000, 48_000, 2);
+        let order = run_order(&order_engine, &data, &vars, &prior, 22);
         assert!(order.diagnostics.converged, "{label} order: {:?}", order.diagnostics);
         assert_marginals_match(&format!("{label} order"), &order, &exact.edge_marginals);
         assert_chain_diagnostics_consistent(&format!("{label} order"), &order);

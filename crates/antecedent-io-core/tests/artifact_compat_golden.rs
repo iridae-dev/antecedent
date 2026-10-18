@@ -446,15 +446,12 @@ fn participant_run()
     participant_run_under(antecedent_stats::adaptive_inference::SequenceKind::MixtureHoeffding)
 }
 
-/// A retained run of the participant-level family and the procedure it ran under, reading the
-/// given confidence-sequence construction.
-fn participant_run_under(
+fn participant_spec(
     sequence: antecedent_stats::adaptive_inference::SequenceKind,
-) -> (AdaptiveDesignContract, antecedent_stats::adaptive_inference::ParticipantSpec) {
+) -> antecedent_stats::adaptive_inference::ParticipantSpec {
     use antecedent_stats::adaptive_inference::{
         AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, CorrelationPrior, DecisionRules,
-        HistoricalPrior, LookDecision, ParticipantDeclaration, ParticipantSpec,
-        simulate_participant_history,
+        HistoricalPrior, ParticipantDeclaration, ParticipantSpec,
     };
     let control = ArmPrior {
         initial: BetaPrior::UNIFORM,
@@ -465,7 +462,7 @@ fn participant_run_under(
             discount: 0.5,
         }],
     };
-    let spec = ParticipantSpec::new(ParticipantDeclaration {
+    ParticipantSpec::new(ParticipantDeclaration {
         arms: 3,
         responses: Some(3),
         correlation: None,
@@ -489,7 +486,16 @@ fn participant_run_under(
         anytime: Some(AnytimeSettings { alpha: 0.05, tuning_samples: 10.0 }),
     })
     .expect("a valid procedure")
-    .with_sequence_kind(sequence);
+    .with_sequence_kind(sequence)
+}
+
+/// A retained run of the participant-level family and the procedure it ran under, reading the
+/// given confidence-sequence construction.
+fn participant_run_under(
+    sequence: antecedent_stats::adaptive_inference::SequenceKind,
+) -> (AdaptiveDesignContract, antecedent_stats::adaptive_inference::ParticipantSpec) {
+    use antecedent_stats::adaptive_inference::{LookDecision, simulate_participant_history};
+    let spec = participant_spec(sequence);
     let history = simulate_participant_history(&spec, &[0.4, 0.4, 0.4], Some(0.2), 5, &|| false)
         .expect("a history");
     let readings = spec.read_history(&history, &|| false).expect("replays");
@@ -572,12 +578,28 @@ fn write_adaptive_participant_procedure_golden() {
 fn the_adaptive_participant_procedure_golden_is_replayed_and_gated() {
     let bytes = load(PARTICIPANT_GOLDEN);
     assert_eq!(container_kind(&bytes).as_deref(), Some("adaptive_monitoring_contract_v1"));
-    let (contract, spec) = participant_run();
     let consumed = AdaptiveMonitoringContractArtifact::from_bytes(&bytes, None)
         .expect("a fresh consumer replays the contract and the procedure section");
-    assert_eq!(consumed.contract().identity(), contract.identity());
+    // Replay the retained history, rather than simulating it again: adaptive
+    // allocation probabilities depend on platform libm rounding. The golden's
+    // exact declaration and identity remain the compatibility contract.
+    let contract = AdaptiveDesignContract::new(consumed.contract().declaration().clone())
+        .expect("the retained declaration validates independently");
+    assert_eq!(
+        contract.identity().to_hex(),
+        "fe8105eb2f91aca3ec7d44ec90c0d7cf733c079766970282ef8f38b3565c3785"
+    );
     let record = consumed.procedure_record().expect("the procedure section is replayed");
+    let spec =
+        participant_spec(antecedent_stats::adaptive_inference::SequenceKind::MixtureHoeffding);
     assert_eq!(record.spec().identity(), spec.identity());
+    let (fresh, _) = AdaptiveMonitoringContractArtifact::seal_with_procedure(
+        &contract,
+        InferenceParadigm::BayesianPosterior,
+        &spec,
+    )
+    .expect("a fresh producer replays the retained history");
+    assert_eq!(consumed.contract().identity(), fresh.contract().identity());
     // The released contract names no sequence construction and replays under its own.
     assert_eq!(
         record.spec().sequence_kind(),
