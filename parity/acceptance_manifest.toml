@@ -3764,11 +3764,11 @@ evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/po
 id = "policy_rust_and_python_share_execution_logic"
 area = "policy_integration"
 workflow = "antecedent facade (Rust) and antecedent.fit_model (Python)"
-configuration = { rows = 5000, policy = "x := clip(x, -1, 1)", compare = "rust_vs_python" }
+configuration = { rows = 64, draws = 512, seed = 7, policy = "price := max(10, 0.85 * (generated_price + 8 * demand))", mechanisms = ["price:required_constant", "demand:required_discrete"], compare = "rust_vs_python" }
 expected = { kind = "value", outputs = ["Rust and Python draws bit-identical under the same seed", "identical policy identity in both"] }
-targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each route runs the same compiled overlay; the cost is the sum of the sampling, counterfactual and temporal runs on a few thousand units." }
-dataset = { generator = "gaussian_chain_known_moments", seed = 7055769, n = 5000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent/tests/policy_python_parity.rs::a_price_floor_draws_the_same_bits_from_rust_as_from_python" }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Rust and Python each fit 64 finite-support rows and execute 512 seeded draws through the same compiled overlay; the exact fixture avoids platform-dependent Gaussian libm and fitted linear algebra." }
+dataset = { generator = "constant_price_8_balanced_binary_demand_parent", seed = 7, n = 64, simulated_representative = true, provenance = "Simulated representative finite-support parity fixture: price is constant 8, demand alternates 0/1 equally, and demand is a parent of price; exact probabilities and arithmetic avoid platform-dependent Gaussian libm and fitted linear algebra." }
+evidence = { status = "bound", test = "crates/antecedent/tests/policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits" }
 
 [[case]]
 id = "policy_identity_changes_target_and_contract_identity"

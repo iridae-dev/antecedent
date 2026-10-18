@@ -33,9 +33,11 @@ NAMES = ["price", "demand"]
 # The digest of this program as asserted by the Rust test
 # `the_price_floor_program_has_a_pinned_identity`.
 PRICE_FLOOR_IDENTITY = "4828012ed5bdb86f66847911617623031457a3373151fb18a2b4c54d3a051d04"
-# The checksum of every drawn bit asserted by the Rust test
-# `a_price_floor_draws_the_same_bits_from_rust_as_from_python` for the data built below.
-PRICE_FLOOR_DRAW_CHECKSUM = 15_163_479_412_849_571_691
+# One portable bit pin: the explicit discrete/constant fixture below uses no
+# Gaussian Box–Muller libm calls or fitted linear algebra. Rust pins the same
+# program and all drawn bits in `a_discrete_parent_policy_has_portable_rust_python_bits`.
+DISCRETE_FLOOR_IDENTITY = "3a08cbc918b28367814b2f0aa4ea318d963ae5dfb7af90f12bf7c3e7d6c15654"
+DISCRETE_FLOOR_DRAW_CHECKSUM = 13_792_273_858_822_143_950
 
 
 def _floor():
@@ -121,15 +123,32 @@ def test_a_malformed_program_is_a_value_error(gcm):
 
 
 def test_python_draws_the_same_bits_as_rust_for_the_same_model_policy_and_seed():
-    rows = 600
-    price = np.array([11.0 + (float((i * 37) % 101) - 50.0) * 0.04 for i in range(rows)])
-    demand = np.array(
-        [50.0 - 0.8 * p + (float((i * 13) % 23) - 11.0) * 0.05 for i, p in enumerate(price)]
+    # A constant price mechanism and a balanced discrete parent give effective
+    # pre-floor prices 8/16. The exact categorical probabilities are 1/2;
+    # fitting/sampling needs no platform-dependent transcendental functions.
+    model = antecedent.model.fit_gcm(
+        NAMES,
+        [np.full(64, 8.0), np.array([0.0, 1.0] * 32)],
+        [("demand", "price")],
+        candidates=["discrete"],
+        constraints={"price": {"required": "constant"}, "demand": {"required": "discrete"}},
     )
-    model = antecedent.model.fit_gcm(NAMES, [price, demand], [("price", "demand")])
-    draws = sample_policy(model, [_floor()], 512, seed=7).draws
+
+    def program(rate):
+        return transform("price", maximum(10, rate * (generated() + 8 * var("demand"))))
+
+    floor = program(0.85)
+    assert policy_program_identity(NAMES, [floor]) == DISCRETE_FLOOR_IDENTITY
+    draws = sample_policy(model, [floor], N_DRAWS, seed=7).draws
     checksum = int(np.ascontiguousarray(draws).view(np.uint64).sum())
-    assert checksum == PRICE_FLOOR_DRAW_CHECKSUM
+    assert checksum == DISCRETE_FLOOR_DRAW_CHECKSUM
+    effective_price = 8.0 + 8.0 * draws[1]
+    np.testing.assert_array_equal(draws[0], np.maximum(10.0, 0.85 * effective_price))
+    assert (0.85 * effective_price < 10.0).any() and (draws[0] > 10.0).any()
+    assert not np.array_equal(draws, sample_policy(model, [floor], N_DRAWS, seed=8).draws)
+    other = program(0.75)
+    assert policy_program_identity(NAMES, [other]) != DISCRETE_FLOOR_IDENTITY
+    assert not np.array_equal(draws, sample_policy(model, [other], N_DRAWS, seed=7).draws)
 
 
 def test_the_identity_is_the_one_rust_pins_and_moves_with_the_expression():

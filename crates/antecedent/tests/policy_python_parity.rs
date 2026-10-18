@@ -1,7 +1,8 @@
 //! A price-floor policy sampled from a fitted model is bit-identical in Rust and Python.
 //!
-//! Both sides fit the same deterministic data with the default mechanism selection and draw
-//! with the same seed; the checksum of every drawn bit is pinned here and in
+//! Both sides fit an explicitly discrete/constant fixture and draw with the same seed.
+//! Gaussian libm/linear-fit bits are not portable across platforms; this fixture
+//! avoids those operations while pinning every drawn bit here and in
 //! `python/tests/test_intervention_programs.py`. Python builds program text and calls this
 //! same entry point, so a difference would mean a second implementation had crept in.
 //!
@@ -9,7 +10,8 @@
 
 use antecedent::gcm::{
     FittedGcm, PreparedPolicy, TemporalPlan, counterfactual_policy, counterfactual_temporal_policy,
-    fit_gcm, noise_table_from_columns, policy_value, replay_noise, sample_do, sample_with_noise,
+    fit_gcm, fit_gcm_with, noise_table_from_columns, policy_value, registry_from_candidates,
+    replay_noise, sample_do, sample_with_noise,
 };
 use antecedent_core::{
     CausalRng, ExecutionContext, Intervention, InterventionSequence, SequencedIntervention,
@@ -17,9 +19,12 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_model::{MechanismFamily, NodeFamilyConstraint, SelectionOptions};
 
 /// Sum (mod 2^64) of the IEEE-754 bits of every draw of the policy run in the Python test.
-const PRICE_FLOOR_DRAW_CHECKSUM: u64 = 15_163_479_412_849_571_691;
+const DISCRETE_FLOOR_DRAW_CHECKSUM: u64 = 13_792_273_858_822_143_950;
+const DISCRETE_FLOOR_IDENTITY: &str =
+    "3a08cbc918b28367814b2f0aa4ea318d963ae5dfb7af90f12bf7c3e7d6c15654";
 
 fn price_floor() -> Intervention {
     Intervention::transform(
@@ -120,15 +125,80 @@ fn the_temporal_counterfactual_without_a_lag_read_is_the_static_counterfactual_p
 }
 
 #[test]
-fn a_price_floor_draws_the_same_bits_from_rust_as_from_python() {
-    let (fitted, _) = fitted_price_model(0.0);
-    let floor = price_floor();
-    let ctx = ExecutionContext::for_tests(7);
-    let draws =
-        sample_do(&fitted.model, &[floor], 512, &mut CausalRng::from_seed(7), &ctx).unwrap();
+fn a_discrete_parent_policy_has_portable_rust_python_bits() {
+    let price = vec![8.0; 64];
+    let demand: Vec<f64> = (0..64_u32).map(|i| f64::from(i % 2)).collect();
+    let data =
+        TabularData::from_f64_columns([("price", price.as_slice()), ("demand", demand.as_slice())])
+            .unwrap();
+    let mut graph = Dag::with_variables(2);
+    graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(0)).unwrap();
+    let options = SelectionOptions {
+        constraints: vec![
+            (
+                VariableId::from_raw(1),
+                NodeFamilyConstraint {
+                    required: Some(MechanismFamily::Discrete),
+                    ..Default::default()
+                },
+            ),
+            (
+                VariableId::from_raw(0),
+                NodeFamilyConstraint {
+                    required: Some(MechanismFamily::Constant),
+                    ..Default::default()
+                },
+            ),
+        ],
+        ..Default::default()
+    };
+    let registry = registry_from_candidates(&["discrete"]).unwrap();
+    let fitted = fit_gcm_with(graph, &data, &registry, &options).unwrap();
+    let program = |rate| {
+        Intervention::transform(
+            VariableId::from_raw(0),
+            ValueExpr::constant(10.0).max(
+                ValueExpr::constant(rate)
+                    .mul(ValueExpr::generated().add(
+                        ValueExpr::constant(8.0).mul(ValueExpr::var(VariableId::from_raw(1))),
+                    )),
+            ),
+        )
+    };
+    let floor = program(0.85);
+    let identity = |intervention: &Intervention| {
+        blake3::Hash::from_bytes(
+            antecedent_io::policy_program_artifact::policy_program_identity(std::slice::from_ref(
+                intervention,
+            ))
+            .unwrap(),
+        )
+        .to_hex()
+        .to_string()
+    };
+    assert_eq!(identity(&floor), DISCRETE_FLOOR_IDENTITY);
+    let draw = |policy: &Intervention, seed| {
+        sample_do(
+            &fitted.model,
+            std::slice::from_ref(policy),
+            512,
+            &mut CausalRng::from_seed(seed),
+            &ExecutionContext::for_tests(seed),
+        )
+        .unwrap()
+    };
+    let draws = draw(&floor, 7);
     let checksum = draws.values.iter().fold(0_u64, |sum, v| sum.wrapping_add(v.to_bits()));
-    assert_eq!(checksum, PRICE_FLOOR_DRAW_CHECKSUM);
-    assert!(draws.column(0).unwrap().iter().all(|p| *p >= 10.0));
+    assert_eq!(checksum, DISCRETE_FLOOR_DRAW_CHECKSUM);
+    let prices = draws.column(0).unwrap();
+    for (&value, &parent) in prices.iter().zip(draws.column(1).unwrap()) {
+        assert_eq!(value.to_bits(), (0.85 * (8.0 + 8.0 * parent)).max(10.0_f64).to_bits());
+    }
+    assert!(prices.contains(&10.0) && prices.iter().any(|value| *value > 10.0));
+    assert_ne!(draws.values, draw(&floor, 8).values);
+    let other = program(0.75);
+    assert_ne!(identity(&other), DISCRETE_FLOOR_IDENTITY);
+    assert_ne!(draws.values, draw(&other, 7).values);
 }
 
 #[test]
