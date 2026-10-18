@@ -16,9 +16,7 @@ class DecisionLogTests(unittest.TestCase):
         self.roster = [{"index": 1, "label": "suite: test", "grid": True}]
         self.config = decision.config_for_manifest({"groups": self.roster})
 
-    def write(
-        self, name="suite__test.p0.log", planned=400, covered=380, record=True, skip=0
-    ):
+    def write(self, name="suite__test.p0.log", planned=400, covered=380, record=True, skip=0):
         log = self.root / name
         value = decision.evaluate(self.config, planned, planned, covered, 0.95, False)
         row = {
@@ -66,14 +64,13 @@ class DecisionLogTests(unittest.TestCase):
                     },
                 }
             )
-            + "\n", encoding="utf-8"
+            + "\n",
+            encoding="utf-8",
         )
         return log
 
     def audit(self, logs):
-        return audit_logs(
-            logs, self.sha, expected_config=self.config, roster=self.roster
-        )
+        return audit_logs(logs, self.sha, expected_config=self.config, roster=self.roster)
 
     def test_raw_record_binding_preserves_valid_cross_language_roundoff(self):
         log = self.write(planned=20000, covered=19000)
@@ -95,9 +92,7 @@ class DecisionLogTests(unittest.TestCase):
 
     def test_all_looks_and_recordless_decisions_audited(self):
         first = self.write(record=False, skip=2)
-        second = self.write(
-            "suite__test.p0.recheck.log", planned=2000, covered=1900, record=False
-        )
+        second = self.write("suite__test.p0.recheck.log", planned=2000, covered=1900, record=False)
         self.assertEqual(len(self.audit([first, second])), 2)
 
     def test_incompatible_intermediate_is_not_discarded(self):
@@ -117,10 +112,14 @@ class DecisionLogTests(unittest.TestCase):
                     log.write_text(
                         log.read_text(encoding="utf-8").replace(
                             '"record_id": "record"', '"record_id": null'
-                        ), encoding="utf-8"
+                        ),
+                        encoding="utf-8",
                     )
                 elif mutation == "source":
-                    log.write_text(log.read_text(encoding="utf-8").replace(self.sha, "b" * 40), encoding="utf-8")
+                    log.write_text(
+                        log.read_text(encoding="utf-8").replace(self.sha, "b" * 40),
+                        encoding="utf-8",
+                    )
                 else:
                     new = log.with_name("unknown.p0.log")
                     log.rename(new)
@@ -143,7 +142,8 @@ class DecisionLogTests(unittest.TestCase):
             self.audit([log])
         log.write_text(
             log.read_text(encoding="utf-8")
-            + "calibration-recheck reason\ncalibration-recheck-test test\n", encoding="utf-8"
+            + "calibration-recheck reason\ncalibration-recheck-test test\n",
+            encoding="utf-8",
         )
         with self.assertRaisesRegex(ValueError, "successor"):
             self.audit([log])
@@ -155,12 +155,16 @@ class DecisionLogTests(unittest.TestCase):
     def test_qualified_test_recheck_request_cannot_disappear(self):
         log = self.write(record=False)
         log.write_text(
-            log.read_text(encoding="utf-8").replace('"test": "test"', '"test": "module::tests::test"')
-            + "calibration-recheck reason\ncalibration-recheck-test module::tests::test\n", encoding="utf-8"
+            log.read_text(encoding="utf-8").replace(
+                '"test": "test"', '"test": "module::tests::test"'
+            )
+            + "calibration-recheck reason\ncalibration-recheck-test module::tests::test\n",
+            encoding="utf-8",
         )
         side = log.with_suffix(".tallies.jsonl")
         side.write_text(
-            side.read_text(encoding="utf-8").replace("test::tally@", "module::tests::test::tally@"), encoding="utf-8"
+            side.read_text(encoding="utf-8").replace("test::tally@", "module::tests::test::tally@"),
+            encoding="utf-8",
         )
         with self.assertRaisesRegex(ValueError, "successor"):
             self.audit([log])
@@ -175,14 +179,16 @@ class DecisionLogTests(unittest.TestCase):
             + self.sha
             + "\ncalibration-decision-context "
             + json.dumps(self.config)
-            + "\n", encoding="utf-8"
+            + "\n",
+            encoding="utf-8",
         )
         self.audit([nominal, boundary])
         nominal.write_text(
             nominal.read_text(encoding="utf-8")
             + "calibration-record "
             + json.dumps({"id": "boundary", "role": "named_boundary"})
-            + "\n", encoding="utf-8"
+            + "\n",
+            encoding="utf-8",
         )
         self.audit([nominal])
 
@@ -194,6 +200,33 @@ class DecisionLogTests(unittest.TestCase):
         side.write_text(json.dumps(state) + "\n", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "context"):
             self.audit([log])
+
+    def test_nongrid_receipt_uses_the_actual_common_base_grid_point(self):
+        from calibration_decision_logs import validate_ledger
+
+        self.roster[0]["grid"] = False
+        log = self.write("suite__test.log", record=False, planned=2000, covered=1900)
+        for path in (log, log.with_suffix(".tallies.jsonl")):
+            path.write_text(
+                path.read_text(encoding="utf-8").replace('"grid_point": 0', '"grid_point": 1'),
+                encoding="utf-8",
+            )
+        audited = self.audit([log])
+        row = {
+            "group": "suite__test",
+            "calibration_sha": self.sha,
+            "decision_protocol": self.config,
+            "coverage_decisions": [
+                {"log": name, **item, "record_id": ""}
+                for name, items in audited.items()
+                for item in items
+            ],
+        }
+        validate_ledger(row, self.config, self.roster)
+        self.assertEqual(row["coverage_decisions"][0]["grid_point"], 1)
+        row["coverage_decisions"][0]["grid_point"] = 0
+        with self.assertRaisesRegex(ValueError, "owner"):
+            validate_ledger(row, self.config, self.roster)
 
     def test_durable_ledger_retains_all_counts_and_checks_final_decision(self):
         from calibration_decision_logs import validate_ledger
@@ -229,7 +262,8 @@ class DecisionLogTests(unittest.TestCase):
             + self.sha
             + "\ncalibration-decision-context "
             + json.dumps(self.config)
-            + "\n", encoding="utf-8"
+            + "\n",
+            encoding="utf-8",
         )
         self.assertEqual(self.audit([log]), {log.name: []})
         validate_ledger(

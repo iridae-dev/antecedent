@@ -32,13 +32,9 @@ def audit_logs(
         return {}
     config = expected_config or family.config_at_sha(sha)
     if roster is None:
-        manifest = json.loads(
-            family.read_source(family.ROOT, family.MANIFEST_PATH, sha)
-        )
+        manifest = json.loads(family.read_source(family.ROOT, family.MANIFEST_PATH, sha))
         roster = manifest["groups"]
-    groups = {
-        row["label"].translate(str.maketrans(" /:", "___")): row for row in roster
-    }
+    groups = {row["label"].translate(str.maketrans(" /:", "___")): row for row in roster}
     cells: dict[tuple, set] = {}
     looks: dict[tuple, dict] = {}
     summary = {}
@@ -48,29 +44,21 @@ def audit_logs(
             raise ValueError(
                 "fresh-seed confirmation has no risk allocation in suite coverage protocol v1"
             )
-        stamps = set(
-            re.findall(r"^calibration-measured-at ([0-9a-f]{40})$", text, re.MULTILINE)
-        )
+        stamps = set(re.findall(r"^calibration-measured-at ([0-9a-f]{40})$", text, re.MULTILINE))
         if stamps != {sha}:
-            raise ValueError(
-                f"{log.name}: decision source SHA differs from frozen measurement"
-            )
+            raise ValueError(f"{log.name}: decision source SHA differs from frozen measurement")
         stem = log.name.removesuffix(".log").removesuffix(".recheck")
         match = re.fullmatch(r"(.+)\.p([012])", stem)
-        group, point = (match[1], int(match[2])) if match else (stem, 0)
+        group, point = (match[1], int(match[2])) if match else (stem, 1)
         if group not in groups:
-            raise ValueError(
-                f"{log.name}: decision group absent from complete source family"
-            )
+            raise ValueError(f"{log.name}: decision group absent from complete source family")
         contexts = [
             json.loads(line.partition(" ")[2])
             for line in text.splitlines()
             if line.startswith("calibration-decision-context ")
         ]
         if contexts != [config]:
-            raise ValueError(
-                f"{log.name}: missing or conflicting frozen decision/domain context"
-            )
+            raise ValueError(f"{log.name}: missing or conflicting frozen decision/domain context")
         raw = [
             json.loads(line.partition(" ")[2])
             for line in text.splitlines()
@@ -96,13 +84,8 @@ def audit_logs(
                 if state["key"] in states and states[state["key"]] != state:
                     raise ValueError(f"{log.name}: conflicting repeated tally state")
                 states[state["key"]] = state
-        requests = set(
-            re.findall(r"^calibration-recheck-test (\S+)$", text, re.MULTILINE)
-        )
-        request_all = (
-            bool(re.search(r"^calibration-recheck ", text, re.MULTILINE))
-            and not requests
-        )
+        requests = set(re.findall(r"^calibration-recheck-test (\S+)$", text, re.MULTILINE))
+        request_all = bool(re.search(r"^calibration-recheck ", text, re.MULTILINE)) and not requests
         bound = {}
         for row in raw:
             required = {
@@ -146,14 +129,9 @@ def audit_logs(
                     f"{log.name}: tally extension context differs from frozen source/family/domain"
                 )
             if state is None:
-                raise ValueError(
-                    f"{log.name}: raw decision missing persisted tally state"
-                )
+                raise ValueError(f"{log.name}: raw decision missing persisted tally state")
             end = state.get("map_end")
-            if (
-                end is None
-                and state["scored"] + state["skipped"] == value["planned_replicates"]
-            ):
+            if end is None and state["scored"] + state["skipped"] == value["planned_replicates"]:
                 end = value["planned_replicates"]
             if (state["covered"], state["scored"] + state["skipped"], end) != (
                 value["covered"],
@@ -165,9 +143,7 @@ def audit_logs(
                 )
             if row["record_id"] is not None:
                 if row["record_id"] in bound and bound[row["record_id"]] != value:
-                    raise ValueError(
-                        f"{log.name}: conflicting record decision identity"
-                    )
+                    raise ValueError(f"{log.name}: conflicting record decision identity")
                 bound[row["record_id"]] = row["decision_protocol"]
         for record in records:
             value = record.get("decision_protocol")
@@ -178,9 +154,7 @@ def audit_logs(
                     f"{log.name}: emitted record is not bound to its audited raw decision"
                 )
             if record.get("measured_at") != sha or record.get("grid_point") != point:
-                raise ValueError(
-                    f"{log.name}: record source/grid differs from decision context"
-                )
+                raise ValueError(f"{log.name}: record source/grid differs from decision context")
             decision.validate_decision(
                 value,
                 record["nominal"],
@@ -196,9 +170,7 @@ def audit_logs(
             if (g, p, k) == (group, point, key) and look > planned
         ]
         if not successors:
-            raise ValueError(
-                "coverage recheck request has no complete registered successor look"
-            )
+            raise ValueError("coverage recheck request has no complete registered successor look")
     final = {}
     for (group, point, key, planned), value in looks.items():
         slot = (group, point, key)
@@ -210,34 +182,26 @@ def audit_logs(
     return summary
 
 
-def validate_ledger(
-    row: dict, expected_config: dict, roster: list[dict] | None = None
-) -> None:
+def validate_ledger(row: dict, expected_config: dict, roster: list[dict] | None = None) -> None:
     """Independently verify durable recordless coverage provenance/counts."""
     config = row.get("decision_protocol")
     raw = row.get("coverage_decisions")
     if config is None and raw is None:
         return
     if config != expected_config or not isinstance(raw, list):
-        raise ValueError(
-            "recordless ledger requires its frozen config and all coverage decisions"
-        )
+        raise ValueError("recordless ledger requires its frozen config and all coverage decisions")
     stem = row["group"]
     if roster is None:
         manifest = json.loads(
-            family.read_source(
-                family.ROOT, family.MANIFEST_PATH, row["calibration_sha"]
-            )
+            family.read_source(family.ROOT, family.MANIFEST_PATH, row["calibration_sha"])
         )
         roster = manifest["groups"]
     group_stem = re.sub(r"\.p[012]$", "", stem)
     allowed = {item["label"].translate(str.maketrans(" /:", "___")) for item in roster}
     if group_stem not in allowed:
-        raise ValueError(
-            "recordless ledger group is absent from its frozen complete source family"
-        )
+        raise ValueError("recordless ledger group is absent from its frozen complete source family")
     point_match = re.search(r"\.p([012])$", stem)
-    point = int(point_match[1]) if point_match else 0
+    point = int(point_match[1]) if point_match else 1
     looks = {}
     cells = set()
     final = {}
@@ -260,9 +224,7 @@ def validate_ledger(
             or entry["grid_point"] != point
             or entry["measured_at"] != row["calibration_sha"]
         ):
-            raise ValueError(
-                "recordless ledger decision differs from its source/log/grid owner"
-            )
+            raise ValueError("recordless ledger decision differs from its source/log/grid owner")
         value = decision.validate_decision(
             entry["decision_protocol"], entry["nominal"], expected_config=config
         )
@@ -272,10 +234,7 @@ def validate_ledger(
         if look in looks and looks[look] != value:
             raise ValueError("conflicting recordless cell/look")
         looks[look] = value
-        if (
-            key not in final
-            or final[key]["planned_replicates"] < value["planned_replicates"]
-        ):
+        if key not in final or final[key]["planned_replicates"] < value["planned_replicates"]:
             final[key] = value
     if len(cells) > config["cell_cap_per_group"]:
         raise ValueError("recordless family cell cap exceeded")
