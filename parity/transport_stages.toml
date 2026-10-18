@@ -12212,15 +12212,15 @@ evidence_assertion = "test_an_adaptive_trial_estimate_replays_and_an_edited_mean
 
 [[routes]]
 route = "antecedent.treatment.multi_level_effects"
-stage = "evaluate"
+stage = "uncertainty"
 status = "licensed"
 graph = "caller_declared_adjustment_set"
 evidence = "multi_level_known_truth_simulation"
 functional = "active_minus_control_contrast_of_a_multi_level_treatment_over_the_declared_target_population"
-guarantee = "multi_level_treatment_contrast_with_stated_target_population_point_only_standard_error_unmeasured"
+guarantee = "multi_level_treatment_contrast_with_stated_target_population_interval_at_exact_measured_full_population_scope"
 evidence_test = "crates/antecedent-estimate/tests/treatment_levels.rs"
 evidence_assertion = "the_full_population_and_pairwise_targets_recover_their_own_truths"
-notes = "Point-only; the standard error is an unmeasured diagnostic. The full-population interval is withheld as scope_not_assessed until a coverage record measures it."
+notes = "Full-population three-level five-fold contrasts have their own measured 95% normal interval record over 1500 to 6000 rows. Publication requires a currently attesting record covering the exact construction and scope; other configurations, pairwise contrasts and separate level-mean intervals remain withheld."
 
 [[routes]]
 route = "antecedent.missing.declared_policy"
