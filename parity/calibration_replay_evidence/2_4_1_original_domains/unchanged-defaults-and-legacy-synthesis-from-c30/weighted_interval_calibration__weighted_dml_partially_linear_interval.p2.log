@@ -1,0 +1,12 @@
+    Finished `release` profile [optimized] target(s) in 0.13s
+     Running tests/weighted_interval_calibration.rs (/private/tmp/antecedent-attestation-target/release/deps/weighted_interval_calibration-b5d3000732c51f72)
+
+running 1 test
+info interval diagnostics weighted_dml_partially_linear_interval: bias=-0.00381 empirical_sd=0.05571 rms_se=0.05382
+calibration weighted_dml_partially_linear_interval: nominal=0.95 coverage=0.948 mcse=0.0109 band=[0.917, 0.983] mean_length=0.2076 (379/400 covered, 0 skipped)
+calibration-record {"bound_replicates":400,"boundary":false,"dependence":"iid","dgp":"crates/antecedent/tests/weighted_interval_calibration.rs::informative_sampling_constant_effect","estimator":"dml","functional":"all_observed.mean+weights=sampling","graph_class":"Dag","grid_point":2,"id":"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_partially_linear_interval","identification":"point","inference":"Frequentist","interval_method":"analytic_se","mcse":0.01115165346484547,"measured_at":"2f7d56662e4e86014f907e577b7c854c74c831d4","modality":"tabular","n_max":2400,"n_min":2400,"nominal":0.95,"observed":0.9475,"posterior":"","posterior_draws_min":0,"query":"AverageEffect","replicates":400,"replicates_min":0,"role":"gated","se_kind":"homoskedastic","structure":"fixed","test":"crates/antecedent/tests/weighted_interval_calibration.rs::weighted_dml_partially_linear_interval","unidentified_mass_max":0.0}
+test weighted_dml_partially_linear_interval ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.62s
+
+calibration-measured-at 2f7d56662e4e86014f907e577b7c854c74c831d4

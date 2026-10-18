@@ -1,0 +1,11 @@
+    Finished `release` profile [optimized] target(s) in 0.12s
+     Running tests/transport_statistical_calibration.rs (/private/tmp/antecedent-attestation-target/release/deps/transport_statistical_calibration-b0d7e5d6e10bccfa)
+
+running 1 test
+calibration source_target_imbalance_standardize_nominal_coverage: nominal=0.95 coverage=0.955 mcse=0.0109 band=[0.917, 0.983] mean_length=0.1990 (382/400 covered, 0 skipped)
+calibration-record {"bound_replicates":400,"boundary":false,"dependence":"iid","dgp":"crates/antecedent/tests/transport_statistical_calibration.rs::standardize_imbalance","estimator":"transport.empirical_table_plugin","functional":"target_interventional_mean","graph_class":"Admg","grid_point":1,"id":"cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage","identification":"point","inference":"Frequentist","interval_method":"percentile_bootstrap","mcse":0.010365206220813944,"measured_at":"2f7d56662e4e86014f907e577b7c854c74c831d4","modality":"tabular","n_max":400,"n_min":400,"nominal":0.95,"observed":0.955,"posterior":"","posterior_draws_min":0,"query":"ClassicalTransport","replicates":400,"replicates_min":199,"role":"gated","se_kind":"percentile","structure":"fixed","test":"crates/antecedent/tests/transport_statistical_calibration.rs::source_target_imbalance_standardize_nominal_coverage","unidentified_mass_max":0.0}
+test source_target_imbalance_standardize_nominal_coverage ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 2.57s
+
+calibration-measured-at 2f7d56662e4e86014f907e577b7c854c74c831d4

@@ -1,0 +1,7 @@
+{
+  "replay_pid": 32957,
+  "action": "SIGSTOP",
+  "reason": "pause after final temporal invocation starts; preserve child computation and prevent subsequent group dispatch",
+  "time_ns": 1792346884632481000,
+  "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/final-replay-unchanged-validated-procedures-from-70.log"
+}

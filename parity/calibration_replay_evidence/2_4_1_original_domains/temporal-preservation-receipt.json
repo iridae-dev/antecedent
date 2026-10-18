@@ -1,0 +1,10 @@
+{
+  "source": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4",
+  "source_method": "actual original gate at clean original source",
+  "numeric_draws_repeated": 0,
+  "all_three_points_terminal": true,
+  "original_capture_sha256": "617f2ef2d2f3bcfc8888232d051987a7af5332a32f3a4c7591715a4fcb0fb1d3",
+  "original_execution_sha256": "b50b3cea4752533789e8edeaf12698476f687ab67856f68f5cb97c2a85eb75ea",
+  "dispatcher_terminated_after_all_temporal_children_completed": 32957,
+  "time_ns": 1792347185809270000
+}

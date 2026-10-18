@@ -1,0 +1,11 @@
+    Finished `release` profile [optimized] target(s) in 0.13s
+     Running tests/calibration_posterior_draws.rs (/private/tmp/antecedent-attestation-target/release/deps/calibration_posterior_draws-5057c12e9f77627a)
+
+running 1 test
+calibration posterior_draws_2000_rows_1000_l95: nominal=0.95 coverage=0.949 mcse=0.0049 band=[0.935, 0.965] floor=0.940 ceiling=0.960 mean_length=0.2845 (1897/2000 covered, 0 skipped)
+calibration-record {"bound_replicates":2000,"boundary":false,"dependence":"iid","dgp":"crates/antecedent/tests/common/static_dgp.rs::bayesian_linear_scm","estimator":"bayesian.gcomp","functional":"all_observed.mean","graph_class":"Dag","grid_point":1,"id":"cov.average_effect.dag.bayesian.posterior_quantile.l95.posterior_draws_2000_rows_1000_l95","identification":"point","inference":"Bayesian","interval_method":"posterior_quantile","mcse":0.004942051699446293,"measured_at":"2f7d56662e4e86014f907e577b7c854c74c831d4","modality":"tabular","n_max":1000,"n_min":1000,"nominal":0.95,"observed":0.9485,"posterior":"laplace.gaussian_identity.prior_scale=10","posterior_draws_min":2000,"query":"AverageEffect","replicates":2000,"replicates_min":0,"role":"gated","se_kind":"","structure":"fixed","test":"crates/antecedent/tests/calibration_posterior_draws.rs::posterior_draws_2000_rows_1000_l95","unidentified_mass_max":0.0}
+test posterior_draws_2000_rows_1000_l95 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.79s
+
+calibration-measured-at 2f7d56662e4e86014f907e577b7c854c74c831d4
