@@ -38,6 +38,21 @@
 # dependency change is.
 
 # ---- estimator implementations (longer path wins over core src/) -----------
+# Discovered-transport adapters have no execution path from fixed/catalog transport.
+# Their current measured caller is the explicitly named DiscoveredTransport procedure.
+# PCMCI+ also supplies JPCMCI+/RPCMCI and orientation-stability helpers; their
+# eventual measurement identities must name these algorithms, never borrow PC/PCMCI evidence.
+# The shared selective/contract.rs remains core: static PC also executes that file.
+# Reviewed migration: current derived tags may be added to frozen70a71dd33 records;
+# collector --retag retains their numerical SHA and historical surface_list_blob.
+# test_calibration_dependency_facets.py checks that migration and current callers.
+estimator.discovered_transport crates/antecedent/src/analysis/discovered_transport_estimate.rs
+estimator.discovered_transport crates/antecedent/src/analysis/discovered_transport_temporal.rs
+key estimator.discovered_transport query DiscoveredTransport
+estimator.pcmci_plus crates/antecedent-discovery/src/pcmci_plus.rs
+key estimator.pcmci_plus query DiscoveredTransport
+key estimator.pcmci_plus estimator *pcmci_plus* *jpcmci* *rpcmci* *orientation_stability*
+key estimator.pcmci_plus functional *pcmci_plus* *jpcmci* *rpcmci* *orientation_stability*
 # Sparse-table null-reference provider is used by the declared discovered-transport
 # procedure. Existing dense GSquared and unrelated stats consumers are unchanged.
 estimator.discrete_ci crates/antecedent-stats/src/ci/sparse_discrete.rs
