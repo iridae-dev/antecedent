@@ -111,6 +111,13 @@ level; every no-path member is then explicitly rejected. All other members remai
 and a point still requires agreement. This does not force an adjacency or modify
 the original discovered report.
 
+The proof also retains `estimation_strategy`. The current
+`declared_selection_joint_pretreatment_standardization` strategy preserves
+declared population-shift variables and prefers their joint standardization set
+only when every member's pretreatment and identification checks permit it.
+This depends on structure and supplied evidence, not fitted effect values.
+Missing legacy strategy fields retain the original minimal-standardizer identity.
+
 The refinement artifact retains the exact tested assignment/outcome rows, their
 canonical source identity, contingency counts, p-value, level, original member
 indices, every original graph and structural verdict, and every retention decision.
@@ -150,8 +157,11 @@ is `not_bound_to_this_execution` until the complete-procedure design in
 identification and estimation in every replicate) is measured. A temporal estimate's interval (rows of overlapping windows are dependent) is a circular
 block bootstrap of each table's rows, with `block_length` rows per block (default twice
 the window span); it is conditional on the class, labelled `not_bound_to_this_execution`,
-and its complete-procedure design (`discovered_temporal_transport_contrast_complete_procedure_coverage`)
-is unmeasured. Python: `transport.discovered.{transport_across_temporal_class,
+and its complete-procedure design has a separately measured three-variable scope
+(`discovered_temporal_transport_contrast_complete_procedure_coverage`) with the
+full allowed-edge Holm discovery protocol. This does not turn an arbitrary raw
+class-conditional interval into an attested complete-procedure result; static
+trial refinement and the six-variable procedure have distinct identities. Python: `transport.discovered.{transport_across_temporal_class,
 transport_temporal_graph, estimate_discovered_temporal_transport}`.
 
 ## Per-population discovery
@@ -214,7 +224,7 @@ colliders), lists the other unresolved edges without completing them, and report
 | Effect not identified in some member | `class_not_identified` | Resolve the marks that separate the members, or declare the graph |
 | Evidence that cannot supply a formula's factor | `member_not_estimable` | Supply covering evidence |
 | Unfinished enumeration | `class_enumeration_partial` | Raise the member bound and completion budget |
-| Tables not integer-coded or complete, a series shorter than its window, an interval on a temporal request | `evidence_invalid` | Supply complete integer-coded tables; no interval for a temporal request |
+| Tables not integer-coded or complete, a series shorter than its window | `evidence_invalid` | Supply complete integer-coded tables and valid temporal windows/block-bootstrap settings |
 | Pooled search over stacked populations | `selective_discovery.pooled_population_search` | Use the pooled algorithm directly and declare cross-population assumptions |
 | Content-identical populations | `selective_discovery.pooled_population_data` | Supply disjoint population rows |
 | Interval after reusing the same rows to select and analyse | `cell_not_licensed` (`selective_discovery.downstream_interval_not_licensed`) | Split the rows and use `sample_split_effect` |

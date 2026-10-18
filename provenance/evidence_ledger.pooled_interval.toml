@@ -1,5 +1,5 @@
 feature_id = "evidence_ledger.pooled_interval"
-implementation_crate = "antecedent-contract"
+implementation_crate = "antecedent"
 source_translation = false
 copied_code = false
 copied_comments = false
@@ -10,8 +10,8 @@ papers = [
   { title = "t-Statistic Based Correlation and Heterogeneity Robust Inference (Ibragimov and Muller, 2010)", doi = "10.1198/jbes.2009.08046", sections = ["2.1: conservative Student t test for independent Gaussian estimates with common marginal mean and unequal unknown variances"] },
 ]
 implementation_deviations = [
-  "EqualStudyGaussian uses equal study weights and study-level Student t uncertainty, avoiding random estimated-variance precision weights. Independent Gaussian random effects enter the marginal study variances. A common marginal mean is required; arbitrary unequal fixed study means are not covered. This new method identity has no inherited Wald/HKSJ calibration and remains pending formal validation.",
-  "Implements the Wald z interval of the fixed-effect pooled mean and the Hartung-Knapp-Sidik-Jonkman t interval of the random-effects mean in the facade; each is reported only through a currently attesting coverage record of the whole method, and refuses cell_not_licensed otherwise.",
+  "EqualStudyGaussian uses equal study weights and study-level Student t uncertainty, avoiding random estimated-variance precision weights. Independent Gaussian random effects enter the marginal study variances. A common marginal mean is required; arbitrary unequal fixed study means are not covered. This distinct method owns its separately collected known-law Gaussian-study records; no Wald/HKSJ calibration is inherited.",
+  "Implements the Wald z interval of the fixed-effect pooled mean and the Hartung-Knapp-Sidik-Jonkman t interval of the random-effects mean in the facade; each is reported only through a currently attesting coverage record of the whole method, and refuses cell_not_licensed otherwise. HKSJ publication is restricted to the baseline-family measured counts 20/25/30; historical strong-family 5/15 candidates and identities remain replayable without widening that publication scope.",
 ]
 upstream_implementations_observed = []
 test_sources = [

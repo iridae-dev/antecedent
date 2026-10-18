@@ -10,7 +10,7 @@ python -m pip install "antecedent>=2.4.1,<2.5" pandas matplotlib ipykernel jupyt
 ```
 <!-- generated:release:python-pin:end -->
 
-Before the release is published, install from the 2.4.1 checkout using [installation](../docs/installation.md#testing-241-before-publication). Select the notebook kernel for your installed environment and restart after upgrading an imported native extension.
+For a source build, follow [installation](../docs/installation.md#build-from-source). Select the notebook kernel for your installed environment and restart after upgrading an imported native extension.
 
 ```bash
 python examples/python/analysis_workflow.py

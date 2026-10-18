@@ -99,13 +99,37 @@ as the independent primary sampling units.
   conservative bound for equal weights) and the cluster score sandwich of the weighted change
   scores.
 
-**Intervals.** A weighted interval is another construction than its unweighted namesake, so no
-record measured on unweighted rows applies: the calibration key's functional label carries
-`weights=sampling`. The designs that measure each weighted interval
-(`weighted_interval_calibration`, ignored tests registered in `scripts/gate_calibration.sh`)
-score the candidate `estimate ± 1.96 se` against a simulated super-population; until a record
-measures them the routes report standard errors without a calibrated interval. Weighted
-matching, distance matching, the GLM, DML, DR-learner and the in-sample AIPW constructions each have a design in the same file.
+**Intervals.** Weighted and unweighted constructions have separate calibration
+keys. A sampling-weight declaration or raw standard error does not carry an
+interval license by itself. The exact estimator, population target, variance,
+dependence, reference distribution and functional must match a current record.
+
+The published scalar endpoint uses its reported analytic reference: normal
+when no positive reference degrees of freedom are supplied, Student when they
+are. Weighted cluster AIPW, DML and DR-learner records retain the actual Student
+reference. The ordinary raw fits and their normal-reference recipes remain
+distinct from the opt-in model methods.
+
+Rust exposes separate interval producers:
+
+- `PropensityWeighting::population_linear_score_interval`: balanced positive
+  population weights and independent homoskedastic Gaussian arm-linear outcomes,
+  with conditional outcome-noise and random-target uncertainty in the population
+  score. `population_score_interval` has a separately measured cluster scope;
+  that evidence does not license its unmeasured iid working-quadratic variant.
+- `AipwAte`, `DmlAte` and `DrLearner::population_linear_interval`: independent
+  homoskedastic Gaussian arm-linear outcomes, complete training-fit uncertainty
+  and the declared projection/ridge correction.
+- `AipwAte::population_linear_atc_interval`: a control-population target under
+  arm-linear means, with complete treated-training HC3 noise variance and target
+  heterogeneity; this is a distinct heteroskedastic asymptotic construction.
+
+Each method owns its exact collected records and assumptions. The explicit
+model intervals do not replace the default robust fit, and this list does not
+claim an equivalent Python method. Matching's opt-in population-linear variance
+likewise has its own donor-reuse and shared-outcome-fit construction. The
+measurement suite is `weighted_interval_calibration`; its recipes are not all
+`estimate ± 1.96 se`.
 
 ## Effective sample size
 
@@ -151,10 +175,10 @@ a linear effect on the analysis part with those weights as sampling weights, adj
 declared set (typically the treatment's parents in the discovered graph). Its estimand is the
 effect in the weighted population the analysis part represents, **conditional on the selected
 graph** (discovery saw none of these rows); weights are normalized to mean one over the rows
-used; the standard error is the sampling-weighted HC1 sandwich or the cluster sandwich over
+used; the standard error defaults to the sampling-weighted HC3 sandwich (explicit HC1 remains available for historical replay), or the cluster sandwich over
 declared analysis-part clusters; rows of weight zero are excluded and counted; and the Kish
 size is reported. The result carries the binding that ties it to the split receipt and the
-discovery. No interval is published.
+discovery. Its interval method returns a computed Student interval labelled unmeasured; whole-procedure records belong to the exact declared discovery/split/variance recipe and do not supply automatic calibration authority to an arbitrary split.
 
 In Python, estimate on the analysis part with `weights=split.analysis_weights`:
 
