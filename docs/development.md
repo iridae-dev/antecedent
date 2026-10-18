@@ -261,6 +261,10 @@ mode.
 
 ### Measuring
 
+See [calibration runtime and evidence reuse](calibration-runtime.md) for the
+measured runtime audit, scheduling fixes, prefix-extension limits and shared
+resource budgeting.
+
 One command, from a clean checkout of the commit you are about to push:
 
 ```bash
