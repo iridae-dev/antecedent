@@ -3534,9 +3534,15 @@ def self_test() -> int:
         if expected is not None:
             expected = set(expected)
             if rec.get("query") == "DiscoveredTransport":
-                expected |= {"estimator.discovered_transport", "estimator.discrete_ci"}
-                if "pcmci_plus" in str(rec.get("functional", "")):
-                    expected.add("estimator.pcmci_plus")
+                # The surface deliberately carries the conservative PCMCI+
+                # query dependency for static and temporal discovered records.
+                expected |= {
+                    "estimator.discovered_transport",
+                    "estimator.discrete_ci",
+                    "estimator.pcmci_plus",
+                }
+                if "trial_compatibility" in str(rec.get("functional", "")):
+                    expected.add("estimator.transport_trial_compatibility")
         if rec.get("interval_method") == "population_linear_aipw_score":
             expected = {
                 "estimator.aipw" if est == "aipw" else "estimator.learner",
