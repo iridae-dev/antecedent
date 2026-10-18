@@ -121,6 +121,20 @@ class ClosureTest(unittest.TestCase):
         self.assertEqual([c["package"] for c in manifest.scale_cases(data, self.root)], ["antecedent-c"])
         self.assertEqual(manifest.scale_cases(data, self.root)[0]["runtime_seconds"], 1)
 
+    def test_scale_case_uses_its_actual_suite_target_and_module_filter(self) -> None:
+        source = self.put("crates/c/tests/i.rs", '#[test]\n#[ignore]\nfn big() { assert!(true); }\n')
+        cargo = self.root / "crates/c/Cargo.toml"
+        cargo.write_text('[package]\nname = "antecedent-c"\nautotests = false\n', encoding="utf-8")
+        self.put("crates/c/tests/suite_01.rs", '#[path = "i.rs"]\nmod i;\n')
+        data = {"case": [case("big_case", evidence={"status": "bound", "test": f"{source}::big"})]}
+        actual = manifest.scale_cases(data, self.root)[0]
+        self.assertEqual((actual["target"], actual["test"]), ("suite_01", "i::big"))
+        # An explicitly declared standalone target takes precedence over a suite include.
+        with cargo.open("a", encoding="utf-8") as stream:
+            stream.write('[[test]]\nname = "standalone"\npath = "tests/i.rs"\n')
+        actual = manifest.scale_cases(data, self.root)[0]
+        self.assertEqual((actual["target"], actual["test"]), ("standalone", "big"))
+
 
 class StatisticalCalibrationKindTest(unittest.TestCase):
     def test_statistical_test_requires_explicit_type_i_and_inapplicable_width(self) -> None:

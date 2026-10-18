@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from _repo import REPO_ROOT as ROOT
+from _repo import test_target
 
 MANIFEST = ROOT / "parity/acceptance_manifest.toml"
 
@@ -418,11 +419,15 @@ def scale_cases(data: dict[str, Any], root: Path = ROOT) -> list[dict[str, Any]]
         manifest = tomllib.loads(
             (root / "crates" / target["crate"] / "Cargo.toml").read_text(encoding="utf-8")
         )
+        cargo_target = target["target"]
+        if cargo_target is not None:
+            cargo_target, prefix = test_target(target["crate"], cargo_target, root)
+            name = prefix + name
         cases.append(
             {
                 "case": case["id"],
                 "package": manifest["package"]["name"],
-                "target": target["target"],
+                "target": cargo_target,
                 "test": name,
                 "runtime_seconds": case["targets"]["runtime_seconds"],
                 "memory_bytes": case["targets"]["memory_bytes"],
