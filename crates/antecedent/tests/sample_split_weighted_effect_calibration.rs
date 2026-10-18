@@ -2,13 +2,19 @@
 //! population, after discovery on a row split.
 //!
 //! The procedure under test is the facade's weighted construction
-//! (`antecedent::analysis::sample_split_analysis`): a seeded half split of the participants,
+//! (`antecedent::analysis::sample_split_analysis`): a seeded split allocating three quarters
+//! of participants to discovery,
 //! PC with the weighted partial-correlation test (`alpha = 0.01`, conditioning-set size and
-//! parent limit four) on the discovery half under that half's weights, acceptance of the class
-//! when the search finished and every edge incident to the treatment is oriented, and the
+//! parent limit four) on the discovery rows under their weights, acceptance when the search
+//! finished and treatment incident orientations agree in every conflict-free resolution, and the
 //! sampling-weighted least-squares effect of the treatment given its discovered parents on the
-//! analysis half, with the Student interval at the effective sample size
+//! held-out analysis quarter, with the Student interval at the effective sample size
 //! (`SplitAnalysisEffect::interval`, level 0.95).
+//!
+//! Three quarters for discovery reduces confounder-selection error under unequal survey
+//! weights; analysis remains independent of discovery. Conflict resolution is exhaustive and
+//! bounded, and refuses when the treatment neighbourhood is not invariant. Version one
+//! (the half split with global conflict refusal) remains available only for exact legacy replay.
 //!
 //! # Design
 //!
@@ -19,7 +25,8 @@
 //! alone. Weights independent of every outcome leave the weighted population's total effect
 //! equal to the structural total effect, which is the truth: the sum over directed paths of the
 //! products of coefficients, computed from the model and never from the rows. A replicate whose
-//! discovery is refused (an unfinished search, conflicting orientations, a parent-limit
+//! discovery is refused (an unfinished search, treatment orientations dependent on conflicts,
+//! a parent-limit
 //! removal, an undirected edge at the treatment, the outcome oriented into the treatment)
 //! reports no interval and is not scored as covered or missed: coverage is the coverage of the
 //! intervals the procedure reports, and the rate at which it reports is gated separately. (A
@@ -53,8 +60,13 @@ use antecedent::analysis::sample_split_analysis::{
 };
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{OwnedColumnarStorage, TableView, TabularData};
-use antecedent_discovery::selective::{CiTestSpec, StaticAlgorithm, StaticDiscoveryContract};
-use antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set;
+use antecedent_discovery::selective::{
+    CiTestSpec, NativeResult, StaticAlgorithm, StaticDiscoveryContract,
+};
+use antecedent_io::measured_inference::split_parent_set_effect::{
+    ConflictEvidence, MAX_CONFLICTING_COLLIDERS, treatment_parent_set,
+    treatment_parent_set_under_conflicts,
+};
 use common::calibration::{
     Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
     n_sim, stream_seed,
@@ -78,7 +90,25 @@ fn v(index: usize) -> VariableId {
     VariableId::from_raw(u32::try_from(index).expect("small index"))
 }
 
-fn construction() -> Construction {
+const CURRENT_PROTOCOL: &str = "discovery_fraction_0_75.conflict_resolution_treatment_invariant";
+
+fn protocol_version() -> u32 {
+    static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *VERSION.get_or_init(|| {
+        let raw =
+            std::env::var("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL").unwrap_or_else(|_| "2".into());
+        raw.parse::<u32>()
+            .ok()
+            .filter(|version| matches!(version, 1 | 2))
+            .unwrap_or_else(|| panic!("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL={raw}: want 1 or 2"))
+    })
+}
+
+fn discovery_fraction(version: u32) -> f64 {
+    if version == 1 { 0.5 } else { 0.75 }
+}
+
+fn construction_for_protocol(version: u32) -> Construction {
     Construction {
         query: "SampleSplitWeightedEffect".into(),
         graph_class: "Cpdag".into(),
@@ -90,7 +120,11 @@ fn construction() -> Construction {
         se_kind: "hc1_sampling_weighted".into(),
         dependence: "iid".into(),
         posterior: String::new(),
-        functional: "weighted_population_total_effect".into(),
+        functional: if version == 1 {
+            "weighted_population_total_effect".into()
+        } else {
+            format!("weighted_population_total_effect.{CURRENT_PROTOCOL}")
+        },
         identification: "discovered_treatment_parent_set".into(),
         reported_level: REPORTED_LEVEL,
     }
@@ -145,22 +179,39 @@ fn replicate(rep: u64) -> Option<((f64, f64), f64)> {
     contract.constraints.alpha = ALPHA;
     contract.constraints.max_cond_size = MAX_DEGREE;
     contract.constraints.max_parents = Some(MAX_DEGREE);
-    let rule = SplitRule::SeededPermutation { seed: stream_seed(seed, 5), discovery_fraction: 0.5 };
+    let rule = SplitRule::SeededPermutation {
+        seed: stream_seed(seed, 5),
+        discovery_fraction: discovery_fraction(protocol_version()),
+    };
     let split = discover_on_split(&contract, &table, rule, &ctx).ok()?;
 
     let outcome = split.outcome();
     if outcome.search_incomplete
-        || outcome.orientation_conflict
         || outcome.diagnostics.iter().any(|(code, _)| code.ends_with(PARENT_LIMIT_DIAGNOSTIC))
     {
         return None;
     }
-    let neighbourhood = treatment_parent_set(
-        &outcome.structure,
-        &scm.names,
-        u32::try_from(scm.treatment).ok()?,
-        u32::try_from(scm.outcome).ok()?,
-    )
+    let treatment = u32::try_from(scm.treatment).ok()?;
+    let response = u32::try_from(scm.outcome).ok()?;
+    let neighbourhood = match (&outcome.native, outcome.orientation_conflict) {
+        (_, false) => treatment_parent_set(&outcome.structure, &scm.names, treatment, response),
+        (NativeResult::StaticCpdag(native), true) if protocol_version() == 2 => {
+            treatment_parent_set_under_conflicts(
+                &outcome.structure,
+                &ConflictEvidence {
+                    graph: &native.evidence.graph,
+                    sepsets: &native.sepsets,
+                    constraints: &contract.constraints,
+                    variables: &contract.variables,
+                },
+                &scm.names,
+                treatment,
+                response,
+                MAX_CONFLICTING_COLLIDERS,
+            )
+        }
+        (_, true) => return None,
+    }
     .ok()?;
     let request = AnalysisEffectRequest {
         treatment: v(scm.treatment),
@@ -181,6 +232,7 @@ fn replicate(rep: u64) -> Option<((f64, f64), f64)> {
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn weighted_split_effect_interval_calibrated() {
     let rows = grid_n(BASE_PARTICIPANTS);
+    eprintln!("calibration-protocol weighted_split_source_version={}", protocol_version());
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test: "weighted_split_effect_interval_calibrated",
@@ -189,6 +241,9 @@ fn weighted_split_effect_interval_calibrated() {
         },
         REPORTED_LEVEL,
     );
+    if protocol_version() == 2 {
+        tally = tally.labelled(CURRENT_PROTOCOL);
+    }
     let mut widths = Vec::new();
     let mut magnitudes = Vec::new();
     let mut reported = 0_u32;
@@ -196,7 +251,7 @@ fn weighted_split_effect_interval_calibrated() {
     let total = u32::try_from(runs.len()).expect("replicate count fits u32");
     for run in runs {
         tally.bind(
-            &construction(),
+            &construction_for_protocol(protocol_version()),
             ScopeFacts {
                 row_count: rows as u64,
                 replicates_ok: None,
@@ -238,4 +293,18 @@ fn weighted_split_effect_interval_calibrated() {
         let covered = f64::from(tally.covered()) / f64::from(tally.attempts().max(1));
         assert!(covered >= COVERAGE_FLOOR, "coverage {covered:.3} below the frozen floor");
     }
+}
+
+#[test]
+fn weighted_split_protocol_preserves_legacy_identity_and_declares_independent_allocation() {
+    let legacy = construction_for_protocol(1);
+    let current = construction_for_protocol(2);
+    assert_eq!(discovery_fraction(1), 0.5);
+    assert_eq!(discovery_fraction(2), 0.75);
+    assert_eq!(legacy.functional, "weighted_population_total_effect");
+    assert_eq!(current.functional, format!("{}.{}", legacy.functional, CURRENT_PROTOCOL));
+    assert_eq!(current.interval_method, legacy.interval_method);
+    assert_eq!(current.se_kind, legacy.se_kind);
+    assert_eq!(current.estimator, legacy.estimator);
+    assert_eq!(current.reported_level, legacy.reported_level);
 }
