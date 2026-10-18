@@ -4,7 +4,7 @@
   "review_scope": "Frozen coverage compatibility hypotheses; every level/label is a separate cell. Labels and procedures are fixed before their current prospective validation outcomes; method revisions informed by older data require an independent registered domain and a distinct cumulative hypothesis slot.",
   "source_possible_cap_invariant": "Every group/grid has at most256 source-possible asserted cells across all branch outcomes and registered looks, including recordless, conditionally empty and alternate-confidence tallies. Runtime emitted-count enforcement only complements this source review.",
   "transitive_provider_review": "Caller-provided labels, target names and levels were reviewed at fixed test/query construction sites. Imported functional enums and numeric helper values describe fixed algorithms; none select a coverage hypothesis from the current prospective validation outcomes. Older development evidence may motivate a separately allocated method revision before its independent validation. The direct constructor/label footprint and named reviews are an audited invariant, not an automated transitive dataflow proof.",
-  "prospective_validation_domain": "release_2_4_1_weighted_hc3_validation_v1",
+  "prospective_validation_domain": "release_2_4_1_pag_trial_shift_validation_v1",
   "historical_cardinality_audit": {
     "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
     "group": "temporal_response_calibration",
@@ -899,12 +899,12 @@
     },
     {
       "path": "crates/antecedent/tests/discovered_transport_calibration.rs",
-      "sha256": "1fcbd94a464dfcf515a02125ab0cedf2c74be65e8ace254fc0131eb77edbbf6a",
+      "sha256": "b62816c4b949311935cba3146d31ad9351dc50279a2a681b7987ca70825770e6",
       "labelled_calls": [
         {
           "line": 325,
           "call": ".labelled(",
-          "argument": "\"fci_pair_cutoff_0_05_over_28_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_v1\","
+          "argument": "\"fci_pair_cutoff_0_05_over_28_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization\","
         },
         {
           "line": 442,
