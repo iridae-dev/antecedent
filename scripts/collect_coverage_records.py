@@ -586,16 +586,48 @@ def write_gate_ledger(rows: dict[str, dict], keep: dict[str, dict] | None = None
     write_text(GATES, "\n".join(lines))
 
 
+def passing_group_logs(logs: list[Path], sha: str) -> list[Path]:
+    """Harvest only complete passing groups; never recover selected grid points."""
+    by_group: dict[str, list[Path]] = {}
+    for log in logs:
+        stem = log.name.removesuffix(".log").removesuffix(".recheck").removesuffix(".confirm")
+        name = re.sub(r"\.p[012]$", "", stem)
+        by_group.setdefault(name, []).append(log)
+    accepted = []
+    for group, members in sorted(by_group.items()):
+        reasons = []
+        points = {int(m.group(1)) for log in members
+                  if (m := re.search(r"\.p([012])\.log$", log.name))}
+        if points and points != {0, 1, 2}:
+            reasons.append(f"incomplete sample grid: {sorted(points)}")
+        if not any(not log.name.endswith((".recheck.log", ".confirm.log")) for log in members):
+            reasons.append("no first-pass log")
+        try:
+            check_logs(members, sha)
+            merged_records(members, sha=sha)
+        except (SystemExit, ValueError, KeyError) as error:
+            reasons.append(str(error))
+        if reasons:
+            print(f"passing-only skipped whole group {group}: {'; '.join(reasons)}")
+        else:
+            accepted.extend(members)
+    return sorted(accepted)
+
+
 def load_records(
     sha: str,
     log_dir: Path = LOG_DIR,
     smoke: bool = False,
     verify_logs: bool = True,
     allow_gate_only: bool = False,
+    selected_logs: list[Path] | None = None,
+    allow_empty: bool = False,
 ) -> dict[str, dict]:
     if not log_dir.is_dir():
         raise SystemExit(f"missing {log_dir}: run scripts/gate_calibration.sh first")
-    logs = sorted(log_dir.glob("*.log"))
+    logs = sorted(log_dir.glob("*.log")) if selected_logs is None else selected_logs
+    if not logs and allow_empty:
+        return {}
     if verify_logs and not smoke:
         logs = drop_failed_confirmations(logs)
         check_logs(logs, sha)
@@ -922,11 +954,18 @@ def sync_estimator_rows(records: dict[str, dict]) -> int:
     return changed
 
 
-def append_attested_records(existing: dict[str, dict], measured: dict[str, dict]) -> dict[str, dict]:
-    """Add only new record IDs, preserving old rows and their original SHAs."""
-    collisions = sorted(existing.keys() & measured.keys())
+def append_attested_records(
+    existing: dict[str, dict], measured: dict[str, dict], *,
+    mode: str = "--append-attested", replace_ids: list[str] | None = None,
+) -> dict[str, dict]:
+    """Preserve old evidence except explicitly named, freshly measured records."""
+    allowed = set(replace_ids or [])
+    invalid = sorted(allowed - (existing.keys() & measured.keys()))
+    if invalid:
+        raise SystemExit("--replace-record requires each ID in both existing and new evidence:\n  " + "\n  ".join(invalid))
+    collisions = sorted((existing.keys() & measured.keys()) - allowed)
     if collisions:
-        raise SystemExit("--append-attested refuses existing record ids:\n  " + "\n  ".join(collisions))
+        raise SystemExit(f"{mode} refuses existing record ids:\n  " + "\n  ".join(collisions))
     return {**existing, **measured}
 
 
@@ -950,6 +989,18 @@ def main() -> int:
         "--no-cells",
         action="store_true",
         help="do not rewrite support_licensed.toml / estimate.toml",
+    )
+    parser.add_argument(
+        "--keep-existing", action="store_true",
+        help="append only new record IDs, preserving existing rows and gate evidence even when stale",
+    )
+    parser.add_argument(
+        "--passing-only", action="store_true",
+        help="with --keep-existing, harvest only whole completed passing groups; retain failures in logs",
+    )
+    parser.add_argument(
+        "--replace-record", action="append", default=[], metavar="ID",
+        help="with --keep-existing, permit fresh evidence to replace this existing record (repeatable)",
     )
     parser.add_argument(
         "--keep-attested",
@@ -977,6 +1028,12 @@ def main() -> int:
     parser.add_argument("--log-dir", type=Path, default=LOG_DIR, help="logs to collect")
     parser.add_argument("--out", type=Path, help="scratch registry path (with --smoke only)")
     args = parser.parse_args()
+    if args.passing_only and not args.keep_existing:
+        raise SystemExit("--passing-only requires --keep-existing")
+    if args.replace_record and not args.keep_existing:
+        raise SystemExit("--replace-record requires --keep-existing")
+    if args.keep_existing and (args.keep_attested or args.append_attested or args.retag or args.allow_removal):
+        raise SystemExit("--keep-existing forbids --keep-attested/--append-attested/--retag/--allow-removal")
     if args.append_attested and (args.keep_attested or args.no_cells or not args.only_cell):
         raise SystemExit("--append-attested requires --only-cell and forbids --keep-attested/--no-cells")
     if args.only_cell and not args.append_attested:
@@ -1013,7 +1070,11 @@ def main() -> int:
     ).strip()
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise SystemExit(f"calibration SHA must be 40 hex, got {sha!r}")
-    records = load_records(sha, args.log_dir, allow_gate_only=args.keep_attested)
+    collection_logs = sorted(args.log_dir.glob("*.log"))
+    if args.passing_only:
+        collection_logs = passing_group_logs(collection_logs, sha)
+    records = load_records(sha, args.log_dir, allow_gate_only=args.keep_attested or args.keep_existing,
+                           selected_logs=collection_logs, allow_empty=args.passing_only)
     if not args.sha:
         tag_facets(records)
         surface = facets.load_surface()
@@ -1032,6 +1093,19 @@ def main() -> int:
         tag_facets(records)
         existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
         records = append_attested_records(existing, records)
+    elif args.keep_existing:
+        existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
+        replacements = args.replace_record
+        if args.passing_only:
+            unknown = set(replacements) - existing.keys()
+            if unknown:
+                raise SystemExit("--replace-record does not exist in old evidence: " + ", ".join(sorted(unknown)))
+            deferred = set(replacements) - records.keys()
+            if deferred:
+                print(f"passing-only deferred {len(deferred)} replacements whose groups did not complete successfully")
+            replacements = [rid for rid in replacements if rid in records]
+        records = append_attested_records(existing, records, mode="--keep-existing", replace_ids=replacements)
+        print(f"preserved {len(existing) - len(set(replacements))} existing records; replaced {len(set(replacements))} explicitly named records with fresh evidence")
     elif not args.keep_attested:
         dropped = sorted(
             {rec["id"] for rec in facets.load_records(OUT)} - set(records) - set(args.allow_removal)
@@ -1047,7 +1121,7 @@ def main() -> int:
         kept = keep_attested(records)
         print(f"kept {len(kept)} attested records the logs did not re-measure")
         records = {**kept, **records}
-    write_registry(records, retag=not args.append_attested)
+    write_registry(records, retag=not (args.append_attested or args.keep_existing))
     print(f"wrote {len(records)} records to {OUT.relative_to(ROOT)} at {sha}")
     if args.append_attested:
         cells = sync_licensed_cells(records, only_cells)
@@ -1056,11 +1130,11 @@ def main() -> int:
         return 0
     previous = (
         {g["group"]: g for g in tomllib.loads(read_text(GATES)).get("gate", [])}
-        if args.keep_attested and GATES.is_file()
+        if (args.keep_attested or args.keep_existing) and GATES.is_file()
         else None
     )
     write_gate_ledger(
-        gate_ledger(sorted(args.log_dir.glob("*.log")), sha),
+        gate_ledger(collection_logs, sha),
         previous,
     )
     print(f"wrote the record-less group ledger to {GATES.relative_to(ROOT)}")

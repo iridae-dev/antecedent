@@ -62,6 +62,24 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         with patch.dict(sys.modules, {"calibration_facets": facets}):
             self.assertEqual(groups.select([self.candidates()[0], self.candidates()[5]], False).groups, [])
 
+    def test_missing_only_preserves_stale_records_and_skips_drift_and_recordless_gates(self) -> None:
+        records = [{"id": "stale", "test": "crates/antecedent/tests/facade_current.rs::existing"}]
+        facets = SimpleNamespace(load_records=lambda: records)
+        ledger = self.root / "gates.toml"
+        ledger.write_text('[[gate]]\ngroup="antecedent-prob__sbc.p0"\npassed=1\n[[gate]]\ngroup="antecedent-prob__sbc.p1"\npassed=1\n[[gate]]\ngroup="antecedent-prob__sbc.p2"\npassed=1\n[[gate]]\ngroup="external_gate.p0"\npassed=1\n[[gate]]\ngroup="external_gate.p1"\npassed=1\n[[gate]]\ngroup="external_gate.p2"\npassed=1\n')
+        with patch.dict(sys.modules, {"calibration_facets": facets}), patch.object(groups, "GATE_REGISTRY", ledger):
+            selection = groups.select(self.candidates(), False, missing_only=True)
+        self.assertEqual([g.index for g in selection.groups], [2, 3, 4, 5])
+        narrowed = groups.filter_selection(selection, ["nested_*: missing"])
+        self.assertEqual([g.index for g in narrowed.groups], [3, 4])
+        with self.assertRaisesRegex(SystemExit, "matches no selected group"):
+            groups.filter_selection(selection, ["facade_current: existing"])
+
+    def test_package_label_matches_sampled_transport_integration_records(self) -> None:
+        record = {"test": "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_mediation_covariate_shift"}
+        self.assertTrue(groups.measures("antecedent-estimate", "sampled_mediation_covariate_shift", record))
+        self.assertFalse(groups.measures("antecedent-estimate", "sampled_latent_district", record))
+
     def test_prebuild_groups_actual_package_targets_and_retains_lib_commands(self) -> None:
         candidates = self.candidates() + [groups.Group(8, "nested_bayesian: another", False, True)]
         with patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:
@@ -89,6 +107,51 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         with patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=1)) as run:
             self.assertEqual(groups.prebuild(self.candidates()), 1)
         self.assertEqual(run.call_count, 1)
+
+
+class EvidenceArchiveTest(unittest.TestCase):
+    def test_two_runs_keep_evidence_and_console_in_unique_sha_archives(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            logs, consoles, archive = (root / name for name in ("records", "console", "archive"))
+            sha = "a" * 40
+            with patch.object(groups, "LOG_DIR", logs), patch.object(groups, "CONSOLE_DIR", consoles), patch.object(groups, "ARCHIVE_DIR", archive):
+                for index in range(2):
+                    logs.mkdir()
+                    consoles.mkdir()
+                    (logs / "design.log").write_text(f"result {index}\ncalibration-measured-at {sha}\n")
+                    (logs / "design.tallies.jsonl").write_text(f"tally {index}\n")
+                    (consoles / "design.txt").write_text(f"console {index}\n")
+                    groups.archive_logs()
+                runs = list((archive / sha).iterdir())
+                self.assertEqual(len(runs), 2)
+                self.assertEqual({(p / "records/design.tallies.jsonl").read_text() for p in runs}, {"tally 0\n", "tally 1\n"})
+                self.assertEqual({(p / "console/design.txt").read_text() for p in runs}, {"console 0\n", "console 1\n"})
+                self.assertFalse(logs.exists())
+
+    def test_explicit_replicate_budget_reaches_only_selected_measurement(self) -> None:
+        group = groups.Group(1, "suite: selected", False, False)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(groups, "FIRST_NSIM", 20000), patch.object(groups, "RECHECK_NSIM", 20001), patch.object(groups, "last_durations", return_value={}), patch.object(groups, "archive_logs"), patch.object(groups, "prebuild", return_value=0), patch.object(groups.subprocess, "check_output", return_value="a" * 40), patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, patch.object(groups, "LOG_DIR", root / "records"), patch.object(groups, "CONSOLE_DIR", root / "console"), patch.object(groups, "TIMINGS", root / "times.tsv"):
+                self.assertEqual(groups.run(groups.Selection([group], 0, {1: "selected"}), 2, 1), 0)
+                self.assertEqual(run.call_count, 1)
+                env = run.call_args.kwargs["env"]
+                self.assertEqual(env["ANTECEDENT_CALIBRATION_NSIM"], "20000")
+                self.assertEqual(env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"], "20001")
+                self.assertEqual(env["ANTECEDENT_CALIBRATION_SHARD"], "0/2")
+
+    def test_run_preserves_historical_longest_first_without_current_pilot(self) -> None:
+        short = groups.Group(1, "suite: short", False, False)
+        long = groups.Group(2, "suite: long", False, False)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(groups, "last_durations", return_value={short.label: 1, long.label: 100}), patch.object(groups, "pilot_timings", return_value={}), patch.object(groups, "archive_logs"), patch.object(groups, "prebuild", return_value=0), patch.object(groups.subprocess, "check_output", return_value="a" * 40), patch.object(groups, "LOG_DIR", root / "records"), patch.object(groups, "CONSOLE_DIR", root / "console"), patch.object(groups, "ThreadPoolExecutor") as executor:
+                executor.return_value.__enter__.return_value.map.return_value = []
+                selection = groups.Selection([short, long], 0, {1: "missing", 2: "missing"})
+                self.assertEqual(groups.run(selection, 2, 2), 0)
+                scheduled = executor.return_value.__enter__.return_value.map.call_args.args[1]
+                self.assertEqual(scheduled, [(long, None), (short, None)])
 
 
 if __name__ == "__main__":

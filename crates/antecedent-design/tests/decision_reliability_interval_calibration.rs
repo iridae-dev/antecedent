@@ -1055,28 +1055,40 @@ fn selection_corrected_sixteen_candidates_large_offset_l95() {
     );
 }
 
-// Candidate counts that no first design visited (4, 7, 10 and 50), one record per band they
-// fall in, on the 500, 1000 and 2000 draw grid.
-#[test]
-#[ignore = "calibration: run only at the final measurement step"]
-fn selection_corrected_counts_outside_the_first_designs_l95() {
-    for (k, dgp) in [
-        (4, "leader_plus_three_equal_candidates_gaussian_utilities"),
-        (7, "leader_plus_six_equal_candidates_gaussian_utilities"),
-        (10, "leader_plus_nine_equal_candidates_gaussian_utilities"),
-        (50, "leader_plus_forty_nine_equal_candidates_gaussian_utilities"),
-    ] {
-        run_gated(
-            PublishedRoute::SelectionCorrectedInterval,
-            "selection_corrected_counts_outside_the_first_designs_l95",
-            dgp,
-            k,
-            2.0,
-            BASE_BUDGET,
-            &ALL,
-        );
-    }
-}
+// Every candidate count needs a distinct record identity: sharing a test name would emit
+// conflicting rows under one ID even when the candidate counts occupy different bands.
+gated!(
+    selection_corrected_four_candidates_l95,
+    PublishedRoute::SelectionCorrectedInterval,
+    4,
+    2.0,
+    ALL,
+    "leader_plus_three_equal_candidates_gaussian_utilities"
+);
+gated!(
+    selection_corrected_seven_candidates_l95,
+    PublishedRoute::SelectionCorrectedInterval,
+    7,
+    2.0,
+    ALL,
+    "leader_plus_six_equal_candidates_gaussian_utilities"
+);
+gated!(
+    selection_corrected_ten_candidates_l95,
+    PublishedRoute::SelectionCorrectedInterval,
+    10,
+    2.0,
+    ALL,
+    "leader_plus_nine_equal_candidates_gaussian_utilities"
+);
+gated!(
+    selection_corrected_fifty_candidates_l95,
+    PublishedRoute::SelectionCorrectedInterval,
+    50,
+    2.0,
+    ALL,
+    "leader_plus_forty_nine_equal_candidates_gaussian_utilities"
+);
 
 // Exact ties (equal true means) and near ties (the leader a tenth of a noise unit above).
 #[test]

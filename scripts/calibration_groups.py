@@ -61,6 +61,7 @@ import sys
 import threading
 import time
 import tomllib
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import cache
@@ -71,9 +72,10 @@ from _repo import ensure_scripts_on_path
 
 GATE = ROOT / "scripts" / "gate_calibration.sh"
 LOG_DIR = ROOT / "target" / "calibration-records"
-PREVIOUS_LOG_DIR = ROOT / "target" / "calibration-records.previous"
+ARCHIVE_DIR = ROOT / "target" / "calibration-archives"
 CONSOLE_DIR = ROOT / "target" / "calibration-console"
 REGISTRY = ROOT / "parity" / "coverage_records.toml"
+GATE_REGISTRY = ROOT / "parity" / "calibration_gates.toml"
 # Wall-clock seconds of each (group, grid point) task from earlier local runs:
 # label, seconds, exit, sha, worker threads the task ran with. Older rows have
 # no threads column and are read as whole-machine runs.
@@ -172,7 +174,10 @@ def measures(head: str, test_filter: str, rec: dict) -> bool:
     if not test_filter:  # the group runs every test in the file
         return head == stem
     # A cargo filter matches by substring unless --exact: a superset.
-    same_file = head == stem or (head == owner and "/src/" in path)
+    # The gate labels its sampled transport integration suite by package (the
+    # same convention as lib tests), while its records name the integration file.
+    package_suite = head == "antecedent-estimate" and stem == "counterfactual_transport_sampled"
+    same_file = head == stem or (head == owner and "/src/" in path) or package_suite
     return same_file and test_filter in fn
 
 
@@ -238,7 +243,7 @@ class Selection:
     reasons: dict[int, str]  # group index -> why it runs
 
 
-def select(groups: list[Group], everything: bool) -> Selection:
+def select(groups: list[Group], everything: bool, missing_only: bool = False) -> Selection:
     """The groups to run; see the module docstring for the rule."""
     if everything:
         return Selection(groups, 0, {g.index: "--all" for g in groups})
@@ -246,6 +251,20 @@ def select(groups: list[Group], everything: bool) -> Selection:
     import calibration_facets as facets
 
     records = facets.load_records()
+    if missing_only:
+        ledger = tomllib.loads(GATE_REGISTRY.read_text(encoding="utf-8")) if GATE_REGISTRY.is_file() else {}
+        passed = {str(row["group"]) for row in ledger.get("gate", []) if int(row.get("passed", 0)) > 0}
+        chosen = []
+        reasons = {}
+        for group in groups:
+            if any(measures(group.head, group.test_filter, rec) for rec in records):
+                continue
+            names = [group.safe + ("" if point is None else f".p{point}") for point in group.points]
+            if all(name in passed for name in names):
+                continue
+            chosen.append(group)
+            reasons[group.index] = "no coverage record or complete passed gate ledger"
+        return Selection(chosen, 0, reasons)
     assessments = facets.assess(facets.load_surface(), records)
     wanted = [rec for a in assessments for rec in a.stale]
     wanted += [rec for a in assessments if not a.resolved for rec in a.records]
@@ -270,6 +289,19 @@ def select(groups: list[Group], everything: bool) -> Selection:
         print(f"warning: no gate group measures {test}", file=sys.stderr)
     chosen = [g for g in groups if g.index in reasons]
     return Selection(chosen, len({str(r["id"]) for r in wanted}), reasons)
+
+
+def filter_selection(selection: Selection, patterns: list[str]) -> Selection:
+    """Restrict the selected work with full group-label globs; typos fail closed."""
+    if not patterns:
+        return selection
+    for pattern in patterns:
+        if not any(fnmatch.fnmatchcase(group.label, pattern) for group in selection.groups):
+            raise SystemExit(f"--group {pattern!r} matches no selected group")
+    chosen = [group for group in selection.groups
+              if any(fnmatch.fnmatchcase(group.label, pattern) for pattern in patterns)]
+    return Selection(chosen, selection.owed_records,
+                     {g.index: selection.reasons[g.index] for g in chosen})
 
 
 # --------------------------------------------------------------------------
@@ -363,7 +395,7 @@ def print_plan(selection: Selection, groups: list[Group], jobs: int) -> None:
     )
     # A recheck extends the first run from FIRST_NSIM to RECHECK_NSIM replicates,
     # so it costs (RECHECK_NSIM - FIRST_NSIM) / FIRST_NSIM of the first run.
-    recheck_factor = (RECHECK_NSIM - FIRST_NSIM) / FIRST_NSIM
+    recheck_factor = (RECHECK_NSIM - FIRST_NSIM) / FIRST_NSIM if FIRST_NSIM < 2000 else 0.0
     for g in selection.groups:
         seconds, source = estimate(g, timings)
         if seconds is None:
@@ -614,20 +646,36 @@ def tail_threads(
     return out
 
 
+def archive_logs() -> None:
+    """Keep prior evidence and consoles permanently, partitioned by measured SHA.
+
+    Unknown or mixed stamps are retained as such instead of attributed to HEAD.
+    Moving directories also preserves incomplete jobs, tallies and failed logs.
+    """
+    sources = [path for path in (LOG_DIR, CONSOLE_DIR) if path.is_dir() and any(path.iterdir())]
+    if not sources:
+        return
+    stamps = set()
+    if LOG_DIR.is_dir():
+        for log in LOG_DIR.glob("*.log"):
+            stamps.update(re.findall(r"^calibration-measured-at ([0-9a-f]{40})$",
+                                     log.read_text(encoding="utf-8"), re.M))
+    sha = next(iter(stamps)) if len(stamps) == 1 else ("mixed" if stamps else "unstamped")
+    destination = ARCHIVE_DIR / sha / f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:8]}"
+    destination.mkdir(parents=True)
+    for source in sources:
+        shutil.move(str(source), str(destination / source.name))
+    print(f"archived earlier logs and consoles to {destination}")
+
+
 def run(selection: Selection, total: int, jobs: int) -> int:
     groups = selection.groups
     if not groups:
         print("nothing to measure: no record owes a re-measurement")
         return 0
-    # The collector stamps every log in LOG_DIR with this commit, so logs from an
-    # earlier measurement must not stay there. They are moved aside, not deleted.
-    if LOG_DIR.is_dir() and any(LOG_DIR.iterdir()):
-        shutil.rmtree(PREVIOUS_LOG_DIR, ignore_errors=True)
-        shutil.move(str(LOG_DIR), str(PREVIOUS_LOG_DIR))
-        print(f"moved earlier logs to {PREVIOUS_LOG_DIR.relative_to(ROOT)}")
+    archive_logs()
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.rmtree(CONSOLE_DIR, ignore_errors=True)
-    CONSOLE_DIR.mkdir(parents=True)
+    CONSOLE_DIR.mkdir(parents=True, exist_ok=True)
     if prebuild(groups) != 0:
         print("FAIL: the calibration tests do not build")
         return 1
@@ -655,6 +703,8 @@ def run(selection: Selection, total: int, jobs: int) -> int:
     # fill the machine without oversubscribing it. RUST_TEST_THREADS is left
     # alone: every gate invocation runs one exact test.
     env["ANTECEDENT_CALIBRATION_THREADS"] = str(threads)
+    env["ANTECEDENT_CALIBRATION_NSIM"] = str(FIRST_NSIM)
+    env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"] = str(RECHECK_NSIM)
     started = time.monotonic()
     lock = threading.Lock()
     done: list[int] = []
@@ -694,7 +744,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             if status != 0:
                 failed.append(label)
             with TIMINGS.open("a", encoding="utf-8", newline="\n") as timings:
-                timings.write(f"{label}\t{elapsed:.1f}\t{status}\t{sha}\t{task_threads}\n")
+                timings.write(f"{label}\t{elapsed:.1f}\t{status}\t{sha}\t{task_threads}\t{FIRST_NSIM}\n")
             verdict = "ok" if status == 0 else f"FAILED (see {console.relative_to(ROOT)})"
             print(
                 f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(tasks)} "
@@ -704,19 +754,10 @@ def run(selection: Selection, total: int, jobs: int) -> int:
                 flush=True,
             )
 
-    # Pilot timing gives a longest-processing-time schedule; a recheck can make
-    # any one task much longer, so expensive grid points begin before cheap ones.
-    observed = pilot_timings()
-    ordered = sorted(
-        tasks,
-        key=lambda t: (
-            -observed.get(task_label(*t), -1.0),
-            not t[0].long,
-            t[0].index,
-            t[1] or 0,
-        ),
-    )
-    print(f"running {len(tasks)} grid job(s), {jobs} at a time with {threads} thread(s) each")
+    # last_durations includes measured wall times and falls back to old pilots.
+    # Keep its longest-first schedule even when no pilot exists at this HEAD.
+    ordered = tasks
+    print(f"running {len(tasks)} grid job(s), {jobs} at a time with {threads} thread(s) each; first-pass replicates={FIRST_NSIM}")
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         list(pool.map(one, ordered))
     print(
@@ -732,13 +773,21 @@ def run(selection: Selection, total: int, jobs: int) -> int:
 
 
 def main() -> int:
+    global FIRST_NSIM, RECHECK_NSIM
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True)
     for name, text in (("plan", "list the groups that would run"), ("pilot", "time smoke runs"), ("run", "run them")):
         p = sub.add_parser(name, help=text)
-        p.add_argument("--all", action="store_true", help="every group, not only the owed ones")
+        mode = p.add_mutually_exclusive_group()
+        mode.add_argument("--all", action="store_true", help="every group, not only the owed ones")
+        mode.add_argument("--missing-only", action="store_true",
+                          help="only groups without coverage records or complete passed gate evidence; ignore drift")
+        p.add_argument("--group", action="append", default=[], metavar="GLOB",
+                       help="restrict selected groups by full label glob (repeatable; quote wildcards)")
+        p.add_argument("--replicates", type=int, default=FIRST_NSIM, metavar="N",
+                       help="first-pass simulation count for selected groups (minimum 400; default 400)")
         # One job per core, each on one worker thread: list-scheduling the
         # many heterogeneous tasks packs the machine better than nesting each
         # task's own parallelism. `--jobs N` gives each job ceil(cores / N)
@@ -747,8 +796,12 @@ def main() -> int:
     args = parser.parse_args()
     if args.jobs < 1:
         raise SystemExit("--jobs must be at least 1")
+    if args.replicates < 400:
+        raise SystemExit("--replicates must be at least 400 for measured calibration")
+    FIRST_NSIM = args.replicates
+    RECHECK_NSIM = max(2000, FIRST_NSIM + 1)
     groups = gate_groups()
-    selection = select(groups, args.all)
+    selection = filter_selection(select(groups, args.all, args.missing_only), args.group)
     print_plan(selection, groups, args.jobs)
     if args.command == "plan":
         return 0

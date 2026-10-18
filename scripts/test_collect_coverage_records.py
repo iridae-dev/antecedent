@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -133,6 +134,34 @@ class ConditionalDgpReferenceTest(unittest.TestCase):
             self.assertEqual(collector.conditional_record_dgp_labels(source), set())
 
 
+class PassingGroupHarvestTest(unittest.TestCase):
+    def test_failed_recheck_and_incomplete_grid_skip_whole_groups(self) -> None:
+        sha = "a" * 40
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def log(name: str, failed: bool = False, measured: str = sha) -> Path:
+                path = root / name
+                result = "FAILED. 0 passed; 1 failed;" if failed else "ok. 1 passed; 0 failed;"
+                path.write_text(f"test result: {result} finished in 0.1s\ncalibration-measured-at {measured}\n")
+                return path
+            complete = [log(f"complete.p{p}.log") for p in range(3)]
+            failed = [log(f"failed.p{p}.log") for p in range(3)] + [log("failed.p1.recheck.log", True)]
+            incomplete = [log("partial.p0.log"), log("partial.p2.log")]
+            wrong_sha = [log("wrong.log", measured="b" * 40)]
+            self.assertEqual(collector.passing_group_logs(complete + failed + incomplete + wrong_sha, sha), complete)
+
+    def test_malformed_whole_file_records_skip_the_entire_group(self) -> None:
+        sha = "a" * 40
+        with tempfile.TemporaryDirectory() as directory:
+            logs = []
+            for point in range(3):
+                log = Path(directory) / f"whole_file.p{point}.log"
+                log.write_text(f"test result: ok. 2 passed; 0 failed;\ncalibration-measured-at {sha}\n")
+                logs.append(log)
+            with patch.object(collector, "merged_records", side_effect=SystemExit("duplicate record id")):
+                self.assertEqual(collector.passing_group_logs(logs, sha), [])
+
+
 class AppendAttestedRecordsTest(unittest.TestCase):
     def test_append_preserves_old_rows_and_original_sha(self) -> None:
         old = {"old": {"id": "old", "calibration_sha": "old-sha", "observed": 0.8}}
@@ -146,6 +175,32 @@ class AppendAttestedRecordsTest(unittest.TestCase):
     def test_append_refuses_collision(self) -> None:
         with self.assertRaisesRegex(SystemExit, "refuses existing record ids"):
             collector.append_attested_records({"same": {}}, {"same": {}})
+
+    def test_replace_record_requires_explicit_collision_allowlist_and_fresh_evidence(self) -> None:
+        old = {"changed": {"id": "changed", "calibration_sha": "old"},
+               "unrelated": {"id": "unrelated", "calibration_sha": "old", "observed": 0.95}}
+        new = {"changed": {"id": "changed", "calibration_sha": "new", "observed": 0.951}}
+        merged = collector.append_attested_records(old, new, mode="--keep-existing", replace_ids=["changed"])
+        self.assertEqual(merged["changed"], new["changed"])
+        self.assertIs(merged["unrelated"], old["unrelated"])
+        with self.assertRaisesRegex(SystemExit, "refuses existing record ids"):
+            collector.append_attested_records(old, new, mode="--keep-existing")
+        for invalid in ("unrelated", "not-existing"):
+            with self.assertRaisesRegex(SystemExit, "both existing and new evidence"):
+                collector.append_attested_records(old, new, replace_ids=[invalid])
+
+    def test_keep_existing_cli_preserves_stale_rows_and_previous_gate_evidence(self) -> None:
+        old = {"id": "old", "calibration_sha": "old-sha", "facets": ["core"]}
+        new = {"id": "new", "calibration_sha": "new-sha", "facets": ["core"]}
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = Path(directory) / "gates.toml"
+            ledger.write_text('[[gate]]\ngroup="old-gate"\npassed=1\ncalibration_sha="old-sha"\n')
+            argv = ["collector", "--keep-existing", "--no-cells", "--sha", "a" * 40]
+            with patch.object(sys, "argv", argv), patch.object(collector, "ROOT", Path(directory)), patch.object(collector, "OUT", Path(directory) / "records.toml"), patch.object(collector, "GATES", ledger), patch.object(collector, "load_records", return_value={"new": new}), patch.object(collector.facets, "load_records", return_value=[old]), patch.object(collector, "write_registry") as write, patch.object(collector, "write_gate_ledger") as gates, patch.object(collector, "gate_ledger", return_value={}), patch.object(collector.subprocess, "run"):
+                self.assertEqual(collector.main(), 0)
+                self.assertEqual(write.call_args.args[0], {"old": old, "new": new})
+                self.assertEqual(write.call_args.kwargs, {"retag": False})
+                self.assertEqual(gates.call_args.args[1]["old-gate"]["calibration_sha"], "old-sha")
 
     def test_selected_cell_sync_leaves_other_cells_byte_identical(self) -> None:
         source = (

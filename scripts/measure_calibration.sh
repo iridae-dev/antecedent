@@ -23,6 +23,8 @@
 #
 #   bash scripts/measure_calibration.sh                # only what is owed
 #   bash scripts/measure_calibration.sh --all          # every group
+#   bash scripts/measure_calibration.sh --missing-only # only missing records/gate evidence; preserve prior evidence
+#   bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
 #   bash scripts/measure_calibration.sh --jobs 6       # default: one job per core, one worker thread each
 #   bash scripts/measure_calibration.sh --dry-run      # list the groups, rough duration
 #   bash scripts/measure_calibration.sh --pilot        # smoke-time selected jobs; no coverage evidence
@@ -35,12 +37,35 @@ usage() {
 }
 
 ALL=""
+MISSING_ONLY=0
+FILTERS=()
+REPLACEMENTS=()
+REPLICATES=()
 DRY_RUN=0
 PILOT=0
 JOBS=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all) ALL="--all" ;;
+    --missing-only) MISSING_ONLY=1 ;;
+    --group)
+      [[ $# -ge 2 ]] || { echo "--group needs a full-label glob" >&2; exit 2; }
+      FILTERS+=(--group "$2")
+      shift
+      ;;
+    --group=*) FILTERS+=(--group "${1#--group=}") ;;
+    --replace-record)
+      [[ $# -ge 2 ]] || { echo "--replace-record needs a record ID" >&2; exit 2; }
+      REPLACEMENTS+=(--replace-record "$2")
+      shift
+      ;;
+    --replace-record=*) REPLACEMENTS+=(--replace-record "${1#--replace-record=}") ;;
+    --replicates)
+      [[ $# -ge 2 ]] || { echo "--replicates needs an integer" >&2; exit 2; }
+      REPLICATES=(--replicates "$2")
+      shift
+      ;;
+    --replicates=*) REPLICATES=(--replicates "${1#--replicates=}") ;;
     --dry-run) DRY_RUN=1 ;;
     --pilot) PILOT=1 ;;
     --jobs)
@@ -54,6 +79,13 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+if [[ "$MISSING_ONLY" == "1" && -n "$ALL" ]]; then
+  echo "--all and --missing-only are mutually exclusive" >&2
+  exit 2
+fi
+MODE=()
+if [[ "$MISSING_ONLY" == "1" ]]; then MODE+=(--missing-only); fi
+if [[ -n "$ALL" ]]; then MODE+=(--all); fi
 if [[ -z "$JOBS" ]]; then
   # One job per core: scripts/calibration_groups.py gives each job
   # ceil(cores / jobs) worker threads (ANTECEDENT_CALIBRATION_THREADS), so the
@@ -68,7 +100,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   if [[ -n "$DIRTY" ]]; then
     echo "note: the working tree is dirty; a real measurement will refuse to run until it is clean."
   fi
-  python3 scripts/calibration_groups.py plan $ALL --jobs "$JOBS"
+  python3 scripts/calibration_groups.py plan "${MODE[@]}" "${FILTERS[@]}" "${REPLICATES[@]}" --jobs "$JOBS"
   exit 0
 fi
 
@@ -77,7 +109,7 @@ if [[ "$PILOT" == "1" ]]; then
     echo "FAIL: commit the calibration implementation before timing its pilot." >&2
     exit 1
   fi
-  python3 scripts/calibration_groups.py pilot $ALL --jobs "$JOBS"
+  python3 scripts/calibration_groups.py pilot "${MODE[@]}" "${FILTERS[@]}" "${REPLICATES[@]}" --jobs "$JOBS"
   exit $?
 fi
 
@@ -89,14 +121,20 @@ if [[ -n "$DIRTY" ]]; then
 fi
 HEAD_SHA="$(git rev-parse HEAD)"
 echo "== measuring calibration at ${HEAD_SHA} with ${JOBS} parallel job(s) =="
-python3 scripts/calibration_groups.py run $ALL --jobs "$JOBS"
+RUN_STATUS=0
+python3 scripts/calibration_groups.py run "${MODE[@]}" "${FILTERS[@]}" "${REPLICATES[@]}" --jobs "$JOBS" || RUN_STATUS=$?
+if [[ "$RUN_STATUS" != "0" && "$MISSING_ONLY" != "1" && ${#FILTERS[@]} -eq 0 ]]; then
+  exit "$RUN_STATUS"
+fi
 
 # The logs describe HEAD_SHA only if nothing moved while the measurement ran.
 if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   echo "FAIL: HEAD or the working tree changed during the measurement; the logs describe"
   echo "${HEAD_SHA}. Check it out cleanly and collect by hand (the logs name their commit,"
   echo "and the collector refuses them at any other):"
-  if [[ -n "$ALL" ]]; then
+  if [[ "$MISSING_ONLY" == "1" ]]; then
+    echo "  python3 scripts/collect_coverage_records.py --keep-existing"
+  elif [[ -n "$ALL" ]]; then
     echo "  python3 scripts/collect_coverage_records.py"
   else
     echo "  python3 scripts/collect_coverage_records.py --keep-attested"
@@ -105,14 +143,26 @@ if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(git status --porcelain --u
 fi
 
 echo "== collecting coverage records at ${HEAD_SHA} =="
-if [[ -n "$ALL" ]]; then
+if [[ "$MISSING_ONLY" == "1" || ${#FILTERS[@]} -gt 0 || ${#REPLACEMENTS[@]} -gt 0 ]]; then
+  python3 scripts/collect_coverage_records.py --keep-existing --passing-only "${REPLACEMENTS[@]}"
+elif [[ -n "$ALL" ]]; then
   python3 scripts/collect_coverage_records.py
 else
   python3 scripts/collect_coverage_records.py --keep-attested
 fi
 
+if [[ "$RUN_STATUS" != "0" ]]; then
+  echo "FAIL: some calibration groups failed. Completed passing groups were collected;"
+  echo "all earlier evidence and failed/incomplete group logs are preserved."
+  exit "$RUN_STATUS"
+fi
+
 echo "== attestation gate on the collected registry =="
-bash scripts/gate_calibration_attestation.sh
+if ! bash scripts/gate_calibration_attestation.sh; then
+  echo "FAIL: attestation still needs attention. The newly collected evidence and preserved"
+  echo "prior records remain saved; resolve the reported replay waivers or remeasurements."
+  exit 1
+fi
 
 echo "measure_calibration: ok. Commit the updated registry and the files the collector"
 echo "regenerated (git status lists them), then push."

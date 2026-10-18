@@ -39,7 +39,8 @@ FIRST_NSIM="${ANTECEDENT_CALIBRATION_NSIM:-400}"
 # `min_replicates`), which is the design's base point, so that point runs them in its first
 # pass: from PRECISION_N_SIM replicates the harness holds the coverage to level ± 2·MCSE itself
 # and no recheck follows. The other two points extend the measured size range and run the
-# ordinary first pass, rechecked at RECHECK_NSIM when off nominal. ACCEPTANCE_TESTS lists the bound
+# ordinary first pass, unless separate acceptance cases freeze all three grid sizes; those
+# points each owe the acceptance replicate minimum. ACCEPTANCE_TESTS lists the bound
 # tests (space separated, from parity/acceptance_manifest.toml); a group whose label is
 # `<file>: <test>` with a listed test runs at this count. Smoke runs keep the smoke count.
 ACCEPTANCE_NSIM="${ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM:-2000}"
@@ -54,13 +55,35 @@ print(" ".join(sorted({
 })))
 PY
 ) "
+ACCEPTANCE_GRID_TESTS=" $(python3 - <<'PY'
+import collections
+import tomllib
+with open("parity/acceptance_manifest.toml", "rb") as handle:
+    cases = tomllib.load(handle)["case"]
+sizes = collections.defaultdict(set)
+for case in cases:
+    if case["expected"]["kind"] != "calibrated_interval" or case["evidence"]["status"] != "bound":
+        continue
+    participants = case["configuration"].get("participants")
+    if isinstance(participants, int):
+        sizes[case["evidence"]["test"].rsplit("::", 1)[1]].add(participants)
+print(" ".join(sorted(
+    test for test, values in sizes.items()
+    if len(values) == 3 and sorted(values) == [min(values), 2 * min(values), 4 * min(values)]
+)))
+PY
+) "
 
 # First-pass replicate count of the group `shown` (its label, with any grid-point suffix).
 first_pass_nsim() {
   local test="${1%% \[grid point*}"
   test="${test#*: }"
   case "$1" in
-    *"[grid point 0]"*|*"[grid point 2]"*) echo "$FIRST_NSIM"; return ;;
+    *"[grid point 0]"*|*"[grid point 2]"*)
+      case "$ACCEPTANCE_GRID_TESTS" in
+        *" $test "*) ;;
+        *) echo "$FIRST_NSIM"; return ;;
+      esac ;;
   esac
   if [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] && [ "$test" != "$1" ] \
     && [ "$ACCEPTANCE_NSIM" -gt "$FIRST_NSIM" ]; then
@@ -612,7 +635,10 @@ run_decision_reliability_interval confidence_set_sixteen_near_tie_candidates_l95
 run_decision_reliability_interval selection_corrected_sixteen_equal_candidates_l95
 run_decision_reliability_interval selection_corrected_sixteen_near_tie_candidates_l95
 run_decision_reliability_interval selection_corrected_sixteen_candidates_large_offset_l95
-run_decision_reliability_interval selection_corrected_counts_outside_the_first_designs_l95
+run_decision_reliability_interval selection_corrected_four_candidates_l95
+run_decision_reliability_interval selection_corrected_seven_candidates_l95
+run_decision_reliability_interval selection_corrected_ten_candidates_l95
+run_decision_reliability_interval selection_corrected_fifty_candidates_l95
 run_decision_reliability_interval selection_corrected_all_equal_sixty_four_candidates_boundary_l95
 
 run_quadratic_dose() {

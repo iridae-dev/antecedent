@@ -269,6 +269,8 @@ bash scripts/measure_calibration.sh --pilot     # 8-replicate smoke timings; no 
 bash scripts/measure_calibration.sh --dry-run   # projection from this commit's pilot
 bash scripts/measure_calibration.sh             # measure what is owed, collect, re-run the gate
 bash scripts/measure_calibration.sh --all       # re-measure every group
+bash scripts/measure_calibration.sh --missing-only # fill missing evidence while waivers are pending
+bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
 bash scripts/measure_calibration.sh --jobs 6    # parallel groups (default: the core count)
 ```
 
@@ -285,7 +287,8 @@ commit. It then works in four steps:
    side by side. The run includes the gate's inline 2000-replicate rechecks, per
    point. It prints each job's start and its result with elapsed time. The gate's logs go to
    `target/calibration-records/`, where the collector reads them, and earlier
-   logs move to `target/calibration-records.previous/`. Each group's console
+   logs and consoles move to durable, SHA-scoped run directories under
+   `target/calibration-archives/`. Each group's console
    output goes to `target/calibration-console/`, and its wall time is appended
    to `target/calibration-timings.tsv` for post-run review.
 3. It runs `scripts/collect_coverage_records.py --keep-attested` (without the
@@ -294,8 +297,13 @@ commit. It then works in four steps:
 4. It runs the attestation gate on the result.
 
 Commit `parity/coverage_records.toml` and the files the collector regenerates,
-then push. A group that fails its calibration band stops the command before
-collection.
+then push. A normal run that fails its calibration band stops before collection.
+Missing-only and explicitly filtered runs harvest complete passing groups with
+`--keep-existing --passing-only` even when other groups fail. A group with any
+failed recheck, incomplete grid, mismatched SHA, or malformed records is skipped
+as a whole, with reasons; its logs stay available. The wrapper still exits with a
+failure after saving the completed evidence. Replacement IDs belonging to skipped
+groups are deferred, leaving their original evidence intact.
 
 Without `--all`, the selection has three parts:
 
@@ -304,6 +312,26 @@ Without `--all`, the selection has three parts:
 - when anything else runs, the pass/fail gates that emit no record (CI Type I,
   discovery FPR, SBC, `gate_response_calibration.sh`). Nothing can attest those
   gates, so they run with every re-measurement.
+
+Use `--missing-only` to finish an incomplete collection while existing evidence awaits
+reviewed waivers. It selects groups with neither matching coverage records nor a
+complete passed entry in `parity/calibration_gates.toml`, irrespective of facet drift.
+The collector uses `--keep-existing`: it preserves every old record, its original SHA,
+and earlier gate evidence, and refuses collisions with existing record IDs.
+`--group` restricts the selected set by a quoted full-label glob; repeat it for multiple
+groups. A filter matching nothing fails before measurement. To remeasure a numerically changed construction already in the registry, select its
+groups with `--all --group 'suite: test'` and repeat `--replace-record ID` for every
+existing record those groups emit. Filtered runs preserve unrelated evidence; the
+collector rejects unlisted collisions and any replacement ID lacking both old and
+fresh evidence. For a fixed higher-precision protocol, add `--replicates 20000` before measuring;
+the chosen budget applies only to the selected groups. The default remains 400
+(with the existing 2,000-replicate precision recheck). Runs starting at 2,000 or
+more replicates apply the precision rule directly, without an extra extension.
+Decide the budget before examining results, retain the outcomes, and do not search
+seeds or repeat until a pass. These options do not
+waive drift: the final attestation gate still requires actual replay waivers or new
+evidence. Passing collected records whose numerical outputs changed must be
+explicitly replayed or remeasured separately; `--missing-only` does not select them.
 
 Facets and replay waivers keep the cost proportional to the change:
 
@@ -327,8 +355,8 @@ gate startup are charged once per job. The projection is approximate: convergenc
 does not scale perfectly with replicates, and a changed coverage rate changes the recheck
 count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. An old
 forecast that summed wall times of suites competing on the same CPU substantially
-overstated the full-pass time. The measurement runs longest pilot-timed grid
-jobs first to reduce the final straggler. A change that drifts one suite or
+overstated the full-pass time. The measurement runs the longest previously measured grid
+jobs first (falling back to pilot timings) to reduce the final straggler. A change that drifts one suite or
 facet costs only the groups behind its records.
 
 The collector refuses to stamp HEAD while the surface its records depend on
