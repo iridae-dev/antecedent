@@ -151,8 +151,33 @@ fn interval(effect: &EffectEstimate) -> Option<(f64, f64)> {
         .then_some((effect.ate - Z95 * se, effect.ate + Z95 * se))
 }
 
+/// The historical normal-reference calibration is replay-only. Ordinary
+/// measurements score the published finite-cluster Student reference.
+fn cluster_protocol_version() -> u32 {
+    static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *VERSION.get_or_init(|| {
+        let raw =
+            std::env::var("ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL").unwrap_or_else(|_| "2".into());
+        raw.parse::<u32>()
+            .ok()
+            .filter(|version| matches!(version, 1 | 2))
+            .unwrap_or_else(|| panic!("ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL={raw}: want 1 or 2"))
+    })
+}
+
 /// Score the actual finite-cluster reference published by cluster-DML estimators.
 fn scored_cluster_reference(fit: Option<EffectEstimate>, rows: usize) -> Option<((f64, f64), u64)> {
+    scored_cluster_reference_for_protocol(fit, rows, cluster_protocol_version())
+}
+
+fn scored_cluster_reference_for_protocol(
+    fit: Option<EffectEstimate>,
+    rows: usize,
+    protocol: u32,
+) -> Option<((f64, f64), u64)> {
+    if protocol == 1 {
+        return scored(fit, rows);
+    }
     let fit = fit?;
     let df = fit.uncertainty.analytic.reference_df?;
     let critical = antecedent_stats::student_t_ppf((1.0 + REPORTED_LEVEL) / 2.0, df);
@@ -167,6 +192,15 @@ fn scored_cluster_reference(fit: Option<EffectEstimate>, rows: usize) -> Option<
 }
 
 fn cluster_reference_construction(estimator: &str) -> Construction {
+    let protocol = cluster_protocol_version();
+    eprintln!("calibration-protocol weighted_cluster_source_version={protocol}");
+    cluster_reference_construction_for_protocol(estimator, protocol)
+}
+
+fn cluster_reference_construction_for_protocol(estimator: &str, protocol: u32) -> Construction {
+    if protocol == 1 {
+        return construction(estimator, "cluster", "cluster", "AverageEffect");
+    }
     let mut basis = construction_for(
         estimator,
         "cluster",
@@ -664,13 +698,13 @@ fn cluster_scoring_uses_the_published_student_reference_and_preserves_normal_evi
     let mut fit = EffectEstimate::new(2.0, 0.5, AssumptionSet::new(), no_clip());
     fit.uncertainty.analytic.reference_df = Some(4.0);
     let normal = interval(&fit).unwrap();
-    let student = scored_cluster_reference(Some(fit), 17).unwrap();
+    let student = scored_cluster_reference_for_protocol(Some(fit), 17, 2).unwrap();
     let critical = antecedent_stats::student_t_ppf(0.975, 4.0);
     assert_eq!(student.1, 17);
     assert!((student.0.0 - (2.0 - critical * 0.5)).abs() < 1e-12);
     assert!(student.0.0 < normal.0 && student.0.1 > normal.1);
     let raw = construction("aipw", "cluster", "cluster", "AverageEffect");
-    let upgraded = cluster_reference_construction("aipw");
+    let upgraded = cluster_reference_construction_for_protocol("aipw", 2);
     let mut ids = Vec::new();
     for basis in [raw, upgraded] {
         let mut tally =
@@ -1451,4 +1485,28 @@ fn weighted_dr_learner_cluster_interval() {
             scored_cluster_reference(clustered_flexible(&s, true), n)
         },
     );
+}
+
+#[test]
+fn historical_cluster_protocol_replays_the_raw_normal_interval_and_original_identity() {
+    let mut fit = EffectEstimate::new(2.0, 0.5, AssumptionSet::new(), no_clip());
+    fit.uncertainty.analytic.reference_df = Some(4.0);
+    // The exact constant used by the historical producer, independently of dispatch.
+    let historical_critical = 1.959_963_984_540_054_f64;
+    let expected = (2.0 - historical_critical * 0.5, 2.0 + historical_critical * 0.5);
+    let replay = scored_cluster_reference_for_protocol(Some(fit), 17, 1).unwrap();
+    assert_eq!(replay.0.0.to_bits(), expected.0.to_bits());
+    assert_eq!(replay.0.1.to_bits(), expected.1.to_bits());
+    assert_eq!(replay.1, 17);
+    for estimator in ["aipw", "dml", "dr.learner"] {
+        let original = construction(estimator, "cluster", "cluster", "AverageEffect");
+        let replay = cluster_reference_construction_for_protocol(estimator, 1);
+        assert_eq!(replay.functional, original.functional);
+        assert_eq!(replay.interval_method, original.interval_method);
+        assert_eq!(replay.estimator, original.estimator);
+        assert_eq!(replay.se_kind, original.se_kind);
+        let current = cluster_reference_construction_for_protocol(estimator, 2);
+        assert_ne!(replay.functional, current.functional);
+        assert_ne!(replay.interval_method, current.interval_method);
+    }
 }
