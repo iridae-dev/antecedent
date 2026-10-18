@@ -2981,14 +2981,14 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.94252261841405
-mcse = 0.00536946465806372
-replicates = 1879
+observed = 0.9458880257165818
+mcse = 0.0037028622707486938
+replicates = 3733
 boundary = false
 role = "gated"
 grid = [
   { point = 0, n_min = 250, n_max = 250, observed = 0.9461538461538461, mcse = 0.005290814430863152, replicates = 1820, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.94252261841405, mcse = 0.00536946465806372, replicates = 1879, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9458880257165818, mcse = 0.0037028622707486938, replicates = 3733, boundary = false, role = "gated" },
   { point = 2, n_min = 1000, n_max = 1000, observed = 0.9506369426751592, mcse = 0.004990774179314207, replicates = 1884, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate"
@@ -3053,14 +3053,14 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9426617569700158
-mcse = 0.005332232484614022
-replicates = 1901
+observed = 0.9456697149004841
+mcse = 0.005257158096694676
+replicates = 1859
 boundary = false
 role = "gated"
 grid = [
   { point = 0, n_min = 250, n_max = 250, observed = 0.9456697149004841, mcse = 0.005257158096694676, replicates = 1859, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9426617569700158, mcse = 0.005332232484614022, replicates = 1901, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9459388185654009, mcse = 0.0036723166850876907, replicates = 3792, boundary = false, role = "gated" },
   { point = 2, n_min = 1000, n_max = 1000, observed = 0.9485834207764953, mcse = 0.005058571658249617, replicates = 1906, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate"
@@ -3233,14 +3233,14 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9418837675350702
-mcse = 0.005236813575769214
-replicates = 1996
+observed = 0.946047678795483
+mcse = 0.0035788823052555346
+replicates = 3985
 boundary = false
 role = "gated"
 grid = [
   { point = 0, n_min = 250, n_max = 250, observed = 0.949748743718593, mcse = 0.004897238865350062, replicates = 1990, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9418837675350702, mcse = 0.005236813575769214, replicates = 1996, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.946047678795483, mcse = 0.0035788823052555346, replicates = 3985, boundary = false, role = "gated" },
   { point = 2, n_min = 1000, n_max = 1000, observed = 0.9514757378689345, mcse = 0.004805869041752368, replicates = 1999, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate"
@@ -3377,14 +3377,14 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9414707353676839
-mcse = 0.005250293105704301
-replicates = 1999
+observed = 0.9424424424424425
+mcse = 0.005210517445977687
+replicates = 1998
 boundary = false
 role = "gated"
 grid = [
   { point = 0, n_min = 250, n_max = 250, observed = 0.9424424424424425, mcse = 0.005210517445977687, replicates = 1998, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9414707353676839, mcse = 0.005250293105704301, replicates = 1999, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9457092819614711, mcse = 0.003584054000102985, replicates = 3997, boundary = false, role = "gated" },
   { point = 2, n_min = 1000, n_max = 1000, observed = 0.9515, mcse = 0.004803527349771207, replicates = 2000, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate"
@@ -3485,15 +3485,15 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9402432575356954
-mcse = 0.0054508948801433536
-replicates = 1891
+observed = 0.9440894568690096
+mcse = 0.0037487858985191624
+replicates = 3756
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 250, n_max = 250, observed = 0.9452654625068418, mcse = 0.005321552459518032, replicates = 1827, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9402432575356954, mcse = 0.0054508948801433536, replicates = 1891, boundary = false, role = "gated" },
-  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9491525423728814, mcse = 0.005055936772995702, replicates = 1888, boundary = false, role = "gated" },
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9460500963391136, mcse = 0.0037481736650334194, replicates = 3633, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9440894568690096, mcse = 0.0037487858985191624, replicates = 3756, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9471179270227393, mcse = 0.003639112669219302, replicates = 3782, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate"
 test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage"
@@ -3521,15 +3521,15 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9476861167002012
-mcse = 0.004993816141476994
-replicates = 1988
+observed = 0.947103274559194
+mcse = 0.003552366858425209
+replicates = 3970
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 250, n_max = 250, observed = 0.9476861167002012, mcse = 0.004993816141476994, replicates = 1988, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9481891348088531, mcse = 0.004971068178233094, replicates = 1988, boundary = false, role = "gated" },
-  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9477124183006536, mcse = 0.004991374687063367, replicates = 1989, boundary = false, role = "gated" },
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9476202467892219, mcse = 0.003535484568886004, replicates = 3971, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.947103274559194, mcse = 0.003552366858425209, replicates = 3970, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9471565173628586, mcse = 0.0035488909989708954, replicates = 3974, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate"
 test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
@@ -3665,15 +3665,15 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9518935516888434
-mcse = 0.004840983025591477
-replicates = 1954
+observed = 0.9485407066052227
+mcse = 0.0035350354752226054
+replicates = 3906
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 250, n_max = 250, observed = 0.9518935516888434, mcse = 0.004840983025591477, replicates = 1954, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9553388090349076, mcse = 0.004680038050413943, replicates = 1948, boundary = false, role = "gated" },
-  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9528929851510497, mcse = 0.00479417337095657, replicates = 1953, boundary = false, role = "gated" },
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9485407066052227, mcse = 0.0035350354752226054, replicates = 3906, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9536135315222962, mcse = 0.00336696207713647, replicates = 3902, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9506014845149732, mcse = 0.0034668454969531974, replicates = 3907, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate"
 test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
@@ -3701,15 +3701,15 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9403225806451613
-mcse = 0.005492713892056656
-replicates = 1860
+observed = 0.9452682663790779
+mcse = 0.0037348118220859134
+replicates = 3709
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 250, n_max = 250, observed = 0.9445061043285239, mcse = 0.005393213313198775, replicates = 1802, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9409534127843987, mcse = 0.005486123919758139, replicates = 1846, boundary = false, role = "gated" },
-  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9403225806451613, mcse = 0.005492713892056656, replicates = 1860, boundary = false, role = "gated" },
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9465270121278941, mcse = 0.003735081587503473, replicates = 3628, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9497679497679498, mcse = 0.003608949025161221, replicates = 3663, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9452682663790779, mcse = 0.0037348118220859134, replicates = 3709, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate"
 test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage"
@@ -3809,15 +3809,15 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9402432575356954
-mcse = 0.0054508948801433536
-replicates = 1891
+observed = 0.9440894568690096
+mcse = 0.0037487858985191624
+replicates = 3756
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 250, n_max = 250, observed = 0.9452654625068418, mcse = 0.005321552459518032, replicates = 1827, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9402432575356954, mcse = 0.0054508948801433536, replicates = 1891, boundary = false, role = "gated" },
-  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9491525423728814, mcse = 0.005055936772995702, replicates = 1888, boundary = false, role = "gated" },
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9460500963391136, mcse = 0.0037481736650334194, replicates = 3633, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9440894568690096, mcse = 0.0037487858985191624, replicates = 3756, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9471179270227393, mcse = 0.003639112669219302, replicates = 3782, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear"
 test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage"
@@ -3845,15 +3845,15 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9476861167002012
-mcse = 0.004993816141476994
-replicates = 1988
+observed = 0.947103274559194
+mcse = 0.003552366858425209
+replicates = 3970
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 250, n_max = 250, observed = 0.9476861167002012, mcse = 0.004993816141476994, replicates = 1988, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9481891348088531, mcse = 0.004971068178233094, replicates = 1988, boundary = false, role = "gated" },
-  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9477124183006536, mcse = 0.004991374687063367, replicates = 1989, boundary = false, role = "gated" },
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9476202467892219, mcse = 0.003535484568886004, replicates = 3971, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.947103274559194, mcse = 0.003552366858425209, replicates = 3970, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9471565173628586, mcse = 0.0035488909989708954, replicates = 3974, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear"
 test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
@@ -3989,15 +3989,15 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9518935516888434
-mcse = 0.004840983025591477
-replicates = 1954
+observed = 0.9485407066052227
+mcse = 0.0035350354752226054
+replicates = 3906
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 250, n_max = 250, observed = 0.9518935516888434, mcse = 0.004840983025591477, replicates = 1954, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9553388090349076, mcse = 0.004680038050413943, replicates = 1948, boundary = false, role = "gated" },
-  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9528929851510497, mcse = 0.00479417337095657, replicates = 1953, boundary = false, role = "gated" },
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9485407066052227, mcse = 0.0035350354752226054, replicates = 3906, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9536135315222962, mcse = 0.00336696207713647, replicates = 3902, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9506014845149732, mcse = 0.0034668454969531974, replicates = 3907, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear"
 test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
@@ -4025,15 +4025,15 @@ n_max = 1000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9403225806451613
-mcse = 0.005492713892056656
-replicates = 1860
+observed = 0.9452682663790779
+mcse = 0.0037348118220859134
+replicates = 3709
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 250, n_max = 250, observed = 0.9445061043285239, mcse = 0.005393213313198775, replicates = 1802, boundary = false, role = "gated" },
-  { point = 1, n_min = 500, n_max = 500, observed = 0.9409534127843987, mcse = 0.005486123919758139, replicates = 1846, boundary = false, role = "gated" },
-  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9403225806451613, mcse = 0.005492713892056656, replicates = 1860, boundary = false, role = "gated" },
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9465270121278941, mcse = 0.003735081587503473, replicates = 3628, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9497679497679498, mcse = 0.003608949025161221, replicates = 3663, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9452682663790779, mcse = 0.0037348118220859134, replicates = 3709, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear"
 test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage"

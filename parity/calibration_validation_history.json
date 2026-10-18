@@ -1,0 +1,1124 @@
+{
+  "schema": "calibration_validation_history.v1",
+  "purpose": "Durable historical evidence and exact fixed-budget replay recipes. Historical failures remain failures under their original decision rule. This file does not grant calibration, a support license, or a prospective family-wise claim to old data.",
+  "original_registry": {
+    "commit": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+    "path": "parity/coverage_records.toml",
+    "git_blob": "5f40f09c6a168ca4916883706f5e7451a6a433c3"
+  },
+  "legacy_prefix_protocol": {
+    "id": "original_source_prefix_completion.v1",
+    "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+    "seed_domain": "original_legacy_seed_domain",
+    "original_attempts": 2000,
+    "extended_attempts": 4000,
+    "executed_indices": "2000..3999 only",
+    "original_binary_sha256": "f6f23e2706a9a1735a728339f4e14152e390ea150d8f3aa7060329f391eebae5",
+    "source_build_log_sha256": "273bf8e48788c9aa2608bb07023b8dbf6e5e2955de461cd9fef73bf942ea518b",
+    "sealed_original_plan_sha256": "1e609d0f1cb657d777c26bea1f0a23ef6fda916121f7dce5ac62374684c9161c",
+    "integrity_receipt_sha256": "98e0c98d17b198263e10ccd8fa8e58ff8670943dbc9d26990060cdf292a2367f",
+    "width_rule": "For passing extensions, original and suffix upper medians each passed the identical frozen bound. Their union meets that bound by counting observations. Suffix diagnostics do not reconstruct an exact combined median; failed extensions provide no passing width assertion witness."
+  },
+  "legacy_prefix_completions": [
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage",
+      "functional": "total_effect.variables_10.max_degree_4.discovery_fraction_0_75.knowledge_forbidden.topology_hub_confounded_multi_path",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "cb51e0bdfcef95e8a2408d3851c0f46790e0a1a094164300a7f7b2eec5931578",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 2000,
+          "covered": 1722,
+          "scored": 1820,
+          "skipped": 0,
+          "log_sha256": "91c22a8a91d5e346f5cb83376748228b213455d5edc30074e93be95661d58822",
+          "tally_sha256": "30bd408d973eabe00689559a66d22f818f34e392f7998737b9c004ec56fd269b",
+          "retained_original_point": true
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3531,
+          "scored": 3733,
+          "skipped": 0,
+          "log_sha256": "57b6e4bbd507cd52a379a3518409e7f1812c9e77428264cd67d060ed9e5652ce",
+          "tally_sha256": "9aa5c81708d755939d3c9e2d289594ff6a8ebe448c0c0140aae968bb0a05ebe7",
+          "prefix_tally_sha256": "6b791100b6f2d79c667fa5bae4d1b44a01264ead389d82a311bd1a0f97c5245c",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1879 reported_share=0.940 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 120, \"parent_set_effect.treatment_parents_ambiguous\": 1} coverage=0.943 median_width=0.200 parents_recovered=0.940 skeleton_precision=0.998 skeleton_recall=0.986 orientation_precision=0.998 orientation_recall=0.986"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3733 reported_share=0.933 refusals={\"parent_set_effect.outcome_precedes_treatment\": 2, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 144} coverage=0.946 median_width=0.198 parents_recovered=0.933 skeleton_precision=0.999 skeleton_recall=0.987 orientation_precision=0.999 orientation_recall=0.987"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 2000,
+          "covered": 1791,
+          "scored": 1884,
+          "skipped": 0,
+          "log_sha256": "38c360305663feddd4403392d3a449f7d70bdc03711916b1b66aff587e54dfa7",
+          "tally_sha256": "d055e36beffc7c65540b2a14fee11bfaa19a580d3633fef1bf281829ae784e0e",
+          "retained_original_point": true
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage",
+      "functional": "total_effect.variables_10.max_degree_3.discovery_fraction_0_75.topology_hub_confounded_multi_path",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "e3537f5b07759bde843e18dfef1df6802b9ec83e439e879752774507742d7a6a",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 2000,
+          "covered": 1758,
+          "scored": 1859,
+          "skipped": 0,
+          "log_sha256": "2e618a37b95fb5348123d1ad105580c2c4da594312e044947b7c7f93b335a9d6",
+          "tally_sha256": "57658bb58b569d6142a9abd39848068740cab78551cd0fcde9504fe15a77cabd",
+          "retained_original_point": true
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3587,
+          "scored": 3792,
+          "skipped": 0,
+          "log_sha256": "eba1d3143f2e1f5286541581fc315c179578ed3fb678fd558910d517a9e3d954",
+          "tally_sha256": "4f40f7dee985c7b3aeb09a549c52f3046c43a01744547a11265c2db459d1cd66",
+          "prefix_tally_sha256": "0430d8dc9e8482d177575c613efc8987f1758d76c3d0c86dd874692d61c057bb",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1901 reported_share=0.951 refusals={\"parent_set_effect.parent_limit_bound\": 29, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 70} coverage=0.943 median_width=0.198 parents_recovered=0.951 skeleton_precision=0.999 skeleton_recall=0.987 orientation_precision=0.998 orientation_recall=0.574"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3792 reported_share=0.948 refusals={\"parent_set_effect.outcome_precedes_treatment\": 2, \"parent_set_effect.parent_limit_bound\": 25, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 82} coverage=0.946 median_width=0.197 parents_recovered=0.948 skeleton_precision=0.999 skeleton_recall=0.988 orientation_precision=0.999 orientation_recall=0.577"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 2000,
+          "covered": 1808,
+          "scored": 1906,
+          "skipped": 0,
+          "log_sha256": "97cc30b2fc6f002d9467ff8cf211234c4891885f68775ef84f14ad7980cbaebe",
+          "tally_sha256": "020db7700d356e28cb112289b791d0dc5363a9f19443fa86bc61974b6fcdb57d",
+          "retained_original_point": true
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage",
+      "functional": "total_effect.variables_10.max_degree_4.discovery_fraction_0_75.knowledge_required.topology_hub_confounded_multi_path",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "cab783171236d531cb62adab0b15169fc955c55a6e7914f9918e8a0d38263e46",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 2000,
+          "covered": 1890,
+          "scored": 1990,
+          "skipped": 0,
+          "log_sha256": "4c09919ab3edd23b0a71c769e303d39f170ac9e3b8f1153435c8c01e390ee388",
+          "tally_sha256": "d116d57fb5da368ac319496755a6ecb57535ae08cf22db4ac5af5a02070b658e",
+          "retained_original_point": true
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3770,
+          "scored": 3985,
+          "skipped": 0,
+          "log_sha256": "c5a3b11844290e8c86a842f51e01216a2360e78fc40acc2ce30db8fe42f4db22",
+          "tally_sha256": "f6919f1a631fac1ee769c54ee9c1ee86d9d5414b1542a251bb8553d76c05fe9f",
+          "prefix_tally_sha256": "8db5dd3d9d3f8123c4ef34078aad2e32d4c4272ee097bfca9742b10e2065cc86",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1996 reported_share=0.998 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 4} coverage=0.942 median_width=0.201 parents_recovered=0.996 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.993 orientation_recall=0.593"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3985 reported_share=0.996 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 11} coverage=0.946 median_width=0.199 parents_recovered=0.994 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.993 orientation_recall=0.592"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 2000,
+          "covered": 1902,
+          "scored": 1999,
+          "skipped": 0,
+          "log_sha256": "f388fb553c3ae6005f4f28786528c7310dfb870fb4d3ed0dd630dc73eee72043",
+          "tally_sha256": "f2d37d89a737123d2b0ca8cf063135b18253de7205d7f1f6189e34005e5f7f1f",
+          "retained_original_point": true
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage",
+      "functional": "total_effect.variables_10.max_degree_4.discovery_fraction_0_75.knowledge_tiers.topology_hub_confounded_multi_path",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "bfc1a2ce1340375437077cb41014460f9c9b0353d417baf84dbb61a15d02db3d",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 2000,
+          "covered": 1883,
+          "scored": 1998,
+          "skipped": 0,
+          "log_sha256": "a8c42403da025d15ed48e78aee98844ba0575c006f9fc7f6e14213c679d85d6c",
+          "tally_sha256": "36e344602d7621012c53a424d65abbe53a605f3093ab8afa9f7c57dc58dd8307",
+          "retained_original_point": true
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3780,
+          "scored": 3997,
+          "skipped": 0,
+          "log_sha256": "86a081830df7e40879325bd0d334e5529fb2ead2371191013d4e40ba978c5400",
+          "tally_sha256": "5ac9227d9f3eb6c0c542bd31d729ecb843d45e591806423a3b07f2d0489635f3",
+          "prefix_tally_sha256": "27dfefb37612593c137d00d77e2ce4a8972396cc18ecaeac7a7ca3774dd6deb2",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1999 reported_share=1.000 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 1} coverage=0.941 median_width=0.201 parents_recovered=0.997 skeleton_precision=0.997 skeleton_recall=0.987 orientation_precision=0.998 orientation_recall=0.977"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3997 reported_share=0.999 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 2} coverage=0.946 median_width=0.199 parents_recovered=0.997 skeleton_precision=0.997 skeleton_recall=0.988 orientation_precision=0.998 orientation_recall=0.977"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 2000,
+          "covered": 1903,
+          "scored": 2000,
+          "skipped": 0,
+          "log_sha256": "7cdf55cfaa61069aabedb1f7cbf512e3027973f974380ca4daba3350f265af33",
+          "tally_sha256": "44658936cda231a882626f2b7724435d7c337a7ad2adf9233954ae74ebce60fe",
+          "retained_original_point": true
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
+      "functional": "total_effect.variables_10.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "f4c3a8494b37d2e614dfebf114b1a9bfc193a1c84d86372c7495c766f14a4298",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 4000,
+          "covered": 3437,
+          "scored": 3633,
+          "skipped": 0,
+          "log_sha256": "f4a0ccbc55a97b5af8031f04cace738e3185d0261b6391885de1a637ee05b920",
+          "tally_sha256": "fa5b6064973d258c605e824e1da6fda482b662034fecadce43543ced539f997a",
+          "prefix_tally_sha256": "f0caf3f314b3a632bf27ea024b1176db437d110888aad9f494bd2f1aa9a4aca1",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.6,
+          "original_summary": [
+            "info summary parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1827 reported_share=0.913 refusals={\"parent_set_effect.outcome_precedes_treatment\": 1, \"parent_set_effect.parent_limit_bound\": 5, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 155, \"parent_set_effect.treatment_parents_ambiguous\": 12} coverage=0.945 median_width=0.282 parents_recovered=0.908 skeleton_precision=0.999 skeleton_recall=0.976 orientation_precision=0.995 orientation_recall=0.551"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3633 reported_share=0.908 refusals={\"parent_set_effect.outcome_precedes_treatment\": 6, \"parent_set_effect.parent_limit_bound\": 8, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 165, \"parent_set_effect.treatment_parents_ambiguous\": 15} coverage=0.946 median_width=0.283 parents_recovered=0.903 skeleton_precision=0.998 skeleton_recall=0.975 orientation_precision=0.992 orientation_recall=0.550"
+          ]
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3546,
+          "scored": 3756,
+          "skipped": 0,
+          "log_sha256": "f37bcbe59d2c3843bb05f88a76e3259f2cdf0ebb167f8f001f8d474798d6c96a",
+          "tally_sha256": "4ddcf0ae0dbb0931267f13522e0868007cfaf2ad17796aeb35e39237ac2c4906",
+          "prefix_tally_sha256": "92cf745242ceea7a679a87652052d97384212e538c6b3ac14dc6fc3a04788884",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1891 reported_share=0.946 refusals={\"parent_set_effect.parent_limit_bound\": 5, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 104} coverage=0.940 median_width=0.200 parents_recovered=0.943 skeleton_precision=0.998 skeleton_recall=0.986 orientation_precision=0.994 orientation_recall=0.572"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3756 reported_share=0.939 refusals={\"parent_set_effect.outcome_precedes_treatment\": 2, \"parent_set_effect.parent_limit_bound\": 3, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 130} coverage=0.944 median_width=0.198 parents_recovered=0.937 skeleton_precision=0.998 skeleton_recall=0.988 orientation_precision=0.994 orientation_recall=0.575"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 4000,
+          "covered": 3582,
+          "scored": 3782,
+          "skipped": 0,
+          "log_sha256": "bc978c9106a8c599dc17e810ad27a238ae79efdb392e7c35529cf7645cec79f1",
+          "tally_sha256": "d272fc61eb0abbe32b0ff9ba93ae82a9994e995115a2a880033bf9a8debe11a3",
+          "prefix_tally_sha256": "dea7dc8bc5e5ff864152b96e20b4fc755f80e043ffe3c9f2be847beb5089c86a",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.3,
+          "original_summary": [
+            "info summary parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1888 reported_share=0.944 refusals={\"parent_set_effect.outcome_precedes_treatment\": 1, \"parent_set_effect.parent_limit_bound\": 8, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 103} coverage=0.949 median_width=0.140 parents_recovered=0.942 skeleton_precision=0.998 skeleton_recall=0.993 orientation_precision=0.995 orientation_recall=0.585"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3782 reported_share=0.946 refusals={\"parent_set_effect.outcome_precedes_treatment\": 1, \"parent_set_effect.parent_limit_bound\": 4, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 101} coverage=0.947 median_width=0.140 parents_recovered=0.943 skeleton_precision=0.998 skeleton_recall=0.992 orientation_precision=0.994 orientation_recall=0.584"
+          ]
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+      "functional": "total_effect.variables_10.max_degree_4.discovery_fraction_0_75.topology_layered_multi_mediator_nuisance",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "88310e316ecc2776e362046bef1a918d53e2e6ade803318239c4c5d5023d5ee9",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 4000,
+          "covered": 3763,
+          "scored": 3971,
+          "skipped": 0,
+          "log_sha256": "42804620423c8cf8ff73588419af18b8cc2b4b17c7ecfb814e8e2df4bcdf183c",
+          "tally_sha256": "21d65a2e0d7ad384d64145496dcd9c8120f21509685e171bf8171f8f6d38cac0",
+          "prefix_tally_sha256": "77476d0912a8736193a975f1da5bf9bc9354f8693af45ff5c18efc38c4071c8d",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.6,
+          "original_summary": [
+            "info summary parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1988 reported_share=0.994 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 12} coverage=0.948 median_width=0.393 parents_recovered=0.988 skeleton_precision=0.996 skeleton_recall=0.999 orientation_precision=0.991 orientation_recall=0.691"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3971 reported_share=0.993 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 17} coverage=0.948 median_width=0.393 parents_recovered=0.989 skeleton_precision=0.996 skeleton_recall=0.998 orientation_precision=0.992 orientation_recall=0.690"
+          ]
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3760,
+          "scored": 3970,
+          "skipped": 0,
+          "log_sha256": "a7d065c642484ac5cea8d6f9fe4e72a66ef27846eec2e31634556ffdae8e4885",
+          "tally_sha256": "03a064d468a2bd0647ba7b4f3931bd2c9a6b7f25dae22241275f7a65069850b1",
+          "prefix_tally_sha256": "9226e4c0e17d7b1db72190814fd0d3064e5f2909dad44e844257420c2e7b0caf",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1988 reported_share=0.994 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 12} coverage=0.948 median_width=0.276 parents_recovered=0.993 skeleton_precision=0.998 skeleton_recall=1.000 orientation_precision=0.997 orientation_recall=0.699"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3970 reported_share=0.993 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 18} coverage=0.947 median_width=0.275 parents_recovered=0.991 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.997 orientation_recall=0.699"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 4000,
+          "covered": 3764,
+          "scored": 3974,
+          "skipped": 0,
+          "log_sha256": "36df6ee46d5336ba4535de7275a9124bb3fe6044a8de5a120d3d57bdae5f59f0",
+          "tally_sha256": "1ad15dc4d8be83d11418223a8043b521afc45d73b1e36fd3ca28536ebb9eb462",
+          "prefix_tally_sha256": "6052ccb85dbaa9b01c569d7316779c329bc96fe9511a813025cf1eacb5614bd3",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.3,
+          "original_summary": [
+            "info summary parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1989 reported_share=0.995 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 11} coverage=0.948 median_width=0.196 parents_recovered=0.993 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.996 orientation_recall=0.698"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3974 reported_share=0.994 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 15} coverage=0.947 median_width=0.193 parents_recovered=0.992 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.996 orientation_recall=0.698"
+          ]
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+      "functional": "total_effect.variables_15.max_degree_4.discovery_fraction_0_75.topology_layered_multi_mediator_nuisance",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "d5f7853d04cec3a0474f1c3b3136713bba34fbb7f0f8115fef2d6bef9d9ef917",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 4000,
+          "covered": 3705,
+          "scored": 3906,
+          "skipped": 0,
+          "log_sha256": "9acf24e3e10905d50dc8f91ae74a09e3aa5b40694fd163d5af7579c39e5e2841",
+          "tally_sha256": "52988d51e25597ce2c808ed2476218d870c5b3a80d4b5d6a543fe135befcd296",
+          "prefix_tally_sha256": "f43144c6232869692dc0e8fad4f43bef9a4f65b0b56db7aa45abc5a741ca203e",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.6,
+          "original_summary": [
+            "info summary parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1954 reported_share=0.977 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.parent_limit_bound\": 6, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 39} coverage=0.952 median_width=0.391 parents_recovered=0.977 skeleton_precision=0.997 skeleton_recall=0.999 orientation_precision=0.925 orientation_recall=0.521"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3906 reported_share=0.977 refusals={\"parent_set_effect.parent_limit_bound\": 2, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 46} coverage=0.949 median_width=0.392 parents_recovered=0.976 skeleton_precision=0.998 skeleton_recall=0.999 orientation_precision=0.930 orientation_recall=0.524"
+          ]
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3721,
+          "scored": 3902,
+          "skipped": 0,
+          "log_sha256": "754498c33b51f412532125f603cdf3b7346b69492a79dd4d19362bd975698656",
+          "tally_sha256": "0c7ed05ce79459e14b6027ce9dd7947f202edf9de411cdac23b1d5061454c686",
+          "prefix_tally_sha256": "4339f4e109bcabf3dd895051c64d64e95677311ffd6ef9289ba84d05bd97fb24",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1948 reported_share=0.974 refusals={\"parent_set_effect.conflict_resolution_budget\": 2, \"parent_set_effect.parent_limit_bound\": 3, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 47} coverage=0.955 median_width=0.275 parents_recovered=0.974 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.979 orientation_recall=0.578"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3902 reported_share=0.976 refusals={\"parent_set_effect.parent_limit_bound\": 7, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 39} coverage=0.954 median_width=0.277 parents_recovered=0.975 skeleton_precision=0.998 skeleton_recall=1.000 orientation_precision=0.985 orientation_recall=0.585"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 4000,
+          "covered": 3714,
+          "scored": 3907,
+          "skipped": 0,
+          "log_sha256": "7ae5131388909b4fa2808394b65eb014d7b581561ec513695adcb192b4c3d5ec",
+          "tally_sha256": "91c056279278ee6e6bdb8baef0a002892001ba071257435aa98b2c0300a3018d",
+          "prefix_tally_sha256": "2ac39767866983e9d48c356ecdb5d3c577d611efde0400ded845bc10efd085b2",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.3,
+          "original_summary": [
+            "info summary parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1953 reported_share=0.977 refusals={\"parent_set_effect.parent_limit_bound\": 3, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 44} coverage=0.953 median_width=0.194 parents_recovered=0.977 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.996 orientation_recall=0.597"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3907 reported_share=0.977 refusals={\"parent_set_effect.parent_limit_bound\": 3, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 43} coverage=0.951 median_width=0.193 parents_recovered=0.977 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.996 orientation_recall=0.597"
+          ]
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
+      "functional": "total_effect.variables_20.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "74b0c67fe4c71335c2961d4ef24a165abbdef97acdf0cafc3b824bcbbe4265f2",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 4000,
+          "covered": 3434,
+          "scored": 3628,
+          "skipped": 0,
+          "log_sha256": "bdd040cb9b83337296607f1e7e765a4f08e8dc1223f1fbf93e0d025915c6d53c",
+          "tally_sha256": "dcf178d5c4ed08fb5bbbbac420e73031dc87f791bc11aa0f423d5e348c3c66cc",
+          "prefix_tally_sha256": "7bac0f7e4af933be603e0a49317f8cd37f590c718f91a26823c3e2e1cf644b73",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.6,
+          "original_summary": [
+            "info summary parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1802 reported_share=0.901 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.outcome_precedes_treatment\": 6, \"parent_set_effect.parent_limit_bound\": 6, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 172, \"parent_set_effect.treatment_parents_ambiguous\": 13} coverage=0.945 median_width=0.282 parents_recovered=0.900 skeleton_precision=0.997 skeleton_recall=0.988 orientation_precision=0.990 orientation_recall=0.390"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3628 reported_share=0.907 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.outcome_precedes_treatment\": 1, \"parent_set_effect.parent_limit_bound\": 4, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 155, \"parent_set_effect.treatment_parents_ambiguous\": 13} coverage=0.947 median_width=0.284 parents_recovered=0.906 skeleton_precision=0.998 skeleton_recall=0.988 orientation_precision=0.992 orientation_recall=0.390"
+          ]
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3479,
+          "scored": 3663,
+          "skipped": 0,
+          "log_sha256": "7a971b7c9894db94c0a92d6916d845e7b5e9f956a2b99f57c6c8137a3b4af5b0",
+          "tally_sha256": "e8a0c5529cefa4bdcc775a629ca1b41df31969751666d36ecef45d108c6ca84c",
+          "prefix_tally_sha256": "ee1e9c6dfe8a3906a7476c4d9110b2c2c36210d413dac9e3d735116c89ec9504",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1846 reported_share=0.923 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.outcome_precedes_treatment\": 4, \"parent_set_effect.parent_limit_bound\": 9, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 140} coverage=0.941 median_width=0.199 parents_recovered=0.923 skeleton_precision=0.998 skeleton_recall=0.993 orientation_precision=0.992 orientation_recall=0.416"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3663 reported_share=0.916 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.outcome_precedes_treatment\": 2, \"parent_set_effect.parent_limit_bound\": 12, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 168} coverage=0.950 median_width=0.200 parents_recovered=0.916 skeleton_precision=0.998 skeleton_recall=0.993 orientation_precision=0.995 orientation_recall=0.415"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 4000,
+          "covered": 3506,
+          "scored": 3709,
+          "skipped": 0,
+          "log_sha256": "097609b40eec8d2fa5d77b0c26038add20d4e0982cdc56d174a1a770e2c61bd5",
+          "tally_sha256": "c9b21162dafba4b2c8d39cfb847595e4ca368811c24e89fe5c2a438e3c14a7e9",
+          "prefix_tally_sha256": "05e2e370d8d56c67c28f8cf2eab23a3ef6526bdeb1d1bde45e8f31280b8d4722",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.3,
+          "original_summary": [
+            "info summary parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1860 reported_share=0.930 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.parent_limit_bound\": 6, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 133} coverage=0.940 median_width=0.140 parents_recovered=0.930 skeleton_precision=0.997 skeleton_recall=0.996 orientation_precision=0.991 orientation_recall=0.431"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3709 reported_share=0.927 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.outcome_precedes_treatment\": 1, \"parent_set_effect.parent_limit_bound\": 4, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 145} coverage=0.945 median_width=0.140 parents_recovered=0.927 skeleton_precision=0.998 skeleton_recall=0.995 orientation_precision=0.991 orientation_recall=0.427"
+          ]
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
+      "functional": "intervention_mean_ratio.variables_10.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "f69d998d7bd02f80fe482632f9e1fcb1e875e644ef09939c17973d3ee8bf508f",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 4000,
+          "covered": 3437,
+          "scored": 3633,
+          "skipped": 0,
+          "log_sha256": "4f13105f87ba62ac7f88ddeb6133fe02f3c1ffb29f645ad909804d5487cedd0e",
+          "tally_sha256": "6077354c47ded58f9ead995b56dc2b58af99fc68856bb5d2e755ed5091e4c918",
+          "prefix_tally_sha256": "d1f859c40cda813a06688e8b1207a8b43b351b2ba63039b6cfd7c8bb429975e6",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.6,
+          "original_summary": [
+            "info summary parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1827 reported_share=0.913 refusals={\"parent_set_effect.outcome_precedes_treatment\": 1, \"parent_set_effect.parent_limit_bound\": 5, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 155, \"parent_set_effect.treatment_parents_ambiguous\": 12} coverage=0.945 median_width=0.293 parents_recovered=0.908 skeleton_precision=0.999 skeleton_recall=0.976 orientation_precision=0.995 orientation_recall=0.551"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3633 reported_share=0.908 refusals={\"parent_set_effect.outcome_precedes_treatment\": 6, \"parent_set_effect.parent_limit_bound\": 8, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 165, \"parent_set_effect.treatment_parents_ambiguous\": 15} coverage=0.946 median_width=0.286 parents_recovered=0.903 skeleton_precision=0.998 skeleton_recall=0.975 orientation_precision=0.992 orientation_recall=0.550"
+          ]
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3546,
+          "scored": 3756,
+          "skipped": 0,
+          "log_sha256": "f5c9329fa6076f862866e9d6f534a517258f669c7812574bef313ce55ced02fa",
+          "tally_sha256": "e99b389118fbe670f9465c80f139a8c8a264cd07b1dcbc51c020b83bed71982a",
+          "prefix_tally_sha256": "e77979aa725e2885524b726c12f7d10b3b07c8f8306fdbd3947f86e326175114",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1891 reported_share=0.946 refusals={\"parent_set_effect.parent_limit_bound\": 5, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 104} coverage=0.940 median_width=0.203 parents_recovered=0.943 skeleton_precision=0.998 skeleton_recall=0.986 orientation_precision=0.994 orientation_recall=0.572"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3756 reported_share=0.939 refusals={\"parent_set_effect.outcome_precedes_treatment\": 2, \"parent_set_effect.parent_limit_bound\": 3, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 130} coverage=0.944 median_width=0.205 parents_recovered=0.937 skeleton_precision=0.998 skeleton_recall=0.988 orientation_precision=0.994 orientation_recall=0.575"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 4000,
+          "covered": 3582,
+          "scored": 3782,
+          "skipped": 0,
+          "log_sha256": "75084762139e8034a9abcd358b715dea878a9b8258229104461fb90aa798ca2a",
+          "tally_sha256": "9b4db116c4a18676fb12467c82c47fdb3ce1ec4f57acd9183e4f436ceef23d72",
+          "prefix_tally_sha256": "f43680405e8ed10416a2d4caa43a2bfc0b01d220f73c3719cbd35674efed8adf",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.3,
+          "original_summary": [
+            "info summary parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1888 reported_share=0.944 refusals={\"parent_set_effect.outcome_precedes_treatment\": 1, \"parent_set_effect.parent_limit_bound\": 8, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 103} coverage=0.949 median_width=0.140 parents_recovered=0.942 skeleton_precision=0.998 skeleton_recall=0.993 orientation_precision=0.995 orientation_recall=0.585"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3782 reported_share=0.946 refusals={\"parent_set_effect.outcome_precedes_treatment\": 1, \"parent_set_effect.parent_limit_bound\": 4, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 101} coverage=0.947 median_width=0.143 parents_recovered=0.943 skeleton_precision=0.998 skeleton_recall=0.992 orientation_precision=0.994 orientation_recall=0.584"
+          ]
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+      "functional": "intervention_mean_ratio.variables_10.max_degree_4.discovery_fraction_0_75.topology_layered_multi_mediator_nuisance",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "d2f98d35c825122508dc270d0b719555bd723592ffebeb1699445a2150b72a45",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 4000,
+          "covered": 3763,
+          "scored": 3971,
+          "skipped": 0,
+          "log_sha256": "ebb16a15d7a0055f85d047c8fb63d4f7cb2a45e8c7eddbeda5f02be24c3bb045",
+          "tally_sha256": "8250674036534d2b2423fbb8f2c596d00069f69dc70069b2b79c103d3e08878e",
+          "prefix_tally_sha256": "23d170b73801802c9bf66fb739642e68f1f38fc4c878fb8eb6d2da7da9d009e2",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.6,
+          "original_summary": [
+            "info summary parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1988 reported_share=0.994 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 12} coverage=0.948 median_width=0.397 parents_recovered=0.988 skeleton_precision=0.996 skeleton_recall=0.999 orientation_precision=0.991 orientation_recall=0.691"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3971 reported_share=0.993 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 17} coverage=0.948 median_width=0.404 parents_recovered=0.989 skeleton_precision=0.996 skeleton_recall=0.998 orientation_precision=0.992 orientation_recall=0.690"
+          ]
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3760,
+          "scored": 3970,
+          "skipped": 0,
+          "log_sha256": "0d328d58aeecfc0e4fef9705a01828d804d258b242cd79336a0ea33c02ec41c5",
+          "tally_sha256": "748cd19f9df082c8814ebb1687a82fc47dc5e8519febc24604fa72c9d4e57b61",
+          "prefix_tally_sha256": "fe92f9b82cb510e90b530a43634efca96251ecf8402135e88484fdfd3dc803ea",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1988 reported_share=0.994 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 12} coverage=0.948 median_width=0.283 parents_recovered=0.993 skeleton_precision=0.998 skeleton_recall=1.000 orientation_precision=0.997 orientation_recall=0.699"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3970 reported_share=0.993 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 18} coverage=0.947 median_width=0.283 parents_recovered=0.991 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.997 orientation_recall=0.699"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 4000,
+          "covered": 3764,
+          "scored": 3974,
+          "skipped": 0,
+          "log_sha256": "a8af68251e875505a0570bf56e173ae3d970b0acb2bddb48a25f4c92efc9246c",
+          "tally_sha256": "5a13dc5ba97c484f0d5795b6e8a88bf8118bc8040d259443d25fed777dff84e4",
+          "prefix_tally_sha256": "7ef038c95f0552393bea64fbb598b9c82d677e76ea4896dc90478079fa58abc7",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.3,
+          "original_summary": [
+            "info summary parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1989 reported_share=0.995 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 11} coverage=0.948 median_width=0.200 parents_recovered=0.993 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.996 orientation_recall=0.698"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3974 reported_share=0.994 refusals={\"parent_set_effect.treatment_orientation_depends_on_conflict\": 15} coverage=0.947 median_width=0.196 parents_recovered=0.992 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.996 orientation_recall=0.698"
+          ]
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+      "functional": "intervention_mean_ratio.variables_15.max_degree_4.discovery_fraction_0_75.topology_layered_multi_mediator_nuisance",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "60b4ab2be1e2ceb32a65d82c1e18b231e407f92255a0861f93a55ad371a04938",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 4000,
+          "covered": 3705,
+          "scored": 3906,
+          "skipped": 0,
+          "log_sha256": "3ba28a5232ef484a9de346dd30b4ba8e7bbc8bf3810c8573b57daf3e6570e883",
+          "tally_sha256": "61c4d061592311e69d550cd78e3e5d49e5fc1c2e54b92853fa9670561d1125a2",
+          "prefix_tally_sha256": "48dcefd8800f10dbf065cb779e4ea32eaf6775df4457a97840511177862ef1a7",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.6,
+          "original_summary": [
+            "info summary parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1954 reported_share=0.977 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.parent_limit_bound\": 6, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 39} coverage=0.952 median_width=0.399 parents_recovered=0.977 skeleton_precision=0.997 skeleton_recall=0.999 orientation_precision=0.925 orientation_recall=0.521"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3906 reported_share=0.977 refusals={\"parent_set_effect.parent_limit_bound\": 2, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 46} coverage=0.949 median_width=0.398 parents_recovered=0.976 skeleton_precision=0.998 skeleton_recall=0.999 orientation_precision=0.930 orientation_recall=0.524"
+          ]
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3721,
+          "scored": 3902,
+          "skipped": 0,
+          "log_sha256": "6c0c9901de47342c2e79ad65571c50fc99d49d1d5126b03fd54dde1e79ac2a7d",
+          "tally_sha256": "ee7ab9141b1fe5b266c9ffc8c971dedca963d801ef43ffa3d0c0dbc9ba078c5e",
+          "prefix_tally_sha256": "8d91ee7997d31063fa515017e36083c35cdce98bde47062d7f1bcb1234f7184a",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1948 reported_share=0.974 refusals={\"parent_set_effect.conflict_resolution_budget\": 2, \"parent_set_effect.parent_limit_bound\": 3, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 47} coverage=0.955 median_width=0.279 parents_recovered=0.974 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.979 orientation_recall=0.578"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3902 reported_share=0.976 refusals={\"parent_set_effect.parent_limit_bound\": 7, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 39} coverage=0.954 median_width=0.282 parents_recovered=0.975 skeleton_precision=0.998 skeleton_recall=1.000 orientation_precision=0.985 orientation_recall=0.585"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 4000,
+          "covered": 3714,
+          "scored": 3907,
+          "skipped": 0,
+          "log_sha256": "d6b8d77e6d6eafa04c7e4e5131a08d692b5ac93b88e6ddc71b683e1a58283717",
+          "tally_sha256": "69c394eb56a44d81711740b78f5de2aaba668013ee0da96f6e949c4e27283ebb",
+          "prefix_tally_sha256": "51261ab53c85de50195b4482422cc64327d64406fb6ad31d1c94e59e0e1f5791",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.3,
+          "original_summary": [
+            "info summary parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=1953 reported_share=0.977 refusals={\"parent_set_effect.parent_limit_bound\": 3, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 44} coverage=0.953 median_width=0.199 parents_recovered=0.977 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.996 orientation_recall=0.597"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=4000 reported=3907 reported_share=0.977 refusals={\"parent_set_effect.parent_limit_bound\": 3, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 43} coverage=0.951 median_width=0.198 parents_recovered=0.977 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.996 orientation_recall=0.597"
+          ]
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
+      "functional": "intervention_mean_ratio.variables_20.max_degree_4.discovery_fraction_0_75.topology_hub_confounded_multi_path",
+      "nominal": 0.95,
+      "measurement_payload_sha256": "2dee5898a82be0d6b7cd3a4cb935649f55add3cc80813a2475f3788ccf86d0d2",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 4000,
+          "covered": 3434,
+          "scored": 3628,
+          "skipped": 0,
+          "log_sha256": "e80c0a603977587d2d6b2e6a1748b3dcdb4a4a3c588ad56b3d27df4a498481d1",
+          "tally_sha256": "da3002cf96426627663565d4510b3bc1cdd8d8975bcb019fe3d359fd25d28be8",
+          "prefix_tally_sha256": "542cc541a0b830bc4f82c2de62e7012a3e0a7527a29a5afa0cbec936789ca1a4",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.6,
+          "original_summary": [
+            "info summary parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1802 reported_share=0.901 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.outcome_precedes_treatment\": 6, \"parent_set_effect.parent_limit_bound\": 6, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 172, \"parent_set_effect.treatment_parents_ambiguous\": 13} coverage=0.945 median_width=0.287 parents_recovered=0.900 skeleton_precision=0.997 skeleton_recall=0.988 orientation_precision=0.990 orientation_recall=0.390"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3628 reported_share=0.907 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.outcome_precedes_treatment\": 1, \"parent_set_effect.parent_limit_bound\": 4, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 155, \"parent_set_effect.treatment_parents_ambiguous\": 13} coverage=0.947 median_width=0.285 parents_recovered=0.906 skeleton_precision=0.998 skeleton_recall=0.988 orientation_precision=0.992 orientation_recall=0.390"
+          ]
+        },
+        {
+          "point": 1,
+          "planned_attempts": 4000,
+          "covered": 3479,
+          "scored": 3663,
+          "skipped": 0,
+          "log_sha256": "5c0a9e3c6b72383ab51ce9575443c7dd0a71171b59f7ac3dd34e52e94bca51c5",
+          "tally_sha256": "627fbfa0f32784b6a720e235c3d91d8ca9b908b29ac07abea973027bbecbd9fb",
+          "prefix_tally_sha256": "55577d3a4323630d32e068ccd4e7b6003cf72f132fc967efb1bde105c2e1ad48",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.42,
+          "original_summary": [
+            "info summary parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1846 reported_share=0.923 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.outcome_precedes_treatment\": 4, \"parent_set_effect.parent_limit_bound\": 9, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 140} coverage=0.941 median_width=0.207 parents_recovered=0.923 skeleton_precision=0.998 skeleton_recall=0.993 orientation_precision=0.992 orientation_recall=0.416"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3663 reported_share=0.916 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.outcome_precedes_treatment\": 2, \"parent_set_effect.parent_limit_bound\": 12, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 168} coverage=0.950 median_width=0.207 parents_recovered=0.916 skeleton_precision=0.998 skeleton_recall=0.993 orientation_precision=0.995 orientation_recall=0.415"
+          ]
+        },
+        {
+          "point": 2,
+          "planned_attempts": 4000,
+          "covered": 3506,
+          "scored": 3709,
+          "skipped": 0,
+          "log_sha256": "8ab484dc5c574c0ef3f397f75a8ba32a2c91ff8f8279357f9f12fba189e5a9d1",
+          "tally_sha256": "c52c1bc27e72deba164d3cb346c3cff34fd441927e83aaa55481c7d6c8dab231",
+          "prefix_tally_sha256": "299204979010a5624b7e2d133c33d168948f5eacd4d6eba49e286fd0bc2787b6",
+          "computed_indices": [
+            2000,
+            4000
+          ],
+          "width_upper_bound": 0.3,
+          "original_summary": [
+            "info summary parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=2000 reported=1860 reported_share=0.930 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.parent_limit_bound\": 6, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 133} coverage=0.940 median_width=0.149 parents_recovered=0.930 skeleton_precision=0.997 skeleton_recall=0.996 orientation_precision=0.991 orientation_recall=0.431"
+          ],
+          "suffix_summary": [
+            "info summary parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage: replicates=4000 reported=3709 reported_share=0.927 refusals={\"parent_set_effect.conflict_resolution_budget\": 1, \"parent_set_effect.outcome_precedes_treatment\": 1, \"parent_set_effect.parent_limit_bound\": 4, \"parent_set_effect.treatment_orientation_depends_on_conflict\": 145} coverage=0.945 median_width=0.140 parents_recovered=0.927 skeleton_precision=0.998 skeleton_recall=0.995 orientation_precision=0.991 orientation_recall=0.427"
+          ]
+        }
+      ]
+    }
+  ],
+  "legacy_parent_extension_failures": [
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+      "test": "parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "seed_domain": "original_legacy_seed_domain",
+      "point": 2,
+      "planned_attempts": 4000,
+      "covered": 3656,
+      "scored": 3882,
+      "nominal": 0.95,
+      "observed": 0.9417825862957239,
+      "legacy_precision_floor": 0.943004012337082,
+      "frozen_scientific_coverage_floor": 0.94,
+      "status": "failed original local precision rule; not collected as a passing record",
+      "paired_outcome": "parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+      "prefix_tally_sha256": "7367d24ec3554bd573abe9883ede128a79cd230a6074246bdc98c222c43764a9",
+      "log_sha256": "05f76cf2bfb9c02cc9ab20ed5a8b27bf1272b53596840ecb95d4edab285b06ed",
+      "tally_sha256": "3bf7f22d4315984133ed79e6bf27e6248533b606dade5593b211323c5f636ee6",
+      "successor_validation": {
+        "status": "planned; no passing result asserted",
+        "source_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "validation_domain": "release_2_4_1_validation_v1",
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "planned_attempts_each_point": 20000,
+        "points": [
+          0,
+          1,
+          2
+        ],
+        "sealed_plan_sha256": "38b625aa5f59d2b35db67aa3787f7b2690dae2e1a03dda5ab6522a8023f2f148",
+        "replacement_record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+        "combined_execution_plan_sha256": "723b3c60d8775e93b3b07d3d7421e6c5633ebd461429cb5e15cc9998958db344",
+        "execution_queue": "One combined4-group/12-job longest-first queue; initial separate wait-only controllers superseded before any draws."
+      }
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+      "test": "parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "seed_domain": "original_legacy_seed_domain",
+      "point": 2,
+      "planned_attempts": 4000,
+      "covered": 3656,
+      "scored": 3882,
+      "nominal": 0.95,
+      "observed": 0.9417825862957239,
+      "legacy_precision_floor": 0.943004012337082,
+      "frozen_scientific_coverage_floor": 0.94,
+      "status": "failed original local precision rule; not collected as a passing record",
+      "paired_outcome": "parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
+      "prefix_tally_sha256": "c1c72a2664166f695238b958c9266ee3c99f2bbe4857bc9bbb66d0d4b5a1e881",
+      "log_sha256": "f370a23df64d30a78208009256f3c4324992ee95e20570def14842f80a0fa6ee",
+      "tally_sha256": "550911f3003a7a4fd0d84721c1a2063c36ccfef208c12442d6a4809c1d1f7800",
+      "successor_validation": {
+        "status": "planned; no passing result asserted",
+        "source_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "validation_domain": "release_2_4_1_validation_v1",
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "planned_attempts_each_point": 20000,
+        "points": [
+          0,
+          1,
+          2
+        ],
+        "sealed_plan_sha256": "38b625aa5f59d2b35db67aa3787f7b2690dae2e1a03dda5ab6522a8023f2f148",
+        "replacement_record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+        "combined_execution_plan_sha256": "723b3c60d8775e93b3b07d3d7421e6c5633ebd461429cb5e15cc9998958db344",
+        "execution_queue": "One combined4-group/12-job longest-first queue; initial separate wait-only controllers superseded before any draws."
+      }
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+      "test": "parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "seed_domain": "original_legacy_seed_domain",
+      "point": 1,
+      "planned_attempts": 4000,
+      "covered": 3493,
+      "scored": 3708,
+      "nominal": 0.95,
+      "observed": 0.942017259978425,
+      "legacy_precision_floor": 0.9428417487506165,
+      "frozen_scientific_coverage_floor": 0.94,
+      "status": "failed original local precision rule; not collected as a passing record",
+      "paired_outcome": "parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
+      "prefix_tally_sha256": "40edbd8091fefc2a2e172295c3fa4f98345b4bda855d604b8aeb81f7cef76a3e",
+      "log_sha256": "17dfda647c089e3042e4e746bc894fefa57f7f20d49e4cbd907708c56c5e311c",
+      "tally_sha256": "0024295068445bfa0f2059810e63bd82a1bed4c932619967d78602dd10ae862f",
+      "successor_validation": {
+        "status": "planned; no passing result asserted",
+        "source_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "validation_domain": "release_2_4_1_validation_v1",
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "planned_attempts_each_point": 20000,
+        "points": [
+          0,
+          1,
+          2
+        ],
+        "sealed_plan_sha256": "67a39d6b50ec3a56f3ab7db02bb17912e798749917ef847cc540ba45b352bf88",
+        "replacement_record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+        "combined_execution_plan_sha256": "723b3c60d8775e93b3b07d3d7421e6c5633ebd461429cb5e15cc9998958db344",
+        "execution_queue": "One combined4-group/12-job longest-first queue; initial separate wait-only controllers superseded before any draws."
+      }
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+      "test": "parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "seed_domain": "original_legacy_seed_domain",
+      "point": 1,
+      "planned_attempts": 4000,
+      "covered": 3493,
+      "scored": 3708,
+      "nominal": 0.95,
+      "observed": 0.942017259978425,
+      "legacy_precision_floor": 0.9428417487506165,
+      "frozen_scientific_coverage_floor": 0.94,
+      "status": "failed original local precision rule; not collected as a passing record",
+      "paired_outcome": "parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
+      "prefix_tally_sha256": "868811773b78d8c6933acdf17470c8c6be0b91c720a641c0526e5308f0dea662",
+      "log_sha256": "e689c31c20b127dd5b236c70d9c3eb6def721bf17992942f0b31b405bd97b66b",
+      "tally_sha256": "f37b1df6b0fe7eb32838d2f0fd0b6d542e57573a2aea27257fcdde4bd2967345",
+      "successor_validation": {
+        "status": "planned; no passing result asserted",
+        "source_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "validation_domain": "release_2_4_1_validation_v1",
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "planned_attempts_each_point": 20000,
+        "points": [
+          0,
+          1,
+          2
+        ],
+        "sealed_plan_sha256": "67a39d6b50ec3a56f3ab7db02bb17912e798749917ef847cc540ba45b352bf88",
+        "replacement_record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+        "combined_execution_plan_sha256": "723b3c60d8775e93b3b07d3d7421e6c5633ebd461429cb5e15cc9998958db344",
+        "execution_queue": "One combined4-group/12-job longest-first queue; initial separate wait-only controllers superseded before any draws."
+      }
+    }
+  ],
+  "historical_H1_boundary": {
+    "schema": "calibration_supersession_history.v1",
+    "status": "independent_primary_validation_planned; no new result asserted",
+    "group": "practitioner_scale_calibration: practitioner_temporal_pulse_h1_interval",
+    "historical_registry": {
+      "commit": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+      "path": "parity/coverage_records.toml",
+      "git_blob": "5f40f09c6a168ca4916883706f5e7451a6a433c3"
+    },
+    "historical_records": [
+      {
+        "id": "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.practitioner_temporal_pulse_h1_interval",
+        "query": "PulseEffect",
+        "graph_class": "TemporalDag",
+        "structure": "fixed",
+        "modality": "series",
+        "inference": "Frequentist",
+        "estimator": "temporal.linear.adjustment",
+        "interval_method": "circular_block_se",
+        "se_kind": "",
+        "dependence": "circular_block:single_window",
+        "posterior": "",
+        "functional": "pulse.h1.all_observed",
+        "identification": "point",
+        "nominal": 0.9,
+        "n_min": 319,
+        "n_max": 4159,
+        "replicates_min": 100,
+        "posterior_draws_min": 0,
+        "unidentified_mass_max": 0.0,
+        "observed": 0.885,
+        "mcse": 0.01595109714094927,
+        "replicates": 400,
+        "boundary": false,
+        "role": "gated",
+        "grid": [
+          {
+            "point": 0,
+            "n_min": 319,
+            "n_max": 319,
+            "observed": 0.9025,
+            "mcse": 0.014831870246196198,
+            "replicates": 400,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "point": 1,
+            "n_min": 1279,
+            "n_max": 1279,
+            "observed": 0.8885,
+            "mcse": 0.00703803061942757,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "point": 2,
+            "n_min": 4159,
+            "n_max": 4159,
+            "observed": 0.885,
+            "mcse": 0.01595109714094927,
+            "replicates": 400,
+            "boundary": false,
+            "role": "gated"
+          }
+        ],
+        "dgp": "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
+        "test": "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_temporal_pulse_h1_interval",
+        "facets": [
+          "core",
+          "estimator.temporal_adjustment",
+          "identity.temporal",
+          "suite.practitioner_scale_calibration"
+        ],
+        "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+        "surface_list_blob": "47de97e600d2550fde773d150015045105d81be5"
+      },
+      {
+        "id": "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.practitioner_temporal_pulse_h1_interval",
+        "query": "PulseEffect",
+        "graph_class": "TemporalDag",
+        "structure": "fixed",
+        "modality": "series",
+        "inference": "Frequentist",
+        "estimator": "temporal.linear.adjustment",
+        "interval_method": "circular_block_se",
+        "se_kind": "",
+        "dependence": "circular_block:single_window",
+        "posterior": "",
+        "functional": "pulse.h1.all_observed",
+        "identification": "point",
+        "nominal": 0.95,
+        "n_min": 319,
+        "n_max": 4159,
+        "replicates_min": 100,
+        "posterior_draws_min": 0,
+        "unidentified_mass_max": 0.0,
+        "observed": 0.937,
+        "mcse": 0.00543281694887652,
+        "replicates": 2000,
+        "boundary": true,
+        "role": "reported_level",
+        "grid": [
+          {
+            "point": 0,
+            "n_min": 319,
+            "n_max": 319,
+            "observed": 0.9475,
+            "mcse": 0.01115165346484547,
+            "replicates": 400,
+            "boundary": false,
+            "role": "reported_level"
+          },
+          {
+            "point": 1,
+            "n_min": 1279,
+            "n_max": 1279,
+            "observed": 0.937,
+            "mcse": 0.00543281694887652,
+            "replicates": 2000,
+            "boundary": true,
+            "role": "reported_level"
+          },
+          {
+            "point": 2,
+            "n_min": 4159,
+            "n_max": 4159,
+            "observed": 0.945,
+            "mcse": 0.011399013115178002,
+            "replicates": 400,
+            "boundary": false,
+            "role": "reported_level"
+          }
+        ],
+        "dgp": "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
+        "test": "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_temporal_pulse_h1_interval",
+        "facets": [
+          "core",
+          "estimator.temporal_adjustment",
+          "identity.temporal",
+          "suite.practitioner_scale_calibration"
+        ],
+        "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+        "surface_list_blob": "47de97e600d2550fde773d150015045105d81be5"
+      }
+    ],
+    "new_validation": {
+      "source_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+      "validation_domain": "release_2_4_1_validation_v1",
+      "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+      "planned_attempts_each_grid": 2000,
+      "grid_points": [
+        0,
+        1,
+        2
+      ],
+      "plan_sha256": "7c1603cf38da37bf2015454a7a2af1b701f932045d140cae229f699168eac616"
+    },
+    "supersession_policy": "Historical boundary/counts/source remain evidence. Only complete independently measured passing new-domain whole-group evidence may replace the two live record IDs. The unexecuted old-domain p2 extension was superseded before execution; it supplies no independent confirmation.",
+    "legacy_plan_amendment_sha256": "969556d2e8c0030c0b569c4b346f0beb50cd93efcb6dba1c095e42e657fa958b",
+    "original_log_and_tally_sha256": {
+      "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p0.log": "eda4bb80cd5ba0f1a8b83f20eb8854948c8b9b6d202ee7537476e40ce85927f8",
+      "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p0.tallies.jsonl": "67e972d67840180bbe807b48f47d381e6dc88553fa62c966409f1378cc197af4",
+      "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p1.log": "54b007442a49708d25c0de09b71b3b2ecff34b757512e142a3c21d3f7f56a6d4",
+      "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p1.tallies.jsonl": "1bceb971676efa8fe6606b9d333cb5599d849122ee74c9cf35bfdf9f467b6cd6",
+      "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p2.log": "c8b18cd3ab742acf0a95b87c0dc9c6ff2daa8b18df1a6d842d59a0111bb87d7d",
+      "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p2.tallies.jsonl": "0503d95045d507700549b0de0a2532c03a2001b19ae9ee8d477ba8f1df188f2b"
+    }
+  }
+}
