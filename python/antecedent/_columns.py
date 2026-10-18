@@ -582,7 +582,7 @@ def resolve_estimator_identifiers(
         del resolved["cluster"]
         resolved["source_cluster_ids"] = codes
         bindings[column] = binding
-    if named_dml:
+    if named_dml and isinstance(declared, Mapping):
         _check_cluster_estimator(estimator, _CLUSTER_DML_ESTIMATORS)
         unit = dict(declared)
         names = [unit[key] for key in ("cluster", "second_cluster") if key in unit]
@@ -591,15 +591,15 @@ def resolve_estimator_identifiers(
                 raise CausalValueError(
                     f"ClusterDml.{key} must name a data column", reason_code="invalid_argument"
                 )
-        codes = _joint_codes(data, names)
+        joint_codes = _joint_codes(data, names)
         for name in names:
             bindings[name] = encode_identifier(data, name, what="cluster")[0]
         if "cluster" in unit:
             del unit["cluster"]
-            unit["source_cluster_ids"] = codes.pop(0)
+            unit["source_cluster_ids"] = joint_codes.pop(0)
         if "second_cluster" in unit:
             del unit["second_cluster"]
-            unit["source_second_cluster_ids"] = codes.pop(0)
+            unit["source_second_cluster_ids"] = joint_codes.pop(0)
         resolved["cluster_dml"] = unit
     return resolved, bindings
 

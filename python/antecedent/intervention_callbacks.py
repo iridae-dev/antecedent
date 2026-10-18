@@ -42,7 +42,7 @@ import importlib.metadata
 import math
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, cast
 
 import numpy as np
 
@@ -246,7 +246,7 @@ def _compile_source(source: str, entry_point: str, modules: Sequence[str]) -> Ca
     for name in modules:
         namespace[name.replace("-", "_")] = importlib.import_module(name.replace("-", "_"))
     exec(compile(tree, "<callback source>", "exec"), namespace)  # noqa: S102 - see module docstring
-    return namespace[entry_point]  # type: ignore[no-any-return]
+    return namespace[entry_point]
 
 
 @dataclass(frozen=True, slots=True)
@@ -418,6 +418,7 @@ class InterventionCallback:
         """
         _refuse_unless_portable([self])
         fields = self._handle.recovery_record()
+        assert fields is not None  # Portability was checked above.
         return CallbackRecord(
             name=fields["name"],
             inputs=tuple(fields["inputs"]),
@@ -640,12 +641,14 @@ def decode_programs(
         if kind == "closed":
             decoded.extend(_programs(first))
         else:
+            # The native decoder validates callback rows; closed rows alone omit these fields.
+            assert variable is not None and callback_name is not None and reads is not None
             decoded.append(
                 CallbackProgram(
                     variable,
                     by_name[callback_name],
                     reads=[GENERATED if read is None else read for read in reads],
-                    mode=first,
+                    mode=cast(Literal["assign", "transform"], first),
                 )
             )
     return tuple(decoded)

@@ -16,6 +16,8 @@ the true one. No test asserts that a discovered graph is the true graph in gener
 
 from __future__ import annotations
 
+from unittest.mock import sentinel
+
 import numpy as np
 import pytest
 from antecedent import selective_discovery as sd
@@ -221,6 +223,24 @@ def test_an_estimate_over_columns_that_are_not_integer_codes_is_refused_precisel
 def test_a_forged_estimate_artifact_does_not_replay() -> None:
     with pytest.raises(CausalValueError):
         discovered.verify_discovered_transport_estimate(b"not an artifact")
+
+
+def test_estimate_factory_preserves_the_native_artifact_and_retained_context() -> None:
+    """Wire adaptation retains opaque bytes; it does not certify or reconstruct execution."""
+    wire = {
+        "levels": [0, 1],
+        "members": [],
+        "answer": {"kind": "point", "levels": [], "expressions_agree": True},
+        "report_identity": "original-report",
+        "identity": "original-result",
+    }
+    artifact = b"opaque native artifact"
+    result = discovered._estimate_of(wire, artifact, sentinel.outcome, sentinel.report)
+    assert result.export() is artifact
+    assert result.outcome is sentinel.outcome
+    assert result.report is sentinel.report
+    assert result.identity == "original-result"
+    assert result.report_identity == "original-report"
 
 
 TEMPORAL_QUERY = {

@@ -16,7 +16,7 @@ import re
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypedDict
 
 from ._coerce import coerce_data, coerce_temporal_data
 from ._native import (
@@ -220,9 +220,13 @@ class BackgroundKnowledge:
         return wire
 
 
+class _KnowledgeKwargs(TypedDict, total=False):
+    background_knowledge: str
+
+
 def _knowledge_kwargs(
     knowledge: BackgroundKnowledge | None, names: Sequence[str]
-) -> dict[str, str]:
+) -> _KnowledgeKwargs:
     """The native ``background_knowledge`` argument for a run over ``names``, if any."""
     if knowledge is None:
         return {}

@@ -607,7 +607,7 @@ def _estimate_of(
         answer=_answer(wire["answer"]),
         report_identity=str(wire["report_identity"]),
         identity=str(wire["identity"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
         outcome=found,
         report=report,
     )

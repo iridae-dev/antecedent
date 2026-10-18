@@ -1570,10 +1570,10 @@ class PreparedAnalysis(Generic[ResultT]):
         }
         if missing_policy is not None:
             options["missing"] = native_declaration(missing_policy, names)
-        if getattr(query, "weights", None) is not None:
+        if (query_weights := getattr(query, "weights", None)) is not None:
             # A design query that declares sampling weights: one weight per original row,
             # frozen like a cluster column so a refreshed table with other weights is refused.
-            declared, weight_binding = encode_weights(data, query.weights, estimator=None)
+            declared, weight_binding = encode_weights(data, query_weights, estimator=None)
             options["sampling_weights"] = declared
             if weight_binding is not None:
                 identifier_bindings[weight_binding.column] = weight_binding

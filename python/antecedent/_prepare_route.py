@@ -467,6 +467,11 @@ class _PrepareRoute:
             }
         )
         if static and isinstance(query, AverageEffect):
+            if isinstance(query.control_level, str) or isinstance(query.active_level, str):
+                raise CausalTypeError(
+                    "graph-posterior effects require numeric treatment levels",
+                    reason_code="invalid_argument",
+                )
             native = _NativePreparedAnalysis.prepare_graph_posterior_ate(
                 self.names,
                 self.columns,
