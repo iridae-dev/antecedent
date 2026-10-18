@@ -611,6 +611,9 @@ def historical_allocations(record: dict, selected: list[str], present: set[str],
 
 
 def check() -> dict:
+    # Every owner uses the same complete-tree attestation state during this check.
+    # Keep the result local: a later invocation must observe newly collected evidence.
+    attestation_result: tuple[bool, str] | None = None
     errors: list[str] = []
     notes: list[str] = []
     refusals: list[dict] = []
@@ -886,7 +889,9 @@ def check() -> dict:
                     "missing": missing,
                 }
             else:
-                ok, message = cai.attested()
+                if attestation_result is None:
+                    attestation_result = cai.attested()
+                ok, message = attestation_result
                 calibration[rid] = {
                     "status": "PASS" if ok else "FAIL",
                     "detail": "records present and attested"
