@@ -2204,7 +2204,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesi
 id = "evidence_synthesis_hartung_knapp_random_effects_5_studies"
 area = "evidence_synthesis"
 workflow = "antecedent evidence synthesis"
-configuration = { studies = 5, construction = "hartung_knapp_random_effects", variances = "unequal", heterogeneity = "declared" }
+configuration = { studies = 5, construction = "independent_gaussian_study_t", coverage_claim = "at_least_nominal", variances = "unequal", heterogeneity = "declared" }
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 1.68, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 1637759, n = 5, studies = 5, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -2224,7 +2224,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesi
 id = "evidence_synthesis_hartung_knapp_random_effects_10_studies"
 area = "evidence_synthesis"
 workflow = "antecedent evidence synthesis"
-configuration = { studies = 10, construction = "hartung_knapp_random_effects", variances = "unequal", heterogeneity = "declared" }
+configuration = { studies = 10, construction = "independent_gaussian_study_t", coverage_claim = "at_least_nominal", variances = "unequal", heterogeneity = "declared" }
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 1.19, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 2864452, n = 10, studies = 10, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -2244,7 +2244,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesi
 id = "evidence_synthesis_hartung_knapp_random_effects_15_studies"
 area = "evidence_synthesis"
 workflow = "antecedent evidence synthesis"
-configuration = { studies = 15, construction = "hartung_knapp_random_effects", variances = "unequal", heterogeneity = "declared" }
+configuration = { studies = 15, construction = "independent_gaussian_study_t", coverage_claim = "at_least_nominal", variances = "unequal", heterogeneity = "declared" }
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.97, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 2439371, n = 15, studies = 15, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -2264,7 +2264,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesi
 id = "evidence_synthesis_hartung_knapp_random_effects_20_studies"
 area = "evidence_synthesis"
 workflow = "antecedent evidence synthesis"
-configuration = { studies = 20, construction = "hartung_knapp_random_effects", variances = "unequal", heterogeneity = "declared" }
+configuration = { studies = 20, construction = "independent_gaussian_study_t", coverage_claim = "at_least_nominal", variances = "unequal", heterogeneity = "declared" }
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.84, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 3292359, n = 20, studies = 20, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -2284,7 +2284,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesi
 id = "evidence_synthesis_hartung_knapp_random_effects_25_studies"
 area = "evidence_synthesis"
 workflow = "antecedent evidence synthesis"
-configuration = { studies = 25, construction = "hartung_knapp_random_effects", variances = "unequal", heterogeneity = "declared" }
+configuration = { studies = 25, construction = "independent_gaussian_study_t", coverage_claim = "at_least_nominal", variances = "unequal", heterogeneity = "declared" }
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.75, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 4909384, n = 25, studies = 25, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -2304,7 +2304,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/evidence_synthesi
 id = "evidence_synthesis_hartung_knapp_random_effects_30_studies"
 area = "evidence_synthesis"
 workflow = "antecedent evidence synthesis"
-configuration = { studies = 30, construction = "hartung_knapp_random_effects", variances = "unequal", heterogeneity = "declared" }
+configuration = { studies = 30, construction = "independent_gaussian_study_t", coverage_claim = "at_least_nominal", variances = "unequal", heterogeneity = "declared" }
 expected = { kind = "calibrated_interval", outputs = ["pooled interval", "degrees of freedom equal to independent value", "interval width"] }
 targets = { runtime_seconds = 30, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, max_median_halfwidth_ratio_to_study_se = 0.68, rationale = "Meta-analysis is closed-form; Monte Carlo coverage over 2,000 replicates is the cost. Half-width ~ 1/sqrt(studies)." }
 dataset = { generator = "study_collection", seed = 8252409, n = 30, studies = 30, tau2 = "declared", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }

@@ -725,7 +725,7 @@ fn pooled_intervals_use_the_actual_study_count_across_the_measured_family() {
         let sws: f64 = ws.iter().sum();
         let mu = ws.iter().zip(&y).map(|(a, b)| a * b).sum::<f64>() / sws;
         let spread: f64 = ws.iter().zip(&y).map(|(a, b)| a * (b - mu) * (b - mu)).sum();
-        let hk_variance = (spread / (kf - 1.0)) / sws;
+        let hk_variance = (spread / (kf - 1.0)).max(1.0) / sws;
         let random = session
             .random_effects(pooling("random", summaries), BetweenStudy::DerSimonianLaird, &c)
             .unwrap()
@@ -1169,4 +1169,40 @@ fn cancellation_stops_before_a_synthesis_and_leaves_the_session_unchanged() {
             )
             .is_ok()
     );
+}
+
+#[test]
+fn equal_study_gaussian_pool_has_a_distinct_conservative_interval_and_durable_replay() {
+    let (mut session, mut summaries) = study_family(5);
+    let ys = [0.0, 2.0, 6.0, 7.0, 10.0];
+    for (summary, y) in summaries.iter_mut().zip(ys) {
+        summary.estimate = y;
+        // Deliberately heterogeneous, imprecise variances do not set the weights.
+        summary.variance = 0.01 + y * y;
+    }
+    let result =
+        session.pool_gaussian_studies(pooling("gaussian", summaries), &ctx()).unwrap().result;
+    let Some(SynthesisValue::EqualStudyGaussian(fit)) = session.synthesis(result).unwrap() else {
+        panic!("equal-study result");
+    };
+    close(fit.estimate, 5.0, "unweighted study mean");
+    close(fit.variance, 3.2, "study-level variance of the mean");
+    let candidate = session.pooled_interval_candidate(result).unwrap();
+    // Published Student t(4) 0.975 quantile, independent of the kernel's routine.
+    let half = 2.776_445_105_197_798_7 * 3.2_f64.sqrt();
+    close(candidate.lower, 5.0 - half, "lower");
+    close(candidate.upper, 5.0 + half, "upper");
+    assert_eq!(candidate.method, "independent_gaussian_study_t");
+    assert_eq!(candidate.scope["coverage_claim"], "at_least_nominal");
+    assert_eq!(&*candidate.basis.estimator, "evidence.synthesis.equal_study_gaussian");
+    assert!(candidate.basis.functional.contains("equal_study_gaussian"));
+    assert!(
+        session.pooled_interval(result).is_err(),
+        "new method cannot borrow old precision-weighted records"
+    );
+    let export = session.export("equal-study").unwrap();
+    let consumed = consume_evidence_ledger_artifact(&export.bytes, Some(&export.identity)).unwrap();
+    let recomputed = consumed.synthesis_of(result).unwrap();
+    assert_eq!(recomputed.method, "equal_study_gaussian");
+    assert_eq!(recomputed.values, vec![5.0, 3.2]);
 }

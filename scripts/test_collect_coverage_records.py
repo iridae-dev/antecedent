@@ -459,6 +459,47 @@ class FacetTaggingTest(unittest.TestCase):
         refs.assert_not_called()
 
 
+class ConservativePointTest(unittest.TestCase):
+    @staticmethod
+    def point(k=0):
+        return _point(k, 0.959, "conservative_point",
+            conservative_point=collector.GAUSSIAN_STUDY_T_CLAIM.copy(),
+            query="PooledEffect", graph_class="NoGraph", structure="fixed", modality="summary",
+            inference="Frequentist", estimator="evidence.synthesis.equal_study_gaussian",
+            interval_method="independent_gaussian_study_t", se_kind="empirical_study_variance",
+            dependence="independent", posterior="", identification="point",
+            functional="pooled_mean;equal_study_gaussian;studies=5-30", replicates_min=0)
+
+    def test_theorem_declared_method_retains_observed_conservative_coverage(self):
+        record = collector.merge_grid("gaussian", {k: self.point(k) for k in range(3)})
+        self.assertEqual(record["observed"], 0.959)
+        self.assertEqual(record["role"], "conservative_point")
+        self.assertEqual(record["conservative_point"], collector.GAUSSIAN_STUDY_T_CLAIM)
+        self.assertNotIn("one_sided", record)
+
+    def test_theorem_and_target_survive_registry_serialization(self):
+        record = collector.merge_grid("gaussian", {k: self.point(k) for k in range(3)})
+        record.update({key: "x" for key in collector.FIELDS if key not in record})
+        record.update(facets=["core"], calibration_sha="1" * 40, surface_list_blob="1" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "records.toml"
+            with patch.object(collector, "surface_list_blob", return_value="1" * 40):
+                collector.write_registry({"gaussian": record}, out, retag=False)
+            parsed = collector.tomllib.loads(out.read_text())["record"][0]
+        self.assertEqual(parsed["conservative_point"], collector.GAUSSIAN_STUDY_T_CLAIM)
+        self.assertEqual(parsed["observed"], 0.959)
+
+    def test_nominal_method_cannot_relabel_a_failure_as_conservative(self):
+        for updates in (
+            {"estimator": "evidence.synthesis.random_effects"},
+            {"interval_method": "hksj_t"}, {"se_kind": "hartung_knapp"},
+            {"nominal": 0.90}, {"posterior": "draws"}, {"identification": "set"},
+            {"conservative_point": None}, {"conservative_point": {"target": "unreviewed"}},
+            {"functional": "pooled_mean;random_effects_dl;studies=5-30"},
+            {"role": "gated"}, {"boundary": True}, {"posterior_draws_min": 1000},
+        ):
+            with self.subTest(updates=updates), self.assertRaises(SystemExit):
+                collector.merge_grid("bad", {k: {**self.point(k), **updates} for k in range(3)})
 
 
 

@@ -12,12 +12,19 @@
 //!
 //! * fixed-effect inverse-variance pooling, Wald `z` interval, on homogeneous
 //!   studies with unequal noise scales;
-//! * DerSimonian-Laird random effects, Hartung-Knapp-Sidik-Jonkman `t`
-//!   interval, on studies whose true effects vary around one mean: moderate
+//! * equal-study Gaussian pooling with a study-level Student `t` interval,
+//!   on studies whose true effects vary around one mean: moderate
 //!   declared heterogeneity (between-study standard deviation half the typical
 //!   study standard error), strong heterogeneity with a four-fold spread of
 //!   study noise scales, and homogeneous studies (heterogeneity absent, where
 //!   the interval must stay valid).
+//!
+//! The Gaussian study-level construction guarantees at least nominal coverage
+//! for independent marginally Gaussian estimates with a common superpopulation
+//! mean and arbitrary unequal variances (Ibragimov--Mueller 2010, section 2.1).
+//! Its distinct `conservative_point` role tests the existing lower coverage
+//! floor, retaining all original DGPs, seeds and reporting requirements. It
+//! does not relabel the old DL/HKSJ construction as calibrated.
 //!
 //! The moderate-heterogeneity and fixed-effect designs also assert interval
 //! usefulness: the median half-width stays within the acceptance ratio to the
@@ -40,6 +47,20 @@ const LEVEL: f64 = 0.95;
 const MEAN: f64 = 0.5;
 /// Per-study sample size at the base grid point.
 const STUDY_ROWS: usize = 100;
+
+/// Normal measurements use the new method. Attestation replay derives this
+/// override from a stored legacy construction, never from a desired outcome.
+fn protocol_version() -> u32 {
+    static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *VERSION.get_or_init(|| {
+        let raw =
+            std::env::var("ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION").unwrap_or_else(|_| "2".into());
+        raw.parse::<u32>()
+            .ok()
+            .filter(|version| matches!(version, 1 | 2))
+            .unwrap_or_else(|| panic!("ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION={raw}: want 1 or 2"))
+    })
+}
 
 struct Rng(u64);
 
@@ -65,7 +86,7 @@ impl Rng {
 /// How the studies' true effects and noise scales are generated.
 #[derive(Clone, Copy)]
 struct Design {
-    /// Fixed-effect Wald `z` (`true`) or random-effects Hartung-Knapp `t`.
+    /// Fixed-effect Wald `z` (`true`) or conservative Gaussian study-level `t`.
     fixed_effect: bool,
     /// Between-study standard deviation as a multiple of the root-mean-square
     /// study standard error; zero is homogeneous.
@@ -139,8 +160,10 @@ fn replicate(
     let request = PoolingRequest { label: "pooled".to_owned(), summaries, replaces: None };
     let result = if design.fixed_effect {
         session.pool_summaries(request, PoolingDeclaration::Independent, &ctx).ok()?.result
-    } else {
+    } else if protocol_version() == 1 {
         session.random_effects(request, BetweenStudy::DerSimonianLaird, &ctx).ok()?.result
+    } else {
+        session.pool_gaussian_studies(request, &ctx).ok()?.result
     };
     let candidate = session.pooled_interval_candidate(result).ok()?;
     let half_width = (candidate.upper - candidate.lower) / 2.0;
@@ -169,9 +192,20 @@ fn measure(
     dgp: &'static str,
     seed: u64,
 ) {
+    eprintln!("calibration-protocol synthesis_source_version={}", protocol_version());
     let n = grid_n(STUDY_ROWS);
     let mut tally = CoverageTally::for_record(
-        RecordKey { test, dgp, interval: if design.fixed_effect { "wald_z" } else { "hksj_t" } },
+        RecordKey {
+            test,
+            dgp,
+            interval: if design.fixed_effect {
+                "wald_z"
+            } else if protocol_version() == 1 {
+                "hksj_t"
+            } else {
+                "independent_gaussian_study_t"
+            },
+        },
         LEVEL,
     );
     let replicates = map_replicates(n_sim(), |r| replicate(design, studies, n, seed, r));
@@ -210,7 +244,11 @@ fn measure(
             None => tally.skip(),
         }
     }
-    tally.assert();
+    if design.fixed_effect || protocol_version() == 1 {
+        tally.assert();
+    } else {
+        tally.assert_gaussian_study_t();
+    }
     if useful {
         ratios.sort_by(f64::total_cmp);
         let median = ratios[ratios.len() / 2];

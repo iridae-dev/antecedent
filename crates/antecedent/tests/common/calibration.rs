@@ -45,7 +45,10 @@
 //! prints a `one_sided` record for a conservative interval whose target is
 //! at least nominal coverage of a true extremal bound: it states the `side`
 //! and `target`, and its acceptance is a floor with no upper band or ceiling
-//! ([`passes_one_sided`]). `scripts/collect_coverage_records.py` turns those
+//! ([`passes_one_sided`]). [`CoverageTally::assert_gaussian_study_t`] emits the
+//! distinct `conservative_point` role for independent Gaussian study means.
+//! The collector validates its exact construction and theorem declaration;
+//! other nominal methods cannot adopt this role. `scripts/collect_coverage_records.py` turns those
 //! lines into the registry.
 //!
 //! **Sample-size grid.** A record's scope is a measured range, not one row
@@ -1132,6 +1135,12 @@ impl CoverageTally {
         if let Some((side, target)) = one_sided {
             payload["one_sided"] = serde_json::json!({ "side": side.as_str(), "target": target });
         }
+        if role == "conservative_point" {
+            payload["conservative_point"] = serde_json::json!({
+                "target": "common_marginal_study_mean",
+                "justification": "independent_gaussian_study_t.ibragimov_mueller_2010.v1",
+            });
+        }
         if smoke() {
             payload["smoke"] = serde_json::Value::Bool(true);
         }
@@ -1424,6 +1433,58 @@ impl CoverageTally {
             attempts
         );
         self.emit_record_as(false, "one_sided", one_sided);
+    }
+
+    /// Validate the conservative independent-Gaussian equal-study Student method.
+    ///
+    /// Ibragimov--Mueller (2010), section 2.1, proves at least nominal coverage
+    /// for independent Gaussian study estimates with a common mean and unequal
+    /// variances at confidence levels of 95% or greater. This uses the existing
+    /// lower precision floor; it does not assert exactly nominal coverage.
+    /// The collector separately checks the estimator, interval, SE, target and
+    /// theorem identity, so legacy nominal methods cannot borrow this role.
+    /// Design-specific usefulness checks remain the caller's responsibility.
+    ///
+    /// # Panics
+    /// On a shortfall, skipped replicates, confidence below 95%, or missing record.
+    pub fn assert_gaussian_study_t(&self) {
+        assert!(
+            (0.95..1.0).contains(&self.level),
+            "Gaussian study-t theorem requires level >= .95"
+        );
+        assert!(self.record.as_ref().is_some_and(|r| !r.unasserted), "asserted record required");
+        self.finish();
+        let attempts = self.attempts();
+        let rate = self.rate();
+        if smoke() {
+            self.emit_smoke_as(
+                !passes_one_sided(attempts, self.level, rate),
+                "conservative_point",
+                None,
+            );
+            return;
+        }
+        self.check_skips();
+        eprintln!(
+            "calibration {} (conservative Gaussian study-t): nominal={:.2} coverage={rate:.6} ({}/{}, {} skipped) mean_length={:.6}",
+            self.name,
+            self.level,
+            self.covered,
+            attempts,
+            self.skipped,
+            self.mean_length()
+        );
+        if needs_one_sided_recheck(attempts, self.level, rate) {
+            self.print_recheck(attempts, rate);
+            self.emit_record_as(false, "conservative_point", None);
+            return;
+        }
+        assert!(
+            passes_one_sided(attempts, self.level, rate),
+            "{}: conservative Gaussian study-t coverage {rate:.6} falls below the unchanged nominal lower floor",
+            self.name
+        );
+        self.emit_record_as(false, "conservative_point", None);
     }
 
     /// A smoke run's line: never gated, flagged `"smoke": true` (see [`SMOKE_ENV`]).

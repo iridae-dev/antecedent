@@ -34,7 +34,7 @@ use antecedent_contract::evidence_ledger::{
 };
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 use antecedent_stats::synthesis::{
-    MeanPrior, TauPrior, fixed_effect_gls, fixed_effect_inverse_variance,
+    MeanPrior, TauPrior, equal_study_gaussian, fixed_effect_gls, fixed_effect_inverse_variance,
     hierarchical_normal_borrowing, pooled_dependence_envelope, random_effects_dersimonian_laird,
     random_effects_reml,
 };
@@ -344,6 +344,11 @@ pub struct EvidenceLedgerMeta {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum SynthesisMethod {
+    /// Equal-study mean of independent Gaussian study estimates.
+    EqualStudyGaussian {
+        /// Study estimates, retaining their original ledger source order.
+        estimates: Vec<f64>,
+    },
     /// Inverse-variance fixed-effect pooling of independent summaries.
     FixedEffectInverseVariance {
         /// Study estimates.
@@ -836,6 +841,10 @@ fn compute_values(
         malformed(format!("synthesis input: {error}"))
     };
     Ok(match method {
+        SynthesisMethod::EqualStudyGaussian { estimates } => {
+            let fit = equal_study_gaussian(estimates).map_err(refuse)?;
+            ("equal_study_gaussian", vec![fit.estimate, fit.variance])
+        }
         SynthesisMethod::FixedEffectInverseVariance { estimates, variances } => {
             let fit = fixed_effect_inverse_variance(estimates, variances).map_err(refuse)?;
             let mut values = vec![fit.estimate, fit.variance, fit.heterogeneity_q];
@@ -911,6 +920,9 @@ fn synthesis_to_wire(
         values: bits(&values),
     };
     match &record.method {
+        SynthesisMethod::EqualStudyGaussian { estimates } => {
+            wire.estimates = bits(estimates);
+        }
         SynthesisMethod::FixedEffectInverseVariance { estimates, variances }
         | SynthesisMethod::RandomEffectsDerSimonianLaird { estimates, variances }
         | SynthesisMethod::RandomEffectsReml { estimates, variances } => {
@@ -944,6 +956,7 @@ fn synthesis_to_wire(
 fn method_from_wire(wire: &SynthesisWire) -> Result<SynthesisMethod, EvidenceLedgerArtifactError> {
     let estimates = reals(&wire.estimates);
     Ok(match wire.method.as_str() {
+        "equal_study_gaussian" => SynthesisMethod::EqualStudyGaussian { estimates },
         "fixed_effect_inverse_variance" => SynthesisMethod::FixedEffectInverseVariance {
             estimates,
             variances: reals(&wire.variances),
@@ -1007,7 +1020,8 @@ fn bind_to_result(
     }
     let studies = sources.len();
     let (count, operation) = match method {
-        SynthesisMethod::FixedEffectInverseVariance { estimates, .. }
+        SynthesisMethod::EqualStudyGaussian { estimates }
+        | SynthesisMethod::FixedEffectInverseVariance { estimates, .. }
         | SynthesisMethod::FixedEffectGls { estimates, .. }
         | SynthesisMethod::RandomEffectsDerSimonianLaird { estimates, .. }
         | SynthesisMethod::RandomEffectsReml { estimates, .. }
@@ -1021,7 +1035,8 @@ fn bind_to_result(
     }
     match (method, operation) {
         (
-            SynthesisMethod::FixedEffectInverseVariance { .. }
+            SynthesisMethod::EqualStudyGaussian { .. }
+            | SynthesisMethod::FixedEffectInverseVariance { .. }
             | SynthesisMethod::RandomEffectsDerSimonianLaird { .. }
             | SynthesisMethod::RandomEffectsReml { .. },
             SynthesisOperation::StatisticalPooling {

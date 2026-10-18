@@ -317,6 +317,13 @@ fn overlap_json(overlap: Overlap) -> Json {
 
 fn value_json(value: &SynthesisValue) -> Json {
     match value {
+        SynthesisValue::EqualStudyGaussian(fit) => json!({
+            "kind": "equal_study_gaussian",
+            "estimate": fit.estimate,
+            "variance": fit.variance,
+            "weights": fit.weights,
+            "degrees_of_freedom": fit.degrees_of_freedom,
+        }),
         SynthesisValue::FixedEffect(fit) => json!({
             "kind": "fixed_effect",
             "estimate": fit.estimate,
@@ -673,12 +680,19 @@ impl EvidenceLedgerHandle {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
         let request = parse_pooling(&parse(request_json, "pooling request")?)?;
+        if method == "equal_study_gaussian" {
+            let ctx = execution_context(0, None, cancel);
+            return Ok(match self.inner.pool_gaussian_studies(request, &ctx) {
+                Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
+                Err(refusal) => refused(&refusal),
+            });
+        }
         let method = match method {
             "dersimonian_laird" => BetweenStudy::DerSimonianLaird,
             "reml" => BetweenStudy::RestrictedMaximumLikelihood,
             other => {
                 return Err(crate::value_err(format!(
-                    "unknown between-study method `{other}`; use dersimonian_laird or reml"
+                    "unknown between-study method `{other}`; use dersimonian_laird, reml or equal_study_gaussian"
                 )));
             }
         };

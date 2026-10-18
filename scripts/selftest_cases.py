@@ -618,6 +618,14 @@ def schema_cases() -> list[bool]:
             },
             ["a confirmation belongs to a boundary record"],
         ),
+        case(
+            g,
+            "nominal_method_cannot_take_conservative_point_role",
+            {"parity/coverage_records.toml": append(gridded_record(
+                [(150, 0.99, False), (300, 0.985, False), (600, 1.0, False)],
+                False, role="conservative_point"))},
+            ["conservative_point requires the Gaussian study-mean theorem and target"],
+        ),
         # One-sided role: a floor at the level, no upper band, and a stated side and target.
         case(
             g,

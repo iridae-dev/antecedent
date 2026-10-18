@@ -82,10 +82,10 @@ use antecedent_io::evidence_ledger_artifact::{
     SynthesisRecord, covariance_digest, covariance_has_cross_terms,
 };
 use antecedent_stats::synthesis::{
-    DependenceEnvelope, HierarchicalPosterior, MeanPrior, PooledEstimate, RandomEffectsEstimate,
-    SynthesisError, TauPrior, fixed_effect_gls, fixed_effect_inverse_variance,
-    hierarchical_normal_borrowing, pooled_dependence_envelope, random_effects_dersimonian_laird,
-    random_effects_reml,
+    DependenceEnvelope, GaussianStudyEstimate, HierarchicalPosterior, MeanPrior, PooledEstimate,
+    RandomEffectsEstimate, SynthesisError, TauPrior, equal_study_gaussian, fixed_effect_gls,
+    fixed_effect_inverse_variance, hierarchical_normal_borrowing, pooled_dependence_envelope,
+    random_effects_dersimonian_laird, random_effects_reml,
 };
 
 pub use antecedent_contract::evidence_ledger::{
@@ -240,6 +240,9 @@ pub enum BetweenStudy {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum SynthesisValue {
+    /// Equal-study Gaussian mean; its empirical study-level variance supports
+    /// conservative Student intervals under independent heterogeneous study variances.
+    EqualStudyGaussian(GaussianStudyEstimate),
     /// Fixed-effect pooled estimate (inverse variance or generalized least squares).
     FixedEffect(PooledEstimate),
     /// Random-effects pooled estimate with heterogeneity.
@@ -787,6 +790,46 @@ impl EvidenceLedgerSession {
         )
     }
 
+    /// Pool independent Gaussian study estimates with equal study weights.
+    ///
+    /// Every estimate has the same marginal mean; its unknown variance may
+    /// differ arbitrarily across studies. Gaussian random effects are allowed.
+    /// The study-level Student interval has at least 95% coverage under these
+    /// assumptions (Ibragimov and Müller, 2010, section 2.1). Estimated within-
+    /// study variances do not become noisy precision weights. The declared
+    /// source independence is checked by the ledger as for other pooling.
+    ///
+    /// # Errors
+    /// As [`Self::pool_summaries`]; fewer than two studies.
+    pub fn pool_gaussian_studies(
+        &mut self,
+        request: PoolingRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<SynthesisOutcome, EvidenceLedgerRefusal> {
+        let (sources, estimates, _) = Self::studies(&request.summaries)?;
+        let combination = CombinationRequest {
+            label: request.label,
+            operation: SynthesisOperation::StatisticalPooling {
+                sources: sources.clone(),
+                dependence: PoolingDependence::Independent,
+            },
+            replaces: request.replaces,
+        };
+        self.combine_numeric(
+            combination,
+            sources,
+            move || {
+                let fit = equal_study_gaussian(&estimates)?;
+                Ok((
+                    SynthesisValue::EqualStudyGaussian(fit),
+                    SynthesisMethod::EqualStudyGaussian { estimates },
+                ))
+            },
+            None,
+            ctx,
+        )
+    }
+
     /// Random-effects pooling of independent studies, with Cochran's `Q`,
     /// `tau^2` and `I^2`. The ledger decides first (independence is known and
     /// disjoint observations, never assumed). Point-only; the variance is
@@ -1041,10 +1084,12 @@ impl EvidenceLedgerSession {
     ///
     /// Fixed-effect (and declared-covariance) pooling reports the Wald `z`
     /// interval of the model variance; random-effects pooling reports the
-    /// Hartung-Knapp-Sidik-Jonkman interval (`t` with `k - 1` degrees of
-    /// freedom, variance rescaled by the weighted residual mean square, with no
-    /// floor: the floored modification over-covers). Both are conditional
-    /// on the declared variances being the studies' sampling variances.
+    /// modified Hartung-Knapp-Sidik-Jonkman interval (`t` with `k - 1`
+    /// degrees of freedom, variance floored at the conditional one). These
+    /// legacy constructions are conditional on the declared variances being
+    /// the studies' sampling variances. [`Self::pool_gaussian_studies`] instead
+    /// uses study-level Student inference and does not treat estimated within-
+    /// study variances as known precisions.
     ///
     /// The measured family is 5 to 30 independent studies, keyed by that range
     /// and by the observations of the smallest study (the sample size its
@@ -1143,6 +1188,23 @@ impl EvidenceLedgerSession {
             if record.dependence_declared { "declared_covariance" } else { "independent" };
         let (estimate, half, studies, estimator, interval_method, se_kind, variant, dependence) =
             match value {
+                SynthesisValue::EqualStudyGaussian(p) => {
+                    #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
+                    let t = antecedent_stats::special::student_t_ppf(
+                        0.5 + level / 2.0,
+                        p.degrees_of_freedom as f64,
+                    );
+                    (
+                        p.estimate,
+                        t * p.variance.sqrt(),
+                        p.degrees_of_freedom + 1,
+                        "evidence.synthesis.equal_study_gaussian",
+                        "independent_gaussian_study_t",
+                        "empirical_study_variance",
+                        "equal_study_gaussian",
+                        "independent",
+                    )
+                }
                 SynthesisValue::FixedEffect(p) => {
                     let z = antecedent_stats::special::normal_ppf(0.5 + level / 2.0);
                     (
@@ -1189,7 +1251,7 @@ impl EvidenceLedgerSession {
                         .sum();
                     #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
                     let q = spread / (k - 1) as f64;
-                    let variance = q / total;
+                    let variance = q.max(1.0) / total;
                     #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
                     let t =
                         antecedent_stats::special::student_t_ppf(0.5 + level / 2.0, (k - 1) as f64);
@@ -1261,7 +1323,8 @@ impl EvidenceLedgerSession {
             record.mass.distinct_observations,
         );
         let (lower, upper) = (estimate - half, estimate + half);
-        let scope = serde_json::json!({
+        let equal_study = matches!(value, SynthesisValue::EqualStudyGaussian(_));
+        let mut scope = serde_json::json!({
             "validation_design": "independent_gaussian_studies_with_estimated_variances",
             "declared_model_assumptions": ["declared sampling variances (or covariance) are the studies' sampling variances", "studies are independent or the declared covariance holds"],
             "studies": studies,
@@ -1269,6 +1332,16 @@ impl EvidenceLedgerSession {
             "method": variant,
             "level": level,
         });
+        if equal_study {
+            scope["coverage_claim"] = serde_json::json!("at_least_nominal");
+            scope["declared_model_assumptions"] = serde_json::json!([
+                "study estimates are independent Gaussian variables with a common marginal mean",
+                "unknown study variances may differ; Gaussian between-study effects are included"
+            ]);
+            scope["reference"] = serde_json::json!(
+                "Ibragimov-Mueller 2010, DOI 10.1198/jbes.2009.08046, section 2.1"
+            );
+        }
         Ok(PooledIntervalCandidate {
             method: interval_method,
             estimate,

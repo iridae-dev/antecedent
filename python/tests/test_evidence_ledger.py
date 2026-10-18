@@ -1075,3 +1075,23 @@ def test_rows_declare_row_level_observations_by_domain_and_key():
         negative.to_wire()
     with pytest.raises(CausalValueError):
         el.SourceDeclaration("x", "not_a_kind")
+
+
+def test_equal_study_gaussian_method_uses_study_noise_and_replays_without_borrowing_old_intervals():
+    ledger = el.EvidenceLedger()
+    studies = three_studies(ledger, v=(0.01, 100.0, 0.2))
+    outcome = ledger.random_effects("equal-study", studies, method="equal_study_gaussian")
+    assert isinstance(outcome.value, el.EqualStudyGaussian)
+    # Independent numpy formula; changing estimated study variances does not change weights.
+    ys = np.array([0.0, 2.0, 6.0])
+    assert outcome.value.estimate == pytest.approx(ys.mean(), abs=TOL)
+    assert outcome.value.variance == pytest.approx(ys.var(ddof=1) / len(ys), abs=TOL)
+    assert outcome.value.weights == pytest.approx((1 / 3, 1 / 3, 1 / 3), abs=TOL)
+    assert outcome.value.degrees_of_freedom == 2
+    export = ledger.artifact("equal-study")
+    consumed = el.consume_evidence_ledger_artifact(export.data, export.expectation.identity)
+    replay = consumed.synthesis_of(outcome.result)
+    assert replay.method == "equal_study_gaussian"
+    assert replay.values == pytest.approx((ys.mean(), ys.var(ddof=1) / len(ys)), abs=TOL)
+    error = refused(lambda: ledger.pooled_interval(outcome.result))
+    assert error.code == "cell_not_licensed"

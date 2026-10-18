@@ -160,14 +160,50 @@ FIELDS = (
 # A boundary record that passed an independent confirmation also states the
 # confirmation's points (shaped like `grid`) and the `confirmed_passing_range`
 # they establish (`confirmed_passing_range`).
-OPTIONAL_FIELDS = ("one_sided", "confirmation", "confirmed_passing_range")
+OPTIONAL_FIELDS = ("one_sided", "conservative_point", "confirmation", "confirmed_passing_range")
 # Coverage roles a grid point may carry. `gated` passes the two-sided band and
 # precision floor/ceiling; `named_boundary` is a documented under-coverage;
 # `reported_level` is an unasserted second level; `one_sided` passes a floor at
 # the level with no upper band or ceiling (a conservative interval's
-# at-least-nominal target).
-ROLES = ("gated", "named_boundary", "reported_level", "one_sided")
+# at-least-nominal target). `conservative_point` is separately allowlisted
+# for the theorem-supported scalar Gaussian study-mean construction.
+ROLES = ("gated", "named_boundary", "reported_level", "one_sided", "conservative_point")
 ONE_SIDED_SIDES = ("lower", "upper")
+
+# A conservative point method is admitted by its scientific identity and a
+# separately reviewed theorem, never by relabeling a failed nominal interval.
+GAUSSIAN_STUDY_T_CLAIM = {
+    "target": "common_marginal_study_mean",
+    "justification": "independent_gaussian_study_t.ibragimov_mueller_2010.v1",
+}
+
+
+def conservative_point_problem(record: dict) -> str | None:
+    """Validate the only currently supported conservative point construction."""
+    claim = record.get("conservative_point")
+    if record.get("role") != "conservative_point":
+        return "conservative_point metadata on another role" if claim is not None else None
+    if claim != GAUSSIAN_STUDY_T_CLAIM:
+        return "conservative_point requires the Gaussian study-mean theorem and target"
+    expected = {
+        "query": "PooledEffect", "graph_class": "NoGraph", "structure": "fixed",
+        "modality": "summary", "inference": "Frequentist",
+        "estimator": "evidence.synthesis.equal_study_gaussian",
+        "interval_method": "independent_gaussian_study_t",
+        "se_kind": "empirical_study_variance", "dependence": "independent", "posterior": "",
+        "identification": "point",
+        "functional": "pooled_mean;equal_study_gaussian;studies=5-30",
+    }
+    if any(record.get(key) != value for key, value in expected.items()):
+        return "conservative_point is not the declared independent Gaussian study-t construction"
+    if not 0.95 <= float(record.get("nominal", 0.0)) < 1.0:
+        return "conservative_point Gaussian study theorem requires confidence at least 0.95"
+    if record.get("posterior_draws_min", 0) != 0 or record.get("unidentified_mass_max", 0.0) != 0.0:
+        return "conservative_point cannot borrow posterior or partial-identification evidence"
+    if record.get("boundary"):
+        return "conservative_point cannot be a boundary"
+    return None
+
 
 # Estimator rows of parity/estimate.toml and the resolved plan estimators whose
 # records back them.
@@ -418,6 +454,9 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
     unknown = sorted(roles - set(ROLES))
     if unknown:
         raise SystemExit(f"record {rid}: unknown coverage role(s) {unknown}")
+    for payload in ordered:
+        if problem := conservative_point_problem(payload):
+            raise SystemExit(f"record {rid}: {problem}")
     one_sided = first.get("one_sided")
     if ("one_sided" in roles) != (one_sided is not None):
         raise SystemExit(

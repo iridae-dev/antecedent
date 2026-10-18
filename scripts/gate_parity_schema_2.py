@@ -392,7 +392,7 @@ if cr.is_file():
             elif point_role == "named_boundary":
                 if not point["boundary"]:
                     problems.append(f"{where}: a named boundary point must be boundary = true")
-            elif point_role == "one_sided":
+            elif point_role in {"one_sided", "conservative_point"}:
                 if point["boundary"]:
                     problems.append(f"{where}: a one-sided point cannot be a boundary")
                 if not one_sided_pass(point):
@@ -446,7 +446,7 @@ if cr.is_file():
                     measured_point["role"],
                 ):
                     problems.append(f"{where}: must re-measure the grid point's sample sizes and role")
-                passes = one_sided_pass(point) if point["role"] == "one_sided" else nominal_pass(point)
+                passes = one_sided_pass(point) if point["role"] in {"one_sided", "conservative_point"} else nominal_pass(point)
                 if bool(point["boundary"]) == passes:
                     problems.append(
                         f"{where}: boundary must be true exactly when coverage {point['observed']} "
@@ -457,6 +457,8 @@ if cr.is_file():
                     f"{label}: confirmed_passing_range must be the contiguous passing run the "
                     "grid and confirmation establish (collect_coverage_records.confirmed_passing_range)"
                 )
+        if problem := collector.conservative_point_problem(rec):
+            problems.append(f"{label}: {problem}")
         # A one-sided record states the side whose true extremal bound it covers and
         # its target (CoverageTally::assert_one_sided); no other role carries one.
         one_sided = rec.get("one_sided")
