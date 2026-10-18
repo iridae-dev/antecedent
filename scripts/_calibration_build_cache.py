@@ -14,8 +14,14 @@ SCHEMA = "calibration_release_source_context.v1"
 
 def source_inputs(root: Path) -> dict[str, str]:
     """Include Cargo metadata and crate sources/assets, including build-script inputs."""
-    paths = [root / name for name in ("Cargo.toml", "Cargo.lock")]
-    for folder in (root / ".cargo", root / "crates"):
+    paths = [root / name for name in (
+        "Cargo.toml", "Cargo.lock", "python/Cargo.toml", "python/build.rs",
+        "python/pyproject.toml",
+    )]
+    # The PyO3 workspace member is outside crates/. Include its native inputs,
+    # not its editable extension, Python bytecode or other packaging outputs.
+    # build.rs generates its linker files in OUT_DIR, already under target/.
+    for folder in (root / ".cargo", root / "crates", root / "python/src"):
         if folder.exists():
             paths.extend(folder.rglob("*"))
     result = {}

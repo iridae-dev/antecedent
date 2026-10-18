@@ -7,8 +7,9 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from _calibration_build_cache import guarded_release_cache
+from _calibration_build_cache import guarded_release_cache, source_inputs
 
 
 class SharedCargoSourceContextTest(unittest.TestCase):
@@ -75,6 +76,59 @@ class SharedCargoSourceContextTest(unittest.TestCase):
             self.assertGreater(asset.stat().st_mtime_ns, 1)
         self.assertEqual(source.stat().st_mtime_ns, previous_mtime)
         self.assertEqual(self.output.read_text(encoding="utf-8"), "answer=1")
+
+    def native_inputs(self, root: Path) -> list[Path]:
+        paths = []
+        for name in ("Cargo.toml", "build.rs", "pyproject.toml", "src/lib.rs", "src/data.json"):
+            path = root / "python" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("original", encoding="utf-8")
+            paths.append(path)
+        return paths
+
+    def test_native_source_with_an_old_mtime_cannot_reuse_a_stale_extension(self) -> None:
+        root = self.checkout("native", "answer=1")
+        native = self.native_inputs(root)[3]
+        output = self.target / "cached-extension"
+
+        def native_build() -> str:
+            if not output.exists() or native.stat().st_mtime_ns > output.stat().st_mtime_ns:
+                output.write_bytes(native.read_bytes())
+            return output.read_text(encoding="utf-8")
+
+        with guarded_release_cache(root, self.target):
+            self.assertEqual(native_build(), "original")
+        native.write_text("changed native implementation", encoding="utf-8")
+        os.utime(native, ns=(1, 1))
+        self.assertEqual(native_build(), "original")
+        with guarded_release_cache(root, self.target) as receipt:
+            self.assertEqual(receipt["invalidated_inputs"], ["python/src/lib.rs"])
+            self.assertEqual(native_build(), "changed native implementation")
+
+    def test_extending_a_context_adds_only_native_inputs_and_ignores_python_outputs(self) -> None:
+        root = self.checkout("native", "answer=1")
+        native = self.native_inputs(root)
+        before_native = {name: digest for name, digest in source_inputs(root).items()
+                         if not name.startswith("python/")}
+        with (
+            patch("_calibration_build_cache.source_inputs", return_value=before_native),
+            guarded_release_cache(root, self.target),
+        ):
+            self.timestamp_build(root)
+        source = root / "crates/example/src/lib.rs"
+        crate_mtime = source.stat().st_mtime_ns
+        package = root / "python/antecedent"
+        package.mkdir()
+        for name in ("feature.py", "_native.so", "__pycache__/feature.pyc"):
+            path = package / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"not a native Rust build input")
+        with guarded_release_cache(root, self.target) as receipt:
+            self.assertEqual(set(receipt["invalidated_inputs"]),
+                             {path.relative_to(root).as_posix() for path in native})
+        self.assertEqual(source.stat().st_mtime_ns, crate_mtime)
+        with guarded_release_cache(root, self.target) as receipt:
+            self.assertEqual(receipt["invalidated_inputs"], [])
 
     def test_competing_checkout_prebuild_waits_for_the_previous_context(self) -> None:
         first = self.checkout("first", "answer=1")
