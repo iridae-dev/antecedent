@@ -135,6 +135,36 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
         with self.assertRaisesRegex(ValueError, "original roster"):
             allocations.validate(receipt, groups[:-1])
 
+    def test_pag_confidence_set_reserves_distinct_slot_without_resetting_spent_risk(self):
+        allocations = family.allocations
+        receipt = json.loads((family.ROOT / allocations.PATH).read_text(encoding="utf-8"))
+        groups = json.loads(
+            family.read_source(family.ROOT, family.MANIFEST_PATH, allocations.ORIGINAL_SOURCE)
+        )["groups"]
+        domain = family.decision.PAG_CONFIDENCE_SET_DOMAIN
+        allocations.validate(receipt, groups, domain)
+        historical = copy.deepcopy(receipt)
+        historical.pop("pag_confidence_set_extension")
+        allocations.validate(historical, groups, family.decision.PAG_DOMAIN)
+        with self.assertRaisesRegex(ValueError, "all cumulative"):
+            allocations.validate(historical, groups, domain)
+        for key, value in (
+            ("slot", 2),
+            ("planned_replicates", 2500),
+            ("look_weight", 0.5),
+            ("validation_domain", family.decision.PAG_DOMAIN),
+        ):
+            changed = copy.deepcopy(receipt)
+            changed["pag_confidence_set_extension"]["new_slot"][key] = value
+            with self.assertRaisesRegex(ValueError, "confidence-set slot"):
+                allocations.validate(changed, groups, domain)
+        changed = copy.deepcopy(receipt)
+        changed["pag_confidence_set_extension"]["prior_slot"]["raw_log_sha256_by_point"]["0"] = (
+            "0" * 64
+        )
+        with self.assertRaisesRegex(ValueError, "cumulative spending"):
+            allocations.validate(changed, groups, domain)
+
     def test_pag_successor_preserves_hc3_history_and_rejects_slot_reuse(self):
         allocations = family.allocations
         receipt = json.loads((family.ROOT / allocations.PATH).read_text(encoding="utf-8"))

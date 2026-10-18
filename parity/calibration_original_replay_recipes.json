@@ -1761,6 +1761,61 @@
           "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p2.tallies.jsonl"
         }
       ]
+    },
+    {
+      "record_id": "cov.intervention_response.pag.frequentist.analytic_se.l95.intervention_response_pag_graph_posterior_frequentist_nominal_coverage",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "02a11b9d7cc1d23cd6ffba41cfa0efdda7a26ae23295bef3fb6ee189ea559b3a",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9425,
+          "log_sha256": "2076b5914a264746c186997a6a9cf01abee52ad461be1772f695feb58cedaf1f",
+          "tally_sha256": "2cf07921cbb1fad5c2d4b4c9661edc4e183440e31f4bb586a409c353796ff0c8",
+          "producer_blob": "15e1fd2cbb524c8e67fd00c9f18eef3396983ece",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p0.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9525,
+          "log_sha256": "6a50abd77e959ae2a683ecf9499658b4a46e382ef8c8408703c289be820493df",
+          "tally_sha256": "bdbec67ac3fb368bc7405dc4562545968cc62bb7a4502ccf8b924c92a667c4ce",
+          "producer_blob": "15e1fd2cbb524c8e67fd00c9f18eef3396983ece",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p1.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.95,
+          "log_sha256": "03e02e3d94a30a43d83e8c6b5bea5da50305413bbf428b9bcae48d127afaf163",
+          "tally_sha256": "acb8b179f788756a3a4f1803bef15ae80686836c84220b37ae28548a68c73c11",
+          "producer_blob": "15e1fd2cbb524c8e67fd00c9f18eef3396983ece",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p2.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p2.tallies.jsonl"
+        }
+      ]
     }
   ]
 }

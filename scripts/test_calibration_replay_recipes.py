@@ -22,7 +22,7 @@ class OriginalReplayRecipeTest(unittest.TestCase):
         cls.records = {r["id"]: r for r in facets.load_records()}
 
     def test_every_carried_original_recipe_matches_its_actual_stored_payload(self) -> None:
-        self.assertEqual(len(self.registry["records"]), 32)
+        self.assertEqual(len(self.registry["records"]), 33)
         for entry in self.registry["records"]:
             record = self.records[entry["record_id"]]
             with self.subTest(record=record["id"]):

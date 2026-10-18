@@ -83,6 +83,13 @@ def validate(receipt: dict, groups: list[dict], domain: str | None = None) -> No
         raise ValueError("PAG domain requires its prospective cumulative slot allocation")
     if extension is not None and extension["group"] not in groups:
         raise ValueError("PAG slot is not owned by the original complete roster")
+    confidence_set = receipt.get("pag_confidence_set_extension")
+    if confidence_set is not None and confidence_set != PAG_CONFIDENCE_SET_EXTENSION:
+        raise ValueError("PAG confidence-set slot identity or cumulative spending changed")
+    if domain == decision.PAG_CONFIDENCE_SET_DOMAIN and (
+        extension != PAG_EXTENSION or confidence_set != PAG_CONFIDENCE_SET_EXTENSION
+    ):
+        raise ValueError("PAG confidence-set domain requires all cumulative slot allocations")
     # Each slot reserves the original look weights (.5+.25+.25=1), not a new alpha.
     # Two distinct slots per grid are below the original 256-cell allowance.
     if len({row["slot"] for row in rows}) != len(rows) or len(rows) > 256:
@@ -124,4 +131,40 @@ PAG_EXTENSION = {
         "se_kind": "percentile",
     },
     "selection_history": "The new joint pretreatment shift standardization was chosen after observing the original PAG failure. It is fixed before new independent validation. Original slot1 spending is retained; slot2 uses the original family budget, not a fresh alpha.",
+}
+
+
+PAG_CONFIDENCE_SET_EXTENSION = {
+    "group": {
+        "index": 684,
+        "label": "discovered_transport_calibration: discovered_pag_transport_contrast_complete_procedure_coverage",
+        "grid": True,
+    },
+    "prior_slot": {
+        "slot": 2,
+        "source_sha": "9b9ba8ca7cdd4b0ab328be8b08c689cb5e6e63ed",
+        "validation_domain": "release_2_4_1_pag_trial_shift_validation_v1",
+        "status": "spent_including_failed_point",
+        "planned_replicates": 2000,
+        "look_weight": 0.25,
+        "raw_log_sha256_by_point": {
+            "0": "f6eb89a5a6a9c06dcdb4864932d9214d6e610dd6e54fb373fcb0af6bedc6cdbd",
+            "1": "c0e80659f7748171bd70acaefa6606ad4d41e3760cff6d5cad2836440e6e8891",
+            "2": "953293378bfde7dd17dc77a5ad31cc46dce8893af150974390d59be3cd3b811f",
+        },
+    },
+    "new_slot": {
+        "slot": 3,
+        "functional": "target_interventional_contrast.fci_cutoff_0_05_sparse_1023.trial_compatibility_fisher_exact_alpha_0_01.declared_selection_joint_pretreatment_standardization.bounded_outcome_confidence_set",
+        "record_id": "cov.discovered_transport.pag.frequentist.percentile_bootstrap_or_logical_support.l95.discovered_pag_transport_contrast_complete_procedure_coverage.fci_cutoff_0_05_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set",
+        "validation_domain": "release_2_4_1_pag_confidence_set_validation_v1",
+        "status": "reserved_before_outcomes",
+        "planned_replicates": 2000,
+        "look_weight": 0.25,
+        "grid_points": [0, 1, 2],
+        "nominal": 0.95,
+        "interval_method": "percentile_bootstrap_or_logical_support",
+        "se_kind": "percentile_or_logical_support",
+    },
+    "selection_history": "The bounded-outcome confidence-set procedure was chosen after original slot1 and slot2 validation failures and separate development probes. It is fixed before new independent slot3 validation; prior outcomes and risk spending remain preserved. No family alpha reset. Three distinct PAG construction slots remain within the original256pergroup/grid allocation.",
 }
