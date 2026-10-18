@@ -66,7 +66,9 @@ if os.environ.get("INTERVAL_COORDINATES_SKIP_ATTEST") == "1":
 ensure_scripts_on_path()
 import check_interval_surfaces as cai  # noqa: E402  (read-only reuse)
 from promotion_source import (  # noqa: E402
+    _scan_literals,
     assertion_texts,
+    closure_code,
     ignored_test_emits_record,
     ignored_test_literals,
     nontest_pair,
@@ -198,6 +200,10 @@ def emitted_by_a_test(coverage_id: str) -> bool:
     string literal in an `#[ignore]` test body (Rust) or a function body (Python); a comment or a
     mere substring of another token does not count."""
     comp = coverage_id.rsplit(".", 1)[-1]
+    parts = coverage_id.split(".")
+    components = {comp}
+    if len(parts) >= 3 and re.fullmatch(r"l[0-9]+", parts[-3]):
+        components.add(parts[-2])
 
     def hit(lit: str) -> bool:
         # A record label is the harness's label with every non-alphanumeric character
@@ -219,12 +225,19 @@ def emitted_by_a_test(coverage_id: str) -> bool:
             text = p.read_text(encoding="utf-8")
             cached = (text + "\n" + label_component(text), None)
             _RUST_LITERAL_CACHE[cache_key] = cached
-        if comp not in cached[0]:
+        if not any(component in cached[0] for component in components):
             continue
         if cached[1] is None:
             cached = (cached[0], ignored_test_literals(p))
             _RUST_LITERAL_CACHE[cache_key] = cached
-        if any(hit(lit) for lits in cached[1].values() for lit in lits):
+        if any(
+            any(hit(lit) for lit in lits)
+            or (
+                registration_owns_id({"name": name}, set(lits), coverage_id)
+                and any(hit(lit) for _, lit in _scan_literals(closure_code(p, name)))
+            )
+            for name, lits in cached[1].items()
+        ):
             return True
     for p in ROOT.glob("python/tests/**/*.py"):
         if comp not in p.read_text(encoding="utf-8"):
@@ -247,6 +260,7 @@ def registered_groups(gate_text: str) -> set[str]:
 def registrations(gate_text: str) -> list[dict]:
     """`run_<fn> <name>` calls under each `echo "== <header>"`, with the wrapper's `--test` target."""
     targets: dict[str, str] = {}
+    dynamic: set[str] = set()
     current_fn: str | None = None
     for line in gate_text.splitlines():
         m = re.match(r"(run_\w+)\(\) \{", line)
@@ -256,12 +270,23 @@ def registrations(gate_text: str) -> list[dict]:
             targets[current_fn] = t.group(1)
         elif line.startswith("}"):
             current_fn = None
+    # Only this explicit positional wrapper binds a target supplied at its call.
+    for match in re.finditer(r"(?m)^(run_\w+)\(\) \{\n(.*?)^\}", gate_text, re.DOTALL):
+        body = "\n".join(line.split("#", 1)[0] for line in match.group(2).splitlines())
+        if all(token in body for token in (
+            'local file="$1"', 'local filter="$2"', '--test "$file" "$filter"',
+        )):
+            dynamic.add(match.group(1))
     out, header = [], ""
     for line in expand_shell_loops(gate_text).splitlines():
         h = re.match(r'echo "== (.*?) ==', line)
         if h:
             header = h.group(1)
         m = re.match(r"(run_\w+) +(?:\S+ +)?(\w+)\s*$", line)
+        positional = re.fullmatch(r"(run_\w+) +(\w+) +(\w+)\s*", line)
+        if positional and positional[1] in dynamic:
+            out.append({"header": header, "name": positional[3], "target": positional[2], "fn": positional[1]})
+            continue
         if m and m.group(1) in targets and not line.startswith("#"):
             out.append(
                 {
@@ -272,6 +297,27 @@ def registrations(gate_text: str) -> list[dict]:
                 }
             )
     return out
+
+
+def measured_recordless_registration(registration: dict, path: Path) -> bool:
+    """Own an original recordless gate without inventing a coverage ID.
+
+    The source-wide restriction deliberately rejects mixed typed/recordless suites.
+    Complete-tree attestation remains mandatory for these original ledger rows.
+    """
+    masked, _ = rust_items(path.resolve())
+    if (
+        "CoverageTally::new(" not in masked.code
+        or re.search(r"\b(?:RecordKey|for_record)\b", masked.code)
+        or registration["name"] not in ignored_test_literals(path).get(registration["name"], [])
+    ):
+        return False
+    group = f"{registration['target']}__{registration['name']}"
+    return any(
+        row.get("group") == group and type(row.get("passed")) is int and row["passed"] > 0
+        and re.fullmatch(r"[0-9a-f]{40}", row.get("calibration_sha", ""))
+        for row in load("parity/calibration_gates.toml").get("gate", [])
+    )
 
 
 def text_fields(
@@ -921,6 +967,12 @@ def check() -> dict:
         ):
             continue
         for p in ROOT.glob(f"crates/*/tests/**/{reg['target']}.rs"):
+            if measured_recordless_registration(reg, p):
+                if attestation_result is None:
+                    attestation_result = cai.attested()
+                if not attestation_result[0]:
+                    errors.append(f"{reg['name']}: recordless gate not attested: {attestation_result[1]}")
+                continue
             literals = ignored_test_literals(p).get(reg["name"], [])
             names_itself = reg["name"] in literals or any(
                 COV_ID.fullmatch(literal) for literal in literals
