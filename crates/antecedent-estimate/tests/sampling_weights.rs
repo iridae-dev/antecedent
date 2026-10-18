@@ -1789,17 +1789,17 @@ fn a_clustered_causal_forest_subsamples_whole_clusters_and_reports_a_cluster_se(
 fn assert_explicit_population_interval_contract(method: usize) {
     let n = 240;
     let study = Study {
-        t: (0..n).map(|i| ((i / 12) % 2) as f64).collect(),
-        z: (0..n).map(|i| (i % 12) as f64 / 6.0 - 11.0 / 12.0).collect(),
+        t: (0..n).map(|i| f64::from((i / 12) % 2)).collect(),
+        z: (0..n).map(|i| f64::from(i % 12) / 6.0 - 11.0 / 12.0).collect(),
         y: (0..n)
             .map(|i| {
-                let z = (i % 12) as f64 / 6.0 - 11.0 / 12.0;
-                let t = ((i / 12) % 2) as f64;
-                let noise = 0.2 * (((i / 24) % 5) as f64 - 2.0);
+                let z = f64::from(i % 12) / 6.0 - 11.0 / 12.0;
+                let t = f64::from((i / 12) % 2);
+                let noise = 0.2 * (f64::from((i / 24) % 5) - 2.0);
                 3.0 + 0.5 * z + 2.0 * t + noise
             })
             .collect(),
-        w: (0..n).map(|i| 0.5 + (i % 12) as f64 / 12.0).collect(),
+        w: (0..n).map(|i| 0.5 + f64::from(i % 12) / 12.0).collect(),
     };
     let run = |study: &Study, level: f64| {
         let (data, estimand) = study.data();
