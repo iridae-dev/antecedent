@@ -421,6 +421,7 @@ pub fn estimate_discovered_temporal_transport(
         ..*evidence
     };
     let settings = Settings {
+        prefer_declared_selection: false,
         levels,
         source: &query.source_population,
         target: &query.target_population,

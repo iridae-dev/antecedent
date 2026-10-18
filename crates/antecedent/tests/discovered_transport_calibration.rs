@@ -249,7 +249,7 @@ fn construction() -> Construction {
         se_kind: "percentile".into(),
         dependence: "iid".into(),
         posterior: String::new(),
-        functional: "target_interventional_contrast.fci_pair_cutoff_0_05_over_28_sparse_1023.trial_compatibility_fisher_exact_alpha_0_01.v1"
+        functional: "target_interventional_contrast.fci_pair_cutoff_0_05_over_28_sparse_1023.trial_compatibility_fisher_exact_alpha_0_01.declared_selection_joint_pretreatment_standardization"
             .into(),
         identification: "discovered_class".into(),
         reported_level: REPORTED_LEVEL,
@@ -323,7 +323,7 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
         REPORTED_LEVEL,
     )
     .labelled(
-        "fci_pair_cutoff_0_05_over_28_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_v1",
+        "fci_pair_cutoff_0_05_over_28_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization",
     );
     for (rep, outcome) in map_replicates(n_sim(), |rep| {
         let seed = rep.wrapping_mul(1_000_003);

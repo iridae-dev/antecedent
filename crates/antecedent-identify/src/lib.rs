@@ -107,6 +107,7 @@ pub use sid::{
     ZTransportSourceSpec, ZTransportTerminalRecord, bind_mz_transport_catalog,
     bind_z_transport_catalog, decide_mz_transport, decide_two_source_z_transport,
     decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_catalog_transport,
+    identify_catalog_transport_selection_standardization_first,
     identify_catalog_transport_standardization_first, identify_classical_transport,
     identify_meta_catalog, identify_meta_transport, identify_z_transport,
     identify_z_transport_reporting, intervention_ancestral_treatments,

@@ -7,7 +7,8 @@
 
 use crate::prepared::AncestorMemo;
 use crate::selection_separation::{
-    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset, independently_separated,
+    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset_preferring,
+    independently_separated,
 };
 use crate::{IdentificationBudget, IdentificationError, PreparedAdmg};
 use antecedent_core::{
@@ -2181,6 +2182,7 @@ use catalog::bind_distribution;
 pub(crate) use catalog::identify_catalog_transport_metered;
 pub use catalog::{
     CatalogTransportResult, identify_catalog_transport,
+    identify_catalog_transport_selection_standardization_first,
     identify_catalog_transport_standardization_first,
 };
 

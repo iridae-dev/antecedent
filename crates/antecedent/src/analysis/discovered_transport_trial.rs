@@ -33,6 +33,13 @@ use super::discovered_transport_estimate::{
 
 const PROOF_FORMAT: &str = "antecedent.discovered_transport.trial_compatibility.v1";
 const ESTIMATE_FORMAT: &str = "antecedent.discovered_transport.trial_estimate.v1";
+const LEGACY_ESTIMATION_STRATEGY: &str = "minimal_pretreatment_standardization";
+const SELECTION_ESTIMATION_STRATEGY: &str = "declared_selection_joint_pretreatment_standardization";
+
+fn legacy_estimation_strategy() -> String {
+    LEGACY_ESTIMATION_STRATEGY.into()
+}
+
 const MAX_TRIAL_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_TRIAL_ARTIFACT_MEMBERS: usize = 4096;
 
@@ -101,6 +108,10 @@ pub enum TrialStructuralVerdict {
 #[serde(deny_unknown_fields)]
 pub struct TrialCompatibilityProof {
     format: String,
+    /// Structural formula-selection policy, bound into the refined identity.
+    /// Missing legacy fields retain their original minimal-standardizer identity.
+    #[serde(default = "legacy_estimation_strategy")]
+    pub estimation_strategy: String,
     /// Identity of the unchanged discovered structural report.
     pub original_report_identity: Vec<u8>,
     /// Original discovery structure identity.
@@ -198,6 +209,9 @@ impl TrialCompatibilityProof {
                 writer.word(u64::from(*from)).word(u64::from(*to));
             }
         }
+        if self.estimation_strategy != LEGACY_ESTIMATION_STRATEGY {
+            writer.text(&self.estimation_strategy);
+        }
         writer.finish()
     }
 
@@ -246,6 +260,10 @@ impl TrialCompatibilityProof {
         let bad =
             || IoError::Convert("discovered trial compatibility proof does not replay".into());
         if self.format != PROOF_FORMAT
+            || !matches!(
+                self.estimation_strategy.as_str(),
+                LEGACY_ESTIMATION_STRATEGY | SELECTION_ESTIMATION_STRATEGY
+            )
             || self.original_report_identity.len() != 32
             || self.original_report_identity.as_slice()
                 != self.replay_original_report_identity().as_slice()
@@ -371,6 +389,11 @@ pub fn verify_trial_compatible_transport_estimate(
 
 /// Refine a complete static class using the actually supplied randomized binary trial,
 /// then identify and estimate every retained member. The original DGP and report are unchanged.
+/// Declared population-shift variables are retained in the estimation graph. Their joint
+/// set is preferred for standardization only if every variable is pretreatment in that
+/// member and the existing separation, catalog and independent proof checks succeed.
+/// This policy depends on declared structure and evidence availability, never fitted
+/// effects; its distinct strategy is bound into the replayable refinement identity.
 ///
 /// `alpha` is declared before inspecting rows. Source trial rows must be independent; this
 /// procedure makes no claim for dependent assignments or temporal windows. The source treatment
@@ -503,6 +526,7 @@ pub fn estimate_trial_compatible_discovered_transport(
         .collect();
     let proof = TrialCompatibilityProof {
         format: PROOF_FORMAT.into(),
+        estimation_strategy: SELECTION_ESTIMATION_STRATEGY.into(),
         original_report_identity: report.identity().to_vec(),
         original_structure_identity: *report.structure_identity(),
         original_result_identity: *report.result_identity(),
@@ -672,6 +696,12 @@ mod tests {
             verify_trial_compatible_transport_estimate(&bytes, evidence.limits, &ctx).unwrap();
         assert_eq!(verified.members, proof.retained_members());
         assert_eq!(proof, refined.proof);
+        assert_eq!(proof.estimation_strategy, SELECTION_ESTIMATION_STRATEGY);
+        let mut changed_strategy = proof.clone();
+        changed_strategy.estimation_strategy = LEGACY_ESTIMATION_STRATEGY.into();
+        assert_ne!(changed_strategy.identity(), proof.identity());
+        changed_strategy.estimation_strategy = "unchecked_selection_union".into();
+        assert!(changed_strategy.validate().is_err());
         assert_trial_replay_budgets(&bytes, evidence.limits, &ctx);
         assert_trial_tampering_rejected(&bytes, evidence.limits, &ctx);
     }

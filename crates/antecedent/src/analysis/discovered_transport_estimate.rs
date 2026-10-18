@@ -61,6 +61,7 @@ use antecedent_graph::{Admg, SelectionDiagram};
 use antecedent_identify::discovered_transport::ancestral_subgraph;
 use antecedent_identify::{
     CatalogTransportResult, ClassicalTransportQuery, ClassicalTransportResult, SidLimits,
+    identify_catalog_transport_selection_standardization_first,
     identify_catalog_transport_standardization_first, identify_classical_transport,
 };
 use antecedent_io::IoError;
@@ -613,6 +614,7 @@ pub(crate) struct MemberProblem {
 
 /// The estimation settings every member shares.
 pub(crate) struct Settings<'a> {
+    pub(crate) prefer_declared_selection: bool,
     pub(crate) levels: &'a [f64],
     pub(crate) source: &'a Arc<str>,
     pub(crate) target: &'a Arc<str>,
@@ -974,14 +976,13 @@ fn evaluate_member(
             },
         }
     } else {
-        identify_catalog_transport_standardization_first(
-            diagram,
-            &query,
-            &catalog,
-            settings.evidence.sid_limits,
-            ctx,
-        )
-        .map_err(|error| estimation_failure(&error))?
+        let identify = if settings.prefer_declared_selection {
+            identify_catalog_transport_selection_standardization_first
+        } else {
+            identify_catalog_transport_standardization_first
+        };
+        identify(diagram, &query, &catalog, settings.evidence.sid_limits, ctx)
+            .map_err(|error| estimation_failure(&error))?
     };
     drop(cached);
     let functional = match selected {
@@ -1213,6 +1214,7 @@ pub(crate) fn estimate_class(
     // identical expressions need only one bootstrap of their shared empirical functional.
     let point_evidence = TransportEvidence { bootstrap_replicates: 0, ..*settings.evidence };
     let point_settings = Settings {
+        prefer_declared_selection: settings.prefer_declared_selection,
         levels: settings.levels,
         source: settings.source,
         target: settings.target,
@@ -1375,6 +1377,22 @@ pub fn estimate_discovered_transport(
     estimate_selected_discovered_transport(report, query, evidence, None, None, ctx)
 }
 
+fn estimation_ancestral_graph(
+    graph: &Admg,
+    treatment: VariableId,
+    outcome: VariableId,
+    declared_shifts: &[VariableId],
+    prefer_declared_selection: bool,
+) -> Result<Admg, antecedent_graph::GraphError> {
+    let mut roots = vec![treatment, outcome];
+    if prefer_declared_selection {
+        // Population shifts are declared information, rather than an estimated
+        // ancestral relation that can disappear after a weak CI result.
+        roots.extend_from_slice(declared_shifts);
+    }
+    ancestral_subgraph(graph, &roots)
+}
+
 pub(crate) fn estimate_selected_discovered_transport(
     report: &DiscoveredTransportReport,
     query: &TransportQuery,
@@ -1409,8 +1427,14 @@ pub(crate) fn estimate_selected_discovered_transport(
         let graph = envelope
             .member_graph(index)
             .ok_or_else(|| estimation_failure(&"a member graph cannot be rebuilt"))?;
-        let graph = ancestral_subgraph(&graph, &[treatment.variable, *outcome])
-            .map_err(|e| estimation_failure(&e))?;
+        let graph = estimation_ancestral_graph(
+            &graph,
+            treatment.variable,
+            *outcome,
+            report.selection_targets(),
+            refined_identity.is_some(),
+        )
+        .map_err(|e| estimation_failure(&e))?;
         let selection: Arc<[VariableId]> = report
             .selection_targets()
             .iter()
@@ -1425,6 +1449,7 @@ pub(crate) fn estimate_selected_discovered_transport(
         });
     }
     let settings = Settings {
+        prefer_declared_selection: refined_identity.is_some(),
         levels,
         source: &query.source_population,
         target: &query.target_population,
@@ -1443,6 +1468,71 @@ pub(crate) fn estimate_selected_discovered_transport(
 mod tests {
     use super::*;
     use antecedent_graph::DenseNodeId;
+
+    #[test]
+    fn declared_shift_standardization_survives_an_estimated_missing_edge() {
+        let mut rows = [Vec::new(), Vec::new(), Vec::new()];
+        for x in 0..2 {
+            for z in 0..2 {
+                for draw in 0..10 {
+                    rows[0].push(f64::from(x));
+                    rows[1].push(f64::from(draw < 1 + 4 * x + 3 * z + x * z));
+                    rows[2].push(f64::from(z));
+                }
+            }
+        }
+        let source = TabularData::from_f64_columns([
+            ("x", rows[0].as_slice()),
+            ("y", rows[1].as_slice()),
+            ("z", rows[2].as_slice()),
+        ])
+        .unwrap();
+        let target = TabularData::from_f64_columns([
+            ("x", &[0.0; 10][..]),
+            ("y", &[0.0; 10][..]),
+            ("z", &[0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0][..]),
+        ])
+        .unwrap();
+        let evidence = TransportEvidence::new(&source, &target);
+        let population = Arc::from("source");
+        let target_population = Arc::from("target");
+        let ids = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        // Discovery omitted Z -> Y, but the externally declared shift target remains.
+        let columns = EvidenceColumns {
+            source: columns_of(&source, &ids).unwrap(),
+            target: columns_of(&target, &ids).unwrap(),
+        };
+        for (prefer, expected) in [(false, [0.25, 0.70]), (true, [0.34, 0.82])] {
+            let kept =
+                estimation_ancestral_graph(&graph, ids[0], ids[1], &[ids[2]], prefer).unwrap();
+            assert_eq!(kept.dense_of_static(ids[2]).is_some(), prefer);
+            let problem = MemberProblem {
+                selection: if prefer { Arc::from([ids[2]]) } else { Arc::from([]) },
+                graph: kept,
+                treatment: ids[0],
+                outcome: ids[1],
+            };
+            let settings = Settings {
+                prefer_declared_selection: prefer,
+                levels: &[0.0, 1.0],
+                source: &population,
+                target: &target_population,
+                evidence: &evidence,
+            };
+            let MemberOutcome::Estimated(estimate) =
+                estimate_member(&problem, &columns, &settings, &ExecutionContext::for_tests(92))
+                    .unwrap()
+            else {
+                panic!("the certified supplied laws must bind")
+            };
+            assert!(same_number(estimate.means[0], expected[0]));
+            assert!(same_number(estimate.means[1], expected[1]));
+            assert!(same_number(estimate.contrast, if prefer { 0.48 } else { 0.45 }));
+            assert_eq!(estimate.expression.contains("Σ"), prefer);
+        }
+    }
 
     #[test]
     fn a_treatment_trial_standardizes_before_an_unsupported_target_joint() {
@@ -1472,6 +1562,7 @@ mod tests {
         let population = Arc::from("source");
         let target_population = Arc::from("target");
         let settings = Settings {
+            prefer_declared_selection: false,
             levels: &[0.0, 1.0],
             source: &population,
             target: &target_population,
@@ -1546,6 +1637,7 @@ mod tests {
         let population = Arc::from("source");
         let target = Arc::from("target");
         let settings = Settings {
+            prefer_declared_selection: false,
             levels: &[0.0, 1.0],
             source: &population,
             target: &target,
@@ -1589,6 +1681,7 @@ mod tests {
         let population = Arc::from("source");
         let target = Arc::from("target");
         let settings = Settings {
+            prefer_declared_selection: false,
             levels: &[0.0, 1.0],
             source: &population,
             target: &target,
