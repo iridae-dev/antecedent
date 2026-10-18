@@ -299,12 +299,12 @@ fn weighted_split_effect_interval_calibrated() {
 fn weighted_split_protocol_preserves_legacy_identity_and_declares_independent_allocation() {
     let legacy = construction_for_protocol(1);
     let current = construction_for_protocol(2);
-    assert_eq!(discovery_fraction(1), 0.5);
-    assert_eq!(discovery_fraction(2), 0.75);
+    assert_eq!(discovery_fraction(1).to_bits(), 0.5_f64.to_bits());
+    assert_eq!(discovery_fraction(2).to_bits(), 0.75_f64.to_bits());
     assert_eq!(legacy.functional, "weighted_population_total_effect");
     assert_eq!(current.functional, format!("{}.{}", legacy.functional, CURRENT_PROTOCOL));
     assert_eq!(current.interval_method, legacy.interval_method);
     assert_eq!(current.se_kind, legacy.se_kind);
     assert_eq!(current.estimator, legacy.estimator);
-    assert_eq!(current.reported_level, legacy.reported_level);
+    assert_eq!(current.reported_level.to_bits(), legacy.reported_level.to_bits());
 }
