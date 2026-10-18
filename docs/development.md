@@ -323,11 +323,21 @@ and `scripts/calibration_family_labels.json`. Its exact binomial coverage decisi
 allocate total risk 0.05 across every source gate group, three grid slots, 256
 source-possible coverage cells per group/grid, and predetermined 400/2,000/20,000
 attempt looks with weights 1/2, 1/4, 1/4. Selection and sharding never shrink this
-family. The fixed `release_2_4_1_validation_v1` seed domain supplies fresh validation
-data; its SHA256 first eight bytes, interpreted little-endian, are XORed into the
-existing seed salt. Source SHA, family, grid and domain must agree when extending
+family. The initial `release_2_4_1_validation_v1` seed domain supplies fresh validation
+data; each registered domain's SHA256 first eight bytes, interpreted little-endian,
+are XORed into the existing seed salt. Source SHA, family, grid and domain must agree when extending
 saved tallies. Fresh-seed confirmations are outside this protocol's allocated risk
 and are refused. Smoke pilots and legacy replays retain their original semantics.
+
+A method revision informed by earlier results needs a new independent validation
+domain and an unused cumulative hypothesis slot before new outcomes are observed.
+`parity/calibration_decision_allocations.json` retains the original risk budget and
+spent HC1 slot while reserving a separate HC3 construction under
+`release_2_4_1_weighted_hc3_validation_v1`. The new family manifest binds this receipt's
+hash. HC3 was selected after the older results; it was not present in the initial
+source roster. Its independent validation consumes another slot within the original
+256-cell allowance. Changing the domain never supplies another family alpha or
+recycles an earlier slot. Unknown slot reuse and changed constructions fail closed.
 
 This controls false rejections of coverage compatibility for that frozen validation
 family. It does not establish exact nominal coverage or control every usefulness,
@@ -340,6 +350,9 @@ reviewed waivers. It selects groups with neither matching coverage records nor a
 complete passed entry in `parity/calibration_gates.toml`, irrespective of facet drift.
 The collector uses `--keep-existing`: it preserves every old record, its original SHA,
 and earlier gate evidence, and refuses collisions with existing record IDs.
+For incremental evidence-only batches, `--no-cells --defer-generated` also leaves
+licensed support metadata and generated assets for the final combined harvest.
+Raw-log validation and whole-group completeness still apply.
 `--group` restricts the selected set by a quoted full-label glob; repeat it for multiple
 groups. A filter matching nothing fails before measurement. To remeasure a numerically changed construction already in the registry, select its
 groups with `--all --group 'suite: test'` and repeat `--replace-record ID` for every
