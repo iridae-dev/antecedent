@@ -1116,14 +1116,48 @@ pub(crate) fn estimate_class(
                 .to_owned(),
         ));
     }
+    // Establish the class-wide point answer before paying for sampling inference. A class
+    // whose members disagree or cannot all be estimated cannot publish this interval, and
+    // identical expressions need only one bootstrap of their shared empirical functional.
+    let point_evidence = TransportEvidence { bootstrap_replicates: 0, ..*settings.evidence };
+    let point_settings = Settings {
+        levels: settings.levels,
+        source: settings.source,
+        target: settings.target,
+        evidence: &point_evidence,
+    };
     let mut members = Vec::with_capacity(problems.len());
     for problem in problems {
-        members.push(estimate_member(problem, columns, settings, ctx)?);
+        members.push(estimate_member(problem, columns, &point_settings, ctx)?);
     }
-    let mut interval = members.iter().find_map(|m| match m {
-        MemberOutcome::Estimated(e) => e.contrast_interval,
+    let common_expression = members.first().and_then(|first| match first {
+        MemberOutcome::Estimated(estimate) => Some(estimate.expression.as_str()),
         _ => None,
     });
+    let agree = !members.is_empty()
+        && common_expression.is_some()
+        && members.iter().all(|member| match member {
+            MemberOutcome::Estimated(estimate) => {
+                Some(estimate.expression.as_str()) == common_expression
+            }
+            _ => false,
+        });
+    let mut interval = None;
+    if settings.evidence.block_length.is_none()
+        && settings.evidence.bootstrap_replicates > 0
+        && agree
+    {
+        let bootstrapped = estimate_member(&problems[0], columns, settings, ctx)?;
+        if let MemberOutcome::Estimated(estimate) = &bootstrapped {
+            interval = estimate.contrast_interval;
+        }
+        members[0] = bootstrapped;
+        for member in &mut members[1..] {
+            if let MemberOutcome::Estimated(estimate) = member {
+                estimate.contrast_interval = interval;
+            }
+        }
+    }
     if let Some(length) = settings.evidence.block_length {
         // Ordered rows: the interval is the block bootstrap of the time axis, for a point only.
         interval = None;
@@ -1296,4 +1330,68 @@ pub fn estimate_discovered_transport(
         status: envelope.status(),
     };
     estimate_class(&class, &problems, &columns, &settings, ctx)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_graph::DenseNodeId;
+
+    #[test]
+    fn a_common_class_bootstrap_matches_one_member_and_keeps_every_proof() {
+        let x: Vec<f64> = (0..160).map(|i| f64::from(i % 8 >= 4)).collect();
+        let y: Vec<f64> = (0..160).map(|i| f64::from(i % 8 == 0 || i % 8 >= 5)).collect();
+        let source =
+            TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let mut evidence = TransportEvidence::new(&source, &source);
+        evidence.bootstrap_replicates = 200;
+        let population = Arc::from("source");
+        let target = Arc::from("target");
+        let settings = Settings {
+            levels: &[0.0, 1.0],
+            source: &population,
+            target: &target,
+            evidence: &evidence,
+        };
+        let mut graph = Admg::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let problem = || MemberProblem {
+            graph: graph.clone(),
+            selection: Arc::from([]),
+            treatment: VariableId::from_raw(0),
+            outcome: VariableId::from_raw(1),
+        };
+        let variables = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let columns = EvidenceColumns {
+            source: columns_of(&source, &variables).unwrap(),
+            target: columns_of(&source, &variables).unwrap(),
+        };
+        let ctx = ExecutionContext::for_tests(913);
+        let MemberOutcome::Estimated(single) =
+            estimate_member(&problem(), &columns, &settings, &ctx).unwrap()
+        else {
+            panic!("the single member must be estimable");
+        };
+        let class = ClassFacts {
+            report_identity: [0; 32],
+            selection_targets: &[],
+            unresolved: &[],
+            status: EnvelopeStatus::IdentifiedInEveryMember,
+        };
+        let estimate =
+            estimate_class(&class, &[problem(), problem()], &columns, &settings, &ctx).unwrap();
+        let interval = estimate.answer().interval.expect("the common functional has an interval");
+        assert_eq!(Some((interval.low, interval.high)), single.contrast_interval);
+        assert_eq!(estimate.members.len(), 2);
+        for member in &estimate.members {
+            let MemberOutcome::Estimated(member) = member else {
+                panic!("every member must estimate")
+            };
+            assert_eq!(member.means, single.means);
+            assert!(!member.artifact.is_empty());
+        }
+        let bytes = estimate.export().unwrap();
+        let replayed = verify_discovered_transport_estimate(&bytes, evidence.limits, &ctx).unwrap();
+        assert_eq!(replayed.answer.levels, estimate.answer().levels);
+    }
 }

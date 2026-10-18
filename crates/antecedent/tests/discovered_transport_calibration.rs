@@ -14,9 +14,12 @@
 
 mod common;
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use antecedent::analysis::discovered_transport::discover_and_transport;
+use antecedent::analysis::discovered_transport::{
+    DiscoveredTransportError, discover_and_transport,
+};
 use antecedent::analysis::discovered_transport_estimate::{
     AnswerKind, TransportEvidence, estimate_discovered_transport,
 };
@@ -33,6 +36,11 @@ use antecedent_discovery::selective::{
     CiTestSpec, StaticAlgorithm, StaticDiscoveryContract, TemporalAlgorithm,
     TemporalDiscoveryContract, TemporalSelectiveDiscovery,
 };
+use antecedent_stats::SparseDiscreteCi;
+use antecedent_stats::ci::{
+    CiBatchRequest, CiWorkspace, ConditionalIndependenceTest, GSquared, SignificanceMethod,
+    SymbolicCmi,
+};
 use common::calibration::{
     Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
     n_sim, stream_seed, unit_uniform,
@@ -40,6 +48,95 @@ use common::calibration::{
 
 const INTERVAL: &str = "percentile_bootstrap";
 const REPLICATES: u32 = 200;
+
+fn discrete_ci() -> CiTestSpec {
+    CiTestSpec::declared(
+        "gsquared_analytic_sparse_fallback_symbolic_cmi_199_within_stratum_permutations",
+        Arc::new(SparseDiscreteCi::new(199).unwrap()),
+    )
+}
+
+#[test]
+fn sparse_discrete_ci_uses_the_declared_permutation_null() {
+    use antecedent_stats::SparseDiscreteCi;
+    use antecedent_stats::ci::{CiPreparationPlan, CiQuery, ConfidenceMethod};
+    let x = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+    let y = [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0];
+    let columns = [&x[..], &y[..]];
+    let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+    let request = CiBatchRequest {
+        columns: &columns,
+        queries: &queries,
+        z_flat: &[],
+        significance: SignificanceMethod::Analytic,
+        confidence: ConfidenceMethod::None,
+    };
+    let ctx = ExecutionContext::for_tests(71);
+    let provider = SparseDiscreteCi::new(199).unwrap();
+    let prepared = provider.prepare(&columns, &CiPreparationPlan::default(), &ctx).unwrap();
+    assert!(
+        GSquared::new().test_batch(&prepared, &request, &mut CiWorkspace::default(), &ctx).is_err()
+    );
+    let actual =
+        provider.test_batch(&prepared, &request, &mut CiWorkspace::default(), &ctx).unwrap();
+    let mut permutation = prepared;
+    permutation.plan.significance =
+        SignificanceMethod::BlockShuffle { replicates: 199, block_size: 1 };
+    let expected = SymbolicCmi::new()
+        .test_batch(&permutation, &request, &mut CiWorkspace::default(), &ctx)
+        .unwrap();
+    assert_eq!(actual.results[0].statistic, expected.results[0].statistic);
+    assert_eq!(actual.results[0].p_value, expected.results[0].p_value);
+}
+
+/// Why a replicate reported no interval, as a short stable label.
+fn refusal_label(error: &DiscoveredTransportError) -> String {
+    match error {
+        DiscoveredTransportError::Refused(refusal) => refusal.detail.to_owned(),
+        other => other.to_string().chars().take(96).collect(),
+    }
+}
+
+/// Why a discovery run failed, as a short label.
+fn discovery_label(error: &impl std::fmt::Debug) -> String {
+    format!("discovery: {error:?}").chars().take(96).collect()
+}
+
+/// Counts of the reasons replicates reported nothing, printed so a coverage shortfall that comes
+/// from the rate of reporting is told apart from one that comes from the intervals.
+#[derive(Default)]
+struct NonReports(BTreeMap<String, u32>);
+
+impl NonReports {
+    /// Score one replicate's outcome, keeping the reason it reported nothing.
+    fn interval(&mut self, outcome: Result<(f64, f64), String>) -> Option<(f64, f64)> {
+        match outcome {
+            Ok(interval) => Some(interval),
+            Err(reason) => {
+                *self.0.entry(reason).or_default() += 1;
+                None
+            }
+        }
+    }
+
+    fn print(&self, test: &str) {
+        eprintln!("{test}: replicates that reported nothing, by reason: {:?}", self.0);
+    }
+}
+
+/// The interval of a point answer, or why the replicate reported none.
+fn point_interval(
+    estimate: &antecedent::analysis::discovered_transport_estimate::DiscoveredTransportEstimate,
+) -> Result<(f64, f64), String> {
+    let answer = estimate.answer();
+    if answer.kind != AnswerKind::Point {
+        return Err("structural_range".to_owned());
+    }
+    answer
+        .interval
+        .map(|i| (i.low, i.high))
+        .ok_or_else(|| format!("no_interval:{:?}", answer.interval_reason))
+}
 
 fn v(i: u32) -> VariableId {
     VariableId::from_raw(i)
@@ -128,11 +225,32 @@ fn query() -> TransportQuery {
     )
 }
 
+/// The whole static procedure on one replicate: FCI on the source rows, the class's members,
+/// identification in every member, the estimate over the source and target rows and its
+/// percentile interval; or why the replicate reported none.
+fn pag_interval(
+    contract: &StaticDiscoveryContract,
+    source: &TabularData,
+    target: &TabularData,
+    ctx: &ExecutionContext,
+) -> Result<(f64, f64), String> {
+    let run = discover_and_transport(contract, source, &[v(2)], &query(), 256, ctx)
+        .map_err(|error| discovery_label(&error))?;
+    let report = run.transport.map_err(|error| refusal_label(&error))?;
+    let mut evidence = TransportEvidence::new(source, target);
+    evidence.bootstrap_replicates = REPLICATES;
+    evidence.limits.operations = 2_000_000_000;
+    let estimate = estimate_discovered_transport(&report, &query(), &evidence, ctx)
+        .map_err(|error| refusal_label(&error))?;
+    point_interval(&estimate)
+}
+
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn discovered_pag_transport_contrast_complete_procedure_coverage() {
     let n = grid_n(4000);
     let effect = truth(1.0) - truth(0.0);
+    let mut non_reports = NonReports::default();
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test: "discovered_pag_transport_contrast_complete_procedure_coverage",
@@ -149,22 +267,14 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
         let contract = StaticDiscoveryContract::new(
             StaticAlgorithm::Fci,
             (0..8).map(VariableId::from_raw).collect(),
-            CiTestSpec::named("gsquared"),
+            discrete_ci(),
             rep,
         );
-        let interval = discover_and_transport(&contract, &source, &[v(2)], &query(), 256, &ctx)
-            .ok()
-            .and_then(|run| run.transport.ok())
-            .and_then(|report| {
-                let mut evidence = TransportEvidence::new(&source, &target);
-                evidence.bootstrap_replicates = REPLICATES;
-                estimate_discovered_transport(&report, &query(), &evidence, &ctx).ok()
-            })
-            .filter(|estimate| estimate.answer().kind == AnswerKind::Point)
-            .and_then(|estimate| estimate.answer().interval.map(|i| (i.low, i.high)));
+        let interval = pag_interval(&contract, &source, &target, &ctx);
         (rep, interval)
     }) {
         let _ = rep;
+        let outcome = non_reports.interval(outcome);
         tally.bind(
             &construction(),
             ScopeFacts {
@@ -176,6 +286,7 @@ fn discovered_pag_transport_contrast_complete_procedure_coverage() {
         );
         tally.record(outcome, effect);
     }
+    non_reports.print("discovered_pag_transport_contrast_complete_procedure_coverage");
     tally.assert();
 }
 
@@ -201,6 +312,30 @@ fn series(steps: usize, target: bool, seed: u64) -> (TimeSeriesData, TabularData
     )
 }
 
+/// The whole temporal procedure on one replicate: the class PCMCI+ returns on the source series,
+/// the temporal class at `horizon`, identification in every member, the windowed estimate and
+/// its block-bootstrap interval; or why the replicate reported none.
+fn temporal_interval(
+    contract: &TemporalDiscoveryContract,
+    source: &TimeSeriesData,
+    source_table: &TabularData,
+    target_table: &TabularData,
+    horizon: TemporalHorizon,
+    ctx: &ExecutionContext,
+) -> Result<(f64, f64), String> {
+    let mut adapter = TemporalSelectiveDiscovery::new();
+    adapter.run(contract, source, ctx).map_err(|error| discovery_label(&error))?;
+    let outcome = adapter.outcome().ok_or_else(|| "discovery: no outcome".to_owned())?;
+    let report = transport_discovered_temporal_structure(outcome, horizon, &[v(2)], &query(), 256)
+        .map_err(|error| refusal_label(&error))?;
+    let mut evidence = TransportEvidence::new(source_table, target_table);
+    evidence.bootstrap_replicates = REPLICATES;
+    evidence.limits.operations = 2_000_000_000;
+    let estimate = estimate_discovered_temporal_transport(&report, &query(), &evidence, ctx)
+        .map_err(|error| refusal_label(&error))?;
+    point_interval(&estimate)
+}
+
 fn temporal_construction() -> Construction {
     Construction {
         graph_class: "TemporalCpdag".into(),
@@ -220,6 +355,7 @@ fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
     let pi = 0.6 / 1.4;
     let truth = |a: f64| (1.0 - pi) * p_y_lagged(a, 0.0) + pi * p_y_lagged(a, 1.0);
     let effect = truth(1.0) - truth(0.0);
+    let mut non_reports = NonReports::default();
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test: "discovered_temporal_transport_contrast_complete_procedure_coverage",
@@ -236,27 +372,19 @@ fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
         let contract = TemporalDiscoveryContract::new(
             TemporalAlgorithm::PcmciPlus,
             (0..3).map(VariableId::from_raw).collect(),
-            CiTestSpec::named("gsquared"),
+            discrete_ci(),
             rep,
         );
-        let mut adapter = TemporalSelectiveDiscovery::new();
-        adapter.run(&contract, &source, &ctx).ok()?;
-        let report = transport_discovered_temporal_structure(
-            adapter.outcome()?,
+        temporal_interval(
+            &contract,
+            &source,
+            &source_table,
+            &target_table,
             TemporalHorizon { horizon_steps: 1, history: None },
-            &[v(2)],
-            &query(),
-            256,
+            &ctx,
         )
-        .ok()?;
-        let mut evidence = TransportEvidence::new(&source_table, &target_table);
-        evidence.bootstrap_replicates = REPLICATES;
-        let estimate =
-            estimate_discovered_temporal_transport(&report, &query(), &evidence, &ctx).ok()?;
-        (estimate.answer().kind == AnswerKind::Point)
-            .then(|| estimate.answer().interval.map(|i| (i.low, i.high)))
-            .flatten()
     }) {
+        let outcome = non_reports.interval(outcome);
         tally.bind(
             &temporal_construction(),
             ScopeFacts {
@@ -268,6 +396,7 @@ fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
         );
         tally.record(outcome, effect);
     }
+    non_reports.print("discovered_temporal_transport_contrast_complete_procedure_coverage");
     tally.assert();
 }
 
@@ -313,6 +442,7 @@ fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverag
     let pi = 0.6 / 1.4;
     let truth = |a: f64| (1.0 - pi) * p_y_lagged(a, 0.0) + pi * p_y_lagged(a, 1.0);
     let effect = truth(1.0) - truth(0.0);
+    let mut non_reports = NonReports::default();
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test: "discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage",
@@ -329,28 +459,20 @@ fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverag
         let mut contract = TemporalDiscoveryContract::new(
             TemporalAlgorithm::PcmciPlus,
             (0..6).map(VariableId::from_raw).collect(),
-            CiTestSpec::named("gsquared"),
+            discrete_ci(),
             rep,
         );
         contract.constraints.temporal.max_lag = Lag::from_raw(2);
-        let mut adapter = TemporalSelectiveDiscovery::new();
-        adapter.run(&contract, &source, &ctx).ok()?;
-        let report = transport_discovered_temporal_structure(
-            adapter.outcome()?,
+        temporal_interval(
+            &contract,
+            &source,
+            &source_table,
+            &target_table,
             TemporalHorizon { horizon_steps: 2, history: None },
-            &[v(2)],
-            &query(),
-            256,
+            &ctx,
         )
-        .ok()?;
-        let mut evidence = TransportEvidence::new(&source_table, &target_table);
-        evidence.bootstrap_replicates = REPLICATES;
-        let estimate =
-            estimate_discovered_temporal_transport(&report, &query(), &evidence, &ctx).ok()?;
-        (estimate.answer().kind == AnswerKind::Point)
-            .then(|| estimate.answer().interval.map(|i| (i.low, i.high)))
-            .flatten()
     }) {
+        let outcome = non_reports.interval(outcome);
         tally.bind(
             &temporal_construction(),
             ScopeFacts {
@@ -362,5 +484,7 @@ fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverag
         );
         tally.record(outcome, effect);
     }
+    non_reports
+        .print("discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage");
     tally.assert();
 }
