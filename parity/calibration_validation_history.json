@@ -1120,5 +1120,100 @@
       "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p2.log": "c8b18cd3ab742acf0a95b87c0dc9c6ff2daa8b18df1a6d842d59a0111bb87d7d",
       "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p2.tallies.jsonl": "0503d95045d507700549b0de0a2532c03a2001b19ae9ee8d477ba8f1df188f2b"
     }
+  },
+  "legacy_c30_prefix_completion": {
+    "protocol": "original_source_prefix_completion.v1",
+    "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+    "seed_domain": "original_legacy_seed_domain",
+    "original_binary_sha256": "666997076b5fffd48d9311efa4cda2e66961614022c7b9c45cf674636c6fadb8",
+    "source_build_log_sha256": "08f48bb0f1101087b41d9481fdd84a3fe4e1f784bb37eb9b132176b6ba156c8b",
+    "original_plan_sha256": "1e609d0f1cb657d777c26bea1f0a23ef6fda916121f7dce5ac62374684c9161c",
+    "prospective_minimum_amendment_sha256": "3a882be4612c0e0efaccf33c390530f5f55a9820c4666a231eed9a42fea77650",
+    "integrity_receipt_sha256": "db53a177d4bc9d3205fc81182265082a66329b28c0d0a860574993fe13c27edd",
+    "passed": true,
+    "new_draws": 1600,
+    "other_gridpoints": "retained exactly; p0 planned400 and p1 planned2000",
+    "records": [
+      {
+        "record_id": "cov.average_effect.dag.frequentist.analytic_se.l90.practitioner_aipw_analytic_interval",
+        "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+        "nominal": 0.9,
+        "test": "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_aipw_analytic_interval",
+        "functional": "all_observed.mean",
+        "measurement_payload_sha256": "5cebbb2700e52de088b5c101d3722f12fdce3be9a0f470bdf5083c9695b9f3b6",
+        "point": 2,
+        "row_count": 100000,
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "original_point": {
+          "point": 2,
+          "n_min": 100000,
+          "n_max": 100000,
+          "observed": 0.905,
+          "mcse": 0.014660746911395748,
+          "replicates": 400,
+          "boundary": false,
+          "role": "gated"
+        },
+        "completed_point": {
+          "point": 2,
+          "n_min": 100000,
+          "n_max": 100000,
+          "observed": 0.8955,
+          "mcse": 0.006840312492861713,
+          "replicates": 2000,
+          "boundary": false,
+          "role": "gated"
+        },
+        "raw_log_sha256": "d5f2f6c1a4e0197061459b40c17316f0e2827f20375d8cb7634433641a3deeb6",
+        "tally_sha256": "bcd08a849c1e587298b15cf5c2c594d12664eb85ca68349d9e1881bce4a1c968",
+        "original_tally_sha256": "90147b96630b62f99b64f3af7820a3463bfa0b77b2715f4a77864e6e3cff4f8d",
+        "execution_receipt_sha256": "4506eab832662461115a434e25edb711bca8143ca6ff8352459f8f0a38e09935"
+      },
+      {
+        "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.practitioner_aipw_analytic_interval",
+        "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+        "nominal": 0.95,
+        "test": "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_aipw_analytic_interval",
+        "functional": "all_observed.mean",
+        "measurement_payload_sha256": "1cdd0affebcfdb08499ffb4fb9f394c0db8cee61af995bb8ee809582792f3aec",
+        "point": 2,
+        "row_count": 100000,
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "original_point": {
+          "point": 2,
+          "n_min": 100000,
+          "n_max": 100000,
+          "observed": 0.9525,
+          "mcse": 0.010635289135702893,
+          "replicates": 400,
+          "boundary": false,
+          "role": "gated"
+        },
+        "completed_point": {
+          "point": 2,
+          "n_min": 100000,
+          "n_max": 100000,
+          "observed": 0.9465,
+          "mcse": 0.005031786462082825,
+          "replicates": 2000,
+          "boundary": false,
+          "role": "gated"
+        },
+        "raw_log_sha256": "d5f2f6c1a4e0197061459b40c17316f0e2827f20375d8cb7634433641a3deeb6",
+        "tally_sha256": "bcd08a849c1e587298b15cf5c2c594d12664eb85ca68349d9e1881bce4a1c968",
+        "original_tally_sha256": "90147b96630b62f99b64f3af7820a3463bfa0b77b2715f4a77864e6e3cff4f8d",
+        "execution_receipt_sha256": "4506eab832662461115a434e25edb711bca8143ca6ff8352459f8f0a38e09935"
+      }
+    ]
   }
 }

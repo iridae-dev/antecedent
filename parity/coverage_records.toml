@@ -5285,15 +5285,15 @@ n_max = 100000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9
-mcse = 0.015
-replicates = 400
+observed = 0.8955
+mcse = 0.006840312492861713
+replicates = 2000
 boundary = false
 role = "gated"
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.9, mcse = 0.015, replicates = 400, boundary = false, role = "gated" },
   { point = 1, n_min = 10000, n_max = 10000, observed = 0.908, mcse = 0.006462816723379983, replicates = 2000, boundary = false, role = "gated" },
-  { point = 2, n_min = 100000, n_max = 100000, observed = 0.905, mcse = 0.014660746911395748, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 100000, n_max = 100000, observed = 0.8955, mcse = 0.006840312492861713, replicates = 2000, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_study"
 test = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_aipw_analytic_interval"
@@ -6473,15 +6473,15 @@ n_max = 100000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9525
-mcse = 0.010635289135702893
-replicates = 400
+observed = 0.9465
+mcse = 0.005031786462082825
+replicates = 2000
 boundary = false
 role = "gated"
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
   { point = 1, n_min = 10000, n_max = 10000, observed = 0.957, mcse = 0.004536022486716751, replicates = 2000, boundary = false, role = "gated" },
-  { point = 2, n_min = 100000, n_max = 100000, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 100000, n_max = 100000, observed = 0.9465, mcse = 0.005031786462082825, replicates = 2000, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_study"
 test = "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_aipw_analytic_interval"
