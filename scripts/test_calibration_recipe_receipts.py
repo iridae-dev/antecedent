@@ -47,6 +47,12 @@ class RecipeReceiptTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / path, target)
         shutil.copyfile(ROOT / "Cargo.lock", self.root / "Cargo.lock")
+        path = "crates/antecedent-estimate/tests/knn_matching_calibration.rs"
+        (self.root / path).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / path, self.root / path)
+        shutil.copyfile(
+            ROOT / "parity/calibration_gates.toml", self.root / "parity/calibration_gates.toml"
+        )
         self.recipe = copy.deepcopy(
             next(
                 r
@@ -167,13 +173,44 @@ class RecipeReceiptTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown or missing"):
             self.validate()
 
-    def test_real_registry_accepts_five_exact_receipts_including_fresh_family(self) -> None:
+    def test_real_registry_accepts_seven_exact_receipts_including_fresh_family(self) -> None:
         valid, problems = receipts.validate_registry(
             ROOT, list(self.cases.values()), closure.case_size
         )
         self.assertEqual(problems, [])
         self.assertEqual(valid, {r["case_id"] for r in self.recipes})
-        self.assertEqual(len(valid), 5)
+        self.assertEqual(len(valid), 7)
+
+    def test_knn_receipts_reuse_exact_original_counts_and_printed_precision(self) -> None:
+        for n, expected_covered in [(10000, 1899), (100000, 1882)]:
+            recipe = copy.deepcopy(
+                next(r for r in self.recipes if r["case_id"] == f"knn_ci_path_{n}")
+            )
+            target = self.cases[recipe["case_id"]]
+            value = receipts.validate_asserted_knn(self.root, recipe, target, n)
+            self.assertEqual(
+                (value["outcomes"], value["reported"], value["covered"]),
+                (2000, 2000, expected_covered),
+            )
+            self.assertLess(value["median_width_over_effect_bound"], 1.5)
+            recipe["execution_grid_point"] = 1
+            with self.assertRaisesRegex(ValueError, "exact source construction/size"):
+                receipts.validate_asserted_knn(self.root, recipe, target, n)
+
+    def test_knn_passed_gate_is_not_a_generic_width_or_test_calibration_receipt(self) -> None:
+        recipe = copy.deepcopy(next(r for r in self.recipes if r["case_id"] == "knn_ci_path_10000"))
+        target = self.cases[recipe["case_id"]]
+        path = self.root / recipe["coverage_log"]["path"]
+        raw = path.read_bytes().replace(b"median width 0.1026", b"median width 0.9000")
+        path.write_bytes(raw)
+        recipe["coverage_log"]["sha256"] = hashlib.sha256(raw).hexdigest()
+        with self.assertRaisesRegex(ValueError, "targets are not met"):
+            receipts.validate_asserted_knn(self.root, recipe, target, 10000)
+        target = self.cases["scalable_gpdc_replacement_validated_separately"]
+        recipe["case_id"] = target["id"]
+        recipe["test"] = target["evidence"]["test"]
+        with self.assertRaisesRegex(ValueError, "exact source construction/size"):
+            receipts.validate_asserted_knn(self.root, recipe, target, 8000)
 
     def test_validated_receipts_replace_only_the_missing_typed_requirement(self) -> None:
         data = {"case": [self.case]}

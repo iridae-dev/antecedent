@@ -1,0 +1,6 @@
+{
+  "group": "knn_matching_calibration__knn_matching_interval_ci_coverage.p0",
+  "passed": 1,
+  "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+  "protocol": "population_linear"
+}

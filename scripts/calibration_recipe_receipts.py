@@ -367,6 +367,140 @@ def validate_recipe(
     }
 
 
+def validate_asserted_knn(
+    root: Path, recipe: dict[str, Any], case: dict[str, Any], size: int | None
+) -> dict[str, Any]:
+    """Preserve the original KNN gate, including its exact printed width/reporting assertions."""
+    required = {
+        "case_id",
+        "evidence_kind",
+        "profile",
+        "test",
+        "sample_size",
+        "size_basis",
+        "execution_grid_point",
+        "nominal",
+        "effect",
+        "covariates",
+        "neighbors",
+        "calibration_sha",
+        "group",
+        "source_files",
+        "gate_receipt",
+        "coverage_log",
+        "tally",
+        "source_review",
+    }
+    if set(recipe) != required or recipe["profile"] != "knn_population_linear.v1":
+        raise ValueError("unknown source-asserted calibration profile")
+    path = "crates/antecedent-estimate/tests/knn_matching_calibration.rs"
+    test = "knn_matching_interval_ci_coverage"
+    if (
+        recipe["case_id"] != case["id"]
+        or recipe["test"] != case["evidence"]["test"]
+        or recipe["test"] != path + "::" + test
+        or recipe["sample_size"] != size
+        or recipe["size_basis"] != "generated_rows"
+        or size not in (10000, 100000)
+        or recipe["execution_grid_point"] != {10000: 0, 100000: 2}[size]
+        or recipe["nominal"] != 0.95
+        or recipe["nominal"] != case["targets"]["nominal_coverage"]
+        or recipe["effect"] != 0.5
+        or recipe["covariates"] != 8
+        or recipe["neighbors"] != 3
+        or case["configuration"].get("covariates") != 8
+        or case["configuration"].get("k") != 3
+        or case["expected"]["kind"] != "calibrated_interval"
+    ):
+        raise ValueError("KNN receipt does not match its exact source construction/size")
+    if recipe["group"] != f"knn_matching_calibration__{test}.p{recipe['execution_grid_point']}":
+        raise ValueError("KNN original group/grid identity mismatch")
+    source = recipe["calibration_sha"]
+    for rel in (path, COMMON_PATH):
+        measured = source_blob(root, rel, source)
+        if sha256(measured) != recipe["source_files"][rel]:
+            raise ValueError("KNN source audit mismatch")
+        if rel == path and (root / rel).read_bytes() != measured:
+            raise ValueError("KNN source recipe changed since measurement")
+    log = read_asset(root, recipe["coverage_log"])
+    gate = json.loads(read_asset(root, recipe["gate_receipt"]))
+    log_path = root / recipe["coverage_log"]["path"]
+    if (
+        gate["group"] != recipe["group"]
+        or gate["calibration_sha"] != source
+        or gate.get("protocol") != "population_linear"
+        or collector.gate_ledger([log_path], source) != {recipe["group"]: gate}
+    ):
+        raise ValueError("KNN original passed gate/protocol mismatch")
+    # The ordinary attestation gate owns current implementation compatibility.
+    # Require this very original row to remain in its collected ledger; it will
+    # acquire the reviewed KNN + shared-kernel + suite dependency facets.
+    rows = tomllib.loads((root / "parity/calibration_gates.toml").read_text(encoding="utf-8"))[
+        "gate"
+    ]
+    if [r for r in rows if r["group"] == gate["group"]] != [gate]:
+        raise ValueError("KNN receipt is not bound to its currently attested original gate row")
+    if (
+        set(re.findall(rb"^calibration-measured-at ([0-9a-f]{40})$", log, re.M))
+        != {source.encode()}
+        or not re.search(rb"test result: ok\. [1-9][0-9]* passed; 0 failed;", log)
+        or b"calibration-record " in log
+    ):
+        raise ValueError("KNN raw recordless receipt did not pass at its stated source")
+    states = [
+        json.loads(line) for line in read_asset(root, recipe["tally"]).decode("utf-8").splitlines()
+    ]
+    wanted = f"{test}::knn_matching_interval@0.950000"
+    states = [row for row in states if row["key"] == wanted]
+    if len(states) != 1:
+        raise ValueError("KNN raw tally identity is missing or ambiguous")
+    state = states[0]
+    fields = [state[k] for k in ("scored", "skipped", "covered", "with_interval")]
+    if any(type(x) is not int or x < 0 for x in fields):
+        raise ValueError("invalid KNN actual counters")
+    scored, skipped, covered, reported = fields
+    total = scored + skipped
+    if (
+        state["record"] is not None
+        or state["level"] != 0.95
+        or not 0 <= covered <= reported <= scored
+        or total != state["map_end"]
+        or state.get("decision_context") is not None
+    ):
+        raise ValueError("invalid KNN legacy tally or retrospective protocol")
+    match = re.search(
+        rf"knn matching interval: rows {size}, reported (\d+) of (\d+), median width ([0-9.eE+-]+)".encode(),
+        log,
+    )
+    if match is None or (int(match[1]), int(match[2])) != (reported, total):
+        raise ValueError("KNN log size/reporting counters disagree")
+    if not re.search(
+        rf"calibration knn_matching_interval: nominal=0.95.*\({covered}/{total} covered, {skipped} skipped\)".encode(),
+        log,
+    ):
+        raise ValueError("KNN original covered counts disagree")
+    # Log formatting rounds the median to4decimal places. Use its upper bound,
+    # while the original source independently asserts the unrounded target.
+    width_ratio_bound = (float(match[3]) + 0.000_050_001) / recipe["effect"]
+    targets = case["targets"]
+    if (
+        total < targets["min_replicates"]
+        or reported < targets["min_replicates"]
+        or covered / total < targets["coverage_floor"]
+        or reported / total < targets["min_reporting_rate"]
+        or width_ratio_bound > targets["max_median_width_over_effect"]
+    ):
+        raise ValueError("KNN exact count/coverage/reporting/width targets are not met")
+    return {
+        "receipt_kind": "recordless_gate",
+        "outcomes": total,
+        "reported": reported,
+        "covered": covered,
+        "coverage": covered / total,
+        "median_width_over_effect_bound": width_ratio_bound,
+    }
+
+
 def validate_registry(
     root: Path, cases: list[dict[str, Any]], size_of: Any
 ) -> tuple[set[str], list[str]]:
@@ -385,7 +519,10 @@ def validate_registry(
             continue
         seen.add(cid)
         try:
-            validate_recipe(root, recipe, by_id[cid], size_of(by_id[cid]))
+            if recipe.get("evidence_kind") == "source_asserted_recordless_gate":
+                validate_asserted_knn(root, recipe, by_id[cid], size_of(by_id[cid]))
+            else:
+                validate_recipe(root, recipe, by_id[cid], size_of(by_id[cid]))
             valid.add(cid)
         except (ValueError, KeyError, TypeError, OSError, ArithmeticError) as error:
             problems.append(f"{cid}: invalid recordless recipe receipt: {error}")

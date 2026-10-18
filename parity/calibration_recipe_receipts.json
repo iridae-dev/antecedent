@@ -252,6 +252,70 @@
         "path": "parity/recipe_evidence/v2.4.1/width_n1000/c30-numerical-source-audit.json",
         "sha256": "7cfbdf1ac9c2f2ac777c7fedc5f349bae6f293b99c30f4417da6257f652829f1"
       }
+    },
+    {
+      "case_id": "knn_ci_path_10000",
+      "evidence_kind": "source_asserted_recordless_gate",
+      "profile": "knn_population_linear.v1",
+      "test": "crates/antecedent-estimate/tests/knn_matching_calibration.rs::knn_matching_interval_ci_coverage",
+      "sample_size": 10000,
+      "size_basis": "generated_rows",
+      "execution_grid_point": 0,
+      "nominal": 0.95,
+      "effect": 0.5,
+      "covariates": 8,
+      "neighbors": 3,
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "group": "knn_matching_calibration__knn_matching_interval_ci_coverage.p0",
+      "source_files": {
+        "crates/antecedent-estimate/tests/knn_matching_calibration.rs": "d553e022c192994ac1709e672f5c168650958a7c8728967940709d9fdf631d03",
+        "crates/antecedent/tests/common/calibration.rs": "f6bbfdc9e00f717a996f9fa1809f39d6f2d64f4b6b438d23109c58a0b2defb48"
+      },
+      "gate_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/knn_n10000/original_recordless_gate.json",
+        "sha256": "34bf32fcad6c29e3ead12549ccf101e4f8f5099b44b7e85aaa3be10066e10d7d"
+      },
+      "coverage_log": {
+        "path": "parity/recipe_evidence/v2.4.1/knn_n10000/knn_matching_calibration__knn_matching_interval_ci_coverage.p0.log",
+        "sha256": "60e048c06be57f0e992209fcd37c0e5677dc5cc54a1d67227ecc5a7397d9a615"
+      },
+      "tally": {
+        "path": "parity/recipe_evidence/v2.4.1/knn_n10000/knn_matching_calibration__knn_matching_interval_ci_coverage.p0.tallies.jsonl",
+        "sha256": "8912ecedd8430f7a0c81955176317682327aed1e351ffb6bc7773271ccae0058"
+      },
+      "source_review": "The e15 source fixes total generated ROWS at10000/25000/100000, eight covariates, three neighbors, ATT effect.5 and matching.with_population_variance(true). The source independently asserts median width<=1.5*effect and reporting>=.9, then nominal coverage. Exact original row remains subject to the current gate attestation, with reviewed wrapper/shared-kernel/suite facets. This is not a claim about100000 observed control donors."
+    },
+    {
+      "case_id": "knn_ci_path_100000",
+      "evidence_kind": "source_asserted_recordless_gate",
+      "profile": "knn_population_linear.v1",
+      "test": "crates/antecedent-estimate/tests/knn_matching_calibration.rs::knn_matching_interval_ci_coverage",
+      "sample_size": 100000,
+      "size_basis": "generated_rows",
+      "execution_grid_point": 2,
+      "nominal": 0.95,
+      "effect": 0.5,
+      "covariates": 8,
+      "neighbors": 3,
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "group": "knn_matching_calibration__knn_matching_interval_ci_coverage.p2",
+      "source_files": {
+        "crates/antecedent-estimate/tests/knn_matching_calibration.rs": "d553e022c192994ac1709e672f5c168650958a7c8728967940709d9fdf631d03",
+        "crates/antecedent/tests/common/calibration.rs": "f6bbfdc9e00f717a996f9fa1809f39d6f2d64f4b6b438d23109c58a0b2defb48"
+      },
+      "gate_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/knn_n100000/original_recordless_gate.json",
+        "sha256": "765be7037d9680a52b74a84cd2fe678663c1bd34e0eaa6bc60b1669ee6d86963"
+      },
+      "coverage_log": {
+        "path": "parity/recipe_evidence/v2.4.1/knn_n100000/knn_matching_calibration__knn_matching_interval_ci_coverage.p2.log",
+        "sha256": "da4fcb715799d6fed61b8c97547d10ed1f2ec1367b4306c819df84dffb1bcdcb"
+      },
+      "tally": {
+        "path": "parity/recipe_evidence/v2.4.1/knn_n100000/knn_matching_calibration__knn_matching_interval_ci_coverage.p2.tallies.jsonl",
+        "sha256": "cf6ca094e11e3ba9d91310f27b5514ec2103b068542b5421f3084117e4188828"
+      },
+      "source_review": "The e15 source fixes total generated ROWS at10000/25000/100000, eight covariates, three neighbors, ATT effect.5 and matching.with_population_variance(true). The source independently asserts median width<=1.5*effect and reporting>=.9, then nominal coverage. Exact original row remains subject to the current gate attestation, with reviewed wrapper/shared-kernel/suite facets. This is not a claim about100000 observed control donors."
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Recordless manual interval recipes
 
-`parity/calibration_recipe_receipts.json` binds five acceptance cases to their
+`parity/calibration_recipe_receipts.json` binds five policy/survival acceptance cases to their
 original passed gate receipts. The original harness used `CoverageTally::new`,
 which emits no typed coverage record. These files preserve that receipt type;
 they do not create `cov.*` IDs, a sample-size range, or additional grid runs.
@@ -53,3 +53,20 @@ the measured generating family and evaluation strategy. The public policy and
 survival APIs still publish estimates and standard errors, with their existing
 `calibration = "unmeasured"` fields. No new interval endpoint or automatic facade
 calibration binding is implied.
+
+## KNN source-asserted receipts
+
+The two additional KNN cases retain their e15 original recordless gate rows,
+protocol marker, raw logs and tally states. Their recorded sizes are total
+generated rows: n = 10,000 at the actual execution point 0, and n = 100,000 at
+point 2, with eight covariates and three neighbors. The manifest's previous
+`donors` label was corrected to `participants`, preserving the original dataset
+sizes; these receipts do not claim 100,000 observed control-arm donors.
+
+Each original gate reported all 2,000 intervals. The covered counts were 1,899
+and 1,882, respectively. The original source also asserted the unrounded median
+width target and printed medians 0.1026 and 0.0322 against effect 0.5. The reader
+uses an upper rounding bound rather than pretending the printed four-decimal
+value is an exact retained median. The currently collected original rows remain
+subject to the ordinary calibration attestation, including their reviewed KNN,
+distance-wrapper, shared matching-kernel and measurement-suite dependencies.
