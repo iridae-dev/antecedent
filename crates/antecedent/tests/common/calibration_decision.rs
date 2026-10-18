@@ -21,7 +21,7 @@ pub const HC3_VALIDATION_SALT: u64 = 0xDD5E_E217_1F1D_846C;
 
 pub const PAG_VALIDATION_DOMAIN: &str = "release_2_4_1_pag_trial_shift_validation_v1";
 /// SHA256 of the PAG validation domain, first eight bytes interpreted little-endian.
-pub const PAG_VALIDATION_SALT: u64 = 0xDE3D61A040927214;
+pub const PAG_VALIDATION_SALT: u64 = 0xDE3D_61A0_4092_7214;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -219,7 +219,7 @@ mod tests {
         assert!(c.validate().is_ok());
         assert_ne!(VALIDATION_SALT, HC3_VALIDATION_SALT);
         c.validation_domain = PAG_VALIDATION_DOMAIN.into();
-        assert_eq!(c.validation_salt(), Some(0xDE3D61A040927214));
+        assert_eq!(c.validation_salt(), Some(0xDE3D_61A0_4092_7214));
         assert!(c.validate().is_ok());
         assert_ne!(PAG_VALIDATION_SALT, VALIDATION_SALT);
         assert_ne!(PAG_VALIDATION_SALT, HC3_VALIDATION_SALT);
