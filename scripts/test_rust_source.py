@@ -17,9 +17,7 @@ def test_lint_attributes_accept_reasons_and_multiple_lints() -> None:
         "unsafe_code",
         inner=True,
     )
-    assert rust.has_lint_attribute(
-        "#[allow(unsafe_code)]", "allow", "unsafe_code", inner=False
-    )
+    assert rust.has_lint_attribute("#[allow(unsafe_code)]", "allow", "unsafe_code", inner=False)
     assert rust.has_lint_attribute(
         "#![forbid ( unsafe_code )]", "forbid", "unsafe_code", inner=True
     )
@@ -35,9 +33,7 @@ def test_lint_attributes_reject_inactive_or_different_policy() -> None:
         "#[forbid(unsafe_code)]",
         '#![cfg_attr(feature = "strict", forbid(unsafe_code))]',
     ):
-        assert not rust.has_lint_attribute(text, "forbid", "unsafe_code", inner=True), (
-            text
-        )
+        assert not rust.has_lint_attribute(text, "forbid", "unsafe_code", inner=True), text
 
 
 def test_lifetime_is_not_a_character() -> None:
@@ -139,6 +135,58 @@ def test_python_closure_follows_calls_not_strings() -> None:
         path.parent.rmdir()
 
 
+def test_forwarded_ignored_test_macros_bind_only_actual_arguments() -> None:
+    from tempfile import TemporaryDirectory
+
+    from promotion_source import ignored_test_literals
+
+    source = r"""
+const SHARED: &[&str] = &["shared_rho_0.0", "shared_rho_0.5"];
+const UNUSED: &[&str] = &["separate_streams", "wrong_coupling"];
+macro_rules! leaf {
+    ($labels:expr, $name:ident, $dgp:literal) => {
+        #[test]
+        #[ignore = "coverage"]
+        fn $name() { run(stringify!($name), $labels, $dgp); }
+    };
+}
+macro_rules! forward {
+    ($name:ident, $unused:expr, $labels:expr) => {
+        leaf!($labels, $name, "actual_dgp");
+    };
+}
+macro_rules! outer {
+    ($name:ident, $labels:expr) => { forward!($name, UNUSED, $labels); };
+}
+outer!(current, SHARED);
+"""
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "forwarded.rs"
+        path.write_text(source, encoding="utf-8")
+        emitted = ignored_test_literals(path)
+    assert set(emitted) == {"current"}
+    assert set(emitted["current"]) == {"current", "actual_dgp", "shared_rho_0.0", "shared_rho_0.5"}
+
+
+def test_macro_cycles_and_uninvoked_definitions_emit_no_tests() -> None:
+    from tempfile import TemporaryDirectory
+
+    from promotion_source import ignored_test_literals
+
+    source = r"""
+macro_rules! unused {
+    ($name:ident) => { #[test] #[ignore] fn $name() { run("foreign_label"); } };
+}
+macro_rules! first { ($name:ident) => { second!($name); }; }
+macro_rules! second { ($name:ident) => { first!($name); }; }
+first!(not_a_generated_test);
+"""
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "cycle.rs"
+        path.write_text(source, encoding="utf-8")
+        assert ignored_test_literals(path) == {}
+
+
 if __name__ == "__main__":
     test_lint_attributes_accept_reasons_and_multiple_lints()
     test_lint_attributes_reject_inactive_or_different_policy()
@@ -151,4 +199,6 @@ if __name__ == "__main__":
     test_identifier_ending_in_r_is_not_a_raw_string()
     test_extern_c_delimiters_stay_in_the_kept_skeleton()
     test_python_closure_follows_calls_not_strings()
+    test_forwarded_ignored_test_macros_bind_only_actual_arguments()
+    test_macro_cycles_and_uninvoked_definitions_emit_no_tests()
     print("rust source lexer: ok")

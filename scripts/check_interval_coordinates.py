@@ -1185,7 +1185,7 @@ inherited_interval_fields = ["interval"]
         )
         labelled = (
             'const LABELS: &[(&str, u8)] = &[("rho_0.5", 1)];\n'
-            + generated
+            + generated.replace("($name:ident)", "($name:ident, $labels:expr)")
             + "gen!(synth_alpha, LABELS);\n"
         )
         expect(
