@@ -10375,8 +10375,8 @@ evidence = "exported_estimate_artifact_wrapping_one_transport_grid_artifact_per_
 functional = "target_mean_response_per_treatment_level_replayed"
 guarantee = "point_only_uncalibrated_no_probability_over_members"
 limits = "Re-derives every member grid from its embedded proof and tables, recomputes the means, the answer kind and the identity."
-evidence_test = "crates/antecedent/tests/discovered_transport_facade.rs"
-evidence_assertion = "an_identified_pag_class_is_estimated_and_covers_the_enumerated_truth"
+evidence_test = "crates/antecedent/src/analysis/discovered_transport_estimate.rs"
+evidence_assertion = "a_common_class_bootstrap_matches_one_member_and_keeps_every_proof"
 notes = "Replay reproduces the effect."
 
 [[routes]]
@@ -11973,8 +11973,7 @@ evidence = "declared_evidence_of_the_record"
 functional = "value_of_the_record_quantity"
 guarantee = "point_only_under_declared_premises_no_interval"
 evidence_test = "crates/antecedent/tests/adaptive_participant_acceptance.rs"
-evidence_assertion = "adaptive_run_cancellation_returns_partial_receipt"
-
+evidence_assertion = "adaptive_procedure_executes_600_participants"
 [[routes]]
 route = "antecedent_stats.adaptive_inference.historical_prior.ArmPrior.resolve"
 stage = "prepare"
@@ -12354,8 +12353,7 @@ guarantee = "native_semantic_replay_not_new_calibration"
 reference = "provenance/transport.cpdag_class_envelope.toml"
 limits = "16 MiB wrapper, 4096 original members; proof replay is separately bounded by caller operations and each retained grid retains its caller operation/depth limit. Exact source rows, original report identity and every retention decision replay."
 evidence_test = "crates/antecedent/src/analysis/discovered_transport_trial.rs"
-evidence_assertion = "a_real_trial_refines_an_ambiguous_class_and_replays_every_decision"
-
+evidence_assertion = "trial_consumer_checks_byte_budget_before_decoding"
 [[routes]]
 route = "antecedent.evidence_ledger.pool_gaussian_studies"
 stage = "evaluate"
@@ -12363,9 +12361,9 @@ status = "licensed"
 graph = "independent_registered_study_sources"
 evidence = "finite_gaussian_study_estimates_common_marginal_mean"
 functional = "equal_study_population_mean"
-guarantee = "point_only_distinct_conservative_interval_pending_formal_records"
+guarantee = "point_only_pool_with_distinct_measured_conservative_interval_via_pooled_interval"
 reference = "provenance/evidence_ledger.pooled_interval.toml"
-limits = "Independent Gaussian study estimates, potentially unequal unknown variances; equal-study mean and between-study t reference. Legacy Wald/HKSJ evidence is not inherited."
+limits = "Independent Gaussian study estimates, potentially unequal unknown variances; equal-study mean and between-study t reference. Legacy Wald/HKSJ evidence is not inherited. Twelve distinct Gaussian interval records are allocated to the pooled_interval consumer; this helper returns study summary fields."
 evidence_test = "crates/antecedent/tests/evidence_ledger_facade.rs"
 evidence_assertion = "equal_study_gaussian_pool_has_a_distinct_conservative_interval_and_durable_replay"
 
@@ -12381,3 +12379,81 @@ guarantee = "published_scalar_endpoint_rule_with_exact_currently_attesting_metho
 evidence_test = "crates/antecedent/src/result.rs"
 evidence_assertion = "finite_analytic_without_bootstrap_publishes_analytic"
 notes = "Only the exact allocated measured constructions with current attestation; no arbitrary standard error or declaration helper carries a calibrated claim."
+
+
+[[routes]]
+route = "antecedent_estimate.propensity.PropensityWeighting.population_linear_score_interval"
+stage = "uncertainty"
+status = "licensed"
+graph = "exact_method_record_scope"
+evidence = "cov.average_effect.dag.frequentist.balanced_population_linear_score.l95.weighted_ipw_hajek_interval"
+functional = "all_observed.mean+weighting=balanced_linear_hc3+weights=sampling+interval_variance=homoskedastic_gaussian_arm_linear_population"
+guarantee = "measured_exact_native_model_interval_current_attestation_required"
+evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
+evidence_assertion = "explicit_population_ipw_linear_interval_preserves_contracts"
+notes = "Independent homoskedastic Gaussian arm-linear outcomes; covariate-balanced positive weights, untrimmed ATE, independent rows. Conditional noise variance is exact under this model; combined random-target Fieller score is asymptotically normal. Exact recorded construction: all_observed.mean+weighting=balanced_linear_hc3+weights=sampling+interval_variance=homoskedastic_gaussian_arm_linear_population; n=600..2400; level=0.95. Calling a raw interval arithmetic API alone supplies no opaque calibration authority."
+
+
+[[routes]]
+route = "antecedent_estimate.propensity.PropensityWeighting.population_score_interval"
+stage = "uncertainty"
+status = "licensed"
+graph = "exact_method_record_scope"
+evidence = "cov.average_effect.dag.frequentist.balanced_population_score.l95.weighted_ipw_hajek_cluster_interval"
+functional = "all_observed.mean+weighting=balanced_linear_hc3+weights=sampling"
+guarantee = "measured_exact_native_model_interval_current_attestation_required"
+evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
+evidence_assertion = "explicit_population_ipw_cluster_score_interval_preserves_contracts"
+notes = "Exact published calibrated-weight population score construction, cluster dependence and finite-reference metadata of the collected record only; no license for its unmeasured iid working-quadratic construction. Exact recorded construction: all_observed.mean+weighting=balanced_linear_hc3+weights=sampling; n=600..2400; level=0.95. Calling a raw interval arithmetic API alone supplies no opaque calibration authority."
+
+
+[[routes]]
+route = "antecedent_estimate.AipwAte.population_linear_interval"
+stage = "uncertainty"
+status = "licensed"
+graph = "exact_method_record_scope"
+evidence = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_aipw_population_linear_interval"
+functional = "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection+weights=sampling"
+guarantee = "measured_exact_native_model_interval_current_attestation_required"
+evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
+evidence_assertion = "explicit_population_aipw_linear_interval_preserves_contracts"
+notes = "Independent homoskedastic Gaussian arm-linear outcomes; full training-fold coefficient and arm-linear point projection, untrimmed population ATE. Default robust fit unchanged; population reference is asymptotic. Exact recorded construction: all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection+weights=sampling; n=600..2400; level=0.95. Calling a raw interval arithmetic API alone supplies no opaque calibration authority."
+
+
+[[routes]]
+route = "antecedent_estimate.DmlAte.population_linear_interval"
+stage = "uncertainty"
+status = "licensed"
+graph = "exact_method_record_scope"
+evidence = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_dml_aipw_population_linear_interval"
+functional = "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection+weights=sampling"
+guarantee = "measured_exact_native_model_interval_current_attestation_required"
+evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
+evidence_assertion = "explicit_population_dml_linear_interval_preserves_contracts"
+notes = "Independent homoskedastic Gaussian arm-linear outcomes with supported linear/ridge outcome nuisances and complete cross-fit training uncertainty; untrimmed ATE. Default robust fit unchanged. Exact recorded construction: all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection+weights=sampling; n=600..2400; level=0.95. Calling a raw interval arithmetic API alone supplies no opaque calibration authority."
+
+
+[[routes]]
+route = "antecedent_estimate.DrLearner.population_linear_interval"
+stage = "uncertainty"
+status = "licensed"
+graph = "exact_method_record_scope"
+evidence = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_dr_learner_population_linear_interval"
+functional = "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection+weights=sampling"
+guarantee = "measured_exact_native_model_interval_current_attestation_required"
+evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
+evidence_assertion = "explicit_population_dr_linear_interval_preserves_contracts"
+notes = "Independent homoskedastic Gaussian arm-linear outcomes; supported linear/ridge learner and declared finite-ridge arm-linear projection correction. Default robust fit unchanged. Exact recorded construction: all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection+weights=sampling; n=600..2400; level=0.95. Calling a raw interval arithmetic API alone supplies no opaque calibration authority."
+
+
+[[routes]]
+route = "antecedent_estimate.AipwAte.population_linear_atc_interval"
+stage = "uncertainty"
+status = "licensed"
+graph = "exact_method_record_scope"
+evidence = "cov.average_effect.dag.frequentist.population_linear_atc_hc3.l95.weighted_aipw_atc_interval"
+functional = "untreated.mean+overlap=clip:none,trim:none+interval_variance=heteroskedastic_arm_linear_training_hc3+weights=sampling"
+guarantee = "measured_exact_native_model_interval_current_attestation_required"
+evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
+evidence_assertion = "explicit_population_aipw_atc_hc3_interval_preserves_contracts"
+notes = "Independent rows and arm-linear conditional means, arbitrary heteroskedastic outcome variance; complete treated-training coefficient with HC3 residual variance and control-target heterogeneity. This is NOT the Gaussian homoskedastic ATE construction. Exact recorded construction: untreated.mean+overlap=clip:none,trim:none+interval_variance=heteroskedastic_arm_linear_training_hc3+weights=sampling; n=600..2400; level=0.95. Calling a raw interval arithmetic API alone supplies no opaque calibration authority."
