@@ -522,6 +522,24 @@ passed = 1
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 
 [[gate]]
+group = "knn_matching_calibration__knn_matching_interval_ci_coverage.p0"
+passed = 1
+calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
+protocol = "population_linear"
+
+[[gate]]
+group = "knn_matching_calibration__knn_matching_interval_ci_coverage.p1"
+passed = 1
+calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
+protocol = "population_linear"
+
+[[gate]]
+group = "knn_matching_calibration__knn_matching_interval_ci_coverage.p2"
+passed = 1
+calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
+protocol = "population_linear"
+
+[[gate]]
 group = "learned_continuous_calibration__learned_trial_aipw_misspecified_nuisance_cases"
 passed = 1
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
@@ -592,9 +610,24 @@ passed = 1
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 
 [[gate]]
+group = "observational_effects_calibration__policy_cross_fitted_learning_n3000_l95"
+passed = 1
+calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
+
+[[gate]]
 group = "observational_effects_calibration__policy_held_out_n1000_l95"
 passed = 1
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+
+[[gate]]
+group = "observational_effects_calibration__policy_prespecified_n1000_l95"
+passed = 1
+calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
+
+[[gate]]
+group = "observational_effects_calibration__policy_prespecified_n3000_l95"
+passed = 1
+calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
 
 [[gate]]
 group = "observational_effects_calibration__rmst_difference_covariate_censoring_n1000_l95"
