@@ -451,6 +451,16 @@ def _point(k: int, observed: float, role: str, **extra) -> dict:
 UPPER = {"side": "upper", "target": "true upper extremal bound U"}
 
 
+class FacetTaggingTest(unittest.TestCase):
+    def test_empty_measurement_needs_no_repository_reference_scan(self):
+        with patch.object(collector.facets, "load_surface") as surface, patch.object(collector.facets, "references") as refs:
+            collector.tag_facets({})
+        surface.assert_not_called()
+        refs.assert_not_called()
+
+
+
+
 
 class OneSidedRoleTest(unittest.TestCase):
     def test_a_one_sided_record_keeps_its_side_and_target(self) -> None:

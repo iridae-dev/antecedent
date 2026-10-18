@@ -685,6 +685,8 @@ def toml_value(key: str, value) -> str:
 
 def tag_facets(records: dict[str, dict]) -> None:
     """Set each record's `facets` from the record itself and the surface list."""
+    if not records:
+        return
     surface = facets.load_surface()
     if surface.errors:
         raise SystemExit("scripts/calibration_surface.list: " + "; ".join(surface.errors))
