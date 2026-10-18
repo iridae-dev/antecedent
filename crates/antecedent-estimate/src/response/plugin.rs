@@ -404,7 +404,16 @@ pub(super) fn intervention_plugin_influence(
             );
         }
     }
-    let coefficient = sandwich.coefficient_influence(&fit.residuals, &gradient)?;
+    // The fitted residuals are shrunken by row leverage. Match the HC2
+    // correction used by the same fit's plug-in gradient interval.
+    let leverage = sandwich.leverage()?;
+    let residuals: Vec<f64> = fit
+        .residuals
+        .iter()
+        .zip(leverage)
+        .map(|(residual, h)| residual / (1.0 - h).sqrt())
+        .collect();
+    let coefficient = sandwich.coefficient_influence(&residuals, &gradient)?;
     let mean = row_means.iter().sum::<f64>() / nf;
     let mut psi: Vec<_> =
         coefficient.iter().zip(row_means).map(|(c, row)| row - mean + c).collect();

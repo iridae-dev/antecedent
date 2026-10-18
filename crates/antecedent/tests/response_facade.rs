@@ -703,11 +703,24 @@ fn curve_joint_influence_has_sample_mean_scaling() {
     }
     let refs: Vec<_> = scores.columns.iter().map(Vec::as_slice).collect();
     let cov = antecedent_estimate::joint_influence_covariance(&refs, None).unwrap();
+    let degrees = &response
+        .support
+        .diagnostics
+        .iter()
+        .find(|d| d.id.as_ref() == "response.local_variance_degrees_of_freedom")
+        .expect("pointwise curve supplies its variance df")
+        .values;
     if let ResponseUncertainty::PointwiseBand { lower, upper, .. } = response.uncertainty {
         for g in 0..lower.len() {
-            let se = (upper[g] - lower[g]) / (2.0 * 1.959_963_984_540_054);
-            let joint_se = cov.values[g * cov.dim + g].sqrt();
-            assert!((joint_se / se - (n as f64 / (n - 1) as f64).sqrt()).abs() < 1e-6);
+            let critical = antecedent_stats::student_t_ppf(0.975, degrees[g]);
+            let se = (upper[g] - lower[g]) / (2.0 * critical);
+            let row = &exported[g * n..(g + 1) * n];
+            let sum_squares = row.iter().map(|v| v * v).sum::<f64>();
+            assert!((se * se - sum_squares).abs() < 1e-12);
+            let mean = row.iter().sum::<f64>() / n as f64;
+            let centered = row.iter().map(|v| (v - mean).powi(2)).sum::<f64>();
+            let expected_cov = centered * n as f64 / (n - 1) as f64;
+            assert!((cov.values[g * cov.dim + g] - expected_cov).abs() < 1e-12);
         }
     } else {
         panic!("expected pointwise curve band");

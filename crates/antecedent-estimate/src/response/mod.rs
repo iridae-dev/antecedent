@@ -206,11 +206,15 @@ pub struct ContinuousResponseOptions {
     ///   position mod `folds`; nuisances for row `i` exclude `i`'s fold.
     /// - `response.row_influence` — `G * N`, grid-major (`value[g*N + i]`):
     ///   the influence of row `i` on the fitted level at grid point `g`:
-    ///   the local-WLS term `w_i · [(XᵀWX)⁻¹]₀ · x_i · (φ_i − x_iᵀβ̂)` plus the
+    ///   the local-WLS term `w_i · [(XᵀWX)⁻¹]₀ · x_i · (φ_i − x_iᵀβ̂) / sqrt(v_i)` plus the
     ///   covariate-marginalization term `(c_i − c̄)/N` (Kennedy et al. 2017,
     ///   Thm. 3; `c_i = μ̂(A_i, X_i) − ∫μ̂(A_i, x) dP_n(x)`). Sums to zero per
-    ///   grid point; reported pointwise `SE(g) = √(Σ_i ψ²)`, and both bands
-    ///   are `m̂ ± c·SE` with these values.
+    ///   grid point before finite-fit residual correction; reported pointwise `SE(g) = √(Σ_i ψ²)`, and both bands
+    ///   are `m̂ ± c·SE` with these values. Here `v_i = 1 - 2 S_ii + ||S_i||²`
+    ///   is the local smoother residual variance factor. Pointwise criticals use
+    ///   Student quantiles with Satterthwaite variance df, exported in
+    ///   `response.local_variance_degrees_of_freedom`; corrected scores need
+    ///   not sum to zero exactly.
     ///
     /// These are diagnostics conditional on the fitted nuisances and bandwidth:
     /// second-order nuisance error and bandwidth selection are NOT inside the
