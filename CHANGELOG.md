@@ -13,6 +13,7 @@ Changes since 2.4.0. Released identities, artifact encodings and goldens are unc
 - **Missing data and sampling weights.** Declared missing-data policies across RCT, DiD, temporal and discovery routes, temporal estimators and refuters on series with missing time points, and sampling weights in the estimators that previously ignored or refused them. See [missing data](docs/guides/missing-data.md).
 - **Scale.** Graph posteriors above eight variables (exact edge marginals to 12, samplers to 16), budgeted graph searches in place of fixed ceilings, matching, k-nearest-neighbour, GPDC and nonparametric sensitivity beyond their former row limits, adaptive participant trials at practitioner scale, and recalculation bridges bounded by memory budgets.
 - **Transport, survival and policy value.** Transport across discovered PAG and temporal structures with block-bootstrap intervals, target-native utilities for transported policies, observational survival effects and policy values, effects after discovery on an unambiguous treatment parent set, and finite SCMs whose mechanisms share exogenous terms.
+- **Gaussian study pooling.** `pool_gaussian_studies` pools independent Gaussian study estimates with an equal-study mean and empirical study-level variance. Its Student interval has a separate conservative coverage declaration and calibration identity; inverse-variance and HKSJ pooling remain separate constructions.
 - **Treatment levels and identifiers.** Declared active and control levels across estimators, label-declared levels in Python, and named identifiers through refresh.
 - **Bayesian draw controls.** An opt-in supported minimum draw count, endpoint Monte Carlo error with a refusal above tolerance, and draws and seed in the replay identity.
 - **Graph posterior samplers above eight variables.** An eight-replica tempering ladder, covered-edge reversals that walk each Markov equivalence class, and an order-relocate move for order MCMC; published samplers match the exact posterior marginals of their score within Monte Carlo error. At eight or fewer variables the draws are unchanged.
@@ -22,6 +23,8 @@ Changes since 2.4.0. Released identities, artifact encodings and goldens are unc
 ### Fixed
 
 - The responder-weighted variance accounts for estimating the response probabilities in cluster, stratified, factorial, multi-arm and switchback designs; point estimates are unchanged.
+- Discovered transport binds only the source treatment experiment and target observations actually supplied. Checked minimal pretreatment standardization avoids unnecessary target-joint conditionals; temporal bootstrap draws reuse the causal derivation while rebuilding empirical laws. An opt-in binary randomized-trial compatibility test records the trial rows, level and every class-member decision for replay.
+- Opt-in PCMCI+ multiplicity adjustment including contemporaneous links uses the complete allowed directed-link family, with a p-value of one for missing tests, rather than correcting only surviving links. The protocol identity records this choice; it does not assert unconditional error control for adaptively selected CI queries.
 - Weighted and custom-target matching standard errors use the n − 1 divisor, and the ATC donor credit is counted on the correct arm.
 - A Laplace posterior with fewer than 1,000 declared draws publishes the exchangeable-rank interval of its own draws, so a loaded posterior passes its integrity check.
 - GES no longer refuses a node with more undirected neighbours than the parent limit, and background knowledge on an edge GES has already directed no longer raises a graph error.
@@ -33,6 +36,9 @@ Changes since 2.4.0. Released identities, artifact encodings and goldens are unc
 
 ### Changed
 
+- The versioned treatment-parent-set effect procedure allocates three quarters of rows to discovery and one quarter to independent analysis. Earlier half-split sources replay under their original version; their records do not attest the new allocation.
+- Sampling-weighted interval constructions distinguish calibrated IPW scores, model-assisted outcome noise and target-population variation, regression-adjusted propensity strata, and the finite-cluster reference returned by cluster DML. Measurement scores the actual published interval and keeps each method identity distinct.
+- Formal coverage-compatibility decisions use a frozen complete source family, exact binomial tails and predeclared replicate looks in a fresh validation seed domain. Existing collected records retain their original semantics. Reporting, width, scientific coverage floors and replicate minima remain separate requirements; non-rejection is not proof of nominal coverage.
 - Model and attribution refusals that name a registered reason code raise the unsupported-route exception in Python, with `reason_code` set.
 - The refusal of an undeclared treatment level lists every observed level with its row count.
 - A batch in an adaptive procedure whose follow-up delay has elapsed but holds incomplete responses is refused as `adaptive_inference.batch_incomplete`.

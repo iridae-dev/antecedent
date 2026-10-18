@@ -1,11 +1,73 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-10-11
+Date: 2026-10-18
 <!-- generated:release:reviewed-version:begin -->
-Scope: workspace crates + `python` extension (package version **2.4.0**)
+Scope: workspace crates + `python` extension (package version **2.4.1**)
 <!-- generated:release:reviewed-version:end -->
 
-The source review dated 2026-10-09 is recorded in the next section and names package version 2.3.0.
+Focused source review for 2.4.1 covers the new experimental transport proof consumer,
+exact-evaluation budget changes, Gaussian study pooling, weighted source-proof boundary,
+and calibration decision/configuration readers. Historical reviews below retain their
+original dates and scope. This is a source review; candidate cargo-deny and CI security
+checks remain required and no new advisory database or CodeQL scan is asserted here.
+
+Compared with `v2.4.0`, the reviewed working-tree Rust diff introduces no `unsafe` line.
+An independent comparison of external Cargo.lock package name/version/source/checksum
+tuples finds no added, removed or changed external dependency entries. Workspace package
+version changes do not change that external dependency set.
+
+The new trial-compatible transport verifier checks a 16 MiB wrapper limit before CBOR
+decoding and caps original proof members at 4,096. Checked operation arithmetic bounds
+source-row and directed-path replay before original report hashing, Fisher testing and
+member decisions. Each retained member grid keeps its caller operation/depth limit and original stored
+execution policy; this is a per-grid bound, not a global aggregate operation budget.
+Total worst-case work is the proof bound plus at most 4,096 bounded grid replays.
+An embedded member-count mismatch refuses before those grid consumers execute. Exact
+binary source rows, their identity, the original report with directed/bidirected/confounded
+edges and every retention decision are replayed, rather than trusting a supplied p-value
+or an exclusion list. Producer trial input is capped at one million rows. These changes
+close a new wrapper amplification path; they do not change the preexisting ordinary
+transport artifact consumer into a new general bounded-CBOR decoder. The regression
+fixtures cover oversized wrappers, excessive member counts, zero operation budgets and
+semantic mutations; release gates must execute them on the final source.
+
+Exact empirical evaluation now charges actual cached computation under caller operation
+and depth limits instead of refusing from a pessimistic uncached preflight bound. Caches
+reuse causal derivations, then rebind empirical laws on every bootstrap draw; they cannot
+substitute the original sample's values for a resample. Actual supplied experiment catalogs
+bound admissible intervention factors. The independent fresh-versus-cached resample
+oracle and unavailable-regime refusal are part of this review's evidence.
+
+Equal-study Gaussian pooling adds a distinct wire method and recomputes coefficients,
+variance and Student degrees of freedom on artifact consumption. It retains registered
+source independence and original ledger identity checks; equal numerical values do not
+justify overlapping-source reuse. The ledger container retains its 128 MiB byte bound
+and synthesis-count cap. Finite inputs, bounded study counts and nonfinite arithmetic
+refusals precede publication. Common-mean Gaussian assumptions are a scientific scope,
+not authority granted by importing an artifact. Weighted Gaussian working-model methods
+similarly require an original native source proof; caller-supplied metadata cannot create
+that proof or upgrade generic robust nuisance claims.
+
+The optional suite coverage-decision configuration is validated against one complete
+source-fixed gate roster, audited constructors and labels, scientific source hashes and
+an exact fresh validation domain. Unknown configuration, unbudgeted looks, conflicting
+cell counts, cap overflow and replay-domain/source mismatches refuse. Log collection
+rechecks decision arithmetic and binds source, grid, record identity and denominators;
+it retains required successor looks and recordless decisions. The source audit is a
+review boundary, not automated dataflow analysis. Its 256-cell cap is a guard on the
+source-possible family, not evidence of nonadaptive hypothesis choice. Family risk
+controls coverage compatibility rejections only, conditional on valid binomial cells;
+it grants neither a positive coverage certificate nor a budget for arbitrary method
+revisions. Frozen scientific coverage floors, actual scored replicate minima, reporting,
+precision, skip and named-boundary obligations remain separate. Old collected records
+retain their original decision and RNG semantics.
+
+External callbacks remain caller code rather than sandboxed execution. No new source
+review statement grants native authority to a detached receipt or imported provider
+output. Candidate dependency-policy, workflow and installed-wheel gates still need their
+own successful receipts before publication.
+
+The historical source review dated 2026-10-09 follows and names package version 2.3.0.
 
 Date: 2026-10-09
 Scope: workspace crates + `python` extension (package version **2.3.0**)

@@ -5,7 +5,8 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# Discovery on one half of the rows, estimation on the disjoint other half, accepted on the
+# Version 2 discovers on three quarters and estimates on the disjoint remaining quarter;
+# version 1 retains its original equal-half replay. Both accept on the
 # treatment's parent set. The single-split idea is cited as the closest published statement. The
 # parent-set acceptance rests on the fact that an edge incident to a node that is directed in a
 # completed partially directed graph is directed in every member of the class, so the node's
@@ -25,7 +26,7 @@ implementation_deviations = [
   "Conflicting orientation evidence (colliders that disagree about an edge, so that the orientation applied first has propagated) refuses only when it can change the treatment's parents. The skeleton is oriented again under every choice among the implicated colliders (each kept, or declared a non-collider by adding its centre to the separating set; at most eight colliders, 256 orientations) and the parents are accepted when the treatment's edges are oriented the same way in every choice that leaves no conflict. The choice-dependent case, a conflict no choice removes and a budget crossing are refused with their own details. Colliders outside the implicated closure are kept in every choice, as in a conflict-free run, so the statement measured is for this rule applied to the whole procedure.",
   "PC runs with a conditioning-set size and a parent limit equal to the declared maximum graph degree. The parent limit removes adjacencies no test separated, so a run in which it bound is refused rather than reported.",
   "A log-linear study applies the natural logarithm to every searched column before the split and analyses that scale; the reported intervention mean ratio is the exponential of the log-scale coefficient times the prespecified shift and its interval is the exponential image of the log-scale Student interval, whose delta-method standard error is reported as well.",
-  "The test, threshold, split share and level are fixed to the measured values and are not request fields.",
+  "Version 2 uses a fixed discovery fraction of 0.75 and a distinct source/functional identity. Original version-1 half-split sources and records keep their original numerical protocol; they never attest version 2. Reporting, precision, coverage and actual-scored replicate requirements are unchanged.",
 ]
 upstream_implementations_observed = []
 test_sources = [

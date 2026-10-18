@@ -2540,3 +2540,15 @@ kind = "fn"
 status = "bound"
 python = "native:python/src/forward_source_api.rs"
 
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_trial::estimate_trial_compatible_discovered_transport"
+kind = "fn"
+status = "missing"
+reason = "Rust-only opt-in experimental compatibility and durable proof replay; no Python wrapper or native binding currently exposes this distinct trial refinement. Existing Python discovered transport functions retain the ordinary class route."
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_estimate"
+kind = "fn"
+status = "missing"
+reason = "Rust-only opt-in experimental compatibility and durable proof replay; no Python wrapper or native binding currently exposes this distinct trial refinement. Existing Python discovered transport functions retain the ordinary class route."
