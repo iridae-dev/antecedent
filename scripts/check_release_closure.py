@@ -42,7 +42,7 @@ IDENTITY = re.compile(
     r"replay\w* (?:reproduces|yields|in a fresh|identity matches)|replays? (?:in separate|results)"
     r"|bit-identical|identical (?:results|receipt)|replayed draws", re.I)
 EQUALITY = re.compile(r"assert_eq!|assert_ne!|assertEqual|assert\s+[^\n]*==|\bis_identical|\.identity|to_bits")
-MEASURED_ROLES = frozenset({"gated", "reported_level"})
+MEASURED_ROLES = frozenset({"gated", "reported_level", "one_sided", "conservative_point"})
 
 
 def bound_cases(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -199,6 +199,10 @@ def case_size(case: dict[str, Any]) -> int | None:
     if ("analysis_rows" in case["configuration"]
             and case["configuration"].get("record_size_basis", "analysis_rows") == "analysis_rows"):
         return case["configuration"]["analysis_rows"]
+    if case.get("area") == "decision_reliability":
+        budget = case["configuration"].get("monte_carlo_budget")
+        if type(budget) is int:
+            return budget
     return next((case["configuration"][k] for k in ("participants", "rows", "steps", "donors")
                  if isinstance(case["configuration"].get(k), int)), None)
 
@@ -249,6 +253,8 @@ def calibrated_record_problems(data: dict[str, Any], records: list[dict[str, Any
         size = case_size(case)
         for record in matched:
             measured = points(record)
+            if not measured:
+                problems.append(f"{cid}: record {record['id']} has no measured non-boundary coverage points")
             configured = configured_point(measured, size)
             declared_point = case["configuration"].get("calibration_grid_point")
             if declared_point is not None and (configured is None or configured.get("point") != declared_point):
@@ -258,7 +264,11 @@ def calibrated_record_problems(data: dict[str, Any], records: list[dict[str, Any
                 if point is configured and point.get("replicates", 0) < targets["min_replicates"]:
                     problems.append(f"{where} has {point.get('replicates', 0)} replicates, below {targets['min_replicates']}")
                 mcse = point.get("mcse")
-                if not isinstance(mcse, (int, float)) or not math.isfinite(mcse) or mcse <= 0:
+                # A plug-in Bernoulli MCSE is exactly zero at observed0/1.
+                # This is valid arithmetic, not a claim of zero inferential uncertainty;
+                # exact decision provenance and the actual scored minimum still apply.
+                if (not isinstance(mcse, (int, float)) or not math.isfinite(mcse) or mcse < 0
+                        or (mcse == 0 and point.get("observed") not in (0.0, 1.0))):
                     problems.append(f"{where} states no Monte Carlo uncertainty")
                 if point.get("observed", 0) < targets["coverage_floor"]:
                     problems.append(f"{where} covers {point.get('observed')}, below the floor {targets['coverage_floor']}: "

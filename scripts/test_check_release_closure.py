@@ -167,6 +167,37 @@ class ReleaseClosureTest(unittest.TestCase):
         for wrong in (wrong_variance, wrong_suffix):
             self.assertEqual(closure.records_of(target, [wrong]), [])
 
+    def test_every_measured_coverage_role_requires_the_actual_scored_minimum(self) -> None:
+        data = {"case": [case("conditional", "calibrated_interval", "crates/c/tests/t.rs::design")]}
+        for role in ("gated", "reported_level", "one_sided", "conservative_point"):
+            with self.subTest(role=role):
+                rec = record(role=role, grid=[{**record()["grid"][0], "role": role, "replicates": 1999}])
+                self.assertTrue(any("1999 replicates" in p for p in closure.calibrated_record_problems(data, [rec])))
+                rec["grid"][0]["replicates"] = 2000
+                self.assertEqual(closure.calibrated_record_problems(data, [rec]), [])
+                rec["grid"][0]["observed"] = .92
+                self.assertTrue(any("below the floor" in p for p in closure.calibrated_record_problems(data, [rec])))
+        boundary = record(role="named_boundary", grid=[{**record()["grid"][0], "role": "named_boundary"}])
+        self.assertTrue(any("no measured non-boundary" in p for p in closure.calibrated_record_problems(data, [boundary])))
+
+    def test_decision_draw_budget_binds_its_own_grid_point_and_not_the_default_middle(self) -> None:
+        data = {"case": [case("decision", "calibrated_interval", "crates/c/tests/t.rs::design",
+                              area="decision_reliability", configuration={"candidates": 16, "monte_carlo_budget": 4000})]}
+        rec = record(n_min=1000, n_max=4000, role="one_sided", grid=[
+            {**record()["grid"][0], "point": 1, "n_min": 2000, "n_max": 2000, "role": "one_sided"},
+            {**record()["grid"][0], "point": 2, "n_min": 4000, "n_max": 4000, "role": "one_sided", "replicates": 400}])
+        self.assertEqual(closure.case_size(data["case"][0]), 4000)
+        self.assertTrue(any("point 2 has 400 replicates" in p for p in closure.calibrated_record_problems(data, [rec])))
+        rec["grid"][1]["replicates"] = 2000
+        self.assertEqual(closure.calibrated_record_problems(data, [rec]), [])
+
+    def test_perfect_one_sided_coverage_keeps_valid_zero_plugin_mcse_but_not_a_missing_count(self) -> None:
+        data = {"case": [case("conservative", "calibrated_interval", "crates/c/tests/t.rs::design")]}
+        rec = record(role="one_sided", grid=[{**record()["grid"][0], "role": "one_sided", "observed": 1.0, "mcse": 0.0}])
+        self.assertEqual(closure.calibrated_record_problems(data, [rec]), [])
+        rec["grid"][0]["replicates"] = 400
+        self.assertTrue(any("400 replicates" in p for p in closure.calibrated_record_problems(data, [rec])))
+
     def test_calibrated_records_need_two_thousand_replicates_and_uncertainty(self) -> None:
         data = self.calibrated()
         self.assertEqual(closure.calibrated_record_problems(data, [record()]), [])
