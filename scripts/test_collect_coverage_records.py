@@ -296,7 +296,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             ledger = Path(directory) / "gates.toml"
             ledger.write_text('[[gate]]\ngroup="old-gate"\npassed=1\ncalibration_sha="old-sha"\n', encoding="utf-8")
-            argv = ["collector", "--keep-existing", "--no-cells", "--sha", "a" * 40]
+            argv = ["collector", "--keep-existing", "--no-cells", "--defer-generated", "--sha", "a" * 40]
             with (
                 patch.object(sys, "argv", argv),
                 patch.object(collector, "ROOT", Path(directory)),
@@ -308,15 +308,21 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                 patch.object(collector, "write_registry") as write,
                 patch.object(collector, "write_gate_ledger") as gates,
                 patch.object(collector, "gate_ledger", return_value={}),
-                patch.object(collector.subprocess, "run"),
+                patch.object(collector.subprocess, "run") as generated,
             ):
                 self.assertEqual(collector.main(), 0)
+                generated.assert_not_called()
                 self.assertEqual(write.call_args.args[0], {"old": old, "new": new})
                 self.assertEqual(write.call_args.kwargs, {"retag": False})
                 tag.assert_called_once_with({"new": new})
                 self.assertEqual(new["facets"], ["core"])
                 self.assertEqual(old["calibration_sha"], "old-sha")
                 self.assertEqual(gates.call_args.args[1]["old-gate"]["calibration_sha"], "old-sha")
+
+    def test_defer_generated_requires_unchanged_support_cells(self) -> None:
+        with patch.object(sys, "argv", ["collector", "--defer-generated"]):
+            with self.assertRaisesRegex(SystemExit, "requires --no-cells"):
+                collector.main()
 
     def test_selected_cell_sync_leaves_other_cells_byte_identical(self) -> None:
         source = (

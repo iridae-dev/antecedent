@@ -1099,6 +1099,10 @@ def main() -> int:
         help="exact licensed cell and record IDs to sync when appending (repeat per cell)",
     )
     parser.add_argument(
+        "--defer-generated", action="store_true",
+        help="with --no-cells, collect evidence only; regenerate support assets after the final harvest",
+    )
+    parser.add_argument(
         "--no-cells",
         action="store_true",
         help="do not rewrite support_licensed.toml / estimate.toml",
@@ -1141,6 +1145,8 @@ def main() -> int:
     parser.add_argument("--log-dir", type=Path, default=LOG_DIR, help="logs to collect")
     parser.add_argument("--out", type=Path, help="scratch registry path (with --smoke only)")
     args = parser.parse_args()
+    if args.defer_generated and not args.no_cells:
+        raise SystemExit("--defer-generated requires --no-cells")
     if args.passing_only and not args.keep_existing:
         raise SystemExit("--passing-only requires --keep-existing")
     if args.replace_record and not args.keep_existing:
@@ -1257,7 +1263,10 @@ def main() -> int:
         cells = sync_licensed_cells(records)
         rows = sync_estimator_rows(records)
         print(f"rewrote the calibration pair on {cells} licensed cells and {rows} estimator rows")
-    subprocess.run([sys.executable, str(GENERATOR)], cwd=ROOT, check=True)
+    if args.defer_generated:
+        print("deferred generated support assets; evidence registries are preserved")
+    else:
+        subprocess.run([sys.executable, str(GENERATOR)], cwd=ROOT, check=True)
     return 0
 
 
