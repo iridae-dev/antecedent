@@ -14932,15 +14932,15 @@ n_max = 2000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9975
-mcse = 0.002496873044429746
-replicates = 400
+observed = 0.9985
+mcse = 0.0008653756409790912
+replicates = 2000
 boundary = false
 role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9985, mcse = 0.0008653756409790912, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_forty_nine_equal_candidates_gaussian_utilities"
@@ -14969,15 +14969,15 @@ n_max = 2000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9975
-mcse = 0.002496873044429746
-replicates = 400
+observed = 0.9995
+mcse = 0.000499874984371065
+replicates = 2000
 boundary = false
 role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9995, mcse = 0.000499874984371065, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_forty_nine_equal_candidates_gaussian_utilities"
@@ -15014,7 +15014,7 @@ role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9985, mcse = 0.0008653756409790912, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_forty_nine_equal_candidates_gaussian_utilities"
@@ -15043,8 +15043,8 @@ n_max = 4000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9915
-mcse = 0.0020527725154044657
+observed = 0.991
+mcse = 0.002111752826445369
 replicates = 2000
 boundary = false
 role = "one_sided"
@@ -15052,7 +15052,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.9925, mcse = 0.004313858481684336, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.9915, mcse = 0.0020527725154044657, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.991, mcse = 0.002111752826445369, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_four_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_five_candidates_l95"
@@ -15089,7 +15089,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.985, mcse = 0.006077622890571612, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.9905, mcse = 0.0021690723823791537, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9875, mcse = 0.005555121510822233, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.988, mcse = 0.0024347484469653133, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_four_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_five_candidates_l95"
@@ -15126,7 +15126,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.98, mcse = 0.007000000000000003, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.9945, mcse = 0.0016537457482938467, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9925, mcse = 0.004313858481684336, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9925, mcse = 0.0019292161620720412, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_four_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_five_candidates_l95"
@@ -15162,7 +15162,7 @@ role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 0.9925, mcse = 0.004313858481684336, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9875, mcse = 0.005555121510822233, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9865, mcse = 0.0025804796065847873, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 0.9825, mcse = 0.006556247020971671, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_three_equal_candidates_gaussian_utilities"
@@ -15191,15 +15191,15 @@ n_max = 2000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.975
-mcse = 0.007806247497998001
-replicates = 400
+observed = 0.9825
+mcse = 0.002932042803234629
+replicates = 2000
 boundary = false
 role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 0.985, mcse = 0.006077622890571612, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.975, mcse = 0.007806247497998001, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9825, mcse = 0.002932042803234629, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 0.9875, mcse = 0.005555121510822233, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_three_equal_candidates_gaussian_utilities"
@@ -15228,15 +15228,15 @@ n_max = 2000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9875
-mcse = 0.005555121510822233
-replicates = 400
+observed = 0.987
+mcse = 0.0025328837320335107
+replicates = 2000
 boundary = false
 role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9875, mcse = 0.005555121510822233, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.987, mcse = 0.0025328837320335107, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 0.99, mcse = 0.004974937185533102, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_three_equal_candidates_gaussian_utilities"
@@ -15496,7 +15496,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.9995, mcse = 0.000499874984371065, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9995, mcse = 0.000499874984371065, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_ninety_nine_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_one_hundred_candidates_l95"
@@ -15524,16 +15524,16 @@ n_max = 4000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 1.0
-mcse = 0.0
-replicates = 400
+observed = 0.9995
+mcse = 0.000499874984371065
+replicates = 2000
 boundary = false
 role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9995, mcse = 0.000499874984371065, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_ninety_nine_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_one_hundred_candidates_l95"
@@ -15570,7 +15570,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 1.0, mcse = 0.0, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_ninety_nine_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_one_hundred_candidates_l95"
@@ -15606,7 +15606,7 @@ role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 0.985, mcse = 0.006077622890571612, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9955, mcse = 0.0014966211945579198, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 0.99, mcse = 0.004974937185533102, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_six_equal_candidates_gaussian_utilities"
@@ -15635,15 +15635,15 @@ n_max = 2000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.995
-mcse = 0.0035266839949164726
-replicates = 400
+observed = 0.992
+mcse = 0.001991983935678198
+replicates = 2000
 boundary = false
 role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.992, mcse = 0.001991983935678198, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_six_equal_candidates_gaussian_utilities"
@@ -15680,7 +15680,7 @@ role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9925, mcse = 0.0019292161620720412, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 0.9875, mcse = 0.005555121510822233, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_six_equal_candidates_gaussian_utilities"
@@ -15820,8 +15820,8 @@ n_max = 65536
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.995
-mcse = 0.0035266839949164726
+observed = 0.9975
+mcse = 0.002496873044429746
 replicates = 400
 boundary = false
 role = "one_sided"
@@ -15829,7 +15829,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 16384, n_max = 16384, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 32768, n_max = 32768, observed = 0.9985, mcse = 0.0008653756409790912, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 65536, n_max = 65536, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 65536, n_max = 65536, observed = 0.998, mcse = 0.0009989994994993746, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_fifteen_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_candidates_budget_32768_l95"
@@ -15866,7 +15866,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 16384, n_max = 16384, observed = 0.99, mcse = 0.004974937185533102, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 32768, n_max = 32768, observed = 0.9945, mcse = 0.0016537457482938467, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 65536, n_max = 65536, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 65536, n_max = 65536, observed = 0.9975, mcse = 0.001116635571706353, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_fifteen_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_candidates_budget_32768_l95"
@@ -15903,7 +15903,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 16384, n_max = 16384, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 32768, n_max = 32768, observed = 0.997, mcse = 0.0012229063741758816, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 65536, n_max = 65536, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 65536, n_max = 65536, observed = 0.9985, mcse = 0.0008653756409790912, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_fifteen_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_candidates_budget_32768_l95"
@@ -16153,8 +16153,8 @@ n_max = 4000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.999
-mcse = 0.0007067531393633852
+observed = 0.9975
+mcse = 0.001116635571706353
 replicates = 2000
 boundary = false
 role = "one_sided"
@@ -16162,7 +16162,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.999, mcse = 0.0007067531393633852, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9975, mcse = 0.001116635571706353, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_fifteen_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_candidates_l95"
@@ -16199,7 +16199,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.996, mcse = 0.0014113823011501884, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.997, mcse = 0.0012229063741758816, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_fifteen_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_candidates_l95"
@@ -16227,16 +16227,16 @@ n_max = 4000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.9925
-mcse = 0.004313858481684336
-replicates = 400
+observed = 0.995
+mcse = 0.0015771810295587513
+replicates = 2000
 boundary = false
 role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.995, mcse = 0.0015771810295587513, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9925, mcse = 0.004313858481684336, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9965, mcse = 0.0013205585939290896, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_fifteen_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_sixteen_candidates_l95"
@@ -16708,15 +16708,15 @@ n_max = 2000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.995
-mcse = 0.0035266839949164726
-replicates = 400
+observed = 0.9935
+mcse = 0.0017969070649312877
+replicates = 2000
 boundary = false
 role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9935, mcse = 0.0017969070649312877, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_nine_equal_candidates_gaussian_utilities"
@@ -16745,15 +16745,15 @@ n_max = 2000
 replicates_min = 0
 posterior_draws_min = 0
 unidentified_mass_max = 0.0
-observed = 0.99
-mcse = 0.004974937185533102
-replicates = 400
+observed = 0.9945
+mcse = 0.0016537457482938467
+replicates = 2000
 boundary = false
 role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.99, mcse = 0.004974937185533102, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9945, mcse = 0.0016537457482938467, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_nine_equal_candidates_gaussian_utilities"
@@ -16790,7 +16790,7 @@ role = "one_sided"
 one_sided = { side = "upper", target = "the simultaneous interval contains the true value of the selected candidate at least at the nominal level" }
 grid = [
   { point = 0, n_min = 500, n_max = 500, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
-  { point = 1, n_min = 1000, n_max = 1000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9955, mcse = 0.0014966211945579198, replicates = 2000, boundary = false, role = "one_sided" },
   { point = 2, n_min = 2000, n_max = 2000, observed = 0.995, mcse = 0.0035266839949164726, replicates = 400, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_nine_equal_candidates_gaussian_utilities"
@@ -16939,7 +16939,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.9975, mcse = 0.001116635571706353, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.999, mcse = 0.0007067531393633852, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_thirty_one_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_thirty_two_candidates_l95"
@@ -16976,7 +16976,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.9975, mcse = 0.001116635571706353, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9985, mcse = 0.0008653756409790912, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_thirty_one_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_thirty_two_candidates_l95"
@@ -17013,7 +17013,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.998, mcse = 0.0009989994994993746, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 1.0, mcse = 0.0, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.999, mcse = 0.0007067531393633852, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_thirty_one_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_thirty_two_candidates_l95"
@@ -17272,7 +17272,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.975, mcse = 0.007806247497998001, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.9845, mcse = 0.0027622228367747558, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9825, mcse = 0.006556247020971671, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9825, mcse = 0.002932042803234629, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_two_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_three_candidates_l95"
@@ -17309,7 +17309,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.98, mcse = 0.007000000000000003, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.984, mcse = 0.00280570846668003, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9825, mcse = 0.006556247020971671, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.982, mcse = 0.002972877394041, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_two_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_three_candidates_l95"
@@ -17346,7 +17346,7 @@ one_sided = { side = "upper", target = "the simultaneous interval contains the t
 grid = [
   { point = 0, n_min = 1000, n_max = 1000, observed = 0.985, mcse = 0.006077622890571612, replicates = 400, boundary = false, role = "one_sided" },
   { point = 1, n_min = 2000, n_max = 2000, observed = 0.984, mcse = 0.00280570846668003, replicates = 2000, boundary = false, role = "one_sided" },
-  { point = 2, n_min = 4000, n_max = 4000, observed = 0.9875, mcse = 0.005555121510822233, replicates = 400, boundary = false, role = "one_sided" },
+  { point = 2, n_min = 4000, n_max = 4000, observed = 0.989, mcse = 0.0023322735688593665, replicates = 2000, boundary = false, role = "one_sided" },
 ]
 dgp = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::leader_plus_two_equal_candidates_gaussian_utilities"
 test = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs::selection_corrected_three_candidates_l95"

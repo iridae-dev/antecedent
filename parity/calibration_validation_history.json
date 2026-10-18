@@ -2943,5 +2943,595 @@
       "transformation": "Remove the one exact libtest test-name prefix before its first calibration-decision JSON line. All JSON bytes/counts/source/domain and subsequent output unchanged. Original console preserved verbatim.",
       "occurrences": 1
     }
+  },
+  "ranking_minimum_replicate_completion": {
+    "protocol": "original_source_prefix_completion.v1",
+    "meaning": "Preserve originalC30/e15 sources, seed domains, target/nominal/floors/constructions. Exactly1600newindices per10test/gridcells; old400neverredrawn. Legacylocaldecisions only, no newFWERclaim. Untouched60gridcells retainedbitexact.",
+    "new_attempts": 16000,
+    "plan_sha256": "c00eaa9a1ba36ba690082c3d8ebe9253340d85e649197a70e9c4f5bcafd391cd",
+    "completed_test_grid_jobs": [
+      {
+        "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+        "test": "selection_corrected_sixteen_candidates_budget_32768_l95",
+        "grid_point": 2,
+        "record_ids": [
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixteen_candidates_budget_32768_l95.separate_streams",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixteen_candidates_budget_32768_l95.shared_rho_0_0",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixteen_candidates_budget_32768_l95.shared_rho_0_5"
+        ],
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "new_attempts": 1600,
+        "original_tally_sha256": "b8f310b7afbe146eaa1f03cbad51a74330879938811db17d69c8f8085c473c31",
+        "completed_tally_sha256": "328d841626c873d544046b270591644eeac31b700d67e90906804195d4c5ef83",
+        "completed_log_sha256": "c269cc819865cd5bc0aeccf919de6cb96b3b205e347e50b9f6f0687ce19cbc20",
+        "original_log_sha256": "715224bf984c83fc5c3a47abc1763f5dc578fda099320f1497f236aa6f03207e",
+        "binary_sha256": "7d06fe0b3a492121fed3f6c76f3b05b967c10612e993a3dbb8102b9a5126dfa8",
+        "status": 0,
+        "seconds": 534.4948853750248,
+        "old_points": [
+          {
+            "point": 2,
+            "n_min": 65536,
+            "n_max": 65536,
+            "observed": 0.995,
+            "mcse": 0.0035266839949164726,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 65536,
+            "n_max": 65536,
+            "observed": 0.9975,
+            "mcse": 0.002496873044429746,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 65536,
+            "n_max": 65536,
+            "observed": 0.9975,
+            "mcse": 0.002496873044429746,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          }
+        ]
+      },
+      {
+        "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+        "test": "selection_corrected_one_hundred_candidates_l95",
+        "grid_point": 2,
+        "record_ids": [
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_one_hundred_candidates_l95.separate_streams",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_one_hundred_candidates_l95.shared_rho_0_0",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_one_hundred_candidates_l95.shared_rho_0_5"
+        ],
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "new_attempts": 1600,
+        "original_tally_sha256": "e1549bcd345721500c5b6d193064194f25b50276cfd9c4a3339bc5921ca6dee4",
+        "completed_tally_sha256": "329c426f0592ce614bee05dd86298d7096cc8cc5c1c59019092ce80cef8b962e",
+        "completed_log_sha256": "e5ef7497b723361e857d778b75217d9a897865deaa44f6d1954b1b82de1653be",
+        "original_log_sha256": "ba87525a942129428a737bc24efc946cd7fd05e4864e2e24e4e7bc0f59399df9",
+        "binary_sha256": "7d06fe0b3a492121fed3f6c76f3b05b967c10612e993a3dbb8102b9a5126dfa8",
+        "status": 0,
+        "seconds": 257.48406108282506,
+        "old_points": [
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 1.0,
+            "mcse": 0.0,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 1.0,
+            "mcse": 0.0,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 1.0,
+            "mcse": 0.0,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          }
+        ]
+      },
+      {
+        "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+        "test": "selection_corrected_thirty_two_candidates_l95",
+        "grid_point": 2,
+        "record_ids": [
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_thirty_two_candidates_l95.separate_streams",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_thirty_two_candidates_l95.shared_rho_0_0",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_thirty_two_candidates_l95.shared_rho_0_5"
+        ],
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "new_attempts": 1600,
+        "original_tally_sha256": "01a7bf626750543dfa6dbf552db03c39e23ed154352222f4077854de85c6322b",
+        "completed_tally_sha256": "082af8aa608f16f59f12025887a8a67b81b42d8b3337508eb31f29b948d2524b",
+        "completed_log_sha256": "657bf3e85eb71cd288fa84ddc39f7ba279433afc1fce999f3e34952ff92c2bb9",
+        "original_log_sha256": "a654b12232f4f0161de7e728d62fa40ff2af49b7344bc960a88388bba3ed6839",
+        "binary_sha256": "7d06fe0b3a492121fed3f6c76f3b05b967c10612e993a3dbb8102b9a5126dfa8",
+        "status": 0,
+        "seconds": 144.42044791695662,
+        "old_points": [
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 1.0,
+            "mcse": 0.0,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 0.9975,
+            "mcse": 0.002496873044429746,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 1.0,
+            "mcse": 0.0,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          }
+        ]
+      },
+      {
+        "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+        "test": "selection_corrected_sixteen_candidates_l95",
+        "grid_point": 2,
+        "record_ids": [
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixteen_candidates_l95.separate_streams",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixteen_candidates_l95.shared_rho_0_0",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_sixteen_candidates_l95.shared_rho_0_5"
+        ],
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "new_attempts": 1600,
+        "original_tally_sha256": "d708db3929b53d6f155767ff67b210a0915832583e47c62d651d0047d9d35a32",
+        "completed_tally_sha256": "f4ae07988ce31414e1ae774b02aceaddad792ed0257dd11e6414fab98e9256a8",
+        "completed_log_sha256": "789e257e08a22cbfcd6be70d3afc1cf6146cb183198aaa588cfd6f08d9736a12",
+        "original_log_sha256": "2a78f7af01784feb3098ded626d5ea7c65aabb6994b1a36a38c3699407c6b628",
+        "binary_sha256": "7d06fe0b3a492121fed3f6c76f3b05b967c10612e993a3dbb8102b9a5126dfa8",
+        "status": 0,
+        "seconds": 48.58713954081759,
+        "old_points": [
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 1.0,
+            "mcse": 0.0,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 0.9975,
+            "mcse": 0.002496873044429746,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 0.9925,
+            "mcse": 0.004313858481684336,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          }
+        ]
+      },
+      {
+        "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+        "test": "selection_corrected_five_candidates_l95",
+        "grid_point": 2,
+        "record_ids": [
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_five_candidates_l95.separate_streams",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_five_candidates_l95.shared_rho_0_0",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_five_candidates_l95.shared_rho_0_5"
+        ],
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "new_attempts": 1600,
+        "original_tally_sha256": "ad8fb58f9244e882ab44eaab6cee70ea87ea11ffd69a2694f8d3a3c09d999128",
+        "completed_tally_sha256": "3b7f898b1db2ed0c405099627b0cfb7ffb2ec8d636ff270e870033dc126f4eaf",
+        "completed_log_sha256": "420ced6c58961452d7b69592276e7dc1f22c63bb822d7ee57e85d9cd19733dc0",
+        "original_log_sha256": "becf0dd21fc5a3c00492ae19aeb391063f7fe2136213de9bae849904d374f042",
+        "binary_sha256": "7d06fe0b3a492121fed3f6c76f3b05b967c10612e993a3dbb8102b9a5126dfa8",
+        "status": 0,
+        "seconds": 14.059419624973089,
+        "old_points": [
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 0.995,
+            "mcse": 0.0035266839949164726,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 0.9875,
+            "mcse": 0.005555121510822233,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 0.9925,
+            "mcse": 0.004313858481684336,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          }
+        ]
+      },
+      {
+        "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+        "test": "selection_corrected_three_candidates_l95",
+        "grid_point": 2,
+        "record_ids": [
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_three_candidates_l95.separate_streams",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_three_candidates_l95.shared_rho_0_0",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_three_candidates_l95.shared_rho_0_5"
+        ],
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "new_attempts": 1600,
+        "original_tally_sha256": "71c48a59ec8264b5582c05b395c8f8e5b00f2463c7766f719b3931ef37de6c4f",
+        "completed_tally_sha256": "dba843d4dc77ecb8cdbd767de15ba0d6d17f624efaaf221935b15b02ae8d3d68",
+        "completed_log_sha256": "1e83f9cd5deaa5b3ffe3dad7f759e155c76641d075ed41e349c585598f944c98",
+        "original_log_sha256": "31dc8db1037e2e62106844af93e4c0f308e4a482a0948cedfbc4c49b3bdfa09f",
+        "binary_sha256": "7d06fe0b3a492121fed3f6c76f3b05b967c10612e993a3dbb8102b9a5126dfa8",
+        "status": 0,
+        "seconds": 8.260598874883726,
+        "old_points": [
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 0.9825,
+            "mcse": 0.006556247020971671,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 0.9825,
+            "mcse": 0.006556247020971671,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 2,
+            "n_min": 4000,
+            "n_max": 4000,
+            "observed": 0.9875,
+            "mcse": 0.005555121510822233,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          }
+        ]
+      },
+      {
+        "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+        "test": "selection_corrected_fifty_candidates_l95",
+        "grid_point": 1,
+        "record_ids": [
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_fifty_candidates_l95.separate_streams",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_fifty_candidates_l95.shared_rho_0_0",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_fifty_candidates_l95.shared_rho_0_5"
+        ],
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "new_attempts": 1600,
+        "original_tally_sha256": "2f03fe02c00c37591b115286f423795276e12fb949b14eb6eec0e78c019d80ca",
+        "completed_tally_sha256": "169c88e1e13365e0fe0385330c9e4eed76598b6fbb589ae5d85d8d45a0d2be11",
+        "completed_log_sha256": "cd123e3cc24e76929ffdac00fa23afa5ad0c76b4120d096c4f44727b0c08c7e8",
+        "original_log_sha256": "0d8c5d8bfdcf0362fa685dcaa032f362f31911feb96a2caab4a25e9ee175df85",
+        "binary_sha256": "d38e87c30130a42171af90a09eb70c3eebac5284dfb4bdd97c3443050ad23d01",
+        "status": 0,
+        "seconds": 79.6936588329263,
+        "old_points": [
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9975,
+            "mcse": 0.002496873044429746,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9975,
+            "mcse": 0.002496873044429746,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9975,
+            "mcse": 0.002496873044429746,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          }
+        ]
+      },
+      {
+        "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+        "test": "selection_corrected_ten_candidates_l95",
+        "grid_point": 1,
+        "record_ids": [
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_ten_candidates_l95.separate_streams",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_ten_candidates_l95.shared_rho_0_0",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_ten_candidates_l95.shared_rho_0_5"
+        ],
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "new_attempts": 1600,
+        "original_tally_sha256": "6fdc58e6d776fdff8a25e48b9459cca76cecedba22b0145083c75677ea79e5fb",
+        "completed_tally_sha256": "61c94bf8a17920186980748b240f0b9076d485236043274cf5e8b7e230553180",
+        "completed_log_sha256": "b26e3c7e94039f0c9a061dc2dce29942ffb205652cac46990e7461172e7fc659",
+        "original_log_sha256": "4815acc73137dc2672316d65922936baac4ad0e75352b70568a03470e6492720",
+        "binary_sha256": "d38e87c30130a42171af90a09eb70c3eebac5284dfb4bdd97c3443050ad23d01",
+        "status": 0,
+        "seconds": 15.878444417146966,
+        "old_points": [
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.995,
+            "mcse": 0.0035266839949164726,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.99,
+            "mcse": 0.004974937185533102,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.995,
+            "mcse": 0.0035266839949164726,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          }
+        ]
+      },
+      {
+        "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+        "test": "selection_corrected_seven_candidates_l95",
+        "grid_point": 1,
+        "record_ids": [
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_seven_candidates_l95.separate_streams",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_seven_candidates_l95.shared_rho_0_0",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_seven_candidates_l95.shared_rho_0_5"
+        ],
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "new_attempts": 1600,
+        "original_tally_sha256": "f838b2292bd80472adbf4e83eba2ff846bc11d4938e7be93e767b18cb7b05934",
+        "completed_tally_sha256": "c54be39d01b9cd7504655b324bf51050ad2376e5e61e3ea16a9aa2abd612ee27",
+        "completed_log_sha256": "33be8c24e822e091563fc296420ec4a92fe9ae704a37995da36ff1dcffa1fea3",
+        "original_log_sha256": "d6b24869f23c86c10bf98f8ac34610df8c3d76e2be28a6192dc64b488a3e59ca",
+        "binary_sha256": "d38e87c30130a42171af90a09eb70c3eebac5284dfb4bdd97c3443050ad23d01",
+        "status": 0,
+        "seconds": 11.145030417013913,
+        "old_points": [
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.995,
+            "mcse": 0.0035266839949164726,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 1.0,
+            "mcse": 0.0,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9975,
+            "mcse": 0.002496873044429746,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          }
+        ]
+      },
+      {
+        "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+        "test": "selection_corrected_four_candidates_l95",
+        "grid_point": 1,
+        "record_ids": [
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.separate_streams",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_0",
+          "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_5"
+        ],
+        "prior_attempts": 400,
+        "planned_attempts": 2000,
+        "computed_indices": [
+          400,
+          2000
+        ],
+        "new_attempts": 1600,
+        "original_tally_sha256": "d7deed83a48b757f25627c4d6d84ad26d76b2daecc7dfda93423098d482c4db8",
+        "completed_tally_sha256": "bc33623385c246b3bceeb9ab50dda0c18d5815ad175d50c41a348eddbe3e29b5",
+        "completed_log_sha256": "2d14e8f69c6f20803a4247526e18323fbaacf6629304e5e1a9856740fe816c10",
+        "original_log_sha256": "a9fc70e51b4c5172145e1280d058129efb64f62b0fbea7f8ceb829807b2459ad",
+        "binary_sha256": "d38e87c30130a42171af90a09eb70c3eebac5284dfb4bdd97c3443050ad23d01",
+        "status": 0,
+        "seconds": 6.648443958954886,
+        "old_points": [
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9875,
+            "mcse": 0.005555121510822233,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.975,
+            "mcse": 0.007806247497998001,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          },
+          {
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9875,
+            "mcse": 0.005555121510822233,
+            "replicates": 400,
+            "boundary": false,
+            "role": "one_sided"
+          }
+        ]
+      }
+    ],
+    "rejected_wrong_source_cache": {
+      "reason": "Cargo reused localpackage artifacts across separate sameversion checkouts usingrelative source mtimes; e15binaryidenticalC30 despiteknown56linedesignsourcechange.",
+      "scientific_outcomes_under_wrong_e15_binary": 0,
+      "rejected_binary_sha256": "7d06fe0b3a492121fed3f6c76f3b05b967c10612e993a3dbb8102b9a5126dfa8",
+      "remedy": "Invalidate tracked source mtimes in e15checkoutonly; preserveallbytes/fullGitclean/sourceSHA. NoCargo-clean/cacheclone/removal.",
+      "tracked_file_mtimes_invalidated": 4707,
+      "e15_source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "active_c30_numeric_binary_unchanged": true,
+      "active_9b_checkout_untouched": true
+    },
+    "e15_coherent_rebuild": {
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "worktree": "/Users/charleshinshaw/.codex/worktrees/calibration-measure/antecedent",
+      "original_executable": "/Users/charleshinshaw/Desktop/antecedent/target/release/deps/decision_reliability_interval_calibration-c40d9bf3bb983333",
+      "binary": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/ranking-minimum-prefix-fixed2000/bin/e15-ranking",
+      "sha256": "d38e87c30130a42171af90a09eb70c3eebac5284dfb4bdd97c3443050ad23d01",
+      "build_seconds": 494.57515308307484,
+      "build_log_sha256": "4d4573924625801e527ee04c6599f541907e088c00151f776fda762f9ce242bc",
+      "controller_sha256": "aaa67db41bb672f8d02d29dfac4e81b57516f6997ac5c1d814f6585be06d242c",
+      "all_local_artifacts_recompiled": 18,
+      "actual_e15_test_names_verified": true
+    }
   }
 }
