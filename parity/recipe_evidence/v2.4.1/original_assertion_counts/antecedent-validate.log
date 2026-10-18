@@ -1,0 +1,7 @@
+
+running 1 test
+test sensitivity::scalable_cases::scalable_sensitivity_replacement_validated_separately ... calibration-assertion-receipt {"profile":"neighborhood_tipping_bracket.v1","rows":50000,"attempted":2000,"reported":2000,"covered":2000,"conditional_coverage":1.00000000000000000,"median_width":0.10000000000000001,"effect":0.50000000000000000}
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 171 filtered out; finished in 953.69s
+

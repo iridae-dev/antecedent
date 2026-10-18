@@ -316,6 +316,64 @@
         "sha256": "cf6ca094e11e3ba9d91310f27b5514ec2103b068542b5421f3084117e4188828"
       },
       "source_review": "The e15 source fixes total generated ROWS at10000/25000/100000, eight covariates, three neighbors, ATT effect.5 and matching.with_population_variance(true). The source independently asserts median width<=1.5*effect and reporting>=.9, then nominal coverage. Exact original row remains subject to the current gate attestation, with reviewed wrapper/shared-kernel/suite facets. This is not a claim about100000 observed control donors."
+    },
+    {
+      "case_id": "scalable_gpdc_replacement_validated_separately",
+      "evidence_kind": "replayed_source_asserted_recordless_gate",
+      "profile": "gpdc_nystrom_conditional_null.v1",
+      "test": "crates/antecedent-stats/src/ci/calibration.rs::scalable_gpdc_replacement_validated_separately",
+      "sample_size": 8000,
+      "nominal": 0.95,
+      "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "witness_sha": "767659966d856f0bb882196b5ff9e1aeb47e0a04",
+      "group": "antecedent-stats__scalable_gpdc_replacement_validated_separately",
+      "source_path": "crates/antecedent-stats/src/ci/calibration.rs",
+      "gate_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/original_assertion_counts/antecedent-stats.original-gate.json",
+        "sha256": "b4ba0647ec815d770c999d319fc3dada7cf3e5e80d083dc0bd47fa2374dcbbf9"
+      },
+      "witness_plan": {
+        "path": "parity/recipe_evidence/v2.4.1/original_assertion_counts/plan.json",
+        "sha256": "098e843845449fc32c8ed927458b052175d2a2be8ecd226c5dfe158c107b619c"
+      },
+      "witness_log": {
+        "path": "parity/recipe_evidence/v2.4.1/original_assertion_counts/antecedent-stats.log",
+        "sha256": "53494afb3fa7b1c4f2f50f187f81ab9f5d959d65aa02c0123e96f32b1b90f538"
+      },
+      "witness_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/original_assertion_counts/antecedent-stats.receipt.json",
+        "sha256": "7c7bee0935edada45fd52257afbad673fb30a514ea326bc2b22f063b07dc24da"
+      },
+      "source_review": "The original c30 passed recordless gate is retained. A sealed same-source-protocol witness at767659966 adds only the independently verified terminal primitive observer. Actual reported counts are recovered from unchanged raw bytes. Current implementation/dependency compatibility remains the ordinary attestation gate responsibility. This is count/width recovery, not a new calibration record or retrospective FWER decision."
+    },
+    {
+      "case_id": "scalable_sensitivity_replacement_validated_separately",
+      "evidence_kind": "replayed_source_asserted_recordless_gate",
+      "profile": "neighborhood_tipping_bracket.v1",
+      "test": "crates/antecedent-validate/src/sensitivity.rs::scalable_sensitivity_replacement_validated_separately",
+      "sample_size": 50000,
+      "nominal": 0.95,
+      "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "witness_sha": "767659966d856f0bb882196b5ff9e1aeb47e0a04",
+      "group": "antecedent-validate__scalable_sensitivity_replacement_validated_separately",
+      "source_path": "crates/antecedent-validate/src/sensitivity.rs",
+      "gate_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/original_assertion_counts/antecedent-validate.original-gate.json",
+        "sha256": "833fc37429e41579345280fb2aa4f1d5b9d46f7a84ae269bb4128fb1bca9bfdb"
+      },
+      "witness_plan": {
+        "path": "parity/recipe_evidence/v2.4.1/original_assertion_counts/plan.json",
+        "sha256": "098e843845449fc32c8ed927458b052175d2a2be8ecd226c5dfe158c107b619c"
+      },
+      "witness_log": {
+        "path": "parity/recipe_evidence/v2.4.1/original_assertion_counts/antecedent-validate.log",
+        "sha256": "e13db0220449ba9f4df07361fb4bf9d03f824bfd2cc143aee67b649cf83a1fe7"
+      },
+      "witness_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/original_assertion_counts/antecedent-validate.receipt.json",
+        "sha256": "859f2b69809727e394dc55a817aab7e85826d1033f59f67e1f3ae21268fa1bc3"
+      },
+      "source_review": "The original c30 passed recordless gate is retained. A sealed same-source-protocol witness at767659966 adds only the independently verified terminal primitive observer. Actual reported counts are recovered from unchanged raw bytes. Current implementation/dependency compatibility remains the ordinary attestation gate responsibility. This is count/width recovery, not a new calibration record or retrospective FWER decision."
     }
   ]
 }

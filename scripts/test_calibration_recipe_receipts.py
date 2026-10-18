@@ -53,6 +53,13 @@ class RecipeReceiptTests(unittest.TestCase):
         shutil.copyfile(
             ROOT / "parity/calibration_gates.toml", self.root / "parity/calibration_gates.toml"
         )
+        for path in (
+            "crates/antecedent-stats/src/ci/calibration.rs",
+            "crates/antecedent-validate/src/sensitivity.rs",
+        ):
+            target = self.root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / path, target)
         self.recipe = copy.deepcopy(
             next(
                 r
@@ -173,13 +180,13 @@ class RecipeReceiptTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown or missing"):
             self.validate()
 
-    def test_real_registry_accepts_seven_exact_receipts_including_fresh_family(self) -> None:
+    def test_real_registry_accepts_nine_exact_receipts_including_fresh_family(self) -> None:
         valid, problems = receipts.validate_registry(
             ROOT, list(self.cases.values()), closure.case_size
         )
         self.assertEqual(problems, [])
         self.assertEqual(valid, {r["case_id"] for r in self.recipes})
-        self.assertEqual(len(valid), 7)
+        self.assertEqual(len(valid), 9)
 
     def test_knn_receipts_reuse_exact_original_counts_and_printed_precision(self) -> None:
         for n, expected_covered in [(10000, 1899), (100000, 1882)]:
@@ -211,6 +218,86 @@ class RecipeReceiptTests(unittest.TestCase):
         recipe["test"] = target["evidence"]["test"]
         with self.assertRaisesRegex(ValueError, "exact source construction/size"):
             receipts.validate_asserted_knn(self.root, recipe, target, 8000)
+
+    def count_recipe(self, case_id):
+        recipe = copy.deepcopy(next(r for r in self.recipes if r["case_id"] == case_id))
+        case = copy.deepcopy(self.cases[case_id])
+        return recipe, case
+
+    def test_genuine_count_witnesses_preserve_original_receipts_and_actual_conditional_n(
+        self,
+    ) -> None:
+        for cid, covered in [
+            ("scalable_gpdc_replacement_validated_separately", 1922),
+            ("scalable_sensitivity_replacement_validated_separately", 2000),
+        ]:
+            recipe, case = self.count_recipe(cid)
+            result = receipts.validate_replayed_assertion(
+                self.root, recipe, case, closure.case_size(case)
+            )
+            self.assertEqual(
+                (result["outcomes"], result["reported"], result["covered"]), (2000, 2000, covered)
+            )
+            self.assertEqual(result["receipt_kind"], "recordless_gate")
+            self.assertEqual(
+                result["coverage_semantics"], "conditional_reported_original_assertion"
+            )
+            case["targets"]["min_replicates"] = 2001
+            with self.assertRaisesRegex(ValueError, "actual conditional reported count"):
+                receipts.validate_replayed_assertion(
+                    self.root, recipe, case, closure.case_size(case)
+                )
+
+    def test_statistical_test_width_exemption_cannot_license_a_sensitivity_interval(self) -> None:
+        recipe, case = self.count_recipe("scalable_gpdc_replacement_validated_separately")
+        case["expected"]["kind"] = "calibrated_interval"
+        with self.assertRaisesRegex(ValueError, "exact source/size/role"):
+            receipts.validate_replayed_assertion(self.root, recipe, case, 8000)
+        recipe, case = self.count_recipe("scalable_sensitivity_replacement_validated_separately")
+        case["targets"]["max_median_width_over_effect"] = 0.1
+        with self.assertRaisesRegex(ValueError, "actual bracket width"):
+            receipts.validate_replayed_assertion(self.root, recipe, case, 50000)
+
+    def test_count_receipt_cannot_be_rebound_to_a_different_requested_seed_or_replicate_budget(
+        self,
+    ) -> None:
+        for which in ("seed", "replicates"):
+            recipe, case = self.count_recipe("scalable_gpdc_replacement_validated_separately")
+            if which == "seed":
+                case["dataset"]["seed"] += 1
+            else:
+                case["configuration"]["replicates"] += 1
+            with self.assertRaisesRegex(ValueError, "original fixed source recipe"):
+                receipts.validate_replayed_assertion(self.root, recipe, case, 8000)
+
+    def test_count_witness_raw_counts_cannot_disagree_with_the_completed_receipt(self) -> None:
+        recipe, case = self.count_recipe("scalable_gpdc_replacement_validated_separately")
+        path = self.root / recipe["witness_log"]["path"]
+        data = path.read_bytes().replace(b'"rejected":78', b'"rejected":0')
+        path.write_bytes(data)
+        recipe["witness_log"]["sha256"] = hashlib.sha256(data).hexdigest()
+        with self.assertRaisesRegex(ValueError, "plan/raw execution"):
+            receipts.validate_replayed_assertion(self.root, recipe, case, 8000)
+
+    def test_count_recovery_requires_the_sealed_original_protocol_and_unchanged_current_recipe(
+        self,
+    ) -> None:
+        recipe, case = self.count_recipe("scalable_sensitivity_replacement_validated_separately")
+        plan = json.loads((self.root / recipe["witness_plan"]["path"]).read_text(encoding="utf-8"))
+        plan["cases"][1]["attempted"] = 2200
+        self.replace_asset(recipe["witness_plan"], plan)
+        with self.assertRaisesRegex(ValueError, "sealed pre-outcome plan"):
+            receipts.validate_replayed_assertion(self.root, recipe, case, 50000)
+        recipe, case = self.count_recipe("scalable_gpdc_replacement_validated_separately")
+        shutil.copyfile(
+            ROOT / recipe["witness_plan"]["path"], self.root / recipe["witness_plan"]["path"]
+        )
+        source = self.root / recipe["source_path"]
+        source.write_text(
+            source.read_text(encoding="utf-8").replace("6_101_623", "6_101_624"), encoding="utf-8"
+        )
+        with self.assertRaisesRegex(ValueError, "recipe changed"):
+            receipts.validate_replayed_assertion(self.root, recipe, case, 8000)
 
     def test_validated_receipts_replace_only_the_missing_typed_requirement(self) -> None:
         data = {"case": [self.case]}

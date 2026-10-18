@@ -70,3 +70,29 @@ uses an upper rounding bound rather than pretending the printed four-decimal
 value is an exact retained median. The currently collected original rows remain
 subject to the ordinary calibration attestation, including their reviewed KNN,
 distance-wrapper, shared matching-kernel and measurement-suite dependencies.
+
+
+## Original GPDC and sensitivity assertion counts
+
+`original_assertion_counts/` retains the two original c30 passed gate receipts and
+sealed same-protocol witnesses at 767659966, with raw output, plan, binary hashes,
+controller and postprocessing reader. The reviewed source proof admits only each
+qualified terminal print of already computed primitive locals. No seed, loop,
+scientific branch or 2000-attempt budget changed.
+
+GPDC reported 2000 of 2000, rejected 78 at alpha 0.05, and retained conditional
+non-rejection 0.961. It is a conditional-null statistical-test calibration;
+interval width is explicitly inapplicable. Sensitivity reported and covered all
+2000, with upper-middle median bracket width 0.1 and effect 0.5 (ratio 0.2).
+Both scientific harnesses printed one passed and zero failed. The original
+controller's line-start-only parser failed after GPDC because libtest printed a
+prefix on the same line. The preserved recovery reader extracted only existing
+unchanged raw bytes; neither scientific test was rerun. The sensitivity OS exit
+code was not directly observed after the controller failed and remains null;
+its completed harness result and terminal scientific assertions are retained.
+
+These supplement the original gate receipts. They are not synthetic coverage
+records, fresh-family decisions or retrospective FWER claims. Current numerical
+dependencies still need the ordinary current-source attestation. Build/run
+provenance is controlled and hash-bound, not an embedded cryptographic source
+attestation.

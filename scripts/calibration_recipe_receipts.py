@@ -501,6 +501,224 @@ def validate_asserted_knn(
     }
 
 
+APPROVED_COUNT_PLAN = "098e843845449fc32c8ed927458b052175d2a2be8ecd226c5dfe158c107b619c"
+COUNT_ORIGINAL_SOURCE = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+COUNT_WITNESS_SOURCE = "767659966d856f0bb882196b5ff9e1aeb47e0a04"
+
+
+@functools.cache
+def count_observer_proof(path: str) -> str | None:
+    """The reviewed terminal print changes no original primitive computation."""
+    import _rust_equivalence as equivalence
+    import calibration_facets as facets
+
+    repo = facets.Repo()
+    old = repo.rust_sources(COUNT_ORIGINAL_SOURCE)
+    new = repo.rust_sources(COUNT_WITNESS_SOURCE)
+    return equivalence.prove("rust_terminal_test_observer", path, old[path], new[path], old, new)
+
+
+def validate_replayed_assertion(
+    root: Path, recipe: dict[str, Any], case: dict[str, Any], size: int | None
+) -> dict[str, Any]:
+    """Supplement the original gate receipt with genuine same-protocol printed counts.
+
+    This preserves the original receipt kind and legacy scientific decision. It is
+    neither a new coverage record nor a retrospective family-wise decision.
+    """
+    required = {
+        "case_id",
+        "evidence_kind",
+        "profile",
+        "test",
+        "sample_size",
+        "nominal",
+        "calibration_sha",
+        "witness_sha",
+        "group",
+        "source_path",
+        "gate_receipt",
+        "witness_plan",
+        "witness_log",
+        "witness_receipt",
+        "source_review",
+    }
+    profiles = {
+        "gpdc_nystrom_conditional_null.v1": (
+            "antecedent-stats",
+            "crates/antecedent-stats/src/ci/calibration.rs",
+            8000,
+            "scalable_gpdc_replacement_validated_separately",
+            "calibrated_statistical_test",
+        ),
+        "neighborhood_tipping_bracket.v1": (
+            "antecedent-validate",
+            "crates/antecedent-validate/src/sensitivity.rs",
+            50000,
+            "scalable_sensitivity_replacement_validated_separately",
+            "calibrated_interval",
+        ),
+    }
+    if (
+        set(recipe) != required
+        or recipe.get("profile") not in profiles
+        or recipe.get("evidence_kind") != "replayed_source_asserted_recordless_gate"
+    ):
+        raise ValueError("unknown original assertion receipt profile")
+    package, path, rows, test, kind = profiles[recipe["profile"]]
+    if (
+        recipe["case_id"] != case["id"]
+        or case["id"] != test
+        or recipe["test"] != case["evidence"]["test"]
+        or recipe["test"] != path + "::" + test
+        or recipe["source_path"] != path
+        or recipe["group"] != package + "__" + test
+        or recipe["sample_size"] != rows
+        or size != rows
+        or recipe["nominal"] != 0.95
+        or case["targets"]["nominal_coverage"] != 0.95
+        or recipe["calibration_sha"] != COUNT_ORIGINAL_SOURCE
+        or recipe["witness_sha"] != COUNT_WITNESS_SOURCE
+        or case["expected"]["kind"] != kind
+    ):
+        raise ValueError("original assertion receipt does not match its exact source/size/role")
+    plan_bytes = read_asset(root, recipe["witness_plan"])
+    if sha256(plan_bytes) != APPROVED_COUNT_PLAN:
+        raise ValueError("count recovery lacks the reviewed sealed pre-outcome plan")
+    plan = json.loads(plan_bytes)
+    if plan["source"] != COUNT_WITNESS_SOURCE or plan["original_source"] != COUNT_ORIGINAL_SOURCE:
+        raise ValueError("count recovery plan has another source/protocol")
+    spec = [s for s in plan["cases"] if s["group"] == recipe["group"]]
+    if len(spec) != 1 or spec[0]["profile"] != recipe["profile"] or spec[0]["rows"] != rows:
+        raise ValueError("count recovery plan has another scientific recipe")
+    expected_seed = spec[0].get("seed", spec[0].get("seed_start"))
+    if (
+        case["configuration"].get("rows") != rows
+        or case["configuration"].get("replicates") != spec[0]["attempted"]
+        or case.get("dataset", {}).get("seed") != expected_seed
+        or case.get("dataset", {}).get("n") != rows
+    ):
+        raise ValueError("acceptance configuration does not match the original fixed source recipe")
+    if count_observer_proof(path) is not None:
+        raise ValueError("original primitive numerical protocol does not match witness source")
+    if (root / path).read_bytes() != source_blob(root, path, COUNT_WITNESS_SOURCE):
+        raise ValueError("current original assertion recipe changed after count recovery")
+    gate = json.loads(read_asset(root, recipe["gate_receipt"]))
+    if gate != {"group": recipe["group"], "passed": 1, "calibration_sha": COUNT_ORIGINAL_SOURCE}:
+        raise ValueError("count recovery did not retain the original passed gate receipt")
+    current_gates = tomllib.loads(
+        (root / "parity/calibration_gates.toml").read_text(encoding="utf-8")
+    )["gate"]
+    if [g for g in current_gates if g["group"] == recipe["group"]] != [gate]:
+        raise ValueError("original assertion receipt is not the currently attested gate row")
+    log = read_asset(root, recipe["witness_log"])
+    if (
+        not re.search(rb"test result: ok\. 1 passed; 0 failed;", log)
+        or ("test " + spec[0]["test"] + " ...").encode() not in log
+    ):
+        raise ValueError("count recovery did not execute its exact original scientific test")
+    captures = re.findall(rb"calibration-assertion-receipt (\{[^\n]+\})", log)
+    if len(captures) != 1:
+        raise ValueError("count recovery has missing or ambiguous actual counters")
+    counts = json.loads(captures[0])
+    witness = json.loads(read_asset(root, recipe["witness_receipt"]))
+    if (
+        witness.get("schema") != "original_recordless_count_recovery_receipt.v1"
+        or witness.get("source") != COUNT_WITNESS_SOURCE
+        or witness.get("original_source") != COUNT_ORIGINAL_SOURCE
+        or witness.get("plan_sha256") != APPROVED_COUNT_PLAN
+        or witness.get("group") != recipe["group"]
+        or witness.get("test") != spec[0]["test"]
+        or witness.get("binary_sha256") != spec[0]["binary_sha256"]
+        or witness.get("raw_log_sha256") != sha256(log)
+        or witness.get("rust_harness_passed") is not True
+        or witness.get("process_exit_code_observed") not in (None, 0)
+        or witness.get("new_calibration_claim") is not False
+    ):
+        raise ValueError("count recovery receipt does not bind the original plan/raw execution")
+    if witness.get("receipt") != counts:
+        raise ValueError("recovered count receipt does not reproduce original raw bytes")
+    if (
+        counts.get("profile") != recipe["profile"]
+        or counts.get("rows") != rows
+        or counts.get("attempted") != spec[0]["attempted"]
+    ):
+        raise ValueError("count recovery has another source construction or attempted prefix")
+    attempted, reported = counts["attempted"], counts.get("reported")
+    if type(attempted) is not int or type(reported) is not int or not 0 < reported <= attempted:
+        raise ValueError("invalid original reported/attempted counts")
+    targets = case["targets"]
+    if reported < targets["min_replicates"]:
+        raise ValueError("actual conditional reported count is below the scored minimum")
+    if reported / attempted < targets["min_reporting_rate"]:
+        raise ValueError("original assertion reporting floor is not met")
+    if kind == "calibrated_statistical_test":
+        expected = {
+            "profile",
+            "rows",
+            "attempted",
+            "reported",
+            "rejected",
+            "alpha",
+            "conditional_nonrejection",
+            "width",
+        }
+        rejected = counts.get("rejected")
+        if (
+            set(counts) != expected
+            or type(rejected) is not int
+            or not 0 <= rejected <= reported
+            or counts["alpha"] != 0.05
+            or targets.get("type_i_alpha") != 0.05
+            or case["configuration"].get("calibration_target") != "conditional_null_rejection_rate"
+            or counts["width"] != "not_applicable"
+            or targets.get("precision_target") != "not_applicable"
+            or any(k.startswith("max_median") for k in targets)
+        ):
+            raise ValueError("GPDC receipt does not describe its statistical-test target")
+        coverage = 1 - rejected / reported
+        if not math.isclose(counts["conditional_nonrejection"], coverage, abs_tol=2e-16):
+            raise ValueError("GPDC actual rejection and conditional counts disagree")
+        covered = reported - rejected
+    else:
+        expected = {
+            "profile",
+            "rows",
+            "attempted",
+            "reported",
+            "covered",
+            "conditional_coverage",
+            "median_width",
+            "effect",
+        }
+        covered = counts.get("covered")
+        if (
+            set(counts) != expected
+            or type(covered) is not int
+            or not 0 <= covered <= reported
+            or counts["effect"] != 0.5
+            or not math.isfinite(counts["median_width"])
+            or counts["median_width"] < 0
+            or counts["median_width"] / 0.5 > targets["max_median_width_over_effect"]
+        ):
+            raise ValueError("sensitivity receipt does not meet its actual bracket width target")
+        coverage = covered / reported
+        if not math.isclose(counts["conditional_coverage"], coverage, abs_tol=2e-16):
+            raise ValueError("sensitivity actual covered and reported counts disagree")
+    if coverage < targets["coverage_floor"]:
+        raise ValueError("original assertion conditional coverage floor is not met")
+    return {
+        "receipt_kind": "recordless_gate",
+        "outcomes": attempted,
+        "reported": reported,
+        "covered": covered,
+        "coverage": coverage,
+        "coverage_semantics": "conditional_reported_original_assertion",
+        "witness_source": COUNT_WITNESS_SOURCE,
+        "original_source": COUNT_ORIGINAL_SOURCE,
+    }
+
+
 def validate_registry(
     root: Path, cases: list[dict[str, Any]], size_of: Any
 ) -> tuple[set[str], list[str]]:
@@ -519,7 +737,9 @@ def validate_registry(
             continue
         seen.add(cid)
         try:
-            if recipe.get("evidence_kind") == "source_asserted_recordless_gate":
+            if recipe.get("evidence_kind") == "replayed_source_asserted_recordless_gate":
+                validate_replayed_assertion(root, recipe, by_id[cid], size_of(by_id[cid]))
+            elif recipe.get("evidence_kind") == "source_asserted_recordless_gate":
                 validate_asserted_knn(root, recipe, by_id[cid], size_of(by_id[cid]))
             else:
                 validate_recipe(root, recipe, by_id[cid], size_of(by_id[cid]))

@@ -1,0 +1,58 @@
+{
+  "source": "767659966d856f0bb882196b5ff9e1aeb47e0a04",
+  "results": [
+    {
+      "schema": "original_recordless_count_recovery_receipt.v1",
+      "source": "767659966d856f0bb882196b5ff9e1aeb47e0a04",
+      "original_source": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "plan_sha256": "098e843845449fc32c8ed927458b052175d2a2be8ecd226c5dfe158c107b619c",
+      "group": "antecedent-stats__scalable_gpdc_replacement_validated_separately",
+      "test": "ci::calibration::tests::scalable_gpdc_replacement_validated_separately",
+      "binary_sha256": "4f14973f74bd4f5ad16ff1eaafcf8e3189243d22ced36525cd9d1db00e1e0829",
+      "raw_log": "target/calibration-replay/recordless-count-recovery-767659966/antecedent-stats.log",
+      "raw_log_sha256": "53494afb3fa7b1c4f2f50f187f81ab9f5d959d65aa02c0123e96f32b1b90f538",
+      "rust_harness_passed": true,
+      "rust_harness_elapsed_seconds": 901.68,
+      "process_exit_code_observed": 0,
+      "receipt": {
+        "profile": "gpdc_nystrom_conditional_null.v1",
+        "rows": 8000,
+        "attempted": 2000,
+        "reported": 2000,
+        "rejected": 78,
+        "alpha": 0.05,
+        "conditional_nonrejection": 0.961,
+        "width": "not_applicable"
+      },
+      "new_calibration_claim": false,
+      "postprocessing_note": "Initial controller required the marker at line start; libtest printed its test prefix on the same line. Recovered only existing unchanged raw JSON bytes after both Rust harnesses completed with one passed and zero failed; no scientific rerun. The controller directly observed stats exit zero, then failed postprocessing before waiting for the independently completed sensitivity child; no sensitivity OS exit code is fabricated."
+    },
+    {
+      "schema": "original_recordless_count_recovery_receipt.v1",
+      "source": "767659966d856f0bb882196b5ff9e1aeb47e0a04",
+      "original_source": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "plan_sha256": "098e843845449fc32c8ed927458b052175d2a2be8ecd226c5dfe158c107b619c",
+      "group": "antecedent-validate__scalable_sensitivity_replacement_validated_separately",
+      "test": "sensitivity::scalable_cases::scalable_sensitivity_replacement_validated_separately",
+      "binary_sha256": "aa841fb6939d1a5904b3a808198e7bcc18720d157cbf10947709a98084d3b27c",
+      "raw_log": "target/calibration-replay/recordless-count-recovery-767659966/antecedent-validate.log",
+      "raw_log_sha256": "e13db0220449ba9f4df07361fb4bf9d03f824bfd2cc143aee67b649cf83a1fe7",
+      "rust_harness_passed": true,
+      "rust_harness_elapsed_seconds": 953.69,
+      "process_exit_code_observed": null,
+      "receipt": {
+        "profile": "neighborhood_tipping_bracket.v1",
+        "rows": 50000,
+        "attempted": 2000,
+        "reported": 2000,
+        "covered": 2000,
+        "conditional_coverage": 1.0,
+        "median_width": 0.1,
+        "effect": 0.5
+      },
+      "new_calibration_claim": false,
+      "postprocessing_note": "Initial controller required the marker at line start; libtest printed its test prefix on the same line. Recovered only existing unchanged raw JSON bytes after both Rust harnesses completed with one passed and zero failed; no scientific rerun. The controller directly observed stats exit zero, then failed postprocessing before waiting for the independently completed sensitivity child; no sensitivity OS exit code is fabricated."
+    }
+  ],
+  "initial_controller_log": "target/calibration-audit/original-recordless-count-recovery-execution.log"
+}
