@@ -79,6 +79,7 @@ estimator.discrete_ci crates/antecedent-stats/src/ci/sparse_discrete.rs
 key estimator.discrete_ci query DiscoveredTransport
 estimator.linear_adjustment crates/antecedent-estimate/src/adjustment.rs
 key estimator.linear_adjustment estimator linear.adjustment.*
+key estimator.linear_adjustment gate_group antecedent-validate__scalable_sensitivity_replacement_validated_separately
 estimator.aipw crates/antecedent-estimate/src/aipw.rs
 estimator.aipw crates/antecedent-estimate/src/crossfit_aipw.rs
 key estimator.aipw estimator aipw

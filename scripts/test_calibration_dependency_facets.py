@@ -396,6 +396,29 @@ class DependencyFacets(unittest.TestCase):
             self.assertTrue((ROOT / production).is_file())
             self.assertEqual(self.surface.facet_of(production), facets.CORE)
 
+    def test_recordless_sensitivity_retains_its_actual_linear_refit_dependency(self):
+        sensitivity = (ROOT / "crates/antecedent-validate/src/sensitivity.rs").read_text(
+            encoding="utf-8"
+        )
+        common = (ROOT / "crates/antecedent-validate/src/common.rs").read_text(encoding="utf-8")
+        self.assertIn("NeighborhoodSensitivity::new().refute", facets.rust_code(sensitivity))
+        self.assertIn("linear_estimator_no_bootstrap()", facets.rust_code(sensitivity))
+        self.assertIn("fn linear_estimator_no_bootstrap() -> LinearAdjustmentAte", common)
+        self.assertIn("LinearAdjustmentAte::new()", common)
+        group = "antecedent-validate__scalable_sensitivity_replacement_validated_separately"
+        row = {"gate_group": group}
+        expected = "estimator.linear_adjustment"
+        self.assertIn(expected, facets.record_facets(row, self.surface))
+        self.assertEqual(
+            self.surface.facet_of("crates/antecedent-estimate/src/adjustment.rs"), expected
+        )
+        for other in (
+            group + "_backup",
+            "antecedent-stats__scalable_gpdc_replacement_validated_separately",
+            "antecedent-validate__scalable_sensitivity_replacement_validated",
+        ):
+            self.assertNotIn(expected, facets.record_facets({"gate_group": other}, self.surface))
+
 
 if __name__ == "__main__":
     unittest.main()
