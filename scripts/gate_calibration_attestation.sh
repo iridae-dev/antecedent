@@ -15,6 +15,10 @@
 # re-run at its `to` must have reproduced the stored records bit for bit.
 # Records it covers are reported as `attested_by_replay (waiver <id>)`, never
 # as plain attested. A waiver that fails validation fails `check`.
+# The explicit source_only mode is restricted to one pinned temporal descriptor
+# correction: exact Rust blobs and the complete compiled-input tree must prove
+# the change nonnumerical. It performs zero numerical replays; no other waiver
+# may omit its replay requests.
 #
 # One path, on every PR, every push to main and every release candidate:
 #   * the list must cover every crate, manifest and suite, facet boundaries must

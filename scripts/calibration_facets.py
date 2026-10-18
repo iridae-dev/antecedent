@@ -1147,6 +1147,9 @@ WAIVERS_HEADER = """\
 # record's test runs. A reviewed_equivalence certificate instead binds an exact
 # source diff that delegates to unchanged accepted numerical code; it never claims
 # that a new wrapper ran in an old harness. Together these cover every path.
+# `source_only = true` permits zero replay requests only for the pinned temporal
+# descriptor correction, with its exact Rust blobs and whole compiled-input proof.
+# It does not grant a general exemption from numerical replay.
 # recordless_gates = true additionally attests original passed gate rows under
 # the same exact source scope and genuine numeric replay; it never re-stamps them.
 #
@@ -1215,6 +1218,7 @@ class Waiver:
     reviewed_equivalence: list[ReviewedEquivalence] = field(default_factory=list)
     recordless_gates: bool = False
     gate_ledger_commit: str = ""
+    source_only: bool = False
 
 
 def _strings(value: object) -> list[str] | None:
@@ -1241,10 +1245,15 @@ def parse_waivers(text: str) -> tuple[list[Waiver], list[str]]:
         if not paths:
             bad.append(f"{label}: `paths` must be a non-empty list of surface paths")
         replay = []
-        rows = row.get("replay")
-        if not isinstance(rows, list) or not rows:
+        source_only = row.get("source_only", False)
+        if not isinstance(source_only, bool):
+            bad.append(f"{label}: source_only must be a boolean")
+        rows = row.get("replay", [])
+        if not isinstance(rows, list) or (not rows and not source_only):
             bad.append(f"{label}: needs at least one [[waiver.replay]] record")
             rows = []
+        if source_only and rows:
+            bad.append(f"{label}: source_only cannot claim numeric replay")
         for j, item in enumerate(rows, 1):
             exercises = _strings(item.get("exercises")) if isinstance(item, dict) else None
             record = item.get("record") if isinstance(item, dict) else None
@@ -1313,6 +1322,7 @@ def parse_waivers(text: str) -> tuple[list[Waiver], list[str]]:
                     equivalence,
                     recordless,
                     ledger,
+                    source_only,
                 )
             )
     return waivers, problems
@@ -1350,6 +1360,8 @@ def render_waivers(waivers: list[Waiver]) -> str:
             f"paths = {_toml_list(w.paths, indent=True)}",
             "",
         ]
+        if w.source_only:
+            out += ["source_only = true", ""]
         for r in w.replay:
             out += [
                 "[[waiver.replay]]",
@@ -1491,6 +1503,24 @@ def validate_waivers(
         if not w.recordless_gates and w.gate_ledger_commit:
             bad.append(f"{label}: gate_ledger_commit requires explicit recordless_gates opt-in")
         start, end = repo.resolve(w.from_), repo.resolve(w.to)
+        if w.source_only:
+            from _temporal_capture_transfer import ORIGINAL_SOURCE, PATH, verify_input_transfer
+
+            if (
+                start != ORIGINAL_SOURCE
+                or w.paths != [PATH]
+                or w.replay
+                or w.recordless_gates
+                or w.gate_ledger_commit
+                or len(w.reviewed_equivalence) != 1
+                or w.reviewed_equivalence[0].kind != "rust_temporal_construction_metadata"
+            ):
+                bad.append(f"{label}: source_only requires the exact temporal metadata certificate")
+            elif end:
+                try:
+                    verify_input_transfer(ROOT, end)
+                except (OSError, ValueError, subprocess.CalledProcessError) as exc:
+                    bad.append(f"{label}: source_only compiled-input proof failed: {exc}")
         if start is None:
             bad.append(f"{label}: from {w.from_!r} does not resolve to a commit in this clone")
         if end is None:
@@ -2519,7 +2549,11 @@ def replay(
     for difference in differences:
         print(f"DIFFERS: {difference}")
     verdict = "bit-identical" if identical else "NOT identical: the waiver is invalid"
-    print(f"replay of waiver {waiver_id}: {verdict}; outcome written to {waiver_file}")
+    action = "replay"
+    if waiver.source_only:
+        action = "source-only verification"
+        verdict = "verified exact source equivalence; zero numerical replays"
+    print(f"{action} of waiver {waiver_id}: {verdict}; outcome written to {waiver_file}")
     print(f"replay logs: {out_dir.relative_to(ROOT)}")
     return 0 if identical else 1
 

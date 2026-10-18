@@ -46,6 +46,7 @@ python3 scripts/test_calibration_build_cache.py
 python3 scripts/test_calibration_dependency_facets.py
 python3 scripts/test_calibration_private_unit_scaffolding.py
 python3 scripts/test_temporal_capture_transfer.py
+python3 scripts/test_calibration_source_only.py
 python3 scripts/test_transport_replay_contract.py
 python3 scripts/verify_release_selftest.py
 python3 scripts/verify_wheel_matrix_selftest.py
