@@ -367,6 +367,19 @@ pub(super) fn intervention_plugin_influence(
 ) -> Result<Vec<f64>, EstimationError> {
     let n = sample.len();
     let nf = n as f64;
+    // With no change to any treatment, the estimand is the observed outcome
+    // mean. Its exact empirical influence is Y_i - mean(Y): fitting the GAM
+    // cannot add nuisance-fit uncertainty to this identity functional. Applying
+    // HC2 to the residual term alone would destroy its cancellation with the fit.
+    if !interventions.is_empty()
+        && interventions.iter().all(|intervention| {
+            matches!(intervention, Intervention::Shift { delta, .. }
+                if delta.as_f64().is_some_and(|value| value == 0.0))
+        })
+    {
+        let mean = sample.outcome.iter().sum::<f64>() / nf;
+        return Ok(sample.outcome.iter().map(|value| value - mean).collect());
+    }
     let sandwich = PluginSandwich::new(fit, sample)?;
     let mut gradient = vec![1.0];
     for raw_col in 0..sample.raw_cols {
