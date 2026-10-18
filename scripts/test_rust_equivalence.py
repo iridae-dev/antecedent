@@ -283,5 +283,96 @@ class RustEquivalenceTests(unittest.TestCase):
         )
 
 
+class TerminalObserverTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        repo = facets.Repo()
+        cls.old = repo.rust_sources("c30e10304f4bd85a01ad81dd133a360ddc95c2f1")
+        cls.new = repo.rust_sources("HEAD")
+        cls.path = "crates/antecedent-stats/src/ci/calibration.rs"
+
+    def check(self, path=None, before=None, after=None, extra=None, complete=False):
+        path = path or self.path
+        old, new = dict(self.old), dict(self.new)
+        if not complete:
+            # Negative fixtures retain real primitive source and its entire crate,
+            # compile manifests/build scripts, and reviewed Python reader context.
+            def fixture(sources):
+                return {
+                    p: text
+                    for p, text in sources.items()
+                    if p.startswith("crates/antecedent-stats/")
+                    or p.startswith("python/")
+                    or p.endswith("Cargo.toml")
+                    or p.endswith("build.rs")
+                    or p == path
+                }
+
+            old, new = fixture(old), fixture(new)
+        if extra:
+            old.update(extra)
+            new.update(extra)
+        before = old[path] if before is None else before
+        after = new[path] if after is None else after
+        old[path], new[path] = before, after
+        return proof.prove("rust_terminal_test_observer", path, before, after, old, new)
+
+    def test_actual_exact_two_terminal_primitive_observers(self):
+        for path in proof._TERMINAL_TEST_OBSERVERS:
+            with self.subTest(path=path):
+                self.assertIsNone(self.check(path, complete=True))
+
+    def test_unreviewed_path_and_changed_primitive_binding_reject(self):
+        self.assertIsNotNone(self.check(path="crates/antecedent-estimate/src/propensity/knn.rs"))
+        self.assertIsNotNone(self.check(before=self.old[self.path].replace("2000", "2001", 1)))
+        self.assertIsNotNone(self.check(after=self.new[self.path].replace("2000", "2001", 1)))
+
+    def test_format_arguments_literals_aliases_and_position_reject(self):
+        source = self.new[self.path]
+        begin = source.index("    ::std::eprintln!(")
+        end = source.index("    );", begin) + len("    );")
+        observer = source[begin:end]
+        variants = [
+            source.replace("::std::eprintln!", "eprintln!"),
+            source.replace('width\\":\\"not_applicable', 'width\\":\\"changed'),
+            source[: end - 2] + ", dangerous()" + source[end - 2 :],
+            source[:begin] + "    let hidden = dangerous();\n" + source[begin:],
+            source[:begin] + source[end:] + "\n" + observer,
+            source[:begin] + observer + "\n" + source[begin:],
+            source.replace("{ran}", "{trials}"),
+        ]
+        # Move the exact observer before the last assertion, preserving its text.
+        without = source[:begin] + source[end:]
+        insertion = without.rfind("    assert!(", 0, begin)
+        variants.append(without[:insertion] + observer + "\n" + without[insertion:])
+        for variant in variants:
+            with self.subTest(variant=variant[begin : begin + 60]):
+                self.assertNotEqual(variant, source)
+                self.assertIsNotNone(self.check(after=variant))
+
+    def test_source_reads_scanners_macro_shadow_and_build_context_reject(self):
+        cases = [
+            (
+                "crates/antecedent-stats/src/shadow.rs",
+                "macro_rules! eprintln {($($t:tt)*)=>{panic!()}}",
+            ),
+            ("crates/other/src/read.rs", 'fn f(){std::fs::read_to_string("ci/calibration.rs");}'),
+            (
+                "crates/other/src/read.rs",
+                'fn f(){std::fs::read_to_string("ci/\\x63alibration.rs");}',
+            ),
+            ("crates/other/src/read.rs", 'fn f(){std::fs::read_dir("src"); let ext="rs";}'),
+            ("crates/other/build.rs", 'fn main(){std::fs::read_dir("src");}'),
+            ("crates/other/src/read.rs", '#[path="../../../python/src/defaults.rs"] mod imported;'),
+        ]
+        for path, source in cases:
+            with self.subTest(path=path, source=source):
+                self.assertIsNotNone(self.check(extra={path: source}))
+        changed = self.new["python/src/defaults.rs"].replace(
+            '.join("src")', '.join("../../crates")'
+        )
+        self.assertIsNotNone(self.check(extra={"python/src/defaults.rs": changed}))
+
+
 if __name__ == "__main__":
     unittest.main()

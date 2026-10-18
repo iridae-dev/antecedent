@@ -7,6 +7,7 @@ are retained, and callers are checked in both immutable source trees.
 
 from __future__ import annotations
 
+import hashlib
 import posixpath
 import re
 import tomllib
@@ -333,22 +334,7 @@ def _derive_scope(path: str, sources: dict[str, str], names: set[str]) -> str | 
     return None
 
 
-def _source_inclusion(code: tuple[str, ...], path: str) -> bool:
-    if not any(
-        t
-        in (
-            "include",
-            "include_str",
-            "include_bytes",
-            "path",
-            "read",
-            "read_to_string",
-            "read_to_end",
-            "open",
-        )
-        for t in code
-    ):
-        return False
+def _source_literals(code: tuple[str, ...]) -> list[str]:
     # Retain concat! pieces too. Decode Rust's scalar escapes so spelling a
     # filename with \xNN/\u{...} cannot hide a source-introspection dependency.
     literals = []
@@ -375,7 +361,26 @@ def _source_inclusion(code: tuple[str, ...], path: str) -> bool:
 
         value = re.sub(r"\\(x[0-9a-fA-F]{2}|u\{[0-9a-fA-F_]+\}|.)", escape, value)
         literals.append(value)
-    return PurePosixPath(path).name in "".join(literals)
+    return literals
+
+
+def _source_inclusion(code: tuple[str, ...], path: str) -> bool:
+    if not any(
+        t
+        in (
+            "include",
+            "include_str",
+            "include_bytes",
+            "path",
+            "read",
+            "read_to_string",
+            "read_to_end",
+            "open",
+        )
+        for t in code
+    ):
+        return False
+    return PurePosixPath(path).name in "".join(_source_literals(code))
 
 
 def _build_context(root: str, sources: dict[str, str]) -> str | None:
@@ -619,6 +624,215 @@ def _caller_proof(
     return None
 
 
+# This is deliberately NOT a generic logging/AST equivalence rule. Each entry
+# binds a reviewed complete historical token stream, the exact ignored test and
+# its single closed-format observer of existing primitive locals. The two streams
+# are identical at c30/e15/70; no arbitrary numerical-owner review bypass exists.
+_TERMINAL_TEST_OBSERVERS = {
+    "crates/antecedent-stats/src/ci/calibration.rs": (
+        "scalable_gpdc_replacement_validated_separately",
+        "57fa2318405a7bbc5af71225827ae39b888a7e7678926ffe87c6e9b487f9458a",
+        "d1d9e4fa7b0eaa7d8e11f115284a7f7473e56d5b56eedecb817bcfbc1fbd6a80",
+    ),
+    "crates/antecedent-validate/src/sensitivity.rs": (
+        "scalable_sensitivity_replacement_validated_separately",
+        "e791b04d7c9c112cf14a40e070bf0386eaac0874b4dd6636b980eac5b1ebde7b",
+        "9363d3d5523c24aefa2514a3f5617d0b01c895ca5f45e928ecd774f5f2501737",
+    ),
+}
+
+
+def _isolated_python_defaults_scanner(rel, code, sources):
+    """One exact reviewed scanner whose closed root is python/src, not crates/.
+
+    Its private test helper traverses only CARGO_MANIFEST_DIR/src. Reject any
+    alternate inclusion of that source so another crate cannot change the root.
+    This is a fixture-specific proof, not a cfg(test) or scanner exemption.
+    """
+    if rel != "python/src/defaults.rs":
+        return False
+    digest = hashlib.sha256("\0".join(code).encode()).hexdigest()
+    if digest != "d7a7ff566c2a2d73114a55f5bd9d0561874a053fdd2612d7d3243a951304fbc7":
+        return False
+    for other, text in sources.items():
+        if not other.endswith(".rs") or other == rel:
+            continue
+        candidate = tokens(text)
+        if any("defaults.rs" in value for value in _source_literals(candidate)):
+            return False
+        if not other.startswith("python/") and any(
+            candidate[i : i + 2] == ("mod", "defaults") for i in range(len(candidate))
+        ):
+            return False
+    return True
+
+
+def _terminal_test_observer(
+    path: str,
+    old: str,
+    new: str,
+    old_sources: dict[str, str],
+    new_sources: dict[str, str],
+) -> str | None:
+    specification = _TERMINAL_TEST_OBSERVERS.get(path)
+    if specification is None:
+        return "test observer path is not independently reviewed"
+    name, expected_digest, expected_format = specification
+    before, after = tokens(old), tokens(new)
+    if hashlib.sha256("\0".join(before).encode()).hexdigest() != expected_digest:
+        return "test observer original full token stream is not the reviewed primitive fixture"
+    starts = [i for i in range(len(before)) if before[i : i + 5] == ("fn", name, "(", ")", "{")]
+    if len(starts) != 1:
+        return "test observer lacks its unique reviewed parameterless function"
+    opening = starts[0] + 4
+    depth, closing = 1, opening + 1
+    while closing < len(before) and depth:
+        depth += (before[closing] == "{") - (before[closing] == "}")
+        closing += 1
+    if depth:
+        return "unbalanced test observer function"
+    closing -= 1
+    body = before[opening + 1 : closing]
+    # Establish that the new observer is terminal AFTER the original final
+    # scientific assertion, rather than before it or in a numerical branch.
+    depth, start, final = 0, 0, ()
+    for i, token in enumerate(body):
+        depth += (token in ("(", "[", "{")) - (token in (")", "]", "}"))
+        if token == ";" and depth == 0:
+            final, start = body[start : i + 1], i + 1
+    if start != len(body) or final[:3] != ("assert", "!", "("):
+        return "test observer is not after the reviewed terminal assertion"
+    if len(after) != len(before) + 9:
+        return "test observer has extra tokens or missing original tokens"
+    literal = after[closing + 6]
+    if hashlib.sha256(literal.encode()).hexdigest() != expected_format:
+        return "test observer format is not the reviewed closed primitive capture literal"
+    observer = ("::", "std", "::", "eprintln", "!", "(", literal, ")", ";")
+    if after != before[:closing] + observer + before[closing:]:
+        return (
+            "only the exact qualified terminal observer is permitted; all other tokens must match"
+        )
+    crate = "/".join(path.split("/")[:2]) + "/"
+    for sources, text in ((old_sources, old), (new_sources, new)):
+        if sources.get(path) != text:
+            return "test observer lacks its exact immutable source tree"
+        if problem := _compile_context(path, sources):
+            return problem
+        derived = set()
+        for i, token in enumerate(before):
+            if token == "derive" and before[i + 1 : i + 2] == ("(",):
+                j = i + 2
+                while j < len(before) and before[j] != ")":
+                    if _IDENT.fullmatch(before[j]):
+                        derived.add(before[j])
+                    j += 1
+        if problem := _derive_scope(path, sources, derived):
+            return problem
+        for rel, source in sources.items():
+            if not rel.endswith(".rs"):
+                continue
+            code = tokens(source)
+            # A reviewed build script writes only a link declaration here; its
+            # exact token binding excludes source-derived generated Rust input.
+            generated_link = (
+                "include",
+                "!",
+                "(",
+                "concat",
+                "!",
+                "(",
+                "env",
+                "!",
+                "(",
+                '"OUT_DIR"',
+                ")",
+                ",",
+                '"/python_test_link.rs"',
+                ")",
+                ")",
+                ";",
+            )
+            if rel == "python/src/lib.rs":
+                build = tokens(sources.get("python/build.rs", ""))
+                if hashlib.sha256("\0".join(build).encode()).hexdigest() == (
+                    "6601e98ed8a06a7642685135da2aa450caa3c7553e5f3bf76d80ca676b2c908e"
+                ):
+                    for i in range(len(code)):
+                        if code[i : i + len(generated_link)] == generated_link:
+                            code = code[:i] + code[i + len(generated_link) :]
+                            break
+            # Only actual read/include operations count, not a local variable
+            # named `read`. Ordinary module #[path] attributes are compiler
+            # declarations, not data-source reads.
+            module_literals = set()
+            for i in range(len(code) - 5):
+                if code[i : i + 4] == ("#", "[", "path", "=") and code[i + 5] == "]":
+                    module_literals.add(i + 4)
+            imports = list(_uses(code))
+            operations = {
+                "include",
+                "include_str",
+                "include_bytes",
+                "read",
+                "read_to_string",
+                "read_to_end",
+                "open",
+            }
+            active = {
+                i
+                for i, token in enumerate(code)
+                if token in operations
+                and (
+                    code[i + 1 : i + 2] in (("(",), ("!",))
+                    or i > 0
+                    and code[i - 1] in ("::", ".")
+                    or any(start <= i < end for start, end, _ in imports)
+                )
+            }
+            data_code = tuple(
+                token
+                for i, token in enumerate(code)
+                if i not in module_literals
+                and token != "path"
+                and (token not in operations or i in active)
+            )
+            literals = _source_literals(data_code)
+            leaf = re.escape(PurePosixPath(path).name)
+            named_source = re.compile(r"(?:^|[/\\])" + leaf + r"(?:$|[:#])")
+            reads = bool(active)
+            if reads and any(named_source.search(value) for value in literals):
+                return f"{rel}: source introspection may consume the observer change"
+            # A dynamically assembled source filename is outside this restricted
+            # direct-path proof, as is a directory scanner selecting Rust source.
+            source_literals = any(
+                value in {"src", "rs", ".rs"} or value.endswith(".rs") for value in literals
+            )
+            if reads and "concat" in code and source_literals:
+                return f"{rel}: dynamically assembled source input is unresolved"
+            if source_literals and any(
+                code[i] in {"read_dir", "WalkDir", "walkdir", "glob", "glob_with"}
+                and code[i + 1 : i + 2] in (("(",), ("::",))
+                for i in range(len(code))
+            ):
+                if not _isolated_python_defaults_scanner(rel, code, sources):
+                    return f"{rel}: unresolved source scanning forbids test observer proof"
+            if rel == path and any(
+                code[i] in {"line", "column", "file", "stringify"} and code[i + 1 : i + 2] == ("!",)
+                for i in range(len(code))
+            ):
+                return "test observer source has location/token introspection"
+            if rel.startswith(crate) and "macro_use" in code:
+                return "test observer crate has unresolved macro-use scope"
+            if rel.startswith(crate) and any(
+                code[i : i + 2] == ("macro_rules", "!")
+                and i + 2 < len(code)
+                and code[i + 2] in {"eprintln", "assert", "assert_eq", "assert_ne", "vec", "format"}
+                for i in range(len(code))
+            ):
+                return "test observer crate shadows a reviewed builtin macro"
+    return None
+
+
 def prove(
     kind: str,
     path: str,
@@ -629,6 +843,8 @@ def prove(
 ) -> str | None:
     """None only when the restricted equivalence proof succeeds."""
     try:
+        if kind == "rust_terminal_test_observer":
+            return _terminal_test_observer(path, old, new, old_sources, new_sources)
         for sources in (old_sources, new_sources):
             if context := _compile_context(path, sources):
                 return context

@@ -1161,7 +1161,9 @@ class ReviewedEquivalence:
     invariant_evidence: str
 
 
-RUST_EQUIVALENCE_KINDS = frozenset({"rust_comments", "rust_pub_use_addition"})
+RUST_EQUIVALENCE_KINDS = frozenset(
+    {"rust_comments", "rust_pub_use_addition", "rust_terminal_test_observer"}
+)
 EQUIVALENCE_KINDS = (
     frozenset({"additive_wrapper", "proof_delegation", "retained_formula"}) | RUST_EQUIVALENCE_KINDS
 )
