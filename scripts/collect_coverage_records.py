@@ -822,7 +822,8 @@ def write_registry(records: dict[str, dict], out: Path = OUT, *, retag: bool = T
     lines = [HEADER]
     for rid in sorted(records):
         rec = records[rid]
-        rec.setdefault("surface_list_blob", surface_list_blob(rec["calibration_sha"]))
+        if "surface_list_blob" not in rec:
+            rec["surface_list_blob"] = surface_list_blob(rec["calibration_sha"])
         lines.append("[[record]]")
         for key in FIELDS:
             if key not in rec:
