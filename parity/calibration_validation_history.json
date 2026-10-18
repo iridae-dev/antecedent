@@ -843,6 +843,147 @@
         "replacement_record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
         "combined_execution_plan_sha256": "723b3c60d8775e93b3b07d3d7421e6c5633ebd461429cb5e15cc9998958db344",
         "execution_queue": "One combined4-group/12-job longest-first queue; initial separate wait-only controllers superseded before any draws."
+      },
+      "completed_independent_successor": {
+        "status": "complete_independent_group_passed",
+        "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+        "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "validation_domain": "release_2_4_1_validation_v1",
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "grid": [
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 18391,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.052121884650285784,
+              "planned_replicates": 20000,
+              "scored": 19422,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 0,
+            "n_min": 250,
+            "n_max": 250,
+            "observed": 0.9469158686026156,
+            "mcse": 0.001608759335732777,
+            "replicates": 19422,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 18473,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.4785047485712189,
+              "planned_replicates": 20000,
+              "scored": 19422,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 1,
+            "n_min": 500,
+            "n_max": 500,
+            "observed": 0.9511378848728246,
+            "mcse": 0.0015468952171078213,
+            "replicates": 19422,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 18381,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.5485545607354446,
+              "planned_replicates": 20000,
+              "scored": 19368,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 2,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9490396530359355,
+            "mcse": 0.0015802142695270887,
+            "replicates": 19368,
+            "boundary": false,
+            "role": "gated"
+          }
+        ],
+        "raw_sha256": {
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p0.log": "5b0e6dd776df8934f78117b2541903750479e6586eb286018aba0ec07337ed3f",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p0.tallies.jsonl": "d7912f443193f56da7103abb01a3636838d25badfc766f0e017c8979fdba0d11",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p1.log": "477356b7b344f2e6b7f8497f53fac9dae8f87181b787fe835b44bed260fbbdf3",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p1.tallies.jsonl": "53cd29172fb657c44454ea3bba7af59af401df0de465adc4f888270c5387eb9b",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p2.log": "fb591ef22b767e2f2812a309fbede31c492c38e5f9d64651925eff41c8478850",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p2.tallies.jsonl": "e98f5b7e137fd2fb7bd24b243afd1f7741c74b30d705f7e4ecb732af33e0e1ff"
+        },
+        "measurement_payload_sha256": "05d50f3ba94b24c5de210111301f130bfecc44cb292de0123d7694ba1de29570"
       }
     },
     {
@@ -878,6 +1019,147 @@
         "replacement_record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
         "combined_execution_plan_sha256": "723b3c60d8775e93b3b07d3d7421e6c5633ebd461429cb5e15cc9998958db344",
         "execution_queue": "One combined4-group/12-job longest-first queue; initial separate wait-only controllers superseded before any draws."
+      },
+      "completed_independent_successor": {
+        "status": "complete_independent_group_passed",
+        "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+        "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "validation_domain": "release_2_4_1_validation_v1",
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "grid": [
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 18391,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.052121884650285784,
+              "planned_replicates": 20000,
+              "scored": 19422,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 0,
+            "n_min": 250,
+            "n_max": 250,
+            "observed": 0.9469158686026156,
+            "mcse": 0.001608759335732777,
+            "replicates": 19422,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 18473,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.4785047485712189,
+              "planned_replicates": 20000,
+              "scored": 19422,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 1,
+            "n_min": 500,
+            "n_max": 500,
+            "observed": 0.9511378848728246,
+            "mcse": 0.0015468952171078213,
+            "replicates": 19422,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 18381,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.5485545607354446,
+              "planned_replicates": 20000,
+              "scored": 19368,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 2,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9490396530359355,
+            "mcse": 0.0015802142695270887,
+            "replicates": 19368,
+            "boundary": false,
+            "role": "gated"
+          }
+        ],
+        "raw_sha256": {
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p0.log": "de8b1d4e6ceef19f4a15c164a84f57eb883d11815076956e8b4997321b011b8d",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p0.tallies.jsonl": "b210e701bf63d39f3b7f695c4e489a7e030ab9ee1da5679f928bf733e1e65765",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p1.log": "6ca0757780ab01b36cac143aa3648e006b33ab59b1dc239e11631e2faba7f1a6",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p1.tallies.jsonl": "df2f4923ce54bc9ad71650b24afe0340052af0baa2380d0d8dba13a6e69a1012",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p2.log": "e9cbe8b4985efb471ba64d58400de0d50c3672c79c01187ddb884d4abb7c50b1",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.p2.tallies.jsonl": "648e06c4f0f9350c97c3201167f51443ccd7ca5527d99e4a7ea34c59d2d60dfe"
+        },
+        "measurement_payload_sha256": "11b3d898d6bb84a97bc101f61a6da0a82d00b01b7668a72aa97ae86c3ad7d7ba"
       }
     },
     {
@@ -913,6 +1195,147 @@
         "replacement_record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
         "combined_execution_plan_sha256": "723b3c60d8775e93b3b07d3d7421e6c5633ebd461429cb5e15cc9998958db344",
         "execution_queue": "One combined4-group/12-job longest-first queue; initial separate wait-only controllers superseded before any draws."
+      },
+      "completed_independent_successor": {
+        "status": "complete_independent_group_passed",
+        "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+        "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "validation_domain": "release_2_4_1_validation_v1",
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "grid": [
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 17395,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.518807379844927,
+              "planned_replicates": 20000,
+              "scored": 18331,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 0,
+            "n_min": 250,
+            "n_max": 250,
+            "observed": 0.9489389558671104,
+            "mcse": 0.0016258141715174764,
+            "replicates": 18331,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 17774,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.7227105330613816,
+              "planned_replicates": 20000,
+              "scored": 18721,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 1,
+            "n_min": 500,
+            "n_max": 500,
+            "observed": 0.9494150953474707,
+            "mcse": 0.001601673582450568,
+            "replicates": 18721,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 17888,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.6149190799380042,
+              "planned_replicates": 20000,
+              "scored": 18813,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 2,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9508318715781641,
+            "mcse": 0.001576393648004141,
+            "replicates": 18813,
+            "boundary": false,
+            "role": "gated"
+          }
+        ],
+        "raw_sha256": {
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p0.log": "408a40241a8c754d11f62a8fe76c4e7045af33e664230ffb8c4e23fabe13a426",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p0.tallies.jsonl": "175a3df11cefa62efc18fb405e6a28614ee72a8adb4400d430ab9e4df6a4619f",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p1.log": "95e1462bc663d08ead202bdf791e2554e02366a8d2890b46ec6a94d0d3942606",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p1.tallies.jsonl": "654e09edd9e37cad1f72978ebab3fbe69d70aaf6b9e983d12493272166a3ec3f",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p2.log": "577fc1faa6b0388812babf2abb9b73f94580c148b2ded63bbe15ad2470f5b7af",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p2.tallies.jsonl": "f64f2e7d3dd8728b35826ef5398a9d5131225ca5f7c32979652ff36fa63d4456"
+        },
+        "measurement_payload_sha256": "df30e397ecf60074c74518f00922dab926dc348cb7ba031b9633be43ae9e47bb"
       }
     },
     {
@@ -948,6 +1371,147 @@
         "replacement_record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
         "combined_execution_plan_sha256": "723b3c60d8775e93b3b07d3d7421e6c5633ebd461429cb5e15cc9998958db344",
         "execution_queue": "One combined4-group/12-job longest-first queue; initial separate wait-only controllers superseded before any draws."
+      },
+      "completed_independent_successor": {
+        "status": "complete_independent_group_passed",
+        "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.discovery_fraction_0_75",
+        "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "validation_domain": "release_2_4_1_validation_v1",
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "grid": [
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 17395,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.518807379844927,
+              "planned_replicates": 20000,
+              "scored": 18331,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 0,
+            "n_min": 250,
+            "n_max": 250,
+            "observed": 0.9489389558671104,
+            "mcse": 0.0016258141715174764,
+            "replicates": 18331,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 17774,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.7227105330613816,
+              "planned_replicates": 20000,
+              "scored": 18721,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 1,
+            "n_min": 500,
+            "n_max": 500,
+            "observed": 0.9494150953474707,
+            "mcse": 0.001601673582450568,
+            "replicates": 18721,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 17888,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.6149190799380042,
+              "planned_replicates": 20000,
+              "scored": 18813,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 2,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9508318715781641,
+            "mcse": 0.001576393648004141,
+            "replicates": 18813,
+            "boundary": false,
+            "role": "gated"
+          }
+        ],
+        "raw_sha256": {
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p0.log": "37dab60aa6298915e249d31de87ef9f2aec12d8947d84de353c807d417bb6a91",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p0.tallies.jsonl": "1eaac21ef4b1cac392519963d80e30a50673354da0e90f5845bb553eb61ef940",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p1.log": "88e29d6059d0cc095d0b20c39b7ad9ff216695dd8e35ec021851f8b23b786e8c",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p1.tallies.jsonl": "1b7ee0543e8194f3633981648af083511d001b2825e093fc6ce2394081ed779e",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p2.log": "c52be2418a8567fe9614759904e0195b9eeec21609a42d6958af02c9737b44da",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T141618Z/groups/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage.p2.tallies.jsonl": "d61918da207b29e38eeb84bb32d7ee676db0432321f3091eb4609492a7387c95"
+        },
+        "measurement_payload_sha256": "86aba6c5253466623cdfd5c7bace640edc2e6041c8db818bf0e1768e5ff027c8"
       }
     }
   ],
@@ -1119,7 +1683,291 @@
       "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p1.tallies.jsonl": "1bceb971676efa8fe6606b9d333cb5599d849122ee74c9cf35bfdf9f467b6cd6",
       "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p2.log": "c8b18cd3ab742acf0a95b87c0dc9c6ff2daa8b18df1a6d842d59a0111bb87d7d",
       "practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p2.tallies.jsonl": "0503d95045d507700549b0de0a2532c03a2001b19ae9ee8d477ba8f1df188f2b"
-    }
+    },
+    "completed_independent_successors": [
+      {
+        "status": "complete_independent_group_passed",
+        "record_id": "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.practitioner_temporal_pulse_h1_interval",
+        "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "validation_domain": "release_2_4_1_validation_v1",
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "grid": [
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1785,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.28045186339889633,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 0,
+            "n_min": 319,
+            "n_max": 319,
+            "observed": 0.8925,
+            "mcse": 0.006926173185822025,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1784,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.24921808650771748,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 1,
+            "n_min": 1279,
+            "n_max": 1279,
+            "observed": 0.892,
+            "mcse": 0.006940316995642202,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1783,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.22053892408464937,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 2,
+            "n_min": 4159,
+            "n_max": 4159,
+            "observed": 0.8915,
+            "mcse": 0.00695441406590088,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          }
+        ],
+        "raw_sha256": {
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p0.log": "1fb31bd61281de3c3d335937aaa0a5fa7cc1522264fb6a93ee34d3a2f50faee7",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p0.tallies.jsonl": "75441fd45f7f40d5b01744315fbe298c6288cbdee897d986a4982638b100c996",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p1.log": "10207d866ef82fcde9b2e7d859edd35a4cfad93ba6c7a3be2a5ec2906c49d10c",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p1.tallies.jsonl": "bbcc24e6c0edaab360291320aa74e19bc6013bd308b420742b4b9bae043f2881",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p2.log": "e1952b11888c6c0b3019f34438ef980f0a6ecdf0aabf9cfee3119ba5f98c2a45",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p2.tallies.jsonl": "595c0331cdf8c354811091ea5749f2b94d5e7644896497b768dcd834eb1a3b9d"
+        },
+        "measurement_payload_sha256": "1ef9f3f4c928ca6e27857dd983bc2a84d97feace96a7ccc7383e8e2327fe2b4f"
+      },
+      {
+        "status": "complete_independent_group_passed",
+        "record_id": "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.practitioner_temporal_pulse_h1_interval",
+        "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "validation_domain": "release_2_4_1_validation_v1",
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "grid": [
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1885,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.14141095280974658,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 0,
+            "n_min": 319,
+            "n_max": 319,
+            "observed": 0.9425,
+            "mcse": 0.005205465877325487,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "reported_level"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1876,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.019065163923138333,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 1,
+            "n_min": 1279,
+            "n_max": 1279,
+            "observed": 0.938,
+            "mcse": 0.005392402062161169,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "reported_level"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1892,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.437838721155412,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 2,
+            "n_min": 4159,
+            "n_max": 4159,
+            "observed": 0.946,
+            "mcse": 0.005053909377897473,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "reported_level"
+          }
+        ],
+        "raw_sha256": {
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p0.log": "1fb31bd61281de3c3d335937aaa0a5fa7cc1522264fb6a93ee34d3a2f50faee7",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p0.tallies.jsonl": "75441fd45f7f40d5b01744315fbe298c6288cbdee897d986a4982638b100c996",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p1.log": "10207d866ef82fcde9b2e7d859edd35a4cfad93ba6c7a3be2a5ec2906c49d10c",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p1.tallies.jsonl": "bbcc24e6c0edaab360291320aa74e19bc6013bd308b420742b4b9bae043f2881",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p2.log": "e1952b11888c6c0b3019f34438ef980f0a6ecdf0aabf9cfee3119ba5f98c2a45",
+          "target/calibration-frozen-runs/70a71dd33bc55cbc2398b0f91c4a2c797afad618/20261018T130608Z/groups/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval/practitioner_scale_calibration__practitioner_temporal_pulse_h1_interval.p2.tallies.jsonl": "595c0331cdf8c354811091ea5749f2b94d5e7644896497b768dcd834eb1a3b9d"
+        },
+        "measurement_payload_sha256": "3e3c735d9d5739ca081e7722b4b2ca0ca83d8d73a437f5a7e94f58f224c26128"
+      }
+    ]
   },
   "legacy_c30_prefix_completion": {
     "protocol": "original_source_prefix_completion.v1",

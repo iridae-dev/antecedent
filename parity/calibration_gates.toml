@@ -620,6 +620,23 @@ passed = 1
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 
 [[gate]]
+group = "observational_effects_calibration__policy_held_out_n3000_l95"
+passed = 1
+calibration_sha = "70a71dd33bc55cbc2398b0f91c4a2c797afad618"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 581376, family_digest = "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541", family_grid_points = 3, family_groups = 757, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "release_2_4_1_validation_v1" }
+coverage_decisions = [
+  { log = "observational_effects_calibration__policy_held_out_n3000_l95.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1923, family_alpha = 0.05, family_cells = 581376, family_digest = "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541", family_grid_points = 3, family_groups = 757, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.017159790641138956, planned_replicates = 2000, scored = 2000, validation_domain = "release_2_4_1_validation_v1" }, grid_point = 1, measured_at = "70a71dd33bc55cbc2398b0f91c4a2c797afad618", name = "policy_held_out_n3000_l95", nominal = 0.95, record_id = "", test = "policy_held_out_n3000_l95" },
+]
+
+[[gate]]
 group = "observational_effects_calibration__policy_prespecified_n1000_l95"
 passed = 1
 calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
