@@ -1782,3 +1782,105 @@ fn a_clustered_causal_forest_subsamples_whole_clusters_and_reports_a_cluster_se(
     let half = CausalForest::new().with_source_cluster_ids(labels);
     assert!(half.prepare(&data, &estimand, &query()).is_err());
 }
+
+/// Public producer contracts on a complete factorial table with constant causal effect 2.
+/// This is a deterministic execution/invariance fixture, not a coverage experiment. The
+/// separate dense projector and training-coefficient tests supply numerical oracles.
+#[test]
+fn explicit_population_intervals_execute_on_known_truth_and_refuse_invalid_levels() {
+    let n = 240;
+    let study = Study {
+        t: (0..n).map(|i| ((i / 12) % 2) as f64).collect(),
+        z: (0..n).map(|i| (i % 12) as f64 / 6.0 - 11.0 / 12.0).collect(),
+        y: (0..n)
+            .map(|i| {
+                let z = (i % 12) as f64 / 6.0 - 11.0 / 12.0;
+                let t = ((i / 12) % 2) as f64;
+                let noise = 0.2 * (((i / 24) % 5) as f64 - 2.0);
+                3.0 + 0.5 * z + 2.0 * t + noise
+            })
+            .collect(),
+        w: (0..n).map(|i| 0.5 + (i % 12) as f64 / 12.0).collect(),
+    };
+    let run = |study: &Study, level: f64| {
+        let (data, estimand) = study.data();
+        let ipw = PropensityWeighting::new()
+            .with_bootstrap_replicates(0)
+            .with_overlap(no_clip())
+            .with_sampling_weights(study.weights())
+            .with_covariate_balance(true);
+        let prepared = ipw.prepare(&data, &estimand, &query()).unwrap();
+        let linear_ipw = ipw.population_linear_score_interval(
+            &prepared,
+            &mut PropensityEstimationWorkspace::default(),
+            &ctx(),
+            AssumptionSet::new(),
+            level,
+        );
+        let cluster_ipw = ipw.with_cluster_ids((0..n).map(|i| (i / 12) as u32).collect());
+        let clustered = cluster_ipw.population_score_interval(
+            &prepared,
+            &mut PropensityEstimationWorkspace::default(),
+            &ctx(),
+            AssumptionSet::new(),
+            level,
+        );
+        let aipw = AipwAte::new()
+            .with_bootstrap_replicates(0)
+            .with_overlap(no_clip())
+            .with_sampling_weights(study.weights());
+        let prepared = aipw.prepare(&data, &estimand, &query()).unwrap();
+        let linear_aipw = aipw.population_linear_interval(
+            &prepared,
+            &mut AipwWorkspace::default(),
+            &ctx(),
+            AssumptionSet::new(),
+            level,
+        );
+        let controls = aipw
+            .prepare(
+                &data,
+                &estimand,
+                &query().with_target_population(antecedent_core::TargetPopulation::Untreated),
+            )
+            .unwrap();
+        let atc = aipw.population_linear_atc_interval(
+            &controls,
+            &mut AipwWorkspace::default(),
+            &ctx(),
+            AssumptionSet::new(),
+            level,
+        );
+        let dml = DmlAte::new().with_sampling_weights(study.weights());
+        let prepared = dml.prepare(&data, &estimand, &query()).unwrap();
+        let linear_dml =
+            dml.population_linear_interval(&prepared, &ctx(), AssumptionSet::new(), level);
+        let dr = DrLearner::new().with_sampling_weights(study.weights());
+        let prepared = dr.prepare(&data, &estimand, &query()).unwrap();
+        let linear_dr =
+            dr.population_linear_interval(&prepared, &ctx(), AssumptionSet::new(), level);
+        [
+            linear_ipw.map(|v| (v.estimate.ate, v.lower, v.upper)),
+            clustered.map(|v| (v.estimate.ate, v.lower, v.upper)),
+            linear_aipw.map(|v| (v.estimate.ate, v.lower, v.upper)),
+            atc.map(|v| (v.estimate.ate, v.lower, v.upper)),
+            linear_dml.map(|v| (v.estimate.ate, v.lower, v.upper)),
+            linear_dr.map(|v| (v.estimate.ate, v.lower, v.upper)),
+        ]
+    };
+    let ordinary = run(&study, 0.95);
+    let scaled = run(&study.rescaled(17.0), 0.95);
+    for (index, (ordinary, scaled)) in ordinary.into_iter().zip(scaled).enumerate() {
+        let (point, lower, upper) = ordinary.unwrap();
+        let scaled = scaled.unwrap();
+        assert!(point.is_finite() && lower.is_finite() && upper.is_finite(), "method {index}");
+        assert!(lower < upper, "method {index}");
+        close(point, 2.0, 0.15, "known constant-effect factorial table");
+        close(scaled.0, point, 1e-8, "weight-scale invariant point");
+        close(scaled.1, lower, 1e-8, "weight-scale invariant lower endpoint");
+        close(scaled.2, upper, 1e-8, "weight-scale invariant upper endpoint");
+    }
+    for level in [0.0, 1.0, f64::NAN] {
+        assert!(run(&study, level).into_iter().all(|result| result.is_err()));
+    }
+}
