@@ -587,6 +587,36 @@ fn upgraded_weighted_constructions_preserve_legacy_record_identity() {
         assert_ne!(old_id, new_id, "an upgraded method must preserve the collected raw record");
         assert_eq!(new_id, format!("{old_id}.{suffix}"));
     }
+    let mut basis = construction_for(
+        "propensity.weighting",
+        "",
+        "iid",
+        "AverageEffect",
+        "all_observed.mean+weighting=balanced_linear_hc3",
+    );
+    let mut ids = Vec::new();
+    for method in ["balanced_population_score", "balanced_population_linear_score"] {
+        basis.interval_method = method.into();
+        let mut tally = CoverageTally::for_record(
+            RecordKey {
+                test: "weighted_ipw_hajek_interval",
+                dgp: "identity_probe",
+                interval: method,
+            },
+            REPORTED_LEVEL,
+        );
+        tally.bind(
+            &basis,
+            ScopeFacts {
+                row_count: 1200,
+                replicates_ok: None,
+                posterior_draws: None,
+                unidentified_mass: 0.0,
+            },
+        );
+        ids.push(tally.record_id().unwrap());
+    }
+    assert_ne!(ids[0], ids[1], "the new model variance must preserve old Satterthwaite records");
 }
 
 fn scored(fit: Option<EffectEstimate>, rows: usize) -> Option<((f64, f64), u64)> {
@@ -676,7 +706,8 @@ fn weighted_ipw_hajek_cluster_interval() {
 }
 
 fn measure_balanced_hajek(test: &'static str, cluster: bool) {
-    const METHOD: &str = "balanced_population_score";
+    let method =
+        if cluster { "balanced_population_score" } else { "balanced_population_linear_score" };
     let n = grid_n(1200);
     let dgp = if cluster {
         "informative_sampling_clustered_heterogeneous_effect"
@@ -685,14 +716,19 @@ fn measure_balanced_hajek(test: &'static str, cluster: bool) {
     };
     let mut basis = construction_for(
         "propensity.weighting",
-        if cluster { "cluster" } else { "" },
+        if cluster { "cluster" } else { "population_linear_homoskedastic" },
         if cluster { "cluster" } else { "iid" },
         "AverageEffect",
         "all_observed.mean+weighting=balanced_linear_hc3",
     );
-    basis.interval_method = METHOD.into();
+    basis.interval_method = method.into();
+    if !cluster {
+        basis
+            .functional
+            .push_str("+interval_variance=homoskedastic_gaussian_arm_linear_population");
+    }
     let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: METHOD }, REPORTED_LEVEL);
+        CoverageTally::for_record(RecordKey { test, dgp, interval: method }, REPORTED_LEVEL);
     let mut reference_df = Vec::new();
     for fit in map_replicates(n_sim(), |rep| {
         let sample = sample(n, 91_000 + rep, Effect::Heterogeneous, cluster);
@@ -706,15 +742,29 @@ fn measure_balanced_hajek(test: &'static str, cluster: bool) {
             estimator = estimator.with_source_cluster_ids(sample.cluster);
         }
         let prepared = estimator.prepare(&data, &estimand, &query()).ok()?;
-        estimator
-            .population_score_interval(
-                &prepared,
-                &mut PropensityEstimationWorkspace::default(),
-                &ExecutionContext::for_tests(1),
-                AssumptionSet::new(),
-                REPORTED_LEVEL,
-            )
-            .ok()
+        let mut workspace = PropensityEstimationWorkspace::default();
+        let context = ExecutionContext::for_tests(1);
+        if cluster {
+            estimator
+                .population_score_interval(
+                    &prepared,
+                    &mut workspace,
+                    &context,
+                    AssumptionSet::new(),
+                    REPORTED_LEVEL,
+                )
+                .ok()
+        } else {
+            estimator
+                .population_linear_score_interval(
+                    &prepared,
+                    &mut workspace,
+                    &context,
+                    AssumptionSet::new(),
+                    REPORTED_LEVEL,
+                )
+                .ok()
+        }
     }) {
         let Some(fit) = fit else {
             tally.skip();

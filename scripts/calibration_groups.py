@@ -192,6 +192,11 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
         if protocol not in str(record.get("functional", "")):
             return False
         if protocol == "weighting=balanced_linear_hc3":
+            if group.test_filter == "weighted_ipw_hajek_interval":
+                return (record.get("interval_method") == "balanced_population_linear_score"
+                        and record.get("se_kind") == "population_linear_homoskedastic"
+                        and "interval_variance=homoskedastic_gaussian_arm_linear_population"
+                        in str(record.get("functional", "")))
             return record.get("interval_method") == "balanced_population_score"
         if protocol in {"matching=population_linear", "stratification=regression_linear_hc3"}:
             return str(record.get("id", "")).endswith("." + protocol.partition("=")[2])

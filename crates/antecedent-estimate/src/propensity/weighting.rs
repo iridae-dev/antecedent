@@ -24,7 +24,7 @@ use crate::util::BootstrapSeResult;
 /// Fieller quadratic, so the endpoints need not be symmetric about the point estimate.
 #[derive(Clone, Debug)]
 pub struct BalancedWeightingInterval {
-    /// Calibrated point estimate with its analytic sandwich SE.
+    /// Calibrated point estimate with the interval construction's analytic SE.
     pub estimate: EffectEstimate,
     /// Lower endpoint of the bounded confidence set.
     pub lower: f64,
@@ -36,9 +36,28 @@ pub struct BalancedWeightingInterval {
     pub mass_variance: f64,
     /// Covariance of the effect influence mean and normalized population-mass mean.
     pub effect_mass_covariance: f64,
-    /// Working-Gaussian quadratic-form Satterthwaite reference df for iid rows. Cluster
-    /// intervals use the cluster sandwich's normal score reference and record `None`.
+    /// Working-Gaussian quadratic-form Satterthwaite reference df, when used.
+    /// Normal population-score and cluster-score references record `None`.
     pub reference_df: Option<f64>,
+    /// Noise and random-target variance decomposition for the declared linear model.
+    pub linear_variance: Option<PopulationLinearVariance>,
+}
+
+/// Variance of a calibrated contrast under independent homoskedastic Gaussian arm-linear
+/// outcomes. The complete point coefficient carries outcome noise; the fitted contrast
+/// carries the additional uncertainty in the sampled target population.
+#[derive(Clone, Debug)]
+pub struct PopulationLinearVariance {
+    /// Declared outcome model required by this variance construction.
+    pub outcome_model: &'static str,
+    /// Conditional outcome-noise contribution to the point variance.
+    pub noise: f64,
+    /// Random target-population contribution to the point variance.
+    pub target: f64,
+    /// Estimated common outcome-noise variance, independent of the point's noise.
+    pub noise_scale: f64,
+    /// Rank of the independent outcome-residual projector.
+    pub noise_degrees_of_freedom: usize,
 }
 
 /// Inverse-probability weighting estimator (ATE/ATT/ATC via `TargetPopulation`).
@@ -309,6 +328,83 @@ impl PropensityWeighting {
             mass_variance: v_mass,
             effect_mass_covariance: covariance,
             reference_df,
+            linear_variance: None,
+        })
+    }
+
+    /// Invert a population score under independent homoskedastic Gaussian arm-linear
+    /// outcomes, with a separate variance term for the random target population.
+    ///
+    /// The point is exactly linear in the outcomes conditional on covariates, treatment and
+    /// sampling weights. Its noise variance is the squared norm of that complete coefficient
+    /// times an unbiased residual noise estimate. Unweighted arm OLS, augmented by the point
+    /// coefficient, makes this noise estimate independent of the point's Gaussian noise.
+    /// Fitted treatment-effect heterogeneity and its covariance with population mass remain
+    /// in the Fieller score. The population reference is asymptotically normal; this does not
+    /// assert an exact Student pivot for the combined noise and random-target variance.
+    ///
+    /// This declared model construction is separate from the robust sandwich published by
+    /// [`Self::fit`] and the working quadratic reference in [`Self::population_score_interval`].
+    /// It requires [`Self::with_covariate_balance`], an untrimmed ATE, and independent rows.
+    ///
+    /// # Errors
+    /// Invalid level, cancellation, unsupported clustering, failed fit, insufficient residual
+    /// degrees of freedom, or an unbounded population-mass confidence set.
+    pub fn population_linear_score_interval(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut PropensityEstimationWorkspace,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        level: f64,
+    ) -> Result<BalancedWeightingInterval, EstimationError> {
+        if !self.covariate_balance || !level.is_finite() || level <= 0.0 || level >= 1.0 {
+            return Err(EstimationError::data_msg(
+                "population linear score requires calibrated weights and 0 < level < 1",
+            ));
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(EstimationError::data_msg("population linear score cancelled"));
+        }
+        if self.clusters(problem)?.is_some() {
+            return Err(EstimationError::unsupported(
+                "population linear score requires independent rows",
+            ));
+        }
+        let (mut estimate, _, linear) =
+            self.fit_point_influence(problem, workspace, assumptions)?;
+        let linear = linear
+            .ok_or_else(|| EstimationError::stats_msg("missing calibrated point linearization"))?;
+        let components = linear.population_linear_variance(problem)?;
+        let signal = linear.operator.apply(&linear.working_mean);
+        let mass = problem
+            .sampling_weights
+            .as_ref()
+            .map_or_else(|| vec![1.0; problem.nrows], |s| s.weights.to_vec());
+        let variance = |values: &[f64]| hajek_iid_se(values, problem.design_ncols).powi(2);
+        let mass_variance = variance(&mass);
+        let joint: Vec<f64> = signal.iter().zip(&mass).map(|(a, b)| a + b).collect();
+        let effect_mass_covariance = (variance(&joint) - components.target - mass_variance) / 2.0;
+        let effect_variance = components.noise + components.target;
+        let z = antecedent_stats::normal_ppf((1.0 + level) / 2.0);
+        let a = 1.0 - z * z * mass_variance;
+        if !a.is_finite() || a <= 0.0 {
+            return Err(EstimationError::stats_msg("population-mass confidence set is unbounded"));
+        }
+        let centre = -z * z * effect_mass_covariance / a;
+        let radius =
+            (z.powi(4) * effect_mass_covariance.powi(2) + a * z * z * effect_variance).sqrt() / a;
+        estimate.uncertainty.analytic.se = effect_variance.sqrt();
+        estimate.uncertainty.analytic.kind = Some(AnalyticSeKind::Homoskedastic);
+        Ok(BalancedWeightingInterval {
+            lower: estimate.ate + centre - radius,
+            upper: estimate.ate + centre + radius,
+            estimate,
+            level,
+            mass_variance,
+            effect_mass_covariance,
+            reference_df: None,
+            linear_variance: Some(components),
         })
     }
 
@@ -940,13 +1036,106 @@ impl LowRankInfluence {
     }
 }
 
+/// Exact conditional noise component for an outcome-linear point h'Y. The caller must
+/// ensure h is outcome-independent, rows are independent, and the declared outcome model
+/// is homoskedastic Gaussian with a mean linear in each arm's prepared design.
+pub(crate) struct PopulationLinearNoise {
+    pub variance: f64,
+    pub scale: f64,
+    pub degrees_of_freedom: usize,
+    pub working_mean: Vec<f64>,
+    pub contrast_mean: Vec<f64>,
+}
+
+pub(crate) fn population_linear_noise(
+    problem: &PreparedPropensityProblem,
+    h: &[f64],
+) -> Result<PopulationLinearNoise, EstimationError> {
+    let n = problem.nrows;
+    let p = problem.design_ncols;
+    if n <= 2 * p + 1 {
+        return Err(EstimationError::data_msg(
+            "population linear score requires residual degrees of freedom",
+        ));
+    }
+    if h.len() != n || h.iter().any(|v| !v.is_finite()) {
+        return Err(EstimationError::data_msg("invalid linear point coefficients"));
+    }
+    let (working_mean, contrast_mean, _) =
+        gaussian_working_outcomes(&problem.design_matrix, p, &problem.treatment, &problem.outcome)?;
+    let x = &problem.design_matrix;
+    // v=P h, with P the orthogonal (unweighted) arm-OLS residual projector.
+    let mut residual_direction = h.to_vec();
+    for active in [false, true] {
+        let mut gram = vec![0.0; p * p];
+        let mut rhs = vec![0.0; p];
+        for i in (0..n).filter(|&i| (problem.treatment[i] > 0.5) == active) {
+            for c in 0..p {
+                rhs[c] += x[c * n + i] * h[i];
+                for d in 0..p {
+                    gram[c * p + d] += x[c * n + i] * x[d * n + i];
+                }
+            }
+        }
+        let coefficients = crate::util::solve_spd(&gram, &rhs, p)
+            .ok_or_else(|| EstimationError::stats_msg("singular linear noise projection"))?;
+        for i in (0..n).filter(|&i| (problem.treatment[i] > 0.5) == active) {
+            residual_direction[i] -= (0..p).map(|c| x[c * n + i] * coefficients[c]).sum::<f64>();
+        }
+    }
+    let norm = residual_direction.iter().map(|v| v * v).sum::<f64>();
+    let coefficient_norm = h.iter().map(|v| v * v).sum::<f64>();
+    let rss = (0..n).map(|i| (problem.outcome[i] - working_mean[i]).powi(2)).sum::<f64>();
+    let (residual_sum, noise_degrees_of_freedom) = if norm > 64.0 * f64::EPSILON * coefficient_norm
+    {
+        let dot = (0..n)
+            .map(|i| residual_direction[i] * (problem.outcome[i] - working_mean[i]))
+            .sum::<f64>();
+        // P-vv'/||v||² annihilates both the arm-linear mean and h. Its
+        // Gaussian quadratic is independent of h'Y and has rank n-2p-1.
+        (rss - dot * dot / norm, n - 2 * p - 1)
+    } else {
+        (rss, n - 2 * p)
+    };
+    if residual_sum < -1e-10 * rss.max(1.0) {
+        return Err(EstimationError::stats_msg("negative orthogonal noise residual sum"));
+    }
+    let noise_scale = residual_sum.max(0.0) / noise_degrees_of_freedom as f64;
+    Ok(PopulationLinearNoise {
+        variance: noise_scale * coefficient_norm,
+        scale: noise_scale,
+        degrees_of_freedom: noise_degrees_of_freedom,
+        working_mean,
+        contrast_mean,
+    })
+}
+
 struct BalancedLinearization {
     operator: LowRankInfluence,
+    point_coefficients: Vec<f64>,
     working_mean: Vec<f64>,
     noise_variance: f64,
 }
 
 impl BalancedLinearization {
+    fn population_linear_variance(
+        &self,
+        problem: &PreparedPropensityProblem,
+    ) -> Result<PopulationLinearVariance, EstimationError> {
+        let noise = super::population_linear_noise(problem, &self.point_coefficients)?;
+        if noise.contrast_mean.iter().any(|v| !v.is_finite()) {
+            return Err(EstimationError::stats_msg("non-finite linear target contrast"));
+        }
+        let signal = self.operator.apply(&noise.working_mean);
+        Ok(PopulationLinearVariance {
+            outcome_model: "independent_homoskedastic_gaussian_arm_linear",
+            noise: noise.variance,
+            target: hajek_iid_se(&signal, problem.design_ncols).powi(2),
+            noise_scale: noise.scale,
+            noise_degrees_of_freedom: noise.degrees_of_freedom,
+        })
+    }
+
     fn reference_df(&self) -> Result<f64, EstimationError> {
         let (trace, squared_trace) = self.operator.quadratic_traces()?;
         let signal = self.operator.apply(&self.working_mean);
@@ -1190,9 +1379,11 @@ fn balanced_linearization(
         left[i * rank + rank - 1] = -1.0;
         right[i * rank + rank - 1] = mean;
     }
-    let (working_mean, noise_variance) = gaussian_working_outcomes(x, p, treatment, outcome)?;
+    let (working_mean, _, noise_variance) = gaussian_working_outcomes(x, p, treatment, outcome)?;
+    let point_coefficients = (0..n).map(|i| right[i * rank + 2 * p]).collect();
     Ok(BalancedLinearization {
         operator: LowRankInfluence { diagonal, left, right, rank },
+        point_coefficients,
         working_mean,
         noise_variance,
     })
@@ -1205,9 +1396,10 @@ fn gaussian_working_outcomes(
     p: usize,
     treatment: &[f64],
     outcome: &[f64],
-) -> Result<(Vec<f64>, f64), EstimationError> {
+) -> Result<(Vec<f64>, Vec<f64>, f64), EstimationError> {
     let n = treatment.len();
     let mut working_mean = vec![0.0; n];
+    let mut contrast_mean = vec![0.0; n];
     let mut rss = 0.0;
     for active in [false, true] {
         let mut gram = vec![0.0; p * p];
@@ -1222,6 +1414,10 @@ fn gaussian_working_outcomes(
         }
         let coefficients = crate::util::solve_spd(&gram, &rhs, p)
             .ok_or_else(|| EstimationError::stats_msg("singular Gaussian working outcome model"))?;
+        let sign = if active { 1.0 } else { -1.0 };
+        for i in 0..n {
+            contrast_mean[i] += sign * (0..p).map(|c| coefficients[c] * x[c * n + i]).sum::<f64>();
+        }
         for i in (0..n).filter(|&i| (treatment[i] > 0.5) == active) {
             working_mean[i] = (0..p).map(|c| coefficients[c] * x[c * n + i]).sum();
             rss += (outcome[i] - working_mean[i]).powi(2);
@@ -1232,7 +1428,7 @@ fn gaussian_working_outcomes(
             "calibrated Gaussian reference requires residual degrees of freedom",
         ));
     }
-    Ok((working_mean, rss / (n - 2 * p) as f64))
+    Ok((working_mean, contrast_mean, rss / (n - 2 * p) as f64))
 }
 
 #[cfg(test)]
@@ -1276,6 +1472,7 @@ mod tests {
             let mut outcome = vec![0.0; n];
             outcome[column] = 1.0;
             let point = super::hajek_difference(&t, &outcome, &weights).unwrap();
+            assert!((linear.point_coefficients[column] - point).abs() < 1e-10);
             let (values, _) = super::balanced_influence_values(
                 &design,
                 2,

@@ -110,7 +110,11 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             old = {"id": "old", "test": f"crates/antecedent/tests/weighted_interval_calibration.rs::{name}",
                    "functional": "all_observed.mean", "interval_method": "analytic_se"}
             new = {**old, "id": "new." + marker.partition("=")[2], "functional": old["functional"] + "+" + marker,
-                   "interval_method": "balanced_population_score" if "weighting=" in marker else "analytic_se"}
+                   "interval_method": ("balanced_population_linear_score" if name == "weighted_ipw_hajek_interval"
+                                       else "balanced_population_score") if "weighting=" in marker else "analytic_se"}
+            if name == "weighted_ipw_hajek_interval":
+                new["functional"] += "+interval_variance=homoskedastic_gaussian_arm_linear_population"
+                new["se_kind"] = "population_linear_homoskedastic"
             ledger = self.root / "weighted-gates.toml"
             ledger.write_text("".join(f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\n'
                                       for point in range(3)))
@@ -122,6 +126,10 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
                     self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
             if "weighting=" in marker:
                 self.assertFalse(groups.measures_current_protocol(group, {**new, "interval_method": "analytic_se"}))
+                if name == "weighted_ipw_hajek_interval":
+                    self.assertFalse(groups.measures_current_protocol(group, {**new, "interval_method": "balanced_population_score"}))
+                    self.assertFalse(groups.measures_current_protocol(group, {**new, "se_kind": "homoskedastic"}))
+                    self.assertFalse(groups.measures_current_protocol(group, {**new, "functional": old["functional"] + "+" + marker}))
             else:
                 self.assertFalse(groups.measures_current_protocol(group, {**new, "id": old["id"]}))
 

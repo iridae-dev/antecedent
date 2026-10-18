@@ -859,6 +859,106 @@ fn balanced_weighting_matches_independent_moments_and_full_case_derivative_sandw
     close(fit.se_analytic(), expected, 1e-6, "clustered full moment-target influence");
 }
 
+#[test]
+fn population_linear_weighting_interval_matches_independent_dense_noise_projector() {
+    let study = small_study(100, 111);
+    let n = study.len();
+    let mass = normalized(&study.w);
+    let (point, weights) = balanced_weighting_oracle(&study, &mass);
+    let h: Vec<f64> = (0..n)
+        .map(|i| (if study.t[i] > 0.5 { 1.0 } else { -1.0 }) * weights[i] / n as f64)
+        .collect();
+    let mut projection = vec![vec![0.0; n]; n];
+    let mut beta = vec![vec![]; 2];
+    for arm in [false, true] {
+        let rows: Vec<usize> = (0..n).filter(|&i| (study.t[i] > 0.5) == arm).collect();
+        let x: Vec<Vec<f64>> = rows.iter().map(|&i| vec![1.0, study.z[i]]).collect();
+        let y: Vec<f64> = rows.iter().map(|&i| study.y[i]).collect();
+        beta[usize::from(arm)] = weighted_least_squares(&x, &y, &vec![1.0; rows.len()]);
+        let gram: Vec<Vec<f64>> =
+            (0..2).map(|c| (0..2).map(|d| x.iter().map(|r| r[c] * r[d]).sum()).collect()).collect();
+        let bread = inverse(&gram);
+        for (&i, xi) in rows.iter().zip(&x) {
+            for (&j, xj) in rows.iter().zip(&x) {
+                projection[i][j] = f64::from(i == j)
+                    - (0..2)
+                        .map(|c| (0..2).map(|d| xi[c] * bread[c][d] * xj[d]).sum::<f64>())
+                        .sum::<f64>();
+            }
+        }
+    }
+    let v: Vec<f64> =
+        projection.iter().map(|r| r.iter().zip(&h).map(|(r, h)| r * h).sum()).collect();
+    let norm = v.iter().map(|v| v * v).sum::<f64>();
+    assert!(norm > 1e-12);
+    for i in 0..n {
+        for j in 0..n {
+            projection[i][j] -= v[i] * v[j] / norm;
+        }
+    }
+    close((0..n).map(|i| projection[i][i]).sum(), (n - 5) as f64, 1e-9, "noise df");
+    for row in &projection {
+        close(
+            row.iter().zip(&h).map(|(r, h)| r * h).sum(),
+            0.0,
+            1e-10,
+            "independence from point noise",
+        );
+    }
+    let sigma = (0..n)
+        .map(|i| (0..n).map(|j| study.y[i] * projection[i][j] * study.y[j]).sum::<f64>())
+        .sum::<f64>()
+        / (n - 5) as f64;
+    let contrast: Vec<f64> =
+        study.z.iter().map(|z| beta[1][0] - beta[0][0] + (beta[1][1] - beta[0][1]) * z).collect();
+    let target_mean = contrast.iter().zip(&mass).map(|(d, m)| d * m).sum::<f64>() / n as f64;
+    let signal: Vec<f64> = contrast.iter().zip(&mass).map(|(d, m)| m * (d - target_mean)).collect();
+    let factor = 1.0 / ((n - 1) * (n - 2)) as f64;
+    let target = signal.iter().map(|s| s * s).sum::<f64>() * factor;
+    let covariance = signal.iter().zip(&mass).map(|(s, m)| s * (m - 1.0)).sum::<f64>() * factor;
+    let (data, estimand) = study.data();
+    let estimator = PropensityWeighting::new()
+        .with_bootstrap_replicates(0)
+        .with_overlap(no_clip())
+        .with_sampling_weights(study.weights())
+        .with_covariate_balance(true);
+    let prepared = estimator.prepare(&data, &estimand, &query()).unwrap();
+    let interval = estimator
+        .population_linear_score_interval(
+            &prepared,
+            &mut PropensityEstimationWorkspace::default(),
+            &ctx(),
+            AssumptionSet::new(),
+            0.95,
+        )
+        .unwrap();
+    let components = interval.linear_variance.as_ref().unwrap();
+    assert_eq!(components.outcome_model, "independent_homoskedastic_gaussian_arm_linear");
+    close(interval.estimate.ate, point, 1e-8, "unchanged calibrated point");
+    close(components.noise_scale, sigma, 1e-9, "independent dense Gaussian noise scale");
+    close(
+        components.noise,
+        sigma * h.iter().map(|h| h * h).sum::<f64>(),
+        1e-10,
+        "complete point noise",
+    );
+    close(components.target, target, 1e-10, "random target variance");
+    close(interval.effect_mass_covariance, covariance, 1e-10, "target/mass covariance");
+    assert_eq!(components.noise_degrees_of_freedom, n - 5);
+    assert!(interval.reference_df.is_none());
+    for endpoint in [interval.lower, interval.upper] {
+        let delta = endpoint - point;
+        let variance = components.noise + target - 2.0 * delta * covariance
+            + delta * delta * interval.mass_variance;
+        close(
+            delta * delta / variance,
+            1.959_963_984_540_054_f64.powi(2),
+            1e-7,
+            "published endpoint score equation",
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Stratification
 // ---------------------------------------------------------------------------------------------
