@@ -725,7 +725,7 @@ fn pooled_intervals_use_the_actual_study_count_across_the_measured_family() {
         let sws: f64 = ws.iter().sum();
         let mu = ws.iter().zip(&y).map(|(a, b)| a * b).sum::<f64>() / sws;
         let spread: f64 = ws.iter().zip(&y).map(|(a, b)| a * (b - mu) * (b - mu)).sum();
-        let hk_variance = (spread / (kf - 1.0)).max(1.0) / sws;
+        let hk_variance = (spread / (kf - 1.0)) / sws;
         let random = session
             .random_effects(pooling("random", summaries), BetweenStudy::DerSimonianLaird, &c)
             .unwrap()

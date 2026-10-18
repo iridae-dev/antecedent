@@ -1042,7 +1042,8 @@ impl EvidenceLedgerSession {
     /// Fixed-effect (and declared-covariance) pooling reports the Wald `z`
     /// interval of the model variance; random-effects pooling reports the
     /// Hartung-Knapp-Sidik-Jonkman interval (`t` with `k - 1` degrees of
-    /// freedom, variance floored at the conditional one). Both are conditional
+    /// freedom, variance rescaled by the weighted residual mean square, with no
+    /// floor: the floored modification over-covers). Both are conditional
     /// on the declared variances being the studies' sampling variances.
     ///
     /// The measured family is 5 to 30 independent studies, keyed by that range
@@ -1188,7 +1189,7 @@ impl EvidenceLedgerSession {
                         .sum();
                     #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
                     let q = spread / (k - 1) as f64;
-                    let variance = q.max(1.0) / total;
+                    let variance = q / total;
                     #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
                     let t =
                         antecedent_stats::special::student_t_ppf(0.5 + level / 2.0, (k - 1) as f64);
