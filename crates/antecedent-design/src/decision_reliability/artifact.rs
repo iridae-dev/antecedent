@@ -82,7 +82,7 @@ fn conservative_closure_snapshot(
 ) -> bool {
     // Historical refusals can remain closed after a promotion, but cannot omit a
     // currently closed route or carry arbitrary metadata, duplicates or new ordering.
-    let canonical = PublishedRoute::ALL.map(|route| ClosedRoute {
+    let all_route_refusals = PublishedRoute::ALL.map(|route| ClosedRoute {
         route,
         coordinate: coordinate.describe(),
         code: antecedent_core::reason_code!("cell_not_licensed").to_owned(),
@@ -92,7 +92,7 @@ fn conservative_closure_snapshot(
     });
     let mut remaining = carried.iter();
     let mut next = remaining.next();
-    for expected in &canonical {
+    for expected in &all_route_refusals {
         if next == Some(expected) {
             next = remaining.next();
         }

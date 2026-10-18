@@ -1816,6 +1816,180 @@
           "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p2.tallies.jsonl"
         }
       ]
+    },
+    {
+      "record_id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.separate_streams",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "753bcb27d08d5c1d70c9d6d37d12645bf994a3346e0ee3ee6a3f5182d4ffb17c",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9925,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "84b9253944e95b9c991fbee0f000b6f14f6d98bf2c8820281e8ec3af1ef5171f",
+          "tally_sha256": "588a30b23c13b7478b48bd765e7389e3ba790a78a9a313b05cf15844d2ed2f8d",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9865,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "2d14e8f69c6f20803a4247526e18323fbaacf6629304e5e1a9856740fe816c10",
+          "tally_sha256": "bc33623385c246b3bceeb9ab50dda0c18d5815ad175d50c41a348eddbe3e29b5",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9825,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "6ddc91614ebf5da3664e7f510fa3f717727cf4758246afb23739069f906d4475",
+          "tally_sha256": "190d06fd9c87856c284473f59f48ddc23522c5036792cecf53147b612e9371e6",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        }
+      ]
+    },
+    {
+      "record_id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_0",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "6cd643f0b83db17ac375c156c50e2049915e0a695e2f0b4623ad9ee6d5dff1d1",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.985,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "84b9253944e95b9c991fbee0f000b6f14f6d98bf2c8820281e8ec3af1ef5171f",
+          "tally_sha256": "588a30b23c13b7478b48bd765e7389e3ba790a78a9a313b05cf15844d2ed2f8d",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9825,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "2d14e8f69c6f20803a4247526e18323fbaacf6629304e5e1a9856740fe816c10",
+          "tally_sha256": "bc33623385c246b3bceeb9ab50dda0c18d5815ad175d50c41a348eddbe3e29b5",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9875,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "6ddc91614ebf5da3664e7f510fa3f717727cf4758246afb23739069f906d4475",
+          "tally_sha256": "190d06fd9c87856c284473f59f48ddc23522c5036792cecf53147b612e9371e6",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        }
+      ]
+    },
+    {
+      "record_id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_5",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "eb13b4cb58e26254369dcd81fe6f07f617d71acf252dbe29a44e5a2ea8c84492",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.995,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "84b9253944e95b9c991fbee0f000b6f14f6d98bf2c8820281e8ec3af1ef5171f",
+          "tally_sha256": "588a30b23c13b7478b48bd765e7389e3ba790a78a9a313b05cf15844d2ed2f8d",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.987,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "2d14e8f69c6f20803a4247526e18323fbaacf6629304e5e1a9856740fe816c10",
+          "tally_sha256": "bc33623385c246b3bceeb9ab50dda0c18d5815ad175d50c41a348eddbe3e29b5",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.99,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "6ddc91614ebf5da3664e7f510fa3f717727cf4758246afb23739069f906d4475",
+          "tally_sha256": "190d06fd9c87856c284473f59f48ddc23522c5036792cecf53147b612e9371e6",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        }
+      ]
     }
   ]
 }

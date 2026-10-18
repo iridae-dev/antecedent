@@ -55,9 +55,10 @@ mod calibration;
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::ProbabilityQuantity;
 use antecedent_design::decision_reliability::{
-    DerivedUncertainty, IntervalRequest, KnownOptimumDesign, NoiseCoupling, PublishedRoute,
-    RankingRequest, ReliabilityRequest, StreamId, StreamPurpose, calibration_basis,
-    derive_uncertainty, simulate_selection_draws,
+    DecisionReliabilityArtifact, DecisionReliabilityExpectation, DerivedUncertainty,
+    IntervalRequest, KnownOptimumDesign, NoiseCoupling, PublishedRoute, RankingRequest,
+    ReliabilityRequest, StreamId, StreamPurpose, calibration_basis, consume, derive_uncertainty,
+    simulate_selection_draws,
 };
 use antecedent_kernels::{norm_cdf, norm_pdf};
 use calibration::{
@@ -132,6 +133,35 @@ fn derive(
         ..ReliabilityRequest::expected_utility()
     };
     let ctx = ExecutionContext::for_tests(run_seed ^ replicate);
+    if replicate == 0 {
+        // Exercise the real artifact producer and independent consumer on the existing
+        // first replicate. No extra draws, stream advances or scored calculations.
+        let artifact = DecisionReliabilityArtifact::new(draws.clone(), None, request.clone(), &ctx)
+            .expect("first-replicate reliability artifact");
+        let bytes = artifact
+            .to_bytes("calibration-first-replicate", &ctx)
+            .expect("first-replicate artifact export");
+        let expected = DecisionReliabilityExpectation {
+            draws_digest: Some(draws.digest_hex()),
+            candidate_set_digest: Some(draws.candidate_set_digest()),
+            // Separate-stream candidates have distinct per-candidate coordinates;
+            // their complete stream declarations remain bound by draws_digest.
+            selection_stream: match design.coupling {
+                NoiseCoupling::SharedStream { .. } => Some(stream),
+                NoiseCoupling::SeparateStreams => None,
+            },
+            utility_unit: Some(draws.utility_unit.clone()),
+            ..DecisionReliabilityExpectation::default()
+        };
+        let verified = consume(&bytes, &expected, &ctx)
+            .expect("independent first-replicate artifact consumer");
+        assert_eq!(verified, artifact);
+        eprintln!(
+            "artifact-replay-witness decision_reliability_v1 replicate=0 draws={} digest={}",
+            verified.draws.digest_hex(),
+            verified.digest,
+        );
+    }
     derive_uncertainty(&draws, None, &request, &IntervalRequest::marginal(LEVEL), &ctx).ok()
 }
 
