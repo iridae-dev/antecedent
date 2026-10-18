@@ -2614,7 +2614,7 @@ mod scalable_cases {
         widths.sort_by(f64::total_cmp);
         let median_width = widths[widths.len() / 2];
         assert!(median_width <= 1.5 * effect, "median interval width {median_width}");
-        eprintln!(
+        ::std::eprintln!(
             "calibration-assertion-receipt {{\"profile\":\"neighborhood_tipping_bracket.v1\",\"rows\":{n},\"attempted\":{replicates},\"reported\":{reported},\"covered\":{covered},\"conditional_coverage\":{coverage:.17},\"median_width\":{median_width:.17},\"effect\":{effect:.17}}}"
         );
     }
