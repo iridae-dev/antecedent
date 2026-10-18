@@ -1,7 +1,7 @@
 {
   "schema": "source_fixed_calibration_family.v1",
   "decision_protocol": "suite_coverage_fwer.v1",
-  "validation_domain": "release_2_4_1_pag_trial_shift_validation_v1",
+  "validation_domain": "release_2_4_1_pag_confidence_set_validation_v1",
   "family_alpha": 0.05,
   "family_grid_points": 3,
   "cell_cap_per_group": 256,
@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "6baaaa3333ab6200fb894b19bcf684f88a98a478c6a08975571f3edf58534450",
-  "acceptance_sha256": "ba1b6de764fa2907a4cc317fdbcbad1796038d9889a5d03527eb07e0ff7940ca",
-  "label_audit_sha256": "3594d77ed46bbbbab80bba01a9582a30f2b43045e9dcf7a7c6de6b865e75bf74",
+  "gate_sha256": "0cdaec33770e46ffd1d07abaca81a7bf1e8c2fcf8d33bce5a2b4d6ede736588d",
+  "acceptance_sha256": "61641c0e5eea8d7c95cb0ee0db4d5fb15cf19816beed983f5cc4ddbf1e3c17a2",
+  "label_audit_sha256": "2db462b944c0950a1cfd13f89cd94761379a4ba7be51c1828a36a14f34a5797a",
   "groups": [
     {
       "index": 1,
@@ -3809,5 +3809,5 @@
       "grid": true
     }
   ],
-  "hypothesis_allocations_sha256": "983398a380175063b232e094c622ba78ed2d62d25a0b711c1c1700d18a35b2ed"
+  "hypothesis_allocations_sha256": "412b20c792155532f0a0bdef3363d4503a9321b5e5a320f51ac6d8cba584bad5"
 }
