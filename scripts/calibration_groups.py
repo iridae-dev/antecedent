@@ -574,7 +574,7 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
     started = time.monotonic()
     base_env = {
         k: v for k, v in os.environ.items()
-        if not k.startswith("ANTECEDENT_CALIBRATION_") and k not in {"ANTECEDENT_PARENT_PROTOCOL_VERSION", "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION", "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL"}
+        if not k.startswith("ANTECEDENT_CALIBRATION_") and k not in {"ANTECEDENT_PARENT_PROTOCOL_VERSION", "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION", "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL"}
     }
     base_env.update({
         "ANTECEDENT_CALIBRATION_SMOKE": "1",
@@ -800,6 +800,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_PARENT_PROTOCOL_VERSION",
             "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
             "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL",
+            "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL",
             "ANTECEDENT_CALIBRATION_DECISION_CONFIG",
             "ANTECEDENT_CALIBRATION_VALIDATION_DOMAIN",
         )

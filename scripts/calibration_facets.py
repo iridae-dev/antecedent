@@ -2046,6 +2046,33 @@ def weighted_split_replay_environment(records: list[dict]) -> dict[str, str]:
     return {"ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL": str(versions.pop())} if versions else {}
 
 
+def weighted_cluster_replay_environment(records: list[dict]) -> dict[str, str]:
+    """Choose the genuine stored normal or Student cluster scoring protocol."""
+    tests = {
+        "weighted_aipw_cluster_dml_interval",
+        "weighted_dml_cluster_interval",
+        "weighted_dr_learner_cluster_interval",
+    }
+    versions = set()
+    for record in records:
+        source, _, test = str(record.get("test", "")).rpartition("::")
+        if (
+            source != "crates/antecedent/tests/weighted_interval_calibration.rs"
+            or test not in tests
+        ):
+            continue
+        identity = record.get("interval_method"), record.get("functional")
+        if identity == ("analytic_se", "all_observed.mean"):
+            versions.add(1)
+        elif identity == ("student_analytic", "all_observed.mean+reference=cluster_df"):
+            versions.add(2)
+        else:
+            raise ValueError(f"unknown stored weighted cluster protocol {identity!r}")
+    if len(versions) > 1:
+        raise ValueError("mixed weighted cluster protocols require separate replay groups")
+    return {"ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL": str(versions.pop())} if versions else {}
+
+
 def replay(
     waiver_id: str, dry_run: bool, reuse_capture: bool = False, waiver_file: Path = WAIVERS
 ) -> int:
@@ -2106,6 +2133,7 @@ def replay(
                 **parent_replay_environment(selected),
                 **synthesis_replay_environment(selected),
                 **weighted_split_replay_environment(selected),
+                **weighted_cluster_replay_environment(selected),
             }
     except ValueError as error:
         print(f"FAIL: {error}")
@@ -2145,6 +2173,7 @@ def replay(
             "ANTECEDENT_PARENT_PROTOCOL_VERSION",
             "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
             "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL",
+            "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL",
         }
     }
     for g in [] if reuse_capture else plan.values():

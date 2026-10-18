@@ -114,5 +114,52 @@ class WeightedSplitReplayProtocolTest(unittest.TestCase):
         self.assertEqual(facets.weighted_split_replay_environment([{"test": "other::case"}]), {})
 
 
+class WeightedClusterReplayProtocolTest(unittest.TestCase):
+    def record(self, test: str, method: str, functional: str) -> dict:
+        return {
+            "test": f"crates/antecedent/tests/weighted_interval_calibration.rs::{test}",
+            "interval_method": method,
+            "functional": functional,
+        }
+
+    def test_each_actual_cluster_gate_selects_its_stored_numerical_protocol(
+        self,
+    ) -> None:
+        for test in (
+            "weighted_aipw_cluster_dml_interval",
+            "weighted_dml_cluster_interval",
+            "weighted_dr_learner_cluster_interval",
+        ):
+            with self.subTest(test=test):
+                old = self.record(test, "analytic_se", "all_observed.mean")
+                new = self.record(
+                    test, "student_analytic", "all_observed.mean+reference=cluster_df"
+                )
+                self.assertEqual(
+                    facets.weighted_cluster_replay_environment([old]),
+                    {"ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL": "1"},
+                )
+                self.assertEqual(
+                    facets.weighted_cluster_replay_environment([new]),
+                    {"ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL": "2"},
+                )
+                with self.assertRaisesRegex(ValueError, "separate replay groups"):
+                    facets.weighted_cluster_replay_environment([old, new])
+                for altered in (
+                    dict(old, interval_method="student_analytic"),
+                    dict(new, functional="all_observed.mean"),
+                ):
+                    with self.assertRaisesRegex(ValueError, "unknown stored"):
+                        facets.weighted_cluster_replay_environment([altered])
+
+    def test_other_gate_does_not_acquire_a_cluster_override(self) -> None:
+        self.assertEqual(
+            facets.weighted_cluster_replay_environment(
+                [self.record("weighted_aipw_ate_interval", "analytic_se", "all_observed.mean")]
+            ),
+            {},
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
