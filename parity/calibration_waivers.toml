@@ -1062,3 +1062,37 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies" = "67d3eac5d0bba4893ee396914b6fa06937c74bb7a3e2a18cf285bdea5c167cdb"
+
+[[waiver]]
+id = "unchanged-pag-confidence-set-through-temporal-descriptor-correction"
+from = "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4"
+to = "00037035c53606cd95899721922fa9b69316f5f4"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Source-only exact metadata equivalence. The genuine complete-procedure PAG record was measured at the original frozen source, and is preserved with its actual source/domain/counts. The sole compiled-input delta is an unrelated temporal Construction descriptor plus its ordinary regression. The verifier mechanically proves the exact reviewed source blobs; this empty-request CLI execution performs zero scientific draws and does not claim numerical replay.\
+"""
+paths = [
+  "crates/antecedent/tests/discovered_transport_calibration.rs",
+]
+
+source_only = true
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/tests/discovered_transport_calibration.rs"
+from_blob = "bcd4e3f2c1b7bca259d88ed02ec4f53d78e4d589"
+to_blob = "d702a80cf9d4aa9e9840a90196e9275c1c10ff14"
+kind = "rust_temporal_construction_metadata"
+rationale = "Exact reviewed whole-source correction adds an explicit percentile descriptor only to temporal_construction and a private ordinary regression. All remaining compiled Cargo/config/crate inputs are identical; PAG Construction and all scientific computations are unchanged."
+invariant_evidence = "Immutable original/final complete file SHA256 pinned in _temporal_capture_transfer.py; full compiled-input tree proof; actual guarded constructor regression. No numerical replay or new calibration is claimed by this source-only certificate."
+
+[waiver.outcome]
+replayed_at = "00037035c53606cd95899721922fa9b69316f5f4"
+identical = true
+records = [
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]

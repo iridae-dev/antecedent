@@ -1,0 +1,38 @@
+{
+  "kind": "exact_temporal_metadata_source_equivalence",
+  "waiver_id": "unchanged-pag-confidence-set-through-temporal-descriptor-correction",
+  "verification_commit": "00037035c53606cd95899721922fa9b69316f5f4",
+  "measurement_source": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4",
+  "numeric_replays": 0,
+  "new_scientific_draws": 0,
+  "record_id": "cov.discovered_transport.pag.frequentist.percentile_bootstrap_or_logical_support.l95.discovered_pag_transport_contrast_complete_procedure_coverage.fci_cutoff_0_05_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set",
+  "record_fingerprint": "84c6874c2051382745e00e92e5fd7d774c9e4bd7085ec8d48caba6a4d2880220",
+  "compiled_input_proof": {
+    "original_source": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4",
+    "destination_source": "00037035c53606cd95899721922fa9b69316f5f4",
+    "changed_inputs": [
+      "crates/antecedent/tests/discovered_transport_calibration.rs"
+    ],
+    "original_file_sha256": "26e26a01b86687749ce8113dcfc32762cb892befffd703c1e584d9600d330aa9",
+    "destination_file_sha256": "716542608283fc6e0719671f52eb97c5af54a8cf61a2d5b15e4babc7bf10b6a8",
+    "compiled_input_entries": 2176,
+    "original_input_manifest_sha256": "ef2a6cfac985aba0b08b7682e9d4644b9cb1705b99c1d034915e385369ee6094",
+    "destination_input_manifest_sha256": "cbaa26cbc383b1068697a47bf80e1b818b5f25d1504ff57283a14ee26646c6f6"
+  },
+  "waiver_sha256": "769fdf84350d50da3a0db8cc6b61ac34b4eaf1b020987ead2cb230b97bcd5c5c",
+  "verification_command": [
+    "python",
+    "scripts/calibration_facets.py",
+    "replay",
+    "--waiver",
+    "unchanged-pag-confidence-set-through-temporal-descriptor-correction",
+    "--waiver-file",
+    "target/calibration-audit/pag-metadata-only-waiver.toml"
+  ],
+  "verification_exit_code": 0,
+  "verification_stdout": "replay of waiver unchanged-pag-confidence-set-through-temporal-descriptor-correction at 00037035c53606cd95899721922fa9b69316f5f4: 0 record(s), 0 gate group(s)\nsource-only verification of waiver unchanged-pag-confidence-set-through-temporal-descriptor-correction: verified exact source equivalence; zero numerical replays; outcome written to target/calibration-audit/pag-metadata-only-waiver.toml\nreplay logs: target/calibration-replay/unchanged-pag-confidence-set-through-temporal-descriptor-correction\n",
+  "constructor_regression": "Actual guarded M2 executable PASS; temporal-constructor-unit-final-receipt.json",
+  "focused_boundary_tests": 5,
+  "existing_waivers_preserved": 6,
+  "source_only_scope": "Only the pinned descriptor override and ordinary constructor regression; no exemption for other numerical changes."
+}
