@@ -1,0 +1,11 @@
+    Finished `release` profile [optimized] target(s) in 0.23s
+     Running tests/observational_effects_calibration.rs (/Users/charleshinshaw/Desktop/antecedent/target/release/deps/observational_effects_calibration-6bc8011e06abce35)
+
+running 1 test
+calibration-decision {"decision_protocol":{"cell_cap_per_group":256,"compatible":true,"covered":1923,"family_alpha":0.05,"family_cells":581376,"family_digest":"4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541","family_grid_points":3,"family_groups":757,"id":"suite_coverage_fwer.v1","look_weight":0.25,"looks":[{"planned_replicates":400,"weight":0.5},{"planned_replicates":2000,"weight":0.25},{"planned_replicates":20000,"weight":0.25}],"lower_only":false,"p_value":0.017159790641138956,"planned_replicates":2000,"scored":2000,"validation_domain":"release_2_4_1_validation_v1"},"grid_point":1,"measured_at":"70a71dd33bc55cbc2398b0f91c4a2c797afad618","name":"policy_held_out_n3000_l95","nominal":0.95,"record_id":null,"test":"policy_held_out_n3000_l95"}
+test policy_held_out_n3000_l95 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 1.71s
+
+calibration-measured-at 70a71dd33bc55cbc2398b0f91c4a2c797afad618
+calibration-decision-context {"cell_cap_per_group":256,"family_alpha":0.05,"family_cells":581376,"family_digest":"4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541","family_grid_points":3,"family_groups":757,"id":"suite_coverage_fwer.v1","looks":[{"planned_replicates":400,"weight":0.5},{"planned_replicates":2000,"weight":0.25},{"planned_replicates":20000,"weight":0.25}],"validation_domain":"release_2_4_1_validation_v1"}

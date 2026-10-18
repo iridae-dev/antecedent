@@ -35,6 +35,7 @@ from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
+import calibration_recipe_receipts as recipe_receipts  # noqa: E402
 import check_acceptance_manifest as manifest  # noqa: E402
 
 IDENTITY = re.compile(
@@ -198,12 +199,12 @@ def case_size(case: dict[str, Any]) -> int | None:
     if ("analysis_rows" in case["configuration"]
             and case["configuration"].get("record_size_basis", "analysis_rows") == "analysis_rows"):
         return case["configuration"]["analysis_rows"]
-    return next((case["configuration"][k] for k in ("participants", "rows", "steps")
+    return next((case["configuration"][k] for k in ("participants", "rows", "steps", "donors")
                  if isinstance(case["configuration"].get(k), int)), None)
 
 
 def calibrated(data: dict[str, Any]) -> list[dict[str, Any]]:
-    return [c for c in bound_cases(data) if c["expected"]["kind"] == "calibrated_interval"]
+    return [c for c in bound_cases(data) if c["expected"]["kind"] in manifest.CALIBRATED_KINDS]
 
 
 def points(record: dict[str, Any]) -> list[dict[str, Any]]:
@@ -224,7 +225,8 @@ def configured_point(measured: list[dict[str, Any]], size: float | None) -> dict
     return min(measured, key=distance)
 
 
-def calibrated_record_problems(data: dict[str, Any], records: list[dict[str, Any]]) -> list[str]:
+def calibrated_record_problems(data: dict[str, Any], records: list[dict[str, Any]],
+                               recipe_cases: set[str] | None = None) -> list[str]:
     """The point at the case's configured size has >= the case's replicates; every measured point
     states a Monte Carlo SE and meets the coverage floor.
 
@@ -235,6 +237,11 @@ def calibrated_record_problems(data: dict[str, Any], records: list[dict[str, Any
     for case in calibrated(data):
         cid, targets = case["id"], case["targets"]
         problems.extend(split_size_problems(case))
+        if cid in (recipe_cases or set()):
+            continue  # Validated original recordless receipt, not a synthetic coverage record.
+        if case["expected"]["kind"] == "calibrated_statistical_test":
+            problems.append(f"{cid}: statistical-test calibration needs its dedicated source-audited receipt")
+            continue
         matched = records_of(case, records)
         if not matched:
             problems.append(f"{cid}: no coverage record from {case['evidence']['test']} at nominal "
@@ -243,6 +250,9 @@ def calibrated_record_problems(data: dict[str, Any], records: list[dict[str, Any
         for record in matched:
             measured = points(record)
             configured = configured_point(measured, size)
+            declared_point = case["configuration"].get("calibration_grid_point")
+            if declared_point is not None and (configured is None or configured.get("point") != declared_point):
+                problems.append(f"{cid}: declared calibration_grid_point {declared_point} differs from the configured measured point")
             for point in measured:
                 where = f"{cid}: record {record['id']} point {point.get('point', 0)}"
                 if point is configured and point.get("replicates", 0) < targets["min_replicates"]:
@@ -291,17 +301,20 @@ def attestation_problems(candidate: str, release: str) -> list[str]:
 
 
 def construction_problems(data: dict[str, Any], records: list[dict[str, Any]], candidate: str,
-                          release: str, calibration_gate: str) -> list[str]:
+                          release: str, calibration_gate: str,
+                          recipe_cases: set[str] | None = None) -> list[str]:
     """Each interval case emits a record bound to its construction and source, and a gate registers it."""
     problems = attestation_problems(candidate, release)
     for case in bound_cases(data):
-        if case["expected"]["kind"] not in manifest.INTERVAL_KINDS:
+        if case["expected"]["kind"] not in manifest.INTERVAL_KINDS | manifest.CALIBRATED_KINDS:
             continue
         cid, test = case["id"], case["evidence"]["test"]
         name = test.rsplit("::", 1)[1]
-        if case["expected"]["kind"] == "calibrated_interval":
+        if case["expected"]["kind"] in manifest.CALIBRATED_KINDS:
             if not re.search(rf"\b{re.escape(name)}\b", calibration_gate):
                 problems.append(f"{cid}: scripts/gate_calibration.sh does not run {name}")
+            if cid in (recipe_cases or set()):
+                continue  # Construction/source/width were checked in the original receipt type.
             for record in records_of(case, records):
                 for field in ("calibration_sha", "surface_list_blob", "facets", "estimator", "interval_method"):
                     if not record.get(field):
@@ -333,13 +346,15 @@ def closure_problems(root: Path = ROOT) -> list[str]:
     read = lambda rel: (root / rel).read_text(encoding="utf-8")  # noqa: E731
     candidate, release, calibration = (read(f"scripts/{n}") for n in (
         "gate_release_candidate.sh", "gate_release.sh", "gate_calibration.sh"))
+    recipe_cases, recipe_problems = recipe_receipts.validate_registry(root, calibrated(data), case_size)
     return [
+        *recipe_problems,
         *installed_wheel_problems(candidate), *example_problems(root),
         *practitioner_scale_problems(data, records, calibration),
         *refusal_boundary_problems(data, root, read(".github/workflows/ci.yml")),
         *replay_identity_problems(data, root),
-        *calibrated_record_problems(data, records), *confirmation_problems(data, records),
-        *construction_problems(data, records, candidate, release, calibration),
+        *calibrated_record_problems(data, records, recipe_cases), *confirmation_problems(data, records),
+        *construction_problems(data, records, candidate, release, calibration, recipe_cases),
     ]
 
 

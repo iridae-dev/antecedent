@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "recipe": [
+    {
+      "case_id": "observational_policy_value_calibrated_1000",
+      "evidence_kind": "recordless_gate_manual_recipe",
+      "coverage_semantics": "whole_procedure_refusals_are_misses",
+      "test": "crates/antecedent-estimate/tests/observational_effects_calibration.rs::policy_held_out_n1000_l95",
+      "sample_size": 1000,
+      "nominal": 0.95,
+      "normal_critical_value": 1.959963984540054,
+      "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "group": "observational_effects_calibration__policy_held_out_n1000_l95",
+      "source_files": {
+        "crates/antecedent-estimate/tests/observational_effects_calibration.rs": "46428ed37b1e65b43d18ebe0e2bee694e09f5b71427db57a7cc9601786b526d0",
+        "crates/antecedent-estimate/tests/common/observational_effects.rs": "fd26e956a7add541f771204ea61bf403cda433be2e785dae200a49980c227918",
+        "crates/antecedent/tests/common/calibration.rs": "f6bbfdc9e00f717a996f9fa1809f39d6f2d64f4b6b438d23109c58a0b2defb48"
+      },
+      "gate_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/policy_held_out_n1000_l95/original_recordless_gate.json",
+        "sha256": "15cb904a367a94cf21eb7d33f89315db2cb3449acc0a3d5e9847ebdb9b8104b8"
+      },
+      "coverage_log": {
+        "path": "parity/recipe_evidence/v2.4.1/policy_held_out_n1000_l95/observational_effects_calibration__policy_held_out_n1000_l95.log",
+        "sha256": "b9e84e71c2421db0c15caa77dbe58308241975a1dc00c0e3c64d041a336726d0"
+      },
+      "tally": {
+        "path": "parity/recipe_evidence/v2.4.1/policy_held_out_n1000_l95/observational_effects_calibration__policy_held_out_n1000_l95.tallies.jsonl",
+        "sha256": "a8aee91afbfa95eee28c2284b1779eff954c65504eeb8499ece7bccf553b4cf4"
+      },
+      "source_review": "Exact manual Wald endpoints, original DGP/truth, fixed input participants and evaluation strategy reviewed. Policy c30 defaults min_propensity=.01; e15/70 explicitly use.001. Source Git identities preserve those differences. Raw APIs remain value+SE/point-only; no automatic facade interval is asserted.",
+      "width_evidence": {
+        "kind": "prospective_width_only_supplement",
+        "case": "policy",
+        "plan": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/plan.json",
+          "sha256": "4a70af6a1e18f7024a7af2beffa8489bbf16766c8bf4521f4f1dbd3616c3d65e"
+        },
+        "compiled_artifact": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/compiled-artifact.json",
+          "sha256": "ff4ba544c5f3eb86c6cf0cd8f8663481373773c35d1cf2c6c8a85bab7532a1d6"
+        },
+        "helper": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/width_only.rs",
+          "sha256": "7d11a2a2d88e4fe730ca285ec9fbf71a73c9d7fa5c014bccc8221e7f7e7fe258"
+        },
+        "runner": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/run_width_only.py",
+          "sha256": "acebde0f184b65e244babf7c71429080238d6ca82111cca8be2da4222561ff38"
+        },
+        "dgp": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/observational_effects.rs",
+          "sha256": "fd26e956a7add541f771204ea61bf403cda433be2e785dae200a49980c227918"
+        },
+        "raw": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/policy.csv",
+          "sha256": "edd6d3243ebdb3b24051ed1e47ebe2df2a28edd1ee695d9c7b5a927927ea3527"
+        },
+        "summary": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/policy.summary.json",
+          "sha256": "f379f5c96c116fbded09997278f01b1b02bc17e737254b34fc63faff80702b13"
+        },
+        "results": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/results.json",
+          "sha256": "9ee1d1ed9bfa5129068a83bd52c242c48dd6bdaddc57c3b3fd741e058ae1c012"
+        }
+      },
+      "numerical_source_audit": {
+        "path": "parity/recipe_evidence/v2.4.1/width_n1000/c30-numerical-source-audit.json",
+        "sha256": "7cfbdf1ac9c2f2ac777c7fedc5f349bae6f293b99c30f4417da6257f652829f1"
+      }
+    },
+    {
+      "case_id": "observational_policy_value_calibrated_3000",
+      "evidence_kind": "recordless_gate_manual_recipe",
+      "coverage_semantics": "whole_procedure_refusals_are_misses",
+      "test": "crates/antecedent-estimate/tests/observational_effects_calibration.rs::policy_held_out_n3000_l95",
+      "sample_size": 3000,
+      "nominal": 0.95,
+      "normal_critical_value": 1.959963984540054,
+      "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+      "group": "observational_effects_calibration__policy_held_out_n3000_l95",
+      "source_files": {
+        "crates/antecedent-estimate/tests/observational_effects_calibration.rs": "fe718457f2eb73251579c4e0b762eb0570248b464cea47fee1e13ebe9ca2c7dc",
+        "crates/antecedent-estimate/tests/common/observational_effects.rs": "fd26e956a7add541f771204ea61bf403cda433be2e785dae200a49980c227918",
+        "crates/antecedent/tests/common/calibration.rs": "498e39f1d16922261c95d9bbb08d63fd979473edbab2da370492a5520fa9677f"
+      },
+      "gate_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/policy_held_out_n3000_l95/original_recordless_gate.json",
+        "sha256": "150c07bb0cd91019f94a709583f46769ef98136fb75a9a1f0b08c9c7259e16b2"
+      },
+      "coverage_log": {
+        "path": "parity/recipe_evidence/v2.4.1/policy_held_out_n3000_l95/observational_effects_calibration__policy_held_out_n3000_l95.log",
+        "sha256": "d12ce9258ef15535d759fd670ce94821b2e251f4ed9847b5daab3ee37b36b492"
+      },
+      "tally": {
+        "path": "parity/recipe_evidence/v2.4.1/policy_held_out_n3000_l95/observational_effects_calibration__policy_held_out_n3000_l95.tallies.jsonl",
+        "sha256": "84a347c05f4cde5ba432c716627a3242ef0d9cfa041e52bb031d075c9b562f43"
+      },
+      "source_review": "Exact manual Wald endpoints, original DGP/truth, fixed input participants and evaluation strategy reviewed. Policy c30 defaults min_propensity=.01; e15/70 explicitly use.001. Source Git identities preserve those differences. Raw APIs remain value+SE/point-only; no automatic facade interval is asserted.",
+      "width_evidence": {
+        "kind": "saved_mean_positive_truth_bound",
+        "truth_model": "normal_threshold_policy_value",
+        "proof": "For nonnegative widths and |truth_i|>=b>0, upper-middle median(width_i/|truth_i|)<=2*sum(width_i)/(reported*b). This proves the existing target without claiming a measured empirical median."
+      },
+      "numerical_source_audit": {
+        "path": "parity/recipe_evidence/v2.4.1/width_n1000/c30-numerical-source-audit.json",
+        "sha256": "7cfbdf1ac9c2f2ac777c7fedc5f349bae6f293b99c30f4417da6257f652829f1"
+      }
+    },
+    {
+      "case_id": "observational_policy_value_selection_aware_evaluation",
+      "evidence_kind": "recordless_gate_manual_recipe",
+      "coverage_semantics": "whole_procedure_refusals_are_misses",
+      "test": "crates/antecedent-estimate/tests/observational_effects_calibration.rs::policy_cross_fitted_learning_n3000_l95",
+      "sample_size": 3000,
+      "nominal": 0.95,
+      "normal_critical_value": 1.959963984540054,
+      "calibration_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "group": "observational_effects_calibration__policy_cross_fitted_learning_n3000_l95",
+      "source_files": {
+        "crates/antecedent-estimate/tests/observational_effects_calibration.rs": "fe718457f2eb73251579c4e0b762eb0570248b464cea47fee1e13ebe9ca2c7dc",
+        "crates/antecedent-estimate/tests/common/observational_effects.rs": "fd26e956a7add541f771204ea61bf403cda433be2e785dae200a49980c227918",
+        "crates/antecedent/tests/common/calibration.rs": "f6bbfdc9e00f717a996f9fa1809f39d6f2d64f4b6b438d23109c58a0b2defb48"
+      },
+      "gate_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/policy_cross_fitted_learning_n3000_l95/original_recordless_gate.json",
+        "sha256": "f60af904ff93879535bfd20e3368815e87b311cb2a6ac6920e65545fdf96a382"
+      },
+      "coverage_log": {
+        "path": "parity/recipe_evidence/v2.4.1/policy_cross_fitted_learning_n3000_l95/observational_effects_calibration__policy_cross_fitted_learning_n3000_l95.log",
+        "sha256": "78c6160985459716428bb637484027dbdf2867ceb2974328781509bf404fe558"
+      },
+      "tally": {
+        "path": "parity/recipe_evidence/v2.4.1/policy_cross_fitted_learning_n3000_l95/observational_effects_calibration__policy_cross_fitted_learning_n3000_l95.tallies.jsonl",
+        "sha256": "c843324bca061c2041fa9e23f77c7aa7e754bca98cd423d4de32352114e93eea"
+      },
+      "source_review": "Exact manual Wald endpoints, original DGP/truth, fixed input participants and evaluation strategy reviewed. Policy c30 defaults min_propensity=.01; e15/70 explicitly use.001. Source Git identities preserve those differences. Raw APIs remain value+SE/point-only; no automatic facade interval is asserted.",
+      "width_evidence": {
+        "kind": "saved_mean_positive_truth_bound",
+        "truth_model": "normal_threshold_policy_value",
+        "proof": "For nonnegative widths and |truth_i|>=b>0, upper-middle median(width_i/|truth_i|)<=2*sum(width_i)/(reported*b). This proves the existing target without claiming a measured empirical median."
+      },
+      "numerical_source_audit": {
+        "path": "parity/recipe_evidence/v2.4.1/width_n1000/c30-numerical-source-audit.json",
+        "sha256": "7cfbdf1ac9c2f2ac777c7fedc5f349bae6f293b99c30f4417da6257f652829f1"
+      }
+    },
+    {
+      "case_id": "observational_survival_effect_calibrated_1000",
+      "evidence_kind": "recordless_gate_manual_recipe",
+      "coverage_semantics": "whole_procedure_refusals_are_misses",
+      "test": "crates/antecedent-estimate/tests/observational_effects_calibration.rs::survival_difference_covariate_censoring_n1000_l95",
+      "sample_size": 1000,
+      "nominal": 0.95,
+      "normal_critical_value": 1.959963984540054,
+      "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "group": "observational_effects_calibration__survival_difference_covariate_censoring_n1000_l95",
+      "source_files": {
+        "crates/antecedent-estimate/tests/observational_effects_calibration.rs": "46428ed37b1e65b43d18ebe0e2bee694e09f5b71427db57a7cc9601786b526d0",
+        "crates/antecedent-estimate/tests/common/observational_effects.rs": "fd26e956a7add541f771204ea61bf403cda433be2e785dae200a49980c227918",
+        "crates/antecedent/tests/common/calibration.rs": "f6bbfdc9e00f717a996f9fa1809f39d6f2d64f4b6b438d23109c58a0b2defb48"
+      },
+      "gate_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/survival_difference_covariate_censoring_n1000_l95/original_recordless_gate.json",
+        "sha256": "5ac0cf2118514e35612fe5ce8d937c5cfaac981a9e0c8f99ec528d22a67ba12a"
+      },
+      "coverage_log": {
+        "path": "parity/recipe_evidence/v2.4.1/survival_difference_covariate_censoring_n1000_l95/observational_effects_calibration__survival_difference_covariate_censoring_n1000_l95.log",
+        "sha256": "7d782b1853960440f2edc317f98511ce5912dc762740e329af7d6a212b3463fe"
+      },
+      "tally": {
+        "path": "parity/recipe_evidence/v2.4.1/survival_difference_covariate_censoring_n1000_l95/observational_effects_calibration__survival_difference_covariate_censoring_n1000_l95.tallies.jsonl",
+        "sha256": "08d6c2e6377cf6effec4b3b622aa101a2ad03d98bd7efc7035b5896f783ac4a3"
+      },
+      "source_review": "Exact manual Wald endpoints, original DGP/truth, fixed input participants and evaluation strategy reviewed. Policy c30 defaults min_propensity=.01; e15/70 explicitly use.001. Source Git identities preserve those differences. Raw APIs remain value+SE/point-only; no automatic facade interval is asserted.",
+      "width_evidence": {
+        "kind": "prospective_width_only_supplement",
+        "case": "survival",
+        "plan": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/plan.json",
+          "sha256": "4a70af6a1e18f7024a7af2beffa8489bbf16766c8bf4521f4f1dbd3616c3d65e"
+        },
+        "compiled_artifact": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/compiled-artifact.json",
+          "sha256": "ff4ba544c5f3eb86c6cf0cd8f8663481373773c35d1cf2c6c8a85bab7532a1d6"
+        },
+        "helper": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/width_only.rs",
+          "sha256": "7d11a2a2d88e4fe730ca285ec9fbf71a73c9d7fa5c014bccc8221e7f7e7fe258"
+        },
+        "runner": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/run_width_only.py",
+          "sha256": "acebde0f184b65e244babf7c71429080238d6ca82111cca8be2da4222561ff38"
+        },
+        "dgp": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/observational_effects.rs",
+          "sha256": "fd26e956a7add541f771204ea61bf403cda433be2e785dae200a49980c227918"
+        },
+        "raw": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/survival.csv",
+          "sha256": "12dbe90e5ab4e261b6df72b89d42bd2eefb322b0de586d8922559d1ef1843d5c"
+        },
+        "summary": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/survival.summary.json",
+          "sha256": "9db5aa17410b7787f87cd633660cbcdbe8c9e5c91a60173054824486958a6582"
+        },
+        "results": {
+          "path": "parity/recipe_evidence/v2.4.1/width_n1000/results.json",
+          "sha256": "9ee1d1ed9bfa5129068a83bd52c242c48dd6bdaddc57c3b3fd741e058ae1c012"
+        }
+      },
+      "numerical_source_audit": {
+        "path": "parity/recipe_evidence/v2.4.1/width_n1000/c30-numerical-source-audit.json",
+        "sha256": "7cfbdf1ac9c2f2ac777c7fedc5f349bae6f293b99c30f4417da6257f652829f1"
+      }
+    },
+    {
+      "case_id": "observational_survival_effect_calibrated_3000",
+      "evidence_kind": "recordless_gate_manual_recipe",
+      "coverage_semantics": "whole_procedure_refusals_are_misses",
+      "test": "crates/antecedent-estimate/tests/observational_effects_calibration.rs::survival_difference_covariate_censoring_n3000_l95",
+      "sample_size": 3000,
+      "nominal": 0.95,
+      "normal_critical_value": 1.959963984540054,
+      "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "group": "observational_effects_calibration__survival_difference_covariate_censoring_n3000_l95",
+      "source_files": {
+        "crates/antecedent-estimate/tests/observational_effects_calibration.rs": "46428ed37b1e65b43d18ebe0e2bee694e09f5b71427db57a7cc9601786b526d0",
+        "crates/antecedent-estimate/tests/common/observational_effects.rs": "fd26e956a7add541f771204ea61bf403cda433be2e785dae200a49980c227918",
+        "crates/antecedent/tests/common/calibration.rs": "f6bbfdc9e00f717a996f9fa1809f39d6f2d64f4b6b438d23109c58a0b2defb48"
+      },
+      "gate_receipt": {
+        "path": "parity/recipe_evidence/v2.4.1/survival_difference_covariate_censoring_n3000_l95/original_recordless_gate.json",
+        "sha256": "a51d40a4c143e2acdc33535f2eace89498f41441975fd12ac3bf35593e639340"
+      },
+      "coverage_log": {
+        "path": "parity/recipe_evidence/v2.4.1/survival_difference_covariate_censoring_n3000_l95/observational_effects_calibration__survival_difference_covariate_censoring_n3000_l95.log",
+        "sha256": "039b41f2e59f84c6f662a1c5d010029ad6aac71e316a0d12683fe096be9c1642"
+      },
+      "tally": {
+        "path": "parity/recipe_evidence/v2.4.1/survival_difference_covariate_censoring_n3000_l95/observational_effects_calibration__survival_difference_covariate_censoring_n3000_l95.tallies.jsonl",
+        "sha256": "3a36c034f54c95cc802d3d478f47071fa9798aae936ba35930ca2bab14061e2c"
+      },
+      "source_review": "Exact manual Wald endpoints, original DGP/truth, fixed input participants and evaluation strategy reviewed. Policy c30 defaults min_propensity=.01; e15/70 explicitly use.001. Source Git identities preserve those differences. Raw APIs remain value+SE/point-only; no automatic facade interval is asserted.",
+      "width_evidence": {
+        "kind": "saved_mean_positive_truth_bound",
+        "truth_model": "six_cell_exponential_survival_difference",
+        "proof": "For nonnegative widths and |truth_i|>=b>0, upper-middle median(width_i/|truth_i|)<=2*sum(width_i)/(reported*b). This proves the existing target without claiming a measured empirical median."
+      },
+      "numerical_source_audit": {
+        "path": "parity/recipe_evidence/v2.4.1/width_n1000/c30-numerical-source-audit.json",
+        "sha256": "7cfbdf1ac9c2f2ac777c7fedc5f349bae6f293b99c30f4417da6257f652829f1"
+      }
+    }
+  ]
+}

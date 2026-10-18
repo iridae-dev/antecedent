@@ -217,6 +217,19 @@ class ReleaseClosureTest(unittest.TestCase):
         stale = record(facets=[])
         self.assertTrue(any("lacks facets" in p for p in closure.construction_problems(data, [stale], candidate, release, gate)))
 
+    def test_declared_calibration_point_must_match_the_actual_size_binding(self) -> None:
+        target = case("declared", "calibrated_interval", "crates/c/tests/t.rs::design",
+                      configuration={"participants": 100, "calibration_grid_point": 2})
+        rec = record(grid=[{"point": 2, "n_min": 100, "n_max": 100, "replicates": 2000,
+                            "mcse": .005, "observed": .95, "role": "gated"}])
+        self.assertEqual(closure.calibrated_record_problems({"case":[target]}, [rec]), [])
+        target["configuration"]["calibration_grid_point"] = 1
+        self.assertTrue(any("differs from the configured" in p for p in
+                            closure.calibrated_record_problems({"case":[target]}, [rec])))
+
+    def test_donor_counts_are_explicit_case_sizes(self) -> None:
+        self.assertEqual(closure.case_size(case("knn", "value", "x::y", configuration={"donors":100000})), 100000)
+
 
 if __name__ == "__main__":
     unittest.main()

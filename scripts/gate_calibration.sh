@@ -51,7 +51,7 @@ with open("parity/acceptance_manifest.toml", "rb") as handle:
 print(" ".join(sorted({
     case["evidence"]["test"].rsplit("::", 1)[1]
     for case in cases
-    if case["expected"]["kind"] == "calibrated_interval" and case["evidence"]["status"] == "bound"
+    if case["expected"]["kind"] in {"calibrated_interval", "calibrated_statistical_test"} and case["evidence"]["status"] == "bound"
 })))
 PY
 ) "
@@ -62,7 +62,7 @@ with open("parity/acceptance_manifest.toml", "rb") as handle:
     cases = tomllib.load(handle)["case"]
 sizes = collections.defaultdict(set)
 for case in cases:
-    if case["expected"]["kind"] != "calibrated_interval" or case["evidence"]["status"] != "bound":
+    if case["expected"]["kind"] not in {"calibrated_interval", "calibrated_statistical_test"} or case["evidence"]["status"] != "bound":
         continue
     participants = case["configuration"].get("participants")
     if isinstance(participants, int):

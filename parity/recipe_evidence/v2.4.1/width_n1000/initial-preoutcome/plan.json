@@ -1,0 +1,114 @@
+{
+  "status": "SEALED_PLAN_NO_SIMULATIONS",
+  "domain": "release_2_4_1_missing_width_v1",
+  "domain_sha256": "fda5919810d79ef278e5f2bc36f0b3d827f2167e9d36541bf91e2ceb36207974",
+  "seed_salt_hex": "0xF29ED7109891A5FD",
+  "seed_rule": "(original case base + replicate) XOR SHA256(domain)[0:8] little-endian; policy base0x6b0000, survival base0x5e0000",
+  "replicate_indices": [
+    0,
+    2047
+  ],
+  "attempts_per_case": 2048,
+  "participants": 1000,
+  "worker_count": 1,
+  "stopping": "Exactly2048 attempts per case, no adaptive extension, no seed replacement; fail if fewer than2000 finite reported intervals",
+  "frozen_thresholds": {
+    "min_reported": 2000,
+    "min_reporting_rate": 0.9,
+    "max_median_width_over_effect": 1.5
+  },
+  "metrics": [
+    "reporting rate",
+    "median(width)/median(abs(truth))",
+    "median(width/abs(truth))"
+  ],
+  "coverage": "Never compute, retest or overwrite coverage; supplement only missing width information on unused datasets",
+  "source_commit": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+  "dgp": {
+    "path": "crates/antecedent-estimate/tests/common/observational_effects.rs",
+    "sha256": "fd26e956a7add541f771204ea61bf403cda433be2e785dae200a49980c227918"
+  },
+  "harness": {
+    "path": "crates/antecedent-estimate/tests/observational_effects_calibration.rs",
+    "sha256": "fe718457f2eb73251579c4e0b762eb0570248b464cea47fee1e13ebe9ca2c7dc"
+  },
+  "function_excerpts": {
+    "estimate_policy": "ff486ef64528b4884a335df6a2f623ac534749c1e8f4b446983f4cd06e01cfea",
+    "learned_rule_value": "a4161ada7f293c30b96e793a998128463a22d5ae7c142fdad1bd8053d28d22c3"
+  },
+  "helper_sha256": "10adf8bb110f077c1619cd6b437b404a7ea56b661d0843f3752066ffd9536b14",
+  "raw_output": "One CSV row per attempt retaining exact seed, refusal/report status, width and truth magnitude; summary JSON and hashes retained after run",
+  "compiler_command": [
+    "rustc",
+    "--edition=2024",
+    "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/width-only-v241-plan/width_only.rs",
+    "-C",
+    "opt-level=2",
+    "-L",
+    "dependency=/private/tmp/antecedent-attestation-target/release/deps",
+    "--extern",
+    "antecedent_core=/private/tmp/antecedent-attestation-target/release/deps/libantecedent_core-c20c7965062d16d9.rlib",
+    "--extern",
+    "antecedent_estimate=/private/tmp/antecedent-attestation-target/release/deps/libantecedent_estimate-20e6c313ba963214.rlib",
+    "--extern",
+    "antecedent_kernels=/private/tmp/antecedent-attestation-target/release/deps/libantecedent_kernels-20d75b2aeca8f70d.rlib",
+    "--extern",
+    "serde_json=/private/tmp/antecedent-attestation-target/release/deps/libserde_json-f98deb5eacd84cc6.rlib",
+    "-o",
+    "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/width-only-v241-plan/width_only"
+  ],
+  "rlib_provenance_claim": "Controlled build at independently captured clean0ffa, retained Cargo logs and exact fingerprints/rlibs hashed. No embedded cryptographic source-SHA attestation is claimed.",
+  "production_source_comparison": {
+    "crates/antecedent-estimate/src/observational_policy.rs": {
+      "source70_sha256": "fe1d581e0c413f4c08645672a1e54336c09ac39ea2285bc2d5efecb7cd2f26aa",
+      "build0ffa_sha256": "fe1d581e0c413f4c08645672a1e54336c09ac39ea2285bc2d5efecb7cd2f26aa",
+      "equal": true
+    },
+    "crates/antecedent-estimate/src/observational_survival.rs": {
+      "source70_sha256": "4c823bc7ea6397a4dfbff29ba62860c532e906204be18e3e850b121bdd3e78e7",
+      "build0ffa_sha256": "4c823bc7ea6397a4dfbff29ba62860c532e906204be18e3e850b121bdd3e78e7",
+      "equal": true
+    }
+  },
+  "artifact_sha256": {
+    "/private/tmp/antecedent-attestation-target/release/.fingerprint/antecedent-05c06c55a7d4d292/test-integration-test-evidence_synthesis_calibration.json": "eff0926d223cbce54d357d34f6f687bf284f4617e6a50fc41ebd21cc3a7dd880",
+    "/private/tmp/antecedent-attestation-target/release/.fingerprint/antecedent-kernels-20d75b2aeca8f70d/lib-antecedent_kernels": "f7e6eb98f52c6fa77d639bb35630c76ae99ee22a76b564db4959e4af837dc84a",
+    "/private/tmp/antecedent-attestation-target/release/deps/libantecedent_kernels-20d75b2aeca8f70d.rlib": "ceb6d02800f45dfbade28e13ae2700d4cbd642b6567633b6696ecf1384ab9024",
+    "/private/tmp/antecedent-attestation-target/release/.fingerprint/serde_json-f98deb5eacd84cc6/lib-serde_json": "75bf63fa12e3e6e817417f191da647d4a95323d29cd0d527b4d8a20b8ae6281d",
+    "/private/tmp/antecedent-attestation-target/release/deps/libserde_json-f98deb5eacd84cc6.rlib": "4d37f2b742f450c52f6b5bd2e9774ff7b11b7e9ac016af8f637365ffbb05188c",
+    "/private/tmp/antecedent-attestation-target/release/.fingerprint/antecedent-estimate-20e6c313ba963214/lib-antecedent_estimate": "13b3c988b801035a709ea5b735a704f323a85db10dd90d0e9e144efce8f9f65f",
+    "/private/tmp/antecedent-attestation-target/release/deps/libantecedent_estimate-20e6c313ba963214.rlib": "2f7400e1410fd05afe0d700a93e6883f2fc27cc39f89202d03191b0a8da0d9c9",
+    "/private/tmp/antecedent-attestation-target/release/.fingerprint/antecedent-core-c20c7965062d16d9/lib-antecedent_core": "6258a6be4be7a23c2b31d8689131df3c3091083b1434485fb7b30c37e4c8bb3e",
+    "/private/tmp/antecedent-attestation-target/release/deps/libantecedent_core-c20c7965062d16d9.rlib": "978292c597c8810507de7d80131fff6d9f66136c5ad610181ce5c0a17852cc29"
+  },
+  "approval_required_before_simulation": true,
+  "controlled_build_provenance": {
+    "path": "target/calibration-audit/width-only-v241-plan/controlled-build-provenance.json",
+    "sha256": "4135e7a5a754110eb816896c819155b6760019eb066f6c18ba64c69ac2bf3b38"
+  },
+  "normal_critical_value_source": {
+    "path": "crates/antecedent/tests/common/calibration.rs",
+    "sha256": "498e39f1d16922261c95d9bbb08d63fd979473edbab2da370492a5520fa9677f",
+    "exact_literal": "1.959_963_984_540_054"
+  },
+  "seed_nonoverlap_audit": {
+    "new_seed_count": 4096,
+    "prior_domain_salts": [
+      "legacy0",
+      "release_2_4_1_validation_v1"
+    ],
+    "prior_grid_salts": [
+      11415608902216751768,
+      0,
+      15111065706836454658
+    ],
+    "prior_confirmation_salts": [
+      0,
+      6364136223846793005
+    ],
+    "prior_prefix_per_case": 20000,
+    "intersection_count": 0,
+    "scope": "Exact top-level CausalRng/ExecutionContext seeds for these two same-DGP source cases; no claim of mathematical independence between arbitrary PRNG seeds or every unrelated suite generator."
+  },
+  "rustc_version_verbose": "rustc 1.85.1 (4eb161250 2025-03-15)\nbinary: rustc\ncommit-hash: 4eb161250e340c8f48f66e2b929ef4a5bed7c181\ncommit-date: 2025-03-15\nhost: aarch64-apple-darwin\nrelease: 1.85.1\nLLVM version: 19.1.7\n"
+}

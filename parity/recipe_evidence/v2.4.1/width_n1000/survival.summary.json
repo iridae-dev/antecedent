@@ -1,0 +1,1 @@
+{"attempts":2048,"case":"survival","coverage_computed":false,"max_median_width_over_effect":1.5,"median_abs_truth":0.14896576952619978,"median_per_replicate_width_over_abs_truth":0.9811830261921529,"median_width":0.1461626845427595,"median_width_over_median_abs_truth":0.9811830261921529,"reported":2048,"reporting_rate":1.0,"required_reported":2000}

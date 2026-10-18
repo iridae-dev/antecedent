@@ -122,5 +122,23 @@ class ClosureTest(unittest.TestCase):
         self.assertEqual(manifest.scale_cases(data, self.root)[0]["runtime_seconds"], 1)
 
 
+class StatisticalCalibrationKindTest(unittest.TestCase):
+    def test_statistical_test_requires_explicit_type_i_and_inapplicable_width(self) -> None:
+        target = case(kind="calibrated_statistical_test")
+        target["configuration"]["calibration_target"] = "conditional_null_rejection_rate"
+        target["targets"].update(nominal_coverage=.95, coverage_floor=.93,
+                                  min_replicates=2000, min_reporting_rate=.9, type_i_alpha=.05,
+                                  precision_target="not_applicable", precision_reason="P-value, not an effect interval.")
+        self.assertEqual(manifest.case_problems(target), [])
+        target["targets"]["max_median_width_over_effect"] = 1.5
+        self.assertTrue(any("width must be explicitly inapplicable" in p for p in manifest.case_problems(target)))
+        del target["targets"]["max_median_width_over_effect"]
+        target["targets"]["type_i_alpha"] = .1
+        self.assertTrue(any("explicit conditional Type-I" in p for p in manifest.case_problems(target)))
+        target["targets"]["type_i_alpha"] = .05
+        target["expected"]["kind"] = "calibrated_interval"
+        self.assertTrue(any("precision target" in p for p in manifest.case_problems(target)))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2914,9 +2914,9 @@ evidence = { status = "bound", test = "crates/antecedent-validate/src/sensitivit
 id = "scalable_gpdc_replacement_validated_separately"
 area = "scalable_ci_sensitivity"
 workflow = "antecedent.discovery conditional GPDC test"
-configuration = { rows = 8000, replicates = 2000 }
-expected = { kind = "calibrated_interval", outputs = ["replacement construction has its own identity and record"] }
-targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
+configuration = { rows = 8000, replicates = 2000, calibration_target = "conditional_null_rejection_rate" }
+expected = { kind = "calibrated_statistical_test", outputs = ["replacement conditional-independence construction has its own identity and provenance record", "conditional-null Type-I calibration at alpha 0.05"] }
+targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest. The GPDC construction is a conditional-independence test, with unchanged conditional-null Type-I, replicate and reporting targets.", type_i_alpha = 0.05, precision_target = "not_applicable", precision_reason = "A conditional-independence test reports a p-value or refusal, not an effect interval; interval width divided by effect has no defined quantity here.", target_change = "Correct the generic interval-template classification while preserving every numerical Type-I/count/reporting target." }
 dataset = { generator = "conditional_independence_testbed", seed = 6101623, n = 8000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
 evidence = { status = "bound", test = "crates/antecedent-stats/src/ci/calibration.rs::scalable_gpdc_replacement_validated_separately" }
 

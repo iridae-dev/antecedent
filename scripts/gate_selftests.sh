@@ -24,6 +24,7 @@ python3 scripts/check_prerequisites.py --self-test
 python3 scripts/check_acceptance_manifest.py --self-test
 python3 scripts/test_check_acceptance_manifest.py
 python3 scripts/test_check_release_closure.py
+python3 scripts/test_calibration_recipe_receipts.py
 python3 scripts/test_generate_calibration_backlog.py
 python3 scripts/test_ci_workflow.py
 bash scripts/gate_scale_cases.sh --self-test

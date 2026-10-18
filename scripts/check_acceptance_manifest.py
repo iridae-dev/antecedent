@@ -9,7 +9,7 @@ case and is used at release closure. A bound case must also name a real test: a
 live (not skipped, not deferred) function that asserts, never a script that merely
 documents a limit, and its evidence may not be an audit, a configurable limit, a
 failed measurement, documentation-only narrowing or a deferral. An `#[ignore]` test
-closes only a `calibrated_interval` case or a release-only scale case run by a named
+closes only a calibrated construction case or a release-only scale case run by a named
 gate script (`scripts/gate_*.sh`).
 
     python3 scripts/check_acceptance_manifest.py
@@ -21,6 +21,7 @@ gate script (`scripts/gate_*.sh`).
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 import tomllib
@@ -82,7 +83,8 @@ AREAS = frozenset(
         "release_conformance",
     ]
 )
-KINDS = frozenset({"value", "refusal", "interval", "calibrated_interval", "receipt"})
+CALIBRATED_KINDS = frozenset({"calibrated_interval", "calibrated_statistical_test"})
+KINDS = frozenset({"value", "refusal", "interval", "receipt"}) | CALIBRATED_KINDS
 INTERVAL_KINDS = frozenset({"interval", "calibrated_interval"})
 STATUSES = frozenset({"planned", "bound"})
 CASE_FIELDS = (
@@ -220,7 +222,7 @@ def case_problems(case: dict[str, Any]) -> list[str]:
                 and 0 < targets[key] <= 1
             ):
                 errors.append(f"{prefix}: targets.{key} must be in (0, 1]")
-        if kind in INTERVAL_KINDS:
+        if kind in INTERVAL_KINDS or kind == "calibrated_statistical_test":
             nominal = targets.get("nominal_coverage")
             floor = targets.get("coverage_floor")
             if not isinstance(nominal, (int, float)) or not 0.5 < nominal < 1:
@@ -229,7 +231,7 @@ def case_problems(case: dict[str, Any]) -> list[str]:
                 errors.append(
                     f"{prefix}: interval cases need targets.coverage_floor in (0.5, nominal_coverage]"
                 )
-        if kind == "calibrated_interval":
+        if kind in CALIBRATED_KINDS:
             reps = targets.get("min_replicates")
             if not isinstance(reps, int) or isinstance(reps, bool) or reps < MIN_REPLICATES:
                 errors.append(
@@ -240,8 +242,18 @@ def case_problems(case: dict[str, Any]) -> list[str]:
                 errors.append(
                     f"{prefix}: calibrated cases need targets.min_reporting_rate >= {MIN_REPORTING_RATE}"
                 )
-            if not any(key.startswith("max_median") for key in targets):
+            if kind == "calibrated_interval" and not any(key.startswith("max_median") for key in targets):
                 errors.append(f"{prefix}: calibrated cases need a precision target (max_median_*)")
+            if kind == "calibrated_statistical_test":
+                if (case["configuration"].get("calibration_target") != "conditional_null_rejection_rate"
+                        or not isinstance(targets.get("type_i_alpha"), (int, float))
+                        or not math.isclose(targets["type_i_alpha"], 1 - targets.get("nominal_coverage", 0), abs_tol=1e-12)):
+                    errors.append(f"{prefix}: statistical-test calibration needs its explicit conditional Type-I target")
+                if (targets.get("precision_target") != "not_applicable"
+                        or not isinstance(targets.get("precision_reason"), str)
+                        or not targets["precision_reason"].strip()
+                        or any(key.startswith("max_median") for key in targets)):
+                    errors.append(f"{prefix}: statistical-test width must be explicitly inapplicable, never an interval precision claim")
 
     dataset = case["dataset"]
     if not isinstance(dataset, dict):
@@ -388,7 +400,7 @@ def scale_cases(data: dict[str, Any], root: Path = ROOT) -> list[dict[str, Any]]
     cases = []
     for case in data.get("case", []):
         evidence = case.get("evidence", {})
-        if evidence.get("status") != "bound" or case["expected"]["kind"] == "calibrated_interval":
+        if evidence.get("status") != "bound" or case["expected"]["kind"] in CALIBRATED_KINDS:
             continue
         path, name = evidence["test"].split("::", 1)[0], evidence["test"].rsplit("::", 1)[1]
         target = SCALE_TARGET.match(path)
@@ -453,11 +465,11 @@ def closure_problems(
         errors.append(f"{prefix}: {where} is not a test function")
     if suffix == ".py" and not checker and not name.startswith("test"):
         errors.append(f"{prefix}: {where} is not a test function")
-    if ("#[ignore" in decoration and kind != "calibrated_interval"
+    if ("#[ignore" in decoration and kind not in CALIBRATED_KINDS
             and (SCALE_TARGET.match(path) is None or not scale_gate_wired(root))):
         errors.append(
             f"{prefix}: {where} is #[ignore]d and {SCALE_GATE} does not run it in the "
-            "release-candidate gate; only a calibrated_interval case or a release-only "
+            "release-candidate gate; only a calibrated construction case or a release-only "
             "scale case run by a named gate may bind an ignored test"
         )
     if DEFERRED_TEST.search(decoration + "\n" + source):

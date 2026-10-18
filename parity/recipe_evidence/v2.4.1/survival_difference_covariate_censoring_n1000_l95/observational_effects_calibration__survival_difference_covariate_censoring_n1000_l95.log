@@ -1,0 +1,10 @@
+    Finished `release` profile [optimized] target(s) in 0.15s
+     Running tests/observational_effects_calibration.rs (target/release/deps/observational_effects_calibration-9cb023ca9669b7b5)
+
+running 1 test
+calibration survival_difference_covariate_censoring_n1000_l95: nominal=0.95 coverage=0.955 mcse=0.0049 band=[0.935, 0.965] floor=0.940 ceiling=0.960 mean_length=0.1466 (1910/2000 covered, 0 skipped)
+test survival_difference_covariate_censoring_n1000_l95 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 13.86s
+
+calibration-measured-at c30e10304f4bd85a01ad81dd133a360ddc95c2f1
