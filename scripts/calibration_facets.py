@@ -94,6 +94,8 @@ RECORD_KEY_FIELDS = (
     "posterior",
     "functional",
     "identification",
+    # Derived from the immutable recordless ledger, never a fabricated coverage key.
+    "gate_group",
 )
 # Manifests whose workspace-version lines a release bump rewrites. Their other
 # content (features, external dependency versions, profiles) is compared.
@@ -671,13 +673,15 @@ def load_gate_rows(path: Path = GATES) -> list[dict]:
     """The record-less calibration groups (CI Type I, uniformity, SBC, ...) as pseudo-records.
 
     Their logs leave no coverage record, so without this a change to the core facet could
-    never make one of them owe a re-run. Each depends on `core` only: the ledger does not
-    name the suite behind a group, and over-attesting nothing is the safe direction."""
+    never make one of them owe a re-run. Each depends on `core`; explicit reviewed `gate_group` rules may add known
+    implementation dependencies from the immutable group name. No coverage identity
+    or numerical payload is inferred from that name."""
     if not path.is_file():
         return []
     return [
         {
             "id": f"{GATE_PREFIX}{row['group']}",
+            "gate_group": row["group"],
             "test": "",
             "dgp": "",
             "calibration_sha": row["calibration_sha"],
@@ -2236,6 +2240,7 @@ def coverage_family_replay_environments(records: list[dict]) -> list[dict[str, s
             decision.ENV: decision.canonical_json(expected_config),
             "ANTECEDENT_CALIBRATION_GRID_POINTS": str(point),
             "ANTECEDENT_CALIBRATION_NSIM": str(budget),
+            "ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM": str(budget),
             "ANTECEDENT_CALIBRATION_RECHECK_NSIM": str(max(2000, budget + 1)),
         }
         for point, budget in sorted(recipes[0].items())
@@ -3409,6 +3414,7 @@ def self_test() -> int:
             None,
         )
         core_owned = {
+            "randomized_ht",
             "randomized_complete_neyman",
             "randomized_ancova_hc0",
             "randomized_independent_action_score",
@@ -3418,14 +3424,36 @@ def self_test() -> int:
             "randomized.ancova_itt",
             "randomized.neyman_itt",
         }
+        # Shared exact evaluation is an additional real numerical dependency,
+        # not a replacement for the route's estimator owner.
+        exact_routes = (
+            est.startswith(("transport.", "functional.", "cross_world.", "observation.count_fitted_tables."))
+            or est in {"joint_bayesian_transport", "learned_joint_transport",
+                       "sampled_counterfactual_transport", "dose_grid_quadratic",
+                       "dependent_temporal_interval"}
+        )
+        if exact_routes and "estimator.exact_transport" not in got:
+            split.append((est, got))
+        route_got = set(got) - ({"estimator.exact_transport"} if exact_routes else set())
         if other_owner is not None or est in core_owned:
             required = other_owner or CORE
-            if got or required not in carried:
+            if route_got or required not in carried:
                 split.append((est, sorted(carried)))
             continue
         # Transport records can depend on both shared and route-specific
         # estimator surfaces. Keep every such attestation obligation explicit.
         expected = transport_facets.get(est)
+        if expected is not None:
+            expected = set(expected)
+            if rec.get("query") == "DiscoveredTransport":
+                expected |= {"estimator.discovered_transport", "estimator.discrete_ci"}
+                if "pcmci_plus" in str(rec.get("functional", "")):
+                    expected.add("estimator.pcmci_plus")
+        if rec.get("interval_method") == "population_linear_aipw_score":
+            expected = {"estimator.aipw" if est == "aipw" else "estimator.learner",
+                        "estimator.population_linear_aipw", "estimator.propensity_weighting"}
+        if rec.get("interval_method") == "population_linear_atc_hc3":
+            expected = {"estimator.aipw", "estimator.population_linear_atc"}
         if est == "distance.matching":
             expected = {"estimator.distance_matching", "estimator.propensity_matching"}
         if est.startswith("estimate.knn_distance_matching"):
@@ -3440,7 +3468,7 @@ def self_test() -> int:
             and rec.get("inference") == "Frequentist"
         ):
             expected = {"estimator.response", "estimator.response_levels"}
-        if expected is not None and set(got) != expected or expected is None and len(got) != 1:
+        if expected is not None and route_got != expected or expected is None and len(route_got) != 1:
             split.append((est, got))
     expect(
         split == [],

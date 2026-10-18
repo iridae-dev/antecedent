@@ -334,6 +334,7 @@ class CoverageFamilyReplayRecipeTest(unittest.TestCase):
         historical.assert_called_once_with(record["calibration_sha"])
         self.assertEqual([int(e["ANTECEDENT_CALIBRATION_NSIM"]) for e in envs], [400, 2000, 20000])
         self.assertEqual([e["ANTECEDENT_CALIBRATION_GRID_POINTS"] for e in envs], ["0", "1", "2"])
+        self.assertEqual([int(e["ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM"]) for e in envs], [400, 2000, 20000])
         for env in envs:
             self.assertEqual(json.loads(env[decision.ENV]), config)
             self.assertNotIn("ANTECEDENT_CALIBRATION_SHA", env)

@@ -31,9 +31,7 @@ class DependencyFacets(unittest.TestCase):
         ):
             self.assertIn(self.surface.facet_of(path), depends)
         self.assertEqual(
-            self.surface.facet_of(
-                "crates/antecedent-discovery/src/selective/contract.rs"
-            ),
+            self.surface.facet_of("crates/antecedent-discovery/src/selective/contract.rs"),
             facets.CORE,
         )
 
@@ -46,9 +44,9 @@ class DependencyFacets(unittest.TestCase):
         self.assertNotIn("estimator.discovered_transport", depends)
         self.assertNotIn("estimator.pcmci_plus", depends)
         code = facets.rust_code(
-            (
-                ROOT / "crates/antecedent/tests/transport_statistical_calibration.rs"
-            ).read_text(encoding="utf-8")
+            (ROOT / "crates/antecedent/tests/transport_statistical_calibration.rs").read_text(
+                encoding="utf-8"
+            )
         )
         self.assertIn("identify_catalog_transport", code)
         self.assertNotIn("estimate_discovered_transport", code)
@@ -59,9 +57,7 @@ class DependencyFacets(unittest.TestCase):
             for field in ("estimator", "functional"):
                 self.assertIn(
                     "estimator.pcmci_plus",
-                    facets.record_facets(
-                        {field: "procedure." + name + ".v1"}, self.surface
-                    ),
+                    facets.record_facets({field: "procedure." + name + ".v1"}, self.surface),
                 )
         self.assertNotIn(
             "estimator.pcmci_plus",
@@ -87,13 +83,13 @@ class DependencyFacets(unittest.TestCase):
             if any(name in code for name in names) or '"pcmci_plus"' in text:
                 users.add(path.relative_to(ROOT).as_posix())
         self.assertEqual(users, {DISCOVERED})
-        self.assertIn('query: "DiscoveredTransport"', (ROOT / DISCOVERED).read_text(encoding="utf-8"))
+        self.assertIn(
+            'query: "DiscoveredTransport"', (ROOT / DISCOVERED).read_text(encoding="utf-8")
+        )
 
     def test_frozen_source_records_can_be_retagged_without_restamping_evidence(self):
         frozen = "70a71dd33"
-        sha = subprocess.check_output(
-            ["git", "rev-parse", frozen], cwd=ROOT, text=True
-        ).strip()
+        sha = subprocess.check_output(["git", "rev-parse", frozen], cwd=ROOT, text=True).strip()
         old_text = subprocess.check_output(
             ["git", "show", f"{sha}:scripts/calibration_surface.list"],
             cwd=ROOT,
@@ -116,9 +112,7 @@ class DependencyFacets(unittest.TestCase):
             collector.tag_facets({"frozen": record})
         self.assertIn("estimator.discovered_transport", record["facets"])
         self.assertIn("estimator.pcmci_plus", record["facets"])
-        self.assertEqual(
-            source_identity, (record["calibration_sha"], record["surface_list_blob"])
-        )
+        self.assertEqual(source_identity, (record["calibration_sha"], record["surface_list_blob"]))
         self.assertEqual(record["facets"], facets.record_facets(record, self.surface))
 
     def test_catalog_and_exact_plan_users_carry_their_real_dependencies(self):
@@ -200,6 +194,133 @@ class DependencyFacets(unittest.TestCase):
             },
         )
 
+    def test_selection_separation_includes_transport_and_recovery_proof_routes(self):
+        path = "crates/antecedent-identify/src/selection_separation.rs"
+        self.assertEqual(self.surface.facet_of(path), "identity.transport_selection")
+        for query in (
+            "ClassicalTransport",
+            "ConditionalTransport",
+            "MetaTransport",
+            "TemporalTransport",
+            "DiscoveredTransport",
+            "ZTransport",
+            "MzTransport",
+            "CounterfactualEventQuery",
+            "ObservationConditionalProbability",
+            "ObservationRecovery",
+            "RecoveredEffect",
+            "MixedSourceQuery",
+        ):
+            self.assertIn(
+                "identity.transport_selection",
+                facets.record_facets({"query": query}, self.surface),
+                query,
+            )
+        for estimator in (
+            "sampled_observation_recovery",
+            "transport.smoothed_dose_transport_aipw",
+        ):
+            self.assertIn(
+                "identity.transport_selection",
+                facets.record_facets({"estimator": estimator}, self.surface),
+            )
+        for query in (
+            "AverageEffect",
+            "ResponseCurve",
+            "SplitParentSetEffect",
+            "PooledEffect",
+        ):
+            self.assertNotIn(
+                "identity.transport_selection",
+                facets.record_facets({"query": query}, self.surface),
+            )
+        for record in facets.load_records():
+            if record["calibration_sha"].startswith("e15c4b0c3"):
+                self.assertNotIn(
+                    "identity.transport_selection",
+                    facets.record_facets(record, self.surface),
+                )
+
+    def test_recordless_transport_consumers_keep_selection_dependency(self):
+        gates = {row["id"]: row for row in facets.load_gate_rows()}
+        for stem in (
+            "smoothed_dose_calibration__smoothed_dose_transport_grid_points",
+            "smoothed_dose_calibration__smoothed_dose_transport_weak_overlap_boundary",
+            "learned_continuous_calibration__learned_trial_aipw_misspecified_nuisance_cases",
+            "learned_continuous_calibration__learned_trial_aipw_weak_overlap_boundary",
+        ):
+            row = gates[facets.GATE_PREFIX + stem]
+            self.assertIn("identity.transport_selection", facets.record_facets(row, self.surface))
+        for stem in (
+            "observational_effects_calibration__policy_held_out_n1000_l95",
+            "observational_effects_calibration__survival_difference_covariate_censoring_n1000_l95",
+        ):
+            self.assertNotIn(
+                "identity.transport_selection",
+                facets.record_facets(gates[facets.GATE_PREFIX + stem], self.surface),
+            )
+
+    def test_selection_separation_direct_callers_match_reviewed_inventory(self):
+        # These identifiers name the actual numerical kernels and independent checker.
+        names = (
+            "MutilatedSelection",
+            "SubsetSearchEnd",
+            "independently_separated",
+            "for_each_admissible_subset",
+            "for_each_admissible_subset_preferring",
+        )
+        users = set()
+        source = ROOT / "crates/antecedent-identify/src"
+        for path in source.rglob("*.rs"):
+            if path.name == "selection_separation.rs":
+                continue
+            code = facets.rust_code(path.read_text(encoding="utf-8"))
+            if any(name in code for name in names):
+                users.add(path.relative_to(source).as_posix())
+        self.assertEqual(users, {"sid.rs", "sid/catalog.rs", "sid/z_transport.rs", "transport.rs"})
+        # Observation recovery is an indirect SID consumer and must not be omitted
+        # simply because its public query is not spelled Transport.
+        for rel in (
+            "recovery.rs",
+            "recovery/witness.rs",
+            "sid/conditional.rs",
+            "sid/cpdag_completion.rs",
+            "sid/scenarios.rs",
+            "sid/temporal_sequence.rs",
+        ):
+            code = facets.rust_code((source / rel).read_text(encoding="utf-8"))
+            self.assertIn("identify_classical_transport_metered", code, rel)
+        for rel in ("sid/meta.rs", "sid/mz_transport.rs", "sid/z_transport/search.rs"):
+            code = facets.rust_code((source / rel).read_text(encoding="utf-8"))
+            self.assertIn("Engine::new", code, rel)
+
+    def test_selection_retag_keeps_historical_source_and_surface_blob(self):
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "70a71dd33"], cwd=ROOT, text=True
+        ).strip()
+        old_surface = facets.load_surface(
+            text=subprocess.check_output(
+                ["git", "show", f"{sha}:scripts/calibration_surface.list"],
+                cwd=ROOT,
+                text=True,
+            )
+        )
+        record = {
+            "query": "ClassicalTransport",
+            "calibration_sha": sha,
+            "surface_list_blob": collector.surface_list_blob(sha),
+        }
+        record["facets"] = facets.record_facets(record, old_surface)
+        self.assertNotIn("identity.transport_selection", record["facets"])
+        identity = (record["calibration_sha"], record["surface_list_blob"])
+        with (
+            patch.object(collector.facets, "load_surface", return_value=self.surface),
+            patch.object(collector.facets, "references", return_value=None),
+        ):
+            collector.tag_facets({"record": record})
+        self.assertIn("identity.transport_selection", record["facets"])
+        self.assertEqual(identity, (record["calibration_sha"], record["surface_list_blob"]))
+
     def test_reviewed_unit_modules_are_not_measurement_hosts(self):
         hosts = {
             str(row.get(field, "")).rsplit("::", 1)[0]
@@ -221,13 +342,9 @@ class DependencyFacets(unittest.TestCase):
             self.assertIn("mod tests", text)
             original = facets.scaffolding_view(path, text)
             unit = "\n#[cfg(test)] mod sentinel_unit { fn unit_only_marker() {} }\n"
-            self.assertEqual(
-                original.strip(), facets.scaffolding_view(path, text + unit).strip()
-            )
+            self.assertEqual(original.strip(), facets.scaffolding_view(path, text + unit).strip())
             production = "\nfn production_change_must_remain_visible() {}\n"
-            self.assertNotEqual(
-                original, facets.scaffolding_view(path, text + production)
-            )
+            self.assertNotEqual(original, facets.scaffolding_view(path, text + production))
 
     def test_recordless_pcmci_gates_execute_the_separate_plain_algorithm(self):
         # The old recordless ledger contains plain PCMCI, not PCMCI+/JPCMCI+.
@@ -237,6 +354,47 @@ class DependencyFacets(unittest.TestCase):
         self.assertIn("fn pcmci_null_fpr_near_alpha", code)
         self.assertIn("fn pcmci_planted_lag1_power", code)
         self.assertNotIn("PcmciPlus::", code)
+
+    def test_recordless_knn_gate_retains_its_actual_numerical_dependencies(self):
+        path = "crates/antecedent-estimate/tests/knn_matching_calibration.rs"
+        code = facets.rust_code((ROOT / path).read_text(encoding="utf-8"))
+        self.assertIn("KnnDistanceMatching::new(NEIGHBORS)", code)
+        self.assertIn("with_population_variance(true)", code)
+        expected = {
+            "estimator.knn_distance_matching",
+            "estimator.distance_matching",
+            "estimator.propensity_matching",
+            "suite.knn_matching_calibration",
+        }
+        for point in range(3):
+            row = {
+                "gate_group": f"knn_matching_calibration__knn_matching_interval_ci_coverage.p{point}"
+            }
+            depends = set(facets.record_facets(row, self.surface))
+            self.assertTrue(expected <= depends)
+            for actual_path in (
+                "crates/antecedent-estimate/src/propensity/knn.rs",
+                "crates/antecedent-estimate/src/propensity/distance.rs",
+                "crates/antecedent-estimate/src/propensity/matching.rs",
+                path,
+            ):
+                self.assertTrue((ROOT / actual_path).is_file())
+                self.assertIn(self.surface.facet_of(actual_path), depends)
+        for group in (
+            "observational_effects_calibration__policy_held_out_n1000_l95",
+            "knn_matching_calibration__knn_matching_interval_ci_coverage.p9",
+            "knn_matching_calibration__knn_matching_interval_ci_coverage.p0_backup",
+        ):
+            self.assertTrue(
+                expected.isdisjoint(facets.record_facets({"gate_group": group}, self.surface))
+            )
+        for production in (
+            "crates/antecedent-stats/src/ci/advanced.rs",
+            "crates/antecedent-stats/src/ci/calibration.rs",
+            "crates/antecedent-validate/src/sensitivity.rs",
+        ):
+            self.assertTrue((ROOT / production).is_file())
+            self.assertEqual(self.surface.facet_of(production), facets.CORE)
 
 
 if __name__ == "__main__":

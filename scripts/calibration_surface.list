@@ -52,6 +52,15 @@ key estimator.discovered_transport query DiscoveredTransport
 # Catalog search and exact transport plans are not used by regression/response
 # constructors. The transport tests below replay the genuine changed paths;
 # their unrelated records do not acquire a fabricated execution dependency.
+# Selection separation serves ordinary/catalog/Z/meta/conditional transport and
+# the SID-backed observation-recovery proof. Regression/discovery effect fits
+# never call it. Keep recovery and proof consumers, including non-Transport keys.
+identity.transport_selection crates/antecedent-identify/src/selection_separation.rs
+key identity.transport_selection query *Transport* *Recovery* RecoveredEffect* Observation* CounterfactualEventQuery *MixedSource*
+key identity.transport_selection estimator *transport* *recovery* *recovered*
+key identity.transport_selection functional *transport* *recovery* *recovered*
+# The recordless ledger lacks query fields; retain its reviewed transport routes too.
+key identity.transport_selection gate_group *transport* *recovery* *mixed_source* smoothed_dose_calibration__* learned_continuous_calibration__*
 identity.catalog_transport crates/antecedent-identify/src/sid/catalog.rs
 key identity.catalog_transport query *Transport*
 key identity.catalog_transport estimator *transport*
@@ -125,6 +134,12 @@ key estimator.distance_matching estimator distance.matching
 key estimator.distance_matching estimator estimate.knn_distance_matching*
 estimator.knn_distance_matching crates/antecedent-estimate/src/propensity/knn.rs
 key estimator.knn_distance_matching estimator estimate.knn_distance_matching*
+# The recordless KNN interval gate executes this wrapper, its distance/OLS kernel
+# and the exact measurement suite; it has no estimator/test fields to match.
+key estimator.knn_distance_matching gate_group knn_matching_calibration__knn_matching_interval_ci_coverage.p[012]
+key estimator.distance_matching gate_group knn_matching_calibration__knn_matching_interval_ci_coverage.p[012]
+key estimator.propensity_matching gate_group knn_matching_calibration__knn_matching_interval_ci_coverage.p[012]
+key suite.knn_matching_calibration gate_group knn_matching_calibration__knn_matching_interval_ci_coverage.p[012]
 estimator.multi_level_aipw crates/antecedent-estimate/src/propensity/generalized.rs
 estimator.multi_level_aipw crates/antecedent/src/analysis/multi_level_treatment.rs
 key estimator.multi_level_aipw estimator propensity.generalized_aipw
