@@ -16,7 +16,7 @@ use antecedent::{
 };
 use antecedent_core::{AverageEffectQuery, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
-use antecedent_estimate::{AipwAte, ClusterDml, ScoreTable};
+use antecedent_estimate::{AipwAte, ClusterDml, DmlAte, DrLearner, SamplingWeights, ScoreTable};
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
 use antecedent_stats::student_t_ppf;
@@ -118,7 +118,19 @@ fn close(a: f64, b: f64, what: &str) {
 #[test]
 fn the_published_interval_uses_the_few_cluster_t_reference() {
     let fx = fixture(5);
-    let result = study(&fx).run(&ExecutionContext::for_tests(5)).unwrap();
+    let study = study(&fx);
+    let result = study.run(&ExecutionContext::for_tests(5)).unwrap();
+    let basis = result.calibration_bases(&study.inspect().unwrap()).unwrap().remove(0);
+    assert_eq!(basis.key.dependence, "cluster");
+    assert_eq!(basis.key.interval_method, "analytic_se");
+    let measured = *antecedent_io::coverage_records_data::RECORDS
+        .iter()
+        .find(|record| record.test.ends_with("::cluster_dml_t_wald_interval"))
+        .expect("the unweighted Student construction was measured");
+    assert_eq!(
+        antecedent_io::calibration::calibration_slot_in(&basis, &[measured]).record_id.as_deref(),
+        Some(measured.id),
+    );
     let estimate = result.estimate.as_effect().unwrap();
     assert_eq!(estimate.uncertainty.analytic.reference_df, Some(39.0));
     let published = PublishedScalarUncertainty::select(estimate);
@@ -142,6 +154,105 @@ fn the_published_interval_uses_the_few_cluster_t_reference() {
     assert_eq!(plain.uncertainty.analytic.reference_df, None);
     let published = PublishedScalarUncertainty::select(plain);
     close(published.critical_value(plain), antecedent::result::reported_se_interval_z(), "normal");
+}
+
+/// These are lookup fixtures only: the stored normal row must never license Student endpoints.
+#[test]
+fn weighted_cluster_student_calibration_matches_its_actual_reference() {
+    use antecedent::estimator_spec::EstimatorSpec;
+    use antecedent_io::calibration::calibration_slot_in;
+    use antecedent_io::coverage_records_data::RECORDS;
+
+    let fx = fixture(5);
+    let weights = SamplingWeights::new(tilt(&fx, 1.0)).unwrap();
+    let units = ClusterDml::new(20).unwrap();
+    let estimators: [EstimatorSpec; 3] = [
+        estimator(&fx).with_sampling_weights(weights.clone()).into(),
+        DmlAte::new()
+            .with_cluster_dml(units)
+            .with_source_cluster_ids(fx.cluster.clone())
+            .with_sampling_weights(weights.clone())
+            .into(),
+        DrLearner::new()
+            .with_cluster_dml(units)
+            .with_source_cluster_ids(fx.cluster.clone())
+            .with_sampling_weights(weights.clone())
+            .into(),
+    ];
+    let template = *RECORDS
+        .iter()
+        .find(|record| {
+            record.test.ends_with("::weighted_aipw_cluster_dml_interval")
+                && record.interval_method == "analytic_se"
+        })
+        .expect("the historical normal record is retained");
+    for estimator in estimators {
+        let study = Study::tabular(fx.data.clone())
+            .graph(fx.graph.clone())
+            .query(query())
+            .estimator(estimator)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let result = study.run(&ExecutionContext::for_tests(5)).unwrap();
+        let contract = study.inspect().unwrap();
+        let basis = result.calibration_bases(&contract).unwrap().remove(0);
+        assert_eq!(
+            basis.key.interval_method,
+            "student_analytic",
+            "basis={:?}; estimator={:?}; binding={:?}; analytic={:?}; functional={:?}",
+            basis.key,
+            result.logical_plan.estimator,
+            result.primary_interval_binding(false),
+            result.estimate.as_effect().unwrap().uncertainty.analytic,
+            contract.functional,
+        );
+        assert_eq!(basis.key.functional, "all_observed.mean+reference=cluster_df+weights=sampling");
+        assert_eq!(basis.key.dependence, "cluster");
+        let mut historical = template;
+        historical.id = "cov.fixture.historical_normal_cluster";
+        historical.estimator = match basis.key.estimator.as_str() {
+            "aipw" => "aipw",
+            "dml" => "dml",
+            "dr.learner" => "dr.learner",
+            other => panic!("unexpected estimator {other}"),
+        };
+        historical.n_min = 1;
+        historical.n_max = u64::MAX;
+        historical.grid = &[];
+        assert!(calibration_slot_in(&basis, &[historical]).record_id.is_none());
+        let mut student = historical;
+        student.id = "cov.fixture.student_cluster";
+        student.interval_method = "student_analytic";
+        student.functional = "all_observed.mean+reference=cluster_df+weights=sampling";
+        let selected = calibration_slot_in(&basis, &[historical, student]);
+        assert_eq!(selected.record_id.as_deref(), Some(student.id));
+    }
+    let ordinary = Study::tabular(fx.data.clone())
+        .graph(fx.graph.clone())
+        .query(query())
+        .estimator(
+            AipwAte::new()
+                .with_bootstrap_replicates(0)
+                .with_sampling_weights(weights)
+                .with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster)
+                .with_source_cluster_ids(fx.cluster.clone()),
+        )
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let result = ordinary.run(&ExecutionContext::for_tests(5)).unwrap();
+    let basis = result.calibration_bases(&ordinary.inspect().unwrap()).unwrap().remove(0);
+    assert_eq!(basis.key.interval_method, "analytic_se");
+    assert_eq!(basis.key.functional, "all_observed.mean+weights=sampling");
+    assert_eq!(result.estimate.as_effect().unwrap().uncertainty.analytic.reference_df, None);
+    assert_eq!(basis.key.se_kind, "cluster");
+    assert_eq!(basis.key.dependence, "cluster");
+    let mut normal = template;
+    normal.n_min = 1;
+    normal.n_max = u64::MAX;
+    normal.grid = &[];
+    assert_eq!(calibration_slot_in(&basis, &[normal]).record_id.as_deref(), Some(normal.id));
 }
 
 /// A single retarget of the prepared cluster-DML table reports the cluster-summed standard error

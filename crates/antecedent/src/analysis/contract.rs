@@ -48,7 +48,7 @@ use antecedent_io::{
 use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::result::{RowWeightsBinding, StudyResult};
+use crate::result::{IntervalBinding, RowWeightsBinding, StudyResult};
 use crate::support::{CellStatus, StructureSource};
 
 use super::batch::PreparedBatch;
@@ -2530,6 +2530,30 @@ fn data_row_count(data: &DataInput) -> u64 {
     }
 }
 
+/// Keep the measured weighted cluster reference separate from historical normal intervals.
+/// The analytic method enum still describes an SE family; this key also binds its reference.
+fn weighted_cluster_reference_key(
+    result: &StudyResult,
+    binding: &IntervalBinding,
+    contract: &CausalContract,
+) -> (&'static str, String) {
+    let ordinary = (binding.method.as_str(), contract.functional.to_string());
+    if binding.method != IntervalMethod::AnalyticSe
+        || binding.se_kind != Some(antecedent_estimate::AnalyticSeKind::Cluster)
+        || binding.dependence != "cluster"
+        || !matches!(result.logical_plan.estimator.as_deref(), Some("aipw" | "dml" | "dr.learner"))
+        || !result.estimate.as_effect().is_some_and(|estimate| {
+            estimate.uncertainty.analytic.reference_df.is_some_and(|df| df.is_finite() && df > 0.0)
+        })
+    {
+        return ordinary;
+    }
+    let Some(functional) = contract.functional.strip_suffix("+weights=sampling") else {
+        return ordinary;
+    };
+    ("student_analytic", format!("{functional}+reference=cluster_df+weights=sampling"))
+}
+
 impl StudyResult {
     /// Calibration match bases of every interval this execution reported
     /// ([`StudyResult::reported_interval_bindings`]), primary first: the keys
@@ -2601,32 +2625,36 @@ impl StudyResult {
         let bayesian = contract.inference.eq_ignore_ascii_case("bayesian");
         self.reported_interval_bindings(bayesian)
             .into_iter()
-            .map(|binding| CalibrationBasisWire {
-                key: CalibrationKeyWire {
-                    query: query.clone(),
-                    graph_class: graph_class.clone(),
-                    structure: structure.to_string(),
-                    modality: modality.to_string(),
-                    inference: inference.clone(),
-                    estimator: self.logical_plan.estimator.as_deref().unwrap_or("").to_string(),
-                    interval_method: binding.method.as_str().to_string(),
-                    se_kind: binding.se_kind.map_or("", |kind| kind.as_str()).to_string(),
-                    dependence: binding.dependence.to_string(),
-                    posterior: contract.posterior.to_string(),
-                    functional: contract.functional.to_string(),
-                    level: if binding.level.is_finite() { binding.level } else { 0.0 },
-                    identification: label.to_string(),
-                },
-                scope: CalibrationScopeWire {
-                    row_count: analysis_row_count(self, contract),
-                    replicates_ok: binding.replicates_ok,
-                    posterior_draws: binding.posterior_draws.or_else(|| {
-                        (binding.method == IntervalMethod::PosteriorQuantile)
-                            .then_some(contract.posterior_draws)
-                            .flatten()
-                    }),
-                    unidentified_mass,
-                },
+            .map(|binding| {
+                let (interval_method, functional) =
+                    weighted_cluster_reference_key(self, &binding, contract);
+                CalibrationBasisWire {
+                    key: CalibrationKeyWire {
+                        query: query.clone(),
+                        graph_class: graph_class.clone(),
+                        structure: structure.to_string(),
+                        modality: modality.to_string(),
+                        inference: inference.clone(),
+                        estimator: self.logical_plan.estimator.as_deref().unwrap_or("").to_string(),
+                        interval_method: interval_method.to_string(),
+                        se_kind: binding.se_kind.map_or("", |kind| kind.as_str()).to_string(),
+                        dependence: binding.dependence.to_string(),
+                        posterior: contract.posterior.to_string(),
+                        functional,
+                        level: if binding.level.is_finite() { binding.level } else { 0.0 },
+                        identification: label.to_string(),
+                    },
+                    scope: CalibrationScopeWire {
+                        row_count: analysis_row_count(self, contract),
+                        replicates_ok: binding.replicates_ok,
+                        posterior_draws: binding.posterior_draws.or_else(|| {
+                            (binding.method == IntervalMethod::PosteriorQuantile)
+                                .then_some(contract.posterior_draws)
+                                .flatten()
+                        }),
+                        unidentified_mass,
+                    },
+                }
             })
             .collect()
     }
