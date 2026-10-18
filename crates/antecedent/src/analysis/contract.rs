@@ -1994,28 +1994,18 @@ fn compile_with_payloads(
         Some(overlap) => format!("{}+{overlap}", functional_label(&study.query)),
         None => functional_label(&study.query),
     };
-    // A penalized propensity (or its fallback) changes the nuisance the interval is about, so
-    // the label binds it only to records measured under that nuisance.
-    if let Some(propensity) = study
-        .estimator_spec
-        .as_deref()
-        .and_then(crate::estimator_spec::EstimatorSpec::propensity_calibration_label)
-    {
-        functional = format!("{functional}+{propensity}");
-    }
-    if let Some(strategy) = study
-        .estimator_spec
-        .as_deref()
-        .and_then(crate::estimator_spec::EstimatorSpec::stratification_calibration_label)
-    {
-        functional = format!("{functional}+{strategy}");
-    }
-    if let Some(strategy) = study
-        .estimator_spec
-        .as_deref()
-        .and_then(crate::estimator_spec::EstimatorSpec::matching_calibration_label)
-    {
-        functional = format!("{functional}+{strategy}");
+    // Calibration labels retain nuisance, stratification and matching choices in order.
+    if let Some(estimator) = study.estimator_spec.as_deref() {
+        for label in [
+            estimator.propensity_calibration_label(),
+            estimator.stratification_calibration_label().map(str::to_owned),
+            estimator.matching_calibration_label().map(str::to_owned),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            functional = format!("{functional}+{label}");
+        }
     }
     // Sampling weights change the estimand and the variance: an interval measured on unweighted
     // rows must not bind to a weighted-population estimate.
