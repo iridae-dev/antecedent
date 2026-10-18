@@ -102,17 +102,32 @@ class SynthesisReplayProtocolTest(unittest.TestCase):
 class WeightedSplitReplayProtocolTest(unittest.TestCase):
     def test_stored_versions_are_explicit_and_mixed_or_unknown_versions_refused(self):
         test = "crates/antecedent/tests/sample_split_weighted_effect_calibration.rs::weighted_split_effect_interval_calibrated"
-        old = {"test": test, "functional": "weighted_population_total_effect"}
-        new = {
+        old = {
             "test": test,
+            "functional": "weighted_population_total_effect",
+            "interval_method": "student_t_sandwich_effective_n",
+            "se_kind": "hc1_sampling_weighted",
+        }
+        new = {
+            **old,
             "functional": "weighted_population_total_effect.discovery_fraction_0_75.conflict_resolution_treatment_invariant",
         }
-        for record, version in ((old, "1"), (new, "2")):
+        hc3 = {
+            **new,
+            "functional": new["functional"] + ".variance_hc3",
+            "se_kind": "hc3_sampling_weighted",
+        }
+        for record, version in ((old, "1"), (new, "2"), (hc3, "3")):
             self.assertEqual(
                 facets.weighted_split_replay_environment([record]),
                 {"ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL": version},
             )
-        for records in ([old, new], [{**old, "functional": "unknown"}]):
+        for records in (
+            [old, new],
+            [new, hc3],
+            [{**hc3, "se_kind": "hc1_sampling_weighted"}],
+            [{**old, "functional": "unknown"}],
+        ):
             with self.assertRaises(ValueError):
                 facets.weighted_split_replay_environment(records)
         self.assertEqual(facets.weighted_split_replay_environment([{"test": "other::case"}]), {})

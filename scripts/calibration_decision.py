@@ -15,7 +15,9 @@ from typing import Any
 
 ID = "suite_coverage_fwer.v1"
 ENV = "ANTECEDENT_CALIBRATION_DECISION_CONFIG"
-DOMAIN = "release_2_4_1_validation_v1"
+LEGACY_DOMAIN = "release_2_4_1_validation_v1"
+DOMAIN = "release_2_4_1_weighted_hc3_validation_v1"
+DOMAINS = frozenset({LEGACY_DOMAIN, DOMAIN})
 ALPHA = 0.05
 GRID_POINTS = 3
 CELL_CAP = 256
@@ -65,7 +67,10 @@ def _integer(value: Any) -> bool:
 def validate_config(config: dict) -> dict:
     if not isinstance(config, dict) or set(config) != CONFIG_FIELDS:
         raise ValueError("coverage decision config has missing or unknown fields")
-    if config["validation_domain"] != DOMAIN:
+    if (
+        not isinstance(config["validation_domain"], str)
+        or config["validation_domain"] not in DOMAINS
+    ):
         raise ValueError("unknown prospective validation domain")
     if (
         config["id"] != ID
@@ -94,8 +99,7 @@ def validate_config(config: dict) -> dict:
     ):
         raise ValueError("invalid complete-family cell budget")
     if config["looks"] != list(LOOKS) or any(
-        not _integer(look.get("planned_replicates"))
-        or isinstance(look.get("weight"), bool)
+        not _integer(look.get("planned_replicates")) or isinstance(look.get("weight"), bool)
         for look in config["looks"]
         if isinstance(look, dict)
     ):
@@ -108,7 +112,7 @@ def config_for_manifest(manifest: dict) -> dict:
     if not isinstance(groups, list) or not groups:
         raise ValueError("a complete frozen gate roster is required")
     config = {
-        "validation_domain": DOMAIN,
+        "validation_domain": manifest.get("validation_domain", DOMAIN),
         "id": ID,
         "family_digest": digest(manifest),
         "family_alpha": ALPHA,
@@ -148,9 +152,7 @@ def _binomial_lower(n: int, k: int, p: float) -> float:
     return min(1.0, max(0.0, -math.expm1(_log_lower_direct(n, n - k - 1, 1 - p))))
 
 
-def binomial_p_value(
-    scored: int, covered: int, nominal: float, lower_only: bool
-) -> float:
+def binomial_p_value(scored: int, covered: int, nominal: float, lower_only: bool) -> float:
     if (
         not _integer(scored)
         or not _integer(covered)
@@ -166,11 +168,7 @@ def binomial_p_value(
     lower = _binomial_lower(scored, covered, float(nominal))
     if lower_only:
         return lower
-    upper = (
-        1.0
-        if covered == 0
-        else _binomial_lower(scored, scored - covered, 1 - float(nominal))
-    )
+    upper = 1.0 if covered == 0 else _binomial_lower(scored, scored - covered, 1 - float(nominal))
     return min(1.0, 2 * min(lower, upper))
 
 
@@ -221,9 +219,7 @@ def validate_decision(
     config = {key: value[key] for key in CONFIG_FIELDS}
     validate_config(config)
     if expected_config is not None and config != expected_config:
-        raise ValueError(
-            "coverage decision family differs from its complete frozen source roster"
-        )
+        raise ValueError("coverage decision family differs from its complete frozen source roster")
     expected = evaluate(
         config,
         value["planned_replicates"],
@@ -232,10 +228,7 @@ def validate_decision(
         nominal,
         value["lower_only"],
     )
-    if (
-        isinstance(value["look_weight"], bool)
-        or value["look_weight"] != expected["look_weight"]
-    ):
+    if isinstance(value["look_weight"], bool) or value["look_weight"] != expected["look_weight"]:
         raise ValueError("coverage decision changed the predeclared look risk")
     p = value["p_value"]
     if (
@@ -244,34 +237,19 @@ def validate_decision(
         or not math.isfinite(p)
         or not math.isclose(p, expected["p_value"], rel_tol=5e-9, abs_tol=2e-13)
     ):
-        raise ValueError(
-            "coverage decision p_value does not reproduce exact stored counts"
-        )
-    if (
-        not isinstance(value["compatible"], bool)
-        or value["compatible"] != expected["compatible"]
-    ):
-        raise ValueError(
-            "coverage compatibility does not reproduce the predeclared decision"
-        )
+        raise ValueError("coverage decision p_value does not reproduce exact stored counts")
+    if not isinstance(value["compatible"], bool) or value["compatible"] != expected["compatible"]:
+        raise ValueError("coverage compatibility does not reproduce the predeclared decision")
     if replicates is not None and replicates != value["scored"]:
-        raise ValueError(
-            "coverage decision denominator differs from recorded replicates"
-        )
+        raise ValueError("coverage decision denominator differs from recorded replicates")
     if observed is not None and (
         not math.isfinite(observed)
-        or not math.isclose(
-            observed, value["covered"] / value["scored"], rel_tol=0, abs_tol=2e-13
-        )
+        or not math.isclose(observed, value["covered"] / value["scored"], rel_tol=0, abs_tol=2e-13)
     ):
-        raise ValueError(
-            "coverage decision counts differ from recorded observed coverage"
-        )
+        raise ValueError("coverage decision counts differ from recorded observed coverage")
     if role in {"gated", "one_sided", "conservative_point"}:
         if value["lower_only"] != (role != "gated"):
             raise ValueError("coverage decision tail differs from its scientific role")
         if not value["compatible"]:
-            raise ValueError(
-                "a claimed passing coverage role has an incompatible exact decision"
-            )
+            raise ValueError("a claimed passing coverage role has an incompatible exact decision")
     return expected

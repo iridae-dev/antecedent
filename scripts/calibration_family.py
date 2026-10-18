@@ -8,6 +8,7 @@ label-producing code requires another explicit review before a new family is fro
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -17,6 +18,7 @@ import tempfile
 from functools import cache
 from pathlib import Path
 
+import calibration_allocations as allocations
 import calibration_decision as decision
 from _repo import REPO_ROOT as ROOT
 from _rust_source import lex
@@ -119,11 +121,7 @@ def _sha(data: bytes) -> str:
 def producer_calls(text: str, labels: bool = True) -> list[dict]:
     source = lex(text)
     out = []
-    pattern = (
-        r"\.labelled\s*\("
-        if labels
-        else r"\bCoverageTally\s*::\s*(?:new|for_record)\s*\("
-    )
+    pattern = r"\.labelled\s*\(" if labels else r"\bCoverageTally\s*::\s*(?:new|for_record)\s*\("
     for match in re.finditer(pattern, source.skeleton):
         start = match.end()
         depth = 1
@@ -164,9 +162,7 @@ def _source_paths(root: Path, sha: str | None) -> list[str]:
         if result.returncode not in (0, 1):
             raise ValueError(result.stderr.strip())
         return sorted(
-            line.partition(":")[2]
-            for line in result.stdout.splitlines()
-            if line.endswith(".rs")
+            line.partition(":")[2] for line in result.stdout.splitlines() if line.endswith(".rs")
         )
     return sorted(
         path.relative_to(root).as_posix()
@@ -207,9 +203,9 @@ def reviewed_label_audit(root: Path = ROOT) -> dict:
     return {
         "schema": SCHEMA,
         "reviewed_cell_cap_per_group": decision.CELL_CAP,
-        "review_scope": "Frozen coverage compatibility hypotheses; every level/label is a separate cell. Labels and procedures are source-fixed independently of Monte Carlo coverage outcomes.",
+        "review_scope": "Frozen coverage compatibility hypotheses; every level/label is a separate cell. Labels and procedures are fixed before their current prospective validation outcomes; method revisions informed by older data require an independent registered domain and a distinct cumulative hypothesis slot.",
         "source_possible_cap_invariant": "Every group/grid has at most256 source-possible asserted cells across all branch outcomes and registered looks, including recordless, conditionally empty and alternate-confidence tallies. Runtime emitted-count enforcement only complements this source review.",
-        "transitive_provider_review": "Caller-provided labels, target names and levels were reviewed at fixed test/query construction sites. Imported functional enums and numeric helper values describe fixed algorithms; none select a coverage hypothesis using aggregate calibration outcomes. The direct constructor/label footprint and named reviews are an audited invariant, not an automated transitive dataflow proof.",
+        "transitive_provider_review": "Caller-provided labels, target names and levels were reviewed at fixed test/query construction sites. Imported functional enums and numeric helper values describe fixed algorithms; none select a coverage hypothesis from the current prospective validation outcomes. Older development evidence may motivate a separately allocated method revision before its independent validation. The direct constructor/label footprint and named reviews are an audited invariant, not an automated transitive dataflow proof.",
         "prospective_validation_domain": decision.DOMAIN,
         "historical_cardinality_audit": {
             "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
@@ -223,18 +219,36 @@ def reviewed_label_audit(root: Path = ROOT) -> dict:
     }
 
 
-def validate_label_audit(
-    audit: dict, root: Path = ROOT, sha: str | None = None
-) -> None:
+def source_validation_domain(root: Path = ROOT, sha: str | None = None) -> str:
+    """Bind historical metadata to its measured source's literal domain declaration."""
+    if sha is None:
+        return decision.DOMAIN
+    tree = ast.parse(read_source(root, "scripts/calibration_decision.py", sha))
+    declarations = [
+        node.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "DOMAIN" for target in node.targets)
+    ]
+    if len(declarations) != 1 or not isinstance(declarations[0], ast.Constant):
+        raise ValueError("measured source lacks one literal validation domain")
+    domain = declarations[0].value
+    if not isinstance(domain, str) or domain not in decision.DOMAINS:
+        raise ValueError("measured source declares an unregistered validation domain")
+    return domain
+
+
+def validate_label_audit(audit: dict, root: Path = ROOT, sha: str | None = None) -> None:
     if (
         audit.get("schema") != SCHEMA
         or audit.get("reviewed_cell_cap_per_group") != decision.CELL_CAP
+        or audit.get("prospective_validation_domain") != source_validation_domain(root, sha)
     ):
         raise ValueError("unknown source-fixed label audit")
     sources = audit.get("sources")
-    if not isinstance(sources, list) or [
-        row.get("path") for row in sources
-    ] != _source_paths(root, sha):
+    if not isinstance(sources, list) or [row.get("path") for row in sources] != _source_paths(
+        root, sha
+    ):
         raise ValueError(
             "tally producer footprint changed; explicitly review the complete source family"
         )
@@ -243,8 +257,7 @@ def validate_label_audit(
         if (
             row.get("sha256") != _sha(data)
             or row.get("labelled_calls") != labelled_calls(data.decode())
-            or row.get("constructor_calls")
-            != producer_calls(data.decode(), labels=False)
+            or row.get("constructor_calls") != producer_calls(data.decode(), labels=False)
             or not row.get("review")
         ):
             raise ValueError(f"source-fixed label review is stale: {row['path']}")
@@ -277,10 +290,7 @@ def gate_roster(gate: bytes, acceptance: bytes) -> list[dict]:
             capture_output=True,
             check=True,
         )
-    grid = {
-        int(m.group(1))
-        for m in re.finditer(r"^grid (\d+)$", result.stdout, re.MULTILINE)
-    }
+    grid = {int(m.group(1)) for m in re.finditer(r"^grid (\d+)$", result.stdout, re.MULTILINE)}
     groups = [
         {"index": int(m.group(1)), "label": m.group(2), "grid": int(m.group(1)) in grid}
         for m in re.finditer(r"^group (\d+): (.+)$", result.stdout, re.MULTILINE)
@@ -289,8 +299,7 @@ def gate_roster(gate: bytes, acceptance: bytes) -> list[dict]:
         not groups
         or [g["index"] for g in groups] != list(range(1, len(groups) + 1))
         or len({g["label"] for g in groups}) != len(groups)
-        or len({g["label"].translate(str.maketrans(" /:", "___")) for g in groups})
-        != len(groups)
+        or len({g["label"].translate(str.maketrans(" /:", "___")) for g in groups}) != len(groups)
     ):
         raise ValueError("gate dry run did not give a complete unique source roster")
     return groups
@@ -301,7 +310,7 @@ def build_manifest(root: Path = ROOT, audit: dict | None = None) -> dict:
     validate_label_audit(audit, root)
     gate = read_source(root, GATE_PATH)
     acceptance = read_source(root, ACCEPTANCE_PATH)
-    return {
+    manifest = {
         "schema": SCHEMA,
         "decision_protocol": decision.ID,
         "validation_domain": decision.DOMAIN,
@@ -314,6 +323,18 @@ def build_manifest(root: Path = ROOT, audit: dict | None = None) -> dict:
         "label_audit_sha256": decision.digest(audit),
         "groups": gate_roster(gate, acceptance),
     }
+
+    if decision.DOMAIN != decision.LEGACY_DOMAIN:
+        manifest["hypothesis_allocations_sha256"] = allocation_digest(
+            root, None, manifest["groups"]
+        )
+    return manifest
+
+
+def allocation_digest(root: Path, sha: str | None, groups: list[dict]) -> str:
+    raw = read_source(root, allocations.PATH, sha)
+    allocations.validate(json.loads(raw), groups)
+    return _sha(raw)
 
 
 def validate_manifest(
@@ -325,7 +346,7 @@ def validate_manifest(
     expected = {
         "schema": SCHEMA,
         "decision_protocol": decision.ID,
-        "validation_domain": decision.DOMAIN,
+        "validation_domain": source_validation_domain(root, sha),
         "family_alpha": decision.ALPHA,
         "family_grid_points": decision.GRID_POINTS,
         "cell_cap_per_group": decision.CELL_CAP,
@@ -335,10 +356,10 @@ def validate_manifest(
         "label_audit_sha256": decision.digest(audit),
         "groups": gate_roster(gate, acceptance),
     }
+    if expected["validation_domain"] != decision.LEGACY_DOMAIN:
+        expected["hypothesis_allocations_sha256"] = allocation_digest(root, sha, expected["groups"])
     if manifest != expected:
-        raise ValueError(
-            "family manifest differs from its complete frozen source roster/audit"
-        )
+        raise ValueError("family manifest differs from its complete frozen source roster/audit")
     return decision.config_for_manifest(manifest)
 
 

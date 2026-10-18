@@ -1,7 +1,7 @@
 {
   "schema": "source_fixed_calibration_family.v1",
   "decision_protocol": "suite_coverage_fwer.v1",
-  "validation_domain": "release_2_4_1_validation_v1",
+  "validation_domain": "release_2_4_1_weighted_hc3_validation_v1",
   "family_alpha": 0.05,
   "family_grid_points": 3,
   "cell_cap_per_group": 256,
@@ -20,8 +20,8 @@
     }
   ],
   "gate_sha256": "567730d772ffc17ae1890dfd7315dae975f279208427ca00c2d98af2a7b70472",
-  "acceptance_sha256": "78a54764574c0a40b152b2f417af4f9142a29d9b56492d86ec1899f2d21032b4",
-  "label_audit_sha256": "8db2b61b8caa6a5404c96c308c9c49b68f27238192f01ad3b43e1058a1cdce99",
+  "acceptance_sha256": "7217f79afdcb828f58996d5b2d03bd03696eeea76ce1aeee7cb77621cea2f8b1",
+  "label_audit_sha256": "af8783532ae615bae9e943b5d59493425230c4418d4e8e6af1e939dbf7a82ba7",
   "groups": [
     {
       "index": 1,
@@ -3808,5 +3808,6 @@
       "label": "adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision",
       "grid": true
     }
-  ]
+  ],
+  "hypothesis_allocations_sha256": "0b87ceea1a1993f7ef7c433dd790fea887ee72519ae50a0cbea19edc7b6cc64d"
 }

@@ -1,10 +1,10 @@
 {
   "schema": "source_fixed_calibration_family.v1",
   "reviewed_cell_cap_per_group": 256,
-  "review_scope": "Frozen coverage compatibility hypotheses; every level/label is a separate cell. Labels and procedures are source-fixed independently of Monte Carlo coverage outcomes.",
+  "review_scope": "Frozen coverage compatibility hypotheses; every level/label is a separate cell. Labels and procedures are fixed before their current prospective validation outcomes; method revisions informed by older data require an independent registered domain and a distinct cumulative hypothesis slot.",
   "source_possible_cap_invariant": "Every group/grid has at most256 source-possible asserted cells across all branch outcomes and registered looks, including recordless, conditionally empty and alternate-confidence tallies. Runtime emitted-count enforcement only complements this source review.",
-  "transitive_provider_review": "Caller-provided labels, target names and levels were reviewed at fixed test/query construction sites. Imported functional enums and numeric helper values describe fixed algorithms; none select a coverage hypothesis using aggregate calibration outcomes. The direct constructor/label footprint and named reviews are an audited invariant, not an automated transitive dataflow proof.",
-  "prospective_validation_domain": "release_2_4_1_validation_v1",
+  "transitive_provider_review": "Caller-provided labels, target names and levels were reviewed at fixed test/query construction sites. Imported functional enums and numeric helper values describe fixed algorithms; none select a coverage hypothesis from the current prospective validation outcomes. Older development evidence may motivate a separately allocated method revision before its independent validation. The direct constructor/label footprint and named reviews are an audited invariant, not an automated transitive dataflow proof.",
+  "prospective_validation_domain": "release_2_4_1_weighted_hc3_validation_v1",
   "historical_cardinality_audit": {
     "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
     "group": "temporal_response_calibration",
@@ -801,7 +801,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "498e39f1d16922261c95d9bbb08d63fd979473edbab2da370492a5520fa9677f",
+      "sha256": "d94deb477d38be3074a5af3a4b0681ba748f75e171e5e34ebb6d3c9f569b7f71",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."
@@ -1390,47 +1390,47 @@
     },
     {
       "path": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
-      "sha256": "10df5d1e425c5258c0082f40ba8b91581898566c4f2604604b4ff4cfe1b828ca",
+      "sha256": "58ee55b47e26dd452d06ced6442e39838deec10707914ba7a8c8a12cb8e57622",
       "labelled_calls": [
         {
-          "line": 456,
+          "line": 460,
           "call": ".labelled(",
           "argument": "\"discovery_fraction_0_75\""
         },
         {
-          "line": 538,
+          "line": 542,
           "call": ".labelled(",
           "argument": "\"discovery_fraction_0_75.whole_procedure\""
         }
       ],
       "constructor_calls": [
         {
-          "line": 373,
+          "line": 377,
           "call": "CoverageTally::new(",
           "argument": "format!(\"{test} reported\"), LEVEL"
         },
         {
-          "line": 374,
+          "line": 378,
           "call": "CoverageTally::new(",
           "argument": "format!(\"{test} covered\"), LEVEL"
         },
         {
-          "line": 375,
+          "line": 379,
           "call": "CoverageTally::new(",
           "argument": "format!(\"{test} parents\"), LEVEL"
         },
         {
-          "line": 454,
+          "line": 458,
           "call": "CoverageTally::for_record(",
           "argument": "key, LEVEL"
         },
         {
-          "line": 498,
+          "line": 502,
           "call": "CoverageTally::for_record(",
           "argument": "key, LEVEL"
         },
         {
-          "line": 538,
+          "line": 542,
           "call": "CoverageTally::for_record(",
           "argument": "key, LEVEL"
         }
@@ -1439,17 +1439,22 @@
     },
     {
       "path": "crates/antecedent/tests/sample_split_weighted_effect_calibration.rs",
-      "sha256": "68ca18349abc79a6188557f78c9498581da157f708c233d73d05fc400a5a1e29",
+      "sha256": "11917d0677b6776e9dcd515d872ec515927ee3a5f3a1ba11faf6d83f06a7c8e2",
       "labelled_calls": [
         {
-          "line": 245,
+          "line": 257,
+          "call": ".labelled(",
+          "argument": "ALLOCATION_PROTOCOL"
+        },
+        {
+          "line": 259,
           "call": ".labelled(",
           "argument": "CURRENT_PROTOCOL"
         }
       ],
       "constructor_calls": [
         {
-          "line": 236,
+          "line": 248,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"weighted_split_effect_interval_calibrated\",\n            dgp: \"crates/antecedent/tests/common/sparse_scm.rs::simulate\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         }
@@ -1871,42 +1876,42 @@
     },
     {
       "path": "crates/antecedent/tests/weighted_interval_calibration.rs",
-      "sha256": "0d8c837996509bcfac9e11101d9e523c8bb9e5bc7b5787a2251cdf3e2b49c8c4",
+      "sha256": "165bd09e3c6876144b963d67112b7b75a236ac0ec905051ddb9057768f4a70d4",
       "labelled_calls": [
         {
-          "line": 582,
+          "line": 616,
           "call": ".labelled(",
           "argument": "\"population_linear\""
         },
         {
-          "line": 584,
+          "line": 618,
           "call": ".labelled(",
           "argument": "\"regression_linear_hc3\""
         }
       ],
       "constructor_calls": [
         {
-          "line": 580,
+          "line": 614,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
         },
         {
-          "line": 640,
+          "line": 674,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n                test: \"weighted_ipw_hajek_interval\",\n                dgp: \"identity_probe\",\n                interval: method,\n            },\n            REPORTED_LEVEL,"
         },
         {
-          "line": 801,
+          "line": 835,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: method }, REPORTED_LEVEL"
         },
         {
-          "line": 884,
+          "line": 918,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"informative_sampling_heterogeneous_effect\", interval: method },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1213,
+          "line": 1247,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"weighted_aipw_atc_interval\",\n            dgp: \"informative_sampling_constant_effect\",\n            interval: method,\n        },\n        REPORTED_LEVEL,"
         }

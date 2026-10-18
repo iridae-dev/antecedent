@@ -189,8 +189,10 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
         return (record.get("interval_method") == "independent_gaussian_study_t"
                 and record.get("role") == "conservative_point")
     if group.head == "sample_split_weighted_effect_calibration":
-        marker = "discovery_fraction_0_75.conflict_resolution_treatment_invariant"
+        marker = "discovery_fraction_0_75.conflict_resolution_treatment_invariant.variance_hc3"
         return (str(record.get("functional", "")) == "weighted_population_total_effect." + marker
+                and record.get("se_kind") == "hc3_sampling_weighted"
+                and record.get("interval_method") == "student_t_sandwich_effective_n"
                 and str(record.get("id", "")).endswith("." + marker.replace(".", "_")))
     if group.head == "sample_split_parent_set_effect_calibration":
         return ".discovery_fraction_0_75" in str(record.get("functional", ""))

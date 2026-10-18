@@ -2035,7 +2035,13 @@ def weighted_split_replay_environment(records: list[dict]) -> dict[str, str]:
         ):
             continue
         functional = record.get("functional")
-        if functional == "weighted_population_total_effect":
+        if record.get("interval_method") != "student_t_sandwich_effective_n":
+            raise ValueError("unknown stored weighted split interval construction")
+        if functional == marker + ".variance_hc3" and record.get("se_kind") == "hc3_sampling_weighted":
+            versions.add(3)
+        elif record.get("se_kind") != "hc1_sampling_weighted":
+            raise ValueError("stored weighted split variance differs from its protocol")
+        elif functional == "weighted_population_total_effect":
             versions.add(1)
         elif functional == marker:
             versions.add(2)

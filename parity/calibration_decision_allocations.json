@@ -1,0 +1,80 @@
+{
+  "schema": "coverage_hypothesis_allocations.v1",
+  "original_family": {
+    "source_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+    "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+    "roster_sha256": "bd73004e74b845ef31bed0b4210560267dbaf794507c7a039c7d59a7c3ecf500",
+    "family_groups": 757,
+    "family_cells": 581376,
+    "cell_cap_per_group": 256,
+    "family_alpha": 0.05,
+    "looks": [
+      {
+        "planned_replicates": 400,
+        "weight": 0.5
+      },
+      {
+        "planned_replicates": 2000,
+        "weight": 0.25
+      },
+      {
+        "planned_replicates": 20000,
+        "weight": 0.25
+      }
+    ]
+  },
+  "group": {
+    "index": 597,
+    "label": "sample_split_weighted_effect_calibration: weighted_split_effect_interval_calibrated",
+    "grid": true
+  },
+  "historical_protocol_1": "Legacy HC1 half-split evidence is historical; it has no prospective FWER spending claim.",
+  "allocations": [
+    {
+      "slot": 1,
+      "protocol_version": 2,
+      "status": "spent",
+      "functional": "weighted_population_total_effect.discovery_fraction_0_75.conflict_resolution_treatment_invariant",
+      "record_id": "cov.sample_split_weighted_effect.cpdag.frequentist.student_t_sandwich_effective_n.l95.weighted_split_effect_interval_calibrated.discovery_fraction_0_75_conflict_resolution_treatment_invariant",
+      "interval_method": "student_t_sandwich_effective_n",
+      "se_kind": "hc1_sampling_weighted",
+      "nominal": 0.95,
+      "validation_domain": "release_2_4_1_validation_v1",
+      "grid_points": [
+        0,
+        1,
+        2
+      ],
+      "planned_replicates": 20000,
+      "look_weight": 0.25,
+      "measured_source": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+      "raw_log_sha256_by_point": {
+        "0": "e56b5bd2fa01f661268ce4169a3c7bbbf6e5aaccc321eac62e03de4da87f049e",
+        "1": "bd496bebaa967b3a9f76af5bfc339e4a031512e1b9d602b3d918d362d47d0cff",
+        "2": "9492e496ce49f00888a168f114682377de9ecc4a11432b4640d066ef367f27da"
+      }
+    },
+    {
+      "slot": 2,
+      "protocol_version": 3,
+      "status": "reserved_before_outcomes",
+      "functional": "weighted_population_total_effect.discovery_fraction_0_75.conflict_resolution_treatment_invariant.variance_hc3",
+      "record_id": "cov.sample_split_weighted_effect.cpdag.frequentist.student_t_sandwich_effective_n.l95.weighted_split_effect_interval_calibrated.discovery_fraction_0_75_conflict_resolution_treatment_invariant_variance_hc3",
+      "interval_method": "student_t_sandwich_effective_n",
+      "se_kind": "hc3_sampling_weighted",
+      "nominal": 0.95,
+      "validation_domain": "release_2_4_1_weighted_hc3_validation_v1",
+      "grid_points": [
+        0,
+        1,
+        2
+      ],
+      "planned_replicates": 20000,
+      "look_weight": 0.25,
+      "method_source_commit": "ee9233f144eb495979f83ca0ae35070cf824a31e"
+    }
+  ],
+  "risk_scope": "One cumulative original risk budget; the new domain changes independent validation data, not the available risk. Slots1and2 are distinct hypotheses within the same original256pergroup/grid cap. Old protocol2spending remains spent; no retry or replacement of its failure.",
+  "selection_history": "HC3protocol3was chosen after development and observed70protocol2failure. It is fixed before the new independent validation outcomes. The initial70source roster did not contain protocol3; conditional independent validation and a distinct unused hypothesis slot justify its additional allocation.",
+  "source_possible_union": "Weighted split has3source-defined protocol identities including historical1; at most2receive prospective allocations. The complete757group roster and original maximum162-cell source-possible bound remain within256pergroup/grid. Unknown slots, construction changes or extra looks require an explicit reviewed append-only extension before outcomes."
+}
