@@ -145,6 +145,24 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
                                  ("functional", "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population")):
                 self.assertFalse(groups.measures_current_protocol(group, {**record, field: value}))
 
+    def test_weighted_split_new_method_requires_current_fraction_and_conflict_rule(self) -> None:
+        name = "weighted_split_effect_interval_calibrated"
+        group = groups.Group(1, "sample_split_weighted_effect_calibration: " + name, False, True)
+        marker = "discovery_fraction_0_75.conflict_resolution_treatment_invariant"
+        old = {"id":"old", "test":"crates/antecedent/tests/sample_split_weighted_effect_calibration.rs::" + name,
+               "functional":"weighted_population_total_effect"}
+        new = {**old,"id":"new."+marker.replace(".", "_"),"functional":old["functional"]+"."+marker}
+        self.assertFalse(groups.measures_current_protocol(group, old))
+        self.assertTrue(groups.measures_current_protocol(group, new))
+        self.assertFalse(groups.measures_current_protocol(group, {**new,"id":"old"}))
+        ledger = self.root / "old-weighted-split-gates.toml"
+        ledger.write_text("".join(f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\n' for point in range(3)))
+        with patch.dict(sys.modules, {"calibration_facets":SimpleNamespace(load_records=lambda:[old])}), \
+             patch.object(groups, "GATE_REGISTRY", ledger):
+            self.assertEqual(groups.select([group],False,missing_only=True).groups,[group])
+        with patch.dict(sys.modules, {"calibration_facets":SimpleNamespace(load_records=lambda:[new])}):
+            self.assertEqual(groups.select([group],False,missing_only=True).groups,[])
+
     def test_actual_cluster_reference_is_a_new_protocol(self) -> None:
         for name in ("weighted_aipw_cluster_dml_interval", "weighted_dml_cluster_interval", "weighted_dr_learner_cluster_interval"):
             group = groups.Group(1, f"weighted_interval_calibration: {name}", False, True)
@@ -242,7 +260,7 @@ class EvidenceArchiveTest(unittest.TestCase):
         group = groups.Group(1, "suite: selected", False, False)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            with patch.object(groups, "measurement_source_sha", return_value="a"*40), patch.object(groups, "formal_decision_environment", return_value={}), patch.dict(groups.os.environ, {"ANTECEDENT_PARENT_PROTOCOL_VERSION": "1"}), patch.object(groups, "FIRST_NSIM", 20000), patch.object(groups, "RECHECK_NSIM", 20001), patch.object(groups, "last_durations", return_value={}), patch.object(groups, "archive_logs"), patch.object(groups, "prebuild", return_value=0), patch.object(groups.subprocess, "check_output", return_value="a" * 40), patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, patch.object(groups, "LOG_DIR", root / "records"), patch.object(groups, "CONSOLE_DIR", root / "console"), patch.object(groups, "TIMINGS", root / "times.tsv"):
+            with patch.object(groups, "measurement_source_sha", return_value="a"*40), patch.object(groups, "formal_decision_environment", return_value={}), patch.dict(groups.os.environ, {"ANTECEDENT_PARENT_PROTOCOL_VERSION": "1", "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL": "1"}), patch.object(groups, "FIRST_NSIM", 20000), patch.object(groups, "RECHECK_NSIM", 20001), patch.object(groups, "last_durations", return_value={}), patch.object(groups, "archive_logs"), patch.object(groups, "prebuild", return_value=0), patch.object(groups.subprocess, "check_output", return_value="a" * 40), patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, patch.object(groups, "LOG_DIR", root / "records"), patch.object(groups, "CONSOLE_DIR", root / "console"), patch.object(groups, "TIMINGS", root / "times.tsv"):
                 self.assertEqual(groups.run(groups.Selection([group], 0, {1: "selected"}), 2, 1), 0)
                 self.assertEqual(run.call_count, 1)
                 env = run.call_args.kwargs["env"]
@@ -250,6 +268,7 @@ class EvidenceArchiveTest(unittest.TestCase):
                 self.assertEqual(env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"], "20001")
                 self.assertEqual(env["ANTECEDENT_CALIBRATION_SHARD"], "0/2")
                 self.assertNotIn("ANTECEDENT_PARENT_PROTOCOL_VERSION", env)
+                self.assertNotIn("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", env)
 
     def test_run_preserves_historical_longest_first_without_current_pilot(self) -> None:
         short = groups.Group(1, "suite: short", False, False)

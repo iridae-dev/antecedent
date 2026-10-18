@@ -65,5 +65,19 @@ class SynthesisReplayProtocolTest(unittest.TestCase):
         self.assertEqual(facets.synthesis_replay_environment([{"test": "other::case"}]), {})
 
 
+class WeightedSplitReplayProtocolTest(unittest.TestCase):
+    def test_stored_versions_are_explicit_and_mixed_or_unknown_versions_refused(self):
+        test = "crates/antecedent/tests/sample_split_weighted_effect_calibration.rs::weighted_split_effect_interval_calibrated"
+        old = {"test": test, "functional": "weighted_population_total_effect"}
+        new = {"test": test, "functional": "weighted_population_total_effect.discovery_fraction_0_75.conflict_resolution_treatment_invariant"}
+        for record, version in ((old, "1"), (new, "2")):
+            self.assertEqual(facets.weighted_split_replay_environment([record]),
+                             {"ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL": version})
+        for records in ([old,new], [{**old,"functional":"unknown"}]):
+            with self.assertRaises(ValueError):
+                facets.weighted_split_replay_environment(records)
+        self.assertEqual(facets.weighted_split_replay_environment([{"test":"other::case"}]), {})
+
+
 if __name__ == "__main__":
     unittest.main()

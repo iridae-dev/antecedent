@@ -1439,16 +1439,22 @@
     },
     {
       "path": "crates/antecedent/tests/sample_split_weighted_effect_calibration.rs",
-      "sha256": "e733a71bab2d0b5ec4df8e82d076869d8e742d57c08060dc3863670822513f37",
-      "labelled_calls": [],
+      "sha256": "68ca18349abc79a6188557f78c9498581da157f708c233d73d05fc400a5a1e29",
+      "labelled_calls": [
+        {
+          "line": 245,
+          "call": ".labelled(",
+          "argument": "CURRENT_PROTOCOL"
+        }
+      ],
       "constructor_calls": [
         {
-          "line": 184,
+          "line": 236,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"weighted_split_effect_interval_calibrated\",\n            dgp: \"crates/antecedent/tests/common/sparse_scm.rs::simulate\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "Fixed weighted split procedures/targets and static producer identities."
+      "review": "Fixed legacy half-split and current three-quarter discovery procedures; current treatment-invariant conflict rule is a fixed method, not selected from coverage outcomes. Producer version labels are finite, with one declared confidence level."
     },
     {
       "path": "crates/antecedent/tests/scientific_bridge_interval_calibration.rs",

@@ -20,8 +20,8 @@
     }
   ],
   "gate_sha256": "567730d772ffc17ae1890dfd7315dae975f279208427ca00c2d98af2a7b70472",
-  "acceptance_sha256": "3ef5b6579d135b36846d72c053d3f7173d48450c80370e2b87d1d6837dcf5c1e",
-  "label_audit_sha256": "acd230d646e23e55ad6405a2cd5ce0cb417b7a2093d9f628e9c07b5e998fac7b",
+  "acceptance_sha256": "78a54764574c0a40b152b2f417af4f9142a29d9b56492d86ec1899f2d21032b4",
+  "label_audit_sha256": "8db2b61b8caa6a5404c96c308c9c49b68f27238192f01ad3b43e1058a1cdce99",
   "groups": [
     {
       "index": 1,

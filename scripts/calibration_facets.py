@@ -1961,6 +1961,25 @@ def synthesis_replay_environment(records: list[dict]) -> dict[str, str]:
     return {"ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION": str(versions.pop())} if versions else {}
 
 
+def weighted_split_replay_environment(records: list[dict]) -> dict[str, str]:
+    """Run the stored weighted split protocol rather than an inherited override."""
+    versions = set()
+    marker = "weighted_population_total_effect.discovery_fraction_0_75.conflict_resolution_treatment_invariant"
+    for record in records:
+        if not str(record.get("test", "")).startswith("crates/antecedent/tests/sample_split_weighted_effect_calibration.rs::"):
+            continue
+        functional = record.get("functional")
+        if functional == "weighted_population_total_effect":
+            versions.add(1)
+        elif functional == marker:
+            versions.add(2)
+        else:
+            raise ValueError(f"unknown stored weighted split protocol {functional!r}")
+    if len(versions) > 1:
+        raise ValueError("mixed weighted split protocols require separate replay groups")
+    return {"ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL": str(versions.pop())} if versions else {}
+
+
 def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
            waiver_file: Path = WAIVERS) -> int:
     surface = load_surface()
@@ -2014,7 +2033,8 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
             selected = [rec for rec in stored
                         if any(match.index == g.index for match in matches[str(rec["id"])])]
             group_protocols[g.index] = {**parent_replay_environment(selected),
-                                        **synthesis_replay_environment(selected)}
+                                        **synthesis_replay_environment(selected),
+                                        **weighted_split_replay_environment(selected)}
     except ValueError as error:
         print(f"FAIL: {error}")
         return 1
@@ -2046,7 +2066,7 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
     # Protocol overrides are derived only from the stored group's records.
     env = {k: v for k, v in os.environ.items()
            if not k.startswith("ANTECEDENT_CALIBRATION_")
-           and k not in {"ANTECEDENT_PARENT_PROTOCOL_VERSION", "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION"}}
+           and k not in {"ANTECEDENT_PARENT_PROTOCOL_VERSION", "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION", "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL"}}
     for g in ([] if reuse_capture else plan.values()):
         safe = _safe_label(g.label)
         names = group_log_names(safe)

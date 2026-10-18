@@ -96,7 +96,7 @@ SOURCE_REVIEW = {
     "predictive_score_interval_calibration.rs": "Prespecified predictive-score methods/truths/levels and source-fixed test names.",
     "randomized_interval_calibration.rs": "Fixed randomized procedures and source-declared interval levels.",
     "sample_split_effect_calibration.rs": "Fixed sample-split procedures and named interval targets.",
-    "sample_split_weighted_effect_calibration.rs": "Fixed weighted split procedures/targets and static producer identities.",
+    "sample_split_weighted_effect_calibration.rs": "Fixed legacy half-split and current three-quarter discovery procedures; current treatment-invariant conflict rule is a fixed method, not selected from coverage outcomes. Producer version labels are finite, with one declared confidence level.",
     "scientific_bridge_interval_calibration.rs": "Finite prespecified scientific bridge queries, models and confidence.",
     "smoothed_dose_calibration.rs": "Source-fixed smoothing/dose query cases and static interval identifiers.",
     "static_envelope_calibration.rs": "Fixed envelope query/functionals; endpoint selection is inside the scored fixed algorithm.",

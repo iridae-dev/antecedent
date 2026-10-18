@@ -188,6 +188,10 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
     if group.head == "evidence_synthesis_calibration" and group.test_filter.startswith("pooled_random_effects_"):
         return (record.get("interval_method") == "independent_gaussian_study_t"
                 and record.get("role") == "conservative_point")
+    if group.head == "sample_split_weighted_effect_calibration":
+        marker = "discovery_fraction_0_75.conflict_resolution_treatment_invariant"
+        return (str(record.get("functional", "")) == "weighted_population_total_effect." + marker
+                and str(record.get("id", "")).endswith("." + marker.replace(".", "_")))
     if group.head == "sample_split_parent_set_effect_calibration":
         return ".discovery_fraction_0_75" in str(record.get("functional", ""))
     protocol = current_group_protocol(group)
@@ -321,7 +325,7 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
             # and weighted record emitters must carry their current identity;
             # recordless KNN must have emitted its explicit protocol marker.
             protocol = current_group_protocol(group)
-            record_required = group.head == "sample_split_parent_set_effect_calibration" or (
+            record_required = group.head in {"sample_split_parent_set_effect_calibration", "sample_split_weighted_effect_calibration"} or (
                 group.head == "weighted_interval_calibration" and protocol is not None
             )
             if not record_required and all(
@@ -570,7 +574,7 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
     started = time.monotonic()
     base_env = {
         k: v for k, v in os.environ.items()
-        if not k.startswith("ANTECEDENT_CALIBRATION_") and k not in {"ANTECEDENT_PARENT_PROTOCOL_VERSION", "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION"}
+        if not k.startswith("ANTECEDENT_CALIBRATION_") and k not in {"ANTECEDENT_PARENT_PROTOCOL_VERSION", "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION", "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL"}
     }
     base_env.update({
         "ANTECEDENT_CALIBRATION_SMOKE": "1",
@@ -795,6 +799,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_CALIBRATION_SMOKE",
             "ANTECEDENT_PARENT_PROTOCOL_VERSION",
             "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
+            "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL",
             "ANTECEDENT_CALIBRATION_DECISION_CONFIG",
             "ANTECEDENT_CALIBRATION_VALIDATION_DOMAIN",
         )
