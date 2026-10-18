@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd /Users/charleshinshaw/Desktop/antecedent
+python3 -u - <<'PY'
+from pathlib import Path
+import time
+p=Path('/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent/target/calibration-records/discovered_transport_calibration__discovered_temporal_transport_contrast_complete_procedure_coverage.p2.log')
+while 'test result: ok. 1 passed;' not in p.read_text(encoding='utf-8'):
+    time.sleep(2)
+print('Final original70 temporal point terminal; preserving before metadata correction',flush=True)
+PY
+python3 -u target/calibration-audit/preserve-temporal-run.py
+M=$(git rev-parse 2f7d56662)
+git -C /Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent checkout --detach "$M"
+python3 -u target/calibration-audit/prebuild-final-genuine-waivers.py --sha "$M"
+python3 -u - <<'PY'
+import json,subprocess
+from pathlib import Path
+p=Path('target/calibration-audit/final-witness-build-2f7d56662/receipt.json');r=json.loads(p.read_text());binary=next(path for path,v in r['executables'].items() if v['target']=='discovered_transport_calibration')
+result=subprocess.run([binary,'temporal_construction_keeps_its_own_percentile_sampling_identity','--exact','--nocapture'],check=True)
+Path('target/calibration-audit/temporal-constructor-unit-final-receipt.json').write_text(json.dumps({'source':r['source'],'executable':binary,'sha256':r['executables'][binary]['sha256'],'test':'temporal_construction_keeps_its_own_percentile_sampling_identity','exit_code':result.returncode,'scientific_draws':0},indent=2)+'\n')
+PY
+python3 -u target/calibration-audit/run-corrected-genuine-waivers.py

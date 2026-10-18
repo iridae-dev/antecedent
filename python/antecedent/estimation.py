@@ -26,7 +26,23 @@ from ._batch import (
     analyze_many,
 )
 from ._coerce import coerce_latency, coerce_query, coerce_refute
-from ._data import as_columns, ingest_columns, try_as_arrow_c_columns
+from ._columns import (
+    AnalysisColumns,
+    IdentifierBinding,
+    analysis_columns,
+    drop_columns,
+    encode_identifier,
+    encode_weights,
+    resolve_estimator_identifiers,
+)
+from ._data import (
+    as_columns,
+    ingest_columns,
+    project_columns,
+    read_columns,
+    table_column_names,
+    try_as_arrow_c_columns,
+)
 from ._estimate_helpers import (
     _not_applicable,
     _unwrap_estimator,
@@ -43,6 +59,7 @@ from ._native import (
     identify_ate_admg as _identify_ate_admg,
 )
 from ._study_lifecycle import guard_design, replay_declaration, retain, retain_preparation
+from ._treatment_labels import TreatmentLabels
 from .discovery import (
     DbnPosterior,
     ExactDagPosterior,
@@ -69,6 +86,8 @@ from .inference import (
 from .interference import (
     InterferenceQuery,
 )
+from .intervention_programs import PolicyProgramResult, PolicyProgramValue
+from .missing import MissingPolicy, coerce_missing, native_declaration
 from .policy import (
     ConditionalDoseResponse,
     MultiActionPolicyValue,
@@ -207,6 +226,13 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
     }
     if inference.n_draws_explicit:
         kw["n_draws"] = inference.n_draws
+    if inference.draw_controls is not None:
+        if inference.draw_controls != "measured":
+            raise CausalValueError(
+                f"unknown Bayesian draw_controls {inference.draw_controls!r}; use 'measured'",
+                reason_code="invalid_argument",
+            )
+        kw["draw_controls"] = inference.draw_controls
     prior_from = inference.prior_from
     if prior_from is not None:
         # Local import avoids circular import with priors ↔ estimation.
@@ -521,6 +547,7 @@ _PreparedQuery = (
     | SurvivalOutcome
     | CompetingRisksOutcome
     | LongitudinalRegime
+    | PolicyProgramValue
 )
 
 
@@ -550,8 +577,14 @@ class _Controls:
 _UNSET: Any = object()
 
 
-def _frame_payload(data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
-    """Columns plus the panel / multi-environment / event frame the natives rebuild."""
+def _frame_payload(
+    data: Any, columns: AnalysisColumns | None = None
+) -> tuple[list[str], list[Any], dict[str, Any] | None]:
+    """Columns plus the panel / multi-environment / event frame the natives rebuild.
+
+    ``columns`` are the declared analysis columns of a typed-graph table: only those
+    reach the numeric ingest, chosen by name.
+    """
     from .data import EventFrame, MultiEnvFrame, PanelFrame
 
     if isinstance(data, EventFrame):
@@ -586,24 +619,24 @@ def _frame_payload(data: Any) -> tuple[list[str], list[Any], dict[str, Any] | No
 
         names, env_columns = as_multi_env_columns(list(data))
         return names, [], {"kind": "multi_env", "env_columns": env_columns}
-    names, columns = ingest_columns(data)
-    return names, columns, None
+    if columns is not None:
+        data = project_columns(
+            data, columns.names, subset=not columns.ordered, what="graph or query"
+        )
+    names, arrays = ingest_columns(data)
+    return names, arrays, None
 
 
 def _panel_did_payload(
     data: Any, query: PanelDifferenceInDifferences
 ) -> tuple[list[str], list[Any], dict[str, Any]]:
     """Keep panel IDs as query metadata and send only numeric outcomes to Rust."""
-    from .quasi import _binary, _raw_columns
+    from .quasi import _binary
 
-    raw_names, raw_columns = _raw_columns(data)
-    raw = dict(zip(raw_names, raw_columns, strict=True))
     required: tuple[str, ...] = (query.outcome, query.subject, query.treated, query.post)
     if query.cluster is not None:
         required += (query.cluster,)
-    missing = [name for name in required if name not in raw]
-    if missing:
-        raise CausalValueError(f"required panel DiD columns are missing: {missing}")
+    raw = read_columns(data, required, what="panel DiD")
     subjects = tuple(str(value) for value in raw[query.subject])
     clusters = (
         subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
@@ -625,10 +658,8 @@ def _augmented_panel_did_payload(
     data: Any, query: AugmentedPanelDiD
 ) -> tuple[list[str], list[Any], dict[str, tuple[Any, ...]]]:
     """Bind subject and cluster ownership while keeping outcome/nuisance columns numeric."""
-    from .quasi import _binary, _raw_columns
+    from .quasi import _binary
 
-    raw_names, raw_columns = _raw_columns(data)
-    raw = dict(zip(raw_names, raw_columns, strict=True))
     numeric = (
         query.outcome_pre,
         query.outcome_post,
@@ -638,9 +669,7 @@ def _augmented_panel_did_payload(
     required: tuple[str, ...] = (*numeric, query.subject, query.treated)
     if query.cluster is not None:
         required += (query.cluster,)
-    missing = [name for name in required if name not in raw]
-    if missing:
-        raise CausalValueError(f"required augmented panel DiD columns are missing: {missing}")
+    raw = read_columns(data, required, what="augmented panel DiD")
     subjects = tuple(raw[query.subject])
     clusters = subjects if query.cluster is None else tuple(raw[query.cluster])
     if any(not isinstance(value, str) or not value.strip() for value in (*subjects, *clusters)):
@@ -659,20 +688,16 @@ def _augmented_panel_did_payload(
 def _staggered_payload(
     data: Any, query: StaggeredAdoption
 ) -> tuple[list[str], list[Any], dict[str, Any]]:
-    from .quasi import _integer_column, _raw_columns
+    from .quasi import _integer_column
 
     if not query.event_study and (query.target_cohort is None or query.target_period is None):
         raise CausalValueError(
             "analyze with StaggeredAdoption requires target_cohort and target_period"
         )
-    raw_names, raw_columns = _raw_columns(data)
-    raw = dict(zip(raw_names, raw_columns, strict=True))
     required: tuple[str, ...] = (query.outcome, query.subject, query.period, query.cohort)
     if query.cluster is not None:
         required += (query.cluster,)
-    missing = [name for name in required if name not in raw]
-    if missing:
-        raise CausalValueError(f"required staggered DiD columns are missing: {missing}")
+    raw = read_columns(data, required, what="staggered DiD")
     subjects = tuple(str(value) for value in raw[query.subject])
     clusters = (
         subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
@@ -696,14 +721,9 @@ def _staggered_payload(
 def _synthetic_control_payload(
     data: Any, query: SyntheticControl | SyntheticDifferenceInDifferences
 ) -> tuple[list[str], list[Any], dict[str, Any]]:
-    from .quasi import _integer_column, _raw_columns
+    from .quasi import _integer_column
 
-    raw_names, raw_columns = _raw_columns(data)
-    raw = dict(zip(raw_names, raw_columns, strict=True))
-    required = (query.outcome, query.unit, query.period)
-    missing = [name for name in required if name not in raw]
-    if missing:
-        raise CausalValueError(f"required synthetic-control columns are missing: {missing}")
+    raw = read_columns(data, (query.outcome, query.unit, query.period), what="synthetic-control")
     units = tuple(str(value) for value in raw[query.unit])
     if any(not value.strip() for value in units):
         raise CausalValueError("unit IDs must be non-empty")
@@ -715,14 +735,8 @@ def _synthetic_control_payload(
 def _continuous_dose_payload(
     data: Any, query: ConditionalDoseResponse
 ) -> tuple[list[str], list[Any], dict[str, Any]]:
-    from .quasi import _raw_columns
-
-    raw_names, raw_columns = _raw_columns(data)
-    raw = dict(zip(raw_names, raw_columns, strict=True))
     required = (query.outcome, query.dose, query.baseline_group, query.dose_density)
-    missing = [name for name in required if name not in raw]
-    if missing:
-        raise CausalValueError(f"required continuous-dose columns are missing: {missing}")
+    raw = read_columns(data, required, what="continuous-dose")
     groups = tuple(raw[query.baseline_group])
     if any(not isinstance(group, str) or not group for group in groups):
         raise CausalValueError("baseline group labels must be non-empty strings")
@@ -736,12 +750,7 @@ def _longitudinal_regime_payload(
     data: Any, query: LongitudinalRegime
 ) -> tuple[list[str], list[Any]]:
     """Send the numeric endpoint to Rust; histories remain frozen query metadata."""
-    from .quasi import _raw_columns
-
-    raw_names, raw_columns = _raw_columns(data)
-    if query.outcome not in raw_names:
-        raise CausalValueError(f"longitudinal outcome column {query.outcome!r} is missing")
-    outcome = raw_columns[raw_names.index(query.outcome)]
+    outcome = read_columns(data, (query.outcome,), what="longitudinal outcome")[query.outcome]
     if len(outcome) != len(query.subject_ids):
         raise CausalValueError("longitudinal outcome rows must align with subject histories")
     if query.method in ("sequential_dr", "marginal_structural_model"):
@@ -763,7 +772,7 @@ def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
             "to map without prior_from=<artifact>",
             reason_code="option_not_applicable",
         )
-    return {
+    wire = {
         "mode": kw.pop("inference"),
         "n_draws": kw.get("n_draws"),
         "prior_scale": kw["prior_scale"],
@@ -772,6 +781,10 @@ def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
         "composed_prior": kw.get("composed_prior"),
         "likelihood": kw["likelihood"],
     }
+    if "draw_controls" in kw:
+        # Sent only when requested, so routes with a closed inference vocabulary refuse it.
+        wire["draw_controls"] = kw["draw_controls"]
+    return wire
 
 
 def _accept_live_discovery(
@@ -852,6 +865,7 @@ _PreparedResult = (
     | ExactTransportDistribution
     | StatisticalTransportDistribution
     | TransportResponseGrid
+    | PolicyProgramResult
 )
 
 ResultT = TypeVar("ResultT", covariant=True)
@@ -904,6 +918,7 @@ class PreparedAnalysis(Generic[ResultT]):
             "transport_grid",
             "learned_trial",
             "z_transport",
+            "policy",
         ] = "average",
         query: _PreparedQuery | None = None,
         display_query: Any = None,
@@ -914,6 +929,7 @@ class PreparedAnalysis(Generic[ResultT]):
         snapshot_data: Any = None,
         design_columns: dict[str, Any] | None = None,
         named_design_columns: frozenset[str] = frozenset(),
+        column_names: tuple[str, ...] | None = None,
     ) -> None:
         self._native = native
         self._kind = kind
@@ -932,6 +948,15 @@ class PreparedAnalysis(Generic[ResultT]):
         # They were read and dropped at prepare; a later click drops them again so the
         # same table can be passed back, but never re-reads the frozen design.
         self._named_design_columns = named_design_columns
+        # The columns the native study was prepared on, in its order: a later table is
+        # reduced to them by name before ingest, so extra columns and a different
+        # column order never reach the native side. ``None`` for a study without one
+        # table schema (frames, design routes).
+        self._column_names = column_names
+        self._identifier_bindings: dict[str, IdentifierBinding] = {}
+        # Declared treatment labels of a label-coded binary treatment; later tables are
+        # encoded by the same declaration before ingest.
+        self._treatment_labels: TreatmentLabels | None = None
         self._seed = seed
         self._threads = threads
         self._controls = controls or _Controls()
@@ -956,8 +981,11 @@ class PreparedAnalysis(Generic[ResultT]):
             controls=self._controls,
             design_columns=self._design_columns,
             named_design_columns=self._named_design_columns,
+            column_names=self._column_names,
         )
         for name in (
+            "_identifier_bindings",
+            "_treatment_labels",
             "_preparation_request",
             "_named_design_bindings",
             "_declared_query",
@@ -966,6 +994,19 @@ class PreparedAnalysis(Generic[ResultT]):
             if hasattr(self, name):
                 setattr(frozen, name, getattr(self, name))
         return frozen
+
+    @property
+    def participants(self) -> tuple[str, ...] | None:
+        """Original participant label of every row of the prepared table.
+
+        ``None`` unless ``participant=`` named a column at prepare. The labels are the
+        column's own values (as text), in the table's original row order, frozen at prepare
+        and checked against every refreshed table.
+        """
+        for binding in self._identifier_bindings.values():
+            if binding.row_labels:
+                return binding.row_labels
+        return None
 
     @property
     def validator_names(self) -> tuple[str, ...]:
@@ -1017,6 +1058,8 @@ class PreparedAnalysis(Generic[ResultT]):
         regimes: Sequence[int] | None = None,
         provider: Any | None = None,
         controls: TransportControls | None = None,
+        participant: str | None = None,
+        missing: str | MissingPolicy | None = None,
     ) -> PreparedAnalysis[_PreparedResult]:
         """Compile a durable plan for a licensed analysis cell.
 
@@ -1074,6 +1117,21 @@ class PreparedAnalysis(Generic[ResultT]):
         every estimate click; ``on_stage`` streams the stages of each click on
         routes that have them. The handle retains all three; a click may
         override them.
+
+        ``PolicyProgramValue(programs, outcome, n_draws=...)`` with ``graph=Dag(...)`` (or an
+        edge list) prepares a policy question: the structural model is fitted on ``data`` once,
+        the program is compiled and the licence of each route resolved once, and every
+        ``estimate`` / ``refresh`` reruns the policy value without compiling the program again
+        (``handle.preparation`` is the receipt). Its result carries the support decision, the
+        contract and the provenance record, and equals ``policy_value`` on the same model and
+        seed. Estimand-only options (``discovery``, ``estimator``, ``refute``, ...) are refused.
+
+        ``missing=`` declares how missing values are handled (a policy name or an
+        :class:`antecedent.missing.MissingPolicy`). Average-effect routes keep their
+        complete-case selection by default and report the rows it dropped; randomized,
+        panel and temporal routes refuse a missing value until a policy is declared. A
+        policy the route cannot execute is refused when the study is built, and every
+        result carries ``missing_data`` (policy, assumption and row accounting).
         """
         from .transport import ExactTransportData, StatisticalTransportData
         from .transport._day1 import prepare_transport, refuse_transport_only_kwargs
@@ -1089,6 +1147,76 @@ class PreparedAnalysis(Generic[ResultT]):
         refuse_transport_only_kwargs(
             query, provider=provider, inference=inference, controls=controls
         )
+        if isinstance(query, PolicyProgramValue):
+            from ._prepared_policy import PreparedPolicyAnalysis
+
+            return PreparedPolicyAnalysis.build(
+                data,
+                query=query,
+                graph=graph,
+                seed=seed,
+                threads=threads,
+                accept_discovered=accept_discovered,
+                options={
+                    "discovery": discovery,
+                    "inference": inference,
+                    "identifier": identifier,
+                    "estimator": estimator,
+                    "estimator_config": estimator_config,
+                    "refute": refute,
+                    "bootstrap": bootstrap,
+                    "latency": latency,
+                    "class_prior": class_prior,
+                    "max_completions": max_completions,
+                    "participant": participant,
+                    "missing": missing,
+                    "population_registry": population_registry,
+                    "cancel": cancel,
+                    "on_progress": on_progress,
+                    "on_stage": on_stage,
+                    "validators": validators,
+                    "regimes": regimes,
+                    "provider": provider,
+                    "controls": controls,
+                },
+            )
+        if participant is not None and (
+            isinstance(
+                query,
+                (
+                    Transport,
+                    TransportResponseGridQuery,
+                    StatisticalTransportQuery,
+                    ExactTransportQuery,
+                ),
+            )
+            or isinstance(data, (ExactTransportData, StatisticalTransportData))
+        ):
+            raise CausalUnsupportedError(
+                "participant= labels the rows of a prepared table; a transport study is bound "
+                "to an evidence catalog or distributional providers, which have no table rows "
+                "to carry the labels",
+                reason_code="option_not_applicable",
+            )
+        missing_policy = coerce_missing(missing)
+        if missing_policy is not None and (
+            isinstance(
+                query,
+                (
+                    Transport,
+                    TransportResponseGridQuery,
+                    StatisticalTransportQuery,
+                    ExactTransportQuery,
+                ),
+            )
+            or isinstance(data, (ExactTransportData, StatisticalTransportData))
+        ):
+            raise CausalUnsupportedError(
+                "missing= declares how rows with missing values are handled; a transport study "
+                "is bound to an evidence catalog or distributional providers, which have no "
+                "table rows",
+                reason_code="option_not_applicable",
+            )
         # A design-carrying query may name its row-aligned inputs by data column;
         # resolve those from the raw data (any dtype) and drop them before the numeric
         # ingest. No-op when the caller passed the arrays inline.
@@ -1289,9 +1417,31 @@ class PreparedAnalysis(Generic[ResultT]):
 
         display_query = query
         query = coerce_query(query)
+        # Label-declared treatment levels are mapped to the arm codes of the numeric
+        # declared-level path here, once; the mapping is frozen with the study.
+        treatment_labels = TreatmentLabels.of(query)
+        if treatment_labels is not None:
+            data = treatment_labels.encode(data)
+            query = treatment_labels.native_query(query)
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
         estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
+        # A named cluster column is read from the raw data here and bound to its original
+        # rows; the estimator aligns it to the rows it analyses.
+        estimator_config, identifier_bindings = resolve_estimator_identifiers(
+            estimator, estimator_config, data
+        )
+        participant_binding: IdentifierBinding | None = None
+        if participant is not None:
+            participant_binding, _ = encode_identifier(
+                data, participant, what="participant", keep_rows=True
+            )
+            identifier_bindings[participant] = participant_binding
+            # The labels are bound to their rows; the column is not an analysis variable and
+            # must not reach the numeric ingest of a route that reads every column.
+            columns = table_column_names(data)
+            if columns is not None and participant in columns:
+                data = project_columns(data, [c for c in columns if c != participant])
         if latency is not None:
             latency = str(coerce_latency(latency))  # type: ignore[assignment]
         # The native side takes a suite name or False; the parameter keeps its
@@ -1351,8 +1501,15 @@ class PreparedAnalysis(Generic[ResultT]):
         structure_accepted = isinstance(graph, AcceptedGraph)
         discovery_algorithm = None
         if structure_accepted:
-            discovery_algorithm = cast(AcceptedGraph, graph).algorithm_id
-            graph = cast(AcceptedGraph, graph).graph
+            accepted_graph = cast(AcceptedGraph, graph)
+            discovery_algorithm = accepted_graph.algorithm_id
+            if accepted_graph.background_knowledge is not None:
+                # The statements the discovery ran under are part of what the claim rests on:
+                # the same graph found under other knowledge is another procedure's result.
+                discovery_algorithm = (
+                    f"{discovery_algorithm}+knowledge:{accepted_graph.background_knowledge}"
+                )
+            graph = accepted_graph.graph
         if class_prior is not None and (
             not isinstance(graph, (TemporalCpdag, TemporalPag))
             or not isinstance(inference, Bayesian)
@@ -1365,6 +1522,7 @@ class PreparedAnalysis(Generic[ResultT]):
             raise _not_applicable("max_completions", "a structure without class completions")
 
         design_columns = None
+        table_names: tuple[str, ...] | None = None
         if isinstance(
             query,
             (
@@ -1391,7 +1549,10 @@ class PreparedAnalysis(Generic[ResultT]):
             names, columns = _longitudinal_regime_payload(data, query)
             frame = None
         else:
-            names, columns, frame = _frame_payload(data)
+            names, columns, frame = _frame_payload(
+                data, analysis_columns(query, graph, estimator_config)
+            )
+            table_names = tuple(names) if frame is None else None
         predicates, distributions = registry_wire(population_registry)
         population = coerce_target_population(getattr(query, "target_population", None))
         options: dict[str, Any] = {
@@ -1407,6 +1568,23 @@ class PreparedAnalysis(Generic[ResultT]):
             "inference": _inference_wire(inference),
             "discovery_algorithm": discovery_algorithm,
         }
+        if missing_policy is not None:
+            options["missing"] = native_declaration(missing_policy, names)
+        if (query_weights := getattr(query, "weights", None)) is not None:
+            # A design query that declares sampling weights: one weight per original row,
+            # frozen like a cluster column so a refreshed table with other weights is refused.
+            declared, weight_binding = encode_weights(data, query_weights, estimator=None)
+            options["sampling_weights"] = declared
+            if weight_binding is not None:
+                identifier_bindings[weight_binding.column] = weight_binding
+        if participant_binding is not None:
+            if table_names is None:
+                raise CausalUnsupportedError(
+                    "participant= labels the rows of one prepared table; this route (frames and "
+                    "design queries) reads its units from the design instead",
+                    reason_code="option_not_applicable",
+                )
+            options["participants"] = participant_binding.contract_binding()
         route = _PrepareRoute(
             names=names,
             columns=columns,
@@ -1441,7 +1619,10 @@ class PreparedAnalysis(Generic[ResultT]):
             snapshot_data=data if route.deferred_suite else None,
             design_columns=design_columns,
             named_design_columns=named_design_columns,
+            column_names=table_names,
         )
+        prepared._identifier_bindings = identifier_bindings
+        prepared._treatment_labels = treatment_labels
         if on_stage is not None and not native.streams_stages():
             raise CausalUnsupportedError(
                 "on_stage streams identify, estimate_point, uncertainty and validate for one "
@@ -1786,11 +1967,18 @@ class PreparedAnalysis(Generic[ResultT]):
         self._cancelled = False
         return raw
 
-    def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
-        from ._columns import drop_columns
-
-        guard_design(self, data)
+    def _prepared_table(self, data: Any) -> Any:
+        """``data`` without the named design columns, reduced to the prepared schema by name."""
+        if self._treatment_labels is not None:
+            data = self._treatment_labels.encode(data)
         data = drop_columns(data, self._named_design_columns)
+        if self._column_names is None:
+            return data
+        return project_columns(data, self._column_names, what="prepared")
+
+    def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
+        guard_design(self, data)
+        data = self._prepared_table(data)
         query = self._query
         if isinstance(query, ConditionalDoseResponse):
             names, columns, design = _continuous_dose_payload(data, query)
@@ -2183,13 +2371,9 @@ class PreparedAnalysis(Generic[ResultT]):
             )
         if isinstance(suite, Refute):
             suite = str(suite)
-        from ._columns import drop_columns
-
         guard_design(self, data)
         if data is not None:
-            names, columns, arrow = _prepared_columns(
-                drop_columns(data, self._named_design_columns)
-            )
+            names, columns, arrow = _prepared_columns(self._prepared_table(data))
         kwargs: dict[str, Any] = dict(
             seed=self._seed if seed is None else seed,
             threads=self._threads if threads is None else threads,

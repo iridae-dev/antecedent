@@ -148,10 +148,25 @@ impl RandomizedMethod {
         }
     }
 
+    /// Uncertainty label and diagnostic of the small-arm interval, for the methods that have one.
+    pub(super) fn small_arm(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::Ancova => Some((
+                "bernoulli_ancova_hc2_bell_mccaffrey_student_interval",
+                "Bernoulli ANCOVA with pre-assignment covariates in arms below the normal-interval support (30 observed and 40 expected rows): independent-unit HC2 variance with a Bell-McCaffrey Student pointwise 95% interval conditional on the realized arm sizes, an uncalibrated construction until a coverage record covers it",
+            )),
+            Self::Complete => Some((
+                "complete_difference_in_means_hc2_bell_mccaffrey_student_interval",
+                "Complete-randomization difference in means in arms below the normal-interval support (30 observed rows): per-arm Neyman variance (the HC2 variance of the two-group regression) with a Bell-McCaffrey Student pointwise 95% interval, an uncalibrated construction until a coverage record covers it",
+            )),
+            _ => None,
+        }
+    }
+
     pub(super) fn diagnostic(self, interval_published: bool) -> &'static str {
         match (self, interval_published) {
             (Self::Ancova, false) => {
-                "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no calibrated confidence interval"
+                "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no confidence interval: the HC0 interval needs 30 observed and 40 expected rows in each arm, a common assignment probability from 0.2 through 0.8 and at most two covariates, and the small-arm Student interval needs at least 2 observed rows in each arm, 100 rows in all, positive HC2 variance and at most two covariates"
             }
             (Self::TreatmentOnTreated, false) => {
                 "Treatment-on-treated among recipients under one-sided noncompliance, exclusion, and independent assignment; Wald point and independent-unit influence variance, no interval"
@@ -160,13 +175,13 @@ impl RandomizedMethod {
                 "Wald CACE/LATE from randomized encouragement and observed receipt; independent-unit influence variance, no interval"
             }
             (Self::FixedCuped, false) => {
-                "Horvitz-Thompson ITT on outcomes adjusted by a declared pre-assignment covariate and externally fixed coefficient; observed-arm upper-bound estimator is conservative in randomization expectation, no interval"
+                "Horvitz-Thompson ITT on outcomes adjusted by a declared pre-assignment covariate and externally fixed coefficient; observed-arm upper-bound estimator is conservative in randomization expectation; no interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
             }
             (Self::Bernoulli, false) => {
-                "Horvitz-Thompson ITT with Bernoulli design variance; no confidence interval is reported"
+                "Horvitz-Thompson ITT with Bernoulli design variance; no confidence interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
             }
             (Self::Complete, false) => {
-                "Complete-randomization difference in means with Neyman conservative variance estimate; no confidence interval is reported"
+                "Complete-randomization difference in means with Neyman conservative variance estimate; no confidence interval: the normal interval needs 30 observed rows in each arm and the small-arm Student interval at least 2 observed rows in each arm, 100 rows in all and positive variance"
             }
             (Self::Cluster, false) => {
                 "Complete cluster-randomization HT ITT over cluster outcome totals, with Neyman conservative variance; no confidence interval is reported"
@@ -246,6 +261,10 @@ pub(super) struct TrialFit {
     pub(super) factorial_interaction_interval_95: Interval,
     pub(super) multi_arm_values: MultiArmValues,
     pub(super) multi_arm_intervals_95: Arc<[Interval]>,
+    /// What the table's sampling weights did to the fit; `None` for an unweighted fit.
+    pub(super) sampling: Option<antecedent_estimate::SamplingWeightRecord>,
+    /// Bell-McCaffrey degrees of freedom when the interval is the small-arm Student interval.
+    pub(super) small_arm_df: Option<f64>,
 }
 
 impl TrialFit {
@@ -265,7 +284,31 @@ impl TrialFit {
             factorial_interaction_interval_95: None,
             multi_arm_values: Arc::from([]),
             multi_arm_intervals_95: Arc::from([]),
+            sampling: None,
+            small_arm_df: None,
         }
+    }
+
+    /// The fit with every interval withheld: a handled missingness has no coverage record.
+    pub(super) fn closed(mut self) -> Self {
+        self.interval_95 = None;
+        self.interval_standard_error = None;
+        self.second_factor_interval_95 = None;
+        self.factorial_interaction_interval_95 = None;
+        self.multi_arm_intervals_95 = self.multi_arm_values.iter().map(|_| None).collect();
+        self.small_arm_df = None;
+        self
+    }
+
+    /// Publishes the small-arm Student interval with the standard error it was built from.
+    fn with_small_arm_interval(
+        mut self,
+        fit: antecedent_estimate::ancova::SmallArmInterval,
+    ) -> Self {
+        self.interval_95 = Some(fit.interval_95);
+        self.interval_standard_error = Some(fit.variance.sqrt());
+        self.small_arm_df = Some(fit.degrees_of_freedom);
+        self
     }
 
     /// Publishes `interval`; its standard error accompanies it only when it exists.
@@ -284,6 +327,9 @@ pub(super) fn fit_randomized(
     data: &TabularData,
     outcomes: &[f64],
 ) -> Result<TrialFit, CausalError> {
+    if let Some(weights) = data.storage().weights() {
+        return fit_sampling_weighted(query, outcomes, weights);
+    }
     match RandomizedMethod::of(query) {
         RandomizedMethod::Ancova => fit_ancova(query, data, outcomes),
         RandomizedMethod::TreatmentOnTreated | RandomizedMethod::ComplierEffect => {
@@ -299,6 +345,166 @@ pub(super) fn fit_randomized(
         RandomizedMethod::Factorial2x2 => fit_factorial(query, outcomes),
         RandomizedMethod::Switchback => fit_switchback(query, outcomes),
     }
+}
+
+/// Fits the contrast of a Bernoulli or completely randomized design whose outcomes are
+/// missing for some assigned participants, under the declared policy.
+///
+/// Complete case averages the responders of each arm (outcomes missing completely at random
+/// within arm); inverse-probability weighting reweights the responders of each arm by their
+/// estimated probability of being observed given the declared covariates. Neither narrows the
+/// assignment to the responders, and neither publishes an interval.
+pub(super) fn fit_missing_outcomes(
+    query: &RandomizedEffectQuery,
+    data: &TabularData,
+    outcomes: &[f64],
+    observed: &[bool],
+    declaration: &antecedent_data::MissingDeclaration,
+) -> Result<TrialFit, CausalError> {
+    use antecedent_data::MissingPolicy;
+    let assigned = |group: bool| query.realized_assignment.iter().filter(|a| **a == group).count();
+    let (controls, treated) = (assigned(false), assigned(true));
+    if outcomes.iter().zip(observed).any(|(y, seen)| *seen && !y.is_finite()) {
+        return Err(CausalError::Unsupported {
+            message: "randomized ITT requires finite observed outcomes",
+        });
+    }
+    if !matches!(
+        RandomizedMethod::of(query),
+        RandomizedMethod::Bernoulli | RandomizedMethod::Complete
+    ) {
+        return fit_design_with_missing_outcomes(query, data, outcomes, observed, declaration);
+    }
+    match declaration.policy {
+        MissingPolicy::CompleteCase => {
+            let responders = |group: bool| -> Vec<f64> {
+                (0..outcomes.len())
+                    .filter(|&i| observed[i] && query.realized_assignment[i] == group)
+                    .map(|i| outcomes[i])
+                    .collect()
+            };
+            let fit = antecedent_estimate::randomized_neyman::complete_unit_itt(
+                &responders(true),
+                &responders(false),
+            )
+            .ok_or(CausalError::Unsupported {
+                message: "complete-case randomized ITT needs at least two responders in each arm",
+            })?;
+            Ok(TrialFit::point(fit.effect, fit.variance_upper_bound, controls, treated))
+        }
+        MissingPolicy::InverseProbabilityOfObservation => {
+            if let Some(cell) = antecedent_data::first_missing_cell(data, &declaration.covariates)
+                .map_err(CausalError::from)?
+            {
+                return Err(CausalError::Estimate(
+                    antecedent_estimate::missing_policy::covariates_incomplete(
+                        &cell,
+                        "randomized intention-to-treat estimation",
+                    ),
+                ));
+            }
+            if declaration.covariates.contains(&query.outcome) {
+                return Err(CausalError::Unsupported {
+                    message: "the observation model cannot condition on the outcome itself",
+                });
+            }
+            let mut covariates = Vec::with_capacity(declaration.covariates.len() * outcomes.len());
+            for &id in declaration.covariates.iter() {
+                covariates.extend_from_slice(&data.float64_cow(id).map_err(CausalError::from)?);
+            }
+            let fit = antecedent_estimate::randomized_missing::responder_weighted_itt(
+                outcomes,
+                observed,
+                &query.realized_assignment,
+                &covariates,
+                declaration.covariates.len(),
+            )?;
+            Ok(TrialFit::point(fit.effect, fit.variance, controls, treated))
+        }
+        _ => Err(CausalError::Unsupported {
+            message: "randomized outcomes are missing and the declared policy does not handle them",
+        }),
+    }
+}
+
+/// Cluster, stratified, factorial, multi-arm and switchback designs with missing outcomes:
+/// each outcome is replaced by its inverse-probability-of-observation pseudo-outcome (zero for
+/// a non-responder), fitted within the unit's assignment group, and the design's own estimator
+/// and variance run on every assigned unit. Assignment, blocks, clusters and periods are
+/// untouched, and the design's variance (cluster totals, stratum weights, cell contrasts,
+/// sequence scores) is applied to the pseudo-outcomes, which carry the influence of the fitted
+/// observation model, so estimating the probabilities is accounted for (blocks and clusters
+/// are treated as independent of the shared coefficients).
+fn fit_design_with_missing_outcomes(
+    query: &RandomizedEffectQuery,
+    data: &TabularData,
+    outcomes: &[f64],
+    observed: &[bool],
+    declaration: &antecedent_data::MissingDeclaration,
+) -> Result<TrialFit, CausalError> {
+    use antecedent_data::MissingPolicy;
+    let group: Vec<usize> = match &query.design {
+        RandomizationDesign::MultiArm { assignment, .. } => assignment.to_vec(),
+        RandomizationDesign::Factorial2x2 { second_factor_assignment, .. } => query
+            .realized_assignment
+            .iter()
+            .zip(second_factor_assignment.iter())
+            .map(|(primary, second)| usize::from(*primary) + 2 * usize::from(*second))
+            .collect(),
+        _ => query.realized_assignment.iter().map(|a| usize::from(*a)).collect(),
+    };
+    let mut covariates = Vec::new();
+    let mut ncov = 0;
+    match declaration.policy {
+        MissingPolicy::CompleteCase => {}
+        MissingPolicy::InverseProbabilityOfObservation => {
+            if let Some(cell) = antecedent_data::first_missing_cell(data, &declaration.covariates)
+                .map_err(CausalError::from)?
+            {
+                return Err(CausalError::Estimate(
+                    antecedent_estimate::missing_policy::covariates_incomplete(
+                        &cell,
+                        "randomized intention-to-treat estimation",
+                    ),
+                ));
+            }
+            for &id in declaration.covariates.iter() {
+                covariates.extend_from_slice(&data.float64_cow(id).map_err(CausalError::from)?);
+            }
+            ncov = declaration.covariates.len();
+        }
+        _ => {
+            return Err(CausalError::Unsupported {
+                message: "randomized outcomes are missing and the declared policy does not handle them",
+            });
+        }
+    }
+    let pseudo = antecedent_estimate::randomized_missing::responder_pseudo_outcomes(
+        outcomes,
+        observed,
+        &group,
+        &covariates,
+        ncov,
+    )?;
+    fit_randomized(query, data, &pseudo)
+}
+
+/// The small-arm Student interval of a trial whose arms are below the normal interval's support,
+/// for a trial large enough to publish one.
+fn small_arm_interval(
+    query: &RandomizedEffectQuery,
+    outcomes: &[f64],
+    covariates: &[&[f64]],
+) -> Option<antecedent_estimate::ancova::SmallArmInterval> {
+    (outcomes.len() >= antecedent_estimate::ancova::MIN_ROWS_FOR_SMALL_ARM_INTERVAL)
+        .then(|| {
+            antecedent_estimate::ancova::small_arm_interval_95(
+                outcomes,
+                &query.realized_assignment,
+                covariates,
+            )
+        })
+        .flatten()
 }
 
 fn fit_ancova(
@@ -323,8 +529,13 @@ fn fit_ancova(
         &fit,
         query.assignment_probabilities[0],
     );
-    Ok(TrialFit::point(fit.effect, fit.hc0_variance, fit.control, fit.treated)
-        .with_interval(interval, fit.hc0_variance.sqrt()))
+    let out = TrialFit::point(fit.effect, fit.hc0_variance, fit.control, fit.treated);
+    // Arms below the normal interval's support get the small-arm construction.
+    let small = interval.is_none().then(|| small_arm_interval(query, outcomes, &refs)).flatten();
+    if let Some(small) = small {
+        return Ok(out.with_small_arm_interval(small));
+    }
+    Ok(out.with_interval(interval, fit.hc0_variance.sqrt()))
 }
 
 fn fit_complier(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<TrialFit, CausalError> {
@@ -475,13 +686,19 @@ fn fit_complete(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<Trial
             message: "complete-randomized ITT requires finite outcomes and estimable variance",
         },
     )?;
-    Ok(TrialFit::point(
+    let out = TrialFit::point(
         fit.effect,
         fit.variance_upper_bound,
         outcomes.len() - treated_units,
         *treated_units,
-    )
-    .with_interval(fit.interval_95, fit.variance_upper_bound.sqrt()))
+    );
+    // Arms below the normal interval's support get the small-arm construction.
+    let small =
+        fit.interval_95.is_none().then(|| small_arm_interval(query, outcomes, &[])).flatten();
+    if let Some(small) = small {
+        return Ok(out.with_small_arm_interval(small));
+    }
+    Ok(out.with_interval(fit.interval_95, fit.variance_upper_bound.sqrt()))
 }
 
 fn fit_cluster(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<TrialFit, CausalError> {
@@ -664,4 +881,72 @@ pub(super) fn assignment_probability_floor(query: &RandomizedEffectQuery, two_si
             .map(|p| if two_sided { p.min(1.0 - p) } else { p })
             .fold(f64::INFINITY, f64::min)
     }
+}
+
+/// Smaller of the expected treated and expected control rows of an independent Bernoulli design:
+/// the arm's summed known assignment probabilities. Zero for every other design, whose licenses
+/// state their own arm counts.
+pub(super) fn expected_arm_units(query: &RandomizedEffectQuery) -> f64 {
+    if !matches!(query.design, RandomizationDesign::Bernoulli) {
+        return 0.0;
+    }
+    let treated: f64 = query.assignment_probabilities.iter().sum();
+    treated.min(query.assignment_probabilities.len() as f64 - treated)
+}
+
+/// Uncertainty label of a sampling-weighted two-arm fit; no interval is published.
+pub(super) const SAMPLING_WEIGHTED_UNCERTAINTY: &str =
+    "sampling_weighted_hajek_linearized_variance_no_interval";
+
+/// Diagnostic text of a sampling-weighted two-arm fit.
+pub(super) const SAMPLING_WEIGHTED_DIAGNOSTIC: &str = "Sampling-weighted ITT: the difference of the arms' Hajek means in the weighted population the table's sampling weights represent, each row weighted by its sampling weight over the known probability of its assigned arm and weights normalized to mean one; the variance linearizes the two ratio means treating units as independent draws (Neyman's conservative bound for equal weights); rows of weight zero are excluded and counted; no confidence interval is reported";
+
+/// Fits a Bernoulli or completely randomized two-arm design under the table's sampling weights.
+///
+/// The estimand is the intention-to-treat effect in the weighted population: the difference of
+/// the arms' Hajek means with row weights `s_i / P(arm_i)`. Rows of weight zero are excluded
+/// and counted. Designs with receipt adjustment, CUPED, ANCOVA, exact randomization inference,
+/// clusters, blocks, factors, extra arms or sequences have no sampling-weighted contrast.
+fn fit_sampling_weighted(
+    query: &RandomizedEffectQuery,
+    outcomes: &[f64],
+    weights: &[f64],
+) -> Result<TrialFit, CausalError> {
+    if !matches!(
+        RandomizedMethod::of(query),
+        RandomizedMethod::Bernoulli | RandomizedMethod::Complete
+    ) || query.exact_randomization_test
+    {
+        return Err(CausalError::Estimate(
+            antecedent_estimate::sampling_weights::unsupported_route(
+                "sampling weights are read by unadjusted Bernoulli and complete randomization of units; \
+             cluster, stratified, factorial, multi-arm, switchback, receipt-adjusted, CUPED, ANCOVA \
+             and exact-randomization designs have no sampling-weighted contrast",
+            ),
+        ));
+    }
+    let arm_probability: Vec<f64> = query
+        .realized_assignment
+        .iter()
+        .zip(query.assignment_probabilities.iter())
+        .map(|(&treated, &p)| if treated { p } else { 1.0 - p })
+        .collect();
+    let fit = antecedent_estimate::randomized_neyman::weighted_itt(
+        outcomes,
+        &query.realized_assignment,
+        &arm_probability,
+        weights,
+    )
+    .ok_or(CausalError::Unsupported {
+        message: "sampling-weighted randomized ITT needs finite outcomes and at least two positive-weight units in each arm",
+    })?;
+    let rows_used = fit.treated_units + fit.control_units;
+    let mut out = TrialFit::point(fit.effect, fit.variance, fit.control_units, fit.treated_units);
+    out.sampling = Some(antecedent_estimate::SamplingWeightRecord {
+        rows_used: rows_used as u64,
+        zero_weight_rows: fit.zero_weight_rows as u64,
+        effective_sample_size: fit.effective_sample_size,
+        weight_sum: weights.iter().sum(),
+    });
+    Ok(out)
 }

@@ -100,6 +100,27 @@ pub(crate) fn for_each_admissible_subset(
     base: &[DenseNodeId],
     candidates: &[DenseNodeId],
     budget: usize,
+    tick: impl FnMut() -> Result<(), IdentificationError>,
+    visit: impl FnMut(&[DenseNodeId]) -> Result<bool, IdentificationError>,
+) -> Result<SubsetSearchEnd, IdentificationError> {
+    for_each_admissible_subset_preferring(
+        selection, outcomes, base, candidates, None, budget, tick, visit,
+    )
+}
+
+/// Try one declared joint set before the ordinary minimum-cardinality search.
+/// The preferred set consumes the same subset budget and separation/proof checks.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the optional declared set extends the bounded subset visitor"
+)]
+pub(crate) fn for_each_admissible_subset_preferring(
+    selection: &MutilatedSelection,
+    outcomes: &[DenseNodeId],
+    base: &[DenseNodeId],
+    candidates: &[DenseNodeId],
+    preferred: Option<&[DenseNodeId]>,
+    budget: usize,
     mut tick: impl FnMut() -> Result<(), IdentificationError>,
     mut visit: impl FnMut(&[DenseNodeId]) -> Result<bool, IdentificationError>,
 ) -> Result<SubsetSearchEnd, IdentificationError> {
@@ -116,6 +137,15 @@ pub(crate) fn for_each_admissible_subset(
         }
         visit(subset)
     };
+    if let Some(preferred) = preferred.filter(|set| !set.is_empty()) {
+        if budget == 0 {
+            return Ok(SubsetSearchEnd::Capped);
+        }
+        evaluated += 1;
+        if step(preferred)? {
+            return Ok(SubsetSearchEnd::Accepted);
+        }
+    }
     for size in 0..=candidates.len() {
         let mut capped = false;
         let mut failure = None;
@@ -445,5 +475,73 @@ mod tests {
         )
         .unwrap();
         assert_eq!(end, SubsetSearchEnd::Capped);
+    }
+    #[test]
+    fn declared_joint_preference_checks_separation_and_charges_its_budget() {
+        // S -> Z <- U -> Y: conditioning on the shifted collider is invalid,
+        // although direct transport is certified in this graph.
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(d(1), d(0)).unwrap();
+        graph.insert_directed(d(1), d(2)).unwrap();
+        let selection =
+            MutilatedSelection::build(&graph, &all(3), &BitSet::with_len(3), &[d(0)]).unwrap();
+        let mut seen = Vec::new();
+        let mut charged = 0;
+        let end = for_each_admissible_subset_preferring(
+            &selection,
+            &[d(2)],
+            &[],
+            &[d(0)],
+            Some(&[d(0)]),
+            2,
+            || {
+                charged += 1;
+                Ok(())
+            },
+            |subset| {
+                seen.push(subset.to_vec());
+                Ok(true)
+            },
+        )
+        .unwrap();
+        assert_eq!(end, SubsetSearchEnd::Accepted);
+        assert_eq!(charged, 2);
+        assert_eq!(seen, vec![Vec::<DenseNodeId>::new()]);
+        let end = for_each_admissible_subset_preferring(
+            &selection,
+            &[d(2)],
+            &[],
+            &[d(0)],
+            Some(&[d(0)]),
+            1,
+            || Ok(()),
+            |_| panic!("the invalid preferred collider must not reach the visitor"),
+        )
+        .unwrap();
+        assert_eq!(end, SubsetSearchEnd::Capped);
+    }
+
+    #[test]
+    fn a_declared_admissible_set_precedes_the_empty_set() {
+        let graph = Admg::with_variables(3);
+        let selection =
+            MutilatedSelection::build(&graph, &all(3), &BitSet::with_len(3), &[d(0)]).unwrap();
+        let mut seen = Vec::new();
+        let end = for_each_admissible_subset_preferring(
+            &selection,
+            &[d(2)],
+            &[],
+            &[d(0)],
+            Some(&[d(0)]),
+            1,
+            || Ok(()),
+            |subset| {
+                seen.push(subset.to_vec());
+                Ok(true)
+            },
+        )
+        .unwrap();
+        assert_eq!(end, SubsetSearchEnd::Accepted);
+        assert_eq!(seen, vec![vec![d(0)]]);
     }
 }

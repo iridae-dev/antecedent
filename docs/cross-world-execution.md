@@ -34,21 +34,47 @@ the declaration that would open it; it is not a cache miss.
 | counterfactual marginal, finite Markovian SCM, with or without factual evidence | executed |
 | counterfactual joint event over worlds, finite Markovian SCM | executed (shared exogenous coupling) |
 | natural / path-specific contrast, finite Markovian SCM | executed (shared exogenous coupling) |
+| the same three quantities, fully declared finite SCM with an exogenous term shared by several mechanisms | executed (one joint exogenous state per unit) |
 | fixed-population two-slice temporal counterfactual | executed, staged with abduction reuse |
 | transported static additive linear path-specific | keeps its own theorem-scoped route |
 | transported cross-world execution | closed: `cell_not_licensed`, prerequisites named |
-| semi-Markovian / nonparametric ADMG | closed: `cross_world_not_identified` |
+| latent confounding without declared mechanisms, nonparametric ADMG | closed: `cross_world_not_identified` |
+| declared model whose joint exogenous enumeration exceeds the bound | `route_not_supported` (`cross_world_execution.joint_state_bound_exceeded`) |
 | incompatible history, soft interventions, fitting a finite SCM from data | closed |
 
-## The finite Markovian row
+## The finite SCM rows
 
-Variables are finite and listed topologically, each with its own independent
-finite exogenous term (a term shared by two variables is latent confounding and
-is refused). Each unit's abduction enumerates the joint exogenous states
-exactly, keeps those consistent with the evidence and normalizes; every world
-evaluates the same equations with its hard interventions and routes under the
-same posterior state, so worlds are coupled by construction (Pearl 2009,
-chapter 7; Balke and Pearl 1994). Nothing is sampled: `shared_draws` is zero.
+Variables are finite and listed topologically. Every mechanism table and every
+finite exogenous law is declared. Each variable names one exogenous term; a term
+may be named by one variable (a Markovian model, rows `finite_markovian_scm`) or
+by several (rows `finite_shared_exogenous_scm`). Each unit's abduction enumerates
+the joint exogenous states exactly, keeps those consistent with the evidence and
+normalizes; every world evaluates the same equations with its hard interventions
+and routes under the same posterior state, so worlds are coupled by construction
+(Pearl 2009, chapter 7; Balke and Pearl 1994). Nothing is sampled: `shared_draws`
+is zero.
+
+A shared exogenous term is latent confounding in the structural sense. When the
+model is fully declared there is no identification question: the term takes one
+value per joint state, every mechanism that reads it sees that value, in the
+factual world and in every counterfactual world. A patient observed treated is
+thereby known to carry the hidden state that also shaped the outcome, and the
+counterfactual outcome inherits it; replacing the shared term by independent
+noise gives a different answer (see `examples/python/shared_exogenous_counterfactual.py`).
+
+Three situations are kept apart in refusals:
+
+- A model whose mechanisms or exogenous law are not declared (a nonparametric
+  ADMG, or latent confounding to be fitted from data) does not identify a
+  cross-world law: `cross_world_not_identified`
+  (`cross_world_execution.mechanisms_not_declared`,
+  `cross_world_execution.latent_confounding_not_identified`).
+- A declared model whose joint exogenous enumeration exceeds the bound, or a
+  request outside an executed row, is unsupported execution, not
+  non-identification: `route_not_supported`.
+- Intervals are not extended to shared terms: the measured whole-path coverage
+  record covers one exogenous term per variable, so a shared-term model reads a
+  point only.
 
 Whether draws may be paired is decided only by the joint-law rule
 (`check_propagation`): a quantity over several worlds needs the aligned
@@ -61,7 +87,7 @@ Bounds (registered in `parity/limits.toml`):
 - Variables: 12
 - Worlds: 8
 - Units: 1024
-- Joint exogenous states: 65536 per unit
+- Joint exogenous states: 65536 per unit (the product of every exogenous term's states, shared or not)
 
 ## Readings and calibration
 

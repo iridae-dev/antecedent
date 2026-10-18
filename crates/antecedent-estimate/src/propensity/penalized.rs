@@ -26,7 +26,8 @@ use std::hash::{Hash, Hasher};
 use antecedent_core::{CanonicalWriter, ExecutionContext, VariableId};
 use antecedent_learn::{
     DesignView, FittedPredictor, LassoLogisticLearner, LearnError, LearnerFactory,
-    LearnerProvenance, PredictionMap, RidgeLogisticLearner, TargetView, cross_fit_with_folds,
+    LearnerProvenance, PredictionMap, RidgeLogisticLearner, TargetView,
+    cross_fit_with_folds_weighted,
 };
 
 use super::penalized_report::{FailedFit, FoldSupport};
@@ -620,6 +621,11 @@ pub(crate) struct RidgeFoldInput<'a> {
     pub(crate) fold: usize,
     /// Seed of the fold plan the outer folds were drawn from.
     pub(crate) seed: u64,
+    /// Sampling weight of each training row (mean one over the analysed rows), or `None`.
+    /// With weights the penalty is chosen by the weighted inner cross-validated log loss, the
+    /// columns are standardized by weighted training moments, and every fit is the
+    /// prior-weighted penalized likelihood.
+    pub(crate) weights: Option<&'a [f64]>,
 }
 
 /// Standardize every non-intercept column by the training rows' mean and standard
@@ -630,8 +636,12 @@ fn standardize(input: &RidgeFoldInput<'_>) -> (Vec<f64>, Vec<f64>) {
     let mut valid = input.design_valid.to_vec();
     for c in 1..input.ncols {
         let col = &input.design_train[c * n_train..(c + 1) * n_train];
-        let mean = col.iter().sum::<f64>() / n_train as f64;
-        let var = col.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / n_train as f64;
+        let share = |i: usize| input.weights.map_or(1.0, |w| w[i]);
+        let mass: f64 = (0..n_train).map(share).sum();
+        let mean = col.iter().enumerate().map(|(i, v)| share(i) * v).sum::<f64>() / mass;
+        let var =
+            col.iter().enumerate().map(|(i, v)| share(i) * (v - mean) * (v - mean)).sum::<f64>()
+                / mass;
         let sd = var.sqrt();
         let scale = if sd > 1e-12 * mean.abs().max(1.0) { 1.0 / sd } else { 0.0 };
         for v in &mut train[c * n_train..(c + 1) * n_train] {
@@ -642,6 +652,23 @@ fn standardize(input: &RidgeFoldInput<'_>) -> (Vec<f64>, Vec<f64>) {
         }
     }
     (train, valid)
+}
+
+/// Weighted mean log loss `Σ m_i (−y_i ln p_i − (1 − y_i) ln(1 − p_i)) / Σ m_i` of out-of-fold
+/// probabilities, the criterion that selects a penalty on a sampling-weighted population.
+fn weighted_logloss(y: &[f64], probability: &[f64], weights: &[f64]) -> f64 {
+    const FLOOR: f64 = 1e-12;
+    let mass: f64 = weights.iter().sum();
+    let total: f64 = y
+        .iter()
+        .zip(probability)
+        .zip(weights)
+        .map(|((&t, &p), &m)| {
+            let p = p.clamp(FLOOR, 1.0 - FLOOR);
+            -m * (t * p.ln() + (1.0 - t) * (1.0 - p).ln())
+        })
+        .sum();
+    total / mass
 }
 
 /// Design columns (`>= 1`) a fitted lasso kept: the nonzero non-intercept coefficients.
@@ -738,20 +765,28 @@ pub(crate) fn fit_penalized_fold(
             ));
         }
         let factory = penalty.factory(lambda).map_err(learn_err)?;
-        let inner_loss =
-            cross_fit_with_folds(factory.as_ref(), train_view, target, inner.clone(), ctx, None)
-                .map_err(|error| error.to_string())
-                .and_then(|oof| {
-                    oof.validation
-                        .logloss
-                        .filter(|loss| loss.is_finite())
-                        .ok_or_else(|| "non-finite inner log loss".to_string())
-                });
+        let inner_loss = cross_fit_with_folds_weighted(
+            factory.as_ref(),
+            train_view,
+            target,
+            input.weights,
+            inner.clone(),
+            ctx,
+            None,
+        )
+        .map_err(|error| error.to_string())
+        .and_then(|oof| {
+            let loss = match input.weights {
+                Some(weights) => weighted_logloss(input.t_train, &oof.predictions, weights),
+                None => oof.validation.logloss.unwrap_or(f64::NAN),
+            };
+            if loss.is_finite() { Ok(loss) } else { Err("non-finite inner log loss".to_string()) }
+        });
         match inner_loss {
             // A penalty is a candidate only if its fit on all training rows is usable too: the
             // inner folds fit fewer rows, so a penalty can pass inside and still saturate here.
             Ok(loss) if best.as_ref().is_none_or(|(_, b, _)| loss <= *b) => {
-                match factory.fit(train_view, target, None, ctx) {
+                match factory.fit(train_view, target, input.weights, ctx) {
                     Ok(model) => best = Some((lambda, loss, model)),
                     Err(error) => {
                         failed += 1;
@@ -1019,6 +1054,7 @@ mod tests {
             units: &units,
             fold: 0,
             seed: 1,
+            weights: None,
         };
         let (zt, zv) = standardize(&input);
         let sd = 5.0_f64.sqrt();
@@ -1095,6 +1131,7 @@ mod tests {
             units: &d.units,
             fold: 0,
             seed: 5,
+            weights: None,
         };
         let (predicted, selection) =
             fit_ridge_fold(&tuning, &input, &ExecutionContext::for_tests(5)).unwrap();
@@ -1125,6 +1162,7 @@ mod tests {
             units: &d.units,
             fold: 0,
             seed: 5,
+            weights: None,
         };
         let ctx = ExecutionContext::for_tests(5);
         ctx.cancellation.cancel();
@@ -1146,6 +1184,7 @@ mod tests {
             units: &d.units,
             fold: 0,
             seed: 5,
+            weights: None,
         };
         let error =
             fit_ridge_fold(&RidgeTuning::default(), &input, &ExecutionContext::for_tests(5))
@@ -1169,6 +1208,7 @@ mod tests {
             units: &d.units,
             fold: 0,
             seed: 5,
+            weights: None,
         };
         let ctx = ExecutionContext::for_tests(5);
         let tuning = RidgeTuning::new(&[1.0, 5.0, 50.0], 4).unwrap();

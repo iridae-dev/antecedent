@@ -13,7 +13,7 @@ papers = [
 implementation_deviations = [
  "The chain state is a single DAG plus compatible topological order, with edge flips and order transpositions corrected by the DAG's number of topological orders; it does not implement Friedman and Koller's order score that sums over all compatible parent sets.",
  "The target uses continuous Gaussian BIC rather than an exact modular Bayesian marginal likelihood.",
- "Sampling is finite and empirical, and the u64 adjacency representation limits the method to at most 63 directed-edge bits.",
+ "Sampling is finite and empirical, the four-word adjacency representation limits the method to at most 16 variables (240 directed-edge bits), and the per-step topological-order correction is a 2^n-state dynamic program, so the cost of a step doubles with each variable.",
 ]
 
 upstream_implementations_observed = []
@@ -22,4 +22,6 @@ test_sources = [
  "crates/antecedent-discovery/src/order_mcmc.rs unit tests",
  "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs (finite-chain edge marginals against a clean-room exhaustive Gaussian-BIC target on three-node cases)",
  "conformance/discovery/graph_mcmc_exact (small exhaustive Gaussian-BIC target; not an external full-method Order MCMC oracle)",
+ "crates/antecedent-discovery/tests/graph_posterior_wide.rs (five-variable exhaustive DAG enumeration; twelve-variable enumeration of the 3^12 states of a twelve-pair candidate skeleton scored by a separate Gaussian-BIC implementation)",
+ "crates/antecedent-discovery/src/order_mcmc.rs (prior-only proposal kernel with the topological-order correction against the closed-form rooted-forest law on ten nodes)",
 ]

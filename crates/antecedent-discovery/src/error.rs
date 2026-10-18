@@ -32,12 +32,24 @@ pub enum DiscoveryError {
         /// Message.
         message: &'static str,
     },
+    /// Background knowledge the search cannot honour.
+    #[error("background knowledge: {0}")]
+    Knowledge(crate::constraints::KnowledgeFault),
     /// Orientation / rule-scheduling precondition or message.
     #[error("orientation: {0}")]
     Orientation(String),
     /// Resource / memory budget exceeded.
     #[error("resource: {0}")]
     Resource(String),
+    /// A refusal carrying a registered runtime reason code, rendered
+    /// `reason=<code>: <message>`.
+    #[error("{}{code}: {message}", antecedent_core::reason_code::PREFIX)]
+    Refused {
+        /// Registered reason code (checked with `antecedent_core::reason_code!`).
+        code: &'static str,
+        /// What was refused and what the caller can do instead.
+        message: String,
+    },
     /// Cooperative cancellation.
     #[error("cancelled")]
     Cancelled,

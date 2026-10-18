@@ -697,6 +697,41 @@ fn simultaneous_band_is_deterministic_and_contains_pointwise_curve() {
 }
 
 #[test]
+fn identity_shift_has_the_exact_empirical_mean_influence_with_or_without_adjustment() {
+    let (data, treatment, outcome, adjustment) = confounded_curve(240);
+    for (covariates, interventions) in [
+        (vec![adjustment], vec![Intervention::shift(treatment, Value::f64(0.0))]),
+        (vec![adjustment], vec![Intervention::shift(treatment, Value::f64(-0.0))]),
+        (
+            Vec::new(),
+            vec![
+                Intervention::shift(treatment, Value::f64(0.0)),
+                Intervention::shift(adjustment, Value::f64(0.0)),
+            ],
+        ),
+    ] {
+        let treatments: Vec<_> =
+            interventions.iter().map(|i| i.primary_variable().unwrap()).collect();
+        let sample = CompleteSample::read(&data, outcome, &treatments, &covariates).unwrap();
+        let mean = sample.outcome.iter().sum::<f64>() / sample.len() as f64;
+        let expected: Vec<_> = sample.outcome.iter().map(|value| value - mean).collect();
+        let expected_se = (expected.iter().map(|value| value * value).sum::<f64>()
+            / (sample.len() * (sample.len() - 1)) as f64)
+            .sqrt();
+        let (value, uncertainty, _, influence) = ContinuousResponseEstimator::new(covariates)
+            .intervention_response(&data, outcome, &interventions)
+            .unwrap();
+        let ResponseValue::Scalar(value) = value else { panic!("identity is scalar") };
+        let ResponseUncertainty::Scalar { standard_error, .. } = uncertainty else {
+            panic!("identity has scalar uncertainty")
+        };
+        assert!((value - mean).abs() < 1e-8);
+        assert_eq!(standard_error.to_bits(), expected_se.to_bits());
+        assert_eq!(influence.columns[0], expected);
+    }
+}
+
+#[test]
 fn intervention_response_executes_set_shift_and_stochastic_policies() {
     let (data, a, y, x) = confounded_curve(500);
     let estimate = |intervention| {

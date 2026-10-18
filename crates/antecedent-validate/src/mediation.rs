@@ -95,14 +95,6 @@ impl QueryRefutationPlan {
 }
 
 /// Run the native suite with the same graph-derived adjustment as the estimate.
-#[allow(
-    clippy::float_cmp,
-    reason = "the treatment column is compared to its own deduplicated level values, which are copies of the same floats; the argument list mirrors the estimate call"
-)]
-#[allow(
-    clippy::too_many_lines,
-    reason = "one replicate pass feeds three refuters that share a noise draw, then the overlap diagnostic"
-)]
 pub fn refute_temporal_mediation_adjusted(
     data: &TimeSeriesData,
     estimand: &IdentifiedEstimand,
@@ -112,7 +104,41 @@ pub fn refute_temporal_mediation_adjusted(
     adjustment: &[LaggedColumn],
     ctx: &ExecutionContext,
 ) -> Result<Vec<RefutationReport>, ValidationError> {
-    let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
+    refute_temporal_mediation_with_gaps(
+        data, estimand, query, original, full, adjustment, false, ctx,
+    )
+}
+
+/// [`refute_temporal_mediation_adjusted`] on a series that may have missing time points when
+/// `gaps` is set: every refit drops the windows that read a gap, as the published estimate
+/// does, and the perturbations (a noise mediator, an extra covariate, a contiguous row window)
+/// keep the series' own missing values, so each refit sees the same intact windows.
+///
+/// # Errors
+///
+/// As [`refute_temporal_mediation_adjusted`].
+#[allow(
+    clippy::float_cmp,
+    reason = "the treatment column is compared to its own deduplicated level values, which are copies of the same floats"
+)]
+#[allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    reason = "one replicate pass feeds three refuters that share a noise draw, then the overlap diagnostic"
+)]
+pub fn refute_temporal_mediation_with_gaps(
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &MediationQuery,
+    original: &TemporalMediationEstimate,
+    full: bool,
+    adjustment: &[LaggedColumn],
+    gaps: bool,
+    ctx: &ExecutionContext,
+) -> Result<Vec<RefutationReport>, ValidationError> {
+    let estimator = TemporalMediationEstimator::new()
+        .with_allow_natural_controlled_alias(true)
+        .with_allow_gaps(gaps);
     let tabular = TabularData::new(data.storage().clone());
     let mediator = *estimand.mediators.first().ok_or(ValidationError::NotApplicable {
         message: "mediation validation requires an identified mediator",
@@ -188,7 +214,11 @@ pub fn refute_temporal_mediation_adjusted(
     let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
     let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
     let mut workspace = LaggedSampleWorkspace::default();
-    let sample = plan.prepare(data, &mut workspace, &ctx.kernel_policy)?;
+    let sample = if gaps {
+        plan.prepare_complete_windows(data, &mut workspace, &ctx.kernel_policy)?.0
+    } else {
+        plan.prepare(data, &mut workspace, &ctx.kernel_policy)?
+    };
     let t = sample.column(0);
     let mut levels = t.to_vec();
     levels.sort_by(f64::total_cmp);

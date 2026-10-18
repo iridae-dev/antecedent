@@ -6,20 +6,58 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
-use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
+use antecedent_state::GraphScoreFamily;
 
+use crate::adjacency_mask::AdjacencyMask;
+use crate::adjacency_mask::{has_edge, mask_is_dag, parent_bits, set_edge};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_mcmc::{
+    DEFAULT_TEMPERATURES, EQUIVALENCE_WALK_MIN_NODES, EQUIVALENCE_WALK_PROBABILITY,
     FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel, MaskChain, MaskChainPlan,
-    run_mask_chain, run_parallel_mask_chains,
+    accept_covered_reversal, propose_covered_reversal, reversed_edge, run_parallel_mask_chains,
+    run_tempered_mask_chain, tempering_ladder, validate_temperatures,
 };
 use crate::graph_posterior::{
-    GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, mask_is_dag, set_edge,
+    GraphPosterior, GraphPosteriorEngine, GraphPrior, GraphPriorTable, edge_bit,
 };
-use crate::graph_score::{initial_scored_mask, score_dag_mask_with_parents, tabular_score_data};
+use crate::graph_score::{
+    ChainTarget, ScoredTarget, SharedTarget, initial_scored_mask, tabular_score_data,
+};
 
-/// Structure MCMC with single-edge add / delete / reverse proposals.
+/// Probability that an iteration resamples the parent sets of a random node pair exactly.
+pub const DEFAULT_PAIR_MOVE_PROBABILITY: f64 = 0.1;
+
+/// Most parent sets per node for which the paired move is enabled: it enumerates them.
+const PAIR_MOVE_MAX_SETS: usize = 4096;
+
+/// Structure MCMC with single-edge add / delete / reverse proposals, an exact paired
+/// parent-set resampling move, and parallel tempering.
+///
+/// The paired move picks two nodes `u`, `v` uniformly and redraws their parent sets jointly from
+/// the full conditional of the target given every other node's parents (all sets the constraints
+/// allow, minus those that would close a cycle). It contains reversals of an edge between `u`
+/// and `v` *together with* the changes of parents that reversal needs (the idea of the
+/// new-edge-reversal move of Grzegorczyk and Husmeier, 2008), so structures that differ in the
+/// orientation of several interacting edges are one move apart. Being a draw from a conditional
+/// it is always accepted and leaves the target invariant. It is disabled when a node has more
+/// than 4096 allowed parent sets (set `max_parents`).
+///
+/// Above eight variables a quarter of the iterations instead reverse a uniformly chosen covered
+/// edge (one whose parents are its child's parents less itself), accepted with the
+/// Metropolis–Hastings ratio of the move. Reversing a covered edge stays inside the Markov
+/// equivalence class, whose members the Gaussian-BIC score does not tell apart, so the move
+/// walks the class at the acceptance of a plateau; the orientation of an edge the data leave
+/// open is otherwise decided only by the rare proposal that reverses a covered edge, and its
+/// chain diagnostics mix at the pace of that rare event.
+///
+/// Replicas at the inverse temperatures of [`Self::temperatures`] run in every chain and
+/// exchange temperatures (replica exchange), which carries chains across the local modes
+/// single-edge moves cannot leave; only the replica at temperature 1 is recorded.
+///
+/// Supports up to [`crate::MAX_POSTERIOR_NODES`] variables. Cap the parents of any node with
+/// `GraphPrior::constraints.max_parents`; the diagnostics gate reads per-edge split R-hat, ESS and
+/// Monte-Carlo error across chains.
 #[derive(Clone, Debug)]
 pub struct StructureMcmc {
     /// Number of chains (≥ 2 for R-hat).
@@ -34,6 +72,13 @@ pub struct StructureMcmc {
     pub candidate_pairs: Option<Arc<[(u32, u32)]>>,
     /// When true (default), refuse if [`crate::graph_posterior::allows_graph_posterior`] fails.
     pub require_diagnostics_gate: bool,
+    /// Inverse-temperature ladder of the replicas in every chain: `1 = b_0 > b_1 > ... > 0`
+    /// (default `[1, 1/2, 1/4, 1/8]`, run as a denser eight-replica ladder from nine variables on;
+    /// `[1]` is a single untempered chain).
+    pub temperatures: Vec<f64>,
+    /// Probability that an iteration is a paired parent-set resampling instead of a
+    /// single-edge proposal, in `[0, 1]`.
+    pub pair_move_probability: f64,
 }
 
 impl Default for StructureMcmc {
@@ -53,7 +98,23 @@ impl StructureMcmc {
             thin: 1,
             candidate_pairs: None,
             require_diagnostics_gate: true,
+            temperatures: DEFAULT_TEMPERATURES.to_vec(),
+            pair_move_probability: DEFAULT_PAIR_MOVE_PROBABILITY,
         }
+    }
+
+    /// Set the inverse-temperature ladder (validated when the sampler runs).
+    #[must_use]
+    pub fn with_temperatures(mut self, temperatures: impl Into<Vec<f64>>) -> Self {
+        self.temperatures = temperatures.into();
+        self
+    }
+
+    /// Set the probability of the paired parent-set resampling move.
+    #[must_use]
+    pub fn with_pair_move_probability(mut self, probability: f64) -> Self {
+        self.pair_move_probability = probability;
+        self
     }
 
     /// Configure chain lengths.
@@ -115,9 +176,9 @@ impl StructureMcmc {
                 "structure MCMC requires at least one variable",
             ));
         }
-        crate::graph_posterior::ensure_directed_mask_fits(
+        crate::graph_posterior::ensure_nodes_fit(
             n,
-            "structure MCMC adjacency exceeds 63 directed edges",
+            "structure MCMC supports at most 16 variables (MAX_POSTERIOR_NODES)",
         )?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
             return Err(DiscoveryError::unsupported(
@@ -126,6 +187,13 @@ impl StructureMcmc {
         }
         let schedule = self.schedule();
         schedule.require_min_chains(2, "structure MCMC requires at least 2 chains for R-hat")?;
+        validate_temperatures(&self.temperatures)?;
+        let ladder = tempering_ladder(&self.temperatures, n);
+        if !(0.0..=1.0).contains(&self.pair_move_probability) {
+            return Err(DiscoveryError::unsupported(
+                "structure MCMC pair move probability must lie in [0, 1]",
+            ));
+        }
 
         let score_data = tabular_score_data(data, variables)?;
         let pairs = candidate_directed_list(n, self.candidate_pairs.as_deref());
@@ -137,36 +205,43 @@ impl StructureMcmc {
 
         let (initial_mask, initial_score) =
             initial_scored_mask(n, &score_data, score_family, prior, variables)?;
+        let prior_table = GraphPriorTable::new(n, prior, variables);
+        let catalog = if self.pair_move_probability > 0.0 {
+            ParentSetCatalog::build(&prior_table, self.candidate_pairs.as_deref())
+        } else {
+            None
+        };
 
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = pairs.len();
 
-        let (traces, sample_masks, rejected) =
+        let (traces, sample_masks, rejected, scores) =
             run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
-                let mut walker = StructureWalker {
-                    n,
-                    pairs: &pairs,
-                    score_data: &score_data,
-                    cache: LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
-                        score_family,
+                let target = SharedTarget(std::rc::Rc::new(std::cell::RefCell::new(
+                    ScoredTarget::new(n, &score_data, score_family, &prior_table),
+                )));
+                let mut replicas: Vec<_> = ladder
+                    .iter()
+                    .map(|_| StructureWalker {
                         n,
-                        score_data.n_rows,
-                    )),
-                    prior,
-                    variables,
-                    mask: initial_mask,
-                    cur: initial_score,
-                    pending: initial_mask,
-                    parent_scratch: Vec::with_capacity(n),
-                };
-                let run = run_mask_chain(
+                        pairs: &pairs,
+                        target: target.clone(),
+                        catalog: catalog.as_ref(),
+                        pair_probability: self.pair_move_probability,
+                        mask: initial_mask,
+                        cur: initial_score,
+                        pending: initial_mask,
+                    })
+                    .collect();
+                let run = run_tempered_mask_chain(
                     &MaskChainPlan { chain_index: chain, n_warmup, n_draws, thin, n_params },
                     inner,
                     &mut rng,
-                    &mut walker,
+                    &mut replicas,
+                    &ladder,
                 )?;
-                Ok((run.traces, run.samples, run.rejected))
+                Ok((run.traces, run.samples, run.rejected, run.scores))
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -176,6 +251,7 @@ impl StructureMcmc {
             n,
             schedule: &schedule,
             traces: &traces,
+            scores: &scores,
             sample_masks: &sample_masks,
             rejected,
             n_params,
@@ -252,21 +328,246 @@ pub(crate) enum StructureMove {
     Reverse,
 }
 
-struct StructureWalker<'a> {
-    n: usize,
-    pairs: &'a [(usize, usize)],
-    score_data: &'a GraphScoreData,
-    cache: LocalScoreCache,
-    prior: &'a GraphPrior,
-    variables: &'a [VariableId],
-    mask: u64,
-    cur: f64,
-    pending: u64,
-    parent_scratch: Vec<u32>,
+/// Every parent set the constraints allow for each node, restricted to a node's candidate
+/// neighbours when the search is restricted to candidate pairs.
+struct ParentSetCatalog {
+    sets: Vec<Vec<u16>>,
 }
 
-impl MaskChain for StructureWalker<'_> {
-    type Sample = u64;
+impl ParentSetCatalog {
+    /// `None` when some node has more than [`PAIR_MOVE_MAX_SETS`] allowed sets.
+    fn build(table: &GraphPriorTable, candidate_pairs: Option<&[(u32, u32)]>) -> Option<Self> {
+        let n = table.n();
+        let neighbours: Vec<u16> = match candidate_pairs {
+            None => vec![u16::MAX; n],
+            Some(pairs) => {
+                let mut near = vec![0u16; n];
+                for &(lo, hi) in pairs {
+                    let (a, b) = (lo as usize, hi as usize);
+                    if a < n && b < n && a != b {
+                        near[a] |= 1 << b;
+                        near[b] |= 1 << a;
+                    }
+                }
+                near
+            }
+        };
+        let sets = (0..n)
+            .map(|node| {
+                table
+                    .allowed_parent_sets(node, PAIR_MOVE_MAX_SETS)
+                    .map(|all| all.into_iter().filter(|set| set & !neighbours[node] == 0).collect())
+            })
+            .collect::<Option<Vec<Vec<u16>>>>()?;
+        Some(Self { sets })
+    }
+}
+
+/// One option of a node in the paired move: parent set, tempered log target, and whether the
+/// set reaches the other node of the pair.
+struct PairOption {
+    set: u16,
+    log_weight: f64,
+    reaches: bool,
+}
+
+/// The options of one node in one reach class, summarised for stable sampling: the best log
+/// weight and the sum of `exp(log_weight - best)`.
+#[derive(Clone, Copy)]
+struct ReachClass {
+    best: f64,
+    total: f64,
+}
+
+impl ReachClass {
+    fn of(options: &[PairOption], reaches: bool) -> Self {
+        let best = options
+            .iter()
+            .filter(|o| o.reaches == reaches)
+            .map(|o| o.log_weight)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let total = options
+            .iter()
+            .filter(|o| o.reaches == reaches)
+            .map(|o| (o.log_weight - best).exp())
+            .sum();
+        Self { best, total }
+    }
+
+    fn is_empty(self) -> bool {
+        self.best == f64::NEG_INFINITY
+    }
+
+    /// Log of the class's total weight.
+    fn log_mass(self) -> f64 {
+        self.best + self.total.ln()
+    }
+}
+
+/// One structure-MCMC replica. `target` is the log target of a mask: BIC + log prior in a run,
+/// and whatever a test needs to isolate the kernel.
+struct StructureWalker<'a, T> {
+    n: usize,
+    pairs: &'a [(usize, usize)],
+    target: T,
+    catalog: Option<&'a ParentSetCatalog>,
+    pair_probability: f64,
+    mask: AdjacencyMask,
+    cur: f64,
+    pending: AdjacencyMask,
+}
+
+impl<T: ChainTarget> StructureWalker<'_, T> {
+    /// Metropolis–Hastings step that reverses a uniformly chosen covered edge at inverse
+    /// temperature `beta`. Reversing a covered edge keeps the graph acyclic.
+    fn reverse_covered_edge(&mut self, beta: f64, rng: &mut CausalRng) {
+        let Some((x, y, covered)) = propose_covered_reversal(self.mask, self.n, rng) else {
+            return;
+        };
+        let proposal = reversed_edge(self.mask, self.n, x, y);
+        debug_assert!(mask_is_dag(proposal, self.n));
+        let Some(score) = self.target.score(proposal) else {
+            return;
+        };
+        if accept_covered_reversal((beta, self.cur, score), covered, proposal, self.n, rng) {
+            self.mask = proposal;
+            self.cur = score;
+        }
+    }
+
+    /// Nodes reachable from `from` along child edges, `child[x]` being the bitset of `x`'s children.
+    fn descendants(child: &[u16], from: usize) -> u16 {
+        let mut reach = 0u16;
+        let mut frontier = child[from];
+        while frontier & !reach != 0 {
+            let fresh = frontier & !reach;
+            reach |= fresh;
+            frontier =
+                (0..child.len()).filter(|&y| (fresh >> y) & 1 == 1).fold(0, |f, y| f | child[y]);
+        }
+        reach
+    }
+
+    /// The options of `node` whose other pair member is `other`. `own` are the nodes the new
+    /// parents may not include (they would close a cycle through `node` alone); `across` are
+    /// the nodes from which `other` is reached.
+    fn pair_options(
+        &mut self,
+        catalog: &ParentSetCatalog,
+        (node, other): (usize, usize),
+        (own, across): (u16, u16),
+        beta: f64,
+    ) -> Vec<PairOption> {
+        let mut options = Vec::new();
+        for &set in &catalog.sets[node] {
+            if set & own != 0 {
+                continue;
+            }
+            if let Some(log_target) = self.target.node_score(node, set) {
+                options.push(PairOption {
+                    set,
+                    log_weight: beta * log_target,
+                    reaches: set & (across | (1 << other)) != 0,
+                });
+            }
+        }
+        options
+    }
+
+    /// Redraw the parent sets of `u` and `v` jointly from their full conditional at inverse
+    /// temperature `beta` given everybody else's parents.
+    ///
+    /// With the incoming edges of `u` and `v` removed, `u` and `v` are sources; a choice of
+    /// parent sets `(A, B)` closes a cycle exactly when `A` contains a descendant of `u`, or `B`
+    /// one of `v`, or both `A` reaches `v` and `B` reaches `u` (each through the other's
+    /// descendants). Weights factorise over the two nodes, so the pair is drawn in three stages:
+    /// the reach classes of `(A, B)` (not both reaching), then `A` and `B` within their classes.
+    /// Returns whether the sampled graph was installed (always, for a finitely scored target).
+    fn resample_pair(
+        &mut self,
+        catalog: &ParentSetCatalog,
+        (u, v): (usize, usize),
+        beta: f64,
+        rng: &mut CausalRng,
+    ) -> bool {
+        let n = self.n;
+        let parents: Vec<u16> = (0..n).map(|node| parent_bits(self.mask, n, node)).collect();
+        let mut child = vec![0u16; n];
+        for node in (0..n).filter(|&node| node != u && node != v) {
+            for p in (0..n).filter(|&p| (parents[node] >> p) & 1 == 1) {
+                child[p] |= 1 << node;
+            }
+        }
+        let (below_u, below_v) = (Self::descendants(&child, u), Self::descendants(&child, v));
+        let a = self.pair_options(catalog, (u, v), (below_u, below_v), beta);
+        let b = self.pair_options(catalog, (v, u), (below_v, below_u), beta);
+        // Classes (a reaches, b reaches) that close no cycle: not both. Their masses are compared
+        // in log space, so a pair far below an excluded best pair still has a usable weight.
+        let (ca, cb) = (
+            [ReachClass::of(&a, false), ReachClass::of(&a, true)],
+            [ReachClass::of(&b, false), ReachClass::of(&b, true)],
+        );
+        let admissible = [(0usize, 0usize), (0, 1), (1, 0)];
+        let log_mass = |(i, j): (usize, usize)| {
+            if ca[i].is_empty() || cb[j].is_empty() {
+                f64::NEG_INFINITY
+            } else {
+                ca[i].log_mass() + cb[j].log_mass()
+            }
+        };
+        let top = admissible.iter().map(|&c| log_mass(c)).fold(f64::NEG_INFINITY, f64::max);
+        if top == f64::NEG_INFINITY {
+            return false;
+        }
+        let masses: Vec<f64> = admissible.iter().map(|&c| (log_mass(c) - top).exp()).collect();
+        let total: f64 = masses.iter().sum();
+        let mut pick = rng.next_f64() * total;
+        let mut class = admissible[0];
+        for (&c, &m) in admissible.iter().zip(&masses) {
+            if m > 0.0 {
+                class = c;
+                if pick < m {
+                    break;
+                }
+                pick -= m;
+            }
+        }
+        let chosen_a = draw(&a, class.0 == 1, ca[class.0], rng.next_f64());
+        let chosen_b = draw(&b, class.1 == 1, cb[class.1], rng.next_f64());
+        let mut mask = self.mask;
+        for (node, set) in [(u, chosen_a.set), (v, chosen_b.set)] {
+            for p in (0..n).filter(|&p| p != node) {
+                mask = mask.with_bit(edge_bit(n, p, node), (set >> p) & 1 == 1);
+            }
+        }
+        let Some(score) = self.target.score(mask) else {
+            return false;
+        };
+        self.mask = mask;
+        self.cur = score;
+        true
+    }
+}
+
+/// The option of reach class `reaches` that the uniform draw `x` in `[0, 1)` selects.
+fn draw(options: &[PairOption], reaches: bool, class: ReachClass, x: f64) -> &PairOption {
+    let mut remaining = x * class.total;
+    let mut last = &options[0];
+    for option in options.iter().filter(|o| o.reaches == reaches) {
+        let w = (option.log_weight - class.best).exp();
+        if w > 0.0 {
+            last = option;
+            if remaining < w {
+                return option;
+            }
+            remaining -= w;
+        }
+    }
+    last
+}
+
+impl<T: ChainTarget> MaskChain for StructureWalker<'_, T> {
+    type Sample = AdjacencyMask;
 
     fn current_score(&self) -> f64 {
         self.cur
@@ -281,6 +582,29 @@ impl MaskChain for StructureWalker<'_> {
         MaskCancel::Break
     }
 
+    fn exact_move(&mut self, rng: &mut CausalRng, beta: f64) -> bool {
+        if self.n >= EQUIVALENCE_WALK_MIN_NODES && rng.next_f64() < EQUIVALENCE_WALK_PROBABILITY {
+            self.reverse_covered_edge(beta, rng);
+            return true;
+        }
+        let Some(catalog) = self.catalog else {
+            return false;
+        };
+        if rng.next_f64() >= self.pair_probability {
+            return false;
+        }
+        let u = crate::indexing::bounded_index(rng.next_u64(), self.n);
+        let v = crate::indexing::bounded_index(rng.next_u64(), self.n);
+        if u != v {
+            let applied = self.resample_pair(catalog, (u, v), beta, rng);
+            debug_assert!(
+                applied,
+                "a drawn parent-set pair is always a valid, finitely scored graph"
+            );
+        }
+        true
+    }
+
     fn propose(&mut self, rng: &mut CausalRng) -> u64 {
         let (prop, _kernel_ratio, rejected) = propose_structure(self.mask, self.n, self.pairs, rng);
         self.pending = prop;
@@ -288,15 +612,7 @@ impl MaskChain for StructureWalker<'_> {
     }
 
     fn proposed_score(&mut self) -> Option<f64> {
-        score_dag_mask_with_parents(
-            self.pending,
-            self.n,
-            self.score_data,
-            &mut self.cache,
-            self.prior,
-            self.variables,
-            &mut self.parent_scratch,
-        )
+        self.target.score(self.pending)
     }
 
     fn commit(&mut self, score: f64) {
@@ -310,7 +626,7 @@ impl MaskChain for StructureWalker<'_> {
         }
     }
 
-    fn sample(&self) -> u64 {
+    fn sample(&self) -> AdjacencyMask {
         self.mask
     }
 }
@@ -318,11 +634,11 @@ impl MaskChain for StructureWalker<'_> {
 /// Propose add/delete/reverse; returns `(new_mask, kernel Hastings ratio, rejected)`.
 /// `rejected` counts a proposal that is not a DAG.
 fn propose_structure(
-    mask: u64,
+    mask: AdjacencyMask,
     n: usize,
     pairs: &[(usize, usize)],
     rng: &mut CausalRng,
-) -> (u64, f64, u64) {
+) -> (AdjacencyMask, f64, u64) {
     if pairs.is_empty() {
         return (mask, 1.0, 0);
     }
@@ -334,12 +650,12 @@ fn propose_structure(
 /// Apply a selected candidate and branch draw. Kept separate so the finite proposal
 /// kernel can be exhaustively checked on a two-node state space.
 fn propose_structure_at(
-    mask: u64,
+    mask: AdjacencyMask,
     n: usize,
     pairs: &[(usize, usize)],
     idx: usize,
     u: f64,
-) -> (u64, f64, u64) {
+) -> (AdjacencyMask, f64, u64) {
     let (i, j) = pairs[idx];
     let forward = has_edge(mask, n, i, j);
     let backward = has_edge(mask, n, j, i);
@@ -371,6 +687,11 @@ fn propose_structure_at(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::needless_range_loop,
+    reason = "test fixtures index small matrices by node"
+)]
 mod tests {
     use super::*;
 
@@ -433,7 +754,7 @@ mod tests {
             .run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx)
             .unwrap();
         for posterior in [structure, order] {
-            for mask in posterior.adjacency.iter() {
+            for mask in posterior.atoms.iter() {
                 assert!(has_edge(*mask, 3, 2, 1));
                 assert!(has_edge(*mask, 3, 1, 0));
                 assert!(mask_is_dag(*mask, 3));
@@ -460,11 +781,438 @@ mod tests {
         );
     }
 
+    /// The proposal kernel, the paired parent-set move and replica exchange, with the data
+    /// removed: the target is the uniform prior on rooted forests (at most one parent per node),
+    /// whose edge-count law is exact. On twelve nodes the probed edges sit in the second and
+    /// third packed words.
+    #[test]
+    fn prior_only_tempered_chain_follows_the_rooted_forest_law_on_twelve_nodes() {
+        let n = 12;
+        let table = crate::test_tables::rooted_forest_prior_table(n);
+        let catalog = ParentSetCatalog::build(&table, None).expect("forest parent sets are few");
+        let pairs = candidate_directed_list(n, None);
+        let ctx = ExecutionContext::for_tests(23);
+        let (draws, thin) = (10_000usize, 10usize);
+        let ladder = [1.0, 0.5];
+        let (_, samples, _, _) =
+            run_parallel_mask_chains(&ctx, 4, draws, pairs.len(), |chain, inner| {
+                let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
+                let mut replicas: Vec<_> = ladder
+                    .iter()
+                    .map(|_| StructureWalker {
+                        n,
+                        pairs: &pairs,
+                        target: crate::test_tables::PriorOnlyTarget(&table),
+                        catalog: Some(&catalog),
+                        pair_probability: DEFAULT_PAIR_MOVE_PROBABILITY,
+                        mask: AdjacencyMask::EMPTY,
+                        cur: 0.0,
+                        pending: AdjacencyMask::EMPTY,
+                    })
+                    .collect();
+                let plan = MaskChainPlan {
+                    chain_index: chain,
+                    n_warmup: 5_000,
+                    n_draws: draws,
+                    thin,
+                    n_params: pairs.len(),
+                };
+                let run = run_tempered_mask_chain(&plan, inner, &mut rng, &mut replicas, &ladder)?;
+                Ok((run.traces, run.samples, run.rejected, run.scores))
+            })
+            .unwrap();
+        crate::test_tables::assert_rooted_forest_law(
+            n,
+            &samples,
+            500,
+            &[(0, 1), (5, 9), (11, 10), (10, 11), (11, 0)],
+        );
+    }
+
+    /// The covered-edge reversal alone, on a three-leaf star under a flat target: the star's
+    /// Markov equivalence class is the four orientations away from a chosen root, with three
+    /// covered edges when the root is the centre and one otherwise. The class is uniform only
+    /// with the move's Hastings factor; without it the chain would favour the centre.
+    #[test]
+    fn covered_reversal_walks_a_markov_class_uniformly() {
+        let n = 4;
+        let prior = GraphPrior::uniform();
+        let vars: Vec<_> = (0..n).map(|i| VariableId::from_raw(i as u32)).collect();
+        let table = GraphPriorTable::new(n, &prior, &vars);
+        let start = [(0, 1), (0, 2), (0, 3)]
+            .iter()
+            .fold(AdjacencyMask::EMPTY, |m, &(a, b)| set_edge(m, n, a, b, true));
+        let mut walker = StructureWalker {
+            n,
+            pairs: &[],
+            target: crate::test_tables::PriorOnlyTarget(&table),
+            catalog: None,
+            pair_probability: 0.0,
+            mask: start,
+            cur: 0.0,
+            pending: start,
+        };
+        let mut rng = CausalRng::from_seed(21);
+        let steps = 80_000usize;
+        let mut visits = std::collections::HashMap::new();
+        for _ in 0..steps {
+            walker.reverse_covered_edge(1.0, &mut rng);
+            assert!(mask_is_dag(walker.mask, n));
+            *visits.entry(walker.mask).or_insert(0usize) += 1;
+        }
+        assert_eq!(visits.len(), 4, "the class has four members: {visits:?}");
+        for (mask, count) in &visits {
+            let share = *count as f64 / steps as f64;
+            assert!((share - 0.25).abs() < 0.02, "{mask:?}: {share}");
+        }
+    }
+
+    /// The paired move draws exactly from its conditional: from a fixed state on four nodes, every
+    /// pair of parent sets that keeps the graph acyclic (and within three parents) is reached with
+    /// the same frequency under a flat target, and nothing else is.
+    #[test]
+    fn paired_move_draws_uniformly_from_the_valid_parent_set_pairs() {
+        let n = 4;
+        let prior = GraphPrior::uniform().with_constraints(crate::DiscoveryConstraints {
+            max_parents: Some(3),
+            ..Default::default()
+        });
+        let vars: Vec<_> = (0..n).map(|i| VariableId::from_raw(i as u32)).collect();
+        let table = GraphPriorTable::new(n, &prior, &vars);
+        let catalog = ParentSetCatalog::build(&table, None).unwrap();
+        let (u, v) = (1usize, 3usize);
+        // Start: 0 -> 1, 1 -> 2, 2 -> 3, 0 -> 2.
+        let start = [(0, 1), (1, 2), (2, 3), (0, 2)]
+            .iter()
+            .fold(AdjacencyMask::EMPTY, |m, &(a, b)| set_edge(m, n, a, b, true));
+        let mut walker = StructureWalker {
+            n,
+            pairs: &[],
+            target: crate::test_tables::PriorOnlyTarget(&table),
+            catalog: Some(&catalog),
+            pair_probability: 1.0,
+            mask: start,
+            cur: 0.0,
+            pending: start,
+        };
+        // Brute force: every parent set of u and of v, others fixed.
+        let others_parents: Vec<u16> = (0..n).map(|k| parent_bits(start, n, k)).collect();
+        let mut valid = Vec::new();
+        for a in 0u16..16 {
+            for b in 0u16..16 {
+                if (a >> u) & 1 == 1
+                    || (b >> v) & 1 == 1
+                    || a.count_ones() > 3
+                    || b.count_ones() > 3
+                {
+                    continue;
+                }
+                let mut mask = AdjacencyMask::EMPTY;
+                for k in 0..n {
+                    let set = if k == u {
+                        a
+                    } else if k == v {
+                        b
+                    } else {
+                        others_parents[k]
+                    };
+                    for p in (0..n).filter(|&p| (set >> p) & 1 == 1) {
+                        mask = set_edge(mask, n, p, k, true);
+                    }
+                }
+                if mask_is_dag(mask, n) {
+                    valid.push((a, b));
+                }
+            }
+        }
+        let mut rng = CausalRng::from_seed(5);
+        let draws = 40_000usize;
+        let mut hits = std::collections::HashMap::new();
+        for _ in 0..draws {
+            walker.mask = start;
+            assert!(walker.resample_pair(&catalog, (u, v), 1.0, &mut rng));
+            assert!(mask_is_dag(walker.mask, n));
+            let key = (parent_bits(walker.mask, n, u), parent_bits(walker.mask, n, v));
+            *hits.entry(key).or_insert(0usize) += 1;
+        }
+        assert_eq!(hits.len(), valid.len(), "reached sets differ from the valid pairs");
+        let expect = draws as f64 / valid.len() as f64;
+        for pair in &valid {
+            let got = hits[pair] as f64;
+            assert!((got - expect).abs() < 5.0 * expect.sqrt(), "{pair:?}: {got} vs {expect}");
+        }
+    }
+
+    /// The same check under the Gaussian-BIC target: the paired move's draws follow the
+    /// normalised product of the two nodes' local scores over the valid pairs.
+    #[test]
+    fn paired_move_follows_the_bic_conditional_of_the_valid_parent_set_pairs() {
+        let n = 4;
+        let mut cols = vec![vec![0.0; 120]; n];
+        let mut source = antecedent_core::CausalRng::from_seed(5);
+        for r in 0..120 {
+            let a = source.next_f64() * 2.0 - 1.0;
+            let b = source.next_f64() * 2.0 - 1.0;
+            let c = 0.7 * a + 0.7 * b + 0.8 * (source.next_f64() * 2.0 - 1.0);
+            let d = 0.6 * c + 0.8 * (source.next_f64() * 2.0 - 1.0);
+            for (col, x) in cols.iter_mut().zip([a, b, c, d]) {
+                col[r] = x;
+            }
+        }
+        let data = crate::test_tables::continuous_table(&["a", "b", "c", "d"], cols);
+        let vars: Vec<_> = (0..n).map(|i| VariableId::from_raw(i as u32)).collect();
+        let score_data = tabular_score_data(&data, &vars).unwrap();
+        let prior = GraphPrior::uniform();
+        let table = GraphPriorTable::new(n, &prior, &vars);
+        let catalog = ParentSetCatalog::build(&table, None).unwrap();
+        let (u, v) = (1usize, 2usize);
+        let start = [(0, 1), (3, 2)]
+            .iter()
+            .fold(AdjacencyMask::EMPTY, |m, &(a, b)| set_edge(m, n, a, b, true));
+        let mut reference =
+            ScoredTarget::new(n, &score_data, GraphScoreFamily::GaussianBic, &table);
+        let mut walker = StructureWalker {
+            n,
+            pairs: &[],
+            target: ScoredTarget::new(n, &score_data, GraphScoreFamily::GaussianBic, &table),
+            catalog: Some(&catalog),
+            pair_probability: 1.0,
+            mask: start,
+            cur: 0.0,
+            pending: start,
+        };
+        let fixed: Vec<u16> = (0..n).map(|k| parent_bits(start, n, k)).collect();
+        let mut weights = std::collections::HashMap::new();
+        for a in 0u16..16 {
+            for b in 0u16..16 {
+                if (a >> u) & 1 == 1 || (b >> v) & 1 == 1 {
+                    continue;
+                }
+                let mut mask = AdjacencyMask::EMPTY;
+                for k in 0..n {
+                    let set = if k == u {
+                        a
+                    } else if k == v {
+                        b
+                    } else {
+                        fixed[k]
+                    };
+                    for p in (0..n).filter(|&p| (set >> p) & 1 == 1) {
+                        mask = set_edge(mask, n, p, k, true);
+                    }
+                }
+                if let Some(log_target) = reference.score(mask) {
+                    weights.insert((a, b), log_target);
+                }
+            }
+        }
+        let top = weights.values().copied().fold(f64::NEG_INFINITY, f64::max);
+        let z: f64 = weights.values().map(|l| (l - top).exp()).sum();
+        let mut rng = CausalRng::from_seed(9);
+        let draws = 60_000usize;
+        let mut hits = std::collections::HashMap::new();
+        for _ in 0..draws {
+            walker.mask = start;
+            assert!(walker.resample_pair(&catalog, (u, v), 1.0, &mut rng));
+            let key = (parent_bits(walker.mask, n, u), parent_bits(walker.mask, n, v));
+            *hits.entry(key).or_insert(0usize) += 1;
+        }
+        for (pair, log_target) in &weights {
+            let p = (log_target - top).exp() / z;
+            let got = hits.get(pair).copied().unwrap_or(0) as f64 / draws as f64;
+            let sd = (p * (1.0 - p) / draws as f64).sqrt();
+            assert!((got - p).abs() < 5.0 * sd + 1e-4, "{pair:?}: {got} vs {p}");
+        }
+    }
+
+    /// From every one of the 543 four-node DAGs, for several node pairs, the paired move's draws
+    /// follow the exact normalised conditional (BIC target) of the valid parent-set pairs. This
+    /// is the check that caught a cancellation: the admissible mass was once obtained by
+    /// subtracting an excluded best pair's mass from the total.
+    #[test]
+    fn paired_move_matches_the_exact_conditional_from_every_four_node_dag() {
+        let n = 4;
+        let mut cols = vec![vec![0.0; 120]; n];
+        let mut source = antecedent_core::CausalRng::from_seed(5);
+        for r in 0..120 {
+            let a = source.next_f64() * 2.0 - 1.0;
+            let b = source.next_f64() * 2.0 - 1.0;
+            let c = 0.7 * a + 0.7 * b + 0.8 * (source.next_f64() * 2.0 - 1.0);
+            let d = 0.6 * c + 0.8 * (source.next_f64() * 2.0 - 1.0);
+            for (col, x) in cols.iter_mut().zip([a, b, c, d]) {
+                col[r] = x;
+            }
+        }
+        let data = crate::test_tables::continuous_table(&["a", "b", "c", "d"], cols);
+        let vars: Vec<_> = (0..n).map(|i| VariableId::from_raw(i as u32)).collect();
+        let score_data = tabular_score_data(&data, &vars).unwrap();
+        let prior = GraphPrior::uniform();
+        let table = GraphPriorTable::new(n, &prior, &vars);
+        let catalog = ParentSetCatalog::build(&table, None).unwrap();
+        let mut reference =
+            ScoredTarget::new(n, &score_data, GraphScoreFamily::GaussianBic, &table);
+        let mut rng = CausalRng::from_seed(9);
+        let mut states = 0;
+        for word in 0u64..(1 << 12) {
+            let start = AdjacencyMask::from_word(word);
+            if !mask_is_dag(start, n) {
+                continue;
+            }
+            states += 1;
+            for (u, v) in [(2usize, 3usize), (1, 2), (3, 1)] {
+                let fixed: Vec<u16> = (0..n).map(|k| parent_bits(start, n, k)).collect();
+                let mut weights = std::collections::HashMap::new();
+                for a in 0u16..16 {
+                    for b in 0u16..16 {
+                        if (a >> u) & 1 == 1 || (b >> v) & 1 == 1 {
+                            continue;
+                        }
+                        let mut mask = AdjacencyMask::EMPTY;
+                        for k in 0..n {
+                            let set = if k == u {
+                                a
+                            } else if k == v {
+                                b
+                            } else {
+                                fixed[k]
+                            };
+                            for p in (0..n).filter(|&p| (set >> p) & 1 == 1) {
+                                mask = set_edge(mask, n, p, k, true);
+                            }
+                        }
+                        if let Some(l) = reference.score(mask) {
+                            weights.insert((a, b), l);
+                        }
+                    }
+                }
+                let top = weights.values().copied().fold(f64::NEG_INFINITY, f64::max);
+                let z: f64 = weights.values().map(|l| (l - top).exp()).sum();
+                let mut walker = StructureWalker {
+                    n,
+                    pairs: &[],
+                    target: ScoredTarget::new(
+                        n,
+                        &score_data,
+                        GraphScoreFamily::GaussianBic,
+                        &table,
+                    ),
+                    catalog: Some(&catalog),
+                    pair_probability: 1.0,
+                    mask: start,
+                    cur: 0.0,
+                    pending: start,
+                };
+                let draws = 1500usize;
+                let mut hits = std::collections::HashMap::new();
+                for _ in 0..draws {
+                    walker.mask = start;
+                    assert!(walker.resample_pair(&catalog, (u, v), 1.0, &mut rng));
+                    let key = (parent_bits(walker.mask, n, u), parent_bits(walker.mask, n, v));
+                    *hits.entry(key).or_insert(0usize) += 1;
+                }
+                let mut worst = 0.0f64;
+                for (pair, l) in &weights {
+                    let p = (l - top).exp() / z;
+                    let got = hits.get(pair).copied().unwrap_or(0) as f64 / draws as f64;
+                    let sd = (p * (1.0 - p) / draws as f64).sqrt().max(1e-3);
+                    worst = worst.max((got - p).abs() / sd);
+                }
+                let extra = hits.keys().filter(|k| !weights.contains_key(k)).count();
+                assert!(
+                    worst < 6.0 && extra == 0,
+                    "state {word:#x}, pair ({u}, {v}): worst z {worst:.1}, {extra} unexpected sets"
+                );
+            }
+        }
+        assert_eq!(states, 543);
+    }
+
+    /// Whole-sampler check of the new moves against exhaustive enumeration on four variables
+    /// (543 DAGs, Gaussian BIC): paired moves only, no tempering; then the default sampler.
+    #[test]
+    fn paired_move_and_tempering_match_exhaustive_enumeration_on_four_variables() {
+        let mut cols = vec![vec![0.0; 120]; 4];
+        let mut rng = antecedent_core::CausalRng::from_seed(77);
+        for r in 0..120 {
+            let a = rng.next_f64() * 2.0 - 1.0;
+            let b = rng.next_f64() * 2.0 - 1.0;
+            let c = 0.7 * a + 0.7 * b + 0.8 * (rng.next_f64() * 2.0 - 1.0);
+            let d = 0.6 * c + 0.8 * (rng.next_f64() * 2.0 - 1.0);
+            for (col, x) in cols.iter_mut().zip([a, b, c, d]) {
+                col[r] = x;
+            }
+        }
+        let data = crate::test_tables::continuous_table(&["a", "b", "c", "d"], cols);
+        let vars: Vec<_> = (0..4).map(VariableId::from_raw).collect();
+        let prior = GraphPrior::uniform();
+        let ctx = ExecutionContext::for_tests(3);
+        let exact = crate::ExactDagPosterior::new()
+            .run(
+                &data,
+                &vars,
+                &prior,
+                GraphScoreFamily::GaussianBic,
+                &mut DiscoveryWorkspace::default(),
+                &ctx,
+            )
+            .unwrap();
+        let paired_only = StructureMcmc::new()
+            .with_schedule(4, 1000, 6000, 2)
+            .with_temperatures([1.0])
+            .with_pair_move_probability(1.0)
+            .with_diagnostics_gate(false);
+        let default =
+            StructureMcmc::new().with_schedule(4, 1000, 6000, 2).with_diagnostics_gate(false);
+        for (label, engine) in [("default", default), ("paired only", paired_only)] {
+            let post = engine
+                .run(
+                    &data,
+                    &vars,
+                    &prior,
+                    GraphScoreFamily::GaussianBic,
+                    &mut DiscoveryWorkspace::default(),
+                    &ctx,
+                )
+                .unwrap();
+            let mcse = post.edge_mcse.as_ref().unwrap();
+            for cell in 0..16 {
+                let band = 0.03 + 5.0 * mcse[cell];
+                assert!(
+                    (post.edge_marginals[cell] - exact.edge_marginals[cell]).abs() <= band,
+                    "{label}: cell {cell}: {} vs exact {} (band {band})",
+                    post.edge_marginals[cell],
+                    exact.edge_marginals[cell]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn more_than_sixteen_variables_are_refused_before_any_work() {
+        let data = crate::test_tables::tabular_n(17, 20);
+        let vars: Vec<_> = (0..17).map(VariableId::from_raw).collect();
+        let err = StructureMcmc::new()
+            .run(
+                &data,
+                &vars,
+                &GraphPrior::uniform(),
+                GraphScoreFamily::GaussianBic,
+                &mut DiscoveryWorkspace::default(),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("at most 16 variables"), "{err}");
+    }
+
     #[test]
     fn structure_kernel_is_detailed_balanced_for_two_nodes() {
         let pairs = candidate_directed_list(2, None);
         assert_eq!(pairs, [(0, 1), (1, 0)]);
-        let states = [0, set_edge(0, 2, 0, 1, true), set_edge(0, 2, 1, 0, true)];
+        let states = [
+            AdjacencyMask::EMPTY,
+            set_edge(AdjacencyMask::EMPTY, 2, 0, 1, true),
+            set_edge(AdjacencyMask::EMPTY, 2, 1, 0, true),
+        ];
         let mut transition_mass = [[0.0_f64; 3]; 3];
         // Each directed-pair choice has probability 1/2, and each branch interval
         // below represents probability 1/2 under the uniform branch draw.

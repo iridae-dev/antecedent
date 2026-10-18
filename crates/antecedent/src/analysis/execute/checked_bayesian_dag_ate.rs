@@ -52,6 +52,7 @@ pub(crate) struct CheckedBayesianDagAteExecution {
     latency: Option<LatencyMode>,
     validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
+    draw_controls: Option<crate::PosteriorDrawControls>,
 }
 
 /// The frozen premises of [`CheckedBayesianDagAteExecution::checked`], carried together.
@@ -64,6 +65,7 @@ pub(crate) struct CheckedBayesianDagAteExecutionPremises<'a> {
     pub(crate) latency: Option<LatencyMode>,
     pub(crate) validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
+    pub(crate) draw_controls: Option<crate::PosteriorDrawControls>,
 }
 
 impl std::fmt::Debug for CheckedBayesianDagAteExecution {
@@ -130,6 +132,7 @@ impl CheckedBayesianDagAteExecution {
             latency,
             validators,
             stage_sink,
+            draw_controls,
         } = premises;
         let CausalQuery::AverageEffect(target) = &context.query else {
             return Err(CausalError::Compile {
@@ -200,6 +203,7 @@ impl CheckedBayesianDagAteExecution {
             latency,
             validators,
             stage_sink,
+            draw_controls,
         })
     }
 
@@ -234,8 +238,18 @@ impl CheckedBayesianDagAteExecution {
             resolve_bayesian_prior_with_conflict(&self.config, &prepared, Some(ctx))?;
         fitter.prior = prior;
         let mut workspace = BayesianGCompWorkspace::default();
+        let controlled = self.draw_controls.is_some();
         let mut posterior =
-            fitter.fit(&prepared, status, &mut workspace, ctx).map_err(CausalError::from)?;
+            fitter.fit(&prepared, status, &mut workspace, ctx).map_err(|error| {
+                super::bayesian_path::chain_refusal_under_draw_controls(
+                    controlled,
+                    &self.config,
+                    error,
+                )
+            })?;
+        if controlled {
+            super::bayesian_path::enforce_draw_controls(&mut posterior)?;
+        }
         if let Some(summary) = conflict {
             posterior = with_conflict_summary(posterior, summary);
         }

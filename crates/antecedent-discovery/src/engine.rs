@@ -53,8 +53,58 @@ pub(crate) struct CiMemo {
     pub computed: u64,
 }
 
-/// Maximum columns in one CI query (X, Y, + conditioning). Stack-backed refs.
-const MAX_CI_COLS: usize = 32;
+/// Live bytes of one partial-correlation CI query on `n_rows` rows with `z_len`
+/// conditioning columns: the design matrix (the conditioning columns plus the two tested
+/// ones), the Gram matrix, the two coefficient vectors and the two residual vectors, in `f64`.
+fn ci_query_bytes(n_rows: usize, z_len: usize) -> u64 {
+    let (n, p) = (n_rows as u128, z_len as u128);
+    let cells = n * (p + 4) + p * p + 2 * p;
+    u64::try_from(cells.saturating_mul(8)).unwrap_or(u64::MAX)
+}
+
+/// Most conditioning columns one CI query on `frame` may carry within the context's hard
+/// memory limit; unbounded when no limit is set. The kernel allocates its workspace from the
+/// query, so memory is the only ceiling on the conditioning-set size.
+pub(crate) fn ci_conditioning_capacity(frame: &LaggedFrame, ctx: &ExecutionContext) -> usize {
+    let Some(hard) = ctx.memory.hard_limit_bytes else {
+        return usize::MAX;
+    };
+    let n_rows = frame_rows(frame);
+    // The query needs at least 8 bytes per conditioning column, which bounds the search.
+    let (mut fits, mut over) = (0usize, usize::try_from(hard / 8).unwrap_or(usize::MAX));
+    while fits < over {
+        let mid = fits + (over - fits).div_ceil(2);
+        if ci_query_bytes(n_rows, mid) <= hard {
+            fits = mid;
+        } else {
+            over = mid - 1;
+        }
+    }
+    fits
+}
+
+/// Refuse a CI query whose workspace would exceed the context's hard memory limit.
+fn ensure_ci_query_fits(
+    n_rows: usize,
+    z_len: usize,
+    ctx: &ExecutionContext,
+) -> Result<(), DiscoveryError> {
+    match ctx.memory.hard_limit_bytes {
+        Some(hard) if ci_query_bytes(n_rows, z_len) > hard => {
+            Err(DiscoveryError::Resource(format!(
+                "a CI query with {z_len} conditioning columns on {n_rows} rows needs {} bytes, \
+                 over the memory hard limit of {hard}",
+                ci_query_bytes(n_rows, z_len)
+            )))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Rows of a lagged frame (every column has the same length).
+fn frame_rows(frame: &LaggedFrame) -> usize {
+    if frame.ncols() == 0 { 0 } else { frame.column(0).len() }
+}
 
 type ParentSet = Vec<(VariableId, Lag)>;
 type TargetParents = (VariableId, ParentSet);
@@ -339,11 +389,7 @@ impl PcmciEngine {
         for pi in 0..parents.len() {
             let (src, slag) = parents[pi];
             let combo: Vec<(VariableId, Lag)> = pc_parent_combo(parents, pi, cond_size);
-            if 2 + combo.len() > MAX_CI_COLS {
-                return Err(DiscoveryError::Unsupported {
-                    message: "conditioning set exceeds MAX_CI_COLS",
-                });
-            }
+            ensure_ci_query_fits(frame_rows(frame), combo.len(), ctx)?;
             let xi = frame.column_index(src, slag).ok_or_else(|| {
                 DiscoveryError::data_msg(format!("missing lagged column for {src:?} lag {slag:?}"))
             })?;
@@ -418,8 +464,9 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(ScoredLink, u64), DiscoveryError> {
+        let capacity = ci_conditioning_capacity(frame, ctx);
         let truncated =
-            mci_conditioning(link, parents_target, parents_source, &mut workspace.others);
+            mci_conditioning(link, parents_target, parents_source, capacity, &mut workspace.others);
         refuse_truncated_mci(truncated)?;
         let cond = std::mem::take(&mut workspace.others);
         let result = self.ci_statistic(frame, link, &cond, workspace, ctx);
@@ -716,7 +763,7 @@ impl PcmciEngine {
     /// every allowed `(src, τ)` from [`DiscoveryConstraints::candidate_sources`].
     ///
     /// Returns the scored links and the number of conditioning columns dropped by the
-    /// `MAX_CI_COLS` cap (0 in the common case).
+    /// memory-derived column capacity (0 unless a hard memory limit is set).
     fn mci_batch_for_target(
         &self,
         search: LaggedSearch<'_>,
@@ -760,11 +807,13 @@ impl PcmciEngine {
         let mut z_flat = Vec::new();
         let mut links = Vec::with_capacity(candidates.len());
 
+        let capacity = ci_conditioning_capacity(frame, ctx);
         let mut truncated = 0u64;
         for &(src, slag) in &candidates {
             let link = link_to_target(src, slag, target);
             let src_parents = parents_of(all_parents, src);
-            truncated += mci_conditioning(link, parents, src_parents, &mut workspace.others);
+            truncated +=
+                mci_conditioning(link, parents, src_parents, capacity, &mut workspace.others);
             refuse_truncated_mci(truncated)?;
 
             let xi = frame.column_index(link.source, link.source_lag).ok_or_else(|| {
@@ -851,7 +900,7 @@ impl PcmciEngine {
         let mut queries = Vec::with_capacity(conds.len());
         let mut z_flat = Vec::new();
         for cond in conds {
-            if 2 + cond.len() > MAX_CI_COLS {
+            if ensure_ci_query_fits(frame_rows(frame), cond.len(), ctx).is_err() {
                 return None;
             }
             let z_start = z_flat.len();
@@ -961,11 +1010,7 @@ impl PcmciEngine {
         ctx: &ExecutionContext,
     ) -> Result<(f64, f64), DiscoveryError> {
         let LaggedLink { source: x, source_lag: x_lag, target: y, target_lag: y_lag } = link;
-        if 2 + cond.len() > MAX_CI_COLS {
-            return Err(DiscoveryError::Unsupported {
-                message: "conditioning set exceeds MAX_CI_COLS",
-            });
-        }
+        ensure_ci_query_fits(frame_rows(frame), cond.len(), ctx)?;
         let xi = frame.column_index(x, x_lag).ok_or_else(|| {
             DiscoveryError::data_msg(format!("missing lagged column for {x:?} lag {x_lag:?}"))
         })?;
@@ -1215,12 +1260,20 @@ fn link_to_target(src: VariableId, slag: Lag, target: VariableId) -> LaggedLink 
 /// source, each *time-shifted by its endpoint's lag* (a parent `(v, l)` of `X_t` is
 /// `(v, l+τ)` for `X_{t−τ}`), minus the link endpoints. Parent sets are keyed to lag 0. The
 /// target shift is zero for every skeleton-phase link (`Y_t`); it matters when a caller tests a
-/// pair whose later node is the source. Both inputs are strongest-first, so the
-/// `MAX_CI_COLS` truncation keeps the strongest conditions; returns how many were dropped.
+/// pair whose later node is the source. Both inputs are strongest-first, so truncation to
+/// `budget` columns keeps the strongest conditions; returns how many were dropped.
+///
+/// `budget` is the most conditioning columns the caller can use, normally
+/// [`ci_conditioning_capacity`]. Callers that add further conditions of their own (PCMCI+'s
+/// contemporaneous candidate set `S`) must reserve room for them *here*, before the lagged
+/// block is built. Truncating the combined set afterwards drops from the tail, which is the
+/// lagged MCI block — the fixed control set that makes the test valid under autocorrelation —
+/// while keeping the optional conditions that were prepended.
 pub(crate) fn mci_conditioning(
     link: LaggedLink,
     parents_target: &[(VariableId, Lag)],
     parents_source: &[(VariableId, Lag)],
+    budget: usize,
     out: &mut Vec<(VariableId, Lag)>,
 ) -> u64 {
     out.clear();
@@ -1238,30 +1291,6 @@ pub(crate) fn mci_conditioning(
             out.push(shifted);
         }
     }
-    mci_conditioning_bounded_finish(out, MAX_CI_COLS - 2)
-}
-
-/// [`mci_conditioning`] with an explicit column budget.
-///
-/// Callers that add further conditions of their own (PCMCI+'s contemporaneous candidate set
-/// `S`) must reserve room for them *here*, before the lagged block is built. Truncating the
-/// combined set afterwards drops from the tail, which is the lagged MCI block — the fixed
-/// control set that makes the test valid under autocorrelation — while keeping the optional
-/// conditions that were prepended.
-pub(crate) fn mci_conditioning_bounded(
-    link: LaggedLink,
-    parents_target: &[(VariableId, Lag)],
-    parents_source: &[(VariableId, Lag)],
-    budget: usize,
-    out: &mut Vec<(VariableId, Lag)>,
-) -> u64 {
-    // `mci_conditioning` applies the kernel cap itself and reports what that cost; the
-    // tighter caller budget can drop more on top. Both count as dropped conditions.
-    let dropped = mci_conditioning(link, parents_target, parents_source, out);
-    dropped + mci_conditioning_bounded_finish(out, budget.min(MAX_CI_COLS - 2))
-}
-
-fn mci_conditioning_bounded_finish(out: &mut Vec<(VariableId, Lag)>, budget: usize) -> u64 {
     if out.len() > budget {
         let dropped = out.len() - budget;
         out.truncate(budget);
@@ -1278,8 +1307,8 @@ pub(crate) fn refuse_truncated_mci(dropped: u64) -> Result<(), DiscoveryError> {
         Ok(())
     } else {
         Err(DiscoveryError::Resource(format!(
-            "MCI conditioning dropped {dropped} lagged parents over the column budget; \
-             refusing a truncated test"
+            "MCI conditioning dropped {dropped} lagged parents over the memory-derived column \
+             budget; refusing a truncated test"
         )))
     }
 }

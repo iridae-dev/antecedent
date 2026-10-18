@@ -51,7 +51,7 @@ The Python surface is documented by task in these guides:
 
 Every stage module is also reachable lazily from the root, for example `antecedent.design`, without a separate import.
 
-For Rust, use `cargo doc -p antecedent --open` for this checkout, or visit the [published crate reference](https://docs.rs/antecedent/2.4.0/antecedent/).
+For Rust, use `cargo doc -p antecedent --open` for this checkout, or visit the [published crate reference](https://docs.rs/antecedent/2.4.1/antecedent/).
 
 ## Python 2.4 continuity
 

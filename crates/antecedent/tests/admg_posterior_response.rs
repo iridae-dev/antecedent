@@ -18,9 +18,12 @@ use antecedent_core::{
     ResponseQuery, Value, VariableId,
 };
 use antecedent_data::TabularData;
+use antecedent_discovery::adjacency_mask::{
+    adjacency_mask_from_admg, admg_from_adjacency_mask, dag_from_adjacency_mask, mask_is_dag,
+    set_edge,
+};
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg,
-    admg_from_adjacency_mask, dag_from_adjacency_mask, mask_is_dag, set_edge,
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
@@ -72,8 +75,8 @@ fn admg_from_pin(pin: &serde_json::Value) -> Admg {
     admg
 }
 
-fn cyclic_mask(n: usize) -> u64 {
-    let mut mask = 0_u64;
+fn cyclic_mask(n: usize) -> AdjacencyMask {
+    let mut mask = AdjacencyMask::EMPTY;
     mask = set_edge(mask, n, 0, 1, true);
     if n >= 3 {
         mask = set_edge(mask, n, 1, 2, true);
@@ -84,8 +87,8 @@ fn cyclic_mask(n: usize) -> u64 {
     mask
 }
 
-fn admg_posterior(n: usize, weights: &[f64], masks: &[u64]) -> GraphPosterior {
-    GraphPosterior::new(
+fn admg_posterior(n: usize, weights: &[f64], masks: &[AdjacencyMask]) -> GraphPosterior {
+    GraphPosterior::from_atoms(
         n,
         weights.to_vec(),
         masks.to_vec(),

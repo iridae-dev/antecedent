@@ -1,0 +1,43 @@
+{
+  "source": "2f7d56662e4e86014f907e577b7c854c74c831d4",
+  "requested_records": 38,
+  "preserved_numeric_group": "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1",
+  "threads": 2,
+  "status": "passed",
+  "build_receipt_sha256": "00bd0f7b2973e1e6f2f4ffe132d88a268a13af96747734cede230f8a8e24f0f5",
+  "waivers": [
+    {
+      "id": "unchanged-validated-procedures-from-70",
+      "started_ns": 1792347423586519000,
+      "status": "passed",
+      "exit_code": 0,
+      "finished_ns": 1792347498426405000,
+      "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/corrected-final-replay-unchanged-validated-procedures-from-70.log"
+    },
+    {
+      "id": "unchanged-weighted-hc3-from-da811",
+      "started_ns": 1792347498606756000,
+      "status": "passed",
+      "exit_code": 0,
+      "finished_ns": 1792348221410845000,
+      "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/corrected-final-replay-unchanged-weighted-hc3-from-da811.log"
+    },
+    {
+      "id": "unchanged-defaults-and-legacy-synthesis-from-c30",
+      "started_ns": 1792348221526816000,
+      "status": "passed",
+      "exit_code": 0,
+      "finished_ns": 1792348365297196000,
+      "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/corrected-final-replay-unchanged-defaults-and-legacy-synthesis-from-c30.log"
+    },
+    {
+      "id": "unchanged-defaults-and-legacy-normal-clusters-from-e15",
+      "started_ns": 1792348365415730000,
+      "status": "passed",
+      "exit_code": 0,
+      "finished_ns": 1792348490108316000,
+      "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/corrected-final-replay-unchanged-defaults-and-legacy-normal-clusters-from-e15.log"
+    }
+  ],
+  "controller_sha256": "d54bff24c7ee5857c114bd0597bb00b419f9af71a368d209474af01a38c75bc0"
+}

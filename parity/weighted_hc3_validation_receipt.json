@@ -1,0 +1,173 @@
+{
+  "schema": "prospective_calibration_validation_receipt.v1",
+  "status": "whole_group_passed",
+  "source_sha": "da811c715e4d1961ca0cba7356467e34f2ec25e1",
+  "record_id": "cov.sample_split_weighted_effect.cpdag.frequentist.student_t_sandwich_effective_n.l95.weighted_split_effect_interval_calibrated.discovery_fraction_0_75_conflict_resolution_treatment_invariant_variance_hc3",
+  "validation_domain": "release_2_4_1_weighted_hc3_validation_v1",
+  "allocation_slot": 2,
+  "sealed_plan_sha256": "2cc8deed9c222b7218dc7b25a640f7ea98f1a7e57732c04c2bd85bbfcb076727",
+  "sealed_controller_sha256": "a70ec63a6f91e2fbaa886b43980aa943d545c93e37784f01f94e32146b722d3e",
+  "measurement_payload_sha256": "f9d55848c99e9eabeb144db59bf739f5b091c557747129938fbb8ce13021a9ff",
+  "plan": {
+    "schema": "targeted_prospective_measurement_plan.v1",
+    "status": "sealed_before_outcomes",
+    "method_source_commit": "ee9233f144eb495979f83ca0ae35070cf824a31e",
+    "measurement_source_sha": "da811c715e4d1961ca0cba7356467e34f2ec25e1",
+    "validation_domain": "release_2_4_1_weighted_hc3_validation_v1",
+    "decision_protocol": {
+      "validation_domain": "release_2_4_1_weighted_hc3_validation_v1",
+      "id": "suite_coverage_fwer.v1",
+      "family_digest": "806de9511ace7382c6be49d81f4822ad24a58f27d3c59a6dd58adcc62c58ca0a",
+      "family_alpha": 0.05,
+      "family_groups": 757,
+      "family_grid_points": 3,
+      "family_cells": 581376,
+      "cell_cap_per_group": 256,
+      "looks": [
+        {
+          "planned_replicates": 400,
+          "weight": 0.5
+        },
+        {
+          "planned_replicates": 2000,
+          "weight": 0.25
+        },
+        {
+          "planned_replicates": 20000,
+          "weight": 0.25
+        }
+      ]
+    },
+    "cumulative_slot": 2,
+    "allocation_receipt_sha256": "0b87ceea1a1993f7ef7c433dd790fea887ee72519ae50a0cbea19edc7b6cc64d",
+    "selection_history": "HC3protocol3was chosen after development and observed70protocol2failure. It is fixed before the new independent validation outcomes. The initial70source roster did not contain protocol3; conditional independent validation and a distinct unused hypothesis slot justify its additional allocation.",
+    "risk_rule": "One cumulative original risk budget; the new domain changes independent validation data, not the available risk. Slots1and2 are distinct hypotheses within the same original256pergroup/grid cap. Old protocol2spending remains spent; no retry or replacement of its failure.",
+    "group": "sample_split_weighted_effect_calibration: weighted_split_effect_interval_calibrated",
+    "expected_record": {
+      "record_id": "cov.sample_split_weighted_effect.cpdag.frequentist.student_t_sandwich_effective_n.l95.weighted_split_effect_interval_calibrated.discovery_fraction_0_75_conflict_resolution_treatment_invariant_variance_hc3",
+      "functional": "weighted_population_total_effect.discovery_fraction_0_75.conflict_resolution_treatment_invariant.variance_hc3",
+      "interval_method": "student_t_sandwich_effective_n",
+      "se_kind": "hc3_sampling_weighted",
+      "nominal": 0.95
+    },
+    "jobs": [
+      {
+        "grid_point": 2,
+        "planned_replicates": 20000,
+        "threads": 1,
+        "historical_hc1_seconds_for_planning_only": 783.1261529580224
+      },
+      {
+        "grid_point": 1,
+        "planned_replicates": 20000,
+        "threads": 1,
+        "historical_hc1_seconds_for_planning_only": 469.0743865419645
+      },
+      {
+        "grid_point": 0,
+        "planned_replicates": 20000,
+        "threads": 1,
+        "historical_hc1_seconds_for_planning_only": 228.0739901661873
+      }
+    ],
+    "execution_order": "longest-first p2,p1,p0, sequential in attestation reserved1worker; no70fresh cap change",
+    "reuse": "No70data reused as HC3 evidence. Preserve all oldHC1rawcounts/decisions/source/domain and failedgroup. Newslot/newindependentseednamespace; no increased alpha.",
+    "checkout_policy": "Same final immutable attestation checkout and coherent private release cache; separateHC3logdir/env. Do not dirty checkout by collection before original-domain witness runs.",
+    "collection": "Onlywhole3pointpassinggroup, strictsource/domain/decision validation. Isolatedevidence-onlycollectionwith explicit output binding; no generatedassets until final integration.",
+    "activation_conditions": [
+      "13HC3focusedtestsPASS(complete)",
+      "Pythonnewdomain/slot/replaytestsPASS(complete)",
+      "Final scientific source+familymanifest committed and checkout clean",
+      "ExactsourceSHA+planSHA sealed before first newdomain outcome",
+      "Root-approved globalworker accounting including ongoing70followup and attestation"
+    ],
+    "sealed_at_utc": "2026-10-18T14:36:11.729759+00:00",
+    "controller_sha256": "a70ec63a6f91e2fbaa886b43980aa943d545c93e37784f01f94e32146b722d3e",
+    "source_authorization": "Root explicitly authorized HC3formal independently at current frozen scientific source;27finalwitnesses wait for PAGresolution."
+  },
+  "points": [
+    {
+      "grid_point": 0,
+      "covered": 17858,
+      "reported": 18864,
+      "planned_replicates": 20000,
+      "p_value": 0.03891533761005681,
+      "compatible": true
+    },
+    {
+      "grid_point": 1,
+      "covered": 18405,
+      "reported": 19428,
+      "planned_replicates": 20000,
+      "p_value": 0.09425779993520152,
+      "compatible": true
+    },
+    {
+      "grid_point": 2,
+      "covered": 18487,
+      "reported": 19503,
+      "planned_replicates": 20000,
+      "p_value": 0.1861412864873162,
+      "compatible": true
+    }
+  ],
+  "numeric_results": [
+    {
+      "group": "sample_split_weighted_effect_calibration: weighted_split_effect_interval_calibrated",
+      "point": 2,
+      "status": 0,
+      "seconds": 722.1311561660841,
+      "replicates": 20000,
+      "threads": 1
+    },
+    {
+      "group": "sample_split_weighted_effect_calibration: weighted_split_effect_interval_calibrated",
+      "point": 1,
+      "status": 0,
+      "seconds": 382.30754204117693,
+      "replicates": 20000,
+      "threads": 1
+    },
+    {
+      "group": "sample_split_weighted_effect_calibration: weighted_split_effect_interval_calibrated",
+      "point": 0,
+      "status": 0,
+      "seconds": 213.05150783294812,
+      "replicates": 20000,
+      "threads": 1
+    }
+  ],
+  "raw_archive": "target/calibration-frozen-runs/da811c715e4d1961ca0cba7356467e34f2ec25e1/20261018T144658Z",
+  "raw_sha256": {
+    "groups/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated.p0.console.txt": "68f57f93533139822018cb4edec7025041e37b74fc839964d68e4397dc876b6c",
+    "groups/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated.p1.tallies.jsonl": "ea081f93336d9ab7df455332065dd99b0124016e850cbebe4ecd88099350ae9f",
+    "groups/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated.p2.tallies.jsonl": "6baf1cb09e61dedce71c8517399e3e0aac4a90d84d093a8438820d258a05faa7",
+    "groups/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated.p1.console.txt": "22227c414a6340f6cdd3501b18b84105227c228c429ec78fadbbdb40fa381d0c",
+    "groups/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated.p0.log": "35377871a051e308b38be13a01c4a20547c02ef9886560b72117a7fe30f4ef57",
+    "groups/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated.p1.log": "012a87a3f50339304dfdc75d6865d97a692ffaff9d30ead426c7e2b42b8dd5d4",
+    "groups/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated.p0.tallies.jsonl": "f50e0ce56c413ad3b6842748b5a575a62aea55f2142a1238b238b33bd2fb3d5a",
+    "groups/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated.p2.log": "29e9575cc13c6c14877aed391e0f21b4d0cc069b0f5cb8f3f3d79b92d22813a0",
+    "groups/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated/sample_split_weighted_effect_calibration__weighted_split_effect_interval_calibrated.p2.console.txt": "7812f3b1abd15d5a943cd09eb128b97e67fce871e3bf1e58387f8722447ec790"
+  },
+  "collection_integrity": {
+    "baseline_records": 1470,
+    "merged_records": 1471,
+    "existing_records_deep_equal": true,
+    "baseline_registry_sha256": "57d12c027f3b2bdeed6cd7bc540e0af1554ac2fc273f50cb773196f0065990e8",
+    "merged_registry_sha256": "2f15ce2ef8ac6c4d94b0082f2866adb82c1900b3b422202ae46681e65e28b011"
+  },
+  "legacy_failure_preserved": {
+    "source_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+    "protocol": 2,
+    "se_kind": "hc1_sampling_weighted",
+    "validation_domain": "release_2_4_1_validation_v1",
+    "point0": {
+      "covered": 17672,
+      "reported": 18873,
+      "planned_replicates": 20000,
+      "nominal_compatibility_p_value": 1.5633659868554862e-16,
+      "compatible": false
+    },
+    "unchanged_targets": "Same original DGP, three row-count grids, nominal coverage, reporting floor and width/usefulness gates; no previous data used as HC3 validation evidence."
+  }
+}

@@ -11,7 +11,7 @@ papers = [
 
 implementation_deviations = [
  "Normalizes exp(Gaussian-BIC/2) times a simple graph prior as a graph posterior; this is a BIC pseudo-posterior rather than an integrated Bayesian posterior.",
- "MCMC results are finite-chain empirical frequencies subject to R-hat and ESS gates, and graph states are limited to 63 directed-edge bits.",
+ "MCMC results are finite-chain empirical frequencies subject to R-hat and ESS gates, and graph states are limited to 16 variables (240 directed-edge bits).",
 ]
 
 upstream_implementations_observed = []

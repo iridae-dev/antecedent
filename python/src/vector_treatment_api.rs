@@ -63,7 +63,8 @@ fn check_size(text: &str) -> PyResult<()> {
     check_declared_size(text, MAX_JSON_BYTES, "vector treatment")
 }
 
-/// Fit the treatments jointly: `(report json, artifact bytes, refusal json)`.
+/// Fit the treatments jointly: `(report json, artifact bytes, refusal json)`; an export over its
+/// byte budget returns the report and the refusal with no artifact.
 ///
 /// `treatment_columns[i]` is the column of the treatment `declaration.treatments[i]`;
 /// `adjustment_columns[j]` that of `declaration.adjustment[j]`.
@@ -113,10 +114,17 @@ fn evaluate_vector_treatment(
     let artifact_id = artifact_id.to_owned();
     detach_catch(py, move || match VectorTreatment::evaluate(&request) {
         Ok(done) => {
-            let bytes = done.export(&artifact_id).map_err(|e| failure(&e))?;
             let report = serde_json::to_string(&done.report())
                 .map_err(|e| crate::serialization_err(e.to_string()))?;
-            Ok((Some(report), Some(bytes), None))
+            // An export over its byte budget refuses on its own: the fit is complete and its
+            // report returns with the refusal in place of the artifact.
+            match done.export(&artifact_id) {
+                Ok(bytes) => Ok((Some(report), Some(bytes), None)),
+                Err(error) => match refusal_json(&error, "export") {
+                    Some(json) => Ok((Some(report), None, Some(json))),
+                    None => Err(failure(&error)),
+                },
+            }
         }
         Err(error) => match refusal_json(&error, "fit") {
             Some(json) => Ok((None, None, Some(json))),
@@ -131,11 +139,12 @@ fn evaluate_vector_treatment(
 /// snapshot, adjustment set, coefficient order, design, covariance kind, contrasts, null or
 /// result is refused against it.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_identity_json=None))]
+#[pyo3(signature = (artifact, expected_identity_json=None, *, memory_limit_bytes=None))]
 fn consume_vector_treatment_artifact(
     py: Python<'_>,
     artifact: Vec<u8>,
     expected_identity_json: Option<String>,
+    memory_limit_bytes: Option<u64>,
 ) -> PyResult<ConsumePayload> {
     let expected: Option<VectorTreatmentIdentity> = match expected_identity_json {
         Some(text) => {
@@ -149,16 +158,19 @@ fn consume_vector_treatment_artifact(
         }
         None => None,
     };
-    detach_catch(py, move || match VectorTreatment::consume(&artifact, expected.as_ref()) {
-        Ok(done) => {
-            let report = serde_json::to_string(&done.report())
-                .map_err(|e| crate::serialization_err(e.to_string()))?;
-            Ok((Some(report), None))
+    let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, None);
+    detach_catch(py, move || {
+        match VectorTreatment::consume_with(&artifact, expected.as_ref(), &ctx) {
+            Ok(done) => {
+                let report = serde_json::to_string(&done.report())
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
+                Ok((Some(report), None))
+            }
+            Err(error) => match refusal_json(&error, "consume") {
+                Some(json) => Ok((None, Some(json))),
+                None => Err(failure(&error)),
+            },
         }
-        Err(error) => match refusal_json(&error, "consume") {
-            Some(json) => Ok((None, Some(json))),
-            None => Err(failure(&error)),
-        },
     })
 }
 

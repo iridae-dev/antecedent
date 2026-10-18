@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AverageEffectQuery, PopulationRegistry, TargetPopulation, VariableId};
+use antecedent_core::{
+    AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation, VariableId,
+};
 use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
@@ -12,9 +14,9 @@ use antecedent_stats::{
     fit_propensity,
 };
 
-use crate::adjustment::intervention_f64;
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
+use crate::propensity::levels::{DeclaredTreatmentLevels, OtherLevels, classify_treatment_levels};
 use crate::util::stats_err;
 
 /// Prepared covariate design + treatment/outcome shared by every propensity estimator.
@@ -31,8 +33,12 @@ pub struct PreparedPropensityProblem {
     pub design_ncols: usize,
     /// Number of complete-case rows.
     pub nrows: usize,
-    /// Binary treatment indicator (0/1), length `nrows`.
+    /// Arm indicator, length `nrows`: `1.0` at the active level and `0.0` at the control
+    /// level declared on the query, whatever the treatment column's own coding.
     pub treatment: Arc<[f64]>,
+    /// The declared levels the treatment was recoded from, and the rows at neither level
+    /// that preparation excluded under an explicit policy.
+    pub treatment_levels: DeclaredTreatmentLevels,
     /// Outcome, length `nrows`.
     pub outcome: Arc<[f64]>,
     /// Raw adjustment covariate columns, in `adjustment_set` order (excludes intercept).
@@ -79,6 +85,35 @@ pub struct PreparedPropensityProblem {
     /// of the problem so every score-table build over it, however it is reached, fits the
     /// nuisance it was prepared for.
     pub propensity: crate::propensity::PropensityNuisance,
+    /// Sampling weights of the complete-case rows, normalized to mean one, with the record of
+    /// what they did to the analysis. `None` when none were declared. Every row of the
+    /// problem has a positive weight: rows of weight zero never enter it.
+    pub sampling_weights: Option<crate::sampling_weights::RetainedSamplingWeights>,
+}
+
+impl PreparedPropensityProblem {
+    /// The per-row weights the cross-fitted scores are averaged under: the target weights, the
+    /// sampling weights, or their product; `None` when neither is declared.
+    pub(crate) fn score_weights(&self) -> Option<std::borrow::Cow<'_, [f64]>> {
+        use std::borrow::Cow;
+        match (self.target_weights.as_deref(), self.sampling_weights.as_ref()) {
+            (None, None) => None,
+            (Some(target), None) => Some(Cow::Borrowed(target)),
+            (None, Some(sampling)) => Some(Cow::Borrowed(&*sampling.weights)),
+            (Some(target), Some(sampling)) => Some(Cow::Owned(
+                target.iter().zip(sampling.weights.iter()).map(|(t, s)| t * s).collect(),
+            )),
+        }
+    }
+
+    /// Stratum of each row for the arm-stratified cross-fit fold plan: `1` at the higher of
+    /// the two declared levels, `0` at the lower. It depends on the declared levels only
+    /// through their order, so swapping active and control deals the same folds, and a
+    /// `0`/`1` column keeps the plan its arm indicator always gave.
+    pub(crate) fn fold_strata(&self) -> Vec<u32> {
+        let active_is_higher = self.treatment_levels.active > self.treatment_levels.control;
+        self.treatment.iter().map(|&t| u32::from((t > 0.5) == active_is_higher)).collect()
+    }
 }
 
 /// Fitted propensity model shared by weighting, stratification, and matching estimators.
@@ -109,15 +144,27 @@ impl PropensityModel {
         workspace: &mut PropensityWorkspace,
         options: &GlmOptions,
     ) -> Result<Self, EstimationError> {
-        let fit = fit_propensity(
-            &problem.design_matrix,
-            problem.nrows,
-            problem.design_ncols,
-            &problem.treatment,
-            &backend,
-            workspace,
-            options,
-        )
+        let fit = match problem.sampling_weights.as_ref() {
+            Some(sampling) => antecedent_stats::fit_propensity_weighted(
+                &problem.design_matrix,
+                problem.nrows,
+                problem.design_ncols,
+                &problem.treatment,
+                &sampling.weights,
+                &backend,
+                workspace,
+                &options.without_separation_ridge(),
+            ),
+            None => fit_propensity(
+                &problem.design_matrix,
+                problem.nrows,
+                problem.design_ncols,
+                &problem.treatment,
+                &backend,
+                workspace,
+                options,
+            ),
+        }
         .map_err(stats_err)?;
         fit.glm.require_ok().map_err(stats_err)?;
         let clip = clip_of(problem.overlap);
@@ -213,6 +260,7 @@ impl PropensityEstimationWorkspace {
         donor_features: &[f64],
         dim: usize,
         distance: MatchingDistance,
+        ctx: &ExecutionContext,
     ) -> Result<(), EstimationError> {
         let n_donors = donor_features.len() / dim.max(1);
         let key = MatchingIndexKey {
@@ -226,7 +274,7 @@ impl PropensityEstimationWorkspace {
         });
         if needs_rebuild {
             let donor_ids: Vec<usize> = (0..n_donors).collect();
-            let index = MatchingIndex::exact(donor_features, dim, &donor_ids, distance)
+            let index = MatchingIndex::exact_within(donor_features, dim, &donor_ids, distance, ctx)
                 .map_err(stats_err)?;
             self.matching_index = Some(index);
             self.matching_index_key = key;
@@ -277,16 +325,43 @@ pub const fn default_propensity_overlap() -> OverlapPolicy {
 // ---------------------------------------------------------------------------------------------
 
 /// Prepare propensity inputs with optional named-predicate / distribution bindings.
-#[allow(
-    clippy::too_many_lines,
-    reason = "one preparation: validate the query, mask rows, read the columns, resolve target weights and build the design; each step reads the same row mask"
-)]
+///
+/// Rows at a treatment level other than the query's two are refused; see
+/// [`prepare_propensity_problem_with_levels`] to exclude them under a declared policy.
 pub(crate) fn prepare_propensity_problem_with_registry(
     data: &TabularData,
     estimand: &IdentifiedEstimand,
     query: &AverageEffectQuery,
     overlap: OverlapPolicy,
     registry: Option<&PopulationRegistry>,
+) -> Result<PreparedPropensityProblem, EstimationError> {
+    prepare_propensity_problem_with_levels(
+        data,
+        estimand,
+        query,
+        overlap,
+        registry,
+        OtherLevels::default(),
+        None,
+    )
+}
+
+/// Prepare propensity inputs, recoding the query's active level to `1.0` and its control
+/// level to `0.0` and applying `other_levels` to rows at neither. Declared `sampling`
+/// weights remove the rows of weight zero (counted on the problem's record) before the
+/// treatment levels are classified, since such a row stands for no population unit.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one preparation: validate the query, mask rows, read the columns, resolve target weights and build the design; each step reads the same row mask"
+)]
+pub(crate) fn prepare_propensity_problem_with_levels(
+    data: &TabularData,
+    estimand: &IdentifiedEstimand,
+    query: &AverageEffectQuery,
+    overlap: OverlapPolicy,
+    registry: Option<&PopulationRegistry>,
+    other_levels: OtherLevels,
+    sampling: Option<&crate::sampling_weights::SamplingWeights>,
 ) -> Result<PreparedPropensityProblem, EstimationError> {
     crate::util::refuse_explicit_override(
         overlap,
@@ -304,13 +379,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
             "propensity estimators do not support effect modifiers",
         ));
     }
-    let active = intervention_f64(&query.active)?;
-    let control = intervention_f64(&query.control)?;
-    if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
-        return Err(EstimationError::unsupported(
-            "propensity estimators require binary treatment coded active=1.0, control=0.0",
-        ));
-    }
+    let (active, control, _) = crate::prepare::treatment_contrast(&query.active, &query.control)?;
 
     let treatment = query.treatment;
     let outcome = query.outcome;
@@ -340,12 +409,36 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         }
         _ => {}
     }
-    let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
-    let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
-    let nrows = t.len();
-    if nrows == 0 {
+    let zero_weight_rows =
+        sampling.map(|weights| weights.drop_zero_weight_rows(&mut row_mask)).transpose()?;
+    let t_source = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
+    if t_source.is_empty() {
         return Err(EstimationError::data_msg("no complete-case rows for propensity design"));
     }
+    let (at_declared_level, treatment_levels) =
+        classify_treatment_levels(&t_source, active, control, other_levels)?;
+    // Rows at neither declared level leave the problem here, before the weights and the
+    // design are aligned to the retained rows; the count stays on `treatment_levels`.
+    let mut decisions = at_declared_level.iter().copied();
+    for slot in row_mask.iter_mut().filter(|slot| **slot) {
+        *slot = decisions.next().unwrap_or(false);
+    }
+    #[allow(
+        clippy::float_cmp,
+        reason = "declared treatment levels are exact category labels, not computed values"
+    )]
+    let t: Vec<f64> = t_source
+        .iter()
+        .zip(&at_declared_level)
+        .filter(|&(_, &kept)| kept)
+        .map(|(&ti, _)| if ti == active { 1.0 } else { 0.0 })
+        .collect();
+    let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
+    let nrows = t.len();
+    let sampling_weights = sampling
+        .zip(zero_weight_rows)
+        .map(|(weights, zero_weight_rows)| weights.retained(&row_mask, zero_weight_rows))
+        .transpose()?;
     let target_weights = if let Some(w) = full_weights {
         let mut aligned = Vec::with_capacity(nrows);
         for (i, &keep) in row_mask.iter().enumerate() {
@@ -367,18 +460,6 @@ pub(crate) fn prepare_propensity_problem_with_registry(
     } else {
         None
     };
-    // The query levels are already validated to be exactly 0.0/1.0 above; the treatment
-    // column must match them, otherwise a {1,2}-coded or continuous treatment would be
-    // silently dichotomized at t > 0.5 and fed to the logistic fit as-is.
-    for &ti in &t {
-        if ti.abs() > 1e-12 && (ti - 1.0).abs() > 1e-12 {
-            return Err(EstimationError::data_msg(format!(
-                "propensity estimators require a binary treatment column matching the query \
-                 levels (0.0/1.0); found treatment value {ti}"
-            )));
-        }
-    }
-
     let ncols = 1 + estimand.adjustment_set.len();
     let mut design = vec![0.0; nrows * ncols];
     design[..nrows].fill(1.0);
@@ -396,6 +477,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         design_ncols: ncols,
         nrows,
         treatment: Arc::from(t),
+        treatment_levels,
         outcome: Arc::from(y),
         covariates: Arc::from(covariate_cols),
         method: Arc::clone(&estimand.method),
@@ -421,6 +503,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         fold_seed: 0,
         shared_design: false,
         propensity: crate::propensity::PropensityNuisance::default(),
+        sampling_weights,
     }))
 }
 
@@ -598,7 +681,14 @@ mod tests {
         let changed = [9.0, 10.0];
         let query = [9.5];
         let mut workspace = PropensityEstimationWorkspace::default();
-        workspace.ensure_matching_index(&original, 1, MatchingDistance::Absolute).unwrap();
+        workspace
+            .ensure_matching_index(
+                &original,
+                1,
+                MatchingDistance::Absolute,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
         let stale = workspace.matching_index.as_ref().unwrap().nearest(&query, None).unwrap();
         assert_eq!(
             stale.map(|(id, distance)| (id, distance.to_bits())),
@@ -606,12 +696,25 @@ mod tests {
         );
 
         workspace.matching_index_key.features_hash = feature_key(&changed);
-        workspace.ensure_matching_index(&changed, 1, MatchingDistance::Absolute).unwrap();
-        let warm = workspace.matching_index.as_ref().unwrap().nearest(&query, None).unwrap();
-        let fresh = MatchingIndex::exact(&changed, 1, &[0, 1], MatchingDistance::Absolute)
-            .unwrap()
-            .nearest(&query, None)
+        workspace
+            .ensure_matching_index(
+                &changed,
+                1,
+                MatchingDistance::Absolute,
+                &ExecutionContext::for_tests(1),
+            )
             .unwrap();
+        let warm = workspace.matching_index.as_ref().unwrap().nearest(&query, None).unwrap();
+        let fresh = MatchingIndex::exact_within(
+            &changed,
+            1,
+            &[0, 1],
+            MatchingDistance::Absolute,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap()
+        .nearest(&query, None)
+        .unwrap();
 
         assert_eq!(workspace.matching_index_builds, 2);
         let warm_bits = warm.map(|(id, distance)| (id, distance.to_bits()));

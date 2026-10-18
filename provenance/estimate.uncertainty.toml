@@ -1,0 +1,26 @@
+feature_id = "estimate.uncertainty"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "On the variances of asymptotically normal estimators from complex surveys", doi = "10.2307/1402588", sections = ["The already implemented weighted estimator variances; this record adds no estimator or variance formula"] },
+]
+
+implementation_deviations = [
+  "This is an ownership and evidence record for the existing PublishedScalarUncertainty endpoint selector, not a new numerical method. Analytic-only intervals use the reported standard error and nominal normal quantile; declared finite-cluster references, bootstrap selection and explicit Gaussian population-score APIs remain distinct constructions.",
+  "The scalar endpoint arithmetic supplies no coverage authority by itself. A calibrated facade claim requires an exact method/functional/dependence/size match to a currently attesting coverage record. Raw standard errors and declaration helpers confer no such authority.",
+  "Each allocated record retains its original DGP, seed protocol, sample-size grid, scored counts, role and decision semantics. No unweighted record is borrowed by a weighted population and no normal record is borrowed by a Student or population-linear Gaussian construction.",
+  "Point-route records retain ownership of input validation, declared target populations and their typed refusals. Cancellation is observed by those upstream executions; the endpoint selector itself is constant-work arithmetic on an existing estimate.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/src/result.rs::published_scalar_uncertainty_tests (analytic/bootstrap selection and weak-IV withholding)",
+  "crates/antecedent/tests/sampling_weight_routes.rs (public weighted trial result, independent Hajek variance and artifact round trip)",
+  "crates/antecedent/tests/weighted_interval_calibration.rs (exact informative-sampling construction records)",
+  "crates/antecedent/tests/missing_outcome_calibration.rs (exact randomized responder construction records)",
+]

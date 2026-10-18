@@ -1,0 +1,7 @@
+# Decision-reliability artifact compatibility replay
+
+These genuine replays at c9659b468b86366886facff69a73eeee5fc1f0f8 preserve the original measured source recipes, seeds, protocols and per-point attempt budgets. Fifteen requested records across nine gate groups reproduced their stored numerical payloads exactly. Three uniquely named complete waivers cover the core/design/suite drift of the192 affected design records; the eleven earlier waivers and all1472 numerical records remain unchanged. No temporal or HC3 validation was repeated.
+
+The real first existing replicate in each selected design group exported and consumed a DecisionReliabilityArtifact from the original draws and request. The artifact-replay-witness markers are emitted only after successful consumer verification; this additional observer uses no RNG and changes no scored outcome. The unchanged historical golden consumer independently verified the conservative carried closure snapshot. Numeric report comparison, artifact digest and scientific assessments remain exact.
+
+The build used the same isolated checkout and private release cache, one compiler and zero incremental compilation. Every executable was obtained from final-source Cargo JSON and hashed before/after replay. Raw captures, controller logs, exact source certificates, per-record fingerprints, required path inventory and the filtered golden consumer output are preserved here. Earlier waiver outcomes/captures remain historical evidence.

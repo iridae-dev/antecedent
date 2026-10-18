@@ -711,6 +711,7 @@ pub(crate) fn ate_result_from_analysis(
         structural_identified_set_interval_method: identified_set.method,
         structural_identified_set_interval_truncated: identified_set.truncated,
         certificate_json,
+        missing_data_json: crate::missing_report::report_json(result.missing_data.as_ref()),
         ate: effect.map_or(f64::NAN, |estimate| estimate.ate),
         se_analytic: effect.map_or(f64::NAN, antecedent_estimate::EffectEstimate::se_analytic),
         se_bootstrap: effect.and_then(antecedent_estimate::EffectEstimate::se_bootstrap),

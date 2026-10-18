@@ -21,13 +21,13 @@ The [full refusal reference](../refusal-and-partial-knowledge.md) lists register
 
 ## Run neighboring structural and evidence outcomes
 
-For uncertain graph directions, run [class-preserving CPDAG](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/class_preserving_cpdag.py). It asserts that the uncertain answer has no scalar value, then demonstrates an explicitly reviewed orientation. The orientation is supplied scientific knowledge, not a numerical trick to force a point.
+For uncertain graph directions, run [class-preserving CPDAG](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/class_preserving_cpdag.py). It asserts that the uncertain answer has no scalar value, then demonstrates an explicitly reviewed orientation. The orientation is supplied scientific knowledge, not a numerical trick to force a point.
 
-For missing transport evidence, run [complementary sources](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/transport_meta_grid.py). The same query returns supported response values with the complete laws and retains unsupported coordinates when a required law is removed. Restore the missing evidence rather than dropping that coordinate from the report.
+For missing transport evidence, run [complementary sources](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/transport_meta_grid.py). The same query returns supported response values with the complete laws and retains unsupported coordinates when a required law is removed. Restore the missing evidence rather than dropping that coordinate from the report.
 
 ```bash
 python examples/python/class_preserving_cpdag.py
 python examples/python/transport_meta_grid.py
 ```
 
-For positivity, [propensity weighting](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/propensity_weighting.py) prints effective sample size and extreme propensities. These are diagnostics to interpret, not a blanket permission to trim: restricting the population or clipping weights changes the analysis and requires its own declared settings and standing.
+For positivity, [propensity weighting](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/propensity_weighting.py) prints effective sample size and extreme propensities. These are diagnostics to interpret, not a blanket permission to trim: restricting the population or clipping weights changes the analysis and requires its own declared settings and standing.

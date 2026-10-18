@@ -1,0 +1,6 @@
+START antecedent-stats pid 96293 context_workers 1
+START antecedent-validate pid 96294 context_workers 4
+Traceback (most recent call last):
+  File "/tmp/run_recordless_count_witnesses.py", line 38, in <module>
+    assert len(matches)==1,matches
+AssertionError: []

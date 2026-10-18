@@ -1,0 +1,10 @@
+
+running 5 tests
+test artifact_compat_sequential_reliability_golden::historical_closure_snapshot_is_conservative_and_cannot_change_the_report ... ok
+test artifact_compat_sequential_reliability_golden::the_decision_reliability_golden_is_recomputed_and_gated ... ok
+test artifact_compat_sequential_reliability_golden::the_sequential_evaluation_golden_is_replayed_and_gated ... ok
+test artifact_compat_sequential_reliability_golden::write_decision_reliability_golden ... ignored, writes tests/fixtures; run with `-- --ignored write_`
+test artifact_compat_sequential_reliability_golden::write_sequential_evaluation_golden ... ignored, writes tests/fixtures; run with `-- --ignored write_`
+
+test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 348 filtered out; finished in 0.03s
+

@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import ci_python_native as native
 
+TEST_PACKAGE_VERSION = "7.8.9"
+
 
 class NativeArtifactTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -20,7 +22,7 @@ class NativeArtifactTests(unittest.TestCase):
         self.package = self.root / "python" / "antecedent"
         self.package.mkdir(parents=True)
         (self.root / "python" / "pyproject.toml").write_text(
-            '[project]\nversion = "2.4.0"\n', encoding="utf-8"
+            f'[project]\nversion = "{TEST_PACKAGE_VERSION}"\n', encoding="utf-8"
         )
         self.extension = self.package / f"_native{native.runtime_identity()['extension_suffix']}"
         self.extension.write_bytes(b"native extension bytes")
@@ -55,7 +57,7 @@ class NativeArtifactTests(unittest.TestCase):
             (self.site_packages / "antecedent-ci-source.pth").read_text(encoding="utf-8"),
             str((self.root / "python").resolve()) + "\n",
         )
-        self.import_check.assert_called_once_with(self.extension, "2.4.0")
+        self.import_check.assert_called_once_with(self.extension, TEST_PACKAGE_VERSION)
 
     def test_refuses_other_commit_before_copy_or_import(self) -> None:
         with self.assertRaisesRegex(ValueError, "commit"):

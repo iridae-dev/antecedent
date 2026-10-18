@@ -30,12 +30,15 @@ pub mod m_estimate;
 pub mod matching;
 pub mod measurement_error;
 pub mod observation;
-pub use cox_ipcw::{CoxIpcwFit, cox_ipcw};
+pub use cox_ipcw::{CoxBreslowFit, CoxIpcwFit, cox_breslow, cox_ipcw};
 pub mod propensity;
 pub mod quantile;
 pub mod regularized;
 pub mod response;
+#[path = "ci/sparse_discrete.rs"]
+mod sparse_discrete;
 pub mod special;
+pub use sparse_discrete::SparseDiscreteCi;
 pub mod synthesis;
 pub mod synthesis_transport;
 #[cfg(test)]
@@ -46,11 +49,11 @@ mod welford;
 pub use ci::{
     BayesFactorCi, BlockTest, CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan,
     CiQuery, CiResult, CiWorkspace, ConditionalIndependence, ConditionalIndependenceTest,
-    ConfidenceMethod, GSquared, Gpdc, KnnDependence, KnnDependenceWorkspace, MixedKnnDependence,
-    MultivariatePartialCorrelation, OracleCi, PairwiseMultivariateCi, PartialCorrelation,
-    PosteriorDependenceCi, PosteriorPredictiveCi, PreparedCiTest, RegressionCi,
-    RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,
-    calibrate_parcorr_like, ci_from_name, ensure_alpha_resolvable,
+    ConfidenceMethod, GPDC_NYSTROM_MAX_INDUCING_POINTS, GSquared, Gpdc, GpdcNystrom, KnnDependence,
+    KnnDependenceWorkspace, MixedKnnDependence, MultivariatePartialCorrelation, OracleCi,
+    PairwiseMultivariateCi, PartialCorrelation, PosteriorDependenceCi, PosteriorPredictiveCi,
+    PreparedCiTest, RegressionCi, RobustPartialCorrelation, SignificanceMethod, SymbolicCmi,
+    WeightedPartialCorrelation, calibrate_parcorr_like, ci_from_name, ensure_alpha_resolvable,
 };
 #[cfg(test)]
 pub(crate) use cluster::panel_effective_lag;
@@ -59,7 +62,10 @@ pub use cluster::{
     effective_nw_lag, few_cluster_t_ratio, intern_cluster_tuples, multiway_subset_masks,
     newey_west_meat_scalar, panel_hac_meat_scalar,
 };
-pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
+pub use covariance::{
+    Hc2Coefficient, SandwichKind, coefficient_covariance, hc2_coefficient_bell_mccaffrey,
+    score_coefficient_covariance, symmetric_eigen,
+};
 pub use dcor::distance_correlation;
 pub use describe::{iid_se, mean_and_se};
 pub use design::{
@@ -85,8 +91,8 @@ pub use gam::{
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
-    MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge, fit_multinomial_logit,
-    fit_multinomial_logit_weighted,
+    MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge, fit_glm_ridge_weighted,
+    fit_glm_weighted, fit_logistic_weighted, fit_multinomial_logit, fit_multinomial_logit_weighted,
 };
 pub use gram::{
     accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, column_is_constant, form_xtx,
@@ -116,9 +122,9 @@ pub use joint_law::{
 };
 pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
-pub use matching::{
-    EXACT_MATCHING_ROW_LIMIT, MatchingDistance, MatchingIndex, nearest_euclidean_scalar,
-};
+#[allow(deprecated, reason = "the retained released name stays reachable")]
+pub use matching::EXACT_MATCHING_ROW_LIMIT;
+pub use matching::{MatchingDistance, MatchingIndex, nearest_euclidean_scalar};
 pub use observation::{
     GaussianObservation, KaplanMeierIpcw, ObservationProbabilityFit, censoring_tail_restriction,
     fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,
@@ -126,7 +132,8 @@ pub use observation::{
 };
 pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
-    fit_propensity_in_place, predict_propensity,
+    fit_propensity_in_place, fit_propensity_weighted, fit_propensity_weighted_in_place,
+    predict_propensity,
 };
 pub use quantile::{
     QuantileRule, equal_tail_interval_sorted, mad_sigma, median_sorted, quantile_sorted,
@@ -137,7 +144,8 @@ pub use regularized::{
 };
 pub use response::{
     GaussianMixtureDensity, LocalPolynomialBiasCorrected, LocalPolynomialInfluence,
-    LocalPolynomialPoint, LocalQuadraticWorkspace, gaussian_density,
+    LocalPolynomialPoint, LocalQuadraticWorkspace, diagonal_low_rank_quadratic_traces,
+    gaussian_density, gaussian_local_quadratic_adjusted_influence_prechecked,
     gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_influence,
     gaussian_local_quadratic_influence_prechecked, gaussian_local_quadratic_influence_with,
     gaussian_local_quadratic_weighted, silverman_bandwidth, silverman_normal_reference_factor,

@@ -29,11 +29,14 @@ use antecedent_core::{
     CausalSchema, ExecutionContext, IDENTITY_FORMAT, IdentityDomain, NodeRef, SemanticDigest,
     VariableId,
 };
-use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, admg_from_adjacency_mask, cpdag_from_adjacency_mask,
-    dag_from_adjacency_mask, pag_from_adjacency_mask, temporal_cpdag_from_dbn_masks,
-    temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
+use antecedent_discovery::adjacency_mask::{
+    admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
+    pag_from_adjacency_mask,
 };
+use antecedent_discovery::dbn_posterior::{
+    temporal_cpdag_from_dbn_atoms, temporal_dag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
+};
+use antecedent_discovery::{AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{
     Admg, Cpdag, Dag, MarkedEdge, Pag, TemporalAdmg, TemporalCpdag, TemporalDag, TemporalPag,
@@ -545,6 +548,15 @@ fn intervention_label(intervention: &InterventionWire) -> String {
         }
         InterventionWire::Stochastic { variable, .. } => format!("stochastic:{variable}"),
         InterventionWire::Soft { variable, .. } => format!("soft:{variable}"),
+        // A program enters identity as its full tree and declared reads under its kind tag,
+        // so two different programs (or a transform and an assignment of one expression)
+        // never share a label. Released variants above are unchanged.
+        InterventionWire::Transform { variable, expr, reads } => {
+            format!("transform:{variable}:{expr:?}:{reads:?}")
+        }
+        InterventionWire::Assign { variable, expr, reads } => {
+            format!("assign:{variable}:{expr:?}:{reads:?}")
+        }
         InterventionWire::Sequence { steps } => format!(
             "sequence:{}",
             steps
@@ -1107,7 +1119,7 @@ pub fn graph_posterior_atom_identities(
     let max_lag = posterior.max_lag.unwrap_or(1);
     let mut atoms = Vec::with_capacity(posterior.n_graphs);
     for (index, (&adjacency, &weight)) in
-        posterior.adjacency.iter().zip(posterior.weights.iter()).enumerate()
+        posterior.atoms.iter().zip(posterior.weights.iter()).enumerate()
     {
         let graph = posterior_atom_graph_wire(posterior, index, adjacency, max_lag, &ids)?;
         atoms.push(PosteriorAtomIdentityWire {
@@ -1127,7 +1139,7 @@ pub fn graph_posterior_atom_identities(
 fn posterior_atom_graph_wire(
     posterior: &GraphPosterior,
     index: usize,
-    adjacency: u64,
+    adjacency: AdjacencyMask,
     max_lag: u32,
     ids: &[VariableId],
 ) -> Result<PosteriorAtomGraphWire, IoError> {
@@ -1137,7 +1149,7 @@ fn posterior_atom_graph_wire(
             .ok_or_else(|| IoError::Convert("posterior lag masks must align with atoms".into()))?;
         return match posterior.atom_kind {
             GraphPosteriorAtomKind::Cpdag => {
-                let graph = temporal_cpdag_from_dbn_masks(
+                let graph = temporal_cpdag_from_dbn_atoms(
                     adjacency,
                     lag_mask,
                     posterior.n_vars,
@@ -1160,12 +1172,12 @@ fn posterior_atom_graph_wire(
             }
             GraphPosteriorAtomKind::Pag => {
                 let mark_mask = posterior
-                    .mark_masks
+                    .mark_atoms
                     .as_ref()
                     .and_then(|masks| masks.get(index))
                     .copied()
-                    .unwrap_or(0);
-                let graph = temporal_pag_from_dbn_masks(
+                    .unwrap_or(AdjacencyMask::EMPTY);
+                let graph = temporal_pag_from_dbn_atoms(
                     adjacency,
                     lag_mask,
                     mark_mask,
@@ -1182,7 +1194,7 @@ fn posterior_atom_graph_wire(
                 Ok(PosteriorAtomGraphWire::TemporalClass(wire))
             }
             _ => {
-                let graph = temporal_dag_from_dbn_masks(
+                let graph = temporal_dag_from_dbn_atoms(
                     adjacency,
                     lag_mask,
                     posterior.n_vars,
@@ -1224,11 +1236,11 @@ fn posterior_atom_graph_wire(
         }
         GraphPosteriorAtomKind::Pag => {
             let mark_mask = posterior
-                .mark_masks
+                .mark_atoms
                 .as_ref()
                 .and_then(|masks| masks.get(index))
                 .copied()
-                .unwrap_or(0);
+                .unwrap_or(AdjacencyMask::EMPTY);
             let pag = pag_from_adjacency_mask(adjacency, mark_mask, posterior.n_vars)
                 .map_err(|err| IoError::Convert(err.to_string()))?;
             let GraphIdentityWire::Pag(wire) = pag_identity(&pag)? else {
@@ -1539,6 +1551,30 @@ pub struct InterferenceSnapshotWire {
     pub assignment: PayloadDigestWire,
 }
 
+/// Participant labels bound to the rows of a data snapshot: the row count, a digest of the
+/// distinct labels in first-seen order, and a digest of every row's label code. Labels that
+/// differ in text or in row assignment give another digest.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ParticipantBindingWire {
+    /// Rows labelled.
+    pub rows: u64,
+    /// Digest (hex) of the distinct labels in first-seen order.
+    pub labels: String,
+    /// Digest (hex) of the per-row label codes.
+    pub codes: String,
+}
+
+/// A declared missing-data policy that differs from the route's default, with the covariates
+/// of its observation model. Identifies how the analysed rows were chosen or weighted.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MissingPolicyWire {
+    /// Policy name (`error`, `complete_case`, `inverse_probability`, `balanced_panel`,
+    /// `available_case`).
+    pub policy: String,
+    /// Names of the observation-model covariates, in declared order.
+    pub covariates: Vec<String>,
+}
+
 /// Data-snapshot payload binding contents and ordered unit/environment partitions.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DataSnapshotIdentityWire {
@@ -1571,6 +1607,15 @@ pub struct DataSnapshotIdentityWire {
     /// fit and uncertainty contract is inside the supported replay subset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub linear_fit_moments: Option<LinearFitMomentsWire>,
+    /// Participant labels bound to the rows, when the study declares them. Absent on older
+    /// artifacts and on studies without participants, whose digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub participants: Option<ParticipantBindingWire>,
+    /// Missing-data policy, when the study declares one that differs from its route's default.
+    /// Absent on older artifacts and on studies that keep the default, whose digests are
+    /// unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub missing: Option<MissingPolicyWire>,
 }
 
 /// Sufficient statistics for replaying a checked homoskedastic OLS fit.
@@ -2210,6 +2255,10 @@ pub struct BayesianBindingWire {
     pub prior_mapping: Option<PriorMappingIdentityWire>,
     /// External prior-bank composition.
     pub external_compose: Option<ExternalComposeIdentityWire>,
+    /// Numerical draw controls requested on the posterior (`measured`); absent when none
+    /// were, so a configuration without them keeps its identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draw_controls: Option<String>,
 }
 
 /// Discovery / estimation window split.
@@ -2379,6 +2428,14 @@ pub struct EstimatorConfigWire {
     /// Causal-forest honesty flag.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub honesty: Option<bool>,
+    /// Declared exclusion of treatment rows at neither declared level; absent when the
+    /// estimator refuses such rows (the default), so existing digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub other_levels: Option<String>,
+    /// Digest of the declared sampling weights of every source row; absent when none are
+    /// declared, so existing digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampling_weights: Option<PayloadDigestWire>,
 }
 
 /// Portable estimator-spec identity (mirrors `antecedent::EstimatorSpec` variants).
@@ -2621,6 +2678,120 @@ pub fn external_compose_identity(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn programmed_interventions_have_canonical_distinct_identities() {
+        use antecedent_core::{Intervention, Value, ValueExpr, VariableId};
+        let x = VariableId::from_raw(0);
+        let z = VariableId::from_raw(1);
+        let wire = |iv: Intervention| InterventionWire::from_domain(&iv).unwrap();
+        let bump = ValueExpr::generated().add(ValueExpr::constant(1.0));
+        let a = wire(Intervention::transform(x, bump.clone()));
+        let same = wire(Intervention::transform(x, bump.clone()));
+        let assigned =
+            wire(Intervention::assign(x, ValueExpr::var(z).add(ValueExpr::constant(1.0))));
+        let other =
+            wire(Intervention::transform(x, ValueExpr::generated().add(ValueExpr::constant(2.0))));
+        let moved = wire(Intervention::transform(z, bump));
+        let cbor = |w: &InterventionWire| crate::convert::to_cbor(w).unwrap();
+        assert_eq!(intervention_label(&a), intervention_label(&same));
+        assert_eq!(cbor(&a), cbor(&same));
+        for different in [&assigned, &other, &moved] {
+            assert_ne!(intervention_label(&a), intervention_label(different));
+            assert_ne!(cbor(&a), cbor(different));
+        }
+        // Transform and assign of one expression differ by kind alone.
+        let e = ValueExpr::constant(3.0);
+        let t = wire(Intervention::transform(x, e.clone()));
+        let s = wire(Intervention::assign(x, e));
+        assert_ne!(intervention_label(&t), intervention_label(&s));
+        assert_ne!(cbor(&t), cbor(&s));
+        // Released variants keep their labels.
+        let set = wire(Intervention::set(x, Value::f64(1.0)));
+        assert_eq!(intervention_label(&set), "set:0=1");
+    }
+
+    /// The released encoding of a policy-free intervention, written independently of the
+    /// serde derive as a generic CBOR value: a program-free query must keep these bytes, so
+    /// every identity digested over it is unchanged.
+    #[test]
+    fn a_policy_free_intervention_keeps_its_released_cbor_encoding() {
+        use ciborium::Value;
+        let text = |s: &str| Value::Text(s.into());
+        let released = Value::Map(vec![(
+            text("set"),
+            Value::Map(vec![
+                (text("variable"), Value::Integer(0.into())),
+                (text("value"), Value::Map(vec![(text("float64"), Value::Float(1.0))])),
+            ]),
+        )]);
+        let mut released_bytes = Vec::new();
+        ciborium::into_writer(&released, &mut released_bytes).unwrap();
+        let wire = InterventionWire::from_domain(&antecedent_core::Intervention::set(
+            VariableId::from_raw(0),
+            antecedent_core::Value::f64(1.0),
+        ))
+        .unwrap();
+        assert_eq!(crate::convert::to_cbor(&wire).unwrap(), released_bytes);
+        let decoded: InterventionWire = crate::convert::from_cbor(&released_bytes).unwrap();
+        assert_eq!(decoded, wire);
+    }
+
+    #[test]
+    fn a_policy_expression_moves_target_question_and_program_identities() {
+        use antecedent_core::{Intervention, ResponseFunctional, ResponseQuery, ValueExpr};
+        let (schema, _, _) = schema_and_query();
+        let (t, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let floor = |slope: f64| {
+            let policy = Intervention::transform(
+                t,
+                ValueExpr::constant(10.0)
+                    .max(ValueExpr::constant(slope).mul(ValueExpr::generated())),
+            );
+            CausalQuery::Response(ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome: y,
+                interventions: std::sync::Arc::from([policy]),
+            }))
+        };
+        let digests = |slope: f64| {
+            let target = target_wire(&schema, &floor(slope));
+            let target_digest = digest_wire(IdentityDomain::Target, &target).unwrap();
+            let question = digest_wire(IdentityDomain::Target, &target.question()).unwrap();
+            let program = program_digest(&ProgramIdentityWire {
+                format: IDENTITY_FORMAT,
+                target: *target_digest.as_bytes(),
+                identification: [0; 32],
+                identification_product: None,
+                completion_budget: None,
+                commitments: InferentialCommitmentsWire {
+                    format: IDENTITY_FORMAT,
+                    estimator: None,
+                    resolved_estimator: None,
+                    identifier: None,
+                    inference: "frequentist".into(),
+                    validation_suite: None,
+                    interval_method: "analytic_se".into(),
+                    se_kind: None,
+                    prior_required: false,
+                },
+                functional_program: None,
+                checked_aipw_lowering: None,
+                checked_frontdoor_lowering: None,
+                checked_iv_lowering: None,
+                checked_linear_adjustment_lowering: None,
+                checked_functional_response_grid: None,
+                checked_nested_counterfactual: None,
+            })
+            .unwrap();
+            (target_digest, question, program)
+        };
+        let base = digests(0.85);
+        assert_eq!(base, digests(0.85), "identical expressions give identical identities");
+        let changed = digests(0.9);
+        assert_ne!(base.0, changed.0, "target");
+        assert_ne!(base.1, changed.1, "question");
+        assert_ne!(base.2, changed.2, "program");
+    }
+
     use antecedent_core::{
         AverageEffectQuery, CausalQuery, CausalSchemaBuilder, Lag, MeasurementSpec,
         RandomizedEffectQuery, RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
@@ -3010,6 +3181,8 @@ mod tests {
             distribution_factor_laws: None,
             nested_counterfactual_fit: None,
             linear_fit_moments: None,
+            participants: None,
+            missing: None,
         };
         let decoded: DataSnapshotIdentityWire = from_cbor(&to_cbor(&original).unwrap()).unwrap();
         assert_eq!(original, decoded);
@@ -3090,6 +3263,7 @@ mod tests {
                 prior_source_snapshot: None,
                 prior_mapping: None,
                 external_compose: None,
+                draw_controls: None,
             }),
             validation_suite: None,
             overlap_policy: None,
@@ -3109,6 +3283,16 @@ mod tests {
         assert_ne!(minus_zero, plus_zero);
         binding.bayesian.as_mut().unwrap().backend = "conjugate_gaussian".into();
         assert_ne!(inference_binding_digest(&binding).unwrap(), minus_zero);
+
+        // Draw controls enter the identity only when requested: absent, the field is not
+        // encoded, so a binding without them keeps the bytes it had before they existed.
+        let uncontrolled = inference_binding_digest(&binding).unwrap();
+        let uncontrolled_bytes = to_cbor(&binding.bayesian).unwrap();
+        let encoded = serde_json::to_value(binding.bayesian.as_ref().unwrap()).unwrap();
+        assert!(encoded.get("draw_controls").is_none());
+        binding.bayesian.as_mut().unwrap().draw_controls = Some("measured".into());
+        assert_ne!(inference_binding_digest(&binding).unwrap(), uncontrolled);
+        assert_ne!(to_cbor(&binding.bayesian).unwrap(), uncontrolled_bytes);
     }
 
     #[test]
@@ -3213,9 +3397,9 @@ mod tests {
         assert_eq!(labels.get("active").map(String::as_str), Some("1"));
     }
 
-    fn static_posterior(weights: [f64; 3], graphs: [u64; 3]) -> GraphPosterior {
+    fn static_posterior(weights: [f64; 3], graphs: [AdjacencyMask; 3]) -> GraphPosterior {
         let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-        GraphPosterior::new(
+        GraphPosterior::from_atoms(
             3,
             weights.to_vec(),
             graphs.to_vec(),
@@ -3241,7 +3425,7 @@ mod tests {
 
     #[test]
     fn static_posterior_identity_binds_atom_graphs_and_weights() {
-        use antecedent_discovery::set_edge;
+        use antecedent_discovery::adjacency_mask::set_edge;
         let direct = set_edge(0, 3, 0, 1, true);
         let adjusted = set_edge(set_edge(direct, 3, 2, 0, true), 3, 2, 1, true);
         let reversed = set_edge(0, 3, 1, 0, true);
@@ -3259,15 +3443,151 @@ mod tests {
         assert!(matches!(atoms[0].graph, PosteriorAtomGraphWire::Static(_)));
     }
 
+    /// The identity of an atom is its canonical graph, not its packing: a stored single-word
+    /// adjacency, the same graph built through the wide edge set, and the canonical wire agree,
+    /// and a twelve-variable atom (edge bits past the first word) encodes as its twelve nodes.
+    #[test]
+    fn static_posterior_atom_identity_is_independent_of_the_adjacency_packing() {
+        use antecedent_discovery::adjacency_mask::set_edge;
+        use antecedent_discovery::edge_bit;
+        let n = 3;
+        let stored: u64 = (1 << edge_bit(n, 0, 1)) | (1 << edge_bit(n, 2, 0));
+        let from_word = AdjacencyMask::from_word(stored);
+        let built = set_edge(set_edge(AdjacencyMask::EMPTY, n, 0, 1, true), n, 2, 0, true);
+        assert_eq!(from_word, built);
+        let empty = AdjacencyMask::EMPTY;
+        let legacy = static_posterior([0.5, 0.3, 0.2], [from_word, empty, empty]);
+        let wide = static_posterior([0.5, 0.3, 0.2], [built, empty, empty]);
+        assert_eq!(posterior_premises(&legacy), posterior_premises(&wide));
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        let atoms = graph_posterior_atom_identities(&legacy).unwrap();
+        assert_eq!(
+            atoms[0].graph,
+            PosteriorAtomGraphWire::Static(canonical_dag_wire(&dag).unwrap())
+        );
+
+        let n = 12;
+        let chain =
+            (0..n - 1).fold(AdjacencyMask::EMPTY, |mask, i| set_edge(mask, n, i, i + 1, true));
+        assert_eq!(chain.to_word(), None, "twelve variables need more than one word");
+        let posterior = GraphPosterior::from_atoms(
+            n,
+            vec![1.0],
+            vec![chain],
+            vec![0.0; n * n],
+            vec![0.0; n * n],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: antecedent_prob::InferenceDiagnostics::analytic("wide"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap();
+        let atoms = graph_posterior_atom_identities(&posterior).unwrap();
+        let PosteriorAtomGraphWire::Static(wire) = &atoms[0].graph else {
+            panic!("a twelve-variable DAG atom encodes as a static graph");
+        };
+        assert_eq!(wire.node_count, 12);
+        let expected: Vec<(u32, u32)> = (0..11).map(|i| (i, i + 1)).collect();
+        assert_eq!(wire.edges, expected);
+    }
+
+    /// A posterior of `n` variables whose atoms are `graphs`, equally weighted.
+    fn equal_weight_posterior(n: usize, graphs: Vec<AdjacencyMask>) -> GraphPosterior {
+        let weight = 1.0 / graphs.len() as f64;
+        GraphPosterior::from_atoms(
+            n,
+            vec![weight; graphs.len()],
+            graphs,
+            vec![0.0; n * n],
+            vec![0.0; n * n],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: antecedent_prob::InferenceDiagnostics::analytic("packing"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+    }
+
+    /// Posteriors of eight variables or fewer keep the single-word packing every earlier
+    /// artifact stored: the stored word, its key and the canonical graph an atom identifies as
+    /// are the ones the layout `from * (n - 1) + (to, less one past the diagonal)` defines.
+    /// A ninth variable needs edge bits past the first word, and such atoms carry the wide
+    /// encoding and still identify as their canonical graph.
+    #[test]
+    fn eight_variable_atoms_keep_the_stored_word_and_wider_atoms_carry_wide_encodings() {
+        use antecedent_discovery::adjacency_mask::set_edge;
+        // The layout written out independently of the library's `edge_bit`.
+        let bit =
+            |n: usize, from: usize, to: usize| from * (n - 1) + if to < from { to } else { to - 1 };
+        let eight = 8;
+        // The edge 7 -> 6 sits at bit 55, the last of an eight-variable word.
+        let edges: [(usize, usize); 4] = [(0, 1), (3, 4), (7, 6), (2, 0)];
+        let stored: u64 =
+            edges.iter().fold(0, |word, &(from, to)| word | (1 << bit(eight, from, to)));
+        assert!((stored >> 55) & 1 == 1 && stored < 1 << 56);
+        let mask = AdjacencyMask::from_word(stored);
+        let built = edges
+            .iter()
+            .fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, eight, from, to, true));
+        assert_eq!(mask, built);
+        assert_eq!(mask.to_word(), Some(stored));
+        assert_eq!(mask.key(), stored, "an eight-variable atom keeps its word as its key");
+        let posterior = equal_weight_posterior(eight, vec![mask, AdjacencyMask::EMPTY]);
+        assert_eq!(posterior.graph_keys[0], stored);
+        let atoms = graph_posterior_atom_identities(&posterior).unwrap();
+        let mut dag = Dag::with_variables(8);
+        for &(from, to) in &edges {
+            dag.insert_directed(
+                DenseNodeId::from_raw(u32::try_from(from).unwrap()),
+                DenseNodeId::from_raw(u32::try_from(to).unwrap()),
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            atoms[0].graph,
+            PosteriorAtomGraphWire::Static(canonical_dag_wire(&dag).unwrap())
+        );
+
+        // Nine variables: the edge 8 -> 7 is at bit 71.
+        let nine = 9;
+        let wide_edges: [(usize, usize); 3] = [(0, 1), (8, 7), (4, 2)];
+        let wide = wide_edges
+            .iter()
+            .fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, nine, from, to, true));
+        assert_eq!(wide.to_word(), None, "bit {} is past the first word", bit(nine, 8, 7));
+        assert_eq!(bit(nine, 8, 7), 71);
+        assert_ne!(wide.key(), wide.words()[0], "a wide atom's key is a hash of every word");
+        let posterior = equal_weight_posterior(nine, vec![wide, AdjacencyMask::EMPTY]);
+        let atoms = graph_posterior_atom_identities(&posterior).unwrap();
+        let PosteriorAtomGraphWire::Static(wire) = &atoms[0].graph else {
+            panic!("a nine-variable DAG atom encodes as a static graph");
+        };
+        assert_eq!(wire.node_count, 9);
+        let mut expected: Vec<(u32, u32)> = wide_edges
+            .iter()
+            .map(|&(from, to)| (u32::try_from(from).unwrap(), u32::try_from(to).unwrap()))
+            .collect();
+        expected.sort_unstable();
+        assert_eq!(wire.edges, expected);
+        // The premises bind the wide edge: without it the posterior is another posterior.
+        let without =
+            equal_weight_posterior(nine, vec![AdjacencyMask::EMPTY, AdjacencyMask::EMPTY]);
+        assert_ne!(posterior_premises(&posterior), posterior_premises(&without));
+    }
+
     #[test]
     fn dbn_atom_identity_includes_lags_and_ignores_execution_key() {
-        use antecedent_discovery::set_edge;
+        use antecedent_discovery::adjacency_mask::set_edge;
 
         let contemporaneous = set_edge(0, 3, 2, 0, true);
         // Packing is `(lag-1)*n² + from*n + to` for lag=1, n=3.
         let confounder_to_outcome = 1_u64 << 7;
         let treatment_to_outcome = 1_u64 << 1;
-        let posterior = GraphPosterior::new(
+        let posterior = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.5],
             vec![contemporaneous; 2],

@@ -9,10 +9,52 @@ use super::{
     RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
     TableView, TabularData, elapsed_ns, finish_identified_execute_with_context,
 };
+use crate::analysis::missing_data::{self, MissingRoute};
+use antecedent_data::{MissingDeclaration, MissingPolicy};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod weighted;
+
+/// Why `design` cannot execute `policy`, if it cannot.
+fn design_refusal(
+    design: antecedent_core::DidSamplingDesign,
+    policy: MissingPolicy,
+) -> Option<&'static str> {
+    use antecedent_core::DidSamplingDesign;
+    match (policy, design) {
+        (MissingPolicy::ErrorOnMissing, _) => None,
+        (_, DidSamplingDesign::AugmentedPanel) => Some(
+            "the augmented panel's supplied nuisance predictions are row-aligned columns and cannot be restricted",
+        ),
+        (MissingPolicy::BalancedPanel, DidSamplingDesign::RepeatedCrossSection) => {
+            Some("a repeated cross-section has no panel to balance; each row is its own subject")
+        }
+        _ => None,
+    }
+}
+
+fn panel_policy_refusal(policy: MissingPolicy, reason: &str) -> CausalError {
+    CausalError::Estimate(antecedent_estimate::missing_policy::policy_not_applicable(
+        policy,
+        MissingRoute::Panel.label(),
+        reason,
+        MissingRoute::Panel.supported(),
+    ))
+}
+
+/// Missing-data handling frozen with a panel operation.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PanelMissing {
+    declaration: Option<MissingDeclaration>,
+    /// The declared policy removed rows. No coverage record measures a restricted panel, so
+    /// no interval is published.
+    restricted: bool,
+    /// Each contrast uses the units observed in its own periods (unbalanced panel).
+    available_case: bool,
+}
+
 pub(crate) type CheckedPanelDidOperation =
-    RandomizedTrialOperation<antecedent_core::PanelDidQuery, ()>;
+    RandomizedTrialOperation<antecedent_core::PanelDidQuery, PanelMissing>;
 
 impl RandomizedTrialQuery for antecedent_core::PanelDidQuery {
     const OPERATION: &'static str = "CheckedPanelDidOperation";
@@ -38,6 +80,7 @@ fn balanced_did_fit(
     changes: Vec<(bool, &str, f64)>,
     sums: [f64; 2],
     counts: [usize; 2],
+    interval_allowed: bool,
 ) -> Result<BalancedDidFit, CausalError> {
     let means = [sums[0] / counts[0] as f64, sums[1] / counts[1] as f64];
     let effect = means[1] - means[0];
@@ -62,8 +105,10 @@ fn balanced_did_fit(
     let g = scores.len();
     let variance = g as f64 / (g - 1) as f64 * scores.values().map(|v| v * v).sum::<f64>();
     let se = variance.sqrt();
-    let interval_supported =
-        clusters.iter().all(|set| set.len() >= 30) && se.is_finite() && se > 0.0;
+    let interval_supported = interval_allowed
+        && clusters.iter().all(|set| set.len() >= 30)
+        && se.is_finite()
+        && se > 0.0;
     let interval_95 = interval_supported.then(|| {
         let radius = antecedent_stats::normal_ppf(0.975) * se;
         [effect - radius, effect + radius]
@@ -156,7 +201,13 @@ impl CheckedPanelDidOperation {
             });
         }
         let (identification, estimand) = panel_did_identification(query);
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
+        if let Some(declaration) = &study.missing {
+            if let Some(reason) = design_refusal(query.design, declaration.policy) {
+                return Err(panel_policy_refusal(declaration.policy, reason));
+            }
+        }
+        let extra = PanelMissing { declaration: study.missing.clone(), ..PanelMissing::default() };
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, extra))
     }
 
     pub(crate) fn execute(
@@ -165,14 +216,144 @@ impl CheckedPanelDidOperation {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.begin_execute(data, ctx)?;
-        let y = match data.column(self.query.outcome).map_err(CausalError::from)? {
-            antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
-            _ => {
-                return Err(CausalError::Unsupported {
-                    message: "panel DiD outcome must be continuous",
-                });
-            }
+        let antecedent_data::ColumnView::Float64(column) =
+            data.column(self.query.outcome).map_err(CausalError::from)?
+        else {
+            return Err(CausalError::Unsupported {
+                message: "panel DiD outcome must be continuous",
+            });
         };
+        let y = column.values.as_slice();
+        let observed: Vec<bool> = (0..y.len()).map(|i| column.validity.is_valid(i)).collect();
+        if observed.iter().all(|seen| *seen) {
+            let mut result = self.execute_rows(data, y)?;
+            let keep = vec![true; y.len()];
+            result.missing_data = Some(self.missing_report(data, &observed, &keep)?);
+            return Ok(result);
+        }
+        let (keep, available_case) = self.restriction(data, &observed)?;
+        let query = self.query.restrict_rows(&keep).ok_or(CausalError::Unsupported {
+            message: "panel DiD cannot restrict rows of an augmented panel",
+        })?;
+        let restricted_y: Vec<f64> =
+            y.iter().zip(&keep).filter(|(_, kept)| **kept).map(|(value, _)| *value).collect();
+        if restricted_y.is_empty() {
+            return Err(CausalError::Unsupported {
+                message: "the declared missing-data policy leaves no panel rows",
+            });
+        }
+        let restricted = Self {
+            query,
+            extra: PanelMissing { restricted: true, available_case, ..self.extra.clone() },
+            ..self.clone()
+        };
+        let mut result = restricted.execute_rows(data, &restricted_y)?;
+        result.missing_data = Some(self.missing_report(data, &observed, &keep)?);
+        Ok(result)
+    }
+
+    /// The rows the declared policy keeps and whether each contrast then uses the units
+    /// observed in its own periods; the refusal naming the first missing cell when no policy
+    /// that handles missing outcomes is declared.
+    fn restriction(
+        &self,
+        data: &TabularData,
+        observed: &[bool],
+    ) -> Result<(Vec<bool>, bool), CausalError> {
+        use antecedent_core::DidSamplingDesign;
+        let supported = MissingRoute::Panel.supported();
+        let Some(declaration) = self
+            .extra
+            .declaration
+            .as_ref()
+            .filter(|declaration| declaration.policy != MissingPolicy::ErrorOnMissing)
+        else {
+            let cell = antecedent_data::first_missing_cell(data, &[self.query.outcome])?.ok_or(
+                CausalError::Unsupported {
+                    message: "panel DiD outcome validity changed during execution",
+                },
+            )?;
+            return Err(CausalError::Estimate(
+                antecedent_estimate::missing_policy::policy_required(
+                    &cell,
+                    MissingRoute::Panel.label(),
+                    &supported[1..],
+                ),
+            ));
+        };
+        if let Some(reason) = design_refusal(self.query.design, declaration.policy) {
+            return Err(panel_policy_refusal(declaration.policy, reason));
+        }
+        let staggered = matches!(
+            self.query.design,
+            DidSamplingDesign::StaggeredGroupTime | DidSamplingDesign::StaggeredEventStudy
+        );
+        match (declaration.policy, self.query.design) {
+            (MissingPolicy::AvailableCase, DidSamplingDesign::RepeatedCrossSection) => {
+                Ok((observed.to_vec(), false))
+            }
+            (MissingPolicy::AvailableCase, _) if staggered => Ok((observed.to_vec(), true)),
+            (MissingPolicy::BalancedPanel | MissingPolicy::AvailableCase, _) => {
+                let mut complete: BTreeMap<&str, bool> = BTreeMap::new();
+                for (subject, seen) in self.query.subjects.iter().zip(observed) {
+                    let entry = complete.entry(subject.as_ref()).or_insert(true);
+                    *entry = *entry && *seen;
+                }
+                Ok((
+                    self.query.subjects.iter().map(|subject| complete[subject.as_ref()]).collect(),
+                    false,
+                ))
+            }
+            _ => Err(panel_policy_refusal(declaration.policy, "the route has no estimator for it")),
+        }
+    }
+
+    /// Policy, assumption and accounting: rows and units, with the treated and comparison
+    /// groups.
+    fn missing_report(
+        &self,
+        data: &TabularData,
+        observed: &[bool],
+        keep: &[bool],
+    ) -> Result<crate::result::MissingDataReport, CausalError> {
+        let (policy, declared) =
+            missing_data::effective_policy(MissingRoute::Panel, self.extra.declaration.as_ref());
+        let accounting = antecedent_data::RowAccounting::from_selection(
+            data,
+            data.storage().analysis_mask(),
+            policy,
+            &[self.query.outcome],
+            keep,
+        )?;
+        let labels: Vec<Arc<str>> = self
+            .query
+            .treated
+            .iter()
+            .map(|treated| Arc::<str>::from(if *treated { "treated" } else { "comparison" }))
+            .collect();
+        let mut units: BTreeMap<&str, bool> = BTreeMap::new();
+        for (subject, kept) in self.query.subjects.iter().zip(keep) {
+            let entry = units.entry(subject.as_ref()).or_insert(false);
+            *entry = *entry || *kept;
+        }
+        let dropped_units = units.values().filter(|kept| !**kept).count();
+        let accounting =
+            accounting.with_groups(&labels, keep, observed)?.with_units(units.len(), dropped_units);
+        Ok(missing_data::report(MissingRoute::Panel, declared, Arc::from([]), accounting))
+    }
+
+    fn execute_rows(&self, data: &TabularData, y: &[f64]) -> Result<StudyResult, CausalError> {
+        if data.storage().weights().is_some()
+            && self.query.design != antecedent_core::DidSamplingDesign::BalancedPanel
+        {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::sampling_weights::unsupported_route(
+                    "sampling weights are read by the balanced two-period panel DiD; staggered, \
+                     repeated cross-section and augmented designs have no sampling-weighted \
+                     contrast",
+                ),
+            ));
+        }
         if self.query.design == antecedent_core::DidSamplingDesign::AugmentedPanel {
             return self.execute_augmented_panel(data, y);
         }
@@ -185,6 +366,9 @@ impl CheckedPanelDidOperation {
         if self.query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
             return self.execute_repeated_cross_section(data, y);
         }
+        if let Some(weights) = data.storage().weights() {
+            return self.execute_weighted_balanced(data, y, weights);
+        }
         let (changes, sums, counts) = self.balanced_subject_changes(y)?;
         let BalancedDidFit {
             effect,
@@ -193,7 +377,7 @@ impl CheckedPanelDidOperation {
             interval_supported,
             interval_95,
             cluster_counts,
-        } = balanced_did_fit(changes, sums, counts)?;
+        } = balanced_did_fit(changes, sums, counts, !self.extra.restricted)?;
         let identification = self.identification.clone();
         let assumptions = identification.required_assumptions.clone();
         let estimate = EffectEstimate::new(
@@ -359,7 +543,7 @@ impl CheckedPanelDidOperation {
         let intervals = effects
             .iter()
             .map(|effect| {
-                if effect.event_time < 0 {
+                if effect.event_time < 0 || self.extra.restricted {
                     return None;
                 }
                 antecedent_estimate::staggered_event_study::pointwise_interval_95(
@@ -413,10 +597,11 @@ impl CheckedPanelDidOperation {
         }
         if !all_periods.contains(&baseline)
             || !all_periods.contains(&period)
-            || subjects.values().any(|unit| {
-                unit.2.len() != all_periods.len()
-                    || all_periods.iter().any(|t| !unit.2.contains_key(t))
-            })
+            || (!self.extra.available_case
+                && subjects.values().any(|unit| {
+                    unit.2.len() != all_periods.len()
+                        || all_periods.iter().any(|t| !unit.2.contains_key(t))
+                }))
         {
             return Err(CausalError::Compile { message: "staggered DiD requires a balanced panel with the target and immediately preceding adoption period".into() });
         }
@@ -540,12 +725,13 @@ impl CheckedPanelDidOperation {
         data: &TabularData,
         y: &[f64],
     ) -> Result<StudyResult, CausalError> {
-        let effects = antecedent_estimate::staggered_event_study::estimate(
+        let effects = antecedent_estimate::staggered_event_study::estimate_with(
             y,
             &self.query.subjects,
             &self.query.periods,
             &self.query.cohorts,
             &self.query.clusters,
+            self.extra.available_case,
         )
         .map_err(|message| CausalError::Compile { message })?;
         let EventTimeIntervals {
@@ -570,6 +756,7 @@ impl CheckedPanelDidOperation {
         let published_intervals =
             event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
         let graphless_licensed = representative_interval.is_some()
+            && !self.extra.restricted
             && crate::support::license_if_graphless(
                 panel_did_graphless_key(antecedent_core::DidSamplingDesign::StaggeredEventStudy),
                 crate::support::GraphlessAssignmentSupport {
@@ -647,9 +834,12 @@ impl CheckedPanelDidOperation {
         };
         let baseline = cohort - 1;
         let subjects = self.staggered_balanced_subjects(y, baseline, period)?;
+        let at_both = |unit: &(i64, &str, BTreeMap<i64, f64>)| {
+            unit.2.contains_key(&baseline) && unit.2.contains_key(&period)
+        };
         let selected: [Vec<_>; 2] = [
-            subjects.values().filter(|unit| unit.0 == 0).collect(),
-            subjects.values().filter(|unit| unit.0 == cohort).collect(),
+            subjects.values().filter(|unit| unit.0 == 0 && at_both(unit)).collect(),
+            subjects.values().filter(|unit| unit.0 == cohort && at_both(unit)).collect(),
         ];
         if selected.iter().any(Vec::is_empty) {
             return Err(CausalError::Compile { message: "staggered DiD requires never-treated controls and subjects in the selected adoption cohort".into() });
@@ -744,8 +934,10 @@ impl CheckedPanelDidOperation {
         let g = scores.len();
         let variance = g as f64 / (g - 1) as f64 * scores.values().map(|v| v * v).sum::<f64>();
         let se = variance.sqrt();
-        let interval_supported =
-            cell_clusters.iter().flatten().all(|set| set.len() >= 30) && se.is_finite() && se > 0.0;
+        let interval_supported = !self.extra.restricted
+            && cell_clusters.iter().flatten().all(|set| set.len() >= 30)
+            && se.is_finite()
+            && se > 0.0;
         let interval_95 = interval_supported.then(|| {
             let radius = antecedent_stats::normal_ppf(0.975) * se;
             [effect - radius, effect + radius]

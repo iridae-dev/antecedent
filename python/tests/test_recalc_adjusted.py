@@ -428,28 +428,102 @@ def test_adjusted_prediction_uses_named_native_schema_and_measures_zero_fits(kin
     )
 
 
-def test_adjusted_bridge_bounds_columns_and_glm_iterations_before_execution():
+def large_linear_request(rows, columns):
+    """`columns` variables in all: treatment, outcome and `columns - 2` adjusters."""
+    rng = np.random.default_rng(97)
+    adjusters = {f"z{i}": rng.normal(size=rows) for i in range(columns - 2)}
+    z_sum = sum(adjusters.values())
+    t = (rng.random(rows) < 1 / (1 + np.exp(-0.2 * z_sum))).astype(float)
+    y = 2 * t + 0.1 * z_sum + rng.normal(size=rows)
+    edges = [(name, "t") for name in adjusters] + [(name, "y") for name in adjusters]
+    return AdjustedRequest(
+        data={**adjusters, "t": t, "y": y},
+        edges=[*edges, ("t", "y")],
+        treatments=("t",),
+        outcome="y",
+        adjustment=tuple(adjusters),
+        utility=Utility(1),
+        contrast=NumericContrast(),
+    )
+
+
+@pytest.mark.parametrize(("rows", "columns"), [(100_000, 20), (300_000, 5)])
+def test_adjusted_accepts_inputs_beyond_the_former_row_and_value_ceilings(rows, columns):
+    request = large_linear_request(rows, columns)
+    result = AdjustedSession().execute(request, seed=3)
+    expected, se, _, _ = numpy_joint_oracle(request)
+    assert result.law.ate == pytest.approx(expected, rel=1e-8)
+    assert result.law.std_error == pytest.approx(se, rel=1e-8)
+    assert result.receipt.totals.model_fits == 1
+
+
+def test_adjusted_over_budget_input_is_refused_before_it_is_copied():
+    from antecedent import _native
+    from antecedent._recalc_bounds import _columns
+    from antecedent.errors import CausalValueError
+    from antecedent.recalc_adjusted import _spec
+
+    request = linear_request()
+    values = sum(len(v) for v in request.data.values())
+
+    # A column that only claims its size is refused before numpy could materialise it.
+    class Claimed:
+        size = 2**50
+
+    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded") as error:
+        _columns({"a": Claimed()}, memory_limit_bytes=2**40)
+    assert error.value.reason_code == "invalid_argument"
+
+    session = AdjustedSession()
+    for call in (session.plan, session.execute):
+        with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded") as error:
+            call(request, memory_limit_bytes=values * 8 - 1)
+        assert error.value.reason_code == "invalid_argument"
+    assert not session.is_live
+    # The limit is exact: the same request runs when the copy fits.
+    session.execute(request, seed=3, memory_limit_bytes=1 << 30)
+    assert session.is_live
+
+    # Native code applies the same budget to its own copy, independently of Python.
+    native = _native.AdjustedSessionHandle()
+    columns = [np.asarray(v) for v in request.data.values()]
+    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded") as error:
+        native.execute(
+            list(request.data), columns, json.dumps(_spec(request)), memory_limit_bytes=8
+        )
+    assert error.value.reason_code == "invalid_argument"
+    assert not native.is_live()
+    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
+        native.predict([[0.0, 0.0]] * 10, ["z", "t"], memory_limit_bytes=8)
+    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
+        AdjustedSession().predict([[0.0, 0.0]] * 10, columns=["z", "t"], memory_limit_bytes=8)
+
+
+def test_adjusted_cancelled_run_refuses_before_fitting():
+    from antecedent import _native
+
+    request = linear_request()
+    token = _native.CancellationToken()
+    token.cancel()
+    session = AdjustedSession()
+    with pytest.raises(RecalcRefusal) as error:
+        session.execute(request, cancel=token)
+    assert (error.value.reason_code, error.value.detail) == (
+        "cancelled_no_claim",
+        "recalc.cancelled",
+    )
+    assert not session.is_live
+    # An unfired token changes nothing.
+    assert session.execute(request, seed=3, cancel=_native.CancellationToken()).receipt
+
+
+def test_adjusted_bridge_checks_glm_iterations_before_execution():
     from antecedent import _native
     from antecedent.errors import CausalValueError
     from antecedent.recalc_adjusted import _spec
 
     request = linear_request()
     native = _native.AdjustedSessionHandle()
-    for rows in ([[]] * 100_001, [[0.0] * 257]):
-        with pytest.raises(CausalValueError, match="recalc.limits_exceeded") as error:
-            native.predict(rows, [])
-        assert error.value.reason_code == "invalid_argument"
-        assert not native.is_live()
-    for names, columns in [
-        ([f"x{i}" for i in range(257)], [np.zeros(2) for _ in range(257)]),
-        (list(request.data), [np.zeros(100_001) for _ in request.data]),
-        (list(request.data), [np.zeros(1), np.zeros(100_001), np.zeros(1)]),
-        (list(request.data), [np.zeros(2) for _ in range(257)]),
-    ]:
-        with pytest.raises(CausalValueError, match="recalc.limits_exceeded") as error:
-            native.execute(names, columns, json.dumps(_spec(request)))
-        assert error.value.reason_code == "invalid_argument"
-        assert not native.is_live()
 
     class NonIteratingList(list):
         def __iter__(self):
@@ -465,10 +539,6 @@ def test_adjusted_bridge_bounds_columns_and_glm_iterations_before_execution():
     assert refusal is None
     assert json.loads(report)["model_fits"] == 0
 
-    too_wide = replace(request, data={f"x{i}": [0.0, 1.0] for i in range(257)})
-    with pytest.raises(CausalValueError, match="recalc.limits_exceeded") as error:
-        AdjustedSession().execute(too_wide)
-    assert error.value.reason_code == "invalid_argument"
     with pytest.raises(CausalValueError, match="recalc.adjusted_invalid_model") as error:
         AdjustedSession().execute(replace(logistic_request(), model=GlmModel(max_iter=1001)))
     assert error.value.reason_code == "invalid_argument"

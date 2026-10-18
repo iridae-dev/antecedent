@@ -370,7 +370,7 @@ impl CheckedTemporalClassMediationOperation {
                 "{}:{}:{}:{}:{}:{}",
                 self.proof.name(),
                 join_bits(&posterior.weights),
-                join_u64(&posterior.adjacency),
+                join_masks(&posterior.atoms),
                 join_u64(&posterior.graph_keys),
                 posterior.lag_masks.as_deref().map_or_else(|| "none".to_string(), join_u64),
                 posterior.max_lag.map_or_else(|| "none".to_string(), |lag| lag.to_string()),
@@ -500,7 +500,7 @@ fn same_posterior(retained: &GraphPosterior, current: &GraphPosterior) -> bool {
         && retained.n_graphs == current.n_graphs
         && retained.atom_kind == current.atom_kind
         && retained.max_lag == current.max_lag
-        && retained.adjacency.as_ref() == current.adjacency.as_ref()
+        && retained.atoms.as_ref() == current.atoms.as_ref()
         && retained.graph_keys.as_ref() == current.graph_keys.as_ref()
         && retained.lag_masks.as_deref() == current.lag_masks.as_deref()
         && retained.weights.len() == current.weights.len()
@@ -509,6 +509,17 @@ fn same_posterior(retained: &GraphPosterior, current: &GraphPosterior) -> bool {
             .iter()
             .zip(current.weights.iter())
             .all(|(a, b)| a.to_bits() == b.to_bits())
+}
+
+/// Adjacency sets as comma-separated words, each set's words colon-separated with trailing zero
+/// words dropped, so a single-word set reads as the integer it always did.
+fn join_masks(masks: &[antecedent_discovery::AdjacencyMask]) -> String {
+    let words = |mask: &antecedent_discovery::AdjacencyMask| {
+        let words = mask.words();
+        let used = words.iter().rposition(|&word| word != 0).map_or(1, |last| last + 1);
+        words[..used].iter().map(u64::to_string).collect::<Vec<_>>().join(":")
+    };
+    masks.iter().map(words).collect::<Vec<_>>().join(",")
 }
 
 fn join_u64(values: &[u64]) -> String {

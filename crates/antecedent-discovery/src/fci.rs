@@ -22,11 +22,11 @@ use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
-use antecedent_graph::{DenseNodeId, Pag, PagReview};
+use antecedent_graph::{DenseNodeId, Endpoint, Pag, PagReview};
 use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
 use crate::combinations::for_each_combination_vars;
-use crate::constraints::DiscoveryConstraints;
+use crate::constraints::{DiscoveryConstraints, KnowledgeScope};
 use crate::discriminating_paths::DiscriminatingPathBudget;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
@@ -143,6 +143,9 @@ impl Fci {
         ctx: &ExecutionContext,
     ) -> Result<StaticPagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        self.constraints
+            .check_background_knowledge(KnowledgeScope::EquivalenceClass, variables)
+            .map_err(DiscoveryError::Knowledge)?;
         if self.fdr.is_some() {
             return Err(DiscoveryError::unsupported(
                 "FCI FDR is refused until adjustment covers both adjacency and Possible-D-Sep CI tests",
@@ -176,12 +179,20 @@ impl Fci {
         };
         let skel = run_static_skeleton(&input, workspace, ctx)?;
         let mut scored = skeleton_scored_links(&skel);
-        let StaticSkeleton { mut adj, mut sepsets, mut ci_tests, mut iterations, .. } = skel;
+        let StaticSkeleton {
+            mut adj,
+            mut sepsets,
+            mut ci_tests,
+            mut iterations,
+            parent_limit_removed,
+            ..
+        } = skel;
         let mut combo_scratch = Vec::new();
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
 
         // Build circle–circle PAG skeleton.
         let mut pag = build_pag_circle_skeleton(variables, &var_index, &adj)?;
+        apply_background_marks(&mut pag, &self.constraints, variables, &dense_of)?;
 
         // Orientation state from PC sepsets.
         let mut state = OrientationState::default();
@@ -261,6 +272,7 @@ impl Fci {
 
         // --- Phase 4: reset remaining edges to o–o ---
         pag = build_pag_circle_skeleton(variables, &var_index, &adj)?;
+        apply_background_marks(&mut pag, &self.constraints, variables, &dense_of)?;
         state = OrientationState {
             discriminating_budget: self.discriminating_path_budget,
             ..OrientationState::default()
@@ -272,6 +284,8 @@ impl Fci {
         let orient_delta = run_fci_orientation_to_fixed_point(&mut pag, &rules, &mut state)?;
 
         let mut diagnostics = Vec::new();
+        diagnostics
+            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, "fci"));
         if !state.discriminating_skipped.is_empty() {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("fci.discriminating_path_budget"),
@@ -312,11 +326,12 @@ impl Fci {
             algorithm: crate::pipeline::algorithm_record(
                 "fci",
                 format!(
-                    "alpha={},max_cond={},fdr={},pds_max={}",
+                    "alpha={},max_cond={},fdr={},pds_max={}{}",
                     alpha,
                     max_cond,
                     self.fdr.is_some(),
-                    self.pds_max_nodes
+                    self.pds_max_nodes,
+                    self.constraints.knowledge_config()
                 ),
             ),
             assumptions: discovery_assumptions("fci", false),
@@ -348,6 +363,39 @@ pub(crate) fn load_sepsets_into_state(
     state: &mut OrientationState,
 ) -> Result<(), DiscoveryError> {
     crate::pc::load_sepsets_into_state(sepsets, dense_of, state)
+}
+
+/// Mark the edges of a circle skeleton whose direction background knowledge fixes.
+///
+/// A required link `a → b` is a direct cause among observed variables, so the edge is `a → b`
+/// (tail at `a`, arrow at `b`). The reverse of a forbidden link `b → a`, and a tier that places
+/// `b` after `a`, exclude only a tail at `b`: `a` and `b` may still share a latent common cause,
+/// so the edge gets an arrowhead at `b` and the mark at `a` is left to the data. Pairs the search
+/// found non-adjacent are left alone: knowledge never adds an edge.
+///
+/// # Errors
+///
+/// A variable outside the graph, or a graph mutation failure.
+pub(crate) fn apply_background_marks(
+    pag: &mut Pag,
+    constraints: &DiscoveryConstraints,
+    variables: &[VariableId],
+    dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
+) -> Result<(), DiscoveryError> {
+    for (i, &a) in variables.iter().enumerate() {
+        for &b in &variables[i + 1..] {
+            let Some(fixed) = constraints.static_direction(a, b) else {
+                continue;
+            };
+            let (from, to) = (dense_of(fixed.from)?, dense_of(fixed.to)?);
+            if !pag.has_edge(from, to) {
+                continue;
+            }
+            let at_from = if fixed.required { Endpoint::Tail } else { Endpoint::Circle };
+            pag.set_marks(from, to, at_from, Endpoint::Arrow).map_err(DiscoveryError::from)?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn build_pag_circle_skeleton(
@@ -449,5 +497,102 @@ mod tests {
         let result = fci.run(&data, &vars, &mut ws, &ctx).unwrap();
         assert!(!result.review.pending_circles.is_empty() || result.review.is_complete());
         assert_eq!(result.review.algorithm.as_ref(), "fci");
+    }
+
+    /// Background knowledge on static FCI: a required link states a direct cause (tail at the
+    /// cause, arrow at the effect); the reverse of a forbidden link and a later tier exclude only
+    /// a tail at the later end, so they place an arrowhead there and nothing at the other end.
+    mod knowledge {
+        use std::sync::Arc;
+
+        use antecedent_core::{ExecutionContext, VariableId};
+        use antecedent_graph::{DenseNodeId, Endpoint, Pag};
+        use antecedent_stats::OracleCi;
+
+        use super::super::Fci;
+        use crate::constraints::{DiscoveryConstraints, contemp_link};
+        use crate::engine::DiscoveryWorkspace;
+        use crate::error::DiscoveryError;
+        use crate::test_tables::tabular_n;
+
+        fn v(i: u32) -> VariableId {
+            VariableId::from_raw(i)
+        }
+
+        fn run(constraints: DiscoveryConstraints) -> Result<Pag, DiscoveryError> {
+            let data = tabular_n(2, 10);
+            let fci = Fci::new()
+                .with_fdr(false)
+                .with_constraints(constraints)
+                .with_ci(Arc::new(OracleCi::new([(0usize, 1usize)])));
+            let mut ws = DiscoveryWorkspace::default();
+            fci.run(&data, &[v(0), v(1)], &mut ws, &ExecutionContext::for_tests(1))
+                .map(|r| r.evidence.graph)
+        }
+
+        /// Marks `(at 0, at 1)` of the edge between variables 0 and 1.
+        fn marks(pag: &Pag) -> (Endpoint, Endpoint) {
+            let e = pag.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+            if e.a.raw() == 0 { (e.at_a, e.at_b) } else { (e.at_b, e.at_a) }
+        }
+
+        fn base() -> DiscoveryConstraints {
+            Fci::new().constraints
+        }
+
+        #[test]
+        fn without_knowledge_the_edge_keeps_circle_marks() {
+            assert_eq!(marks(&run(base()).unwrap()), (Endpoint::Circle, Endpoint::Circle));
+        }
+
+        #[test]
+        fn a_tier_or_a_forbidden_reverse_place_an_arrowhead_only() {
+            let mut tiered = base();
+            tiered.tiers = Arc::from([Arc::from([v(0)]), Arc::from([v(1)])]);
+            assert_eq!(marks(&run(tiered).unwrap()), (Endpoint::Circle, Endpoint::Arrow));
+
+            let mut forbidden = base();
+            forbidden.forbidden = Arc::from([contemp_link(v(1), v(0))]);
+            assert_eq!(marks(&run(forbidden).unwrap()), (Endpoint::Circle, Endpoint::Arrow));
+
+            // The other way round: the arrowhead is at variable 0.
+            let mut reversed = base();
+            reversed.tiers = Arc::from([Arc::from([v(1)]), Arc::from([v(0)])]);
+            assert_eq!(marks(&run(reversed).unwrap()), (Endpoint::Arrow, Endpoint::Circle));
+        }
+
+        #[test]
+        fn a_required_link_is_adjacency_plus_tail_and_arrow() {
+            let mut required = base();
+            required.required = Arc::from([contemp_link(v(0), v(1))]);
+            assert_eq!(marks(&run(required).unwrap()), (Endpoint::Tail, Endpoint::Arrow));
+        }
+
+        #[test]
+        fn a_parent_limit_of_zero_leaves_no_adjacency() {
+            let mut capped = base();
+            capped.max_parents = Some(0);
+            let data = tabular_n(2, 10);
+            let result = Fci::new()
+                .with_fdr(false)
+                .with_constraints(capped)
+                .with_ci(Arc::new(OracleCi::new([(0usize, 1usize)])))
+                .run(
+                    &data,
+                    &[v(0), v(1)],
+                    &mut DiscoveryWorkspace::default(),
+                    &ExecutionContext::for_tests(1),
+                )
+                .unwrap();
+            assert!(
+                !result.evidence.graph.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
+            );
+            assert!(
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|d| &*d.code == "fci.parent_limit_removed_adjacencies")
+            );
+        }
     }
 }

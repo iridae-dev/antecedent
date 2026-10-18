@@ -1,0 +1,13 @@
+    Finished `release` profile [optimized] target(s) in 0.13s
+     Running tests/weighted_interval_calibration.rs (/private/tmp/antecedent-attestation-target/release/deps/weighted_interval_calibration-b5d3000732c51f72)
+
+running 1 test
+calibration-protocol weighted_cluster_source_version=1
+info interval diagnostics weighted_aipw_cluster_dml_interval: bias=0.00369 empirical_sd=0.18572 rms_se=0.19248
+calibration weighted_aipw_cluster_dml_interval: nominal=0.95 coverage=0.953 mcse=0.0109 band=[0.917, 0.983] mean_length=0.6767 (381/400 covered, 0 skipped)
+calibration-record {"bound_replicates":400,"boundary":false,"dependence":"cluster","dgp":"crates/antecedent/tests/weighted_interval_calibration.rs::informative_sampling_clustered_heterogeneous_effect","estimator":"aipw","functional":"all_observed.mean+weights=sampling","graph_class":"Dag","grid_point":0,"id":"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_cluster_dml_interval","identification":"point","inference":"Frequentist","interval_method":"analytic_se","mcse":0.010635289135702893,"measured_at":"2f7d56662e4e86014f907e577b7c854c74c831d4","modality":"tabular","n_max":600,"n_min":600,"nominal":0.95,"observed":0.9525,"posterior":"","posterior_draws_min":0,"query":"AverageEffect","replicates":400,"replicates_min":0,"role":"gated","se_kind":"cluster","structure":"fixed","test":"crates/antecedent/tests/weighted_interval_calibration.rs::weighted_aipw_cluster_dml_interval","unidentified_mass_max":0.0}
+test weighted_aipw_cluster_dml_interval ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.22s
+
+calibration-measured-at 2f7d56662e4e86014f907e577b7c854c74c831d4

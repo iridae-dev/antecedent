@@ -90,6 +90,74 @@ fn assert_premise(
 // -- declaration -------------------------------------------------------------------------------------
 
 #[test]
+fn capacity_refusals_reach_the_facade_with_their_own_detail_code_and_remedy() {
+    // A declaration of more than the unit capacity, and one of more looks than the look capacity.
+    let units = declare(
+        thompson(),
+        &[40_000, 40_000],
+        OutcomeObservation::COMPLETE,
+        StoppingRule::NoStopping,
+        FinalSelection::NoSelection,
+    )
+    .unwrap_err();
+    assert_eq!(units[0].detail, "adaptive_inference.declared_units_exceeded");
+    assert_eq!(units[0].code, "invalid_argument");
+    let looks = declare(
+        thompson(),
+        &[1; 25],
+        OutcomeObservation::COMPLETE,
+        StoppingRule::NoStopping,
+        FinalSelection::NoSelection,
+    )
+    .unwrap_err();
+    assert_eq!(looks[0].detail, "adaptive_inference.declared_looks_exceeded");
+
+    // The exact law is bounded by its live states: eight cells and one batch of thirty pass a
+    // million compositions. The refusal names the simulation route.
+    let wide = AdaptiveProcedure::declare(ProcedureDeclaration {
+        arms: 4,
+        context_probabilities: Some(vec![0.5, 0.5]),
+        assignment: Some(AssignmentRule::Fixed { probabilities: vec![0.25; 4] }),
+        enrolment: Some(vec![30]),
+        observation: Some(OutcomeObservation::COMPLETE),
+        exposure: Some(ExposureModel::none(4)),
+        stopping: Some(StoppingRule::NoStopping),
+        selection: Some(FinalSelection::NoSelection),
+    })
+    .expect("a valid declaration");
+    let refused = wide.law(&[0.5; 8], &ctx()).unwrap_err();
+    assert_eq!(refused.detail, "adaptive_inference.exact_law_states_exceeded");
+    assert_eq!(refused.code, "invalid_argument");
+    assert!(refused.message.contains("simulate"));
+
+    // 2,400 units are declared and simulated under a work receipt and the memory budget of the
+    // execution context.
+    let large = declare(
+        AssignmentRule::ThompsonBetaFloored { prior: BetaPrior::UNIFORM, min_probability: 0.1 },
+        &[200; 12],
+        OutcomeObservation::COMPLETE,
+        StoppingRule::NoStopping,
+        FinalSelection::NoSelection,
+    )
+    .expect("2,400 units are within the declaration capacity");
+    let request = SimulationRequest {
+        replications: 3,
+        seed: 1,
+        estimand: Estimand::Contrast { plus: 1, minus: 0 },
+        scheme: WeightScheme::Uniform,
+        outcome_prior: OutcomeModelPrior { mean: 0.5, strength: 2.0 },
+        probability_floor: 0.05,
+    };
+    let report = large.simulate(&[0.4, 0.6], &request, &ctx()).expect("the simulation runs");
+    assert_eq!(report.law.receipt.work_done, 3 * 2_400);
+    let mut small = ctx();
+    small.memory.hard_limit_bytes = Some(1_000);
+    let refused = large.simulate(&[0.4, 0.6], &request, &small).unwrap_err();
+    assert_eq!(refused.detail, "adaptive_inference.simulation_memory_exceeded");
+    assert_eq!(refused.code, "invalid_argument");
+}
+
+#[test]
 fn each_missing_element_is_its_own_refusal() {
     let refusals = AdaptiveProcedure::declare(ProcedureDeclaration {
         arms: 2,

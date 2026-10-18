@@ -15,6 +15,7 @@ import numpy as np
 
 from ._api import describe_refusal
 from ._coerce import coerce_refute
+from ._columns import refuse_named_identifiers
 from ._data import ingest_columns
 from ._estimate_helpers import (
     _refused,
@@ -100,6 +101,7 @@ def analyze_many(
     if not all(isinstance(q, AverageEffect) for q in queries):
         raise _batch_route_refusal("analyze_many", "AverageEffect queries")
     estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
+    refuse_named_identifiers(estimator_config, "analyze_many")
     resolved_refute = None if refute is None else coerce_refute(refute)
     names, columns = ingest_columns(data)
     from .query import coerce_outcome_functional
@@ -559,6 +561,7 @@ class PreparedBatch:
         if not all(isinstance(q, AverageEffect) for q in queries):
             raise _batch_route_refusal("PreparedBatch.prepare", "AverageEffect queries")
         estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
+        refuse_named_identifiers(estimator_config, "PreparedBatch.prepare")
         resolved_refute: bool | str | None = None if refute is None else coerce_refute(refute)
         names, columns = ingest_columns(data)
         from .query import coerce_outcome_functional
@@ -637,6 +640,7 @@ class PreparedBatch:
                 "PreparedBatch.prepare_cells", "discrete joint InterventionResponse cells"
             )
         estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
+        refuse_named_identifiers(estimator_config, "PreparedBatch.prepare_cells")
         if isinstance(graph, TieredBackground):
             if identifier not in (None, "generalized.adjustment"):
                 raise CausalUnsupportedError(

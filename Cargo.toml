@@ -52,7 +52,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "2.4.0"
+version = "2.4.1"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
@@ -84,29 +84,29 @@ forust-ml = "0.5"
 smartcore = { version = "0.4", default-features = false, features = ["serde"] }
 burn = { version = "0.16", default-features = false, features = ["std", "autodiff", "ndarray"] }
 
-antecedent = { version = "2.4.0", path = "crates/antecedent" }
-antecedent-attribution = { version = "2.4.0", path = "crates/antecedent-attribution" }
-antecedent-contract = { version = "2.4.0", path = "crates/antecedent-contract" }
-antecedent-core = { version = "2.4.0", path = "crates/antecedent-core" }
-antecedent-counterfactual = { version = "2.4.0", path = "crates/antecedent-counterfactual" }
-antecedent-data = { version = "2.4.0", path = "crates/antecedent-data" }
-antecedent-design = { version = "2.4.0", path = "crates/antecedent-design" }
-antecedent-discovery = { version = "2.4.0", path = "crates/antecedent-discovery" }
-antecedent-estimate = { version = "2.4.0", path = "crates/antecedent-estimate" }
-antecedent-expr = { version = "2.4.0", path = "crates/antecedent-expr" }
-antecedent-graph = { version = "2.4.0", path = "crates/antecedent-graph" }
-antecedent-identify = { version = "2.4.0", path = "crates/antecedent-identify" }
-antecedent-io = { version = "2.4.0", path = "crates/antecedent-io" }
-antecedent-io-core = { version = "2.4.0", path = "crates/antecedent-io-core" }
-antecedent-kernels = { version = "2.4.0", path = "crates/antecedent-kernels" }
-antecedent-learn = { version = "2.4.0", path = "crates/antecedent-learn" }
-antecedent-learn-burn = { version = "2.4.0", path = "crates/antecedent-learn-burn" }
-antecedent-model = { version = "2.4.0", path = "crates/antecedent-model" }
-antecedent-prob = { version = "2.4.0", path = "crates/antecedent-prob" }
-antecedent-state = { version = "2.4.0", path = "crates/antecedent-state" }
-antecedent-stats = { version = "2.4.0", path = "crates/antecedent-stats" }
+antecedent = { version = "2.4.1", path = "crates/antecedent" }
+antecedent-attribution = { version = "2.4.1", path = "crates/antecedent-attribution" }
+antecedent-contract = { version = "2.4.1", path = "crates/antecedent-contract" }
+antecedent-core = { version = "2.4.1", path = "crates/antecedent-core" }
+antecedent-counterfactual = { version = "2.4.1", path = "crates/antecedent-counterfactual" }
+antecedent-data = { version = "2.4.1", path = "crates/antecedent-data" }
+antecedent-design = { version = "2.4.1", path = "crates/antecedent-design" }
+antecedent-discovery = { version = "2.4.1", path = "crates/antecedent-discovery" }
+antecedent-estimate = { version = "2.4.1", path = "crates/antecedent-estimate" }
+antecedent-expr = { version = "2.4.1", path = "crates/antecedent-expr" }
+antecedent-graph = { version = "2.4.1", path = "crates/antecedent-graph" }
+antecedent-identify = { version = "2.4.1", path = "crates/antecedent-identify" }
+antecedent-io = { version = "2.4.1", path = "crates/antecedent-io" }
+antecedent-io-core = { version = "2.4.1", path = "crates/antecedent-io-core" }
+antecedent-kernels = { version = "2.4.1", path = "crates/antecedent-kernels" }
+antecedent-learn = { version = "2.4.1", path = "crates/antecedent-learn" }
+antecedent-learn-burn = { version = "2.4.1", path = "crates/antecedent-learn-burn" }
+antecedent-model = { version = "2.4.1", path = "crates/antecedent-model" }
+antecedent-prob = { version = "2.4.1", path = "crates/antecedent-prob" }
+antecedent-state = { version = "2.4.1", path = "crates/antecedent-state" }
+antecedent-stats = { version = "2.4.1", path = "crates/antecedent-stats" }
 antecedent-test-support = { path = "crates/antecedent-test-support" }
-antecedent-validate = { version = "2.4.0", path = "crates/antecedent-validate" }
+antecedent-validate = { version = "2.4.1", path = "crates/antecedent-validate" }
 
 [workspace.lints.rust]
 missing_docs = "warn"
@@ -167,6 +167,11 @@ codegen-units = 1
 # builds: antecedent-io 2m01s -> 36s, antecedent 1m12s -> 17s. The numeric hot
 # crates (faer, antecedent-stats/kernels/estimate) keep codegen-units = 1.
 [profile.release.package.antecedent-io]
+codegen-units = 256
+
+# The generated coverage registry is owned by io-core after the crate split.
+# Keep its const-data codegen parallel too; numerical crate profiles are unchanged.
+[profile.release.package.antecedent-io-core]
 codegen-units = 256
 
 [profile.release.package.antecedent]

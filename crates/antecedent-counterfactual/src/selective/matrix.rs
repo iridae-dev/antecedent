@@ -54,12 +54,16 @@ pub enum ModelClass {
     /// A static Markovian SCM over finite variables with finite independent
     /// exogenous terms.
     FiniteMarkovianScm,
+    /// A fully declared static SCM over finite variables in which an exogenous
+    /// term feeds several endogenous variables (a shared term). Every mechanism
+    /// and every exogenous law is declared, so the counterfactual is enumerated.
+    FiniteSharedExogenousScm,
     /// The fixed two-slice additive-noise linear-Gaussian temporal SCM.
     AdditiveLinearTwoSlice,
     /// The static additive linear SCM of the transported path-specific route.
     AdditiveLinearStaticTransported,
-    /// An exogenous term shared by several endogenous variables (latent
-    /// confounding).
+    /// Latent confounding whose mechanisms and exogenous law are not declared
+    /// (they would have to be identified or fitted from observational data).
     SemiMarkovian,
     /// A nonparametric model over an ADMG with no declared mechanisms.
     NonparametricAdmg,
@@ -71,6 +75,7 @@ impl ModelClass {
     pub const fn name(self) -> &'static str {
         match self {
             Self::FiniteMarkovianScm => "finite_markovian_scm",
+            Self::FiniteSharedExogenousScm => "finite_shared_exogenous_scm",
             Self::AdditiveLinearTwoSlice => "additive_linear_two_slice",
             Self::AdditiveLinearStaticTransported => "additive_linear_static_transported",
             Self::SemiMarkovian => "semi_markovian",
@@ -266,8 +271,16 @@ the push-forward of the exogenous posterior given the factual evidence (abductio
 prediction; Pearl 2009 ch. 7, Balke and Pearl 1994), enumerated exactly. Model adequacy is a \
 premise, not a check.";
 
+const SHARED_THEOREM: &str = "Fully declared SCM over finite variables in which an exogenous \
+term may feed several mechanisms, with every mechanism and every finite exogenous law declared: \
+the unit-level counterfactual joint law over worlds is the push-forward of the joint exogenous \
+posterior given the factual evidence (abduction-action-prediction; Pearl 2009 ch. 7, Balke and \
+Pearl 1994), enumerated exactly over the joint exogenous states. A shared term takes one value \
+that every mechanism reading it sees in every world, so latent confounding raises no \
+identification question when the model is declared. Model adequacy is a premise, not a check.";
+
 /// Every row, in a fixed order.
-pub static ROWS: [MatrixRow; 11] = [
+static ALL_ROWS: [MatrixRow; 14] = [
     MatrixRow {
         id: "counterfactual.finite_markovian_scm.marginal",
         quantity: QuantityClass::CounterfactualMarginal,
@@ -386,12 +399,14 @@ factual evidence; the static additive linear case has its own theorem-scoped rou
         coupling: CouplingKind::SharedAbducedExogenous,
         status: CapabilityStatus::Closed,
         route: "none",
-        theorem: "An exogenous term shared by two endogenous variables is latent confounding; \
-the row's identification and coupling theorem is stated for independent exogenous terms.",
+        theorem: "Latent confounding whose mechanisms and exogenous law are not declared, or are \
+to be fitted from observational data, does not identify a cross-world joint law; the same \
+shared exogenous term is executed when every mechanism and law is declared.",
         refusal_code: Some("cross_world_not_identified"),
-        refusal_detail: Some("cross_world_execution.non_markovian"),
-        remedy: "declare one independent exogenous term per mechanism (a Markovian model), or \
-use an identification route that accepts the latent structure",
+        refusal_detail: Some("cross_world_execution.latent_confounding_not_identified"),
+        remedy: "declare every mechanism and the finite law of every exogenous term (a fully \
+declared finite SCM may share an exogenous term between mechanisms), or use an identification \
+route that accepts the latent structure",
     },
     MatrixRow {
         id: "model.nonparametric_admg",
@@ -408,7 +423,7 @@ use an identification route that accepts the latent structure",
 a noise law must be declared.",
         refusal_code: Some("cross_world_not_identified"),
         refusal_detail: Some("cross_world_execution.mechanisms_not_declared"),
-        remedy: "declare the mechanisms and the exogenous law (a finite Markovian SCM or the \
+        remedy: "declare the mechanisms and the exogenous law (a fully declared finite SCM or the \
 two-slice additive linear model), or ask an interventional rather than a cross-world question",
     },
     MatrixRow {
@@ -465,12 +480,78 @@ exogenous term as part of the SCM",
         remedy: "declare the mechanisms and the exogenous law, or use the partial-identification \
 route that returns bounds on the counterfactual",
     },
+    MatrixRow {
+        id: "counterfactual.finite_shared_exogenous_scm.marginal",
+        quantity: QuantityClass::CounterfactualMarginal,
+        model: ModelClass::FiniteSharedExogenousScm,
+        conditioning: &[ConditioningKind::NoEvidence, ConditioningKind::FactualEvidence],
+        history: &[HistoryKind::NoHistory],
+        evidence: &[EvidenceKind::DeclaredMechanisms],
+        population: PopulationKind::Single,
+        coupling: CouplingKind::NotRequired,
+        status: CapabilityStatus::Executed,
+        route: "antecedent_counterfactual::selective::FiniteScmExecutor",
+        theorem: SHARED_THEOREM,
+        refusal_code: None,
+        refusal_detail: None,
+        remedy: "",
+    },
+    MatrixRow {
+        id: "counterfactual.finite_shared_exogenous_scm.joint",
+        quantity: QuantityClass::CounterfactualJoint,
+        model: ModelClass::FiniteSharedExogenousScm,
+        conditioning: &[ConditioningKind::NoEvidence, ConditioningKind::FactualEvidence],
+        history: &[HistoryKind::NoHistory],
+        evidence: &[EvidenceKind::DeclaredMechanisms],
+        population: PopulationKind::Single,
+        coupling: CouplingKind::SharedAbducedExogenous,
+        status: CapabilityStatus::Executed,
+        route: "antecedent_counterfactual::selective::FiniteScmExecutor",
+        theorem: SHARED_THEOREM,
+        refusal_code: None,
+        refusal_detail: None,
+        remedy: "",
+    },
+    MatrixRow {
+        id: "natural_path_specific.finite_shared_exogenous_scm",
+        quantity: QuantityClass::NaturalPathSpecific,
+        model: ModelClass::FiniteSharedExogenousScm,
+        conditioning: &[ConditioningKind::NoEvidence, ConditioningKind::FactualEvidence],
+        history: &[HistoryKind::NoHistory],
+        evidence: &[EvidenceKind::DeclaredMechanisms],
+        population: PopulationKind::Single,
+        coupling: CouplingKind::SharedAbducedExogenous,
+        status: CapabilityStatus::Executed,
+        route: "antecedent_counterfactual::selective::FiniteScmExecutor",
+        theorem: "As the shared-exogenous finite row; a world reads a parent from another \
+world (nested counterfactual, Pearl 2001 natural effects) and every world reads one joint \
+exogenous posterior state, so the contrast is computed from coupled worlds only.",
+        refusal_code: None,
+        refusal_detail: None,
+        remedy: "",
+    },
 ];
+
+/// The rows that predate the shared-exogenous-term model class, in their fixed order.
+///
+/// New rows are appended to the full matrix ([`rows`]); this array keeps its released length
+/// so existing code that names it keeps compiling.
+pub static ROWS: [MatrixRow; 11] = leading_rows(&ALL_ROWS);
+
+const fn leading_rows(all: &[MatrixRow; 14]) -> [MatrixRow; 11] {
+    let mut out = [all[0]; 11];
+    let mut i = 1;
+    while i < 11 {
+        out[i] = all[i];
+        i += 1;
+    }
+    out
+}
 
 /// Every row of the matrix.
 #[must_use]
 pub fn rows() -> &'static [MatrixRow] {
-    &ROWS
+    &ALL_ROWS
 }
 
 /// One request's coordinates in the matrix.
@@ -511,7 +592,7 @@ pub struct MatrixRefusal {
 pub type MatrixDecision = Result<&'static MatrixRow, MatrixRefusal>;
 
 fn closed(id: &'static str) -> MatrixRefusal {
-    let row = ROWS.iter().find(|r| r.id == id).unwrap_or(&ROWS[5]);
+    let row = ALL_ROWS.iter().find(|r| r.id == id).unwrap_or(&ALL_ROWS[5]);
     MatrixRefusal {
         code: row.refusal_code.unwrap_or(antecedent_core::reason_code!("cell_not_licensed")),
         detail: row.refusal_detail.unwrap_or("cross_world_execution.cell_not_in_matrix"),
@@ -540,7 +621,7 @@ fn transported_refusal() -> MatrixRefusal {
 /// executed row admits.
 pub fn decide(request: &MatrixRequest) -> MatrixDecision {
     if request.population == PopulationKind::Transported {
-        let own = ROWS.iter().find(|r| {
+        let own = ALL_ROWS.iter().find(|r| {
             r.status == CapabilityStatus::ExistingTheoremRoute
                 && r.quantity == request.quantity
                 && r.model == request.model
@@ -562,7 +643,7 @@ pub fn decide(request: &MatrixRequest) -> MatrixDecision {
         return Err(closed("evidence.fit_from_data"));
     }
     let candidates = || {
-        ROWS.iter().filter(|r| {
+        ALL_ROWS.iter().filter(|r| {
             r.status == CapabilityStatus::Executed
                 && r.quantity == request.quantity
                 && r.model == request.model
@@ -604,11 +685,11 @@ mod tests {
 
     #[test]
     fn row_ids_are_unique_and_closed_rows_carry_a_refusal() {
-        let mut ids: Vec<_> = ROWS.iter().map(|r| r.id).collect();
+        let mut ids: Vec<_> = ALL_ROWS.iter().map(|r| r.id).collect();
         ids.sort_unstable();
         ids.dedup();
-        assert_eq!(ids.len(), ROWS.len());
-        for row in &ROWS {
+        assert_eq!(ids.len(), ALL_ROWS.len());
+        for row in &ALL_ROWS {
             let closed = row.status == CapabilityStatus::Closed;
             assert_eq!(row.refusal_code.is_some(), closed, "{}", row.id);
             assert_eq!(row.refusal_detail.is_some(), closed, "{}", row.id);
@@ -624,13 +705,19 @@ mod tests {
         let marginal = decide(&finite(QuantityClass::CounterfactualMarginal)).unwrap();
         assert!(!marginal.needs_shared_exogenous());
 
+        let shared = MatrixRequest {
+            model: ModelClass::FiniteSharedExogenousScm,
+            ..finite(QuantityClass::CounterfactualJoint)
+        };
+        assert_eq!(decide(&shared).unwrap().id, "counterfactual.finite_shared_exogenous_scm.joint");
+
         let semi = MatrixRequest {
             model: ModelClass::SemiMarkovian,
             ..finite(QuantityClass::CounterfactualJoint)
         };
         let refused = decide(&semi).unwrap_err();
         assert_eq!(refused.code, "cross_world_not_identified");
-        assert_eq!(refused.detail, "cross_world_execution.non_markovian");
+        assert_eq!(refused.detail, "cross_world_execution.latent_confounding_not_identified");
 
         let history =
             MatrixRequest { history: HistoryKind::Incompatible, ..finite(QuantityClass::Temporal) };

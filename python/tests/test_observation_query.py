@@ -511,7 +511,7 @@ def test_a_refreshed_composition_gives_a_new_claim_and_leaves_the_earlier_one():
 # ------------------------------------------------------------------ count-fitted tables
 
 
-def _count_fitted():
+def _count_fitted(**extra):
     return oq.count_fitted_observation(
         {"Z": ["0", "1"], "Y": ["0", "1"]},
         parents={"Y": ["Z"]},
@@ -521,11 +521,26 @@ def _count_fitted():
         target_level="1",
         evidence={"Z": "1"},
         seed=7,
+        **extra,
     )
 
 
 def test_count_fitted_point_is_the_posterior_mean_of_the_fitted_conditional():
     assert abs(_count_fitted().point - 31.0 / 42.0) < 1e-12
+
+
+def test_count_fitted_draw_count_is_supported_from_the_minimum():
+    for draws in (2000, 3000, 8000):
+        claim = _count_fitted(draws=draws)
+        assert abs(claim.point - 31.0 / 42.0) < 1e-12
+        try:
+            claim.interval(level=0.95)
+        except ObservationQueryRefusal as refusal:
+            assert refusal.detail == "measured_inference.record_not_attesting"
+    for draws in (1999, 100_001):
+        with pytest.raises(ObservationQueryRefusal) as refused:
+            _count_fitted(draws=draws)
+        assert refused.value.reason_code == "cell_not_licensed"
 
 
 def test_count_fitted_interval_is_measured_or_a_typed_refusal():

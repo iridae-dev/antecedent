@@ -1,6 +1,6 @@
 # Install and verify Antecedent
 
-Choose a released package for ordinary use or a source checkout when testing an unreleased branch. Read documentation for the same version as your package.
+Install a package for ordinary use or build a source checkout for development. Match the documentation to your installed version; the [2.4.1 release notes](release-notes/v2.4.1.md) describe the features and compatibility of this version.
 
 ## Python package
 
@@ -9,7 +9,7 @@ python -m venv .venv
 # macOS / Linux
 source .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install "antecedent>=2.4.0,<2.5"
+python -m pip install "antecedent>=2.4.1,<2.5"
 python -c "import sys, antecedent; print(sys.executable); print(antecedent.__version__)"
 ```
 
@@ -17,15 +17,15 @@ The release wheel matrix covers CPython 3.11–3.14 on Linux x86_64 and aarch64 
 
 For notebooks, install `pandas matplotlib ipykernel jupyterlab` in that environment, run `python -m ipykernel install --user --name antecedent-24`, and select that kernel. After upgrading an imported native extension, restart the kernel. [Choose an example](examples.md) for its additional dependencies.
 
-## Testing the 2.4 branch before publication
+## Build from source
 
-Installing from PyPI does not install an unreleased branch. In a checkout of `2.4.0`, create and activate a virtual environment, then:
+In a checkout of the version you want to build, create and activate a virtual environment, then:
 
 ```bash
 python -m pip install maturin
 maturin develop --release --manifest-path python/Cargo.toml
 python -c "import antecedent; print(antecedent.__version__, antecedent.__file__)"
-python examples/python/notebook_to_system_24.py
+python examples/python/notebook_to_system.py
 ```
 
 Rust 1.85 is selected by `rust-toolchain.toml`; install it through rustup if needed. Use `--release` for representative estimation performance. Python wheels enable the tree and neural learner backends. See [development](development.md) for contributors' checks and supported build combinations.
@@ -35,11 +35,11 @@ Rust 1.85 is selected by `rust-toolchain.toml`; install it through rustup if nee
 In your application's directory:
 
 ```bash
-cargo add antecedent@2.4.0
+cargo add antecedent@2.4.1
 cargo doc -p antecedent --open
 ```
 
-The facade's default feature set is empty. Enable `ml-gbdt`, `ml-forest`, `ml-full` (both tree backends), or `ml-neural` when the corresponding learner is needed. For example, `cargo add antecedent@2.4.0 --features ml-forest`. Optional features enable backends; they do not grant new scientific claims.
+The facade's default feature set is empty. Enable `ml-gbdt`, `ml-forest`, `ml-full` (both tree backends), or `ml-neural` when the corresponding learner is needed. For example, `cargo add antecedent@2.4.1 --features ml-forest`. Optional features enable backends; they do not grant new scientific claims.
 
 From the branch checkout, use [the Rust quickstart](rust-quickstart.md). It runs against the source you checked out.
 

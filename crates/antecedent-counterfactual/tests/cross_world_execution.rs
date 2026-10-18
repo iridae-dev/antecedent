@@ -467,18 +467,6 @@ fn unsupported_requests_are_scientific_refusals_that_do_no_work() {
     );
     let mut exec = FiniteScmExecutor::new();
 
-    // Latent confounding: one exogenous term feeds two variables.
-    let mut confounded = base.clone();
-    confounded.scm.variables[1].exogenous = 0;
-    confounded.scm.exogenous.truncate(1);
-    confounded.scm.exogenous[0].pmf = vec![0.5, 0.5];
-    confounded.scm.variables[1].table = vec![0, 1, 1, 0];
-    let (code, detail) = refusal_of(exec.execute(&confounded, &ctx()));
-    assert_eq!(
-        (code.as_str(), detail.as_str()),
-        ("cross_world_not_identified", "cross_world_execution.non_markovian")
-    );
-
     // A different target population: the transported row is closed and names
     // its prerequisites.
     let transported =
@@ -561,4 +549,394 @@ fn a_cancelled_execution_leaves_the_retained_state_unchanged() {
     let error = exec.execute(&req, &cancelled).expect_err("cancelled");
     assert_eq!(error, antecedent_counterfactual::selective::CrossWorldExecutionError::Cancelled);
     assert_eq!((exec.retained_len(), exec.counters()), (retained, counters));
+}
+
+// Shared exogenous term. U ~ (0.7, 0.3) feeds both X = U and Y = X xor U (so
+// Y = 0 factually whenever the unit is observed at all). The model is fully
+// declared, so the counterfactual is a computation, not an identification
+// question.
+fn shared_noise_scm() -> FiniteScm {
+    FiniteScm {
+        population: "pop-a".to_owned(),
+        history: "regime-1".to_owned(),
+        exogenous: vec![ExogenousVariable { name: "u".to_owned(), pmf: vec![0.7, 0.3] }],
+        variables: vec![
+            FiniteVariable {
+                name: "x".to_owned(),
+                levels: 2,
+                parents: vec![],
+                exogenous: 0,
+                table: vec![0, 1],
+            },
+            FiniteVariable {
+                name: "y".to_owned(),
+                levels: 2,
+                parents: vec![0],
+                exogenous: 0,
+                // [u * 2 + x]: u = 0 gives y = x, u = 1 gives y = 1 - x.
+                table: vec![0, 1, 1, 0],
+            },
+        ],
+    }
+}
+
+// The same mechanisms with an independent term per variable: only the law of
+// U_y is shared with the model above, so factual X says nothing about it.
+fn independent_noise_scm() -> FiniteScm {
+    let mut scm = shared_noise_scm();
+    scm.exogenous.push(ExogenousVariable { name: "u_y".to_owned(), pmf: vec![0.7, 0.3] });
+    "u_x".clone_into(&mut scm.exogenous[0].name);
+    scm.variables[1].exogenous = 1;
+    scm
+}
+
+#[test]
+fn a_shared_exogenous_term_is_executed_and_differs_from_independent_noise() {
+    let worlds = vec![do_x("x0", 0), do_x("x1", 1)];
+    let evidence = vec![unit("case", &[(0, 1)])];
+    let atom_y1_x0 = FiniteQuantity::Probability(atom(0, 1, 1));
+
+    // X = 1 forces U = 1 (posterior mass 1), so under do(x0) Y = 0 xor 1 = 1.
+    let mut exec = FiniteScmExecutor::new();
+    let shared = exec
+        .execute(
+            &request(shared_noise_scm(), evidence.clone(), worlds.clone(), atom_y1_x0.clone()),
+            &ctx(),
+        )
+        .unwrap();
+    assert_eq!(shared.matrix_row, "counterfactual.finite_shared_exogenous_scm.marginal");
+    assert!((shared.value - 1.0).abs() < TOL);
+    assert!((shared.units[0].evidence_probability - 0.3).abs() < TOL);
+
+    // With a separate term for Y, factual X carries no information about it:
+    // P(Y_x0 = 1) = P(U_y = 1) = 0.3.
+    let independent = exec
+        .execute(
+            &request(independent_noise_scm(), evidence, worlds.clone(), atom_y1_x0.clone()),
+            &ctx(),
+        )
+        .unwrap();
+    assert_eq!(independent.matrix_row, "counterfactual.finite_markovian_scm.marginal");
+    assert!((independent.value - 0.3).abs() < TOL);
+    assert_ne!(shared.receipt.mechanism_digest, independent.receipt.mechanism_digest);
+    assert_ne!(shared.receipt.abduction_digest, independent.receipt.abduction_digest);
+
+    // Prior joint over the worlds, one realization of U in both: Y_x1 = 1 iff
+    // U = 0 and Y_x0 = 1 iff U = 1, so the two never hold together, although
+    // the marginals are 0.7 and 0.3 (an independent-noise product is 0.21).
+    let joint = FiniteQuantity::JointProbability(vec![atom(1, 1, 1), atom(0, 1, 1)]);
+    let coupled = exec
+        .execute(&request(shared_noise_scm(), vec![unit("p", &[])], worlds, joint), &ctx())
+        .unwrap();
+    assert_eq!(coupled.matrix_row, "counterfactual.finite_shared_exogenous_scm.joint");
+    assert!(coupled.value.abs() < TOL);
+}
+
+// Independent computation: structural equations written as plain functions and
+// the exogenous states enumerated by hand, with no table, posterior or
+// executor code. U (shared by M and Y) ~ (0.7, 0.3), E (X's own term) ~
+// (0.5, 0.5); X = E, M = X or U, Y = X xor M xor U.
+//
+// `P(Y = 1 in the world do(X = x_do) with M read from the world do(X = m_do))`
+// given the factual `(X, Y)`; `None` when the evidence has probability zero.
+fn mediation_truth(evidence: Option<(u8, u8)>, x_do: u8, m_do: u8) -> Option<(f64, f64)> {
+    let (mut mass, mut hit) = (0.0, 0.0);
+    for (e, pe) in [(0u8, 0.5), (1, 0.5)] {
+        for (u, pu) in [(0u8, 0.7), (1, 0.3)] {
+            let factual_y = e ^ (e | u) ^ u;
+            if evidence.is_some_and(|(ex, ey)| (e, factual_y) != (ex, ey)) {
+                continue;
+            }
+            let w = pe * pu;
+            mass += w;
+            let mediator = m_do | u;
+            hit += w * f64::from(x_do ^ mediator ^ u);
+        }
+    }
+    (mass > 0.0).then_some((mass, hit / mass))
+}
+
+fn mediation_scm() -> FiniteScm {
+    FiniteScm {
+        population: "pop-a".to_owned(),
+        history: "regime-1".to_owned(),
+        exogenous: vec![
+            ExogenousVariable { name: "e".to_owned(), pmf: vec![0.5, 0.5] },
+            ExogenousVariable { name: "u".to_owned(), pmf: vec![0.7, 0.3] },
+        ],
+        variables: vec![
+            FiniteVariable {
+                name: "x".to_owned(),
+                levels: 2,
+                parents: vec![],
+                exogenous: 0,
+                table: vec![0, 1],
+            },
+            FiniteVariable {
+                name: "m".to_owned(),
+                levels: 2,
+                parents: vec![0],
+                exogenous: 1,
+                // [u * 2 + x]: x or u.
+                table: vec![0, 1, 1, 1],
+            },
+            FiniteVariable {
+                name: "y".to_owned(),
+                levels: 2,
+                parents: vec![0, 1],
+                exogenous: 1,
+                // [u * 4 + x * 2 + m]: x xor m xor u.
+                table: vec![0, 1, 1, 0, 1, 0, 0, 1],
+            },
+        ],
+    }
+}
+
+fn nested_worlds(x_do: u8, m_do: u8) -> Vec<FiniteWorld> {
+    // World 1 sets X = x_do and reads M from world 0, where X = m_do.
+    let mut nested = do_x("nested", x_do);
+    nested.routes = vec![WorldRoute { parent: 1, child: 2, source: 0 }];
+    vec![do_x("mediator", m_do), nested]
+}
+
+#[test]
+fn shared_exogenous_cross_world_values_equal_an_independent_enumeration() {
+    for observed in [None, Some((1u8, 0u8)), Some((1, 1)), Some((0, 0)), Some((0, 1))] {
+        let units = observed
+            .map_or_else(|| vec![unit("u", &[])], |(x, y)| vec![unit("u", &[(0, x), (2, y)])]);
+        let mut exec = FiniteScmExecutor::new();
+        for (x_do, m_do) in [(1u8, 0u8), (0, 1), (0, 0), (1, 1)] {
+            let out = exec.execute(
+                &request(
+                    mediation_scm(),
+                    units.clone(),
+                    nested_worlds(x_do, m_do),
+                    FiniteQuantity::Probability(atom(1, 2, 1)),
+                ),
+                &ctx(),
+            );
+            match (out, mediation_truth(observed, x_do, m_do)) {
+                (Ok(out), Some((mass, value))) => {
+                    assert_eq!(out.matrix_row, "natural_path_specific.finite_shared_exogenous_scm");
+                    assert!((out.value - value).abs() < TOL, "{observed:?} {x_do}{m_do}");
+                    assert!((out.units[0].evidence_probability - mass).abs() < TOL);
+                }
+                (Err(error), None) => assert_eq!(
+                    error.refusal().unwrap().detail,
+                    "cross_world_execution.evidence_outside_model_support"
+                ),
+                (out, truth) => panic!("{observed:?}: {out:?} vs {truth:?}"),
+            }
+        }
+    }
+}
+
+#[test]
+fn a_shared_term_keeps_one_realization_across_the_factual_and_counterfactual_worlds() {
+    // Y = 1 with X = 1 is only possible with U = 1 (probability 0.5 * 0.3),
+    // and then do(x0) with M read from do(x1) gives Y = 0 ^ 1 ^ 1 = 0. With
+    // Y = 0 and X = 1 the unit has U = 0 (probability 0.5 * 0.7) and the same
+    // nested world gives Y = 1. Were U redrawn per world both would be 0.7.
+    let mut exec = FiniteScmExecutor::new();
+    let mut ask = |y: u8| {
+        exec.execute(
+            &request(
+                mediation_scm(),
+                vec![unit("u", &[(0, 1), (2, y)])],
+                nested_worlds(0, 1),
+                FiniteQuantity::Probability(atom(1, 2, 1)),
+            ),
+            &ctx(),
+        )
+        .unwrap()
+    };
+    let (high, low) = (ask(1), ask(0));
+    assert!((high.units[0].evidence_probability - 0.15).abs() < TOL);
+    assert!(high.value.abs() < TOL);
+    assert!((low.units[0].evidence_probability - 0.35).abs() < TOL);
+    assert!((low.value - 1.0).abs() < TOL);
+}
+
+#[test]
+fn a_declared_but_oversized_joint_state_is_unsupported_not_unidentified() {
+    // Six exogenous terms of eight states: 8^6 joint states, one variable each.
+    let scm = FiniteScm {
+        population: "pop-a".to_owned(),
+        history: "regime-1".to_owned(),
+        exogenous: (0..6)
+            .map(|k| ExogenousVariable { name: format!("u{k}"), pmf: vec![0.125; 8] })
+            .collect(),
+        variables: (0..6)
+            .map(|k| FiniteVariable {
+                name: format!("v{k}"),
+                levels: 2,
+                parents: vec![],
+                exogenous: k,
+                table: vec![0, 1, 0, 1, 0, 1, 0, 1],
+            })
+            .collect(),
+    };
+    let req = request(
+        scm,
+        vec![unit("u", &[])],
+        vec![do_x("w", 0)],
+        FiniteQuantity::Probability(atom(0, 1, 1)),
+    );
+    let mut exec = FiniteScmExecutor::new();
+    let (code, detail) = refusal_of(exec.execute(&req, &ctx()));
+    assert_eq!(
+        (code.as_str(), detail.as_str()),
+        ("route_not_supported", "cross_world_execution.joint_state_bound_exceeded")
+    );
+    assert_eq!(exec.counters().abductions, 0);
+}
+
+// One exogenous term U ~ (0.7, 0.3) is named by all three mechanisms:
+// X = U, M = U and Y = X xor U (so Y = 0 factually). Observing any one of them
+// fixes the single draw every other mechanism reads, in every world.
+fn three_mechanisms_one_term() -> FiniteScm {
+    let shared = |name: &str, parents: Vec<usize>, table: Vec<u8>| FiniteVariable {
+        name: name.to_owned(),
+        levels: 2,
+        parents,
+        exogenous: 0,
+        table,
+    };
+    FiniteScm {
+        population: "pop-a".to_owned(),
+        history: "regime-1".to_owned(),
+        exogenous: vec![ExogenousVariable { name: "u".to_owned(), pmf: vec![0.7, 0.3] }],
+        variables: vec![
+            shared("x", vec![], vec![0, 1]),
+            shared("m", vec![], vec![0, 1]),
+            // [u * 2 + x]: u xor x.
+            shared("y", vec![0], vec![0, 1, 1, 0]),
+        ],
+    }
+}
+
+#[test]
+fn one_exogenous_draw_is_used_by_every_mechanism_that_names_it() {
+    let worlds = vec![do_x("x0", 0), do_x("x1", 1)];
+    let mut exec = FiniteScmExecutor::new();
+    // Hand enumeration over the two joint states: u = 0 (0.7) gives (x, m, y) =
+    // (0, 0, 0); u = 1 (0.3) gives (1, 1, 0). Under do(x0), Y = u.
+    for (observed, evidence_mass, y_x0) in [
+        (vec![(1usize, 1u8)], 0.3, 1.0),
+        (vec![(1, 0)], 0.7, 0.0),
+        (vec![(0, 1)], 0.3, 1.0),
+        (vec![(2, 0)], 1.0, 0.3),
+    ] {
+        let out = exec
+            .execute(
+                &request(
+                    three_mechanisms_one_term(),
+                    vec![unit("case", &observed)],
+                    worlds.clone(),
+                    FiniteQuantity::Probability(atom(0, 2, 1)),
+                ),
+                &ctx(),
+            )
+            .unwrap();
+        assert_eq!(out.matrix_row, "counterfactual.finite_shared_exogenous_scm.marginal");
+        assert!((out.units[0].evidence_probability - evidence_mass).abs() < TOL, "{observed:?}");
+        assert!((out.value - y_x0).abs() < TOL, "{observed:?}");
+    }
+    // The three mechanisms agree on one draw: a mediator reading u = 1 cannot
+    // coexist with a treatment reading u = 0, whichever of them is observed.
+    let contradictory = request(
+        three_mechanisms_one_term(),
+        vec![unit("case", &[(0, 1), (1, 0)])],
+        worlds,
+        FiniteQuantity::Probability(atom(0, 2, 1)),
+    );
+    assert_eq!(
+        refusal_of(exec.execute(&contradictory, &ctx())).1,
+        "cross_world_execution.evidence_outside_model_support"
+    );
+}
+
+// Six exogenous terms: five with the largest number of states plus a sixth.
+// Two states give exactly the documented bound; three states exceed it.
+fn bound_probe(last_states: usize) -> FiniteScm {
+    let states = |k: usize| if k == 5 { last_states } else { 8 };
+    FiniteScm {
+        population: "pop-a".to_owned(),
+        history: "regime-1".to_owned(),
+        exogenous: (0..6)
+            .map(|k| ExogenousVariable {
+                name: format!("u{k}"),
+                pmf: vec![1.0 / f64::from(u8::try_from(states(k)).unwrap()); states(k)],
+            })
+            .collect(),
+        variables: (0..6)
+            .map(|k| FiniteVariable {
+                name: format!("v{k}"),
+                levels: 2,
+                parents: vec![],
+                exogenous: k,
+                table: (0..states(k)).map(|s| u8::from(s % 2 == 1)).collect(),
+            })
+            .collect(),
+    }
+}
+
+#[test]
+fn the_joint_state_bound_holds_at_its_edge_and_refuses_one_term_past_it() {
+    use antecedent_counterfactual::selective::finite_scm::MAX_JOINT_STATES;
+    assert_eq!(8usize.pow(5) * 2, MAX_JOINT_STATES);
+    let ask = |scm: FiniteScm| {
+        request(
+            scm,
+            vec![unit("u", &[])],
+            vec![do_x("w", 0)],
+            FiniteQuantity::Probability(atom(0, 1, 1)),
+        )
+    };
+    let mut exec = FiniteScmExecutor::new();
+    let at_edge = exec.execute(&ask(bound_probe(2)), &ctx()).unwrap();
+    // v1 takes the odd state of an eight-state term: probability 1/2.
+    assert!((at_edge.value - 0.5).abs() < TOL);
+    assert_eq!(at_edge.work.abduction_states_enumerated, u64::try_from(MAX_JOINT_STATES).unwrap());
+
+    let (code, detail) = refusal_of(exec.execute(&ask(bound_probe(3)), &ctx()));
+    assert_eq!(
+        (code.as_str(), detail.as_str()),
+        ("route_not_supported", "cross_world_execution.joint_state_bound_exceeded")
+    );
+    // The refusal did no abduction and retained nothing beyond the accepted run.
+    assert_eq!(exec.counters().abductions, 1);
+}
+
+#[test]
+fn a_law_to_be_fitted_is_unsupported_execution_while_latent_confounding_is_nonidentification() {
+    use antecedent_counterfactual::selective::matrix::{
+        ConditioningKind, EvidenceKind, HistoryKind, InterventionKind, MatrixRequest, ModelClass,
+        PopulationKind, QuantityClass, decide,
+    };
+    let shape = MatrixRequest {
+        quantity: QuantityClass::CounterfactualMarginal,
+        model: ModelClass::FiniteMarkovianScm,
+        conditioning: ConditioningKind::FactualEvidence,
+        interventions: InterventionKind::Hard,
+        population: PopulationKind::Single,
+        history: HistoryKind::NoHistory,
+        evidence: EvidenceKind::DeclaredMechanisms,
+    };
+    assert!(decide(&shape).is_ok());
+
+    // The exogenous law is not declared and would have to be fitted: this
+    // route does not execute that, and says nothing about identification.
+    let undeclared = decide(&MatrixRequest { evidence: EvidenceKind::DataToFit, ..shape })
+        .expect_err("a law to be fitted is not executed");
+    assert_eq!(undeclared.code, "route_not_supported");
+    assert_eq!(undeclared.detail, "cross_world_execution.finite_fitting_not_executed");
+
+    // Latent confounding without declared mechanisms is a statement about
+    // identification, and carries the nonidentification code instead.
+    let latent = decide(&MatrixRequest { model: ModelClass::SemiMarkovian, ..shape })
+        .expect_err("latent confounding is not identified");
+    assert_eq!(latent.code, "cross_world_not_identified");
+    assert_eq!(latent.detail, "cross_world_execution.latent_confounding_not_identified");
+    assert_ne!(undeclared.code, latent.code);
 }

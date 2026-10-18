@@ -12,7 +12,7 @@ use crate::compile::{CompiledCausalModel, MechanismSlot, ParentGatherPlan};
 use crate::error::ModelError;
 use crate::mechanism::log_prob_column;
 
-use super::{MechanismCandidate, MechanismFamily};
+use super::{MechanismCandidate, MechanismFamily, ValidationSplits};
 
 /// Spread, relative to the outcome's largest magnitude, above which
 /// [`MechanismFamily::Constant`] is inadmissible.
@@ -26,6 +26,13 @@ pub(super) const CONSTANT_FAMILY_MAX_RELATIVE_SD: f64 = 1e-6;
 
 /// Folds of the deterministic cross-validation that scores every family.
 pub(crate) const MECHANISM_CV_FOLDS: usize = 5;
+
+/// Held-out folds of the time-ordered scheme (one more block than this trains only).
+pub(super) const TIME_ORDERED_FOLDS: usize = MECHANISM_CV_FOLDS;
+
+/// Fewest rows per block a time-ordered scheme accepts: a block must hold enough
+/// rows to train and to score a flexible family.
+pub(super) const MIN_ROWS_PER_TIME_BLOCK: usize = 8;
 
 /// Seed of the partition behind [`MECHANISM_CV_FOLDS`]. Fixed so the score of a
 /// family is a function of the table alone; not a user-facing random stream.
@@ -42,6 +49,10 @@ pub(super) struct FitFrame<'d> {
     pub(super) groups: Option<Vec<u32>>,
     /// Row count this frame covers.
     pub(super) n: usize,
+    /// How held-out folds are cut from these rows. Training subsets selected from
+    /// a frame keep the scheme, so a fit that cross-validates internally (the tree
+    /// families' out-of-fold noise scale) splits the way the selection does.
+    pub(super) splits: ValidationSplits,
 }
 
 impl<'d> FitFrame<'d> {
@@ -58,7 +69,33 @@ impl<'d> FitFrame<'d> {
                 message: "parent column shorter than the outcome".into(),
             });
         }
-        Ok(Self { parents, groups: super::fit::unit_id_groups(data, n), n })
+        Ok(Self {
+            parents,
+            groups: super::fit::unit_id_groups(data, n),
+            n,
+            splits: ValidationSplits::Shuffled,
+        })
+    }
+
+    /// Same frame with the declared validation-split scheme.
+    pub(super) fn with_splits(mut self, splits: ValidationSplits) -> Self {
+        self.splits = splits;
+        self
+    }
+
+    /// Folds and seed the declared scheme plans for these rows; refuses a scheme
+    /// the rows cannot support.
+    pub(super) fn split_plan(&self) -> Result<SplitPlan, ModelError> {
+        split_plan(self.n, self.splits, self.groups.as_deref())
+    }
+
+    /// Held-out folds of these rows under the declared scheme, optionally
+    /// stratified (shuffled scheme only).
+    pub(super) fn validation_folds(
+        &self,
+        strata: Option<&[u32]>,
+    ) -> Result<Vec<FoldSplit>, ModelError> {
+        validation_folds(self.n, self.splits, self.groups.as_deref(), strata)
     }
 
     /// Parent-column count.
@@ -76,6 +113,7 @@ impl<'d> FitFrame<'d> {
                 .collect(),
             groups: self.groups.as_ref().map(|g| rows.iter().map(|&r| g[r]).collect()),
             n: rows.len(),
+            splits: self.splits,
         }
     }
 
@@ -85,6 +123,7 @@ impl<'d> FitFrame<'d> {
             parents: parents.into_iter().map(Cow::Owned).collect(),
             groups: self.groups.clone(),
             n: self.n,
+            splits: self.splits,
         }
     }
 
@@ -100,13 +139,7 @@ impl<'d> FitFrame<'d> {
 
 /// Whether this family models a categorical outcome.
 pub(super) fn family_is_categorical(family: MechanismFamily) -> bool {
-    matches!(
-        family,
-        MechanismFamily::Discrete
-            | MechanismFamily::DiscreteInteractions
-            | MechanismFamily::DiscreteSpline
-            | MechanismFamily::HierarchicalGlm
-    )
+    family.is_categorical()
 }
 
 /// Dense stratum id per row for a categorical outcome (quantized value order).
@@ -134,12 +167,129 @@ pub(super) fn cv_fold_plan(n: usize, strata: Option<&[u32]>) -> Result<Vec<usize
         });
     }
     let mut rng = CausalRng::from_seed(CV_FOLD_SEED);
-    shuffled_fold_assignment(&mut rng, n, folds, strata).map_err(|error| ModelError::Shape {
+    shuffled_fold_assignment(&mut rng, n, folds, strata).map_err(fold_error)
+}
+
+fn fold_error(error: ViewError) -> ModelError {
+    ModelError::Shape {
         message: match error {
             ViewError::InvalidShape { message } => message.to_owned(),
             other => other.to_string(),
         },
-    })
+    }
+}
+
+/// One training / held-out row split, rows ascending.
+pub(super) struct FoldSplit {
+    pub(super) train: Vec<usize>,
+    pub(super) test: Vec<usize>,
+}
+
+/// Folds and seed a validation scheme plans for a set of rows.
+pub(super) struct SplitPlan {
+    pub(super) folds: usize,
+    pub(super) seed: Option<u64>,
+}
+
+/// Held-out folds of `n` rows under `splits`.
+///
+/// `Shuffled` is the seeded shuffled partition (stratified when `strata` is given);
+/// the other schemes ignore `strata` because their folds are fixed by the rows'
+/// dependence, not by the outcome's levels (a held-out level absent from the
+/// training rows is simply not scored).
+pub(super) fn validation_folds(
+    n: usize,
+    splits: ValidationSplits,
+    groups: Option<&[u32]>,
+    strata: Option<&[u32]>,
+) -> Result<Vec<FoldSplit>, ModelError> {
+    match splits {
+        ValidationSplits::Shuffled => {
+            let fold = cv_fold_plan(n, strata)?;
+            let folds = fold.iter().copied().max().map_or(0, |m| m + 1);
+            Ok((0..folds)
+                .map(|k| {
+                    let (train, test): (Vec<usize>, Vec<usize>) =
+                        (0..n).partition(|&r| fold[r] != k);
+                    FoldSplit { train, test }
+                })
+                .collect())
+        }
+        ValidationSplits::TimeOrdered { purge } => {
+            let blocks = TIME_ORDERED_FOLDS + 1;
+            if n < MIN_ROWS_PER_TIME_BLOCK * blocks {
+                return Err(ModelError::InvalidSelection {
+                    message: format!(
+                        "time-ordered validation needs at least {} rows, got {n}",
+                        MIN_ROWS_PER_TIME_BLOCK * blocks
+                    ),
+                });
+            }
+            let edge = |j: usize| j * n / blocks;
+            Ok((1..blocks)
+                .map(|k| FoldSplit {
+                    train: (0..edge(k).saturating_sub(purge)).collect(),
+                    test: (edge(k)..edge(k + 1)).collect(),
+                })
+                .collect())
+        }
+        ValidationSplits::Clustered => {
+            let units = clustered_units(groups, n)?;
+            let folds = MECHANISM_CV_FOLDS.min(units.len());
+            let mut rng = CausalRng::from_seed(CV_FOLD_SEED);
+            let unit_fold =
+                shuffled_fold_assignment(&mut rng, units.len(), folds, None).map_err(fold_error)?;
+            let groups = groups.unwrap_or_default();
+            let row_fold: Vec<usize> =
+                groups.iter().map(|g| units.binary_search(g).map_or(0, |u| unit_fold[u])).collect();
+            Ok((0..folds)
+                .map(|k| {
+                    let (train, test): (Vec<usize>, Vec<usize>) =
+                        (0..n).partition(|&r| row_fold[r] != k);
+                    FoldSplit { train, test }
+                })
+                .collect())
+        }
+    }
+}
+
+/// Sorted distinct unit labels, refusing rows that have no usable unit structure.
+fn clustered_units(groups: Option<&[u32]>, n: usize) -> Result<Vec<u32>, ModelError> {
+    let Some(groups) = groups.filter(|g| g.len() == n && super::fit::group_structure_usable(g))
+    else {
+        return Err(ModelError::InvalidSelection {
+            message: "clustered validation needs a UnitId column with at least two units and \
+                      fewer units than rows"
+                .into(),
+        });
+    };
+    let mut units = groups.to_vec();
+    units.sort_unstable();
+    units.dedup();
+    Ok(units)
+}
+
+/// Folds and seed `splits` plans for `n` rows, refusing an unsupported scheme.
+pub(super) fn split_plan(
+    n: usize,
+    splits: ValidationSplits,
+    groups: Option<&[u32]>,
+) -> Result<SplitPlan, ModelError> {
+    match splits {
+        // Too few rows to cut is a per-family failure (a degenerate constant needs no
+        // folds), not a refusal of the whole node.
+        ValidationSplits::Shuffled => {
+            Ok(SplitPlan { folds: MECHANISM_CV_FOLDS.min(n), seed: Some(CV_FOLD_SEED) })
+        }
+        ValidationSplits::TimeOrdered { .. } => {
+            validation_folds(n, splits, groups, None)?;
+            Ok(SplitPlan { folds: TIME_ORDERED_FOLDS, seed: None })
+        }
+        ValidationSplits::Clustered => {
+            let units = clustered_units(groups, n)?;
+            Ok(SplitPlan { folds: MECHANISM_CV_FOLDS.min(units.len()), seed: Some(CV_FOLD_SEED) })
+        }
+    }
 }
 
 /// Mean held-out predictive log-likelihood of `family`, refit on each training
@@ -158,18 +308,15 @@ pub(super) fn oof_mean_loglik(
     ls_ws: &mut LeastSquaresWorkspace,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<f64, ModelError> {
-    let n = y.len();
     let categorical = family_is_categorical(family);
     let strata = categorical.then(|| category_strata(y));
-    let fold = cv_fold_plan(n, strata.as_deref())?;
-    let folds = fold.iter().copied().max().map_or(0, |m| m + 1);
+    let folds = frame.validation_folds(strata.as_deref())?;
     let p = frame.n_parents();
     let mut total = 0.0;
     let mut scored = 0usize;
     let mut last_fold_error: Option<ModelError> = None;
-    for k in 0..folds {
+    for FoldSplit { train, test } in &folds {
         poll(cancelled)?;
-        let (train, test): (Vec<usize>, Vec<usize>) = (0..n).partition(|&r| fold[r] != k);
         if train.len() < 2 || test.is_empty() {
             continue;
         }
@@ -180,7 +327,7 @@ pub(super) fn oof_mean_loglik(
         // can be scored the family is refused with the last fit error.
         let slot = match super::fit::fit_frame_family(
             family,
-            &frame.select(&train),
+            &frame.select(train),
             &y_train,
             backend,
             ls_ws,
@@ -192,7 +339,7 @@ pub(super) fn oof_mean_loglik(
                 continue;
             }
         };
-        let held_out = frame.select(&test);
+        let held_out = frame.select(test);
         let y_test: Vec<f64> = test.iter().map(|&r| y[r]).collect();
         let values = held_out.column_major();
         let mut lp = vec![0.0; test.len()];
@@ -287,11 +434,17 @@ pub(super) fn parameter_count(slot: &MechanismSlot, n_parents: usize) -> f64 {
         MechanismSlot::LinearGaussian { .. }
         | MechanismSlot::HierarchicalLinear { .. }
         | MechanismSlot::Bvar { .. }
-        | MechanismSlot::LinearBasis { .. } => p + 2,
+        | MechanismSlot::LinearBasis { .. }
+        // An ensemble is charged what its linear counterpart is: its flexibility is
+        // priced by the held-out likelihood it is scored on, not by a leaf count.
+        | MechanismSlot::TreeAdditive { .. } => p + 2,
         MechanismSlot::Discrete { support, logit_coeffs, .. } => {
             (support.len().saturating_sub(1)) * if logit_coeffs.is_some() { 1 + p } else { 1 }
         }
-        MechanismSlot::DiscreteBasis { support, .. } => (support.len().saturating_sub(1)) * (1 + p),
+        MechanismSlot::DiscreteBasis { support, .. }
+        | MechanismSlot::TreeCategorical { support, .. } => {
+            (support.len().saturating_sub(1)) * (1 + p)
+        }
         MechanismSlot::ConditionalLinearGaussianStateSpace { .. } => p + 1 + 4,
         MechanismSlot::LinearGaussianStateSpace { .. } => 4,
         // length scale, noise and the prior mean; the interpolant's effective
@@ -327,7 +480,8 @@ pub(super) fn score_family(
     // its own training rows, so a richer family (basis expansion, GP) wins only by
     // predicting rows it did not fit.
     let penalty = 0.5 * parameter_count(&fitted, p) * (n.max(2) as f64).ln() / n.max(1) as f64;
-    let score = match &fitted {
+    // (held-out log-likelihood, penalty actually charged); the score is their difference.
+    let (held_out, charged) = match &fitted {
         MechanismSlot::Constant { value } => {
             let sd =
                 (y.iter().map(|yi| (yi - value).powi(2)).sum::<f64>() / n.max(1) as f64).sqrt();
@@ -341,7 +495,12 @@ pub(super) fn score_family(
             // really is degenerate, and then its log-mass on its own single value is 0 — the
             // score a one-level discrete fit earns, so the two tie and the listing order breaks
             // the tie.
-            if sd > CONSTANT_FAMILY_MAX_RELATIVE_SD * max_abs { f64::NEG_INFINITY } else { 0.0 }
+            let score = if sd > CONSTANT_FAMILY_MAX_RELATIVE_SD * max_abs {
+                f64::NEG_INFINITY
+            } else {
+                0.0
+            };
+            (score, 0.0)
         }
         MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean }
         | MechanismSlot::ConditionalLinearGaussianStateSpace {
@@ -368,12 +527,19 @@ pub(super) fn score_family(
             };
             let mut lp = vec![0.0; n];
             log_prob_column(&state, &residual, ParentBatch::empty(n), &mut lp)?;
-            lp.iter().sum::<f64>() / n.max(1) as f64 - penalty
+            (lp.iter().sum::<f64>() / n.max(1) as f64, penalty)
         }
-        _ => oof_mean_loglik(family, frame, y, backend, ls_ws, cancelled)? - penalty,
+        _ => (oof_mean_loglik(family, frame, y, backend, ls_ws, cancelled)?, penalty),
     };
     Ok((
-        MechanismCandidate { family, score, fit_cost: 1.0 + p as f64, eval_cost: 1.0 + p as f64 },
+        MechanismCandidate {
+            family,
+            score: held_out - charged,
+            held_out_log_likelihood: held_out,
+            complexity_penalty: charged,
+            fit_cost: 1.0 + p as f64,
+            eval_cost: 1.0 + p as f64,
+        },
         fitted,
     ))
 }

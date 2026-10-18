@@ -544,7 +544,14 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `discovered_transport.member_bound_zero` | `discovered_structure_unresolved` | Allow at least one member. |
 | `discovered_transport.class_too_large` | `discovered_structure_unresolved` | Restrict the structure or declare a graph. |
 | `discovered_transport.no_members` | `discovered_structure_unresolved` | Check the discovered structure. |
-| `discovered_transport.pag_members_not_causal_graphs` | `discovered_structure_unresolved` | Resolve the PAG to a declared causal graph (an ADMG you assert) and request transport with that graph. |
+| `discovered_transport.pag_class_ambiguous` | `discovered_structure_unresolved` | Rerun discovery or declare the graph. |
+| `discovered_transport.pag_selection_bias_edge` | `discovered_structure_unresolved` | Remove the edge with background knowledge or declare the graph. |
+| `discovered_transport.temporal_structure_unsupported` | `discovered_structure_unresolved` | Request transport through the temporal entry with the treatment, outcome and horizon. |
+| `discovered_transport.temporal_query_invalid` | `discovered_structure_unresolved` | State a mean response curve of one outcome under the declared treatment among the structure's variables. |
+| `discovered_transport.class_not_identified` | `discovered_structure_unresolved` | Resolve the marks that separate the members or declare the graph. |
+| `discovered_transport.member_not_estimable` | `discovered_structure_unresolved` | Supply evidence that covers every factor or declare the graph. |
+| `discovered_transport.class_enumeration_partial` | `discovered_structure_unresolved` | Raise the member bound and the completion budget or declare the graph. |
+| `discovered_transport.evidence_invalid` | `invalid_argument` | Supply complete integer-coded tables; no interval for a temporal request. |
 | `selective_discovery.pooled_population_search` | `route_not_supported` | Run one population at a time; cross-population assumptions belong to the transport contract. |
 | `selective_discovery.populations_missing` | `invalid_argument` | Supply at least two populations or use the single-population route. |
 | `selective_discovery.population_missing` | `invalid_argument` | Name every population. |
@@ -558,7 +565,18 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `selective_discovery.split_not_disjoint` | `invalid_argument` | Re-split the table. |
 | `selective_discovery.split_receipt_mismatch` | `invalid_argument` | Regenerate the receipt from the rule. |
 | `selective_discovery.analysis_rows_not_the_split_part` | `invalid_argument` | Analyse the analysis part the receipt names. |
-| `selective_discovery.split_unsupported_rows` | `route_not_supported` | Split an unweighted, unmasked float64 table. |
+| `selective_discovery.split_unsupported_rows` | `route_not_supported` | Split a float64 table. |
+| `selective_discovery.split_row_excluded` | `invalid_argument` | Name only eligible rows (inside the mask, complete in the searched variables). |
+| `selective_discovery.split_rows_mismatch` | `invalid_argument` | Re-split the table. |
+| `selective_discovery.split_mask_mismatch` | `invalid_argument` | Replay the split on the table it was made from. |
+| `selective_discovery.split_weights_mismatch` | `invalid_argument` | Replay the split on the table it was made from. |
+| `selective_discovery.split_source_mismatch` | `invalid_argument` | Replay the split on the table it was made from. |
+| `selective_discovery.split_part_weight_invalid` | `invalid_argument` | Give the rule rows that carry weight. |
+| `selective_discovery.weights_not_read_by_test` | `option_not_applicable` | Declare `weighted_parcorr`, or split an unweighted table. |
+| `selective_discovery.weighted_test_without_weights` | `option_not_applicable` | Supply observation weights, or declare an unweighted test. |
+| `selective_discovery.background_knowledge_contradictory` | `invalid_argument` | Remove the conflicting statement. |
+| `selective_discovery.background_knowledge_unknown_variable` | `unknown_variable` | Name only searched variables. |
+| `selective_discovery.background_knowledge_not_applicable` | `option_not_applicable` | Use an algorithm that enforces the statement, or drop it. |
 
 ### Provider-sourced transport and handoff
 
@@ -707,7 +725,24 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `adaptive_inference.arms_invalid` | `invalid_argument` | Correct the declared element. |
 | `adaptive_inference.contexts_invalid` | `invalid_argument` | Declare 1 to 4 contexts with known probabilities summing to one. |
 | `adaptive_inference.rule_mismatch` | `invalid_argument` | Correct the declared element. |
-| `adaptive_inference.looks_not_ordered` | `invalid_argument` | Declare 1 to 24 looks with a positive first look and at most 400 units. |
+| `adaptive_inference.looks_not_ordered` | `invalid_argument` | Declare a schedule whose first look enrols at least one unit. |
+| `adaptive_inference.declared_units_exceeded` | `invalid_argument` | Declare at most 65,535 units; split a larger study into separately declared stages. |
+| `adaptive_inference.declared_looks_exceeded` | `invalid_argument` | Declare fewer looks (24 single-outcome, 64 participant-level) or enrol larger batches between looks. |
+| `adaptive_inference.exact_law_states_exceeded` | `invalid_argument` | Simulate the whole procedure instead of enumerating it, or reduce the units, arms, contexts or delay. |
+| `adaptive_inference.exact_law_work_exceeded` | `invalid_argument` | Simulate the whole procedure instead of enumerating it, or reduce the units, arms, contexts or delay. |
+| `adaptive_inference.simulation_replications_exceeded` | `invalid_argument` | Request between 1 and 1,000,000 replications, or run several seeded requests. |
+| `adaptive_inference.simulation_work_exceeded` | `invalid_argument` | Reduce replications, units or measurements per unit so that their product is within the work budget. |
+| `adaptive_inference.simulation_memory_exceeded` | `invalid_argument` | Reduce the replications or the units, or raise the memory budget of the execution context. |
+| `adaptive_inference.retained_record_exceeded` | `invalid_argument` | Retain fewer looks or participants in the exported record. |
+| `adaptive_inference.artifact_size_exceeded` | `route_not_supported` | Retain fewer looks or participants, or raise the export budget; the run is complete and stays in memory. |
+| `adaptive_inference.historical_borrowing_missing` | `adaptive_contract_incomplete` | Declare the prior of every arm, with its historical sources and discounts, before recruitment. |
+| `adaptive_inference.anytime_settings_missing` | `adaptive_contract_incomplete` | Declare the miscoverage level and tuning sample size of the confidence sequences. |
+| `adaptive_inference.historical_prior_invalid` | `invalid_argument` | Declare one prior per arm with valid sources: successes within trials, a discount in [0, 1], a label. |
+| `adaptive_inference.anytime_settings_invalid` | `invalid_argument` | Declare a miscoverage level in (0, 1) and a positive tuning sample size. |
+| `adaptive_inference.borrowing_frozen` | `adaptive_assumption_violated` | Declare the borrowing before recruitment and keep it; a different plan is a new declaration. |
+| `adaptive_inference.assignment_not_replayed` | `adaptive_assumption_violated` | Retain the allocation probabilities the declared procedure computed, or declare the procedure that ran. |
+| `adaptive_inference.stopping_not_replayed` | `adaptive_assumption_violated` | Retain the looks the declared decisions performed, or declare the decisions that ran. |
+| `adaptive_inference.batch_incomplete` | `adaptive_assumption_violated` | Retain the responses of every participant of a batch whose follow-up has elapsed, or end the history at the last batch whose participants all completed. |
 | `adaptive_inference.outcome_availability_invalid` | `invalid_argument` | Correct the declared element. |
 | `adaptive_inference.exposure_invalid` | `invalid_argument` | Correct the declared element. |
 | `adaptive_inference.posterior_premise_outcome_dependent_delay` | `cell_not_licensed` | Declare ignorable loss and delay, or analyse a paradigm that models the loss. |

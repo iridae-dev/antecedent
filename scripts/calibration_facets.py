@@ -65,6 +65,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import _rust_equivalence
 import _rust_source as _rust
 from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path, read_text, write_text
@@ -93,6 +94,8 @@ RECORD_KEY_FIELDS = (
     "posterior",
     "functional",
     "identification",
+    # Derived from the immutable recordless ledger, never a fabricated coverage key.
+    "gate_group",
 )
 # Manifests whose workspace-version lines a release bump rewrites. Their other
 # content (features, external dependency versions, profiles) is compared.
@@ -176,10 +179,37 @@ def declares_out_of_line_test_module(rel: str, root: Path | None = None) -> bool
     return False
 
 
+# These two literal-preserving streams are the reviewed historical/private unit
+# module and its added identity-shift oracle. Unknown changes remain numerical
+# source, including new exports, macros, includes or measurement producers.
+# The source/parent blobs are recorded in calibration_unit_scaffolding_proofs.json.
+_BOUNDED_PRIVATE_UNIT_TOKENS = {
+    "crates/antecedent-estimate/src/response/tests.rs": frozenset(
+        {
+            "10c231f132aaea734a90149eded4ad328178cf118be95ae15bc35175f484fe42",
+            "18456a524077fa1a1e18d33d557244314c44ccae5cc49d76d8b4db9f23da310d",
+        }
+    ),
+}
+
+
 def scaffolding_view(rel: str, text: str) -> str:
     """`text` as the calibration surface sees a testmod file: without its inline test
     modules, or empty when the whole file is an out-of-line `#[cfg(test)]` module."""
-    return "" if declares_out_of_line_test_module(rel) else strip_test_modules(text)
+    if declares_out_of_line_test_module(rel):
+        reviewed = _BOUNDED_PRIVATE_UNIT_TOKENS.get(rel)
+        if reviewed is not None:
+            try:
+                digest = hashlib.sha256(
+                    "\0".join(_rust_equivalence.tokens(text)).encode()
+                ).hexdigest()
+            except ValueError:
+                return text
+            if digest not in reviewed:
+                return text
+        return ""
+    return strip_test_modules(text)
+
 
 _PUB_USE = re.compile(r"^[ \t]*pub(?:\([^)]*\))?[ \t]+use\b([^;]*);", re.M)
 
@@ -286,6 +316,7 @@ class Surface:
     allows: dict[tuple[str, str], set[str]] = field(default_factory=dict)
     testmods: set[str] = field(default_factory=set)
     keys: list[tuple[str, str, list[str]]] = field(default_factory=list)
+    all_keys: list[tuple[str, list[tuple[str, list[str]]]]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -334,6 +365,28 @@ def load_surface(path: Path = LIST, text: str | None = None) -> Surface:
             if parts[1] in surface.testmods:
                 surface.errors.append(f"{where}: duplicate testmod for {parts[1]}")
             surface.testmods.add(parts[1])
+        elif parts[0] == "key_all":
+            clauses = []
+            fields = set()
+            valid = len(parts) >= 4
+            for raw_clause in parts[2:]:
+                key, separator, raw_patterns = raw_clause.partition("=")
+                patterns = raw_patterns.split(",")
+                if (
+                    not separator
+                    or key not in RECORD_KEY_FIELDS
+                    or key in fields
+                    or not all(patterns)
+                ):
+                    valid = False
+                fields.add(key)
+                clauses.append((key, patterns))
+            if not valid:
+                surface.errors.append(
+                    f"{where}: key_all <facet> <field>=<glob>[,<glob>...] <field>=<glob>... (distinct known fields)"
+                )
+                continue
+            surface.all_keys.append((parts[1], clauses))
         elif parts[0] == "key":
             if len(parts) < 4 or parts[2] not in RECORD_KEY_FIELDS:
                 surface.errors.append(
@@ -363,7 +416,7 @@ def load_surface(path: Path = LIST, text: str | None = None) -> Surface:
     for facet, _rel in surface.allows:
         if facet not in known or facet == CORE:
             surface.errors.append(f"{path.name}: allow names unknown or core facet {facet}")
-    for facet, _, _ in surface.keys:
+    for facet in [f for f, _, _ in surface.keys] + [f for f, _ in surface.all_keys]:
         if facet not in known or facet == CORE:
             surface.errors.append(f"{path.name}: key names unknown or core facet {facet}")
     return surface
@@ -379,7 +432,9 @@ def _crate_deps() -> dict[str, set[str]]:
     for manifest in sorted((ROOT / "crates").glob("*/Cargo.toml")):
         data = tomllib.loads(read_text(manifest))
         names: set[str] = set()
-        tables = [data.get(t, {}) for t in ("dependencies", "dev-dependencies", "build-dependencies")]
+        tables = [
+            data.get(t, {}) for t in ("dependencies", "dev-dependencies", "build-dependencies")
+        ]
         for target in data.get("target", {}).values():
             tables += [target.get(t, {}) for t in ("dependencies", "dev-dependencies")]
         for table in tables:
@@ -436,15 +491,18 @@ def is_test_consumer(rel: str) -> bool:
     return "/tests/" in rel or _test_only_module(rel)
 
 
-def _reaches(user: str, member: str, deps: dict[str, set[str]],
-             units: dict[str, str] | None = None) -> bool:
+def _reaches(
+    user: str, member: str, deps: dict[str, set[str]], units: dict[str, str] | None = None
+) -> bool:
     """Can code in `user` name an item `member` defines?"""
     # A workspace-global surface input (root Cargo.toml / Cargo.lock, toolchain,
     # shared calibration harness) is compiled/consumed by every test, so any
     # measured record's test reaches it and can replay-exercise its drift.
     if not member.startswith("crates/"):
         return True
-    unit_user, unit_member = (units[user], units[member]) if units is not None else (_unit(user), _unit(member))
+    unit_user, unit_member = (
+        (units[user], units[member]) if units is not None else (_unit(user), _unit(member))
+    )
     if unit_user == unit_member:
         return True
     crate_user, crate_member = _crate(user), _crate(member)
@@ -641,13 +699,15 @@ def load_gate_rows(path: Path = GATES) -> list[dict]:
     """The record-less calibration groups (CI Type I, uniformity, SBC, ...) as pseudo-records.
 
     Their logs leave no coverage record, so without this a change to the core facet could
-    never make one of them owe a re-run. Each depends on `core` only: the ledger does not
-    name the suite behind a group, and over-attesting nothing is the safe direction."""
+    never make one of them owe a re-run. Each depends on `core`; explicit reviewed `gate_group` rules may add known
+    implementation dependencies from the immutable group name. No coverage identity
+    or numerical payload is inferred from that name."""
     if not path.is_file():
         return []
     return [
         {
             "id": f"{GATE_PREFIX}{row['group']}",
+            "gate_group": row["group"],
             "test": "",
             "dgp": "",
             "calibration_sha": row["calibration_sha"],
@@ -673,6 +733,12 @@ def record_facets(rec: dict, surface: Surface, refs: References | None = None) -
     for facet, key, patterns in surface.keys:
         value = str(rec.get(key, ""))
         if any(fnmatch.fnmatchcase(value, pattern) for pattern in patterns):
+            facets.add(facet)
+    for facet, clauses in surface.all_keys:
+        if all(
+            any(fnmatch.fnmatchcase(str(rec.get(key, "")), pattern) for pattern in patterns)
+            for key, patterns in clauses
+        ):
             facets.add(facet)
     return sorted(facets)
 
@@ -725,9 +791,7 @@ def _normalized_manifest(text: str, lock: bool) -> str:
 
 def git_blob_identity(text: str) -> str:
     data = text.encode("utf-8")
-    return hashlib.sha1(
-        f"blob {len(data)}\0".encode() + data, usedforsecurity=False
-    ).hexdigest()
+    return hashlib.sha1(f"blob {len(data)}\0".encode() + data, usedforsecurity=False).hexdigest()
 
 
 def documentation_edits_match(old: str, new: str, replacements: list[dict]) -> bool:
@@ -824,9 +888,7 @@ def documentation_certificates() -> dict[str, tuple[str, str]]:
             not isinstance(row[key], str) or not row[key].strip()
             for key in ("reviewed_by", "rationale")
         ):
-            raise SystemExit(
-                f"documentation certificate {rel}: review and rationale required"
-            )
+            raise SystemExit(f"documentation certificate {rel}: review and rationale required")
         identities = [row["from_blob"], row["to_blob"]]
         if (
             any(
@@ -835,9 +897,7 @@ def documentation_certificates() -> dict[str, tuple[str, str]]:
             )
             or identities[0] == identities[1]
         ):
-            raise SystemExit(
-                f"documentation certificate {rel}: exact distinct Git blobs required"
-            )
+            raise SystemExit(f"documentation certificate {rel}: exact distinct Git blobs required")
         old_result = _git("cat-file", "blob", identities[0])
         new_result = _git("cat-file", "blob", identities[1])
         old = old_result.stdout if old_result.returncode == 0 else None
@@ -856,6 +916,7 @@ def documentation_certificates() -> dict[str, tuple[str, str]]:
             )
         certificates[rel] = tuple(identities)
     return certificates
+
 
 def changed_paths(surface: Surface, sha: str, head: str | None = None) -> list[str]:
     """Surface paths whose content differs between `sha` and `head` (default: the
@@ -930,6 +991,7 @@ class Repo:
         self._changed: dict[tuple[str, str | None], list[str]] = {}
         self._blobs: dict[tuple[str, str], str | None] = {}
         self._gate_rows: dict[str, list[dict]] = {}
+        self._rust_trees: dict[str, dict[str, str]] = {}
 
     def resolve(self, ref: str) -> str | None:
         if ref not in self._resolved:
@@ -950,32 +1012,84 @@ class Repo:
             self._blobs[key] = result.stdout.strip() if result.returncode == 0 else None
         return self._blobs[key]
 
+    def rust_sources(self, sha: str) -> dict[str, str]:
+        """Immutable Rust sources and Cargo context for restricted equivalence proofs."""
+        if sha not in self._rust_trees:
+            listing = _git("ls-tree", "-r", "--name-only", sha)
+            if listing.returncode:
+                return {}
+            paths = [
+                p
+                for p in listing.stdout.splitlines()
+                if p.endswith(".rs") or p.endswith("/Cargo.toml") or p == "Cargo.toml"
+            ]
+            if any("\n" in p or "\r" in p for p in paths):
+                return {}
+            batch = subprocess.run(
+                ["git", "cat-file", "--batch"],
+                cwd=ROOT,
+                input="".join(f"{sha}:{path}\n" for path in paths).encode(),
+                capture_output=True,
+            )
+            if batch.returncode:
+                return {}
+            data, offset, sources = batch.stdout, 0, {}
+            try:
+                for path in paths:
+                    end = data.index(b"\n", offset)
+                    header = data[offset:end].split()
+                    if len(header) != 3 or header[1] != b"blob":
+                        return {}
+                    length = int(header[2])
+                    offset = end + 1
+                    sources[path] = data[offset : offset + length].decode("utf-8")
+                    offset += length + 1
+                if offset != len(data):
+                    return {}
+            except (ValueError, UnicodeError):
+                return {}
+            self._rust_trees[sha] = sources
+        return self._rust_trees[sha]
+
     def gate_pass(self, ledger: str, rid: str, measurement_sha: str) -> int | None:
         """Corroborate a real original pass in an immutable collection commit."""
         if ledger not in self._gate_rows:
             source = _git("show", f"{ledger}:parity/calibration_gates.toml")
             try:
-                rows = tomllib.loads(source.stdout).get("gate", []) if source.returncode == 0 else []
+                rows = (
+                    tomllib.loads(source.stdout).get("gate", []) if source.returncode == 0 else []
+                )
             except tomllib.TOMLDecodeError:
                 rows = []
             self._gate_rows[ledger] = [row for row in rows if isinstance(row, dict)]
-        matches = [row for row in self._gate_rows[ledger] if f"{GATE_PREFIX}{row.get('group')}" == rid]
+        matches = [
+            row for row in self._gate_rows[ledger] if f"{GATE_PREFIX}{row.get('group')}" == rid
+        ]
         if len(matches) != 1:
             return None
         row = matches[0]
         passed = row.get("passed")
-        return passed if (
-            type(passed) is int and passed > 0
-            and self.resolve(str(row.get("calibration_sha", ""))) == measurement_sha
-        ) else None
+        return (
+            passed
+            if (
+                type(passed) is int
+                and passed > 0
+                and self.resolve(str(row.get("calibration_sha", ""))) == measurement_sha
+            )
+            else None
+        )
 
 
 class FakeRepo(Repo):
     """A repository described by a table, for the self-test."""
 
-    def __init__(self, commits: dict[str, str], diffs: dict[tuple[str, str | None], list[str]],
-                 blobs: dict[tuple[str, str], str | None] | None = None,
-                 gate_passes: dict[tuple[str, str, str], int] | None = None):
+    def __init__(
+        self,
+        commits: dict[str, str],
+        diffs: dict[tuple[str, str | None], list[str]],
+        blobs: dict[tuple[str, str], str | None] | None = None,
+        gate_passes: dict[tuple[str, str, str], int] | None = None,
+    ):
         super().__init__()
         self.commits = commits
         self.diffs = diffs
@@ -990,6 +1104,9 @@ class FakeRepo(Repo):
 
     def blob(self, sha: str, path: str) -> str | None:
         return self.blobs.get((sha, path))
+
+    def rust_sources(self, sha: str) -> dict[str, str]:
+        return self._rust_trees.get(sha, {})
 
     def gate_pass(self, ledger: str, rid: str, measurement_sha: str) -> int | None:
         return self.gate_passes.get((ledger, rid, measurement_sha))
@@ -1030,6 +1147,9 @@ WAIVERS_HEADER = """\
 # record's test runs. A reviewed_equivalence certificate instead binds an exact
 # source diff that delegates to unchanged accepted numerical code; it never claims
 # that a new wrapper ran in an old harness. Together these cover every path.
+# `source_only = true` permits zero replay requests only for the pinned temporal
+# descriptor correction, with its exact Rust blobs and whole compiled-input proof.
+# It does not grant a general exemption from numerical replay.
 # recordless_gates = true additionally attests original passed gate rows under
 # the same exact source scope and genuine numeric replay; it never re-stamps them.
 #
@@ -1061,6 +1181,7 @@ class ReplayOutcome:
 @dataclass
 class ReviewedEquivalence:
     """Exact source review, distinct from claiming a measurement executes a wrapper."""
+
     path: str
     from_blob: str
     to_blob: str
@@ -1069,7 +1190,18 @@ class ReviewedEquivalence:
     invariant_evidence: str
 
 
-EQUIVALENCE_KINDS = frozenset({"additive_wrapper", "proof_delegation", "retained_formula"})
+RUST_EQUIVALENCE_KINDS = frozenset(
+    {
+        "rust_comments",
+        "rust_pub_use_addition",
+        "rust_terminal_test_observer",
+        "rust_reviewed_test_lint",
+        "rust_temporal_construction_metadata",
+    }
+)
+EQUIVALENCE_KINDS = (
+    frozenset({"additive_wrapper", "proof_delegation", "retained_formula"}) | RUST_EQUIVALENCE_KINDS
+)
 BLOB_ID = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
 
@@ -1086,6 +1218,7 @@ class Waiver:
     reviewed_equivalence: list[ReviewedEquivalence] = field(default_factory=list)
     recordless_gates: bool = False
     gate_ledger_commit: str = ""
+    source_only: bool = False
 
 
 def _strings(value: object) -> list[str] | None:
@@ -1112,10 +1245,15 @@ def parse_waivers(text: str) -> tuple[list[Waiver], list[str]]:
         if not paths:
             bad.append(f"{label}: `paths` must be a non-empty list of surface paths")
         replay = []
-        rows = row.get("replay")
-        if not isinstance(rows, list) or not rows:
+        source_only = row.get("source_only", False)
+        if not isinstance(source_only, bool):
+            bad.append(f"{label}: source_only must be a boolean")
+        rows = row.get("replay", [])
+        if not isinstance(rows, list) or (not rows and not source_only):
             bad.append(f"{label}: needs at least one [[waiver.replay]] record")
             rows = []
+        if source_only and rows:
+            bad.append(f"{label}: source_only cannot claim numeric replay")
         for j, item in enumerate(rows, 1):
             exercises = _strings(item.get("exercises")) if isinstance(item, dict) else None
             record = item.get("record") if isinstance(item, dict) else None
@@ -1184,6 +1322,7 @@ def parse_waivers(text: str) -> tuple[list[Waiver], list[str]]:
                     equivalence,
                     recordless,
                     ledger,
+                    source_only,
                 )
             )
     return waivers, problems
@@ -1221,6 +1360,8 @@ def render_waivers(waivers: list[Waiver]) -> str:
             f"paths = {_toml_list(w.paths, indent=True)}",
             "",
         ]
+        if w.source_only:
+            out += ["source_only = true", ""]
         for r in w.replay:
             out += [
                 "[[waiver.replay]]",
@@ -1281,18 +1422,22 @@ def _bit_equal(a: object, b: object) -> bool:
     return type(a) is type(b) and a == b
 
 
-def compare_replay(stored: dict, payload: dict, aliases: list[dict] | None = None,
-                   source_sha: str | None = None) -> list[str]:
+def compare_replay(
+    stored: dict, payload: dict, aliases: list[dict] | None = None, source_sha: str | None = None
+) -> list[str]:
     """Every emitted field of `stored` that the replayed payload does not reproduce
     bit for bit, named. The covered count is derived from observed × replicates."""
     rid = stored.get("id")
     # Only independently verified native construction migrations may normalize
     # one exact functional label. No statistical field or provenance is changed.
     for alias in aliases or []:
-        if (alias.get("record_id") == rid
-                and alias.get("original_functional") == stored.get("functional")
-                and alias.get("canonical_functional") == payload.get("functional")
-                and source_sha is not None and alias.get("source_sha") == source_sha):
+        if (
+            alias.get("record_id") == rid
+            and alias.get("original_functional") == stored.get("functional")
+            and alias.get("canonical_functional") == payload.get("functional")
+            and source_sha is not None
+            and alias.get("source_sha") == source_sha
+        ):
             payload = payload | {"functional": stored["functional"]}
     differences = []
 
@@ -1358,6 +1503,24 @@ def validate_waivers(
         if not w.recordless_gates and w.gate_ledger_commit:
             bad.append(f"{label}: gate_ledger_commit requires explicit recordless_gates opt-in")
         start, end = repo.resolve(w.from_), repo.resolve(w.to)
+        if w.source_only:
+            from _temporal_capture_transfer import ORIGINAL_SOURCE, PATH, verify_input_transfer
+
+            if (
+                start != ORIGINAL_SOURCE
+                or w.paths != [PATH]
+                or w.replay
+                or w.recordless_gates
+                or w.gate_ledger_commit
+                or len(w.reviewed_equivalence) != 1
+                or w.reviewed_equivalence[0].kind != "rust_temporal_construction_metadata"
+            ):
+                bad.append(f"{label}: source_only requires the exact temporal metadata certificate")
+            elif end:
+                try:
+                    verify_input_transfer(ROOT, end)
+                except (OSError, ValueError, subprocess.CalledProcessError) as exc:
+                    bad.append(f"{label}: source_only compiled-input proof failed: {exc}")
         if start is None:
             bad.append(f"{label}: from {w.from_!r} does not resolve to a commit in this clone")
         if end is None:
@@ -1384,23 +1547,56 @@ def validate_waivers(
                 bad.append(f"{label}: {rel}: source rationale and invariant evidence required")
             facet = surface.facet_of(rel) or CORE
             numerical_crates = (
-                "crates/antecedent-estimate/", "crates/antecedent-learn/",
-                "crates/antecedent-model/", "crates/antecedent-stats/",
-                "crates/antecedent-prob/", "crates/antecedent-kernels/",
+                "crates/antecedent-estimate/",
+                "crates/antecedent-learn/",
+                "crates/antecedent-model/",
+                "crates/antecedent-stats/",
+                "crates/antecedent-prob/",
+                "crates/antecedent-kernels/",
             )
-            numerical_path = (
-                "/tests/" in rel or
-                (rel.startswith(numerical_crates) and not rel.endswith("/lib.rs"))
+            numerical_path = "/tests/" in rel or (
+                rel.startswith(numerical_crates) and not rel.endswith("/lib.rs")
             )
-            if numerical_path or facet.startswith(("estimator.", "suite.")) or facet in ("mechanism", "design"):
+            rust_proved = False
+            if certificate.kind in RUST_EQUIVALENCE_KINDS:
+                if not start or not end or not rel.endswith(".rs"):
+                    bad.append(f"{label}: {rel}: Rust proof requires committed Rust sources")
+                else:
+                    old_sources, new_sources = repo.rust_sources(start), repo.rust_sources(end)
+                    if rel not in old_sources or rel not in new_sources:
+                        bad.append(f"{label}: {rel}: missing immutable Rust proof source")
+                    else:
+                        proof_problem = _rust_equivalence.prove(
+                            certificate.kind,
+                            rel,
+                            old_sources[rel],
+                            new_sources[rel],
+                            old_sources,
+                            new_sources,
+                        )
+                        if proof_problem:
+                            bad.append(
+                                f"{label}: {rel}: Rust equivalence proof failed: {proof_problem}"
+                            )
+                        else:
+                            rust_proved = True
+            if (
+                numerical_path
+                or facet.startswith(("estimator.", "suite."))
+                or facet in ("mechanism", "design")
+            ) and not rust_proved:
                 bad.append(f"{label}: {rel}: numerical owners require exercised numeric replay")
             if certificate.from_blob and not BLOB_ID.fullmatch(certificate.from_blob):
                 bad.append(f"{label}: {rel}: from_blob is not a Git object identity")
             if not BLOB_ID.fullmatch(certificate.to_blob):
                 bad.append(f"{label}: {rel}: to_blob is not a Git object identity")
-            if start and end and (
-                certificate.from_blob != (repo.blob(start, rel) or "")
-                or certificate.to_blob != repo.blob(end, rel)
+            if (
+                start
+                and end
+                and (
+                    certificate.from_blob != (repo.blob(start, rel) or "")
+                    or certificate.to_blob != repo.blob(end, rel)
+                )
             ):
                 bad.append(f"{label}: {rel}: source equivalence does not bind exact from/to blobs")
         # Scope of the evidence.
@@ -1420,7 +1616,9 @@ def validate_waivers(
             exercised |= set(r.exercises)
         for rel in w.paths:
             if rel not in exercised and rel not in reviewed:
-                bad.append(f"{label}: no replay record exercises or reviewed certificate covers {rel}")
+                bad.append(
+                    f"{label}: no replay record exercises or reviewed certificate covers {rel}"
+                )
         measured_at_from = [
             rec
             for rec in records
@@ -1575,10 +1773,7 @@ def assess(
     out = []
     for sha, recs in sorted(by_sha.items()):
         resolved = repo.resolve(sha) if sha else None
-        facets = {
-            str(rec.get("id")): set(record_facets(rec, surface, refs))
-            for rec in recs
-        }
+        facets = {str(rec.get("id")): set(record_facets(rec, surface, refs)) for rec in recs}
         drifted: dict[str, list[str]] = {}
         stale: list[dict] = []
         waived: dict[str, str] = {}
@@ -1592,21 +1787,23 @@ def assess(
                     continue
                 eligible = checked.valid
                 if rid.startswith(GATE_PREFIX):
-                    eligible = [w for w in eligible if w.recordless_gates and
-                                isinstance(rec.get("passed"), int) and
-                                not isinstance(rec.get("passed"), bool) and rec["passed"] > 0 and
-                                repo.gate_pass(
-                                    repo.resolve(w.gate_ledger_commit) or "", rid, resolved
-                                ) == rec["passed"]]
+                    eligible = [
+                        w
+                        for w in eligible
+                        if w.recordless_gates
+                        and isinstance(rec.get("passed"), int)
+                        and not isinstance(rec.get("passed"), bool)
+                        and rec["passed"] > 0
+                        and repo.gate_pass(repo.resolve(w.gate_ledger_commit) or "", rid, resolved)
+                        == rec["passed"]
+                    ]
                 for waiver in eligible:
                     if waiver_applies(waiver, resolved, facets[rid], paths, surface, repo):
                         waived[rid] = waiver.id
                         break
                 else:
                     stale.append(rec)
-        out.append(
-            Assessment(sha, resolved, recs, facets, drifted, stale, waived, waiver_problems)
-        )
+        out.append(Assessment(sha, resolved, recs, facets, drifted, stale, waived, waiver_problems))
     return out
 
 
@@ -1813,6 +2010,14 @@ def replay_payloads(label_logs: list[Path]) -> dict[str, dict]:
 def load_replay_capture(out_dir: Path, source_sha: str, records: list[str]) -> dict[str, dict]:
     """Verify raw captured logs against an exact source/selection, without running work."""
     capture = json.loads(read_text(out_dir / "raw-replay-capture.json"))
+    if capture.get("version") == 3:
+        from _temporal_capture_transfer import load_composite
+
+        return load_composite(out_dir, capture, source_sha, records, ROOT, replay_payloads, _bit_equal)
+    if capture.get("version") == 2:
+        from _temporal_capture_transfer import load_transfer
+
+        return load_transfer(out_dir, capture, source_sha, records, ROOT, replay_payloads, _bit_equal)
     if capture.get("version") != 1 or capture.get("source_sha") != source_sha:
         raise ValueError("capture does not bind this exact source commit")
     if capture.get("records") != records:
@@ -1821,8 +2026,11 @@ def load_replay_capture(out_dir: Path, source_sha: str, records: list[str]) -> d
     if not isinstance(logs, dict) or not logs:
         raise ValueError("capture requires original raw replay logs")
     for name, digest in logs.items():
-        if (not isinstance(name, str) or Path(name).name != name
-                or hashlib.sha256((out_dir / name).read_bytes()).hexdigest() != digest):
+        if (
+            not isinstance(name, str)
+            or Path(name).name != name
+            or hashlib.sha256((out_dir / name).read_bytes()).hexdigest() != digest
+        ):
             raise ValueError("captured raw replay log changed")
     payloads = replay_payloads([out_dir / name for name in logs])
     if not _bit_equal(payloads, capture.get("payloads")):
@@ -1830,8 +2038,312 @@ def load_replay_capture(out_dir: Path, source_sha: str, records: list[str]) -> d
     return payloads
 
 
-def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
-           waiver_file: Path = WAIVERS) -> int:
+def parent_replay_environment(records: list[dict]) -> dict[str, str]:
+    """Select the real parent protocol from the evidence being replayed.
+
+    Legacy records predate the explicit three-quarter discovery split. They
+    must execute version 1, with its actual half split, original DGP and key;
+    this does not relabel a version-2 result as old evidence.
+    """
+    parent_path = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs"
+    versions = set()
+    for record in records:
+        if str(record.get("test", "")).rpartition("::")[0] != parent_path:
+            continue
+        functional = record.get("functional")
+        if not isinstance(functional, str) or not functional:
+            raise ValueError("parent replay requires the stored functional protocol")
+        if ".discovery_fraction_0_75" in functional:
+            versions.add(2)
+        elif ".discovery_fraction_" in functional:
+            raise ValueError(f"unknown parent discovery protocol in {functional!r}")
+        else:
+            versions.add(1)
+    if len(versions) > 1:
+        raise ValueError("mixed parent version-1/version-2 records require separate replay groups")
+    if not versions:
+        return {}
+    version = versions.pop()
+    out = {"ANTECEDENT_PARENT_PROTOCOL_VERSION": str(version)}
+    if version == 1:
+        out.update(
+            {
+                "ANTECEDENT_CALIBRATION_NSIM": "400",
+                "ANTECEDENT_CALIBRATION_RECHECK_NSIM": "2000",
+                "ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM": "2000",
+            }
+        )
+    return out
+
+
+def synthesis_replay_environment(records: list[dict]) -> dict[str, str]:
+    """Replay the genuine stored synthesis producer, rejecting mixed identities."""
+    path = "crates/antecedent/tests/evidence_synthesis_calibration.rs"
+    versions = set()
+    for record in records:
+        if str(record.get("test", "")).rpartition("::")[0] != path:
+            continue
+        if "::pooled_fixed_effect_" in str(record.get("test", "")):
+            continue
+        method = record.get("interval_method")
+        if method == "hksj_t":
+            versions.add(1)
+        elif (
+            method == "independent_gaussian_study_t" and record.get("role") == "conservative_point"
+        ):
+            versions.add(2)
+        else:
+            raise ValueError(f"unknown stored synthesis replay protocol {method!r}")
+    if len(versions) > 1:
+        raise ValueError(
+            "mixed synthesis version-1/version-2 records require separate replay groups"
+        )
+    return {"ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION": str(versions.pop())} if versions else {}
+
+
+def weighted_split_replay_environment(records: list[dict]) -> dict[str, str]:
+    """Run the stored weighted split protocol rather than an inherited override."""
+    versions = set()
+    marker = "weighted_population_total_effect.discovery_fraction_0_75.conflict_resolution_treatment_invariant"
+    for record in records:
+        if not str(record.get("test", "")).startswith(
+            "crates/antecedent/tests/sample_split_weighted_effect_calibration.rs::"
+        ):
+            continue
+        functional = record.get("functional")
+        if record.get("interval_method") != "student_t_sandwich_effective_n":
+            raise ValueError("unknown stored weighted split interval construction")
+        if (
+            functional == marker + ".variance_hc3"
+            and record.get("se_kind") == "hc3_sampling_weighted"
+        ):
+            versions.add(3)
+        elif record.get("se_kind") != "hc1_sampling_weighted":
+            raise ValueError("stored weighted split variance differs from its protocol")
+        elif functional == "weighted_population_total_effect":
+            versions.add(1)
+        elif functional == marker:
+            versions.add(2)
+        else:
+            raise ValueError(f"unknown stored weighted split protocol {functional!r}")
+    if len(versions) > 1:
+        raise ValueError("mixed weighted split protocols require separate replay groups")
+    return {"ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL": str(versions.pop())} if versions else {}
+
+
+def weighted_cluster_replay_environment(records: list[dict]) -> dict[str, str]:
+    """Choose the genuine stored normal or Student cluster scoring protocol."""
+    tests = {
+        "weighted_aipw_cluster_dml_interval",
+        "weighted_dml_cluster_interval",
+        "weighted_dr_learner_cluster_interval",
+    }
+    versions = set()
+    for record in records:
+        source, _, test = str(record.get("test", "")).rpartition("::")
+        if (
+            source != "crates/antecedent/tests/weighted_interval_calibration.rs"
+            or test not in tests
+        ):
+            continue
+        identity = record.get("interval_method"), record.get("functional")
+        if identity == ("analytic_se", "all_observed.mean+weights=sampling"):
+            versions.add(1)
+        elif identity == (
+            "student_analytic",
+            "all_observed.mean+reference=cluster_df+weights=sampling",
+        ):
+            versions.add(2)
+        else:
+            raise ValueError(f"unknown stored weighted cluster protocol {identity!r}")
+    if len(versions) > 1:
+        raise ValueError("mixed weighted cluster protocols require separate replay groups")
+    return {"ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL": str(versions.pop())} if versions else {}
+
+
+def legacy_prefix_replay_environments(
+    records: list[dict], history: dict | None = None
+) -> list[dict[str, str]]:
+    """Replay reviewed original-source prefix budgets, never inferred conditional N."""
+    path = ROOT / "parity" / "calibration_validation_history.json"
+    if history is None:
+        if not path.is_file():
+            return []
+        history = json.loads(read_text(path))
+    if history.get("schema") != "calibration_validation_history.v1":
+        raise ValueError("unknown calibration validation history schema")
+    protocol = history.get("legacy_prefix_protocol", {})
+    if protocol.get("id") != "original_source_prefix_completion.v1":
+        raise ValueError("unknown legacy prefix completion protocol")
+    entries = history.get("legacy_prefix_completions", [])
+    by_id = {entry["record_id"]: entry for entry in entries}
+    if len(by_id) != len(entries):
+        raise ValueError("duplicate legacy prefix replay history")
+    recipes = []
+    matched = 0
+    for record in records:
+        entry = by_id.get(record.get("id"))
+        if entry is None or entry.get("calibration_sha") != record.get("calibration_sha"):
+            continue
+        matched += 1
+        if (
+            not str(record.get("test", "")).startswith(
+                "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::"
+            )
+            or ".discovery_fraction_0_75" not in str(record.get("functional", ""))
+            or entry.get("calibration_sha") != protocol.get("source_sha")
+            or any(entry.get(key) != record.get(key) for key in ("test", "functional", "nominal"))
+            or record.get("decision_protocol")
+            or any(point.get("decision_protocol") for point in record.get("grid", []))
+        ):
+            raise ValueError("legacy prefix recipe does not identify the stored parent protocol")
+        body = {
+            key: value
+            for key, value in record.items()
+            if key not in {"facets", "surface_list_blob"}
+        }
+        payload_hash = hashlib.sha256(
+            json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if payload_hash != entry.get("measurement_payload_sha256"):
+            raise ValueError("legacy prefix recipe differs from the stored measurement payload")
+        points = entry.get("points", [])
+        if (
+            len(points) != 3
+            or any(type(point.get("point")) is not int for point in points)
+            or {point.get("point") for point in points} != {0, 1, 2}
+        ):
+            raise ValueError("legacy prefix recipe must bind all three fixed grid points")
+        recipe = {}
+        stored_points = {point["point"]: point for point in record.get("grid", [])}
+        for point in points:
+            index, budget = point["point"], point.get("planned_attempts")
+            if type(budget) is not int or budget not in {2000, 4000}:
+                raise ValueError("unknown legacy prefix fixed attempt budget")
+            scored = point.get("scored")
+            covered = point.get("covered")
+            skipped = point.get("skipped")
+            if (
+                any(type(value) is not int for value in (scored, covered, skipped))
+                or not 0 <= covered <= scored <= budget
+                or scored == 0
+                or skipped != 0
+                or stored_points.get(index, {}).get("replicates") != scored
+                or not _bit_equal(stored_points[index].get("observed"), covered / scored)
+            ):
+                raise ValueError("legacy prefix recipe counters do not match the stored grid")
+            for key in ("log_sha256", "tally_sha256"):
+                if not re.fullmatch(r"[0-9a-f]{64}", str(point.get(key, ""))):
+                    raise ValueError("legacy prefix recipe lacks its raw evidence hash")
+            if budget == 4000:
+                if point.get("computed_indices") != [2000, 4000] or not re.fullmatch(
+                    r"[0-9a-f]{64}", str(point.get("prefix_tally_sha256", ""))
+                ):
+                    raise ValueError("legacy prefix recipe lacks the retained prefix receipt")
+            elif point.get("retained_original_point") is not True:
+                raise ValueError("legacy prefix recipe must identify an untouched original point")
+            recipe[index] = budget
+        recipes.append(recipe)
+    if not recipes:
+        return []
+    if matched != len(records) or any(recipe != recipes[0] for recipe in recipes[1:]):
+        raise ValueError("mixed legacy prefix recipes require separate replay groups")
+    return [
+        {
+            "ANTECEDENT_CALIBRATION_GRID_POINTS": str(point),
+            "ANTECEDENT_CALIBRATION_NSIM": str(budget),
+            "ANTECEDENT_CALIBRATION_RECHECK_NSIM": str(budget + 1),
+        }
+        for point, budget in sorted(recipes[0].items())
+    ]
+
+
+def coverage_family_replay_environments(records: list[dict]) -> list[dict[str, str]]:
+    """Reproduce stored validation data without activating a new validation family."""
+    ensure_scripts_on_path()
+    import calibration_decision as decision
+    import calibration_family as family
+
+    active = [
+        "decision_protocol" in record
+        or any("decision_protocol" in point for point in record.get("grid", []))
+        for record in records
+    ]
+    if not any(active):
+        return []
+    if not all(active) or len({record.get("calibration_sha") for record in records}) != 1:
+        raise ValueError("mixed source or legacy/family data require separate replay groups")
+    source = records[0].get("calibration_sha")
+    if not isinstance(source, str) or not re.fullmatch(r"[0-9a-f]{40}", source):
+        raise ValueError("family replay requires its full original measured source SHA")
+    try:
+        expected_config = family.config_at_sha(source)
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ValueError("family replay cannot verify the original source manifest") from error
+    recipes = []
+    for record in records:
+        points = record.get("grid", [])
+        if (
+            len(points) != 3
+            or any(type(point.get("point")) is not int for point in points)
+            or {point.get("point") for point in points} != {0, 1, 2}
+        ):
+            raise ValueError("family replay requires complete recorded grid provenance")
+        recipe = {}
+        for point in points:
+            value = point.get("decision_protocol")
+            if value is None:
+                raise ValueError(
+                    "family replay needs an explicit attempt receipt for a named-boundary point"
+                )
+            decision.validate_decision(
+                value,
+                float(record["nominal"]),
+                observed=float(point["observed"]),
+                replicates=point["replicates"],
+                expected_config=expected_config,
+                role=point.get("role", record.get("role")),
+            )
+            recipe[point["point"]] = value["planned_replicates"]
+        if not any(
+            _bit_equal(record.get("decision_protocol"), point["decision_protocol"])
+            for point in points
+        ):
+            raise ValueError("family replay governing metadata differs from its grid")
+        recipes.append(recipe)
+    if any(recipe != recipes[0] for recipe in recipes[1:]):
+        raise ValueError("mixed family attempt budgets require separate replay groups")
+    return [
+        {
+            decision.ENV: decision.canonical_json(expected_config),
+            "ANTECEDENT_CALIBRATION_GRID_POINTS": str(point),
+            "ANTECEDENT_CALIBRATION_NSIM": str(budget),
+            "ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM": str(budget),
+            "ANTECEDENT_CALIBRATION_RECHECK_NSIM": str(max(2000, budget + 1)),
+        }
+        for point, budget in sorted(recipes[0].items())
+    ]
+
+
+def replay_thread_environment(value: str | None) -> dict[str, str]:
+    """Preserve an explicit execution cap without inheriting measurement settings."""
+    if value is None:
+        threads = 1
+    else:
+        try:
+            threads = int(value)
+        except ValueError as error:
+            raise ValueError("replay worker cap must be a positive integer") from error
+        if threads < 1:
+            raise ValueError("replay worker cap must be a positive integer")
+    return {"ANTECEDENT_CALIBRATION_THREADS": str(threads)}
+
+
+def replay(
+    waiver_id: str, dry_run: bool, reuse_capture: bool = False, waiver_file: Path = WAIVERS
+) -> int:
+    from _calibration_replay_recipes import from_registry
+
     surface = load_surface()
     if surface.errors:
         for problem in surface.errors:
@@ -1877,12 +2389,42 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
             return 1
         for g in groups:
             plan[g.index] = g
+    group_protocols = {}
+    group_invocations = {}
+    try:
+        thread_env = replay_thread_environment(os.environ.get("ANTECEDENT_CALIBRATION_THREADS"))
+        for g in plan.values():
+            selected = [
+                rec
+                for rec in stored
+                if any(match.index == g.index for match in matches[str(rec["id"])])
+            ]
+            group_invocations[g.index] = (
+                coverage_family_replay_environments(selected)
+                or legacy_prefix_replay_environments(selected)
+                or from_registry(selected, ROOT)
+                or [{}]
+            )
+            group_protocols[g.index] = {
+                **parent_replay_environment(selected),
+                **synthesis_replay_environment(selected),
+                **weighted_split_replay_environment(selected),
+                **weighted_cluster_replay_environment(selected),
+            }
+    except ValueError as error:
+        print(f"FAIL: {error}")
+        return 1
     print(
         f"replay of waiver {waiver_id} at {head}: {len(stored)} record(s), "
         f"{len(plan)} gate group(s)"
     )
     for g in plan.values():
-        print(f"  group {g.index}{' (long)' if g.long else ''}: {g.label}")
+        protocol = group_protocols[g.index].get("ANTECEDENT_PARENT_PROTOCOL_VERSION")
+        detail = f" [stored parent protocol {protocol}]" if protocol else ""
+        synthesis = group_protocols[g.index].get("ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION")
+        if synthesis:
+            detail += f" [stored synthesis protocol {synthesis}]"
+        print(f"  group {g.index}{' (long)' if g.long else ''}: {g.label}{detail}")
     if dry_run:
         return 0
     out_dir = REPLAY_DIR / waiver_id
@@ -1896,19 +2438,22 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
         except (OSError, KeyError, ValueError, TypeError, SystemExit) as exc:
             print(f"FAIL: cannot reuse replay capture: {exc}")
             return 1
+    # An inherited smoke/recheck/confirmation setting cannot choose replay data.
+    # Protocol overrides are derived only from the stored group's records.
     env = {
         k: v
         for k, v in os.environ.items()
-        if k
-        not in (
-            "ANTECEDENT_CALIBRATION_NSIM",
-            "ANTECEDENT_CALIBRATION_RECHECK_NSIM",
-            "ANTECEDENT_CALIBRATION_DRY_RUN",
-            "ANTECEDENT_CALIBRATION_GRID_POINT",
-            "ANTECEDENT_CALIBRATION_GRID_POINTS",
-        )
+        if not k.startswith("ANTECEDENT_CALIBRATION_")
+        and k
+        not in {
+            "ANTECEDENT_PARENT_PROTOCOL_VERSION",
+            "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
+            "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL",
+            "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL",
+        }
     }
-    for g in ([] if reuse_capture else plan.values()):
+    env.update(thread_env)
+    for g in [] if reuse_capture else plan.values():
         safe = _safe_label(g.label)
         names = group_log_names(safe)
         # The gate writes into the collector's log directory; keep what the
@@ -1921,11 +2466,21 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
             if (out_dir / name).exists():
                 (out_dir / name).unlink()
         print(f"== replay group {g.index}: {g.label} ==", flush=True)
-        status = subprocess.run(
-            ["bash", str(ROOT / "scripts" / "gate_calibration.sh")],
-            cwd=ROOT,
-            env={**env, "ANTECEDENT_CALIBRATION_SHARD": f"{g.index - 1}/{total}"},
-        ).returncode
+        statuses = []
+        for invocation in group_invocations[g.index]:
+            statuses.append(
+                subprocess.run(
+                    ["bash", str(ROOT / "scripts" / "gate_calibration.sh")],
+                    cwd=ROOT,
+                    env={
+                        **env,
+                        **group_protocols[g.index],
+                        **invocation,
+                        "ANTECEDENT_CALIBRATION_SHARD": f"{g.index - 1}/{total}",
+                    },
+                ).returncode
+            )
+        status = any(statuses)
         for name in names:
             if (LOG_DIR / name).exists():
                 shutil.move(str(LOG_DIR / name), str(out_dir / name))
@@ -1942,16 +2497,34 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
             # its records unmerged; every stored record of the group then differs.
             print(f"note: group {g.label}: {refused}")
     if not reuse_capture:
-        names = [name for g in plan.values() for name in group_log_names(_safe_label(g.label))
-                 if (out_dir / name).is_file()]
-        write_text(capture_file, json.dumps({
-            "version": 1, "source_sha": head, "records": [r.record for r in waiver.replay],
-            "logs": {name: hashlib.sha256((out_dir / name).read_bytes()).hexdigest() for name in names},
-            "payloads": payloads,
-        }, indent=2, sort_keys=True) + "\n")
+        names = [
+            name
+            for g in plan.values()
+            for name in group_log_names(_safe_label(g.label))
+            if (out_dir / name).is_file()
+        ]
+        write_text(
+            capture_file,
+            json.dumps(
+                {
+                    "version": 1,
+                    "source_sha": head,
+                    "records": [r.record for r in waiver.replay],
+                    "logs": {
+                        name: hashlib.sha256((out_dir / name).read_bytes()).hexdigest()
+                        for name in names
+                    },
+                    "payloads": payloads,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+        )
     # Pending declarations return no aliases. Verified mappings independently
     # bind immutable original evidence, native construction proof and raw replay.
     from calibration_key_aliases import validated_aliases
+
     try:
         aliases = validated_aliases(ROOT)
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
@@ -1976,10 +2549,11 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
     for difference in differences:
         print(f"DIFFERS: {difference}")
     verdict = "bit-identical" if identical else "NOT identical: the waiver is invalid"
-    print(
-        f"replay of waiver {waiver_id}: {verdict}; "
-        f"outcome written to {waiver_file}"
-    )
+    action = "replay"
+    if waiver.source_only:
+        action = "source-only verification"
+        verdict = "verified exact source equivalence; zero numerical replays"
+    print(f"{action} of waiver {waiver_id}: {verdict}; outcome written to {waiver_file}")
     print(f"replay logs: {out_dir.relative_to(ROOT)}")
     return 0 if identical else 1
 
@@ -2123,9 +2697,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
     def run(waiver: Waiver, repo: FakeRepo | None = None, registry: list[dict] | None = None):
         repo = repo or diffs()
         checked = validate_waivers(base, [waiver], registry or records, repo, refs)
-        assessed = assess(
-            base, records, waivers=[waiver], repo=repo, registry=registry, refs=refs
-        )
+        assessed = assess(base, records, waivers=[waiver], repo=repo, registry=registry, refs=refs)
         owed = {str(r["id"]) for a in assessed for r in a.stale}
         waived = {rid: wid for a in assessed for rid, wid in a.waived.items()}
         return checked.problems, owed, waived, assessed
@@ -2293,8 +2865,16 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         "the replay comparison is bit for bit and names the differing field",
     )
     grid = [
-        {"point": k, "n_min": n, "n_max": n, "observed": 0.9, "mcse": 0.015,
-         "replicates": 400, "boundary": False, "role": "gated"}
+        {
+            "point": k,
+            "n_min": n,
+            "n_max": n,
+            "observed": 0.9,
+            "mcse": 0.015,
+            "replicates": 400,
+            "boundary": False,
+            "role": "gated",
+        }
         for k, n in enumerate((200, 400, 800))
     ]
     gridded = cf | {"grid": grid}
@@ -2315,7 +2895,10 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
     ledger = "4" * 40
     blob = "b" * 40
     certificate = ReviewedEquivalence(
-        wrapper, "", blob, "proof_delegation",
+        wrapper,
+        "",
+        blob,
+        "proof_delegation",
         "New opaque proof wrapper delegates the original fitted interval unchanged.",
         "Original engine numeric payload fingerprint plus independent wrapper replay tests.",
     )
@@ -2325,11 +2908,15 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
     source_repo = FakeRepo(
         commits | {ledger: ledger},
         {(start, end): [helpers, wrapper], (start, None): [helpers, wrapper], (end, None): []},
-        {(end, wrapper): blob}, {(ledger, "gate.original", start): 2},
+        {(end, wrapper): blob},
+        {(ledger, "gate.original", start): 2},
     )
     source_waiver = good(
-        paths=[helpers, wrapper], replay=[ReplayRecord("cf", [helpers])],
-        reviewed_equivalence=[certificate], recordless_gates=True, gate_ledger_commit=ledger,
+        paths=[helpers, wrapper],
+        replay=[ReplayRecord("cf", [helpers])],
+        reviewed_equivalence=[certificate],
+        recordless_gates=True,
+        gate_ledger_commit=ledger,
     )
 
     def source_check(waiver, rows=gate_records, repo=source_repo):
@@ -2338,50 +2925,100 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         return checked.problems, {rid for a in result for rid in a.waived}
 
     problems, inherited = source_check(source_waiver)
-    expect(problems == [] and inherited == {"cf", "gate.original"},
-           "only a corroborated original gate inherits an exact-scope numerical replay waiver")
+    expect(
+        problems == [] and inherited == {"cf", "gate.original"},
+        "only a corroborated original gate inherits an exact-scope numerical replay waiver",
+    )
     parsed, problems = parse_waivers(render_waivers([source_waiver]))
-    expect(problems == [] and parsed == [source_waiver],
-           "source certificates and explicit gate opt-in round-trip without changing evidence")
-    no_gates = good(paths=[helpers, wrapper], replay=[ReplayRecord("cf", [helpers])],
-                    reviewed_equivalence=[certificate])
+    expect(
+        problems == [] and parsed == [source_waiver],
+        "source certificates and explicit gate opt-in round-trip without changing evidence",
+    )
+    no_gates = good(
+        paths=[helpers, wrapper],
+        replay=[ReplayRecord("cf", [helpers])],
+        reviewed_equivalence=[certificate],
+    )
     expect(source_check(no_gates)[1] == {"cf"}, "gate inheritance requires explicit opt-in")
-    expect(source_check(source_waiver, [cf, gate | {"passed": 3}])[1] == {"cf"},
-           "a changed gate pass count cannot inherit an earlier real pass")
-    expect(source_check(source_waiver, [cf, gate | {"calibration_sha": other}])[1] == {"cf"},
-           "a gate from another measurement cannot borrow the original pass")
-    wrong_blob = ReviewedEquivalence(wrapper, "", "c" * 40, certificate.kind,
-                                     certificate.rationale, certificate.invariant_evidence)
-    broken = good(paths=source_waiver.paths, replay=source_waiver.replay,
-                  reviewed_equivalence=[wrong_blob], recordless_gates=True, gate_ledger_commit=ledger)
-    expect(any("exact from/to blobs" in p for p in source_check(broken)[0]),
-           "source-only review binds the exact committed source objects")
+    expect(
+        source_check(source_waiver, [cf, gate | {"passed": 3}])[1] == {"cf"},
+        "a changed gate pass count cannot inherit an earlier real pass",
+    )
+    expect(
+        source_check(source_waiver, [cf, gate | {"calibration_sha": other}])[1] == {"cf"},
+        "a gate from another measurement cannot borrow the original pass",
+    )
+    wrong_blob = ReviewedEquivalence(
+        wrapper,
+        "",
+        "c" * 40,
+        certificate.kind,
+        certificate.rationale,
+        certificate.invariant_evidence,
+    )
+    broken = good(
+        paths=source_waiver.paths,
+        replay=source_waiver.replay,
+        reviewed_equivalence=[wrong_blob],
+        recordless_gates=True,
+        gate_ledger_commit=ledger,
+    )
+    expect(
+        any("exact from/to blobs" in p for p in source_check(broken)[0]),
+        "source-only review binds the exact committed source objects",
+    )
     broken.outcome = None
-    expect(source_check(broken)[1] == set(), "missing real replay outcome grants no gate or record waiver")
-    broken = good(paths=source_waiver.paths, replay=source_waiver.replay,
-                  reviewed_equivalence=[certificate], recordless_gates=True, gate_ledger_commit=ledger,
-                  outcome=ReplayOutcome(end, ["cf"], False, ["cf: numeric payload changed"], {}))
+    expect(
+        source_check(broken)[1] == set(),
+        "missing real replay outcome grants no gate or record waiver",
+    )
+    broken = good(
+        paths=source_waiver.paths,
+        replay=source_waiver.replay,
+        reviewed_equivalence=[certificate],
+        recordless_gates=True,
+        gate_ledger_commit=ledger,
+        outcome=ReplayOutcome(end, ["cf"], False, ["cf: numeric payload changed"], {}),
+    )
     expect(source_check(broken)[1] == set(), "changed numerical replay grants no gate inheritance")
-    shifted_repo = FakeRepo(source_repo.commits,
-                            source_repo.diffs | {(end, None): [helpers]},
-                            source_repo.blobs, source_repo.gate_passes)
-    expect(source_check(source_waiver, repo=shifted_repo)[1] == set(),
-           "drift after the reviewed destination invalidates recordless gate inheritance")
-    numeric_certificate = ReviewedEquivalence(compile_rs, "", blob, "retained_formula", "same", "review")
+    shifted_repo = FakeRepo(
+        source_repo.commits,
+        source_repo.diffs | {(end, None): [helpers]},
+        source_repo.blobs,
+        source_repo.gate_passes,
+    )
+    expect(
+        source_check(source_waiver, repo=shifted_repo)[1] == set(),
+        "drift after the reviewed destination invalidates recordless gate inheritance",
+    )
+    numeric_certificate = ReviewedEquivalence(
+        compile_rs, "", blob, "retained_formula", "same", "review"
+    )
     numerical = good(reviewed_equivalence=[numeric_certificate])
-    expect(any("numerical owners require exercised numeric replay" in p for p in run(numerical)[0]),
-           "source review alone cannot certify a changed numerical owner")
+    expect(
+        any("numerical owners require exercised numeric replay" in p for p in run(numerical)[0]),
+        "source review alone cannot certify a changed numerical owner",
+    )
     functional_record = cf | {"functional": "old-proof"}
     canonical_payload = payload | {"functional": "scientific-proof"}
-    exact_alias = {"record_id": "cf", "original_functional": "old-proof",
-                   "canonical_functional": "scientific-proof", "source_sha": end}
-    expect(compare_replay(functional_record, canonical_payload) != []
-           and compare_replay(functional_record, canonical_payload, [exact_alias], end) == []
-           and compare_replay(functional_record, canonical_payload, [exact_alias], other) != []
-           and compare_replay(functional_record, canonical_payload | {"observed": 0.9},
-                              [exact_alias], end) != [],
-           "verified exact identity migration changes no numeric comparison or source binding")
+    exact_alias = {
+        "record_id": "cf",
+        "original_functional": "old-proof",
+        "canonical_functional": "scientific-proof",
+        "source_sha": end,
+    }
+    expect(
+        compare_replay(functional_record, canonical_payload) != []
+        and compare_replay(functional_record, canonical_payload, [exact_alias], end) == []
+        and compare_replay(functional_record, canonical_payload, [exact_alias], other) != []
+        and compare_replay(
+            functional_record, canonical_payload | {"observed": 0.9}, [exact_alias], end
+        )
+        != [],
+        "verified exact identity migration changes no numeric comparison or source binding",
+    )
     from unittest.mock import patch
+
     cli_calls = []
 
     def captured_replay(wid, dry_run, reuse, path):
@@ -2390,14 +3027,19 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
 
     external = Path("/private/tmp/isolated-replay-plan.toml")
     with patch.dict(globals(), {"replay": captured_replay}):
-        with patch.object(sys, "argv", ["facets", "replay", "--waiver", "x", "--dry-run",
-                                       "--waiver-file", str(external)]):
+        with patch.object(
+            sys,
+            "argv",
+            ["facets", "replay", "--waiver", "x", "--dry-run", "--waiver-file", str(external)],
+        ):
             external_status = main()
         with patch.object(sys, "argv", ["facets", "replay", "--waiver", "x", "--reuse-capture"]):
             default_status = main()
-    expect(external_status == default_status == 0 and cli_calls == [
-        ("x", True, False, external), ("x", False, True, WAIVERS)],
-        "external replay plan CLI preserves defaults and directs both input and outcome path")
+    expect(
+        external_status == default_status == 0
+        and cli_calls == [("x", True, False, external), ("x", False, True, WAIVERS)],
+        "external replay plan CLI preserves defaults and directs both input and outcome path",
+    )
     committed, committed_problems = load_waivers()
     registry = load_records()
     expect(
@@ -2419,11 +3061,24 @@ def _grid_merge_self_test(expect) -> None:
 
     def line(point: int, n: int, observed: float, boundary: bool = False, **extra) -> str:
         payload = {
-            "id": "cov.x", "query": "AverageEffect", "estimator": "aipw", "nominal": 0.95,
-            "n_min": n, "n_max": n, "replicates_min": 199, "posterior_draws_min": 0,
-            "unidentified_mass_max": 0.0, "observed": observed, "mcse": 0.011,
-            "replicates": 400, "bound_replicates": 400, "grid_point": point,
-            "boundary": boundary, "role": "gated", "test": "t", "dgp": "d",
+            "id": "cov.x",
+            "query": "AverageEffect",
+            "estimator": "aipw",
+            "nominal": 0.95,
+            "n_min": n,
+            "n_max": n,
+            "replicates_min": 199,
+            "posterior_draws_min": 0,
+            "unidentified_mass_max": 0.0,
+            "observed": observed,
+            "mcse": 0.011,
+            "replicates": 400,
+            "bound_replicates": 400,
+            "grid_point": point,
+            "boundary": boundary,
+            "role": "gated",
+            "test": "t",
+            "dgp": "d",
         } | extra
         return "calibration-record " + json.dumps(payload)
 
@@ -2440,8 +3095,10 @@ def _grid_merge_self_test(expect) -> None:
             except SystemExit as refused:
                 return None, str(refused)
 
-    full = {f"g.p{k}.log": [line(k, n, obs)] for k, (n, obs) in enumerate(
-        [(250, 0.945), (500, 0.948), (1000, 0.951)])}
+    full = {
+        f"g.p{k}.log": [line(k, n, obs)]
+        for k, (n, obs) in enumerate([(250, 0.945), (500, 0.948), (1000, 0.951)])
+    }
     rec, _ = merged(full)
     expect(
         rec is not None
@@ -2485,12 +3142,19 @@ def _grid_merge_self_test(expect) -> None:
             write_text(out_dir / name, line(point, n, 0.9) + "\n")
             logs[name] = hashlib.sha256((out_dir / name).read_bytes()).hexdigest()
         payloads = replay_payloads([out_dir / name for name in logs])
-        capture = {"version": 1, "source_sha": "a" * 40, "records": ["cov.x"],
-                   "logs": logs, "payloads": payloads}
+        capture = {
+            "version": 1,
+            "source_sha": "a" * 40,
+            "records": ["cov.x"],
+            "logs": logs,
+            "payloads": payloads,
+        }
         capture_path = out_dir / "raw-replay-capture.json"
         write_text(capture_path, json.dumps(capture))
-        expect(load_replay_capture(out_dir, "a" * 40, ["cov.x"]) == payloads,
-               "capture reuses actual parsed synthetic raw grid logs without measurements")
+        expect(
+            load_replay_capture(out_dir, "a" * 40, ["cov.x"]) == payloads,
+            "capture reuses actual parsed synthetic raw grid logs without measurements",
+        )
         rejected = 0
         for sha, ids in (("b" * 40, ["cov.x"]), ("a" * 40, ["cov.other"])):
             try:
@@ -2503,6 +3167,7 @@ def _grid_merge_self_test(expect) -> None:
         except ValueError:
             rejected += 1
         expect(rejected == 3, "capture refuses changed source, selection or raw numeric log")
+
 
 def _attestation_gate_self_test(
     base: Surface, refs: References, records: list[dict], expect
@@ -2579,6 +3244,43 @@ def self_test() -> int:
             _CODE_CACHE.clear()
 
     base = load_surface()
+    conjunctive = Surface(
+        entries=[(CORE, "core.rs"), ("estimator.level", "level.rs")],
+        all_keys=[
+            (
+                "estimator.level",
+                [
+                    ("estimator", ["response.kennedy_dr"]),
+                    ("query", ["ResponseCurve"]),
+                    ("inference", ["Frequentist"]),
+                ],
+            )
+        ],
+    )
+    curve_probe = {
+        "estimator": "response.kennedy_dr",
+        "query": "ResponseCurve",
+        "inference": "Frequentist",
+    }
+    expect(
+        "estimator.level" in record_facets(curve_probe, conjunctive)
+        and all(
+            "estimator.level" not in record_facets(curve_probe | change, conjunctive)
+            for change in (
+                {"query": "PointDerivative"},
+                {"estimator": "response.bayesian"},
+                {"inference": "Bayesian"},
+            )
+        ),
+        "key_all requires every field; unrelated derivative and Bayesian evidence stays outside the level facet",
+    )
+    broad = Surface(
+        entries=conjunctive.entries, keys=[("estimator.level", "estimator", ["response.*"])]
+    )
+    expect(
+        bool(surface_narrowing_problems(broad, conjunctive, [])),
+        "replacing a broad OR key with an extra query conjunction is reviewed narrowing",
+    )
     expect(
         _test_only_module("crates/antecedent-estimate/src/calibration_coverage.rs"),
         "#[cfg(test)] plus lint allows still marks a test-only module",
@@ -2657,7 +3359,7 @@ def self_test() -> int:
         "fit_gcm" not in code and "a();" in code and "b();" in code and "d::<'a>()" in code,
         "comments and literals are not code; code after them survives",
     )
-    tm = "fn a() { 1 }\n#[cfg(test)]\nmod tests {\n    fn t() { let s = \"}\"; /* } */ }\n}\nfn b() {}\n"
+    tm = 'fn a() { 1 }\n#[cfg(test)]\nmod tests {\n    fn t() { let s = "}"; /* } */ }\n}\nfn b() {}\n'
     expect(
         strip_test_modules(tm) == "fn a() { 1 }\n\nfn b() {}\n",
         "an inline test module goes, braces in its strings and comments included",
@@ -2680,12 +3382,12 @@ def self_test() -> int:
         'all(test, feature="calibration-internal")', 'feature="calibration-internal"'
     )
     expect(
-        strip_test_modules(any_tm) == any_tm
-        and strip_test_modules(production_tm) == production_tm,
+        strip_test_modules(any_tm) == any_tm and strip_test_modules(production_tm) == production_tm,
         "disjunctive test-or-feature and feature-only modules are production, not scaffolding",
     )
     expect(
-        strip_test_modules("#[cfg(test)]\nmod tests;\nfn a() {}\n") == "#[cfg(test)]\nmod tests;\nfn a() {}\n"
+        strip_test_modules("#[cfg(test)]\nmod tests;\nfn a() {}\n")
+        == "#[cfg(test)]\nmod tests;\nfn a() {}\n"
         and "cfg(test)" in strip_test_modules("#[cfg(test)]\nfn helper() {}\n"),
         "an out-of-line test module and a cfg(test) function are not stripped",
     )
@@ -2696,9 +3398,7 @@ def self_test() -> int:
     )
     doc_old = "/// old link\nfn production() { 1 }\n"
     doc_new = "/// corrected link\nfn production() { 1 }\n"
-    doc_replacement = [
-        {"line": 1, "before": "/// old link\n", "after": "/// corrected link\n"}
-    ]
+    doc_replacement = [{"line": 1, "before": "/// old link\n", "after": "/// corrected link\n"}]
     expect(
         documentation_edits_match(doc_old, doc_new, doc_replacement),
         "an exact listed doc-line substitution preserves every other byte",
@@ -2721,9 +3421,7 @@ def self_test() -> int:
         ("/*\n", "*/\n"),
         ("/* outer /* nested */\n", "*/\n"),
     ):
-        replacements = [
-            {"line": 2, "before": "/// old link\n", "after": "/// corrected link\n"}
-        ]
+        replacements = [{"line": 2, "before": "/// old link\n", "after": "/// corrected link\n"}]
         expect(
             not documentation_edits_match(
                 prefix + doc_old + suffix, prefix + doc_new + suffix, replacements
@@ -2732,9 +3430,7 @@ def self_test() -> int:
         )
     expect(
         not documentation_edits_match(doc_old, doc_new, doc_replacement * 2)
-        and not documentation_edits_match(
-            doc_old, doc_new, [{**doc_replacement[0], "line": True}]
-        ),
+        and not documentation_edits_match(doc_old, doc_new, [{**doc_replacement[0], "line": True}]),
         "duplicate replacements and non-integer line coordinates are refused",
     )
     refs = references(base)
@@ -2767,23 +3463,114 @@ def self_test() -> int:
     )
     split = []
     transport_facets = {
-        "transport.empirical_table_plugin": {"estimator.transport", "estimator.transport_empirical"},
+        "transport.empirical_table_plugin": {
+            "estimator.transport",
+            "estimator.transport_empirical",
+        },
         "transport.learned_trial_aipw": {"estimator.transport", "estimator.transport_learned"},
         "transport.mz_joint_bootstrap": {"estimator.transport", "estimator.transport_empirical"},
-        "transport.smoothed_dose_transport_aipw": {"estimator.transport", "estimator.transport_smoothed_dose"},
+        "transport.smoothed_dose_transport_aipw": {
+            "estimator.transport",
+            "estimator.transport_smoothed_dose",
+        },
         "transport.z_joint_sensitivity_endpoint_bootstrap": {
-            "estimator.transport", "estimator.transport_empirical", "estimator.transport_joint_sensitivity"
+            "estimator.transport",
+            "estimator.transport_empirical",
+            "estimator.transport_joint_sensitivity",
         },
     }
     for rec in load_records():
         est = str(rec.get("estimator", ""))
         if est.startswith("gcm."):
             continue
-        got = [f for f in record_facets(rec, base) if f.startswith("estimator.")]
+        carried = set(record_facets(rec, base))
+        got = [f for f in carried if f.startswith("estimator.")]
+        other_owner = next(
+            (
+                owner
+                for prefix, owner in (
+                    ("adaptive.", "adaptive_interval"),
+                    ("decision_reliability_", "design"),
+                    ("joint_law.", "joint_law_composed"),
+                    ("cross_world.", "cross_world_interval"),
+                )
+                if est.startswith(prefix)
+            ),
+            None,
+        )
+        core_owned = {
+            "randomized_ht",
+            "randomized_complete_neyman",
+            "randomized_ancova_hc0",
+            "randomized_independent_action_score",
+            "randomized_responder_complete_case",
+            "randomized_responder_weighted",
+            "randomized_neyman",
+            "randomized.ancova_itt",
+            "randomized.neyman_itt",
+        }
+        # Shared exact evaluation is an additional real numerical dependency,
+        # not a replacement for the route's estimator owner.
+        exact_routes = est.startswith(
+            ("transport.", "functional.", "cross_world.", "observation.count_fitted_tables.")
+        ) or est in {
+            "joint_bayesian_transport",
+            "learned_joint_transport",
+            "sampled_counterfactual_transport",
+            "dose_grid_quadratic",
+            "dependent_temporal_interval",
+        }
+        if exact_routes and "estimator.exact_transport" not in got:
+            split.append((est, got))
+        route_got = set(got) - ({"estimator.exact_transport"} if exact_routes else set())
+        if other_owner is not None or est in core_owned:
+            required = other_owner or CORE
+            if route_got or required not in carried:
+                split.append((est, sorted(carried)))
+            continue
         # Transport records can depend on both shared and route-specific
         # estimator surfaces. Keep every such attestation obligation explicit.
         expected = transport_facets.get(est)
-        if expected is not None and set(got) != expected or expected is None and len(got) != 1:
+        if expected is not None:
+            expected = set(expected)
+            if rec.get("query") == "DiscoveredTransport":
+                # The surface deliberately carries the conservative PCMCI+
+                # query dependency for static and temporal discovered records.
+                expected |= {
+                    "estimator.discovered_transport",
+                    "estimator.discrete_ci",
+                    "estimator.pcmci_plus",
+                }
+                if "trial_compatibility" in str(rec.get("functional", "")):
+                    expected.add("estimator.transport_trial_compatibility")
+        if rec.get("interval_method") == "population_linear_aipw_score":
+            expected = {
+                "estimator.aipw" if est == "aipw" else "estimator.learner",
+                "estimator.population_linear_aipw",
+                "estimator.propensity_weighting",
+            }
+        if rec.get("interval_method") == "population_linear_atc_hc3":
+            expected = {"estimator.aipw", "estimator.population_linear_atc"}
+        if est == "distance.matching":
+            expected = {"estimator.distance_matching", "estimator.propensity_matching"}
+        if est.startswith("estimate.knn_distance_matching"):
+            expected = {
+                "estimator.knn_distance_matching",
+                "estimator.distance_matching",
+                "estimator.propensity_matching",
+            }
+        if (
+            est in ("response.kennedy_dr", "response.intervention_gcomp")
+            and rec.get("query") in ("ResponseCurve", "InterventionResponse")
+            and rec.get("inference") == "Frequentist"
+        ):
+            expected = {"estimator.response", "estimator.response_levels"}
+        if (
+            expected is not None
+            and route_got != expected
+            or expected is None
+            and len(route_got) != 1
+        ):
             split.append((est, got))
     expect(
         split == [],
@@ -2799,7 +3586,12 @@ def self_test() -> int:
         return {str(r["id"]) for a in assess(base, records, changes) for r in a.stale}
 
     def unverifiable(changes: dict[str, list[str]]) -> set[str]:
-        return {str(r["id"]) for a in assess(base, records, changes) if not a.resolved for r in a.records}
+        return {
+            str(r["id"])
+            for a in assess(base, records, changes)
+            if not a.resolved
+            for r in a.records
+        }
 
     unchanged = {"a" * 40: [], "b" * 40: []}
     expect(
@@ -2870,6 +3662,50 @@ def self_test() -> int:
     return 0
 
 
+def surface_narrowing_problems(old: Surface, new: Surface, files: list[str]) -> list[str]:
+    """Conservative dependency inclusion, including directory shadows and key rules."""
+    problems = []
+    paths = sorted(set(old.paths) | {path for path in files if old.facet_of(path) is not None})
+    for path in paths:
+        previous, current = old.facet_of(path), new.facet_of(path)
+        if current is None:
+            problems.append(f"{path} left the calibration surface (was {previous})")
+        elif current not in (previous, CORE):
+            problems.append(f"{path} moved from facet {previous} to {current}, away from {CORE}")
+
+    def rules(surface: Surface) -> list[tuple[str, dict[str, list[str]]]]:
+        return [(facet, {key: patterns}) for facet, key, patterns in surface.keys] + [
+            (facet, dict(clauses)) for facet, clauses in surface.all_keys
+        ]
+
+    def covers(patterns: list[str], previous: str) -> bool:
+        # Glob-language inclusion is deliberately conservative. Equality and a
+        # universal glob are proofs; literal old values may match any new glob.
+        return any(
+            pattern == previous
+            or pattern == "*"
+            or (
+                not any(char in previous for char in "*?[")
+                and fnmatch.fnmatchcase(previous, pattern)
+            )
+            for pattern in patterns
+        )
+
+    current_rules = rules(new)
+    for facet, old_clauses in rules(old):
+        if not any(
+            candidate == facet
+            and set(clauses) <= set(old_clauses)
+            and all(
+                all(covers(patterns, previous) for previous in old_clauses[key])
+                for key, patterns in clauses.items()
+            )
+            for candidate, clauses in current_rules
+        ):
+            problems.append(f"{facet} key dependency rule was removed or narrowed: {old_clauses}")
+    return problems
+
+
 def widening_problems(base: str) -> list[str]:
     """How this tree's surface list narrows the list at `base`.
 
@@ -2885,14 +3721,10 @@ def widening_problems(base: str) -> list[str]:
     new = load_surface()
     if _git("diff", "--quiet", base, "--", "parity/calibration_waivers.toml").returncode != 0:
         return []
-    problems = []
-    for facet, path in old.entries:
-        now = new.facet_of(path)
-        if now is None:
-            problems.append(f"{path} left the calibration surface (was {facet})")
-        elif now not in (facet, CORE):
-            problems.append(f"{path} moved from facet {facet} to {now}, away from {CORE}")
-    return problems
+    tree = _git("ls-tree", "-r", "--name-only", base)
+    if tree.returncode != 0:
+        return [f"cannot enumerate calibration surface at {base}: {tree.stderr.strip()}"]
+    return surface_narrowing_problems(old, new, tree.stdout.splitlines())
 
 
 def main() -> int:
@@ -2912,11 +3744,18 @@ def main() -> int:
     sub.add_parser("self-test", help="the guard must fail on broken input")
     p_replay = sub.add_parser("replay", help="re-run a waiver's replay records at its `to`")
     p_replay.add_argument("--waiver", required=True)
-    p_replay.add_argument("--waiver-file", type=Path, default=WAIVERS,
-                          help="read and update an external plan; default is the tracked registry")
+    p_replay.add_argument(
+        "--waiver-file",
+        type=Path,
+        default=WAIVERS,
+        help="read and update an external plan; default is the tracked registry",
+    )
     p_replay.add_argument("--dry-run", action="store_true", help="print the gate groups only")
-    p_replay.add_argument("--reuse-capture", action="store_true",
-                          help="compare preserved raw logs again; execute no measurements")
+    p_replay.add_argument(
+        "--reuse-capture",
+        action="store_true",
+        help="compare preserved raw logs again; execute no measurements",
+    )
     p_cand = sub.add_parser(
         "replay-candidates", help="records that could serve as a waiver's replay evidence"
     )

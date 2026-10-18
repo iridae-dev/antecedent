@@ -5,6 +5,8 @@
 
 #[path = "predictive_score_interval_facade.rs"]
 mod predictive_score_interval_facade;
+#[path = "released_surface.rs"]
+mod released_surface;
 #[path = "z_transport_repair.rs"]
 mod z_transport_repair;
 #[path = "z_transport_surrogate_calibration.rs"]

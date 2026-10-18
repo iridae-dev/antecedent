@@ -1,10 +1,19 @@
 //! Conservative score inference for independently randomized action contrasts.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// Minimum independently assigned rows for a pointwise action-contrast interval.
+/// Minimum independently assigned rows for a pointwise interval of a contrast among three or
+/// more actions, and of the receipt-adjusted (Wald) contrast. Two-action score intervals are
+/// supported by arm counts instead (`MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL`).
 pub(crate) const MIN_ROWS_FOR_INTERVAL: usize = 400;
 /// Minimum observed rows in each contrasted action for an interval.
 pub(crate) const MIN_ACTION_ROWS_FOR_INTERVAL: usize = 30;
+/// Minimum expected rows in each arm of a two-action interval: the sum of the known assignment
+/// probabilities of the arm. The observed counts are random, so an arm that the design itself
+/// assigns too few rows leaves the normal approximation of its Horvitz–Thompson total unsupported
+/// even when chance delivers [`MIN_ACTION_ROWS_FOR_INTERVAL`] of them. Known-truth coverage at
+/// the boundary cells (`independent_two_action_coverage_at_the_arm_support_boundary`) measures
+/// 0.94 to 0.98 here for 80 to 600 rows at probabilities 0.2 through 0.8.
+pub const MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL: f64 = 40.0;
 /// Minimum declared probability for either contrasted action at every row.
 pub(crate) const MIN_ACTION_PROBABILITY_FOR_INTERVAL: f64 = 0.2;
 use antecedent_stats::NORMAL_Q975 as NORMAL_95;
@@ -30,7 +39,9 @@ pub struct IndependentActionContrast {
 /// Its sample variance divided by the row count conservatively estimates the
 /// fixed-population assignment variance: between-row effect variation enters
 /// the sandwich but not the true randomization variance. The normal interval
-/// is withheld for small or weakly supported actions.
+/// is withheld for weakly supported actions: a two-action contrast needs the arm
+/// counts of 30 observed and [`MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL`] expected rows
+/// in each arm, a contrast among more actions 400 rows.
 #[must_use]
 pub fn independent_action_contrast(
     outcomes: &[f64],
@@ -50,6 +61,8 @@ pub fn independent_action_contrast(
     let mut scores = Vec::with_capacity(n);
     let mut reference_support = 0;
     let mut action_support = 0;
+    let mut reference_expected = 0.0;
+    let mut action_expected = 0.0;
     let mut probability_supported = true;
     for i in 0..n {
         let row = &probabilities[i];
@@ -63,6 +76,8 @@ pub fn independent_action_contrast(
         }
         probability_supported &= row[reference] + 1e-12 >= MIN_ACTION_PROBABILITY_FOR_INTERVAL
             && row[action] + 1e-12 >= MIN_ACTION_PROBABILITY_FOR_INTERVAL;
+        reference_expected += row[reference];
+        action_expected += row[action];
         let score = if assignments[i] == action {
             action_support += 1;
             outcomes[i] / row[action]
@@ -83,7 +98,13 @@ pub fn independent_action_contrast(
     if !effect.is_finite() || !variance_upper_bound.is_finite() || variance_upper_bound < 0.0 {
         return None;
     }
-    let interval_95 = (n >= MIN_ROWS_FOR_INTERVAL
+    let row_support = if arms == 2 {
+        reference_expected + 1e-9 >= MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL
+            && action_expected + 1e-9 >= MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL
+    } else {
+        n >= MIN_ROWS_FOR_INTERVAL
+    };
+    let interval_95 = (row_support
         && reference_support >= MIN_ACTION_ROWS_FOR_INTERVAL
         && action_support >= MIN_ACTION_ROWS_FOR_INTERVAL
         && probability_supported
@@ -437,19 +458,20 @@ mod tests {
     #[test]
     fn fixed_preassignment_cuped_score_covers_original_itt() {
         const REPLICATES: usize = 2_000;
-        const N: usize = 400;
         let coefficient = 1.25;
-        for probability_case in ["low_boundary", "middle", "high_boundary", "heterogeneous"] {
-            let mut covered = 0;
+        for (n, probability_case) in [200_usize, 300, 400].into_iter().flat_map(|n| {
+            ["low_boundary", "middle", "high_boundary", "heterogeneous"].map(|case| (n, case))
+        }) {
+            let (mut covered, mut published) = (0, 0);
             for rep in 0..REPLICATES {
-                let mut adjusted = Vec::with_capacity(N);
-                let mut assignment = Vec::with_capacity(N);
-                let mut probabilities = Vec::with_capacity(N);
+                let mut adjusted = Vec::with_capacity(n);
+                let mut assignment = Vec::with_capacity(n);
+                let mut probabilities = Vec::with_capacity(n);
                 let mut truth = 0.0;
-                for i in 0..N {
+                for i in 0..n {
                     let x = (0.19 * i as f64).sin();
                     let effect = 1.8 + 0.25 * (0.13 * i as f64).cos();
-                    truth += effect / N as f64;
+                    truth += effect / n as f64;
                     let p = match probability_case {
                         "low_boundary" => 0.2,
                         "middle" => 0.5,
@@ -467,15 +489,118 @@ mod tests {
                 }
                 let fit = independent_action_contrast(&adjusted, &assignment, &probabilities, 0, 1)
                     .unwrap();
-                let [lower, upper] = fit.interval_95.expect("calibrated Bernoulli support");
+                // An allocation that realizes fewer than 30 rows in an arm publishes no interval.
+                let Some([lower, upper]) = fit.interval_95 else { continue };
+                published += 1;
                 covered += usize::from(lower <= truth && truth <= upper);
             }
-            let rate = covered as f64 / REPLICATES as f64;
+            assert!(published * 10 >= REPLICATES * 9, "n={n} {probability_case}: {published}");
+            let rate = covered as f64 / published as f64;
             eprintln!(
-                "fixed CUPED Bernoulli {probability_case} coverage: {covered}/{REPLICATES} = {rate:.4}"
+                "fixed CUPED Bernoulli n={n} {probability_case} coverage: {covered}/{published} = {rate:.4}"
             );
             assert!((0.93..=0.985).contains(&rate));
         }
+    }
+
+    /// One independent two-action trial at a constant treatment probability: baseline and effect
+    /// vary smoothly by row, so the target is the finite-population average effect.
+    fn constant_probability_study(
+        n: usize,
+        probability: f64,
+        replicate: usize,
+    ) -> (Vec<f64>, Vec<usize>, Vec<Vec<f64>>, f64) {
+        let mut outcomes = Vec::with_capacity(n);
+        let mut assignments = Vec::with_capacity(n);
+        let mut truth = 0.0;
+        for i in 0..n {
+            let x = i as f64;
+            let effect = 2.0 + 0.25 * (0.23 * x).cos();
+            truth += effect / n as f64;
+            let treated = crate::splitmix::keyed_unit(replicate as u64, i as u64) < probability;
+            outcomes.push(1.0 + 0.55 * (0.31 * x).sin() + if treated { effect } else { 0.0 });
+            assignments.push(usize::from(treated));
+        }
+        (outcomes, assignments, vec![vec![1.0 - probability, probability]; n], truth)
+    }
+
+    #[test]
+    fn independent_two_action_coverage_at_the_arm_support_boundary() {
+        const REPLICATES: usize = 2_000;
+        // From 80 rows at an even split (40 expected rows per arm) through the 2:1 allocation, the
+        // probability boundaries at 200 rows (40 expected treated or control rows) and the 300-row
+        // trials the earlier blanket 400-row rule refused.
+        let cells = [
+            (80, 0.5),
+            (100, 0.5),
+            (120, 1.0 / 3.0),
+            (150, 0.5),
+            (200, 0.2),
+            (200, 0.8),
+            (300, 0.2),
+            (300, 1.0 / 3.0),
+            (300, 0.5),
+            (300, 0.8),
+            (600, 0.2),
+            (600, 0.5),
+        ];
+        for (n, probability) in cells {
+            let (mut covered, mut published) = (0, 0);
+            for rep in 0..REPLICATES {
+                let (outcomes, assignments, probabilities, truth) =
+                    constant_probability_study(n, probability, rep);
+                let fit =
+                    independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
+                        .unwrap();
+                // An allocation that realizes fewer than 30 rows in an arm publishes no interval;
+                // coverage is scored over the allocations that do.
+                let Some([lower, upper]) = fit.interval_95 else { continue };
+                published += 1;
+                covered += usize::from(lower <= truth && truth <= upper);
+            }
+            assert!(published * 10 >= REPLICATES * 8, "n={n} p={probability}: {published}");
+            let rate = covered as f64 / published as f64;
+            eprintln!(
+                "two-action score n={n} p={probability:.3} known-truth coverage: {covered}/{published} = {rate:.4}"
+            );
+            assert!((0.93..=0.985).contains(&rate));
+        }
+    }
+
+    #[test]
+    fn two_action_interval_follows_arm_support_not_row_count() {
+        // 300 balanced rows publish an interval; the same 300 rows declared at 10% treated, or
+        // with fewer than 30 realized treated rows, do not.
+        let (outcomes, assignments, probabilities, _) = constant_probability_study(300, 0.5, 3);
+        let fit =
+            independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1).unwrap();
+        assert!(fit.interval_95.is_some());
+        let low = vec![vec![0.9, 0.1]; 300];
+        let fit = independent_action_contrast(&outcomes, &assignments, &low, 0, 1).unwrap();
+        assert!(fit.interval_95.is_none());
+        let mut sparse = assignments.clone();
+        let mut kept = 0;
+        for slot in sparse.iter_mut().filter(|slot| **slot == 1) {
+            kept += 1;
+            if kept > 25 {
+                *slot = 0;
+            }
+        }
+        let fit = independent_action_contrast(&outcomes, &sparse, &probabilities, 0, 1).unwrap();
+        assert_eq!(fit.action_support, 25);
+        assert!(fit.interval_95.is_none());
+        // The expected treated rows are 39 at 130 rows and probability 0.3, 40.2 at 134 rows,
+        // whatever the allocation realized (here 45 treated rows in both).
+        let at = |rows: usize| {
+            let outcomes = (0..rows).map(|i| 1.0 + (0.31 * i as f64).sin()).collect::<Vec<_>>();
+            let assignments = (0..rows).map(|i| usize::from(i < 45)).collect::<Vec<_>>();
+            let probabilities = vec![vec![0.7, 0.3]; rows];
+            independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
+                .unwrap()
+                .interval_95
+        };
+        assert!(at(130).is_none());
+        assert!(at(134).is_some());
     }
 
     fn standard_normal(u1: f64, u2: f64) -> f64 {

@@ -44,8 +44,11 @@ use antecedent_io::adaptive_inference_result_artifact::{
     AdaptiveInferenceResultArtifact, AdaptiveResult, AdaptiveResultError, AdaptiveResultSpec,
     compute_adaptive_result,
 };
-use antecedent_io::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractArtifact;
+use antecedent_io::adaptive_monitoring_contract_artifact::{
+    AdaptiveMonitoringContractArtifact, ProcedureRecord,
+};
 
+use super::adaptive_participant_procedure::ParticipantProcedure;
 use super::adaptive_procedure_declaration::{AdaptiveProcedure, ProcedureElements};
 
 /// One refusal as plain data: registered reason code, namespaced
@@ -285,6 +288,57 @@ impl AdaptiveInferenceSession {
             .map_err(|error| artifact_refusal(&error.to_string(), error.refusal()))
     }
 
+    /// Export the monitoring contract together with the declared
+    /// participant-level procedure it was collected under: the arm priors
+    /// with their historical sources, discounts and effective sample sizes,
+    /// the allocation floor, the decisions, and the reading (prior update,
+    /// posterior claim, decision and anytime-valid claim) at every performed
+    /// look.
+    ///
+    /// # Errors
+    /// A paradigm the cell is not licensed for, a contract that does not seal,
+    /// or a history the procedure does not replay (its retained allocation
+    /// probabilities, decisions or outcome availability).
+    pub fn export_contract_with_procedure(
+        &self,
+        paradigm: InferenceParadigm,
+        procedure: &ParticipantProcedure,
+        artifact_id: &str,
+    ) -> Result<Vec<u8>, AdaptiveInferenceRefusal> {
+        AdaptiveMonitoringContractArtifact::to_bytes_with_procedure(
+            &self.contract,
+            paradigm,
+            procedure.spec(),
+            artifact_id,
+        )
+        .map_err(|error| artifact_refusal(&error.to_string(), error.refusal()))
+    }
+
+    /// [`Self::export_contract_with_procedure`] when the whole artifact fits
+    /// `export_budget` bytes.
+    ///
+    /// # Errors
+    /// As [`Self::export_contract_with_procedure`], and
+    /// `adaptive_inference.artifact_size_exceeded` (`route_not_supported`)
+    /// when the artifact is over the budget; the refusal names the bytes
+    /// needed and the budget, and the run and its procedure are untouched.
+    pub fn export_contract_with_procedure_within(
+        &self,
+        paradigm: InferenceParadigm,
+        procedure: &ParticipantProcedure,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, AdaptiveInferenceRefusal> {
+        AdaptiveMonitoringContractArtifact::to_bytes_with_procedure_within(
+            &self.contract,
+            paradigm,
+            procedure.spec(),
+            artifact_id,
+            export_budget,
+        )
+        .map_err(|error| artifact_refusal(&error.to_string(), error.refusal()))
+    }
+
     /// Export a result bound to its monitoring contract.
     ///
     /// # Errors
@@ -343,6 +397,13 @@ impl ConsumedMonitoringContract {
     #[must_use]
     pub const fn contract(&self) -> &AdaptiveDesignContract {
         self.artifact.contract()
+    }
+
+    /// The replayed participant-level procedure and its readings, when the
+    /// contract was sealed with one.
+    #[must_use]
+    pub const fn procedure_record(&self) -> Option<&ProcedureRecord> {
+        self.artifact.procedure_record()
     }
 
     /// Identity (hex) of the artifact.

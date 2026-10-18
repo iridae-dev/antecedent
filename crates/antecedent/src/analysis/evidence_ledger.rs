@@ -82,10 +82,10 @@ use antecedent_io::evidence_ledger_artifact::{
     SynthesisRecord, covariance_digest, covariance_has_cross_terms,
 };
 use antecedent_stats::synthesis::{
-    DependenceEnvelope, HierarchicalPosterior, MeanPrior, PooledEstimate, RandomEffectsEstimate,
-    SynthesisError, TauPrior, fixed_effect_gls, fixed_effect_inverse_variance,
-    hierarchical_normal_borrowing, pooled_dependence_envelope, random_effects_dersimonian_laird,
-    random_effects_reml,
+    DependenceEnvelope, GaussianStudyEstimate, HierarchicalPosterior, MeanPrior, PooledEstimate,
+    RandomEffectsEstimate, SynthesisError, TauPrior, equal_study_gaussian, fixed_effect_gls,
+    fixed_effect_inverse_variance, hierarchical_normal_borrowing, pooled_dependence_envelope,
+    random_effects_dersimonian_laird, random_effects_reml,
 };
 
 pub use antecedent_contract::evidence_ledger::{
@@ -240,6 +240,9 @@ pub enum BetweenStudy {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum SynthesisValue {
+    /// Equal-study Gaussian mean; its empirical study-level variance supports
+    /// conservative Student intervals under independent heterogeneous study variances.
+    EqualStudyGaussian(GaussianStudyEstimate),
     /// Fixed-effect pooled estimate (inverse variance or generalized least squares).
     FixedEffect(PooledEstimate),
     /// Random-effects pooled estimate with heterogeneity.
@@ -442,6 +445,11 @@ pub struct LedgerExport {
 /// Nominal level of the measured pooled interval constructions.
 const POOLED_INTERVAL_LEVEL: f64 = 0.95;
 
+/// Study counts of the measured pooled-interval family, inclusive. Coverage
+/// records are keyed by this range, not by an individual count: a count inside
+/// it is licensed only because every count the measurement visited passed.
+const MEASURED_STUDY_COUNTS: std::ops::RangeInclusive<usize> = 5..=30;
+
 /// A pooled interval with the measured coverage record that governs it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PooledInterval {
@@ -478,6 +486,10 @@ pub struct PooledIntervalCandidate {
     pub level: f64,
     /// Construction and scope a coverage record is matched against.
     pub basis: antecedent_core::CalibrationBasis,
+    /// The same construction under the key of records measured at one exact study
+    /// count with the total observations as scope. Such a record licenses exactly
+    /// its count and sample range; new measurements use [`Self::basis`].
+    pub exact_count_basis: antecedent_core::CalibrationBasis,
     /// Checked facts and declared assumptions of the construction.
     pub scope: serde_json::Value,
 }
@@ -778,6 +790,46 @@ impl EvidenceLedgerSession {
         )
     }
 
+    /// Pool independent Gaussian study estimates with equal study weights.
+    ///
+    /// Every estimate has the same marginal mean; its unknown variance may
+    /// differ arbitrarily across studies. Gaussian random effects are allowed.
+    /// The study-level Student interval has at least 95% coverage under these
+    /// assumptions (Ibragimov and Müller, 2010, section 2.1). Estimated within-
+    /// study variances do not become noisy precision weights. The declared
+    /// source independence is checked by the ledger as for other pooling.
+    ///
+    /// # Errors
+    /// As [`Self::pool_summaries`]; fewer than two studies.
+    pub fn pool_gaussian_studies(
+        &mut self,
+        request: PoolingRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<SynthesisOutcome, EvidenceLedgerRefusal> {
+        let (sources, estimates, _) = Self::studies(&request.summaries)?;
+        let combination = CombinationRequest {
+            label: request.label,
+            operation: SynthesisOperation::StatisticalPooling {
+                sources: sources.clone(),
+                dependence: PoolingDependence::Independent,
+            },
+            replaces: request.replaces,
+        };
+        self.combine_numeric(
+            combination,
+            sources,
+            move || {
+                let fit = equal_study_gaussian(&estimates)?;
+                Ok((
+                    SynthesisValue::EqualStudyGaussian(fit),
+                    SynthesisMethod::EqualStudyGaussian { estimates },
+                ))
+            },
+            None,
+            ctx,
+        )
+    }
+
     /// Random-effects pooling of independent studies, with Cochran's `Q`,
     /// `tau^2` and `I^2`. The ledger decides first (independence is known and
     /// disjoint observations, never assumed). Point-only; the variance is
@@ -1032,9 +1084,22 @@ impl EvidenceLedgerSession {
     ///
     /// Fixed-effect (and declared-covariance) pooling reports the Wald `z`
     /// interval of the model variance; random-effects pooling reports the
-    /// Hartung-Knapp-Sidik-Jonkman interval (`t` with `k - 1` degrees of
-    /// freedom, variance floored at the conditional one). Both are conditional
-    /// on the declared variances being the studies' sampling variances.
+    /// modified Hartung-Knapp-Sidik-Jonkman interval (`t` with `k - 1`
+    /// degrees of freedom, variance floored at the conditional one). These
+    /// legacy constructions are conditional on the declared variances being
+    /// the studies' sampling variances. [`Self::pool_gaussian_studies`] instead
+    /// uses study-level Student inference and does not treat estimated within-
+    /// study variances as known precisions.
+    ///
+    /// Fixed-effect and Gaussian study pooling have measured constructions at
+    /// the declared study counts from 5 to 30. The legacy random-effects HKSJ
+    /// interval is published only at 20, 25 and 30 studies. At 5, 10 or 15
+    /// studies, use [`Self::pool_gaussian_studies`] for the measured Gaussian
+    /// construction. A legacy record for a strong-heterogeneity design does
+    /// not identify that generating family from the observed summaries.
+    /// Records also bound the observations of the smallest study (the sample
+    /// size its variance estimate rests on). The random-effects interval uses
+    /// the actual study count, with `k - 1` degrees of freedom.
     ///
     /// # Errors
     /// `cell_not_licensed` for a result with no numbers (accounting only), a
@@ -1046,24 +1111,46 @@ impl EvidenceLedgerSession {
         result: ResultId,
     ) -> Result<PooledInterval, EvidenceLedgerRefusal> {
         let candidate = self.pooled_interval_candidate(result)?;
+        // Legacy HKSJ records share a broad `studies=5-30` key. Only the
+        // baseline designs at these three counts passed; strong-heterogeneity
+        // records at 5 and 15 cannot license other generating families there.
+        // Keep the historical numerical candidate and its replay key intact.
+        let unmeasured_hksj_count = matches!(
+            self.values.get(&result),
+            Some(SynthesisValue::RandomEffects(fit))
+                if ![20, 25, 30].contains(&(fit.degrees_of_freedom + 1))
+        );
+        if unmeasured_hksj_count {
+            return Err(EvidenceLedgerRefusal::new(
+                antecedent_core::reason_code!("cell_not_licensed"),
+                "evidence_ledger.hksj_study_count_not_measured",
+                "legacy HKSJ intervals are measured at 20, 25 and 30 studies; use pool_gaussian_studies for the measured Gaussian construction at 5, 10 or 15 studies",
+            ));
+        }
         let observations = self
             .ledger
             .result(result)
             .and_then(|record| record.observations_digest)
             .map_or_else(|| "unknown".to_owned(), |digest| digest.to_hex());
-        let report = antecedent_io::measured_inference::build_report(
-            "evidence_ledger_pooled",
-            result.to_hex().as_bytes(),
-            &result.to_hex(),
-            &observations,
-            candidate.scope,
-            vec![antecedent_io::measured_inference::ScalarExecution {
-                name: "pooled_mean".into(),
-                point: candidate.estimate,
-                interval: (candidate.lower, candidate.upper),
-                basis: candidate.basis,
-            }],
-        )
+        let report = [candidate.basis, candidate.exact_count_basis]
+            .into_iter()
+            .map(|basis| {
+                antecedent_io::measured_inference::build_report(
+                    "evidence_ledger_pooled",
+                    result.to_hex().as_bytes(),
+                    &result.to_hex(),
+                    &observations,
+                    candidate.scope.clone(),
+                    vec![antecedent_io::measured_inference::ScalarExecution {
+                        name: "pooled_mean".into(),
+                        point: candidate.estimate,
+                        interval: (candidate.lower, candidate.upper),
+                        basis,
+                    }],
+                )
+            })
+            .reduce(Result::or)
+            .unwrap_or_else(|| unreachable!("two bases were supplied"))
         .map_err(|error| {
             EvidenceLedgerRefusal::new(
                 antecedent_core::reason_code!("cell_not_licensed"),
@@ -1122,6 +1209,23 @@ impl EvidenceLedgerSession {
             if record.dependence_declared { "declared_covariance" } else { "independent" };
         let (estimate, half, studies, estimator, interval_method, se_kind, variant, dependence) =
             match value {
+                SynthesisValue::EqualStudyGaussian(p) => {
+                    #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
+                    let t = antecedent_stats::special::student_t_ppf(
+                        0.5 + level / 2.0,
+                        p.degrees_of_freedom as f64,
+                    );
+                    (
+                        p.estimate,
+                        t * p.variance.sqrt(),
+                        p.degrees_of_freedom + 1,
+                        "evidence.synthesis.equal_study_gaussian",
+                        "independent_gaussian_study_t",
+                        "empirical_study_variance",
+                        "equal_study_gaussian",
+                        "independent",
+                    )
+                }
                 SynthesisValue::FixedEffect(p) => {
                     let z = antecedent_stats::special::normal_ppf(0.5 + level / 2.0);
                     (
@@ -1153,8 +1257,10 @@ impl EvidenceLedgerSession {
                         }
                     };
                     let k = estimates.len();
-                    if k < 3 || variances.len() != k {
-                        return Err(unmeasured("random effects over fewer than three studies"));
+                    if variances.len() != k {
+                        return Err(unmeasured(
+                            "a random-effects result whose study summaries are inconsistent",
+                        ));
                     }
                     let precision: Vec<f64> =
                         variances.iter().map(|v| 1.0 / (v + r.tau_squared)).collect();
@@ -1191,31 +1297,55 @@ impl EvidenceLedgerSession {
         if !(half.is_finite() && estimate.is_finite()) {
             return Err(unmeasured("a non-finite pooled value"));
         }
-        let functional = format!("pooled_mean;{variant};studies={studies}");
-        let basis = antecedent_core::CalibrationBasis::new(
-            [
-                "PooledEffect",
-                "NoGraph",
-                "fixed",
-                "summary",
-                "Frequentist",
-                estimator,
-                interval_method,
-                se_kind,
-                dependence,
-                "",
-                functional.as_str(),
-            ]
-            .map(std::sync::Arc::from),
-            level,
-            std::sync::Arc::from("point"),
+        if !MEASURED_STUDY_COUNTS.contains(&studies) {
+            return Err(unmeasured(&format!(
+                "{studies} studies (the measured family is {} to {})",
+                MEASURED_STUDY_COUNTS.start(),
+                MEASURED_STUDY_COUNTS.end()
+            )));
+        }
+        let Some(study_rows) = self.smallest_study_rows(result) else {
+            return Err(unmeasured("studies whose observations are not all declared"));
+        };
+        let make_basis = |functional: String, rows: u64| {
+            antecedent_core::CalibrationBasis::new(
+                [
+                    "PooledEffect",
+                    "NoGraph",
+                    "fixed",
+                    "summary",
+                    "Frequentist",
+                    estimator,
+                    interval_method,
+                    se_kind,
+                    dependence,
+                    "",
+                    functional.as_str(),
+                ]
+                .map(std::sync::Arc::from),
+                level,
+                std::sync::Arc::from("point"),
+                rows,
+                None,
+                None,
+                0.0,
+            )
+        };
+        let basis = make_basis(
+            format!(
+                "pooled_mean;{variant};studies={}-{}",
+                MEASURED_STUDY_COUNTS.start(),
+                MEASURED_STUDY_COUNTS.end()
+            ),
+            study_rows,
+        );
+        let exact_count_basis = make_basis(
+            format!("pooled_mean;{variant};studies={studies}"),
             record.mass.distinct_observations,
-            None,
-            None,
-            0.0,
         );
         let (lower, upper) = (estimate - half, estimate + half);
-        let scope = serde_json::json!({
+        let equal_study = matches!(value, SynthesisValue::EqualStudyGaussian(_));
+        let mut scope = serde_json::json!({
             "validation_design": "independent_gaussian_studies_with_estimated_variances",
             "declared_model_assumptions": ["declared sampling variances (or covariance) are the studies' sampling variances", "studies are independent or the declared covariance holds"],
             "studies": studies,
@@ -1223,6 +1353,16 @@ impl EvidenceLedgerSession {
             "method": variant,
             "level": level,
         });
+        if equal_study {
+            scope["coverage_claim"] = serde_json::json!("at_least_nominal");
+            scope["declared_model_assumptions"] = serde_json::json!([
+                "study estimates are independent Gaussian variables with a common marginal mean",
+                "unknown study variances may differ; Gaussian between-study effects are included"
+            ]);
+            scope["reference"] = serde_json::json!(
+                "Ibragimov-Mueller 2010, DOI 10.1198/jbes.2009.08046, section 2.1"
+            );
+        }
         Ok(PooledIntervalCandidate {
             method: interval_method,
             estimate,
@@ -1230,8 +1370,24 @@ impl EvidenceLedgerSession {
             upper,
             level,
             basis,
+            exact_count_basis,
             scope,
         })
+    }
+
+    /// Distinct observations of the smallest pooled study: the sample size the
+    /// per-study variance estimates rest on, which is what the measured
+    /// family varies across study counts. `None` when a study does not
+    /// declare its observations or the result pools no carried studies.
+    fn smallest_study_rows(&self, result: ResultId) -> Option<u64> {
+        let record = self.records.get(&result)?;
+        record
+            .sources
+            .iter()
+            .map(|&source| Some(self.ledger.source(source)?.effective.known()?.len() as u64))
+            .collect::<Option<Vec<u64>>>()?
+            .into_iter()
+            .min()
     }
 
     /// The numbers of a result that is still valid.

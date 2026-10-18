@@ -361,6 +361,14 @@ fn validate_intervention_ids(
         | crate::InterventionWire::Shift { variable, .. }
         | crate::InterventionWire::Stochastic { variable, .. }
         | crate::InterventionWire::Soft { variable, .. } => validate_id(*variable, variable_count),
+        crate::InterventionWire::Transform { variable, reads, .. }
+        | crate::InterventionWire::Assign { variable, reads, .. } => {
+            validate_id(*variable, variable_count)?;
+            validate_ids(
+                reads.current.iter().copied().chain(reads.history.iter().map(|(v, _)| *v)),
+                variable_count,
+            )
+        }
         crate::InterventionWire::Sequence { steps } => {
             for step in steps {
                 validate_intervention_ids(&step.intervention, variable_count)?;

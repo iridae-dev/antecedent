@@ -59,13 +59,78 @@ impl PrepareRequest {
         self.refuse_population(route)
     }
 
+    /// Refuse declared sampling weights on a route that reads none of them.
+    fn refuse_sampling_weights(&self) -> PyResult<()> {
+        if self.opts.sampling_weights.is_none() {
+            return Ok(());
+        }
+        Err(crate::estimator_config::coded_refusal(
+            antecedent_estimate::sampling_weights::unsupported_route(
+                "this route reads no sampling weights; declare them on an estimator \
+                 (weights=) or on a randomized trial or balanced two-period panel DiD",
+            ),
+        ))
+    }
+
     /// Load tabular columns. Borrowed Arrow bytes are not retained.
     pub(super) fn load_columns(
         &self,
         _py: Python<'_>,
         columns: Vec<Bound<'_, PyAny>>,
     ) -> PyResult<TabularData> {
+        self.refuse_sampling_weights()?;
         Ok(crate::tabular_from_py_columns(self.names.clone(), columns)?.0)
+    }
+
+    /// Attach the declared sampling weights to `data` as its observation weights.
+    ///
+    /// The weights are validated first, so an invalid one is refused naming its row.
+    fn attach_sampling_weights(&self, data: TabularData) -> PyResult<TabularData> {
+        let Some(weights) = &self.opts.sampling_weights else {
+            return Ok(data);
+        };
+        antecedent_estimate::SamplingWeights::new(weights.to_vec())
+            .map_err(crate::estimator_config::coded_refusal)?;
+        data.with_weights(std::sync::Arc::clone(weights)).map_err(|error| {
+            crate::estimator_config::coded_refusal(antecedent_estimate::sampling_weights::invalid(
+                &error.to_string(),
+            ))
+        })
+    }
+
+    /// Load tabular columns and attach the declared sampling weights as the table's
+    /// observation weights, for a route that estimates in the weighted population.
+    pub(super) fn load_weighted_columns(
+        &self,
+        _py: Python<'_>,
+        columns: Vec<Bound<'_, PyAny>>,
+    ) -> PyResult<TabularData> {
+        self.attach_sampling_weights(crate::tabular_from_py_columns(self.names.clone(), columns)?.0)
+    }
+
+    /// Load a single series and attach the declared sampling weights to it; a panel,
+    /// multi-environment or event frame has no weighted construction.
+    pub(super) fn load_weighted_series(
+        &self,
+        py: Python<'_>,
+        columns: Vec<Bound<'_, PyAny>>,
+        frame: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<super::FrameInput> {
+        let input = super::FrameInput::ingest(py, &self.names, columns, frame)?;
+        if self.opts.sampling_weights.is_none() {
+            return Ok(input);
+        }
+        match input {
+            super::FrameInput::Series(data) => {
+                Ok(super::FrameInput::Series(self.attach_sampling_weights(data)?))
+            }
+            _ => Err(crate::estimator_config::coded_refusal(
+                antecedent_estimate::sampling_weights::unsupported_route(
+                    "sampling weights are read by a single series; panel, multi-environment and \
+                     event frames have no sampling-weighted construction",
+                ),
+            )),
+        }
     }
 
     /// Load tabular columns and remember borrowed Arrow bytes.
@@ -77,6 +142,7 @@ impl PrepareRequest {
         _py: Python<'_>,
         columns: Vec<Bound<'_, PyAny>>,
     ) -> PyResult<TabularData> {
+        self.refuse_sampling_weights()?;
         let (data, borrowed) = crate::tabular_from_py_columns(self.names.clone(), columns)?;
         self.borrowed_bytes = borrowed;
         Ok(data)
@@ -89,6 +155,7 @@ impl PrepareRequest {
         columns: Vec<Bound<'_, PyAny>>,
         frame: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<super::FrameInput> {
+        self.refuse_sampling_weights()?;
         super::FrameInput::ingest(py, &self.names, columns, frame)
     }
 

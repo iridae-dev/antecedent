@@ -1,0 +1,21 @@
+{
+  "captured_at_utc": "2026-10-18T14:36:11.570266+00:00",
+  "checkout": "/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent",
+  "head": "0ffa1a376f30d2f3cf22eeada7d6e49d93ac85f5",
+  "git_status_porcelain": "",
+  "claim": "Controlled clean-checkout Cargo build provenance, not an embedded source-SHA attestation; these logs do not cryptographically prove compiler inputs. Exact artifact/fingerprint hashes are sealed in plan.json.",
+  "logs": {
+    "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/attestation-private-prebuild.log": {
+      "sha256": "36a8b70392a09a67406f9b13999d3ac0cd1e87830f969fd48332e7a7fbcf0fad",
+      "bytes": 8194
+    },
+    "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/attestation-private-design-prebuild.log": {
+      "sha256": "2568b60b0185bfbdcd7ac068bf108410b92c1b8b0a2564a8728c596c47e09365",
+      "bytes": 1096
+    },
+    "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/attestation-private-estimate-prebuild.log": {
+      "sha256": "69fcb0a68e9cd6078aaf9d7443e804837bad995910b7f772bf01135248bbc5b6",
+      "bytes": 335
+    }
+  }
+}

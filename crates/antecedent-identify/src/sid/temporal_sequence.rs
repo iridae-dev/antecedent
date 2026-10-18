@@ -42,7 +42,11 @@ use super::{
 pub const TEMPORAL_HORIZON: usize = 2;
 /// Most actions in the discrete alphabet.
 pub const TEMPORAL_MAX_ACTIONS: usize = 8;
-/// Most coordinates in the unrolled diagram.
+/// Most coordinates the unrolled diagram had under the earlier fixed ceiling.
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced: the number of coordinates is bounded by the search budget"
+)]
 pub const TEMPORAL_MAX_OBSERVED: usize = 12;
 /// Most complete covariate histories (baseline, step-1 and step-2 covariates).
 pub const TEMPORAL_MAX_HISTORY_STATES: usize = 4096;
@@ -254,8 +258,8 @@ impl TemporalSequenceSpec {
     /// name and a finite (binary or categorical) domain; the two actions share
     /// one alphabet of at most [`TEMPORAL_MAX_ACTIONS`] actions; no directed
     /// edge runs backward in time; and no selection target is an action, whose
-    /// mechanism the sequence replaces. The unrolled diagram has at most
-    /// [`TEMPORAL_MAX_OBSERVED`] coordinates and the complete covariate
+    /// mechanism the sequence replaces. The number of coordinates is bounded only
+    /// by the search budget the decision runs under; the complete covariate
     /// histories number at most [`TEMPORAL_MAX_HISTORY_STATES`].
     ///
     /// # Errors
@@ -277,12 +281,6 @@ impl TemporalSequenceSpec {
         let mut schema = coordinates.into().to_vec();
         schema.sort_by_key(|c| c.variable);
         let graph = diagram.causal_graph();
-        if graph.node_count() > TEMPORAL_MAX_OBSERVED {
-            return Err(TemporalRefusal::bounds_exceeded(format!(
-                "{} coordinates exceed the bound of {TEMPORAL_MAX_OBSERVED}",
-                graph.node_count()
-            )));
-        }
         let nodes = graph.nodes().iter().copied().collect::<BTreeSet<NodeRef>>();
         let declared = schema.iter().map(|c| NodeRef::Static(c.variable)).collect::<BTreeSet<_>>();
         let names = schema.iter().map(|c| c.name.clone()).collect::<BTreeSet<_>>();

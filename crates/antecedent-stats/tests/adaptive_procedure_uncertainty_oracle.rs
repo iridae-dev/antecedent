@@ -26,14 +26,14 @@ use std::collections::BTreeMap;
 
 use antecedent_kernels::{norm_pdf, norm_sf};
 use antecedent_stats::adaptive_inference::{
-    AdaptiveInferenceError as Error, AssignmentRule, Attribution, BetaPrior, ContractGap,
-    DERIVED_UNMEASURED, Estimand, EstimandStatement, ExposureModel, FinalSelection, Functional,
-    InversionGrid, ObservedTerminal, OutcomeKernel, OutcomeModelPrior, OutcomeObservation,
-    ProcedureDeclaration, ProcedureSpec, Sidedness, SimulationRequest, SpendingFunction,
-    StagewiseLook, StoppingRule, UncertaintyParadigm, WeightScheme, admit,
+    AdaptiveInferenceError as Error, AssignmentRule, Attribution, BetaPosterior, BetaPrior,
+    ContractGap, DERIVED_UNMEASURED, Estimand, EstimandStatement, ExposureModel, FinalSelection,
+    Functional, InversionGrid, ObservedTerminal, OutcomeKernel, OutcomeModelPrior,
+    OutcomeObservation, ProcedureDeclaration, ProcedureSpec, Sidedness, SimulationRequest,
+    SpendingFunction, StagewiseLook, StoppingRule, UncertaintyParadigm, WeightScheme, admit,
     anytime_exclusion_probability, anytime_valid_report, bayesian_report, boundaries,
     decision_report, enumerate_law, inversion_interval, ordering_p_values, posterior_mean_gaps,
-    simulate_procedure, stagewise_inference, stagewise_upper_p_value,
+    probability_exceeds, simulate_procedure, stagewise_inference, stagewise_upper_p_value,
 };
 use antecedent_stats::ln_gamma;
 
@@ -340,6 +340,148 @@ fn thompson_law_matches_the_enumerated_history_tree() {
     let law = law_at(&spec, &theta);
     let expected = enumerated(3, theta, &thompson_zero, &|_| false);
     assert_same_law(&terminal_map(&law), &expected, 1e-8, "thompson tree");
+}
+
+#[test]
+fn thompson_with_an_exploration_floor_clamps_the_enumerated_probabilities() {
+    // With two arms, clamping the probabilities at `floor` and renormalizing is
+    // clamp(z, floor, 1 - floor) for the unfloored probability z of arm 0.
+    let floor = 0.3;
+    let floored =
+        AssignmentRule::ThompsonBetaFloored { prior: BetaPrior::UNIFORM, min_probability: floor };
+    let spec = build(declaration(floored, vec![1, 1, 1, 1]));
+    let theta = [0.3, 0.7];
+    let law = law_at(&spec, &theta);
+    let clamped = |c: &Counts| thompson_zero(c).clamp(floor, 1.0 - floor);
+    let expected = enumerated(4, theta, &clamped, &|_| false);
+    assert_same_law(&terminal_map(&law), &expected, 1e-8, "floored thompson tree");
+    // The floor binds in this tree (two failures of arm 0 give it probability 1/4 unfloored).
+    let unfloored = law_at(&build(declaration(thompson(), vec![1, 1, 1, 1])), &theta);
+    assert_ne!(terminal_map(&law), terminal_map(&unfloored));
+    // A floor of 1 / arms is equal randomization.
+    let equal =
+        AssignmentRule::ThompsonBetaFloored { prior: BetaPrior::UNIFORM, min_probability: 0.5 };
+    let equal_law = law_at(&build(declaration(equal, vec![1, 1, 1, 1])), &theta);
+    let fixed = law_at(&build(declaration(fixed_half(), vec![1, 1, 1, 1])), &theta);
+    assert_same_law(&terminal_map(&equal_law), &terminal_map(&fixed), 1e-12, "equal randomization");
+    // A floor above 1 / arms, or zero, is not a declaration.
+    for bad in [0.0, 0.51, f64::NAN] {
+        let rule =
+            AssignmentRule::ThompsonBetaFloored { prior: BetaPrior::UNIFORM, min_probability: bad };
+        let refused = ProcedureSpec::new(declaration(rule, vec![1, 1])).unwrap_err();
+        assert_eq!(refused.gaps, vec![ContractGap::Invalid("adaptive_inference.rule_mismatch")]);
+    }
+}
+
+/// `F(x; a, b)` for integer shapes: the binomial sum.
+fn integer_beta_cdf(x: f64, a: u32, b: u32) -> f64 {
+    let n = a + b - 1;
+    (a..=n)
+        .map(|j| {
+            let choose: f64 = (0..j).map(|i| f64::from(n - i) / f64::from(i + 1)).product();
+            choose * x.powi(j as i32) * (1.0 - x).powi((n - j) as i32)
+        })
+        .sum()
+}
+
+/// `P(theta_a - theta_b > margin)` for integer shapes, by midpoint quadrature of
+/// `f_a(x) F_b(x - margin)` with the binomial-sum distribution function.
+fn exceeds_by_quadrature(a: (u32, u32), b: (u32, u32), margin: f64) -> f64 {
+    let grid = 40_000_usize;
+    let ln_norm =
+        ln_gamma(f64::from(a.0 + a.1)) - ln_gamma(f64::from(a.0)) - ln_gamma(f64::from(a.1));
+    (0..grid)
+        .map(|g| {
+            let x = (g as f64 + 0.5) / grid as f64;
+            let density = (ln_norm
+                + (f64::from(a.0) - 1.0) * x.ln()
+                + (f64::from(a.1) - 1.0) * (1.0 - x).ln())
+            .exp();
+            let shifted = x - margin;
+            if shifted <= 0.0 { 0.0 } else { density * integer_beta_cdf(shifted, b.0, b.1) }
+        })
+        .sum::<f64>()
+        / grid as f64
+}
+
+#[test]
+fn the_exceedance_probability_matches_the_integer_shape_sum_and_the_quadrature() {
+    let (a, b) = ((4_u32, 3_u32), (2_u32, 5_u32));
+    let post = |s: (u32, u32)| BetaPosterior::new(f64::from(s.0), f64::from(s.1)).unwrap();
+    // A zero margin is the probability that one arm exceeds the other.
+    close(
+        probability_exceeds(post(a), post(b), 0.0, &never).unwrap(),
+        miller_b_exceeds_a(b, a),
+        1e-9,
+        "margin zero",
+    );
+    close(
+        probability_exceeds(post(a), post(b), 0.0, &never).unwrap()
+            + probability_exceeds(post(b), post(a), 0.0, &never).unwrap(),
+        1.0,
+        1e-9,
+        "the two directions exhaust the mass",
+    );
+    for margin in [0.05, 0.2, 0.5] {
+        close(
+            probability_exceeds(post(a), post(b), margin, &never).unwrap(),
+            exceeds_by_quadrature(a, b, margin),
+            1e-7,
+            &format!("margin {margin}"),
+        );
+    }
+    assert!(matches!(
+        probability_exceeds(post(a), post(b), 1.0, &never),
+        Err(Error::InvalidParameter(_))
+    ));
+    assert!(matches!(
+        probability_exceeds(post(a), post(b), -0.1, &never),
+        Err(Error::InvalidParameter(_))
+    ));
+}
+
+#[test]
+fn futility_stops_on_the_enumerated_exceedance_probability_and_decides_for_the_control() {
+    // Stop when the probability that arm 1 exceeds the control by more than 0.05 falls below
+    // 0.2. Under a uniform prior the nearest posterior state to that threshold is 0.2036, so the
+    // enumeration and the quadrature cannot disagree about which states stop.
+    let mut d = declaration(fixed_half(), vec![1, 1, 1, 1]);
+    d.stopping = Some(StoppingRule::PosteriorFutility {
+        margin: 0.05,
+        threshold: 0.2,
+        prior: BetaPrior::UNIFORM,
+    });
+    let spec = build(d);
+    assert_eq!(spec.stopping_name(), "futility");
+    let theta = [0.3, 0.6];
+    let law = law_at(&spec, &theta);
+    let memo: std::cell::RefCell<BTreeMap<Counts, bool>> = std::cell::RefCell::default();
+    let stop = |c: &Counts| {
+        *memo.borrow_mut().entry(*c).or_insert_with(|| {
+            exceeds_by_quadrature((c[1].0 + 1, c[1].1 + 1), (c[0].0 + 1, c[0].1 + 1), 0.05) < 0.2
+        })
+    };
+    let expected = enumerated(4, theta, &|_| 0.5, &stop);
+    assert_same_law(&terminal_map(&law), &expected, 1e-6, "futility tree");
+    // Some states stop and some do not; every rule stop decides for the control.
+    let stopped: f64 = law.rule_stop_probabilities().iter().sum();
+    assert!(stopped > 0.05 && stopped < 0.95, "{stopped}");
+    assert!(law.atoms.iter().filter(|a| a.rule_stopped).all(|a| a.decision == Some(0)));
+    // The decision-theoretic report accepts a futility rule and agrees with the law.
+    let report = decision_report(&spec, &theta, &never).unwrap();
+    for (got, want) in report.stop_probabilities.iter().zip(law.rule_stop_probabilities()) {
+        close(*got, want, 1e-12, "stop probabilities");
+    }
+    // The rule needs a single context, a prior and a margin and threshold in range.
+    for (margin, threshold) in [(1.0, 0.2), (-0.1, 0.2), (0.05, 0.0), (0.05, 0.5)] {
+        let mut bad = declaration(fixed_half(), vec![1, 1]);
+        bad.stopping =
+            Some(StoppingRule::PosteriorFutility { margin, threshold, prior: BetaPrior::UNIFORM });
+        assert_eq!(
+            ProcedureSpec::new(bad).unwrap_err().gaps,
+            vec![ContractGap::Invalid("adaptive_inference.rule_mismatch")]
+        );
+    }
 }
 
 #[test]

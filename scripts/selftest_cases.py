@@ -264,10 +264,15 @@ def gridded_record(
     boundary: bool,
     role: str = "gated",
     one_sided: str | None = None,
+    confirmation: dict[int, float] | None = None,
+    confirmed_range: tuple[int, int] | None = None,
 ) -> str:
     """A coverage record measured on the sample-size grid, as the collector writes
     one: `grid` holds `(n, observed, boundary)` per point, smallest first; every
-    point carries `role`, and `one_sided` (an inline table) follows `role`."""
+    point carries `role`, and `one_sided` (an inline table) follows `role`.
+    `confirmation` maps grid points to the coverage their fresh-seed
+    re-measurement observed, and `confirmed_range` is the stated
+    `confirmed_passing_range`."""
     suite = "crates/antecedent-estimate/src/calibration_coverage.rs"
     points = "".join(
         f"  {{ point = {k}, n_min = {n}, n_max = {n}, observed = {obs}, mcse = 0.011, "
@@ -275,6 +280,15 @@ def gridded_record(
         for k, (n, obs, b) in enumerate(grid)
     )
     one_sided_line = f"one_sided = {one_sided}\n" if one_sided is not None else ""
+    if confirmation is not None:
+        confirmed = "".join(
+            f"  {{ point = {k}, n_min = {grid[k][0]}, n_max = {grid[k][0]}, observed = {obs}, "
+            f'mcse = 0.011, replicates = 400, boundary = false, role = "{role}" }},\n'
+            for k, obs in sorted(confirmation.items())
+        )
+        one_sided_line += f"confirmation = [\n{confirmed}]\n"
+    if confirmed_range is not None:
+        one_sided_line += f"confirmed_passing_range = {list(confirmed_range)}\n"
     governing = min([p for p in grid if p[2]] or grid, key=lambda p: p[1])
     rid = "cov.average_effect.dag.frequentist.analytic_se.l95"
     return f"""[[record]]
@@ -540,6 +554,77 @@ def schema_cases() -> list[bool]:
                 )
             },
             ["grid sample sizes must strictly increase point to point"],
+        ),
+        # A confirmed passing range: the failing point stays, the range is derived.
+        case(
+            g,
+            "confirmed_passing_range_of_a_boundary_record",
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(150, 0.9, True), (300, 0.9475, False), (600, 0.95, False)],
+                        True,
+                        role="reported_level",
+                        confirmation={1: 0.95, 2: 0.9525},
+                        confirmed_range=(300, 600),
+                    )
+                )
+            },
+            [],
+            must_fail=False,
+        ),
+        case(
+            g,
+            "confirmed_passing_range_wider_than_the_confirmation",
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(150, 0.9, True), (300, 0.9475, False), (600, 0.95, False)],
+                        True,
+                        role="reported_level",
+                        confirmation={1: 0.95, 2: 0.9525},
+                        confirmed_range=(150, 600),
+                    )
+                )
+            },
+            ["confirmed_passing_range must be the contiguous passing run"],
+        ),
+        case(
+            g,
+            "confirmed_passing_range_without_a_confirmation",
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(150, 0.9, True), (300, 0.9475, False), (600, 0.95, False)],
+                        True,
+                        role="reported_level",
+                        confirmed_range=(300, 600),
+                    )
+                )
+            },
+            ["confirmed_passing_range without the confirmation behind it"],
+        ),
+        case(
+            g,
+            "confirmation_on_a_record_with_nothing_to_recover",
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(150, 0.95, False), (300, 0.9475, False), (600, 0.95, False)],
+                        False,
+                        confirmation={1: 0.95, 2: 0.9525},
+                    )
+                )
+            },
+            ["a confirmation belongs to a boundary record"],
+        ),
+        case(
+            g,
+            "nominal_method_cannot_take_conservative_point_role",
+            {"parity/coverage_records.toml": append(gridded_record(
+                [(150, 0.99, False), (300, 0.985, False), (600, 1.0, False)],
+                False, role="conservative_point"))},
+            ["conservative_point requires the Gaussian study-mean theorem and target"],
         ),
         # One-sided role: a floor at the level, no upper band, and a stated side and target.
         case(

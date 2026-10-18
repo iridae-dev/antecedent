@@ -11,9 +11,12 @@ return types; the per-algorithm knowledge itself lives on the config classes.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+import json
+import re
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypedDict
 
 from ._coerce import coerce_data, coerce_temporal_data
 from ._native import (
@@ -29,6 +32,9 @@ from ._native import (
 )
 from ._native import (
     discover_dbn_posterior as _discover_dbn_posterior,
+)
+from ._native import (
+    discover_exact_dag_marginals as _discover_exact_dag_marginals,
 )
 from ._native import (
     discover_exact_dag_posterior as _discover_exact_dag_posterior,
@@ -72,7 +78,8 @@ from ._native import (
 from ._native import (
     discover_structure_mcmc as _discover_structure_mcmc,
 )
-from .errors import CausalTypeError, CausalValueError
+from ._validate import count as _count
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 # Re-exported. The definitions live in `graph`, a leaf importing only `_native` and
 # `errors`, so `_coerce` can reach `cpdag_oriented_edges` without importing this module.
@@ -98,37 +105,205 @@ def _ci_str(ci: CiSpec) -> str:
     return ci if isinstance(ci, str) else "parcorr"
 
 
+@dataclass(frozen=True, slots=True)
+class Link:
+    """A directed lagged link ``source[t - source_lag] -> target[t - target_lag]`` by name."""
+
+    source: str
+    target: str
+    source_lag: int = 0
+    target_lag: int = 0
+
+
+def _variable_name(value: object, what: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise CausalTypeError(f"{what} must be a non-empty string")
+    return value
+
+
+def _lag(value: object) -> int:
+    return _count(value, "lag", minimum=0, maximum=2**32 - 1)
+
+
+@dataclass(frozen=True, slots=True)
+class BackgroundKnowledge:
+    """What the analyst asserts about the graph before the data are consulted.
+
+    ``required`` links must be in the graph, ``forbidden`` links must not, ``tiers`` order the
+    variables (a variable in a later tier cannot cause one in an earlier tier; variables in no
+    tier are unconstrained), and ``max_parents`` bounds the parents of each variable. Statements
+    name variables, and are checked against the searched variables when the discovery runs.
+
+    The same statement is read by the ordinary discovery classes (``PC``, ``FCI``, ``GES``,
+    ``PCMCI``) and by the selective-discovery contracts, and has one digest
+    (``DiscoveryResult.background_knowledge``) that changes exactly when the statements do.
+    What each algorithm does with a statement, and which it refuses, is the table in the
+    discovery guide: a statement an algorithm cannot honour is refused, never ignored.
+    """
+
+    required: tuple[Link, ...] = ()
+    forbidden: tuple[Link, ...] = ()
+    tiers: tuple[tuple[str, ...], ...] = ()
+    max_parents: int | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in ("required", "forbidden"):
+            links = tuple(getattr(self, field_name))
+            for link in links:
+                if not isinstance(link, Link):
+                    raise CausalTypeError(f"{field_name} must hold Link objects")
+            object.__setattr__(self, field_name, links)
+        tiers = tuple(tuple(tier) for tier in self.tiers)
+        for tier in tiers:
+            for name in tier:
+                _variable_name(name, "a tier member")
+        object.__setattr__(self, "tiers", tiers)
+        if self.max_parents is not None:
+            object.__setattr__(
+                self, "max_parents", _count(self.max_parents, "max_parents", minimum=0)
+            )
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether nothing is asserted."""
+        return not (self.required or self.forbidden or self.tiers or self.max_parents is not None)
+
+    def as_dict(self) -> dict[str, Any]:
+        """The statements by variable name, in a form that round-trips and prints."""
+
+        def link(item: Link) -> list[Any]:
+            return [item.source, item.source_lag, item.target, item.target_lag]
+
+        out: dict[str, Any] = {
+            "required": [link(item) for item in self.required],
+            "forbidden": [link(item) for item in self.forbidden],
+            "tiers": [list(tier) for tier in self.tiers],
+        }
+        if self.max_parents is not None:
+            out["max_parents"] = self.max_parents
+        return out
+
+    def to_wire(self, names: Sequence[str]) -> dict[str, Any]:
+        """The statements by position in ``names``, as the native layer reads them.
+
+        The one translation both discovery paths use. A name outside ``names`` is refused with
+        reason code ``unknown_variable``.
+        """
+        index = {name: i for i, name in enumerate(names)}
+
+        def at(name: str) -> int:
+            _variable_name(name, "variable")
+            try:
+                return index[name]
+            except KeyError:
+                raise CausalUnsupportedError(
+                    f"background knowledge names {name!r}, which is not one of the searched "
+                    f"variables {tuple(names)}",
+                    reason_code="unknown_variable",
+                ) from None
+
+        def link(item: Link) -> list[int]:
+            return [
+                at(item.source),
+                _lag(item.source_lag),
+                at(item.target),
+                _lag(item.target_lag),
+            ]
+
+        wire: dict[str, Any] = {
+            "required": [link(item) for item in self.required],
+            "forbidden": [link(item) for item in self.forbidden],
+            "tiers": [[at(name) for name in tier] for tier in self.tiers],
+        }
+        if self.max_parents is not None:
+            wire["max_parents"] = self.max_parents
+        return wire
+
+
+class _KnowledgeKwargs(TypedDict, total=False):
+    background_knowledge: str
+
+
+def _knowledge_kwargs(
+    knowledge: BackgroundKnowledge | None, names: Sequence[str]
+) -> _KnowledgeKwargs:
+    """The native ``background_knowledge`` argument for a run over ``names``, if any."""
+    if knowledge is None:
+        return {}
+    if not isinstance(knowledge, BackgroundKnowledge):
+        raise CausalTypeError("knowledge must be a BackgroundKnowledge")
+    if knowledge.is_empty:
+        return {}
+    return {"background_knowledge": json.dumps(knowledge.to_wire(names), sort_keys=True)}
+
+
+@contextmanager
+def _named_positions(names: Sequence[str]) -> Iterator[None]:
+    """Name the variables of a knowledge refusal that the native layer reports by position.
+
+    The native search sees columns, not names, so a contradiction reads "variable 0 -> variable
+    1"; the caller wrote ``Link("age", "dose")``.
+    """
+    try:
+        yield
+    except CausalUnsupportedError as error:
+        text = str(error.args[0]) if error.args else ""
+        code = getattr(error, "reason_code", None)
+        if code not in ("invalid_argument", "option_not_applicable") or "variable " not in text:
+            raise
+        message = text.removeprefix(f"reason={code}: ")
+        named = re.sub(
+            r"variable (\d+)",
+            lambda m: f"variable {names[int(m[1])]!r}" if int(m[1]) < len(names) else m[0],
+            message,
+        )
+        raise CausalUnsupportedError(named, reason_code=code) from error
+
+
+def _wire_knowledge(wire: dict[str, Any], knowledge: BackgroundKnowledge | None) -> dict[str, Any]:
+    """``wire`` with the by-name statements of non-empty ``knowledge`` added."""
+    if knowledge is not None and not knowledge.is_empty:
+        wire["background_knowledge"] = knowledge.as_dict()
+    return wire
+
+
 @dataclass(frozen=True)
 class PC:
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["pc"] = "pc"
 
     algorithm_id: ClassVar[str] = "pc"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "pc",
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "pc",
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
-        return _discover_pc(
-            names,
-            cols,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            threads=threads,
-            ci=self.ci,
-            max_cond_size=self.max_cond_size,
-        )
+        with _named_positions(names):
+            return _discover_pc(
+                names,
+                cols,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                threads=threads,
+                ci=self.ci,
+                max_cond_size=self.max_cond_size,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -157,19 +332,23 @@ class PCMCI:
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["pcmci"] = "pcmci"
 
     algorithm_id: ClassVar[str] = "pcmci"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "pcmci",
-            "max_lag": self.max_lag,
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "pcmci",
+                "max_lag": self.max_lag,
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(
         self,
@@ -180,19 +359,21 @@ class PCMCI:
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
         names, cols, unit_lengths = coerce_temporal_data(data)
-        return _discover_pcmci(
-            names,
-            cols,
-            unit_lengths=unit_lengths,
-            max_lag=self.max_lag,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            ci=self.ci,
-            weights=weights,
-            threads=threads,
-            max_cond_size=self.max_cond_size,
-        )
+        with _named_positions(names):
+            return _discover_pcmci(
+                names,
+                cols,
+                unit_lengths=unit_lengths,
+                max_lag=self.max_lag,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                ci=self.ci,
+                weights=weights,
+                threads=threads,
+                max_cond_size=self.max_cond_size,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -221,6 +402,7 @@ class PCMCIPlus:
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["pcmci_plus"] = "pcmci_plus"
 
     # NB: asymmetric on purpose. ``run_temporal_discovery`` has always
@@ -230,14 +412,17 @@ class PCMCIPlus:
     algorithm_id: ClassVar[str] = "pcmci+"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "pcmci_plus",
-            "max_lag": self.max_lag,
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "pcmci_plus",
+                "max_lag": self.max_lag,
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(
         self,
@@ -248,19 +433,21 @@ class PCMCIPlus:
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
         names, cols, unit_lengths = coerce_temporal_data(data)
-        return _discover_pcmci_plus(
-            names,
-            cols,
-            unit_lengths=unit_lengths,
-            max_lag=self.max_lag,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            ci=self.ci,
-            weights=weights,
-            threads=threads,
-            max_cond_size=self.max_cond_size,
-        )
+        with _named_positions(names):
+            return _discover_pcmci_plus(
+                names,
+                cols,
+                unit_lengths=unit_lengths,
+                max_lag=self.max_lag,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                ci=self.ci,
+                weights=weights,
+                threads=threads,
+                max_cond_size=self.max_cond_size,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -524,33 +711,39 @@ class GES:
     max_cond_size: int = 2
     screen_pc: bool = False
     max_subset: int | None = None
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["ges"] = "ges"
 
     algorithm_id: ClassVar[str] = "ges"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "ges",
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "ges",
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
-        return _discover_ges(
-            names,
-            cols,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            threads=threads,
-            ci=self.ci,
-            max_cond_size=self.max_cond_size,
-            screen_pc=self.screen_pc,
-            max_subset=self.max_subset,
-        )
+        with _named_positions(names):
+            return _discover_ges(
+                names,
+                cols,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                threads=threads,
+                ci=self.ci,
+                max_cond_size=self.max_cond_size,
+                screen_pc=self.screen_pc,
+                max_subset=self.max_subset,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -623,16 +816,37 @@ class LiNGAM:
 
 @dataclass(frozen=True)
 class NOTEARS:
+    """Continuous-SEM (NOTEARS) discovery over numeric columns.
+
+    ``missing`` declares how rows with a missing value are handled. ``None`` (the default)
+    refuses the table at the first missing cell. ``"complete_case"`` drops every row with a
+    missing value in any discovery column and learns the graph on the complete rows.
+    ``"pairwise_available"`` scores the least-squares loss on the pairwise-available
+    covariance (each pair uses the rows observed on both), repaired to positive
+    semidefinite by clipping negative eigenvalues. Both report ``result.row_accounting``
+    (rows used and dropped or per-pair row counts, missing values per variable, a digest of
+    the dropped rows) and speak for the full data only when missingness is completely at
+    random.
+    """
+
     l1: float = 0.1
     threshold: float = 0.3
     standardize: bool = True
     max_cond_size: int = 8
+    missing: Literal["error", "complete_case", "pairwise_available"] | None = None
     kind: Literal["notears"] = "notears"
 
     algorithm_id: ClassVar[str] = "notears"
 
+    def __post_init__(self) -> None:
+        if self.missing not in (None, "error", "complete_case", "pairwise_available"):
+            raise CausalValueError(
+                f"NOTEARS missing must be None, 'error', 'complete_case' or 'pairwise_available'; got {self.missing!r}",
+                reason_code="invalid_argument",
+            )
+
     def _wire(self) -> dict[str, Any]:
-        return {
+        wire: dict[str, Any] = {
             "algorithm": "notears",
             "lambda": self.l1,
             "threshold": self.threshold,
@@ -642,6 +856,9 @@ class NOTEARS:
             "fdr": True,
             "ci": "parcorr",
         }
+        if self.missing is not None:
+            wire["missing"] = self.missing
+        return wire
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
@@ -654,6 +871,7 @@ class NOTEARS:
             seed=seed,
             max_cond_size=self.max_cond_size,
             threads=threads,
+            missing=self.missing,
         )
 
     def accept(
@@ -682,31 +900,37 @@ class FCI:
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["fci"] = "fci"
 
     algorithm_id: ClassVar[str] = "fci"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "fci",
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "fci",
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
-        return _discover_fci(
-            names,
-            cols,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            threads=threads,
-            ci=self.ci,
-            max_cond_size=self.max_cond_size,
-        )
+        with _named_positions(names):
+            return _discover_fci(
+                names,
+                cols,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                threads=threads,
+                ci=self.ci,
+                max_cond_size=self.max_cond_size,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -734,31 +958,37 @@ class RFCI:
     fdr: bool = True
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
+    knowledge: BackgroundKnowledge | None = None
     kind: Literal["rfci"] = "rfci"
 
     algorithm_id: ClassVar[str] = "rfci"
 
     def _wire(self) -> dict[str, Any]:
-        return {
-            "algorithm": "rfci",
-            "alpha": self.alpha,
-            "fdr": self.fdr,
-            "ci": self.ci,
-            "max_cond_size": self.max_cond_size,
-        }
+        return _wire_knowledge(
+            {
+                "algorithm": "rfci",
+                "alpha": self.alpha,
+                "fdr": self.fdr,
+                "ci": self.ci,
+                "max_cond_size": self.max_cond_size,
+            },
+            self.knowledge,
+        )
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
-        return _discover_rfci(
-            names,
-            cols,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            threads=threads,
-            ci=self.ci,
-            max_cond_size=self.max_cond_size,
-        )
+        with _named_positions(names):
+            return _discover_rfci(
+                names,
+                cols,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                threads=threads,
+                ci=self.ci,
+                max_cond_size=self.max_cond_size,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -780,15 +1010,59 @@ class RFCI:
         )
 
 
+#: Most variables the exact route lists graphs for; above it only edge marginals are exact.
+EXACT_ENUMERATION_MAX_VARIABLES = 6
+#: Most variables the exact route computes edge marginals for.
+EXACT_MARGINALS_MAX_VARIABLES = 12
+
+_ATOM_ONLY = frozenset(
+    {"adjacency", "weights", "graph_keys", "n_graphs", "to_weighted_samples", "ess", "atoms"}
+)
+
+
+@dataclass(frozen=True)
+class ExactDagMarginals:
+    """Exact edge marginals of the Gaussian-BIC DAG posterior of 7 to 12 variables.
+
+    ``edge_marginal_matrix()[i][j]`` is ``P(i -> j)``, exact for the BIC pseudo-posterior with the
+    uniform edge prior (no sampling error). ``log_evidence`` is the log normalizing constant
+    ``log sum_G exp(BIC(G))``. Above six variables the graphs themselves cannot be listed, so
+    the graph-level outputs of :class:`GraphPosterior` (atoms, weights, the MAP graph, the
+    mixture over graphs that ``analyze`` uses) do not exist; asking for one is refused rather than
+    approximated. Use ``OrderMcmc`` or ``StructureMcmc`` for atoms.
+    """
+
+    names: list[str]
+    n_vars: int
+    log_evidence: float
+    _matrix: tuple[tuple[float, ...], ...]
+
+    def edge_marginal_matrix(self) -> list[list[float]]:
+        return [list(row) for row in self._matrix]
+
+    def __getattr__(self, name: str) -> Any:
+        if name in _ATOM_ONLY:
+            raise CausalUnsupportedError(
+                f"{name!r} needs the list of graphs, which the exact route does not produce above "
+                f"{EXACT_ENUMERATION_MAX_VARIABLES} variables (it publishes exact edge marginals "
+                "only); use OrderMcmc or StructureMcmc for graph atoms",
+                reason_code="option_not_applicable",
+            )
+        raise AttributeError(name)
+
+
 @dataclass(frozen=True)
 class ExactDagPosterior:
-    """Exact DAG posterior enumeration (hard limit: n ≤ 6, Gaussian BIC).
+    """Exact DAG posterior (Gaussian BIC).
 
-    For more variables use ``OrderMcmc``, ``StructureMcmc``, or ``CiScreenedPosterior``.
+    Up to 6 variables every DAG is enumerated and ``run`` returns a ``GraphPosterior`` (atoms,
+    weights, marginals). From 7 to 12 variables ``run`` returns :class:`ExactDagMarginals`: the
+    exact ``P(i -> j)`` and the log normalizing constant by dynamic programming over node subsets,
+    with no graph atoms (and so no composition with ``analyze``). More than 12 variables are
+    refused naming that size; use ``OrderMcmc``, ``StructureMcmc`` or ``CiScreenedPosterior``.
 
-    Standalone: ``ExactDagPosterior().run(...)`` returns a ``GraphPosterior``.
     Composed: pass ``discovery=ExactDagPosterior()`` with ``inference=Bayesian(...)``
-    to ``analyze`` to mix effect draws over the graph posterior (P1-D).
+    to ``analyze`` to mix effect draws over the graph posterior (at most 6 variables).
     """
 
     kind: Literal["exact_dag_posterior"] = "exact_dag_posterior"
@@ -798,18 +1072,32 @@ class ExactDagPosterior:
     def _wire(self) -> dict[str, Any]:
         return {"algorithm": "exact_dag_posterior"}
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+    def run(
+        self, data: Any, *, seed: int = 1, threads: int | None = None
+    ) -> GraphPosterior | ExactDagMarginals:
         names, cols = coerce_data(data)
-        return _discover_exact_dag_posterior(names, cols, seed=seed, threads=threads)
+        if len(names) <= EXACT_ENUMERATION_MAX_VARIABLES:
+            return _discover_exact_dag_posterior(names, cols, seed=seed, threads=threads)
+        flat, log_evidence = _discover_exact_dag_marginals(names, cols, seed=seed, threads=threads)
+        n = len(names)
+        matrix = tuple(tuple(flat[i * n : (i + 1) * n]) for i in range(n))
+        return ExactDagMarginals(list(names), n, log_evidence, matrix)
 
 
 @dataclass(frozen=True)
 class OrderMcmc:
+    """Order-MCMC graph posterior over up to 16 variables.
+
+    ``max_parents`` caps the parents of any node (``None``: no cap). Each step costs a
+    ``2**n``-state dynamic program, so the run time doubles with every variable.
+    """
+
     n_chains: int = 4
     n_warmup: int = 500
     n_draws: int = 1000
     thin: int = 1
     require_diagnostics_gate: bool = True
+    max_parents: int | None = None
     kind: Literal["order_mcmc"] = "order_mcmc"
 
     algorithm_id: ClassVar[str] = "order_mcmc"
@@ -822,6 +1110,7 @@ class OrderMcmc:
             "mcmc_draws": self.n_draws,
             "thin": self.thin,
             "require_diagnostics_gate": self.require_diagnostics_gate,
+            **({} if self.max_parents is None else {"max_parents": self.max_parents}),
         }
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
@@ -834,6 +1123,7 @@ class OrderMcmc:
             n_draws=self.n_draws,
             thin=self.thin,
             require_diagnostics_gate=self.require_diagnostics_gate,
+            **({} if self.max_parents is None else {"max_parents": self.max_parents}),
             seed=seed,
             threads=threads,
         )
@@ -841,30 +1131,20 @@ class OrderMcmc:
 
 @dataclass(frozen=True)
 class StructureMcmc:
-    """Structure-MCMC graph posterior.
+    """Structure-MCMC graph posterior over up to 16 variables.
 
-    Unlike its sibling :class:`OrderMcmc`, this config has **no**
-    ``require_diagnostics_gate`` field: the native ``discover_structure_mcmc``
-    entry point takes no such parameter, so there is nothing here to plumb it
-    through to. Concretely, this means R-hat / ESS convergence diagnostics are
-    **never gated** on a ``StructureMcmc`` posterior the way they can be on
-    ``OrderMcmc(require_diagnostics_gate=True)`` (the default there) — a
-    non-converged chain's posterior is returned exactly the same as a
-    converged one. This package cannot add the parameter from the Python side
-    (it would require a change to the Rust ``discover_structure_mcmc``
-    signature, which is out of scope for a ``python/antecedent`` change); the
-    long-term fix is adding a ``require_diagnostics_gate`` parameter to
-    ``discover_structure_mcmc`` in Rust to match ``discover_order_mcmc``, then
-    threading it through here the same way :class:`OrderMcmc` already does.
-    Callers that need a diagnostics gate today should use
-    ``GraphPosterior.converged`` / ``.rejected_invalid`` /
-    ``.ess`` on the returned posterior themselves, or prefer ``OrderMcmc``.
+    The multi-chain diagnostics gate is always on: the run is refused unless split R-hat,
+    bulk ESS and every edge's Monte-Carlo error clear the publication bar, so there is no
+    ``require_diagnostics_gate`` switch here (unlike :class:`OrderMcmc`). Per-edge
+    ``edge_rhat`` / ``edge_ess`` / ``edge_mcse`` on the result report the chain diagnostics.
+    ``max_parents`` caps the parents of any node (``None``: no cap).
     """
 
     n_chains: int = 4
     n_warmup: int = 500
     n_draws: int = 1000
     thin: int = 1
+    max_parents: int | None = None
     kind: Literal["structure_mcmc"] = "structure_mcmc"
 
     algorithm_id: ClassVar[str] = "structure_mcmc"
@@ -876,6 +1156,7 @@ class StructureMcmc:
             "n_warmup": self.n_warmup,
             "mcmc_draws": self.n_draws,
             "thin": self.thin,
+            **({} if self.max_parents is None else {"max_parents": self.max_parents}),
         }
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
@@ -887,6 +1168,7 @@ class StructureMcmc:
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
             thin=self.thin,
+            **({} if self.max_parents is None else {"max_parents": self.max_parents}),
             seed=seed,
             threads=threads,
         )
@@ -1074,7 +1356,12 @@ def discovery_algorithm(discovery: Any) -> dict[str, Any]:
 
 
 def graph_posterior_map_edges(post: GraphPosterior) -> list[tuple[str, str]]:
-    """Oriented edges from the maximum-weight adjacency mask in a graph posterior."""
+    """Oriented edges from the maximum-weight adjacency mask in a graph posterior.
+
+    ``post.adjacency`` holds one Python ``int`` per atom; bit
+    ``from * (n_vars - 1) + (to if to < from else to - 1)`` is the edge ``from -> to``.
+    The integers are not limited to 64 bits, so graphs of up to 16 variables decode.
+    """
     import numpy as np
 
     if post.n_graphs < 1 or not post.weights:
@@ -1107,10 +1394,12 @@ def graph_posterior_map_dag(post: GraphPosterior) -> Dag:
 
 
 __all__ = [
+    "BackgroundKnowledge",
     "CiScreenedPosterior",
     "DbnPosterior",
     "DiscoveredLink",
     "DiscoveryResult",
+    "ExactDagMarginals",
     "ExactDagPosterior",
     "FCI",
     "GES",
@@ -1119,6 +1408,7 @@ __all__ = [
     "JPCMCIPlus",
     "LPCMCI",
     "LiNGAM",
+    "Link",
     "NOTEARS",
     "OrderMcmc",
     "PC",

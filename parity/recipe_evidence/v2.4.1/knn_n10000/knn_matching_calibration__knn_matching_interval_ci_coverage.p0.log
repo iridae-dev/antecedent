@@ -1,0 +1,14 @@
+    Finished `release` profile [optimized] target(s) in 0.13s
+     Running tests/knn_matching_calibration.rs (/Users/charleshinshaw/Desktop/antecedent/target/release/deps/knn_matching_calibration-1086c5290059aba0)
+
+running 1 test
+CALIBRATION_GATE_PROTOCOL population_linear
+test knn_matching_interval_ci_coverage has been running for over 60 seconds
+info knn interval diagnostics: bias=0.000302 empirical_sd=0.026272 rms_se=0.026165
+knn matching interval: rows 10000, reported 2000 of 2000, median width 0.1026
+calibration knn_matching_interval: nominal=0.95 coverage=0.950 mcse=0.0049 band=[0.935, 0.965] floor=0.940 ceiling=0.960 mean_length=0.1026 (1899/2000 covered, 0 skipped)
+test knn_matching_interval_ci_coverage ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 270.62s
+
+calibration-measured-at e15c4b0c33daf638d11f64b6a7fff6e3bc216022

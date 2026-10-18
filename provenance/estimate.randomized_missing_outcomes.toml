@@ -1,0 +1,37 @@
+feature_id = "estimate.randomized_missing_outcomes"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Estimation of regression coefficients when some regressors are not always observed", doi = "10.1080/01621459.1994.10476818", sections = ["inverse-probability-of-observation weighted estimating equations under missing at random"] },
+ { title = "Review of inverse probability weighting for dealing with missing data", doi = "10.1177/0962280210395740", sections = ["inverse probability weighting under missingness at random; estimated versus known weights"] },
+ { title = "Difference-in-differences with multiple time periods", doi = "10.1016/j.jeconom.2020.12.001", sections = ["group-time average treatment effects on unbalanced panels"] },
+]
+
+# Derived from the inverse-probability-weighted estimating equation and the delta-method
+# expansion of an M-estimator with an estimated nuisance, NOT the exact estimator of any one
+# paper. The responder-weighted mean is the Hajek (self-normalised) ratio within each
+# randomized arm; the observation probability is a per-arm logistic regression on declared
+# baseline covariates; the variance is the sample variance of the arm's estimated influence
+# function (including the score of the fitted observation model) over the arm size, summed
+# over arms.
+implementation_deviations = [
+ "The observation model is a per-arm logistic regression on the declared covariates, not a flexible or machine-learned model; its correctness is an assumption, not checked.",
+ "Fitted observation probabilities below 0.02 refuse as a positivity failure instead of being clipped, because clipping changes the estimand.",
+ "The variance treats the arms as independent and uses the sample variance of the estimated influence function; for complete randomization this is the Neyman form on influence values, without the finite-population correction, and it is an estimate rather than a conservative bound. Exact MCAR complete-case and MAR responder-weighted normal endpoint constructions have separately allocated coverage records under estimate.uncertainty; publication of a calibrated claim requires exact scope and current attestation.",
+ "Complete case averages responders per arm (difference in responder means with Neyman variance over responders); it is valid only for outcomes missing completely at random within arm.",
+ "The available-case panel difference-in-differences uses, for each contrast, the units observed in both its period and the cohort baseline (the unbalanced-panel change-score estimator with never-treated controls), with the cluster-score sandwich variance of those units; it is not the doubly robust group-time estimator.",
+ "The balanced-panel restriction drops whole units with a missing period; single unit-periods are never deleted.",
+ "The lagged temporal fit drops lag windows that read a missing time point and regresses on the intact windows at their original times; it publishes a point estimate only because the block bootstrap and the refuters resample consecutive windows.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/randomized_missing.rs (independent post-stratified closed form for a saturated binary covariate; simulated truth; reported standard error against the sampling spread over 300 replications)",
+ "crates/antecedent/tests/missing_data_routes.rs (known-truth additive panel; exact hand-computed slope on a series with gaps that a compressed series does not reproduce)",
+]
+limitations = "Two-arm Bernoulli and completely randomized designs without CUPED, ANCOVA or receipt adjustment; logistic observation model on complete covariates; outcomes missing at random given arm and the declared covariates. The exact normal endpoint constructions have collected records under estimate.uncertainty; other designs or missingness settings have no inherited coverage."

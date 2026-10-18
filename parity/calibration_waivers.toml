@@ -1062,3 +1062,1506 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_five_studies" = "67d3eac5d0bba4893ee396914b6fa06937c74bb7a3e2a18cf285bdea5c167cdb"
+
+[[waiver]]
+id = "unchanged-pag-confidence-set-through-temporal-descriptor-correction"
+from = "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4"
+to = "00037035c53606cd95899721922fa9b69316f5f4"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Source-only exact metadata equivalence. The genuine complete-procedure PAG record was measured at the original frozen source, and is preserved with its actual source/domain/counts. The sole compiled-input delta is an unrelated temporal Construction descriptor plus its ordinary regression. The verifier mechanically proves the exact reviewed source blobs; this empty-request CLI execution performs zero scientific draws and does not claim numerical replay.\
+"""
+paths = [
+  "crates/antecedent/tests/discovered_transport_calibration.rs",
+]
+
+source_only = true
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/tests/discovered_transport_calibration.rs"
+from_blob = "bcd4e3f2c1b7bca259d88ed02ec4f53d78e4d589"
+to_blob = "d702a80cf9d4aa9e9840a90196e9275c1c10ff14"
+kind = "rust_temporal_construction_metadata"
+rationale = "Exact reviewed whole-source correction adds an explicit percentile descriptor only to temporal_construction and a private ordinary regression. All remaining compiled Cargo/config/crate inputs are identical; PAG Construction and all scientific computations are unchanged."
+invariant_evidence = "Immutable original/final complete file SHA256 pinned in _temporal_capture_transfer.py; full compiled-input tree proof; actual guarded constructor regression. No numerical replay or new calibration is claimed by this source-only certificate."
+
+[waiver.outcome]
+replayed_at = "00037035c53606cd95899721922fa9b69316f5f4"
+identical = true
+records = [
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+
+[[waiver]]
+id = "unchanged-defaults-and-legacy-synthesis-from-c30"
+from = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+to = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+reviewed_by = "authorized release engineering review"
+recordless_gates = true
+gate_ledger_commit = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+justification = """
+Retain original default numerical methods and the original fixed-Wald/DL-HKSJ synthesis producers. Each requested replay must reproduce the complete stored payload under original domains and gate budgets. The synthesis witness executes the real artifact consumer and verifies mean and interval bitwise. Exact reviewed source certificates separately cover additive exports/default-preserving identity wiring; no unexecuted wrapper is claimed as exercised. Recordless gate inheritance preserves only the original passed immutable ledger rows, under this same complete source scope. No replay outcome is claimed until the genuine clean execution succeeds.\
+"""
+paths = [
+  "Cargo.toml",
+  "crates/antecedent-io-core/src/cohort_decision.rs",
+  "crates/antecedent-stats/src/ci/calibration.rs",
+  "crates/antecedent-validate/src/sensitivity.rs",
+  "crates/antecedent-estimate/src/lib.rs",
+  "crates/antecedent-stats/src/lib.rs",
+  "crates/antecedent-identify/src/lib.rs",
+  "crates/antecedent-identify/src/sid.rs",
+  "crates/antecedent/src/analysis/mod.rs",
+  "crates/antecedent/src/analysis/contract.rs",
+  "crates/antecedent/src/analysis/contract_identity.rs",
+  "crates/antecedent/src/estimator_spec.rs",
+  "crates/antecedent/src/analysis/sample_split_analysis.rs",
+  "crates/antecedent/src/analysis/sample_split_parent_set_effect.rs",
+  "crates/antecedent-stats/src/response.rs",
+  "crates/antecedent-estimate/src/response/mod.rs",
+  "crates/antecedent-estimate/src/response/plugin.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent-estimate/src/propensity/matching.rs",
+  "crates/antecedent-estimate/src/propensity/mod.rs",
+  "crates/antecedent-estimate/src/propensity/weighting.rs",
+  "crates/antecedent/tests/common/sparse_scm.rs",
+  "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
+  "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs",
+  "crates/antecedent-discovery/src/selective/contract.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "crates/antecedent/tests/calibration_response.rs",
+  "crates/antecedent/tests/calibration_posterior_draws.rs",
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent-estimate/src/aipw.rs",
+  "crates/antecedent-estimate/src/dml.rs",
+  "crates/antecedent-estimate/src/dr.rs",
+  "crates/antecedent-identify/src/selection_separation.rs",
+  "crates/antecedent-identify/src/sid/catalog.rs",
+  "crates/antecedent-expr/src/exact_plan.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-stats/src/response.rs",
+  "crates/antecedent-estimate/src/response/mod.rs",
+  "crates/antecedent-estimate/src/response/plugin.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.point_derivative.dag.frequentist.analytic_se.l95.point_derivative_frequentist_curvature_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-stats/src/response.rs",
+  "crates/antecedent-estimate/src/response/mod.rs",
+  "crates/antecedent-estimate/src/response/plugin.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/propensity/matching.rs",
+  "crates/antecedent-estimate/src/propensity/mod.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/propensity/weighting.rs",
+  "crates/antecedent-estimate/src/propensity/mod.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage"
+exercises = [
+  "crates/antecedent/tests/common/sparse_scm.rs",
+  "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
+  "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent-discovery/src/selective/contract.rs",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams"
+exercises = [
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0"
+exercises = [
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5"
+exercises = [
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.intervention_response.cpdag.bayesian.posterior_quantile.l90.intervention_response_cpdag_bayesian_nominal_coverage"
+exercises = [
+  "crates/antecedent/tests/calibration_response.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.intervention_response.cpdag.bayesian.posterior_quantile.l95.intervention_response_cpdag_bayesian_nominal_coverage"
+exercises = [
+  "crates/antecedent/tests/calibration_response.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.bayesian.posterior_quantile.l95.posterior_draws_2000_rows_1000_l95"
+exercises = [
+  "crates/antecedent/tests/calibration_posterior_draws.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_linear_adjustment_hc1_interval"
+exercises = [
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_att_interval"
+exercises = [
+  "crates/antecedent-estimate/src/aipw.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_partially_linear_interval"
+exercises = [
+  "crates/antecedent-estimate/src/dml.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/dr.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage"
+exercises = [
+  "crates/antecedent-identify/src/selection_separation.rs",
+  "crates/antecedent-identify/src/sid/catalog.rs",
+  "crates/antecedent-expr/src/exact_plan.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_fifteen_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_five_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_thirty_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_five_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_fifteen_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_five_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_ten_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_thirty_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_five_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent-io-core/src/evidence_ledger_artifact.rs",
+  "crates/antecedent-stats/src/synthesis.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/evidence_synthesis_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "Cargo.toml"
+from_blob = "394abb7f16d08a839ccc8639a6f0163dbfbf998a"
+to_blob = "a3d102538b071274464e6e5d38ec0175bcbb4ac8"
+kind = "proof_delegation"
+rationale = "The workspace version change and io-core release codegen-units override affect producer metadata and compilation partitioning only. External dependency versions and all numerical-crate optimization/codegen settings remain unchanged. Genuine clean replay compares actual emitted floating payloads; no mathematical execution is inferred from the manifest certificate."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+from_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
+to_blob = "4fd61d8cb087c4ba47a0fb046e1feadd77882a01"
+kind = "proof_delegation"
+rationale = "After the same CompactExport validation and retained-model scientific identity checks, retain the original verified nested container bytes rather than reserializing its producer version. No model coefficient, prediction, support or endpoint calculation changes. The ordinary old-version cohort golden roundtrip independently exercises this compatibility path; typed Monte Carlo witnesses are not claimed to execute this codec."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-stats/src/ci/calibration.rs"
+from_blob = "22ea819edffb27452b03812a25b4f3a8279764b1"
+to_blob = "8f1c61e92bf08ba4867e980a04fd8653ab72b3c0"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed GPDC test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/src/sensitivity.rs"
+from_blob = "7bdc6fb09265648bbb7406d88c7eb435acb63d0c"
+to_blob = "e6905474654dcde6f9ae44d8629ff90c9665652f"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed sensitivity test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness retains the original four-worker context and recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-estimate/src/lib.rs"
+from_blob = "68320bfd2d89bed7f95d24a6fb6d7986ea188d5a"
+to_blob = "cb3f6f40a56a29fe6f3a5015864a39a8934174ab"
+kind = "additive_wrapper"
+rationale = "Expose opt-in balanced population interval types and the explicit population AIPW module; all existing exports and default estimator entry points remain."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-stats/src/lib.rs"
+from_blob = "c80875f7872cfbf087959a63b7dcc4f3bab7a559"
+to_blob = "89ebc0f9ffcdfb44eb0f7961a27f3756587ec6e1"
+kind = "proof_delegation"
+rationale = "Retain existing exported names; reexport SparseDiscreteCi from its separately reviewed implementation module and add explicit response helpers. Existing callers retain their old numerical function bindings."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/lib.rs"
+from_blob = "833219d5e216449c60e73fdbb580e3162be88ca3"
+to_blob = "88b672d43e762dfee5bc88bb7410118d6e14bba8"
+kind = "additive_wrapper"
+rationale = "Add the explicitly named standardization-first transport entry point; the existing identify_catalog_transport export and call path remain unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/sid.rs"
+from_blob = "a0524deb9dfd55cfe361f5c4eb8f3a391ff37968"
+to_blob = "ca29225d33b5eebef17bfae7ae82cbe2a01d63c5"
+kind = "additive_wrapper"
+rationale = "Add only the new standardization-first public reexport alongside the retained catalog APIs; other source tokens are unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/mod.rs"
+from_blob = "2da2cf2dddaed02dda8e7410cf16a1c2b60dd711"
+to_blob = "7964d072e91b67aee029e7b4658fda2836464521"
+kind = "additive_wrapper"
+rationale = "Declare the new opt-in discovered_transport_trial module without changing existing module declarations or exports."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/contract.rs"
+from_blob = "6a34754d5476dba4ca18da1be09af128e6abfc1a"
+to_blob = "1efa8e3a0b044b2c20d1ebeda6fa715ed5c6f794"
+kind = "proof_delegation"
+rationale = "Optional regression-adjustment/population-variance suffixes apply only to explicit new estimator flags. Reference-aware tabular Cluster calibration keys distinguish already-published Student endpoints from normal endpoints: weighted Student uses its explicit new reference tag, weighted normal retains its old cluster key, unweighted Student retains its measured cluster key, and unweighted normal retains its historical iid key convention. This changes only calibration lookup metadata, not point, SE, reference degrees of freedom or endpoint arithmetic. Actual facade regression checks all four routes, including normal rejection inside Student row-count scope. No original numerical harness execution of this facade metadata helper is claimed."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/contract_identity.rs"
+from_blob = "aad6631f1f077bc362003849a6acc8874598d26b"
+to_blob = "446c718a7f74941af937ef8395dcf61f95b4d6f7"
+kind = "proof_delegation"
+rationale = "New optional outcome identities are None for every retained original default configuration; the original wire values and numeric inputs remain unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/estimator_spec.rs"
+from_blob = "a868326c108ae7246265ff21ce371b97e8c859a1"
+to_blob = "506984061eb22fb75f4a91cbc011dc46fdcbb97d"
+kind = "additive_wrapper"
+rationale = "Add explicit labels for new opt-in balanced/regression/population strategies, retaining all original default labels and estimator dispatch."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
+from_blob = "5a6382405e30db75bd8c1058e965693a581dc702"
+to_blob = "1ad47b7dcd1a9d641a7ec6519740fa22c1f81f91"
+kind = "proof_delegation"
+rationale = "The effect-only default now deliberately delegates to existing HC3; explicit estimate_analysis_effect_hc1 retains the historical computation for legacy replay. Exact token comparison preserves every other executable body, and the historical HC1 body is identical after substituting its two explicit HC1 selector arguments. Immutable caller inventory at c30, e15 and 70 finds only the two ordinary oracle-test files and the uncollected weighted-effect calibrator; no retained record test executes this changed effect-only wrapper. Existing split/discovery users therefore retain their measured numerical path. No claim is made that the new default was executed by old replay witnesses."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sample_split_parent_set_effect.rs"
+from_blob = "70767360a0b49c251018f2b9c9c0e87f6998aad7"
+to_blob = "42e5d8f0bfb1016896bf7b4bf825ae6dd428e993"
+kind = "rust_pub_use_addition"
+rationale = "Update module documentation and add only DISCOVERY_FRACTION to the public export set. Preserve all executable tokens and every old full export path; old unrelated split_effect imports keep their original binding."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[waiver.outcome]
+replayed_at = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+identical = true
+records = [
+  "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage",
+  "cov.point_derivative.dag.frequentist.analytic_se.l95.point_derivative_frequentist_curvature_nominal_90_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5",
+  "cov.intervention_response.cpdag.bayesian.posterior_quantile.l90.intervention_response_cpdag_bayesian_nominal_coverage",
+  "cov.intervention_response.cpdag.bayesian.posterior_quantile.l95.intervention_response_cpdag_bayesian_nominal_coverage",
+  "cov.average_effect.dag.bayesian.posterior_quantile.l95.posterior_draws_2000_rows_1000_l95",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_linear_adjustment_hc1_interval",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_att_interval",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_partially_linear_interval",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage",
+  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage",
+  "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_fifteen_studies",
+  "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_five_studies",
+  "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_thirty_studies",
+  "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_five_studies",
+  "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_studies",
+  "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_fifteen_studies",
+  "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_five_studies",
+  "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_ten_studies",
+  "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_thirty_studies",
+  "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_five_studies",
+  "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_studies",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage" = "2029777eb1982e37a50e90c3f13daa8288ba26a7a115e63077b8022a476f1f6c"
+"cov.average_effect.dag.bayesian.posterior_quantile.l95.posterior_draws_2000_rows_1000_l95" = "9b662e36719c5cfce0570ab0a2faea3b63a6bfd22af131e4702fd3fa13e9f4fb"
+"cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage" = "28271404ade4cc4b7cb004448ecbd0ea71da9dbc94678b50afd335c1e6e861be"
+"cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage" = "47ead920047d1d175846bbbab2b5be3eab7315dbdc8a917b0d956642453ec2de"
+"cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage" = "49a83b37caf9706f99c22f4d3f30ecfb32bf1776dd37764b981a31775f227948"
+"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_att_interval" = "8f051cc5326f6e4378bd334acbed5cb9d58cb3d642471ec543171a23bab202d0"
+"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_partially_linear_interval" = "fc683a7e2e5ecd75907196fc3bfe4e569054f02d961c50ae9ec15c604caec867"
+"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_linear_adjustment_hc1_interval" = "f487a50632cab093491f930018fe072c16c03b7985065d3eb6a9cabd88a53d74"
+"cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage" = "5b52e37f2f369a3973aaa2d4d7d548a7be251e79d81528b8845a95f26cb43ca5"
+"cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams" = "cb10e13db2003aba5af8d6449d2fb78f2a22ccb7247256c74d315924aedbddce"
+"cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0" = "1802118ac065e576dd6592e0ab376073ab5f84516eae0bb9a878fbe5827a471e"
+"cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5" = "290f4bb0f77403282fb3d476c622cb08411755ba1ee590f60ca40f26a91998b2"
+"cov.intervention_response.cpdag.bayesian.posterior_quantile.l90.intervention_response_cpdag_bayesian_nominal_coverage" = "ccea772b43a8bd06af9583c1bd474c3e1414f74178eb693effef3ba1469b5e76"
+"cov.intervention_response.cpdag.bayesian.posterior_quantile.l95.intervention_response_cpdag_bayesian_nominal_coverage" = "d8df6246a18ae9bc991569816e8b46bbf8729f0d6995dd5958c267cd92ea9672"
+"cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage" = "74862d6f07804d78a72b9ce305b27f5f8ad35432fc4b3c4c07349b604a3659e5"
+"cov.point_derivative.dag.frequentist.analytic_se.l95.point_derivative_frequentist_curvature_nominal_90_coverage" = "f5134d0df1754a045040015e6b8f90b05798d95b7ab25df207ad95c6062aa4bc"
+"cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_fifteen_studies" = "e80c3bf5824c40e98833343f6eb21cf010569cfcf028d7ca1b331f9214b84c57"
+"cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_five_studies" = "5b10339588d050fa05d38f5bd0dc5a6ef0d2ab888789a08f7fcfcb5d078f4dae"
+"cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_thirty_studies" = "4029c2491afd188a77a0e5492a502c19919f02da97604ce1950141ab01448250"
+"cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_five_studies" = "58f0e8ad7c7e35ffe06d1b5eb80958459ea5ebf177c7f3a55f8f057bec5158c5"
+"cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_studies" = "4b15665774477a6445b7755bb45dbbb13529ecffe29920d0debfaef1660528a7"
+"cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_fifteen_studies" = "f76ce87e65e9dd6fc468db3783f3876ea19a5ed31d7713d0a88e799d1daf2242"
+"cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_five_studies" = "ea4387740ccf6ee4bc61f48b897ba7a037e5a47d4a5e3e80d5e927078e126b3b"
+"cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_ten_studies" = "277a6f37f5956bd1dec55df601067f9720263a207f3259e4ef53682f05a387a5"
+"cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_thirty_studies" = "8de766505844e3668bf2491bb53eea0ed1fb2b259c82adefdfa2d25bae47a7b0"
+"cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_five_studies" = "fde19c38e9eb48f1c9b105034886ebc3945c038f3d356e9bf9517cf01d2f5ca5"
+"cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_studies" = "aeba7f55c5b9a889ef352aa8a562110979f05eb0ea36ab55b31680e888814180"
+
+[[waiver]]
+id = "unchanged-defaults-and-legacy-normal-clusters-from-e15"
+from = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
+to = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+reviewed_by = "authorized release engineering review"
+recordless_gates = true
+gate_ledger_commit = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+justification = """
+Genuine clean original-domain replay reproduced all stored outputs bit for bit. Retain the original measured raw estimators and exactly their historical normal cluster reference, selected explicitly from stored method metadata; ordinary measurement remains Student. The additional frequentist Set response witness executes the changed intervention_plugin_influence owner on its retained Set request; the exactzeroShift identity correction is not claimed exercised or numerically unchanged. Other default constructor exports and identity wiring are reviewed source-only additions. Every shared numerical or harness path is exercised by a genuine stored record measured at this same e15 source, never borrowed from another source SHA. Recordless inheritance preserves only exact original passed immutable ledger rows from this same source under the complete core scope; it neither creates coverage IDs nor claims policy/survival payloads were emitted by unrelated witnesses.\
+"""
+paths = [
+  "Cargo.toml",
+  "crates/antecedent-io-core/src/cohort_decision.rs",
+  "crates/antecedent-stats/src/ci/calibration.rs",
+  "crates/antecedent-validate/src/sensitivity.rs",
+  "crates/antecedent-estimate/src/lib.rs",
+  "crates/antecedent-identify/src/lib.rs",
+  "crates/antecedent-identify/src/sid.rs",
+  "crates/antecedent/src/analysis/mod.rs",
+  "crates/antecedent/src/analysis/contract.rs",
+  "crates/antecedent/src/analysis/sample_split_analysis.rs",
+  "crates/antecedent-estimate/src/response/plugin.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent-estimate/src/aipw.rs",
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent-estimate/src/dml.rs",
+  "crates/antecedent-estimate/src/dr.rs",
+  "crates/antecedent-estimate/src/propensity/mod.rs",
+  "crates/antecedent-discovery/src/selective/contract.rs",
+  "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.intervention_response.pag.frequentist.analytic_se.l95.intervention_response_pag_graph_posterior_frequentist_nominal_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/response/plugin.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_cluster_dml_interval"
+exercises = [
+  "crates/antecedent-estimate/src/aipw.rs",
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_cluster_interval"
+exercises = [
+  "crates/antecedent-estimate/src/dml.rs",
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dr_learner_cluster_interval"
+exercises = [
+  "crates/antecedent-estimate/src/dr.rs",
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear"
+exercises = [
+  "crates/antecedent-estimate/src/propensity/mod.rs",
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75"
+exercises = [
+  "crates/antecedent-discovery/src/selective/contract.rs",
+  "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "Cargo.toml"
+from_blob = "394abb7f16d08a839ccc8639a6f0163dbfbf998a"
+to_blob = "a3d102538b071274464e6e5d38ec0175bcbb4ac8"
+kind = "proof_delegation"
+rationale = "The workspace version change and io-core release codegen-units override affect producer metadata and compilation partitioning only. External dependency versions and all numerical-crate optimization/codegen settings remain unchanged. Genuine clean replay compares actual emitted floating payloads; no mathematical execution is inferred from the manifest certificate."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+from_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
+to_blob = "4fd61d8cb087c4ba47a0fb046e1feadd77882a01"
+kind = "proof_delegation"
+rationale = "After the same CompactExport validation and retained-model scientific identity checks, retain the original verified nested container bytes rather than reserializing its producer version. No model coefficient, prediction, support or endpoint calculation changes. The ordinary old-version cohort golden roundtrip independently exercises this compatibility path; typed Monte Carlo witnesses are not claimed to execute this codec."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-stats/src/ci/calibration.rs"
+from_blob = "22ea819edffb27452b03812a25b4f3a8279764b1"
+to_blob = "8f1c61e92bf08ba4867e980a04fd8653ab72b3c0"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed GPDC test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/src/sensitivity.rs"
+from_blob = "7bdc6fb09265648bbb7406d88c7eb435acb63d0c"
+to_blob = "e6905474654dcde6f9ae44d8629ff90c9665652f"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed sensitivity test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness retains the original four-worker context and recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-estimate/src/lib.rs"
+from_blob = "8c2dfadbfc45ba4cfbf21abe84c478cfcd7a0d7b"
+to_blob = "cb3f6f40a56a29fe6f3a5015864a39a8934174ab"
+kind = "additive_wrapper"
+rationale = "Expose opt-in balanced population interval types and the explicit population AIPW module; all existing exports and default estimator entry points remain."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/lib.rs"
+from_blob = "833219d5e216449c60e73fdbb580e3162be88ca3"
+to_blob = "88b672d43e762dfee5bc88bb7410118d6e14bba8"
+kind = "additive_wrapper"
+rationale = "Add the explicitly named standardization-first transport entry point; the existing identify_catalog_transport export and call path remain unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/sid.rs"
+from_blob = "a0524deb9dfd55cfe361f5c4eb8f3a391ff37968"
+to_blob = "ca29225d33b5eebef17bfae7ae82cbe2a01d63c5"
+kind = "additive_wrapper"
+rationale = "Add only the new standardization-first public reexport alongside the retained catalog APIs; other source tokens are unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/mod.rs"
+from_blob = "2da2cf2dddaed02dda8e7410cf16a1c2b60dd711"
+to_blob = "7964d072e91b67aee029e7b4658fda2836464521"
+kind = "additive_wrapper"
+rationale = "Declare the new opt-in discovered_transport_trial module without changing existing module declarations or exports."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/contract.rs"
+from_blob = "b19ec76c0b9ccb31fba12284cc65c0baaed96dea"
+to_blob = "1efa8e3a0b044b2c20d1ebeda6fa715ed5c6f794"
+kind = "proof_delegation"
+rationale = "Optional regression-adjustment/population-variance suffixes apply only to explicit new estimator flags. Reference-aware tabular Cluster calibration keys distinguish already-published Student endpoints from normal endpoints: weighted Student uses its explicit new reference tag, weighted normal retains its old cluster key, unweighted Student retains its measured cluster key, and unweighted normal retains its historical iid key convention. This changes only calibration lookup metadata, not point, SE, reference degrees of freedom or endpoint arithmetic. Actual facade regression checks all four routes, including normal rejection inside Student row-count scope. No original numerical harness execution of this facade metadata helper is claimed."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
+from_blob = "5a6382405e30db75bd8c1058e965693a581dc702"
+to_blob = "1ad47b7dcd1a9d641a7ec6519740fa22c1f81f91"
+kind = "proof_delegation"
+rationale = "The effect-only default now deliberately delegates to existing HC3; explicit estimate_analysis_effect_hc1 retains the historical computation for legacy replay. Exact token comparison preserves every other executable body, and the historical HC1 body is identical after substituting its two explicit HC1 selector arguments. Immutable caller inventory at c30, e15 and 70 finds only the two ordinary oracle-test files and the uncollected weighted-effect calibrator; no retained record test executes this changed effect-only wrapper. Existing split/discovery users therefore retain their measured numerical path. No claim is made that the new default was executed by old replay witnesses."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[waiver.outcome]
+replayed_at = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+identical = true
+records = [
+  "cov.intervention_response.pag.frequentist.analytic_se.l95.intervention_response_pag_graph_posterior_frequentist_nominal_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_cluster_dml_interval",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_cluster_interval",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dr_learner_cluster_interval",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75" = "211c0b1d7ecd38884d0a841b93e84176d8112cfe1806adc88fed515a04817800"
+"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_cluster_dml_interval" = "1750df985ad731dd270aad6407769b7cde219b24e26dc8b9f5b00f20b4484b93"
+"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_cluster_interval" = "45a4c53305c8373ffbae622be6a1ef153de39421a8018fd8dd5de1d6a62d8509"
+"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dr_learner_cluster_interval" = "b23da9f71b04d83ca6d11abeb322d247b71310efb08aec6b823b608628b2f715"
+"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear" = "d54143b7776c9a7aa16ea7706b60347fa1e32245f39a08e606bf47c84b456b4d"
+"cov.intervention_response.pag.frequentist.analytic_se.l95.intervention_response_pag_graph_posterior_frequentist_nominal_coverage" = "38117522ae41cf779d5176eedc17a9a196a93728629b74fa97dd9d30b6094ad8"
+
+[[waiver]]
+id = "unchanged-validated-procedures-from-70"
+from = "70a71dd33bc55cbc2398b0f91c4a2c797afad618"
+to = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+reviewed_by = "authorized release engineering review"
+recordless_gates = true
+gate_ledger_commit = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+justification = """
+Complete stored original-domain/configuration/planned-point-budget payloads were reproduced through genuine clean execution at the final source. New trial-only PAG policy is not selected by old temporal/default methods. Source-only builtin lint, terminal observers, additive exports, reference metadata, manifest partition and validated container preservation are certified separately, never claimed executed by unrelated typed witnesses. The MeanCurve witness executes unchanged plugin::predict_one through nuisance.rs; it does not call the changed intervention_plugin_influence, whose exactzeroShift branch is independently isolated and whose retained Set behavior has a separate genuine e15 witness. The synthesis witness calls the unchanged Gaussian numerical candidate and genuine artifact consumer in the changed owner; it does not claim execution of the stricter public publication guard. That guard has its separate actual facade refusal regression. Original recordless identities may inherit only this complete valid same-source scope and immutable ledger; no pseudo coverage IDs are fabricated. The temporal computation ran at original source70f; its immutable raw logs differ from the stored record only in an accidentally inherited se_kind descriptor. The bounded version3 capture verifies exact compiled inputs and reviewed temporal descriptor correction, retains original source/build/binary/dispatch receipts, and projects only that exact metadata field. All numerical fields remain bit-identical. The other three witnesses genuinely executed the corrected source. No temporal draws were repeated.\
+"""
+paths = [
+  "Cargo.toml",
+  "crates/antecedent-io-core/src/cohort_decision.rs",
+  "crates/antecedent-stats/src/ci/calibration.rs",
+  "crates/antecedent-validate/src/sensitivity.rs",
+  "crates/antecedent-identify/src/lib.rs",
+  "crates/antecedent-identify/src/sid.rs",
+  "crates/antecedent/src/analysis/contract.rs",
+  "crates/antecedent/src/analysis/sample_split_analysis.rs",
+  "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
+  "crates/antecedent-identify/src/selection_separation.rs",
+  "crates/antecedent-identify/src/sid/catalog.rs",
+  "crates/antecedent/src/analysis/discovered_transport_estimate.rs",
+  "crates/antecedent/src/analysis/discovered_transport_temporal.rs",
+  "crates/antecedent/tests/discovered_transport_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent-estimate/src/response/plugin.rs",
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+]
+
+[[waiver.replay]]
+record = "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1"
+exercises = [
+  "crates/antecedent-identify/src/selection_separation.rs",
+  "crates/antecedent-identify/src/sid/catalog.rs",
+  "crates/antecedent/src/analysis/discovered_transport_estimate.rs",
+  "crates/antecedent/src/analysis/discovered_transport_temporal.rs",
+  "crates/antecedent/tests/discovered_transport_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval"
+exercises = [
+  "crates/antecedent/tests/weighted_interval_calibration.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0"
+exercises = [
+  "crates/antecedent-estimate/src/response/plugin.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies"
+exercises = [
+  "crates/antecedent/src/analysis/evidence_ledger.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "Cargo.toml"
+from_blob = "7924ccd7f9dee285b70390167c8bc7772d9e038c"
+to_blob = "a3d102538b071274464e6e5d38ec0175bcbb4ac8"
+kind = "proof_delegation"
+rationale = "The workspace version change and io-core release codegen-units override affect producer metadata and compilation partitioning only. External dependency versions and all numerical-crate optimization/codegen settings remain unchanged. Genuine clean replay compares actual emitted floating payloads; no mathematical execution is inferred from the manifest certificate."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+from_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
+to_blob = "4fd61d8cb087c4ba47a0fb046e1feadd77882a01"
+kind = "proof_delegation"
+rationale = "After the same CompactExport validation and retained-model scientific identity checks, retain the original verified nested container bytes rather than reserializing its producer version. No model coefficient, prediction, support or endpoint calculation changes. The ordinary old-version cohort golden roundtrip independently exercises this compatibility path; typed Monte Carlo witnesses are not claimed to execute this codec."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-stats/src/ci/calibration.rs"
+from_blob = "22ea819edffb27452b03812a25b4f3a8279764b1"
+to_blob = "8f1c61e92bf08ba4867e980a04fd8653ab72b3c0"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed GPDC test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/src/sensitivity.rs"
+from_blob = "7bdc6fb09265648bbb7406d88c7eb435acb63d0c"
+to_blob = "e6905474654dcde6f9ae44d8629ff90c9665652f"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed sensitivity test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness retains the original four-worker context and recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/lib.rs"
+from_blob = "ab7e7d60ea8b59b9a2e957b79202abf222afaa39"
+to_blob = "88b672d43e762dfee5bc88bb7410118d6e14bba8"
+kind = "additive_wrapper"
+rationale = "Add the explicitly named standardization-first transport entry point; the existing identify_catalog_transport export and call path remain unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/sid.rs"
+from_blob = "cd419ff92946942af857c39a3885774e8664a571"
+to_blob = "ca29225d33b5eebef17bfae7ae82cbe2a01d63c5"
+kind = "additive_wrapper"
+rationale = "Add only the new standardization-first public reexport alongside the retained catalog APIs; other source tokens are unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/contract.rs"
+from_blob = "6a6c73403a0ee7f609b206561128cc138d51bedf"
+to_blob = "1efa8e3a0b044b2c20d1ebeda6fa715ed5c6f794"
+kind = "proof_delegation"
+rationale = "Optional regression-adjustment/population-variance suffixes apply only to explicit new estimator flags. Reference-aware tabular Cluster calibration keys distinguish already-published Student endpoints from normal endpoints: weighted Student uses its explicit new reference tag, weighted normal retains its old cluster key, unweighted Student retains its measured cluster key, and unweighted normal retains its historical iid key convention. This changes only calibration lookup metadata, not point, SE, reference degrees of freedom or endpoint arithmetic. Actual facade regression checks all four routes, including normal rejection inside Student row-count scope. No original numerical harness execution of this facade metadata helper is claimed."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
+from_blob = "5a6382405e30db75bd8c1058e965693a581dc702"
+to_blob = "1ad47b7dcd1a9d641a7ec6519740fa22c1f81f91"
+kind = "proof_delegation"
+rationale = "The effect-only default now deliberately delegates to existing HC3; explicit estimate_analysis_effect_hc1 retains the historical computation for legacy replay. Exact token comparison preserves every other executable body, and the historical HC1 body is identical after substituting its two explicit HC1 selector arguments. Immutable caller inventory at c30, e15 and 70 finds only the two ordinary oracle-test files and the uncollected weighted-effect calibrator; no retained record test executes this changed effect-only wrapper. Existing split/discovery users therefore retain their measured numerical path. No claim is made that the new default was executed by old replay witnesses."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs"
+from_blob = "6cd811de0d46e019ffdae774beabfb0cd00e3368"
+to_blob = "b12d189f7d05df1754c70926f7408113603f313a"
+kind = "rust_reviewed_test_lint"
+rationale = "The sole change is the exact builtin Clippy too_many_lines allow before the existing replicate function. No numerical expression, literal, branch, invocation, seed, counter or assertion changes."
+invariant_evidence = "Reviewed full historical token hash, exact13-token attribute insertion and literal-preserving remainder proof; immutable source-introspection/compile-context checks pass. This source certificate does not claim any witness executed this lint metadata."
+
+[waiver.outcome]
+replayed_at = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+identical = true
+records = [
+  "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval",
+  "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0",
+  "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval" = "6f8f7fb9d4a3b8b814b50eecce112fcbeb62acddc7e3f9e7958be5815859f8a0"
+"cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1" = "87136ffd628ebb83b1cc7bc77b6bfa0b7372f53fc16dd7ff2d6ad67f5d5c5aa7"
+"cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies" = "0cb77e5bb257bbe309ba9e61b34e42e6c841ce6b38d92bcc393c70b8f6adf3cc"
+"cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0" = "9d0fc0967bb5b8f96540b50d7229365ecb04d4322bdec69f28442146b79967bd"
+
+[[waiver]]
+id = "unchanged-weighted-hc3-from-da811"
+from = "da811c715e4d1961ca0cba7356467e34f2ec25e1"
+to = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+reviewed_by = "authorized release engineering review"
+recordless_gates = true
+gate_ledger_commit = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+justification = """
+Complete stored original-domain/configuration/planned-point-budget payloads were reproduced through genuine clean execution at the final source. New trial-only PAG policy is not selected by old temporal/default methods. Source-only builtin lint, terminal observers, additive exports, reference metadata, manifest partition and validated container preservation are certified separately, never claimed executed by unrelated typed witnesses. The MeanCurve witness executes unchanged plugin::predict_one through nuisance.rs; it does not call the changed intervention_plugin_influence, whose exactzeroShift branch is independently isolated and whose retained Set behavior has a separate genuine e15 witness. The synthesis witness calls the unchanged Gaussian numerical candidate and genuine artifact consumer in the changed owner; it does not claim execution of the stricter public publication guard. That guard has its separate actual facade refusal regression. Original recordless identities may inherit only this complete valid same-source scope and immutable ledger; no pseudo coverage IDs are fabricated.\
+"""
+paths = [
+  "Cargo.toml",
+  "crates/antecedent-io-core/src/cohort_decision.rs",
+  "crates/antecedent-stats/src/ci/calibration.rs",
+  "crates/antecedent-validate/src/sensitivity.rs",
+  "crates/antecedent-identify/src/lib.rs",
+  "crates/antecedent-identify/src/sid.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.sample_split_weighted_effect.cpdag.frequentist.student_t_sandwich_effective_n.l95.weighted_split_effect_interval_calibrated.discovery_fraction_0_75_conflict_resolution_treatment_invariant_variance_hc3"
+exercises = [
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "Cargo.toml"
+from_blob = "7924ccd7f9dee285b70390167c8bc7772d9e038c"
+to_blob = "a3d102538b071274464e6e5d38ec0175bcbb4ac8"
+kind = "proof_delegation"
+rationale = "The workspace version change and io-core release codegen-units override affect producer metadata and compilation partitioning only. External dependency versions and all numerical-crate optimization/codegen settings remain unchanged. Genuine clean replay compares actual emitted floating payloads; no mathematical execution is inferred from the manifest certificate."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+from_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
+to_blob = "4fd61d8cb087c4ba47a0fb046e1feadd77882a01"
+kind = "proof_delegation"
+rationale = "After the same CompactExport validation and retained-model scientific identity checks, retain the original verified nested container bytes rather than reserializing its producer version. No model coefficient, prediction, support or endpoint calculation changes. The ordinary old-version cohort golden roundtrip independently exercises this compatibility path; typed Monte Carlo witnesses are not claimed to execute this codec."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-stats/src/ci/calibration.rs"
+from_blob = "22ea819edffb27452b03812a25b4f3a8279764b1"
+to_blob = "8f1c61e92bf08ba4867e980a04fd8653ab72b3c0"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed GPDC test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/src/sensitivity.rs"
+from_blob = "7bdc6fb09265648bbb7406d88c7eb435acb63d0c"
+to_blob = "e6905474654dcde6f9ae44d8629ff90c9665652f"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed sensitivity test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness retains the original four-worker context and recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/lib.rs"
+from_blob = "ab7e7d60ea8b59b9a2e957b79202abf222afaa39"
+to_blob = "88b672d43e762dfee5bc88bb7410118d6e14bba8"
+kind = "additive_wrapper"
+rationale = "Add the explicitly named standardization-first transport entry point; the existing identify_catalog_transport export and call path remain unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/sid.rs"
+from_blob = "cd419ff92946942af857c39a3885774e8664a571"
+to_blob = "ca29225d33b5eebef17bfae7ae82cbe2a01d63c5"
+kind = "additive_wrapper"
+rationale = "Add only the new standardization-first public reexport alongside the retained catalog APIs; other source tokens are unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[waiver.outcome]
+replayed_at = "2f7d56662e4e86014f907e577b7c854c74c831d4"
+identical = true
+records = [
+  "cov.sample_split_weighted_effect.cpdag.frequentist.student_t_sandwich_effective_n.l95.weighted_split_effect_interval_calibrated.discovery_fraction_0_75_conflict_resolution_treatment_invariant_variance_hc3",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.sample_split_weighted_effect.cpdag.frequentist.student_t_sandwich_effective_n.l95.weighted_split_effect_interval_calibrated.discovery_fraction_0_75_conflict_resolution_treatment_invariant_variance_hc3" = "1fd2b725c3cf3bc38e0922cb4ae337ffa6a1f9dded29a382c022bebde60fa2b3"
+
+[[waiver]]
+id = "unchanged-design-artifacts-from-c30-c9659b468"
+from = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+to = "c9659b468b86366886facff69a73eeee5fc1f0f8"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Retain original default numerical methods and the original fixed-Wald/DL-HKSJ synthesis producers. Each requested replay must reproduce the complete stored payload under original domains and gate budgets. The synthesis witness executes the real artifact consumer and verifies mean and interval bitwise. Exact reviewed source certificates separately cover additive exports/default-preserving identity wiring; no unexecuted wrapper is claimed as exercised. Recordless gate inheritance preserves only the original passed immutable ledger rows, under this same complete source scope. No replay outcome is claimed until the genuine clean execution succeeds. The first existing replicate now exports and consumes a real DecisionReliabilityArtifact from the unchanged draws/request, invoking the verifier without changing RNG draws, assessment, uncertainty, or tallies. Historical golden compatibility is independently tested; no claim of mathematical output change. This waiver covers only the complete core/design/calibration-suite drift of design-facet rows; other pre-existing waivers/outcomes retain authority for unchanged non-design records.\
+"""
+paths = [
+  "Cargo.toml",
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "crates/antecedent-discovery/src/selective/contract.rs",
+  "crates/antecedent-estimate/src/lib.rs",
+  "crates/antecedent-estimate/src/propensity/mod.rs",
+  "crates/antecedent-identify/src/lib.rs",
+  "crates/antecedent-identify/src/sid.rs",
+  "crates/antecedent-io-core/src/cohort_decision.rs",
+  "crates/antecedent-stats/src/ci/calibration.rs",
+  "crates/antecedent-stats/src/lib.rs",
+  "crates/antecedent-stats/src/response.rs",
+  "crates/antecedent-validate/src/sensitivity.rs",
+  "crates/antecedent/src/analysis/contract.rs",
+  "crates/antecedent/src/analysis/contract_identity.rs",
+  "crates/antecedent/src/analysis/mod.rs",
+  "crates/antecedent/src/analysis/sample_split_analysis.rs",
+  "crates/antecedent/src/estimator_spec.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "crates/antecedent/tests/common/sparse_scm.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-stats/src/response.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/propensity/mod.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage"
+exercises = [
+  "crates/antecedent/tests/common/sparse_scm.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent-discovery/src/selective/contract.rs",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams"
+exercises = [
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0"
+exercises = [
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5"
+exercises = [
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "scripts/gate_calibration.sh",
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "Cargo.toml"
+from_blob = "394abb7f16d08a839ccc8639a6f0163dbfbf998a"
+to_blob = "a3d102538b071274464e6e5d38ec0175bcbb4ac8"
+kind = "proof_delegation"
+rationale = "The workspace version change and io-core release codegen-units override affect producer metadata and compilation partitioning only. External dependency versions and all numerical-crate optimization/codegen settings remain unchanged. Genuine clean replay compares actual emitted floating payloads; no mathematical execution is inferred from the manifest certificate."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+from_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
+to_blob = "4fd61d8cb087c4ba47a0fb046e1feadd77882a01"
+kind = "proof_delegation"
+rationale = "After the same CompactExport validation and retained-model scientific identity checks, retain the original verified nested container bytes rather than reserializing its producer version. No model coefficient, prediction, support or endpoint calculation changes. The ordinary old-version cohort golden roundtrip independently exercises this compatibility path; typed Monte Carlo witnesses are not claimed to execute this codec."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-stats/src/ci/calibration.rs"
+from_blob = "22ea819edffb27452b03812a25b4f3a8279764b1"
+to_blob = "8f1c61e92bf08ba4867e980a04fd8653ab72b3c0"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed GPDC test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/src/sensitivity.rs"
+from_blob = "7bdc6fb09265648bbb7406d88c7eb435acb63d0c"
+to_blob = "e6905474654dcde6f9ae44d8629ff90c9665652f"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed sensitivity test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness retains the original four-worker context and recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-estimate/src/lib.rs"
+from_blob = "68320bfd2d89bed7f95d24a6fb6d7986ea188d5a"
+to_blob = "cb3f6f40a56a29fe6f3a5015864a39a8934174ab"
+kind = "additive_wrapper"
+rationale = "Expose opt-in balanced population interval types and the explicit population AIPW module; all existing exports and default estimator entry points remain."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-stats/src/lib.rs"
+from_blob = "c80875f7872cfbf087959a63b7dcc4f3bab7a559"
+to_blob = "89ebc0f9ffcdfb44eb0f7961a27f3756587ec6e1"
+kind = "proof_delegation"
+rationale = "Retain existing exported names; reexport SparseDiscreteCi from its separately reviewed implementation module and add explicit response helpers. Existing callers retain their old numerical function bindings."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/lib.rs"
+from_blob = "833219d5e216449c60e73fdbb580e3162be88ca3"
+to_blob = "88b672d43e762dfee5bc88bb7410118d6e14bba8"
+kind = "additive_wrapper"
+rationale = "Add the explicitly named standardization-first transport entry point; the existing identify_catalog_transport export and call path remain unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/sid.rs"
+from_blob = "a0524deb9dfd55cfe361f5c4eb8f3a391ff37968"
+to_blob = "ca29225d33b5eebef17bfae7ae82cbe2a01d63c5"
+kind = "additive_wrapper"
+rationale = "Add only the new standardization-first public reexport alongside the retained catalog APIs; other source tokens are unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/mod.rs"
+from_blob = "2da2cf2dddaed02dda8e7410cf16a1c2b60dd711"
+to_blob = "7964d072e91b67aee029e7b4658fda2836464521"
+kind = "additive_wrapper"
+rationale = "Declare the new opt-in discovered_transport_trial module without changing existing module declarations or exports."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/contract.rs"
+from_blob = "6a34754d5476dba4ca18da1be09af128e6abfc1a"
+to_blob = "1efa8e3a0b044b2c20d1ebeda6fa715ed5c6f794"
+kind = "proof_delegation"
+rationale = "Optional regression-adjustment/population-variance suffixes apply only to explicit new estimator flags. Reference-aware tabular Cluster calibration keys distinguish already-published Student endpoints from normal endpoints: weighted Student uses its explicit new reference tag, weighted normal retains its old cluster key, unweighted Student retains its measured cluster key, and unweighted normal retains its historical iid key convention. This changes only calibration lookup metadata, not point, SE, reference degrees of freedom or endpoint arithmetic. Actual facade regression checks all four routes, including normal rejection inside Student row-count scope. No original numerical harness execution of this facade metadata helper is claimed."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/contract_identity.rs"
+from_blob = "aad6631f1f077bc362003849a6acc8874598d26b"
+to_blob = "446c718a7f74941af937ef8395dcf61f95b4d6f7"
+kind = "proof_delegation"
+rationale = "New optional outcome identities are None for every retained original default configuration; the original wire values and numeric inputs remain unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/estimator_spec.rs"
+from_blob = "a868326c108ae7246265ff21ce371b97e8c859a1"
+to_blob = "506984061eb22fb75f4a91cbc011dc46fdcbb97d"
+kind = "additive_wrapper"
+rationale = "Add explicit labels for new opt-in balanced/regression/population strategies, retaining all original default labels and estimator dispatch."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
+from_blob = "5a6382405e30db75bd8c1058e965693a581dc702"
+to_blob = "1ad47b7dcd1a9d641a7ec6519740fa22c1f81f91"
+kind = "proof_delegation"
+rationale = "The effect-only default now deliberately delegates to existing HC3; explicit estimate_analysis_effect_hc1 retains the historical computation for legacy replay. Exact token comparison preserves every other executable body, and the historical HC1 body is identical after substituting its two explicit HC1 selector arguments. Immutable caller inventory at c30, e15 and 70 finds only the two ordinary oracle-test files and the uncollected weighted-effect calibrator; no retained record test executes this changed effect-only wrapper. Existing split/discovery users therefore retain their measured numerical path. No claim is made that the new default was executed by old replay witnesses."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[waiver.outcome]
+replayed_at = "c9659b468b86366886facff69a73eeee5fc1f0f8"
+identical = true
+records = [
+  "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage" = "2029777eb1982e37a50e90c3f13daa8288ba26a7a115e63077b8022a476f1f6c"
+"cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage" = "47ead920047d1d175846bbbab2b5be3eab7315dbdc8a917b0d956642453ec2de"
+"cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams" = "cb10e13db2003aba5af8d6449d2fb78f2a22ccb7247256c74d315924aedbddce"
+"cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0" = "1802118ac065e576dd6592e0ab376073ab5f84516eae0bb9a878fbe5827a471e"
+"cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5" = "290f4bb0f77403282fb3d476c622cb08411755ba1ee590f60ca40f26a91998b2"
+"cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage" = "74862d6f07804d78a72b9ce305b27f5f8ad35432fc4b3c4c07349b604a3659e5"
+
+[[waiver]]
+id = "unchanged-design-artifacts-from-e15-c9659b468"
+from = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
+to = "c9659b468b86366886facff69a73eeee5fc1f0f8"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Genuine clean original-domain replay reproduced all stored outputs bit for bit. Retain the original measured raw estimators and exactly their historical normal cluster reference, selected explicitly from stored method metadata; ordinary measurement remains Student. The additional frequentist Set response witness executes the changed intervention_plugin_influence owner on its retained Set request; the exactzeroShift identity correction is not claimed exercised or numerically unchanged. Other default constructor exports and identity wiring are reviewed source-only additions. Every shared numerical or harness path is exercised by a genuine stored record measured at this same e15 source, never borrowed from another source SHA. Recordless inheritance preserves only exact original passed immutable ledger rows from this same source under the complete core scope; it neither creates coverage IDs nor claims policy/survival payloads were emitted by unrelated witnesses. The first existing replicate now exports and consumes a real DecisionReliabilityArtifact from the unchanged draws/request, invoking the verifier without changing RNG draws, assessment, uncertainty, or tallies. Historical golden compatibility is independently tested; no claim of mathematical output change. This waiver covers only the complete core/design/calibration-suite drift of design-facet rows; other pre-existing waivers/outcomes retain authority for unchanged non-design records.\
+"""
+paths = [
+  "Cargo.toml",
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "crates/antecedent-discovery/src/selective/contract.rs",
+  "crates/antecedent-estimate/src/lib.rs",
+  "crates/antecedent-estimate/src/propensity/mod.rs",
+  "crates/antecedent-identify/src/lib.rs",
+  "crates/antecedent-identify/src/sid.rs",
+  "crates/antecedent-io-core/src/cohort_decision.rs",
+  "crates/antecedent-stats/src/ci/calibration.rs",
+  "crates/antecedent-validate/src/sensitivity.rs",
+  "crates/antecedent/src/analysis/contract.rs",
+  "crates/antecedent/src/analysis/mod.rs",
+  "crates/antecedent/src/analysis/sample_split_analysis.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear"
+exercises = [
+  "crates/antecedent-estimate/src/propensity/mod.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75"
+exercises = [
+  "crates/antecedent-discovery/src/selective/contract.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.separate_streams"
+exercises = [
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_0"
+exercises = [
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_5"
+exercises = [
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "Cargo.toml"
+from_blob = "394abb7f16d08a839ccc8639a6f0163dbfbf998a"
+to_blob = "a3d102538b071274464e6e5d38ec0175bcbb4ac8"
+kind = "proof_delegation"
+rationale = "The workspace version change and io-core release codegen-units override affect producer metadata and compilation partitioning only. External dependency versions and all numerical-crate optimization/codegen settings remain unchanged. Genuine clean replay compares actual emitted floating payloads; no mathematical execution is inferred from the manifest certificate."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+from_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
+to_blob = "4fd61d8cb087c4ba47a0fb046e1feadd77882a01"
+kind = "proof_delegation"
+rationale = "After the same CompactExport validation and retained-model scientific identity checks, retain the original verified nested container bytes rather than reserializing its producer version. No model coefficient, prediction, support or endpoint calculation changes. The ordinary old-version cohort golden roundtrip independently exercises this compatibility path; typed Monte Carlo witnesses are not claimed to execute this codec."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-stats/src/ci/calibration.rs"
+from_blob = "22ea819edffb27452b03812a25b4f3a8279764b1"
+to_blob = "8f1c61e92bf08ba4867e980a04fd8653ab72b3c0"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed GPDC test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/src/sensitivity.rs"
+from_blob = "7bdc6fb09265648bbb7406d88c7eb435acb63d0c"
+to_blob = "e6905474654dcde6f9ae44d8629ff90c9665652f"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed sensitivity test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness retains the original four-worker context and recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-estimate/src/lib.rs"
+from_blob = "8c2dfadbfc45ba4cfbf21abe84c478cfcd7a0d7b"
+to_blob = "cb3f6f40a56a29fe6f3a5015864a39a8934174ab"
+kind = "additive_wrapper"
+rationale = "Expose opt-in balanced population interval types and the explicit population AIPW module; all existing exports and default estimator entry points remain."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/lib.rs"
+from_blob = "833219d5e216449c60e73fdbb580e3162be88ca3"
+to_blob = "88b672d43e762dfee5bc88bb7410118d6e14bba8"
+kind = "additive_wrapper"
+rationale = "Add the explicitly named standardization-first transport entry point; the existing identify_catalog_transport export and call path remain unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/sid.rs"
+from_blob = "a0524deb9dfd55cfe361f5c4eb8f3a391ff37968"
+to_blob = "ca29225d33b5eebef17bfae7ae82cbe2a01d63c5"
+kind = "additive_wrapper"
+rationale = "Add only the new standardization-first public reexport alongside the retained catalog APIs; other source tokens are unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/mod.rs"
+from_blob = "2da2cf2dddaed02dda8e7410cf16a1c2b60dd711"
+to_blob = "7964d072e91b67aee029e7b4658fda2836464521"
+kind = "additive_wrapper"
+rationale = "Declare the new opt-in discovered_transport_trial module without changing existing module declarations or exports."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/contract.rs"
+from_blob = "b19ec76c0b9ccb31fba12284cc65c0baaed96dea"
+to_blob = "1efa8e3a0b044b2c20d1ebeda6fa715ed5c6f794"
+kind = "proof_delegation"
+rationale = "Optional regression-adjustment/population-variance suffixes apply only to explicit new estimator flags. Reference-aware tabular Cluster calibration keys distinguish already-published Student endpoints from normal endpoints: weighted Student uses its explicit new reference tag, weighted normal retains its old cluster key, unweighted Student retains its measured cluster key, and unweighted normal retains its historical iid key convention. This changes only calibration lookup metadata, not point, SE, reference degrees of freedom or endpoint arithmetic. Actual facade regression checks all four routes, including normal rejection inside Student row-count scope. No original numerical harness execution of this facade metadata helper is claimed."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
+from_blob = "5a6382405e30db75bd8c1058e965693a581dc702"
+to_blob = "1ad47b7dcd1a9d641a7ec6519740fa22c1f81f91"
+kind = "proof_delegation"
+rationale = "The effect-only default now deliberately delegates to existing HC3; explicit estimate_analysis_effect_hc1 retains the historical computation for legacy replay. Exact token comparison preserves every other executable body, and the historical HC1 body is identical after substituting its two explicit HC1 selector arguments. Immutable caller inventory at c30, e15 and 70 finds only the two ordinary oracle-test files and the uncollected weighted-effect calibrator; no retained record test executes this changed effect-only wrapper. Existing split/discovery users therefore retain their measured numerical path. No claim is made that the new default was executed by old replay witnesses."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[waiver.outcome]
+replayed_at = "c9659b468b86366886facff69a73eeee5fc1f0f8"
+identical = true
+records = [
+  "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_5",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75" = "211c0b1d7ecd38884d0a841b93e84176d8112cfe1806adc88fed515a04817800"
+"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear" = "d54143b7776c9a7aa16ea7706b60347fa1e32245f39a08e606bf47c84b456b4d"
+"cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.separate_streams" = "ec19f628a17663acd43ece0eb8b9010e875f19b59ee6c0c2fb2cd0e65353dbeb"
+"cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_0" = "7c841637bdbb2d156cf15d7fb30b61b8fab20ab48418e616d51871c6e734a901"
+"cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_5" = "c35bbca2ae4736f58953bf80a7d5108af24fb260a8e703adae84fc7d55e0312f"
+
+[[waiver]]
+id = "unchanged-design-artifacts-from-70-c9659b468"
+from = "70a71dd33bc55cbc2398b0f91c4a2c797afad618"
+to = "c9659b468b86366886facff69a73eeee5fc1f0f8"
+reviewed_by = "authorized release engineering review"
+recordless_gates = false
+gate_ledger_commit = ""
+justification = """
+Complete stored original-domain/configuration/planned-point-budget payloads were reproduced through genuine clean execution at the final source. New trial-only PAG policy is not selected by old temporal/default methods. Source-only builtin lint, terminal observers, additive exports, reference metadata, manifest partition and validated container preservation are certified separately, never claimed executed by unrelated typed witnesses. The MeanCurve witness executes unchanged plugin::predict_one through nuisance.rs; it does not call the changed intervention_plugin_influence, whose exactzeroShift branch is independently isolated and whose retained Set behavior has a separate genuine e15 witness. The synthesis witness calls the unchanged Gaussian numerical candidate and genuine artifact consumer in the changed owner; it does not claim execution of the stricter public publication guard. That guard has its separate actual facade refusal regression. Original recordless identities may inherit only this complete valid same-source scope and immutable ledger; no pseudo coverage IDs are fabricated. The temporal computation ran at original source70f; its immutable raw logs differ from the stored record only in an accidentally inherited se_kind descriptor. The bounded version3 capture verifies exact compiled inputs and reviewed temporal descriptor correction, retains original source/build/binary/dispatch receipts, and projects only that exact metadata field. All numerical fields remain bit-identical. The other three witnesses genuinely executed the corrected source. No temporal draws were repeated. The first existing replicate now exports and consumes a real DecisionReliabilityArtifact from the unchanged draws/request, invoking the verifier without changing RNG draws, assessment, uncertainty, or tallies. Historical golden compatibility is independently tested; no claim of mathematical output change. This waiver covers only the complete core/design/calibration-suite drift of design-facet rows; other pre-existing waivers/outcomes retain authority for unchanged non-design records.\
+"""
+paths = [
+  "Cargo.toml",
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "crates/antecedent-identify/src/lib.rs",
+  "crates/antecedent-identify/src/sid.rs",
+  "crates/antecedent-io-core/src/cohort_decision.rs",
+  "crates/antecedent-stats/src/ci/calibration.rs",
+  "crates/antecedent-validate/src/sensitivity.rs",
+  "crates/antecedent/src/analysis/contract.rs",
+  "crates/antecedent/src/analysis/sample_split_analysis.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies"
+exercises = [
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/common/calibration_decision.rs",
+  "scripts/gate_calibration.sh",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.separate_streams"
+exercises = [
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_0"
+exercises = [
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_5"
+exercises = [
+  "crates/antecedent-design/src/decision_reliability/artifact.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "Cargo.toml"
+from_blob = "7924ccd7f9dee285b70390167c8bc7772d9e038c"
+to_blob = "a3d102538b071274464e6e5d38ec0175bcbb4ac8"
+kind = "proof_delegation"
+rationale = "The workspace version change and io-core release codegen-units override affect producer metadata and compilation partitioning only. External dependency versions and all numerical-crate optimization/codegen settings remain unchanged. Genuine clean replay compares actual emitted floating payloads; no mathematical execution is inferred from the manifest certificate."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+from_blob = "eab1e736f5f6e88259b5879f0e69bc5f0c1c2293"
+to_blob = "4fd61d8cb087c4ba47a0fb046e1feadd77882a01"
+kind = "proof_delegation"
+rationale = "After the same CompactExport validation and retained-model scientific identity checks, retain the original verified nested container bytes rather than reserializing its producer version. No model coefficient, prediction, support or endpoint calculation changes. The ordinary old-version cohort golden roundtrip independently exercises this compatibility path; typed Monte Carlo witnesses are not claimed to execute this codec."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-stats/src/ci/calibration.rs"
+from_blob = "22ea819edffb27452b03812a25b4f3a8279764b1"
+to_blob = "8f1c61e92bf08ba4867e980a04fd8653ab72b3c0"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed GPDC test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-validate/src/sensitivity.rs"
+from_blob = "7bdc6fb09265648bbb7406d88c7eb435acb63d0c"
+to_blob = "e6905474654dcde6f9ae44d8629ff90c9665652f"
+kind = "rust_terminal_test_observer"
+rationale = "Only the exact qualified terminal observer after every original scientific assertion is added to the independently reviewed sensitivity test. The literal-preserving full-file token proof binds all original statements and primitive counter captures. Its separate real original-domain count witness retains the original four-worker context and recovers reported N; unrelated typed witnesses do not claim to execute this observer."
+invariant_evidence = "Restricted literal-preserving token and full-export proof; immutable old/new module-qualified callers, Cargo dependency/build context and source-introspection/derive hazards checked. No assertion that the old harness executed this facade."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/lib.rs"
+from_blob = "ab7e7d60ea8b59b9a2e957b79202abf222afaa39"
+to_blob = "88b672d43e762dfee5bc88bb7410118d6e14bba8"
+kind = "additive_wrapper"
+rationale = "Add the explicitly named standardization-first transport entry point; the existing identify_catalog_transport export and call path remain unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-identify/src/sid.rs"
+from_blob = "cd419ff92946942af857c39a3885774e8664a571"
+to_blob = "ca29225d33b5eebef17bfae7ae82cbe2a01d63c5"
+kind = "additive_wrapper"
+rationale = "Add only the new standardization-first public reexport alongside the retained catalog APIs; other source tokens are unchanged."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/contract.rs"
+from_blob = "6a6c73403a0ee7f609b206561128cc138d51bedf"
+to_blob = "1efa8e3a0b044b2c20d1ebeda6fa715ed5c6f794"
+kind = "proof_delegation"
+rationale = "Optional regression-adjustment/population-variance suffixes apply only to explicit new estimator flags. Reference-aware tabular Cluster calibration keys distinguish already-published Student endpoints from normal endpoints: weighted Student uses its explicit new reference tag, weighted normal retains its old cluster key, unweighted Student retains its measured cluster key, and unweighted normal retains its historical iid key convention. This changes only calibration lookup metadata, not point, SE, reference degrees of freedom or endpoint arithmetic. Actual facade regression checks all four routes, including normal rejection inside Student row-count scope. No original numerical harness execution of this facade metadata helper is claimed."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
+from_blob = "5a6382405e30db75bd8c1058e965693a581dc702"
+to_blob = "1ad47b7dcd1a9d641a7ec6519740fa22c1f81f91"
+kind = "proof_delegation"
+rationale = "The effect-only default now deliberately delegates to existing HC3; explicit estimate_analysis_effect_hc1 retains the historical computation for legacy replay. Exact token comparison preserves every other executable body, and the historical HC1 body is identical after substituting its two explicit HC1 selector arguments. Immutable caller inventory at c30, e15 and 70 finds only the two ordinary oracle-test files and the uncollected weighted-effect calibrator; no retained record test executes this changed effect-only wrapper. Existing split/discovery users therefore retain their measured numerical path. No claim is made that the new default was executed by old replay witnesses."
+invariant_evidence = "Exact before/after Git blob review and the scope-specific preservation argument stated above. A deliberately changed uncollected default is not claimed unchanged or exercised; numerical engine paths require separate genuine replay, never this source certificate."
+
+[waiver.outcome]
+replayed_at = "c9659b468b86366886facff69a73eeee5fc1f0f8"
+identical = true
+records = [
+  "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.separate_streams",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_0",
+  "cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_5",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.separate_streams" = "b457f46a57ed494565e3cb5132f3a4b8a038eadfcf6f33062df0d918cdd2b2ad"
+"cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_0" = "ffe3ecb0bb46d7ccc16f63f7f0525bd4e14da2809f68c254026431022f965a37"
+"cov.decision_reliability.not_applicable.frequentist.wald_normal.l95.utility_interval_eight_candidates_l95.shared_rho_0_5" = "0262934b8d40fefb73e3a91f0d50ac262b1f7b277d093d5ae91240a614f20f1b"
+"cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies" = "0cb77e5bb257bbe309ba9e61b34e42e6c841ce6b38d92bcc393c70b8f6adf3cc"

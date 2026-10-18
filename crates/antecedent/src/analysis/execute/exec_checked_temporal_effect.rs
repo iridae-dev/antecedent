@@ -83,10 +83,12 @@ impl CheckedTemporalEffectExecution {
                 split: None,
                 latency_mode: None,
                 completed_to_dag: plan_completed_to_dag(&self.physical),
+                missing: self.result_context.missing.as_ref(),
             },
             ctx,
         )?;
         let point_only = fit.point_only;
+        let missing_data = fit.missing_data.clone();
         let args = fit.finish_args(
             &self.physical,
             op.identification().clone(),
@@ -99,10 +101,12 @@ impl CheckedTemporalEffectExecution {
                 wall_time_ns: elapsed_ns(started),
             },
         );
-        Ok(seal_point_only(
+        let mut result = seal_point_only(
             point_only,
             super::finish_identified_execute_with_context(&self.result_context, None, args),
-        ))
+        );
+        result.missing_data = missing_data;
+        Ok(result)
     }
 }
 

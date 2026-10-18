@@ -33,13 +33,17 @@
 
 mod common;
 
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ExecutionContext, Intervention,
     InterventionalDistributionQuery, Value, VariableId,
 };
 use antecedent_data::TabularData;
+use antecedent_discovery::GraphPosteriorAtomKind;
+use antecedent_discovery::adjacency_mask::adjacency_mask_from_admg;
 use antecedent_graph::{Admg, DenseNodeId};
+use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
     CoverageTally, RecordKey, SampleGrid, map_replicates, n_sim, stream_seed,
 };
@@ -107,9 +111,40 @@ fn frontdoor_admg() -> Admg {
     g
 }
 
+/// One fully identified ADMG graph-posterior atom (weight 1) over the
+/// front-door graph: the study reports structure `graph_posterior` and the
+/// single atom publishes its own interval.
+fn frontdoor_admg_gp() -> GraphPosterior {
+    let graph = frontdoor_admg();
+    let n = graph.node_count();
+    GraphPosterior::from_atoms(
+        n,
+        vec![1.0],
+        vec![adjacency_mask_from_admg(&graph).unwrap()],
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("admg_graph_posterior_average_effect"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::Admg)
+}
+
 /// The facade's default Bayesian configuration (Python `Bayesian()`).
 fn bayes() -> InferenceMode {
     InferenceMode::Bayesian(BayesianConfig::laplace())
+}
+
+/// How the front-door structure reaches the study.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Structure {
+    Explicit,
+    Accepted,
+    /// One identified atom, so the study reports structure `graph_posterior`.
+    GraphPosterior,
 }
 
 /// Build and run the study, returning it beside its result so the scored
@@ -118,15 +153,15 @@ fn run(
     data: &TabularData,
     query: CausalQuery,
     inference: InferenceMode,
-    accepted: bool,
+    structure: Structure,
     suite: RefuteSuite,
     seed: u64,
 ) -> Option<(Study, StudyResult)> {
     let builder = Study::tabular(data.clone());
-    let builder = if accepted {
-        builder.graph(AcceptedGraph::from(frontdoor_admg()))
-    } else {
-        builder.graph(frontdoor_admg())
+    let builder = match structure {
+        Structure::Explicit => builder.graph(frontdoor_admg()),
+        Structure::Accepted => builder.graph(AcceptedGraph::from(frontdoor_admg())),
+        Structure::GraphPosterior => builder.graph_posterior(frontdoor_admg_gp()),
     };
     let study = builder.query(query).inference(inference).refute(suite).build().ok()?;
     let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
@@ -167,21 +202,44 @@ fn coverage(
     truth: f64,
     family: u64,
 ) -> [CoverageTally; 2] {
+    coverage_on(test, cell, Structure::Explicit, query, inference, suites, extract, truth, family)
+}
+
+/// [`coverage`] for the study built on `structure`; replicate 0 checks the
+/// validation suites on that structure (and accepted structure, which is
+/// licensed beside the explicit one only).
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one calibration cell per call: test, cell, structure, query, inference, suites, extractor, truth and seed family are the cell coordinates"
+)]
+fn coverage_on(
+    test: &'static str,
+    cell: Cell,
+    structure: Structure,
+    query: fn() -> CausalQuery,
+    inference: fn() -> InferenceMode,
+    suites: &[RefuteSuite],
+    extract: Extract,
+    truth: f64,
+    family: u64,
+) -> [CoverageTally; 2] {
     let mut tallies = keyed_pair(test, cell);
     let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(family, rep);
         let data = frontdoor_data(SampleGrid::HEAVY.n(N), seed);
-        let (study, result) = run(&data, query(), inference(), false, RefuteSuite::None, seed)?;
+        let (study, result) = run(&data, query(), inference(), structure, RefuteSuite::None, seed)?;
         let pair = extract(&result);
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some(cell.estimator));
             assert!(pair[0].is_some(), "{}: the default run must report an interval", cell.query);
-            for (accepted, suite) in
-                std::iter::once((true, RefuteSuite::None)).chain(suites.iter().map(|&s| (false, s)))
+            let accepted = (structure == Structure::Explicit)
+                .then_some((Structure::Accepted, RefuteSuite::None));
+            for (other_structure, suite) in
+                accepted.into_iter().chain(suites.iter().map(|&s| (structure, s)))
             {
-                let (_, other) = run(&data, query(), inference(), accepted, suite, seed)
+                let (_, other) = run(&data, query(), inference(), other_structure, suite, seed)
                     .expect("licensed coordinate runs");
-                assert_eq!(extract(&other), pair, "accepted={accepted} {suite:?}");
+                assert_eq!(extract(&other), pair, "{other_structure:?} {suite:?}");
             }
         }
         Some((study, result, pair))
@@ -284,13 +342,74 @@ fn interventional_distribution_admg_frontdoor_bayesian_nominal_coverage() {
     gate(&tallies, &[None, None]);
 }
 
+/// The same Frequentist `functional.effect` average effect under a graph
+/// posterior whose single atom is the front-door ADMG.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_admg_graph_posterior_frequentist_nominal_coverage() {
+    let cell = Cell {
+        query: "AverageEffect",
+        estimator: "functional.effect",
+        interval_method: "bootstrap_se",
+    };
+    let tallies = coverage_on(
+        "average_effect_admg_graph_posterior_frequentist_nominal_coverage",
+        cell,
+        Structure::GraphPosterior,
+        ate_query,
+        || InferenceMode::Frequentist,
+        &[RefuteSuite::Cheap, RefuteSuite::Full],
+        |result| {
+            assert_eq!(scalar_reported_se(result).1, "bootstrap_se", "bootstrap SE reported");
+            scalar_normal_pair(result)
+        },
+        ATE_TRUTH,
+        0x110_0111,
+    );
+    gate(&tallies, &[None, None]);
+}
+
+/// The same Bayesian `functional.effect` posterior under a graph posterior
+/// whose single atom is the front-door ADMG.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_admg_graph_posterior_bayesian_nominal_coverage() {
+    let cell = Cell {
+        query: "AverageEffect",
+        estimator: "functional.effect",
+        interval_method: "posterior_quantile",
+    };
+    let tallies = coverage_on(
+        "average_effect_admg_graph_posterior_bayesian_nominal_coverage",
+        cell,
+        Structure::GraphPosterior,
+        ate_query,
+        bayes,
+        &[RefuteSuite::Cheap, RefuteSuite::Full],
+        |result| {
+            let col =
+                result.posterior.as_ref().and_then(antecedent::CausalPosterior::effect_column);
+            col.map_or([None, None], |col| posterior_pair(result, col))
+        },
+        ATE_TRUTH,
+        0x110_0112,
+    );
+    gate(&tallies, &[None, None]);
+}
+
 /// Each coordinate publishes the interval its coverage test scores.
 #[test]
 fn admg_frontdoor_coordinates_publish_the_scored_interval() {
     let data = frontdoor_data(600, 3);
-    let (_, freq) =
-        run(&data, ate_query(), InferenceMode::Frequentist, false, RefuteSuite::None, 3)
-            .expect("the Frequentist coordinate runs");
+    let (_, freq) = run(
+        &data,
+        ate_query(),
+        InferenceMode::Frequentist,
+        Structure::Explicit,
+        RefuteSuite::None,
+        3,
+    )
+    .expect("the Frequentist coordinate runs");
     assert!(
         freq.estimate.as_effect().unwrap().se_analytic().is_nan(),
         "functional.effect has no analytic SE"
@@ -301,8 +420,9 @@ fn admg_frontdoor_coordinates_publish_the_scored_interval() {
         "Study default bootstrap"
     );
     assert!(scalar_normal_pair(&freq)[0].is_some());
-    let (_, dist) = run(&data, distribution_query(), bayes(), false, RefuteSuite::None, 3)
-        .expect("the Bayesian distribution coordinate runs");
+    let (_, dist) =
+        run(&data, distribution_query(), bayes(), Structure::Explicit, RefuteSuite::None, 3)
+            .expect("the Bayesian distribution coordinate runs");
     let posterior = dist.posterior.as_ref().unwrap();
     let col = posterior.effect_column().unwrap();
     let atoms = &dist.distribution().unwrap().atoms;

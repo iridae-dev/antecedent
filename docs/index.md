@@ -8,8 +8,8 @@ combined, saved, transported, or consumed by other software.
 
 > Install with `python -m pip install --upgrade antecedent` (Python 3.11+),
 > then begin with the [Python quickstart](python-workflow.md). The
-> [release notes](release-notes/v2.4.0.md) describe what changed in each
-> version, with earlier releases listed in the navigation.
+> [2.4.1 release notes](release-notes/v2.4.1.md) describe these workflows;
+> [2.4.0 notes](release-notes/v2.4.0.md) describe the previous release.
 
 Choose [an example](examples.md), use [support lookup](support-lookup.md), or read [the glossary](glossary.md) when a standing label is unfamiliar. For a complete 2.4 workflow, follow [notebook to system](guides/notebook-to-system.md) and [measurement to decision](tutorials/measurement-to-decision.md).
 

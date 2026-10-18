@@ -1,0 +1,26 @@
+feature_id = "discovery.exact_marginals"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Exact Bayesian Structure Discovery in Bayesian Networks", url = "https://www.jmlr.org/papers/volume5/koivisto04a/koivisto04a.pdf", sections = ["Dynamic programming over node subsets for posterior sums of a modular score over DAGs"] },
+ { title = "Computing Posterior Probabilities of Structural Features in Bayesian Networks", url = "https://arxiv.org/abs/1205.2630", sections = ["Sum over all DAGs of a product of per-node factors by the sink recursion with inclusion-exclusion (Robinson's counting recursion); features as restricted factors"] },
+ { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the Gaussian score"] },
+]
+
+implementation_deviations = [
+ "The posterior is the exact normalization of a Gaussian-BIC approximation with the uniform or independent-Bernoulli edge prior and the declared constraints, not an exact Bayesian marginal posterior; the marginals are exact for that distribution.",
+ "Only edge marginals and the normalizing constant are computed; no graph atoms are produced, so the result cannot feed an effect mixture.",
+ "The recursion is evaluated in double precision with the log-domain subset sums scaled by the best DAG weight of each node set; its cancellation error is bounded by the number of terms, about 1e-12 at 12 variables, and is checked against an independent enumeration to 1e-9.",
+ "The size is limited to at most 12 variables: each marginal needs one 3^n pass.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-discovery/src/exact_marginals.rs unit tests (two nodes against the closed form; a posterior concentrated by thousands of nats against hand-computed weights)",
+ "crates/antecedent-discovery/tests/graph_posterior_wide.rs (every DAG enumerated by an independent routine and scored by a separate Gaussian-BIC implementation at five, six and seven variables, agreement to 1e-9; order and structure MCMC against the exact marginals at ten and twelve variables on 2,000 rows)",
+]

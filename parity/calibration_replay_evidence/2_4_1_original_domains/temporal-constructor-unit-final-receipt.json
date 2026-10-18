@@ -1,0 +1,8 @@
+{
+  "source": "2f7d56662e4e86014f907e577b7c854c74c831d4",
+  "executable": "/private/tmp/antecedent-attestation-target/release/deps/discovered_transport_calibration-397c96eab9b36b60",
+  "sha256": "3a15eb8cc79bfa0dc782b2ebecb0f07029607c041d6747c62015a34f516284a7",
+  "test": "temporal_construction_keeps_its_own_percentile_sampling_identity",
+  "exit_code": 0,
+  "scientific_draws": 0
+}

@@ -1,0 +1,120 @@
+{
+  "status": "SEALED_PLAN_NO_SIMULATIONS",
+  "domain": "release_2_4_1_missing_width_v1",
+  "domain_sha256": "fda5919810d79ef278e5f2bc36f0b3d827f2167e9d36541bf91e2ceb36207974",
+  "seed_salt_hex": "0xF29ED7109891A5FD",
+  "seed_rule": "(original case base + replicate) XOR SHA256(domain)[0:8] little-endian; policy base0x6b0000, survival base0x5e0000",
+  "replicate_indices": [
+    0,
+    2047
+  ],
+  "attempts_per_case": 2048,
+  "participants": 1000,
+  "worker_count": 1,
+  "stopping": "Exactly2048 attempts per case, no adaptive extension, no seed replacement; fail if fewer than2000 finite reported intervals",
+  "frozen_thresholds": {
+    "min_reported": 2000,
+    "min_reporting_rate": 0.9,
+    "max_median_width_over_effect": 1.5
+  },
+  "metrics": [
+    "reporting rate",
+    "median(width)/median(abs(truth))",
+    "median(width/abs(truth))"
+  ],
+  "coverage": "Never compute, retest or overwrite coverage; supplement only missing width information on unused datasets",
+  "source_commit": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+  "dgp": {
+    "path": "crates/antecedent-estimate/tests/common/observational_effects.rs",
+    "sha256": "fd26e956a7add541f771204ea61bf403cda433be2e785dae200a49980c227918"
+  },
+  "harness": {
+    "path": "crates/antecedent-estimate/tests/observational_effects_calibration.rs",
+    "sha256": "46428ed37b1e65b43d18ebe0e2bee694e09f5b71427db57a7cc9601786b526d0"
+  },
+  "function_excerpts": {
+    "estimate_policy": "0fb4aaa970b634c51acefc08e478daf45580723a0303676c1ed05f409432efab",
+    "learned_rule_value": "a4161ada7f293c30b96e793a998128463a22d5ae7c142fdad1bd8053d28d22c3"
+  },
+  "helper_sha256": "7d11a2a2d88e4fe730ca285ec9fbf71a73c9d7fa5c014bccc8221e7f7e7fe258",
+  "raw_output": "One CSV row per attempt retaining exact seed, refusal/report status, width and truth magnitude; summary JSON and hashes retained after run",
+  "compiler_command": [
+    "rustc",
+    "--edition=2024",
+    "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/width-only-v241-plan/width_only.rs",
+    "-C",
+    "opt-level=2",
+    "-L",
+    "dependency=/private/tmp/antecedent-attestation-target/release/deps",
+    "--extern",
+    "antecedent_core=/private/tmp/antecedent-attestation-target/release/deps/libantecedent_core-c20c7965062d16d9.rlib",
+    "--extern",
+    "antecedent_estimate=/private/tmp/antecedent-attestation-target/release/deps/libantecedent_estimate-20e6c313ba963214.rlib",
+    "--extern",
+    "antecedent_kernels=/private/tmp/antecedent-attestation-target/release/deps/libantecedent_kernels-20d75b2aeca8f70d.rlib",
+    "--extern",
+    "serde_json=/private/tmp/antecedent-attestation-target/release/deps/libserde_json-f98deb5eacd84cc6.rlib",
+    "-o",
+    "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/width-only-v241-plan/width_only"
+  ],
+  "rlib_provenance_claim": "Controlled clean-checkout Cargo build provenance and exact artifact/fingerprint checksums. No embedded cryptographic source-SHA attestation is claimed.",
+  "production_source_comparison": {
+    "crates/antecedent-estimate/src/observational_policy.rs": {
+      "build0ffa_sha256": "fe1d581e0c413f4c08645672a1e54336c09ac39ea2285bc2d5efecb7cd2f26aa",
+      "equal": true,
+      "sourcec30_sha256": "fe1d581e0c413f4c08645672a1e54336c09ac39ea2285bc2d5efecb7cd2f26aa"
+    },
+    "crates/antecedent-estimate/src/observational_survival.rs": {
+      "build0ffa_sha256": "4c823bc7ea6397a4dfbff29ba62860c532e906204be18e3e850b121bdd3e78e7",
+      "equal": true,
+      "sourcec30_sha256": "4c823bc7ea6397a4dfbff29ba62860c532e906204be18e3e850b121bdd3e78e7"
+    }
+  },
+  "artifact_sha256": {
+    "/private/tmp/antecedent-attestation-target/release/.fingerprint/antecedent-29449d1e765710d3/test-integration-test-sample_split_weighted_effect_calibration.json": "51551ecb1dc60cd55f0b138bb442e89c38cdab9729c4d8ef8e8ad91d254357e8",
+    "/private/tmp/antecedent-attestation-target/release/.fingerprint/antecedent-kernels-20d75b2aeca8f70d/lib-antecedent_kernels": "f7e6eb98f52c6fa77d639bb35630c76ae99ee22a76b564db4959e4af837dc84a",
+    "/private/tmp/antecedent-attestation-target/release/deps/libantecedent_kernels-20d75b2aeca8f70d.rlib": "ceb6d02800f45dfbade28e13ae2700d4cbd642b6567633b6696ecf1384ab9024",
+    "/private/tmp/antecedent-attestation-target/release/.fingerprint/serde_json-f98deb5eacd84cc6/lib-serde_json": "75bf63fa12e3e6e817417f191da647d4a95323d29cd0d527b4d8a20b8ae6281d",
+    "/private/tmp/antecedent-attestation-target/release/deps/libserde_json-f98deb5eacd84cc6.rlib": "4d37f2b742f450c52f6b5bd2e9774ff7b11b7e9ac016af8f637365ffbb05188c",
+    "/private/tmp/antecedent-attestation-target/release/.fingerprint/antecedent-estimate-20e6c313ba963214/lib-antecedent_estimate": "13b3c988b801035a709ea5b735a704f323a85db10dd90d0e9e144efce8f9f65f",
+    "/private/tmp/antecedent-attestation-target/release/deps/libantecedent_estimate-20e6c313ba963214.rlib": "11fe0b1d8f2991ad2b3192b502664a77a016b880f76c1627d64cd6f4799df5cd",
+    "/private/tmp/antecedent-attestation-target/release/.fingerprint/antecedent-core-c20c7965062d16d9/lib-antecedent_core": "6258a6be4be7a23c2b31d8689131df3c3091083b1434485fb7b30c37e4c8bb3e",
+    "/private/tmp/antecedent-attestation-target/release/deps/libantecedent_core-c20c7965062d16d9.rlib": "978292c597c8810507de7d80131fff6d9f66136c5ad610181ce5c0a17852cc29"
+  },
+  "approval_required_before_simulation": true,
+  "controlled_build_provenance": {
+    "path": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/width-only-v241-plan/final-controlled-build-provenance.json",
+    "sha256": "3db88a0015cdc8338048389b530bcf8e77a18efb892c0d7eec53345e08dfd656"
+  },
+  "normal_critical_value_source": {
+    "path": "crates/antecedent/tests/common/calibration.rs",
+    "sha256": "f6bbfdc9e00f717a996f9fa1809f39d6f2d64f4b6b438d23109c58a0b2defb48",
+    "exact_literal": "1.959_963_984_540_054"
+  },
+  "seed_nonoverlap_audit": {
+    "new_seeds": 4096,
+    "previous_prefix_per_case": 20000,
+    "previous_domains": [
+      "legacy0",
+      "release_2_4_1_validation_v1"
+    ],
+    "all_three_grids_and_confirmation_salts": true,
+    "intersection": 0
+  },
+  "rustc_version_verbose": "rustc 1.85.1 (4eb161250 2025-03-15)\nbinary: rustc\ncommit-hash: 4eb161250e340c8f48f66e2b929ef4a5bed7c181\ncommit-date: 2025-03-15\nhost: aarch64-apple-darwin\nrelease: 1.85.1\nLLVM version: 19.1.7\n",
+  "c30_numerical_source_audit": {
+    "path": "target/calibration-audit/width-only-v241-plan/c30-numerical-source-audit.json",
+    "sha256": "7cfbdf1ac9c2f2ac777c7fedc5f349bae6f293b99c30f4417da6257f652829f1"
+  },
+  "preoutcome_amendment": {
+    "reason": "Root review requires repo upper-middle median and exact older c30 policy min_propensity=.01, not70 override1e-3. No outcomes observed and no compilation occurred.",
+    "previous_plan_sha256": "a079d5de983d0ec459675e0cdb12fc0ac6c015681403a7e7878773cbdb8e151b",
+    "previous_helper_sha256": "10adf8bb110f077c1619cd6b437b404a7ea56b661d0843f3752066ffd9536b14",
+    "median_definition": "sort values; return values[len/2], including even sample sizes",
+    "policy_min_propensity": 0.01
+  },
+  "source_recipe_difference_from70": "c30 uses constructor min_propensity default0.01;70 explicitlyoverrides1e-3. The helper reproduces c30 default0.01.",
+  "build_source_commit": "da811c715e4d1961ca0cba7356467e34f2ec25e1",
+  "orchestration_sha256": "acebde0f184b65e244babf7c71429080238d6ca82111cca8be2da4222561ff38",
+  "replay_instructions": "Verify plan.sha256 and every artifact/source hash, compile exact compiler_command, then run run_width_only.py once. No Cargo/cache clone. No coverage statistics are produced."
+}

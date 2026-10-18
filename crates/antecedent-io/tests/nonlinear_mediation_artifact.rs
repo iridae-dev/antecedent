@@ -1,7 +1,8 @@
 //! Nonlinear-mediation artifact: the exact-grid closed-form truth of the core tests through
 //! the container, a re-estimating consumer, resealed-mutation refusals against a retained
-//! identity, the premise and bootstrap records, unknown versions, the row cap and the unmeasured
-//! calibration coordinate with the closed interval status.
+//! identity, the premise and bootstrap records, unknown versions, the computation, export and
+//! replay budgets of an estimator with no row ceiling, and the unmeasured calibration coordinate
+//! with the closed interval status.
 //!
 //! SCM (identical to `antecedent-estimate/tests/nonlinear_mediation.rs`):
 //! `M = alpha*A + gamma*X + e_M`; `Y = b0 + b1*A + c1*M + c2*M^2 + delta*A*M + bx*X` with no
@@ -10,11 +11,11 @@
 //! Closed form: `NDE = b1 + delta*gamma*E[X]`,
 //! `NIE = (c1 + delta)*alpha + c2*(alpha^2 + 2*alpha*gamma*E[X])`, `TE = NDE + NIE`.
 
+use antecedent_core::{ExecutionContext, MemoryBudget};
 use antecedent_io::nonlinear_mediation_artifact::{
     MediationConfigWire, MediationDataWire, MediationPremisesWire,
-    NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS, NONLINEAR_MEDIATION_ARTIFACT_VERSION,
-    NonlinearMediationArtifact, NonlinearMediationArtifactError, NonlinearMediationRequestWire,
-    decode_parts, encode_parts,
+    NONLINEAR_MEDIATION_ARTIFACT_VERSION, NonlinearMediationArtifact,
+    NonlinearMediationArtifactError, NonlinearMediationRequestWire, decode_parts, encode_parts,
 };
 
 const XS: [f64; 5] = [-1.0, 0.0, 1.0, 2.0, 3.0];
@@ -294,27 +295,262 @@ fn mediation_artifact_refuses_unknown_versions_features_and_corruption() {
 }
 
 #[test]
-fn mediation_artifact_caps_embedded_rows() {
-    let rows = NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS + 1;
-    let big = NonlinearMediationRequestWire {
-        premises: ignorable(),
-        config: config(0),
-        data: MediationDataWire {
-            treatment: vec![0.0; rows],
-            mediator: vec![0.0; rows],
-            outcome: vec![0.0; rows],
-            covariate_names: vec![],
-            covariates: vec![],
-        },
-    };
-    assert!(matches!(
-        NonlinearMediationArtifact::seal(&big),
-        Err(NonlinearMediationArtifactError::LimitsExceeded("rows"))
-    ));
+fn mediation_artifact_caps_bootstrap_replicates() {
     let mut bootstrap = request(0);
     bootstrap.config.bootstrap_replicates = 1_000_000;
     assert!(matches!(
         NonlinearMediationArtifact::seal(&bootstrap),
         Err(NonlinearMediationArtifactError::LimitsExceeded("bootstrap replicates"))
     ));
+}
+
+/// The 40-row exact-grid dataset repeated `copies` times. Repetition leaves the fitted
+/// coefficients, and so the closed-form effects, unchanged.
+fn scaled_request(copies: usize) -> NonlinearMediationRequestWire {
+    let base = data();
+    let repeat = |column: &[f64]| -> Vec<f64> {
+        column.iter().copied().cycle().take(column.len() * copies).collect()
+    };
+    NonlinearMediationRequestWire {
+        premises: ignorable(),
+        config: config(0),
+        data: MediationDataWire {
+            treatment: repeat(&base.treatment),
+            mediator: repeat(&base.mediator),
+            outcome: repeat(&base.outcome),
+            covariate_names: base.covariate_names.clone(),
+            covariates: base.covariates.iter().map(|c| repeat(c)).collect(),
+        },
+    }
+}
+
+fn assert_closed_form(artifact: &NonlinearMediationArtifact, rows: u64) {
+    let (nde, nie, te) = truth();
+    let result = &artifact.meta().result;
+    assert_eq!(result.n_rows, rows);
+    close(result.natural_direct, nde, "NDE");
+    close(result.natural_indirect, nie, "NIE");
+    close(result.total, te, "TE");
+}
+
+fn context_with_memory(hard_limit_bytes: u64) -> ExecutionContext {
+    let mut ctx = ExecutionContext::production(0, 1);
+    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(hard_limit_bytes) };
+    ctx
+}
+
+/// Estimate, export under a budget, bind by digest and replay `copies * 40` rows.
+fn exercise_budgets(copies: usize) {
+    let request = scaled_request(copies);
+    let rows = u64::try_from(40 * copies).unwrap();
+    let artifact = NonlinearMediationArtifact::seal(&request).unwrap();
+    assert_closed_form(&artifact, rows);
+    exercise_export_and_replay(&request, &artifact, &|artifact| assert_closed_form(artifact, rows));
+}
+
+/// Export `artifact` under a budget, bind it to `request`'s dataset by digest and replay it;
+/// `recovered` states what the estimate must still hold after each step.
+fn exercise_export_and_replay(
+    request: &NonlinearMediationRequestWire,
+    artifact: &NonlinearMediationArtifact,
+    recovered: &dyn Fn(&NonlinearMediationArtifact),
+) {
+    // Export: the dataset is embedded only inside the budget, and a refusal names the bytes.
+    let embedded = artifact.to_bytes("scaled").unwrap();
+    assert_eq!(artifact.to_bytes_within("scaled", embedded.len()).unwrap(), embedded);
+    let error = artifact.to_bytes_within("scaled", embedded.len() - 1).unwrap_err();
+    let (code, detail, text) = error.refusal().expect("a registered refusal");
+    assert_eq!(
+        (code, detail.as_str()),
+        ("route_not_supported", "nonlinear_mediation.export_budget_exceeded")
+    );
+    assert!(text.contains(&format!("{} bytes", embedded.len())), "{text}");
+    let error = artifact.to_bytes_within("scaled", 1_000).unwrap_err();
+    assert_eq!(refusal_detail(&error), "nonlinear_mediation.export_budget_exceeded");
+    // The refusal costs the caller nothing: the estimate is still complete in memory.
+    recovered(artifact);
+
+    // Replay: the digest-bound record carries no rows and needs the dataset it is bound to.
+    let bound = artifact.to_bytes_digest_bound("bound").unwrap();
+    assert!(decode_parts(&bound).unwrap().1.is_empty());
+    assert!(!decode_parts(&embedded).unwrap().1.is_empty());
+    let ctx = ExecutionContext::production(0, 1);
+    let identity = artifact.identity();
+    let error = NonlinearMediationArtifact::from_bytes_with(&bound, Some(identity), None, &ctx)
+        .unwrap_err();
+    assert_eq!(refusal_detail(&error), "nonlinear_mediation.data_required");
+    let replay = NonlinearMediationArtifact::from_bytes_with(
+        &bound,
+        Some(identity),
+        Some(&request.data),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(replay.meta(), artifact.meta());
+    let mut other = request.data.clone();
+    other.outcome[0] += 1.0;
+    assert!(matches!(
+        NonlinearMediationArtifact::from_bytes_with(&bound, None, Some(&other), &ctx),
+        Err(NonlinearMediationArtifactError::IdentityMismatch { field: "data" })
+    ));
+    // An artifact that embeds its dataset takes none, and replays on its own.
+    assert!(matches!(
+        NonlinearMediationArtifact::from_bytes_with(&embedded, None, Some(&request.data), &ctx),
+        Err(NonlinearMediationArtifactError::UnsupportedSemantics(_))
+    ));
+    let replay = NonlinearMediationArtifact::from_bytes(&embedded, Some(identity)).unwrap();
+    assert_eq!(replay.meta(), artifact.meta());
+}
+
+/// Deterministic draws: a `SplitMix64` stream with Box-Muller normals.
+struct Population(u64);
+
+impl Population {
+    fn uniform(&mut self) -> f64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+    }
+
+    fn normal(&mut self) -> f64 {
+        let (u, v) = (1.0 - self.uniform(), self.uniform());
+        (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
+    }
+}
+
+/// `rows` units of the SCM above with random draws: `A` a fair coin, `X` uniform on
+/// `{-1, 0, 1, 2, 3}`, `M = alpha A + gamma X + e_M` with `e_M` normal of variance `sigma2`, and
+/// the noiseless outcome.
+fn population_request(rows: usize, seed: u64) -> NonlinearMediationRequestWire {
+    let mut draws = Population(seed);
+    let mut d = MediationDataWire {
+        treatment: Vec::with_capacity(rows),
+        mediator: Vec::with_capacity(rows),
+        outcome: Vec::with_capacity(rows),
+        covariate_names: vec!["x".into()],
+        covariates: vec![Vec::with_capacity(rows)],
+    };
+    for _ in 0..rows {
+        let a = f64::from(u8::from(draws.uniform() < 0.5));
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a uniform draw in [0, 1) scaled by the level count indexes a level"
+        )]
+        let x = XS[((draws.uniform() * 5.0) as usize).min(4)];
+        let m = ALPHA * a + GAMMA * x + SIGMA2.sqrt() * draws.normal();
+        d.treatment.push(a);
+        d.mediator.push(m);
+        d.outcome.push(B0 + B1 * a + C1 * m + C2 * m * m + DELTA * a * m + BX * x);
+        d.covariates[0].push(x);
+    }
+    NonlinearMediationRequestWire { premises: ignorable(), config: config(0), data: d }
+}
+
+/// The closed-form effects, within the sampling error of the estimated mediator model.
+fn assert_population_closed_form(artifact: &NonlinearMediationArtifact, rows: usize) {
+    let (nde, nie, te) = truth();
+    let result = &artifact.meta().result;
+    assert_eq!(result.n_rows, u64::try_from(rows).unwrap());
+    common::close(result.natural_direct, nde, 0.05, "NDE");
+    common::close(result.natural_indirect, nie, 0.05, "NIE");
+    common::close(result.total, te, 0.08, "TE");
+}
+
+/// The estimate completes on `rows` rows with its inferential standing exactly that of the
+/// 40-row exact-grid fit, inside its runtime target, and exports and replays under explicit
+/// budgets.
+fn exercise_population(rows: usize, seed: u64, runtime_seconds: u64) {
+    let request = population_request(rows, seed);
+    let started = std::time::Instant::now();
+    let artifact = NonlinearMediationArtifact::seal(&request).unwrap();
+    assert_population_closed_form(&artifact, rows);
+    assert!(started.elapsed().as_secs() < runtime_seconds, "{:?}", started.elapsed());
+
+    let standing = artifact.meta();
+    let reference = seal(0).0;
+    let reference = reference.meta();
+    assert_eq!(standing.calibration, "unmeasured");
+    assert_eq!(
+        (
+            &standing.calibration,
+            &standing.interval_status,
+            &standing.inference_claim,
+            &standing.estimand
+        ),
+        (
+            &reference.calibration,
+            &reference.interval_status,
+            &reference.inference_claim,
+            &reference.estimand
+        ),
+        "the declared inferential standing does not move with the number of rows"
+    );
+    assert!(standing.result.natural_direct_se.is_none(), "no standard error without replicates");
+
+    // The computation budget refuses before any work and the export and replay budgets are
+    // separate bounds on the same estimate.
+    let error =
+        NonlinearMediationArtifact::seal_with(&request, &context_with_memory(1_000)).unwrap_err();
+    assert_eq!(refusal_detail(&error), "nonlinear_mediation.memory_budget_exceeded");
+    exercise_export_and_replay(&request, &artifact, &|artifact| {
+        assert_population_closed_form(artifact, rows);
+    });
+}
+
+#[test]
+fn mediation_has_no_row_ceiling_and_export_and_replay_are_budgeted() {
+    // 30,000 rows: more than the former embedded-row ceiling.
+    exercise_budgets(750);
+}
+
+#[test]
+#[ignore = "estimates on 100,000 rows; run with --ignored"]
+fn mediation_runs_at_one_hundred_thousand_rows() {
+    exercise_budgets(2_500);
+}
+
+#[test]
+fn nonlinear_mediation_fit_beyond_old_row_ceiling_50000() {
+    exercise_population(50_000, 6_777_711, 900);
+}
+
+#[test]
+#[ignore = "estimates on 100,000 rows; run with --ignored"]
+fn nonlinear_mediation_fit_beyond_old_row_ceiling_100000() {
+    exercise_population(100_000, 5_293_885, 900);
+}
+
+#[test]
+fn mediation_computation_budget_refuses_before_work_and_honours_cancellation() {
+    let request = request(0);
+    // 40 rows need about 12 kB of working set.
+    let error =
+        NonlinearMediationArtifact::seal_with(&request, &context_with_memory(1_000)).unwrap_err();
+    assert_eq!(
+        error.refusal().map(|(code, detail, _)| (code, detail)),
+        Some(("route_not_supported", "nonlinear_mediation.memory_budget_exceeded".into()))
+    );
+    assert!(
+        NonlinearMediationArtifact::seal_with(&request, &context_with_memory(1_000_000)).is_ok()
+    );
+    let bytes = seal(0).1;
+    let error = NonlinearMediationArtifact::from_bytes_with(
+        &bytes,
+        None,
+        None,
+        &context_with_memory(1_000),
+    )
+    .unwrap_err();
+    assert_eq!(refusal_detail(&error), "nonlinear_mediation.memory_budget_exceeded");
+
+    let cancelled = ExecutionContext::production(0, 1);
+    cancelled.cancellation.cancel();
+    let error = NonlinearMediationArtifact::seal_with(&request, &cancelled).unwrap_err();
+    assert_eq!(
+        error.refusal().map(|(code, detail, _)| (code, detail)),
+        Some(("cancelled_no_claim", "nonlinear_mediation.cancelled".into()))
+    );
 }

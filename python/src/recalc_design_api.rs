@@ -7,6 +7,7 @@ use antecedent::analysis::recalc_design::{
     execute_design_with_receipt,
 };
 use antecedent::analysis::recalc_receipt::{RecalcOutcome, RecalcRunError, UtilitySpec};
+use antecedent_core::ExecutionContext;
 use antecedent_core::recalc::{
     RecalcCapabilities, RequestSupport, ResumeContext, RetargetSupport, StageIdentities,
 };
@@ -19,8 +20,8 @@ use pyo3::prelude::*;
 use serde::Deserialize;
 
 use crate::recalc_api::{
-    RunPayload, artifact_invalid, context, counts_wire, invalid, parse_json, plan_refusal_json,
-    refusal_json, refusal_value,
+    RunPayload, artifact_invalid, bounded_context, counts_wire, invalid, parse_json,
+    plan_refusal_json, refusal_json, refusal_value,
 };
 use crate::recalc_bounds::check_columns;
 use crate::{detach_catch, py_msg};
@@ -49,8 +50,9 @@ fn request(
     names: Vec<String>,
     columns: &[PyReadonlyArray1<'_, f64>],
     text: &str,
+    ctx: &ExecutionContext,
 ) -> PyResult<DesignRequest> {
-    check_columns(&names, columns)?;
+    check_columns(columns, ctx)?;
     let wire: RequestWire = parse_json(text, "design request")?;
     if names.is_empty()
         || names.len() != columns.len()
@@ -291,7 +293,8 @@ impl PyDesignSession {
         serde_json::to_string(&CapabilitiesWire::from_capabilities(&self.capabilities()))
             .map_err(py_msg)
     }
-    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn plan(
         &self,
         names: Vec<String>,
@@ -299,12 +302,15 @@ impl PyDesignSession {
         specification: &str,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let request = request(names, &columns, specification)?;
-        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &context(seed, threads))))
-            .map_err(py_msg)
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = request(names, &columns, specification, &ctx)?;
+        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &ctx))).map_err(py_msg)
     }
-    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn execute(
         &mut self,
         py: Python<'_>,
@@ -313,10 +319,12 @@ impl PyDesignSession {
         specification: &str,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<RunPayload> {
-        let request = request(names, &columns, specification)?;
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = request(names, &columns, specification, &ctx)?;
         drop(columns);
-        let ctx = context(seed, threads);
         let previous = self.inner.identities().clone();
         let caps = self.capabilities();
         let mut session = std::mem::take(&mut self.inner);
@@ -331,7 +339,7 @@ impl PyDesignSession {
         }
     }
     #[staticmethod]
-    #[pyo3(signature=(artifact,names=None,columns=None,specification=None,*,seed=1,threads=None))]
+    #[pyo3(signature=(artifact,names=None,columns=None,specification=None,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
     #[allow(clippy::too_many_arguments)]
     fn consume(
         py: Python<'_>,
@@ -341,12 +349,15 @@ impl PyDesignSession {
         specification: Option<&str>,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<ReplayPayload> {
         if artifact.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
             return Err(invalid("recalc.limits_exceeded", "design artifact exceeds byte bound"));
         }
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
         let request = match (names, columns.as_ref(), specification) {
-            (Some(names), Some(columns), Some(text)) => Some(request(names, columns, text)?),
+            (Some(names), Some(columns), Some(text)) => Some(request(names, columns, text, &ctx)?),
             (None, None, None) => None,
             _ => {
                 return Err(invalid(
@@ -357,7 +368,6 @@ impl PyDesignSession {
         };
         drop(columns);
         let artifact = artifact.to_vec();
-        let ctx = context(seed, threads);
         let replay = detach_catch(py, move || {
             Ok(consume_design_with_data(&artifact, request.as_ref(), &ctx))
         })?;

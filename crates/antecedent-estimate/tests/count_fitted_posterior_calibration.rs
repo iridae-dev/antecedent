@@ -7,7 +7,10 @@
 //! Nothing here is measured at implementation time: every test is `#[ignore]`d and runs
 //! only at the final measurement step.
 //!
-//! Gated designs (levels 0.90 and 0.95, sample size `grid_n(300)`):
+//! Gated designs (levels 0.90 and 0.95, sample size `grid_n(300)`), each at the supported
+//! minimum of 2000 posterior draws and again at 8000, the larger measured draw class. A
+//! draw class is its own construction (`draw_class` in the estimator), so the larger
+//! count has its own coverage records and never gates 2000-draw executions:
 //!
 //! * `confounded_signal`: a common cause `Z` of `S` and `Y` with `S -> Y`, evidence
 //!   `S = 1`, so `P(Y | S)` and `P(Y | do(S))` differ.
@@ -41,7 +44,10 @@ use antecedent_estimate::count_fitted_posterior::{
 use calibration::{CoverageTally, RecordKey, grid_n, map_replicates, n_sim};
 use candidate::Generator;
 
-const DRAWS: u32 = 2000;
+/// The supported minimum draw count.
+const MIN_DRAWS: u32 = 2000;
+/// The larger measured draw class.
+const LARGE_DRAWS: u32 = 8000;
 const PRIOR: f64 = 1.0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -68,6 +74,7 @@ struct Design {
     signal: bool,
     boundary: Boundary,
     level: f64,
+    draws: u32,
 }
 
 /// True tables: `P(Z=1)`, `P(S=1 | Z)`, `P(Y=1 | Z, S)` indexed `z * 2 + s`.
@@ -169,7 +176,7 @@ fn replicate(design: Design, n: usize, seed: u64) -> Option<(f64, f64)> {
     let s: Vec<u64> = s;
     let model = CountFittedModel::new(nodes(design, z, s, y), n as u64).ok()?;
     let interval =
-        model.posterior_interval(&query(design), design.level, PRIOR, DRAWS, seed).ok()?;
+        model.posterior_interval(&query(design), design.level, PRIOR, design.draws, seed).ok()?;
     Some((interval.lower, interval.upper))
 }
 
@@ -189,8 +196,10 @@ fn run(design: Design, base: usize) {
             continue;
         };
         let basis = match design.boundary {
-            Boundary::None => calibration_basis(n as u64, design.level, DRAWS),
-            other => boundary_calibration_basis(other.label(), n as u64, design.level, DRAWS),
+            Boundary::None => calibration_basis(n as u64, design.level, design.draws),
+            other => {
+                boundary_calibration_basis(other.label(), n as u64, design.level, design.draws)
+            }
         };
         candidate::bind(&mut tally, &basis);
         tally.record(Some(interval), truth);
@@ -202,7 +211,7 @@ fn run(design: Design, base: usize) {
 }
 
 macro_rules! design {
-    ($name:ident, $dgp:literal, $signal:expr, $boundary:expr, $level:expr, $gated:expr) => {
+    ($name:ident, $dgp:literal, $signal:expr, $boundary:expr, $level:expr, $draws:expr, $gated:expr) => {
         #[test]
         #[ignore = "calibration: run only at the final measurement step"]
         fn $name() {
@@ -214,6 +223,7 @@ macro_rules! design {
                     signal: $signal,
                     boundary: $boundary,
                     level: $level,
+                    draws: $draws,
                 },
                 300,
             );
@@ -227,6 +237,7 @@ design!(
     false,
     Boundary::None,
     0.90,
+    MIN_DRAWS,
     true
 );
 design!(
@@ -235,6 +246,7 @@ design!(
     false,
     Boundary::None,
     0.95,
+    MIN_DRAWS,
     true
 );
 design!(
@@ -243,6 +255,7 @@ design!(
     true,
     Boundary::None,
     0.90,
+    MIN_DRAWS,
     true
 );
 design!(
@@ -251,6 +264,7 @@ design!(
     true,
     Boundary::None,
     0.95,
+    MIN_DRAWS,
     true
 );
 design!(
@@ -259,6 +273,7 @@ design!(
     false,
     Boundary::SparseParentConfiguration,
     0.95,
+    MIN_DRAWS,
     false
 );
 design!(
@@ -267,5 +282,86 @@ design!(
     false,
     Boundary::RareEvidence,
     0.95,
+    MIN_DRAWS,
     false
 );
+design!(
+    count_fitted_confounded_signal_l90_draws_8000,
+    "common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1",
+    false,
+    Boundary::None,
+    0.90,
+    LARGE_DRAWS,
+    true
+);
+design!(
+    count_fitted_confounded_signal_l95_draws_8000,
+    "common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1",
+    false,
+    Boundary::None,
+    0.95,
+    LARGE_DRAWS,
+    true
+);
+design!(
+    count_fitted_measured_signal_l90_draws_8000,
+    "common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1",
+    true,
+    Boundary::None,
+    0.90,
+    LARGE_DRAWS,
+    true
+);
+design!(
+    count_fitted_measured_signal_l95_draws_8000,
+    "common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1",
+    true,
+    Boundary::None,
+    0.95,
+    LARGE_DRAWS,
+    true
+);
+
+/// Rows of the practitioner-scale designs: the grid measures half, one and twice this base,
+/// so one thousand rows is the middle point.
+const PRACTITIONER_ROWS: usize = 1000;
+
+/// The confounded-signal design at one thousand rows (500 to 2,000) with `draws` posterior
+/// draws: the same construction for each draw count a practitioner may request.
+fn practitioner_rows(test: &'static str, draws: u32) {
+    run(
+        Design {
+            test,
+            dgp: "common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1",
+            signal: false,
+            boundary: Boundary::None,
+            level: 0.95,
+            draws,
+        },
+        PRACTITIONER_ROWS,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn count_fitted_confounded_signal_l95_rows_1000_draws_2000() {
+    practitioner_rows("count_fitted_confounded_signal_l95_rows_1000_draws_2000", MIN_DRAWS);
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn count_fitted_confounded_signal_l95_rows_1000_draws_3000() {
+    practitioner_rows("count_fitted_confounded_signal_l95_rows_1000_draws_3000", 3000);
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn count_fitted_confounded_signal_l95_rows_1000_draws_4000() {
+    practitioner_rows("count_fitted_confounded_signal_l95_rows_1000_draws_4000", 4000);
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn count_fitted_confounded_signal_l95_rows_1000_draws_8000() {
+    practitioner_rows("count_fitted_confounded_signal_l95_rows_1000_draws_8000", LARGE_DRAWS);
+}

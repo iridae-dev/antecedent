@@ -160,6 +160,13 @@ impl core::clone::Clone for antecedent_io::measured_inference::count_fitted_inte
 impl core::clone::Clone for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::clone::Clone for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::clone::Clone for antecedent_io::measured_inference::split_effect::SplitEffectSource
+impl core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
+impl core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun
+impl core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource
+impl core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect
+impl core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::Transformation
+impl core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood
+impl core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair
 impl core::clone::Clone for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl core::clone::Clone for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl core::clone::Clone for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -379,6 +386,10 @@ impl core::cmp::Eq for antecedent_io::learned_continuous_artifact::CertificateRe
 impl core::cmp::Eq for antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactError
 impl core::cmp::Eq for antecedent_io::learned_joint_transport_artifact::LearnedJointExpectation
 impl core::cmp::Eq for antecedent_io::learned_joint_transport_artifact::LearnedProviderWire
+impl core::cmp::Eq for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
+impl core::cmp::Eq for antecedent_io::measured_inference::split_parent_set_effect::Transformation
+impl core::cmp::Eq for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood
+impl core::cmp::Eq for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair
 impl core::cmp::Eq for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
 impl core::cmp::Eq for antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyIdentity
 impl core::cmp::Eq for antecedent_io::mechanism_discrepancy_artifact::ParentWire
@@ -546,6 +557,13 @@ impl core::cmp::PartialEq for antecedent_io::measured_inference::count_fitted_in
 impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::SplitEffectSource
+impl core::cmp::PartialEq for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
+impl core::cmp::PartialEq for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun
+impl core::cmp::PartialEq for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource
+impl core::cmp::PartialEq for antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect
+impl core::cmp::PartialEq for antecedent_io::measured_inference::split_parent_set_effect::Transformation
+impl core::cmp::PartialEq for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood
+impl core::cmp::PartialEq for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair
 impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl core::cmp::PartialEq for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -731,6 +749,7 @@ impl core::default::Default for antecedent_io::joint_bayesian_transport_artifact
 impl core::default::Default for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation
 impl core::default::Default for antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits
 impl core::default::Default for antecedent_io::learned_joint_transport_artifact::LearnedJointExpectation
+impl core::default::Default for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
 impl core::default::Default for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits
 impl core::default::Default for antecedent_io::mz_transport_artifact::MzTransportConsumeLimits
 impl core::default::Default for antecedent_io::nested_markov_artifact::NestedMarkovConsumeLimits
@@ -896,6 +915,13 @@ impl core::fmt::Debug for antecedent_io::measured_inference::count_fitted_interv
 impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::SplitEffectSource
+impl core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
+impl core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun
+impl core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource
+impl core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect
+impl core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::Transformation
+impl core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood
+impl core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair
 impl core::fmt::Debug for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl core::fmt::Debug for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl core::fmt::Debug for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -1116,6 +1142,7 @@ impl core::marker::Copy for antecedent_io::dose_grid_functional_artifact::DoseGr
 impl core::marker::Copy for antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits
 impl core::marker::Copy for antecedent_io::joint_bayesian_transport_artifact::JointOptionsWire
 impl core::marker::Copy for antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits
+impl core::marker::Copy for antecedent_io::measured_inference::split_parent_set_effect::Transformation
 impl core::marker::Copy for antecedent_io::mixed_source_artifact::MixedSourceConsumeLimits
 impl core::marker::Copy for antecedent_io::model_codes::GraphClassCode
 impl core::marker::Copy for antecedent_io::model_codes::SourceDependenceCode
@@ -1276,6 +1303,13 @@ impl core::marker::Freeze for antecedent_io::measured_inference::count_fitted_in
 impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::split_parent_set_effect::Knowledge [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::split_parent_set_effect::Transformation [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair [auto]
 impl core::marker::Freeze for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::marker::Freeze for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::marker::Freeze for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -1606,6 +1640,13 @@ impl core::marker::Send for antecedent_io::measured_inference::count_fitted_inte
 impl core::marker::Send for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Send for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Send for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
+impl core::marker::Send for antecedent_io::measured_inference::split_parent_set_effect::Knowledge [auto]
+impl core::marker::Send for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun [auto]
+impl core::marker::Send for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource [auto]
+impl core::marker::Send for antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect [auto]
+impl core::marker::Send for antecedent_io::measured_inference::split_parent_set_effect::Transformation [auto]
+impl core::marker::Send for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood [auto]
+impl core::marker::Send for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair [auto]
 impl core::marker::Send for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::marker::Send for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::marker::Send for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -1911,6 +1952,13 @@ impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::co
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::SplitEffectSource
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_parent_set_effect::Transformation
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair
 impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl core::marker::StructuralPartialEq for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -2200,6 +2248,13 @@ impl core::marker::Sync for antecedent_io::measured_inference::count_fitted_inte
 impl core::marker::Sync for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::split_parent_set_effect::Knowledge [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::split_parent_set_effect::Transformation [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair [auto]
 impl core::marker::Sync for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::marker::Sync for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::marker::Sync for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -2530,6 +2585,13 @@ impl core::marker::Unpin for antecedent_io::measured_inference::count_fitted_int
 impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::split_parent_set_effect::Knowledge [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::split_parent_set_effect::Transformation [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair [auto]
 impl core::marker::Unpin for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::marker::Unpin for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::marker::Unpin for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -2859,6 +2921,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inferen
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::Knowledge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::Transformation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -3188,6 +3257,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::Knowledge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::Transformation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mechanism_discrepancy_artifact::FitWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire [auto]
@@ -3478,6 +3554,9 @@ impl serde_core::ser::Serialize for antecedent_io::measured_inference::cohort_in
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::split_effect::SplitEffectSource
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::split_parent_set_effect::Transformation
 impl serde_core::ser::Serialize for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl serde_core::ser::Serialize for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl serde_core::ser::Serialize for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -3634,13 +3713,17 @@ impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_do
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
 impl<'a> core::clone::Clone for antecedent_io::ModelBundleEncode<'a>
+impl<'a> core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
 impl<'a> core::clone::Clone for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
 impl<'a> core::fmt::Debug for antecedent_io::ModelBundleEncode<'a>
+impl<'a> core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
 impl<'a> core::fmt::Debug for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
+impl<'a> core::marker::Copy for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
 impl<'a> core::marker::Copy for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
 impl<'a> core::marker::Freeze for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3650,6 +3733,7 @@ impl<'a> core::marker::Freeze for antecedent_io::temporal_refresh_artifact::Refr
 impl<'a> core::marker::Send for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3659,6 +3743,7 @@ impl<'a> core::marker::Send for antecedent_io::temporal_refresh_artifact::Refres
 impl<'a> core::marker::Sync for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3668,6 +3753,7 @@ impl<'a> core::marker::Sync for antecedent_io::temporal_refresh_artifact::Refres
 impl<'a> core::marker::Unpin for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3676,6 +3762,7 @@ impl<'a> core::marker::Unpin for antecedent_io::smoothed_dose_artifact::Smoothed
 impl<'a> core::marker::Unpin for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3683,6 +3770,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_reco
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3781,6 +3869,9 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::split_effect::SplitEffectSource
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::split_parent_set_effect::Transformation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mechanism_discrepancy_artifact::FitWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -4004,6 +4095,19 @@ pub const antecedent_io::measured_inference::split_effect::REUSE_STRUCTURE: &str
 pub const antecedent_io::measured_inference::split_effect::SPLIT_DEPENDENCE: &str
 pub const antecedent_io::measured_inference::split_effect::SPLIT_EFFECT_ROUTE: &str
 pub const antecedent_io::measured_inference::split_effect::SPLIT_STRUCTURE: &str
+pub const antecedent_io::measured_inference::split_parent_set_effect::ACCEPTANCE: &str
+pub const antecedent_io::measured_inference::split_parent_set_effect::DISCOVERY_FRACTION: f64
+pub const antecedent_io::measured_inference::split_parent_set_effect::LINEAR_ESTIMATOR: &str
+pub const antecedent_io::measured_inference::split_parent_set_effect::LOG_LINEAR_ESTIMATOR: &str
+pub const antecedent_io::measured_inference::split_parent_set_effect::MAX_CONFLICTING_COLLIDERS: usize
+pub const antecedent_io::measured_inference::split_parent_set_effect::MAX_VARIABLES: usize
+pub const antecedent_io::measured_inference::split_parent_set_effect::MEAN_RATIO: &str
+pub const antecedent_io::measured_inference::split_parent_set_effect::MIN_VARIABLES: usize
+pub const antecedent_io::measured_inference::split_parent_set_effect::PARENT_SET_EFFECT_ROUTE: &str
+pub const antecedent_io::measured_inference::split_parent_set_effect::PARENT_SET_STRUCTURE: &str
+pub const antecedent_io::measured_inference::split_parent_set_effect::SUPPORTED_MAX_DEGREE: u32
+pub const antecedent_io::measured_inference::split_parent_set_effect::TOPOLOGIES: [&str; 3]
+pub const antecedent_io::measured_inference::split_parent_set_effect::TOTAL_EFFECT: &str
 pub const antecedent_io::mechanism_discrepancy_artifact::MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES: usize
 pub const antecedent_io::mechanism_discrepancy_artifact::MECHANISM_DISCREPANCY_ARTIFACT_FEATURE: &str
 pub const antecedent_io::mechanism_discrepancy_artifact::MECHANISM_DISCREPANCY_ARTIFACT_VERSION: u16
@@ -4091,6 +4195,7 @@ pub const fn antecedent_io::recovery_chain_artifact::nonrecoverable_detail() -> 
 pub enum antecedent_io::PosteriorPayload
 pub enum antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome
 pub enum antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
+pub enum antecedent_io::measured_inference::split_parent_set_effect::Transformation
 pub enum antecedent_io::model_codes::GraphClassCode
 pub enum antecedent_io::model_codes::SourceDependenceCode
 pub enum antecedent_io::model_codes::SourceSharingCode
@@ -4377,6 +4482,7 @@ pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMet
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::calibration: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::caveats: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::counts: alloc::vec::Vec<antecedent_io::categorical_treatment_artifact::LevelCountWire>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::data_digest: core::option::Option<alloc::string::String>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::feature: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::identity: antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta::inference_claim: alloc::string::String
@@ -4392,6 +4498,7 @@ pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMet
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::adjustment: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::calibration: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::caveats: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::data_digest: core::option::Option<alloc::string::String>
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::feature: alloc::string::String
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::identity: antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity
 pub field antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire::inference_claim: alloc::string::String
@@ -4757,6 +4864,7 @@ pub field antecedent_io::latent_class_artifact::LatentClassMeta::classes: alloc:
 pub field antecedent_io::latent_class_artifact::LatentClassMeta::classes_declared: u32
 pub field antecedent_io::latent_class_artifact::LatentClassMeta::config: antecedent_io::latent_class_artifact::LatentClassConfigWire
 pub field antecedent_io::latent_class_artifact::LatentClassMeta::covariate_names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::latent_class_artifact::LatentClassMeta::data_binding: core::option::Option<alloc::string::String>
 pub field antecedent_io::latent_class_artifact::LatentClassMeta::feature: alloc::string::String
 pub field antecedent_io::latent_class_artifact::LatentClassMeta::identity: antecedent_io::latent_class_artifact::LatentClassIdentity
 pub field antecedent_io::latent_class_artifact::LatentClassMeta::inference_claim: alloc::string::String
@@ -4963,6 +5071,51 @@ pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::ou
 pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::split_seed: u64
 pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::treatment: u32
 pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::version: u32
+pub field antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence::constraints: &'a antecedent_discovery::constraints::DiscoveryConstraints
+pub field antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence::graph: &'a antecedent_graph::cpdag::Cpdag
+pub field antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence::sepsets: &'a antecedent_discovery::result::PcSepsets
+pub field antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence::variables: &'a [antecedent_core::ids::VariableId]
+pub field antecedent_io::measured_inference::split_parent_set_effect::Knowledge::forbidden: alloc::vec::Vec<(u32, u32)>
+pub field antecedent_io::measured_inference::split_parent_set_effect::Knowledge::required: alloc::vec::Vec<(u32, u32)>
+pub field antecedent_io::measured_inference::split_parent_set_effect::Knowledge::tiers: alloc::vec::Vec<alloc::vec::Vec<u32>>
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::analysis_rows: u64
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::coefficient: antecedent_io::measured_inference::split_effect::AdjustedEffect
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::discovery_fraction: f64
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::discovery_rows: u64
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::knowledge: alloc::string::String
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::log_shift: core::option::Option<f64>
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::max_degree: u32
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::neighbourhood: antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::receipt_identity: [u8; 32]
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::reported: antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::result_identity: [u8; 32]
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::structure_identity: [u8; 32]
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::transformation: antecedent_io::measured_inference::split_parent_set_effect::Transformation
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::variables: usize
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::discovery_seed: u64
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::knowledge: core::option::Option<antecedent_io::measured_inference::split_parent_set_effect::Knowledge>
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::log_shift: core::option::Option<f64>
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::max_degree: u32
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::outcome: u32
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::split_seed: u64
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::transformation: antecedent_io::measured_inference::split_parent_set_effect::Transformation
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::treatment: u32
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource::version: u32
+pub field antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect::lower: f64
+pub field antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect::name: &'static str
+pub field antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect::point: f64
+pub field antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect::standard_error: f64
+pub field antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect::upper: f64
+pub field antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood::children: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood::directed: alloc::vec::Vec<(u32, u32)>
+pub field antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood::edges: usize
+pub field antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood::parents: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood::unresolved: alloc::vec::Vec<antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair>
+pub field antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair::a: u32
+pub field antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair::b: u32
+pub field antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair::reason: &'static str
 pub field antecedent_io::mechanism_discrepancy_artifact::CoefficientWire::difference: f64
 pub field antecedent_io::mechanism_discrepancy_artifact::CoefficientWire::minimal_detectable_difference: f64
 pub field antecedent_io::mechanism_discrepancy_artifact::CoefficientWire::name: alloc::string::String
@@ -5313,6 +5466,7 @@ pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentit
 pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta::calibration: alloc::string::String
 pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta::caveats: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta::config: antecedent_io::nonlinear_mediation_artifact::MediationConfigWire
+pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta::data_binding: core::option::Option<alloc::string::String>
 pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta::estimand: alloc::string::String
 pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta::feature: alloc::string::String
 pub field antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta::identity: antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity
@@ -6119,6 +6273,7 @@ pub field antecedent_io::vector_treatment_artifact::VectorTreatmentMeta::calibra
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentMeta::caveats: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentMeta::contrasts: alloc::vec::Vec<antecedent_io::vector_treatment_artifact::ContrastWire>
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentMeta::covariance: alloc::string::String
+pub field antecedent_io::vector_treatment_artifact::VectorTreatmentMeta::data_digest: core::option::Option<alloc::string::String>
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentMeta::feature: alloc::string::String
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentMeta::identity: antecedent_io::vector_treatment_artifact::VectorTreatmentIdentity
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentMeta::inference_claim: alloc::string::String
@@ -6133,6 +6288,7 @@ pub field antecedent_io::vector_treatment_artifact::VectorTreatmentReportWire::a
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentReportWire::calibration: alloc::string::String
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentReportWire::caveats: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentReportWire::covariance_kind: alloc::string::String
+pub field antecedent_io::vector_treatment_artifact::VectorTreatmentReportWire::data_digest: core::option::Option<alloc::string::String>
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentReportWire::declared_contrasts: alloc::vec::Vec<antecedent_io::vector_treatment_artifact::ContrastWire>
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentReportWire::feature: alloc::string::String
 pub field antecedent_io::vector_treatment_artifact::VectorTreatmentReportWire::identity: antecedent_io::vector_treatment_artifact::VectorTreatmentIdentity
@@ -6210,11 +6366,15 @@ pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQuery
 pub fn <antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire>::fn to_query(&self) -> antecedent_identify::sid::conditional::ConditionalTransportQuery
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn fit(&self) -> &antecedent_estimate::categorical_treatment::CategoricalTreatmentFit
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
+pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn from_bytes_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn identity(&self) -> &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentIdentity
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn meta(&self) -> &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentMeta
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn report(&self) -> antecedent_io::categorical_treatment_artifact::CategoricalTreatmentReportWire
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn seal(request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
+pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn seal_with(request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
+pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn to_bytes_within(&self, artifact_id: &str, export_budget: usize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
+pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact>::fn verify_data(&self, request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>
 pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
 pub fn <antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits>::const fn replay(&self) -> antecedent_io_core::artifact_codec::ConsumeLimits
 pub fn <antecedent_io::cpdag_completion_artifact::CompletionCpdagWire>::fn from_cpdag(cpdag: &antecedent_graph::cpdag::Cpdag) -> core::result::Result<Self, antecedent_io_core::error::IoError>
@@ -6258,13 +6418,17 @@ pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactW
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_io::latent_class_artifact::LatentClassIdentity>) -> core::result::Result<Self, antecedent_io::latent_class_artifact::LatentClassArtifactError>
+pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn from_bytes_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::latent_class_artifact::LatentClassIdentity>, data: core::option::Option<&antecedent_io::latent_class_artifact::LatentClassDataWire>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::latent_class_artifact::LatentClassArtifactError>
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn identity(&self) -> &antecedent_io::latent_class_artifact::LatentClassIdentity
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn meta(&self) -> &antecedent_io::latent_class_artifact::LatentClassMeta
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn report(&self) -> antecedent_io::latent_class_artifact::LatentClassReportWire
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn request(&self) -> &antecedent_io::latent_class_artifact::LatentClassRequestWire
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn result(&self) -> &antecedent_estimate::latent_class_effects::LatentClassResult
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn seal(request: &antecedent_io::latent_class_artifact::LatentClassRequestWire) -> core::result::Result<Self, antecedent_io::latent_class_artifact::LatentClassArtifactError>
+pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn seal_with(request: &antecedent_io::latent_class_artifact::LatentClassRequestWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::latent_class_artifact::LatentClassArtifactError>
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::latent_class_artifact::LatentClassArtifactError>
+pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn to_bytes_digest_bound(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::latent_class_artifact::LatentClassArtifactError>
+pub fn <antecedent_io::latent_class_artifact::LatentClassArtifact>::fn to_bytes_within(&self, artifact_id: &str, export_budget: usize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::latent_class_artifact::LatentClassArtifactError>
 pub fn <antecedent_io::latent_class_artifact::LatentClassArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
 pub fn <antecedent_io::learned_continuous_artifact::CertificateRecord>::fn from_identification(id: &antecedent_identify::transport::TransportIdentification) -> core::result::Result<Self, alloc::string::String>
 pub fn <antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactWire>::fn check_population_names(&self, source: &str, target: &str) -> core::result::Result<(), antecedent_io_core::transport_errors::LearnedContinuousArtifactError>
@@ -6299,6 +6463,7 @@ pub fn <antecedent_io::measured_inference::MeasuredInference>::fn source_artifac
 pub fn <antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire>::fn consume_measured(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire>::fn encode(native: &antecedent_estimate::cohort_linear_effect::NativeCohortFit, source: &antecedent_io_core::cohort_decision::CohortDecisionSource, level: f64) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire>::fn measure(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn check_draws(&self) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn consume_measured(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn encode(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn measure(bytes: &[u8]) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
@@ -6308,6 +6473,15 @@ pub fn <antecedent_io::measured_inference::split_effect::SplitEffectRun>::fn key
 pub fn <antecedent_io::measured_inference::split_effect::SplitEffectSource>::fn from_bytes(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::measured_inference::split_effect::SplitEffectSource>::fn new(names: alloc::vec::Vec<alloc::string::String>, columns: alloc::vec::Vec<alloc::vec::Vec<f64>>, treatment: u32, outcome: u32, split_seed: u64, discovery_seed: u64) -> Self
 pub fn <antecedent_io::measured_inference::split_effect::SplitEffectSource>::fn to_bytes(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun>::fn keyed_bases(&self) -> alloc::vec::Vec<antecedent_core::calibration_basis::CalibrationBasis>
+pub fn <antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun>::fn keyed_basis(&self) -> antecedent_core::calibration_basis::CalibrationBasis
+pub fn <antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun>::fn keyed_basis_for(&self, topology: &str) -> antecedent_core::calibration_basis::CalibrationBasis
+pub fn <antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource>::fn from_bytes(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource>::fn new(names: alloc::vec::Vec<alloc::string::String>, columns: alloc::vec::Vec<alloc::vec::Vec<f64>>, treatment: u32, outcome: u32, split_seed: u64, discovery_seed: u64, transformation: antecedent_io::measured_inference::split_parent_set_effect::Transformation, max_degree: u32, log_shift: core::option::Option<f64>) -> Self
+pub fn <antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource>::fn to_bytes(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource>::fn with_knowledge(self, knowledge: antecedent_io::measured_inference::split_parent_set_effect::Knowledge) -> Self
+pub fn <antecedent_io::measured_inference::split_parent_set_effect::Transformation>::const fn name(self) -> &'static str
+pub fn <antecedent_io::measured_inference::split_parent_set_effect::Transformation>::fn parse(name: &str) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyIdentity>) -> core::result::Result<Self, antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError>
 pub fn <antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact>::fn identity(&self) -> &antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyIdentity
 pub fn <antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifact>::fn meta(&self) -> &antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyMeta
@@ -6370,11 +6544,15 @@ pub fn <antecedent_io::nested_markov_bayesian_artifact::Artifact>::fn expected_p
 pub fn <antecedent_io::nested_markov_bayesian_artifact::Artifact>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn estimate(&self) -> &antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimate
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity>) -> core::result::Result<Self, antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>
+pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn from_bytes_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity>, data: core::option::Option<&antecedent_io::nonlinear_mediation_artifact::MediationDataWire>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn identity(&self) -> &antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn meta(&self) -> &antecedent_io::nonlinear_mediation_artifact::NonlinearMediationMeta
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn request(&self) -> &antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn seal(request: &antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire) -> core::result::Result<Self, antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>
+pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn seal_with(request: &antecedent_io::nonlinear_mediation_artifact::NonlinearMediationRequestWire, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>
+pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn to_bytes_digest_bound(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>
+pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact>::fn to_bytes_within(&self, artifact_id: &str, export_budget: usize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>
 pub fn <antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
 pub fn <antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_validate::predictive_assessment::identity::AssessmentIdentity>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifactError>
 pub fn <antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifact>::fn from_bytes_with_limits(bytes: &[u8], expected: core::option::Option<&antecedent_validate::predictive_assessment::identity::AssessmentIdentity>, limits: antecedent_io::predictive_assessment_artifact::PredictiveAssessmentConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifactError>
@@ -6533,11 +6711,15 @@ pub fn <antecedent_io::transport_scenario_artifact::TransportScenarioArtifactWir
 pub fn <antecedent_io::transport_scenario_artifact::TransportScenarioArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn fit(&self) -> &antecedent_estimate::vector_treatment::VectorTreatmentFit
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_io::vector_treatment_artifact::VectorTreatmentIdentity>) -> core::result::Result<Self, antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>
+pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn from_bytes_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::vector_treatment_artifact::VectorTreatmentIdentity>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn identity(&self) -> &antecedent_io::vector_treatment_artifact::VectorTreatmentIdentity
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn meta(&self) -> &antecedent_io::vector_treatment_artifact::VectorTreatmentMeta
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn report(&self) -> antecedent_io::vector_treatment_artifact::VectorTreatmentReportWire
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn seal(request: &antecedent_io::vector_treatment_artifact::VectorTreatmentRequest) -> core::result::Result<Self, antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>
+pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn seal_with(request: &antecedent_io::vector_treatment_artifact::VectorTreatmentRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>
+pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn to_bytes_within(&self, artifact_id: &str, export_budget: usize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>
+pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact>::fn verify_data(&self, request: &antecedent_io::vector_treatment_artifact::VectorTreatmentRequest) -> core::result::Result<(), antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>
 pub fn <antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn checked(diagram: &antecedent_graph::selection::SelectionDiagram, functional: &antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: &antecedent_expr::exact::ExactTransportData, request: &antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, result: &antecedent_expr::exact_plan::ExactDistribution, program: &antecedent_expr::program::FunctionalProgram) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn consume(bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent_expr::exact_plan::ExactDistribution), antecedent_io_core::error::IoError>
@@ -6576,6 +6758,12 @@ pub fn antecedent_io::measured_inference::split_effect::consume_measured(bytes: 
 pub fn antecedent_io::measured_inference::split_effect::effect_on_structure(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, frame: &antecedent_data::dataset::TabularData, treatment: u32, outcome: u32, variables: usize, level: f64) -> core::result::Result<antecedent_io::measured_inference::split_effect::AdjustedEffect, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_effect::measure(source_bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_effect::run(source: &antecedent_io::measured_inference::split_effect::SplitEffectSource, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::split_effect::SplitEffectRun, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_parent_set_effect::consume_measured(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_parent_set_effect::governing_topologies(max_degree: u32) -> &'static [&'static str]
+pub fn antecedent_io::measured_inference::split_parent_set_effect::measure(source_bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_parent_set_effect::run(source: &antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, names: &[alloc::string::String], treatment: u32, outcome: u32) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set_under_conflicts(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, evidence: &antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'_>, names: &[alloc::string::String], treatment: u32, outcome: u32, max_colliders: usize) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
 pub fn antecedent_io::msm_sensitivity_adapter::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
@@ -6607,6 +6795,7 @@ pub mod antecedent_io::measured_inference
 pub mod antecedent_io::measured_inference::cohort_interval
 pub mod antecedent_io::measured_inference::count_fitted_interval
 pub mod antecedent_io::measured_inference::split_effect
+pub mod antecedent_io::measured_inference::split_parent_set_effect
 pub mod antecedent_io::mechanism_discrepancy_artifact
 pub mod antecedent_io::mixed_source_artifact
 pub mod antecedent_io::model_bundle
@@ -6763,6 +6952,13 @@ pub struct antecedent_io::measured_inference::count_fitted_interval::CountFitted
 pub struct antecedent_io::measured_inference::split_effect::AdjustedEffect
 pub struct antecedent_io::measured_inference::split_effect::SplitEffectRun
 pub struct antecedent_io::measured_inference::split_effect::SplitEffectSource
+pub struct antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
+pub struct antecedent_io::measured_inference::split_parent_set_effect::Knowledge
+pub struct antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun
+pub struct antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource
+pub struct antecedent_io::measured_inference::split_parent_set_effect::ReportedEffect
+pub struct antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood
+pub struct antecedent_io::measured_inference::split_parent_set_effect::UnresolvedPair
 pub struct antecedent_io::mechanism_discrepancy_artifact::CoefficientWire
 pub struct antecedent_io::mechanism_discrepancy_artifact::FitWire
 pub struct antecedent_io::mechanism_discrepancy_artifact::MeasurementWire
@@ -7090,6 +7286,7 @@ pub use antecedent_io::MeasurementSpecWire = antecedent_io_core::MeasurementSpec
 pub use antecedent_io::MechanismSlotWire = antecedent_io_core::MechanismSlotWire
 pub use antecedent_io::MechanismStoreWire = antecedent_io_core::MechanismStoreWire
 pub use antecedent_io::MediationPosteriorSummaryWire = antecedent_io_core::MediationPosteriorSummaryWire
+pub use antecedent_io::MissingPolicyWire = antecedent_io_core::MissingPolicyWire
 pub use antecedent_io::ModelKindWire = antecedent_io_core::ModelKindWire
 pub use antecedent_io::NestedCounterfactualFitWire = antecedent_io_core::NestedCounterfactualFitWire
 pub use antecedent_io::NetworkXAdjacency = antecedent_io_core::NetworkXAdjacency
@@ -7106,6 +7303,7 @@ pub use antecedent_io::PRIOR_SOURCE_META_SECTION = antecedent_io_core::PRIOR_SOU
 pub use antecedent_io::PagJson = antecedent_io_core::PagJson
 pub use antecedent_io::PagWire = antecedent_io_core::PagWire
 pub use antecedent_io::PanelDidWire = antecedent_io_core::PanelDidWire
+pub use antecedent_io::ParticipantBindingWire = antecedent_io_core::ParticipantBindingWire
 pub use antecedent_io::PathSpecificEffectQueryWire = antecedent_io_core::PathSpecificEffectQueryWire
 pub use antecedent_io::PayloadDigestWire = antecedent_io_core::PayloadDigestWire
 pub use antecedent_io::PhysicalExecutionPlanWire = antecedent_io_core::PhysicalExecutionPlanWire
@@ -7388,6 +7586,7 @@ pub use antecedent_io::learned_joint_transport_artifact::LearnedJointConsumeLimi
 pub use antecedent_io::logical_plan_from_wire = antecedent_io_core::logical_plan_from_wire
 pub use antecedent_io::logical_plan_to_wire = antecedent_io_core::logical_plan_to_wire
 pub use antecedent_io::map_artifact_check = antecedent_io_core::map_artifact_check
+pub use antecedent_io::measured_inference::count_fitted_interval::MAX_ENDPOINT_MCSE_FRACTION = antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION
 pub use antecedent_io::measurement_model_wire = antecedent_io_core::measurement_model_wire
 pub use antecedent_io::mechanism_composition_artifact = antecedent_io_core::mechanism_composition_artifact
 pub use antecedent_io::mechanism_wire = antecedent_io_core::mechanism_wire
@@ -7442,6 +7641,7 @@ pub use antecedent_io::performance_to_wire = antecedent_io_core::performance_to_
 pub use antecedent_io::physical_plan_from_wire = antecedent_io_core::physical_plan_from_wire
 pub use antecedent_io::physical_plan_to_wire = antecedent_io_core::physical_plan_to_wire
 pub use antecedent_io::plan_wire = antecedent_io_core::plan_wire
+pub use antecedent_io::policy_program_artifact = antecedent_io_core::policy_program_artifact
 pub use antecedent_io::posterior = antecedent_io_core::posterior
 pub use antecedent_io::posterior_convert::PosteriorPayload = antecedent_io::PosteriorPayload
 pub use antecedent_io::posterior_convert::decode_causal_posterior_bytes = antecedent_io_core::posterior::decode_causal_posterior_bytes
@@ -7658,6 +7858,8 @@ pub variant antecedent_io::learned_joint_transport_artifact::LearnedJointArtifac
 pub variant antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactError::PremisesMismatch
 pub variant antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactError::ResultMismatch
 pub variant antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io::measured_inference::split_parent_set_effect::Transformation::Linear
+pub variant antecedent_io::measured_inference::split_parent_set_effect::Transformation::LogLinear
 pub variant antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError::Decode(alloc::string::String)
 pub variant antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError::Encode(alloc::string::String)
 pub variant antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError::IdentityMismatch { field: &'static str }

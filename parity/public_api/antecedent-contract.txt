@@ -5990,6 +5990,7 @@ pub variant antecedent_contract::adaptive_design::StoppingRuleKind::Resource
 pub variant antecedent_contract::adaptive_design::StoppingSpec::AlphaSpending { spending: antecedent_contract::adaptive_design::SpendingKind, total_alpha: f64, sidedness: antecedent_contract::adaptive_design::BoundarySidedness }
 pub variant antecedent_contract::adaptive_design::StoppingSpec::NoStopping
 pub variant antecedent_contract::adaptive_design::StoppingSpec::PosteriorExpectedLoss { loss_threshold: f64 }
+pub variant antecedent_contract::adaptive_design::StoppingSpec::PosteriorFutility { margin: f64, threshold: f64 }
 pub variant antecedent_contract::adaptive_design::StoppingSpec::PosteriorProbabilityBest { threshold: f64 }
 pub variant antecedent_contract::adaptive_design::StoppingSpec::ResourceCap { max_units: u32 }
 pub variant antecedent_contract::bridge::AssumptionKind::Additional

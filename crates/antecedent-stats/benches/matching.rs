@@ -8,6 +8,7 @@
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
+use antecedent_core::ExecutionContext;
 use antecedent_stats::{MatchingDistance, MatchingIndex};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
@@ -24,12 +25,17 @@ fn bench_matching(c: &mut Criterion) {
             queries[i * dim + d] = donors[i * dim + d] + 0.01;
         }
     }
-    let idx = MatchingIndex::exact(&donors, dim, &donor_rows, MatchingDistance::Euclidean).unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    let idx =
+        MatchingIndex::exact_within(&donors, dim, &donor_rows, MatchingDistance::Euclidean, &ctx)
+            .unwrap();
     let mut out_row = vec![0usize; n];
     let mut out_d = vec![0.0; n];
     c.bench_function("matching_exact_n500_d4", |b| {
         b.iter(|| {
-            let m = idx.match_all(black_box(&queries), n, None, &mut out_row, &mut out_d).unwrap();
+            let m = idx
+                .match_all_within(black_box(&queries), n, None, &mut out_row, &mut out_d, &ctx)
+                .unwrap();
             assert_eq!(m, n as u32);
         });
     });

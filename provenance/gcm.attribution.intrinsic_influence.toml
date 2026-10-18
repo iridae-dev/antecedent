@@ -1,0 +1,37 @@
+feature_id = "gcm.attribution.intrinsic_influence"
+implementation_crate = "antecedent-attribution"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Intrinsic causal influence: the Shapley split of a target's variance among the exogenous noise
+# terms of its ancestors and itself, with the coalition game v(S) = Var(E[Y | U_S]) where U_S are
+# the noise coordinates of the sources in S. The game, its reading as the contribution of each
+# mechanism's own noise, and the use of Shapley values to allocate it follow the paper below.
+# The nested Monte Carlo estimator with its analysis-of-variance correction, the batch noise
+# replay, the replicate-batch simulation error, the permutation error from per-permutation
+# marginal contributions and the row-bootstrap mechanism-fit component are derived here.
+# Published in AISTATS 2024 (PMLR 238:2188-2196); the DOI is that of the arXiv record
+# (arXiv:2007.00714, v4).
+papers = [
+ { title = "Quantifying intrinsic causal contributions via structure preserving interventions", doi = "10.48550/arXiv.2007.00714", sections = ["Section 3 (intrinsic causal contribution as a variance game over structure preserving interventions)", "Section 4 (Shapley symmetrization and the efficiency identity)"] },
+]
+
+implementation_deviations = [
+ "The coalition value is estimated by nested Monte Carlo with the unbiased analysis-of-variance form s2(inner means) - mean(inner sample variances)/inner. The naive variance of the inner means is biased upward by E[Var(Y | U_S)]/inner and would shrink every contribution by 1 - 1/inner; the estimator is not clipped at zero, so a small coalition value can be slightly negative. This is not the estimator analyzed in the paper, which works with exact conditional expectations.",
+ "Only independent-noise (Markovian) structural models are supported. Independence of the exogenous noise terms is a caller declaration (or a structure without bidirected edges); the compiled model, a DAG, cannot certify it. Bidirected edges, latent common causes, undeclared independence, unfitted mechanisms and mechanisms with serially dependent noise are refused.",
+ "Players are the noise terms of the target's ancestors and the target itself, in topological order. Exact Shapley enumerates all coalitions up to a fixed bound on the source count and permutation sampling is used above it.",
+ "Standard errors are reported per uncertainty component and never summed: permutation sampling (spread of per-permutation marginal contributions of the pooled coalition values, which contains the simulation noise those marginals carry and so slightly overstates the permutation component), simulation (spread of independent replicate batches run on the same permutations, a Student-t interval on the replicate count minus one), and mechanism fit (row bootstrap refits with the standard registry, spread reduced by the Monte Carlo variance of one estimate). The intervals are uncalibrated diagnostics with no coverage claim.",
+ "The target variance is estimated directly from the rows of the replicate batches with no coordinate fixed, so the allocation residual is that estimate minus the sum of contributions and measures estimation error in v(empty) and v(all).",
+]
+
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "crates/antecedent-attribution/tests/intrinsic_influence.rs (linear chain and collider with closed-form contributions, a product mechanism with interaction, moment closed form of a quadratic mechanism)",
+ "python/tests/test_intrinsic_influence.py",
+ "python/tests/test_dowhy_comparison.py (per-source shares on a linear Gaussian chain against gcm.intrinsic_causal_influence; DoWhy values computed at test time by the pinned version, skipped when it is absent)",
+]

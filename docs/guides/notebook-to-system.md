@@ -5,10 +5,10 @@
 Start with one reviewed question, then preserve its meaning as observations, design and consumers change. This tutorial uses synthetic data and the same public API as the runnable script. No bootstrap interval is requested here; inspect the actual standing of every result before using uncertainty downstream.
 
 ```bash
-python examples/python/notebook_to_system_24.py
+python examples/python/notebook_to_system.py
 ```
 
-Install the matching package or development checkout using [installation](../installation.md). The [companion notebook](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/notebook_to_system_24.ipynb) presents the same journey interactively.
+Install the matching package or development checkout using [installation](../installation.md). The [companion notebook](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/notebook_to_system.ipynb) presents the same journey interactively.
 
 ## 1. Prepare the question before fitting
 
@@ -36,7 +36,7 @@ The composition example supplies a mixture mean. Its adapter explicitly declares
 
 ## Complete runnable source
 
-<!-- example: examples/python/notebook_to_system_24.py -->
+<!-- example: examples/python/notebook_to_system.py -->
 
 Expect prepared and executed inspection reports followed by `Fresh-process consumption preserved the answer and identity bindings.` The assertions check the designed numerical changes, immutable execution, refused design update, composition binding and fresh-process load.
 

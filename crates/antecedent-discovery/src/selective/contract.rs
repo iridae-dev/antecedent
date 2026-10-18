@@ -27,7 +27,7 @@ use antecedent_stats::{
     ConditionalIndependenceTest, FdrAdjustment, MultipleTestingMethod, SignificanceMethod,
 };
 
-use crate::constraints::{CiMaskType, DiscoveryConstraints};
+use crate::constraints::{CiMaskType, DiscoveryConstraints, KnowledgeFault, KnowledgeScope};
 use crate::discriminating_paths::DiscriminatingPathBudget;
 use crate::fci::Fci;
 use crate::pc::Pc;
@@ -53,6 +53,26 @@ fn not_supported(detail: &'static str, remedy: impl Into<String>) -> SelectiveDi
         detail,
         remedy,
     )
+}
+
+/// The refusal of background knowledge a search cannot honour, with the fault's own reason code
+/// and its precise message as the remedy.
+fn knowledge_refusal(fault: &KnowledgeFault) -> SelectiveDiscoveryError {
+    let (code, detail) = match fault {
+        KnowledgeFault::Contradictory(_) => (
+            antecedent_core::reason_code!("invalid_argument"),
+            "selective_discovery.background_knowledge_contradictory",
+        ),
+        KnowledgeFault::UnknownVariable(_) => (
+            antecedent_core::reason_code!("unknown_variable"),
+            "selective_discovery.background_knowledge_unknown_variable",
+        ),
+        KnowledgeFault::NotApplicable(_) => (
+            antecedent_core::reason_code!("option_not_applicable"),
+            "selective_discovery.background_knowledge_not_applicable",
+        ),
+    };
+    SelectiveDiscoveryError::refused(code, detail, fault.message())
 }
 
 const COMPONENT_TAG: &str = "antecedent.selective_discovery.component.v1";
@@ -202,6 +222,57 @@ fn write_link(writer: &mut CanonicalWriter, link: &LaggedLink) {
         .word(u64::from(link.target_lag.raw()));
 }
 
+/// Digest of the required and forbidden links (as sets), the tiers and the vector-variable
+/// groups of `constraints`: the contracts' `background_knowledge` stage input.
+#[must_use]
+pub fn background_knowledge_digest(c: &DiscoveryConstraints) -> Digest {
+    component("background_knowledge", |w| {
+        let required = sorted_links(&c.required);
+        w.word(required.len() as u64);
+        for link in &required {
+            write_link(w, link);
+        }
+        let forbidden = sorted_links(&c.forbidden);
+        w.word(forbidden.len() as u64);
+        for link in &forbidden {
+            write_link(w, link);
+        }
+        w.word(c.tiers.len() as u64);
+        for tier in c.tiers.iter() {
+            let members: BTreeSet<u32> = tier.iter().map(|v| v.raw()).collect();
+            w.word(members.len() as u64);
+            for member in members {
+                w.word(u64::from(member));
+            }
+        }
+        let groups = c.vector_groups.groups();
+        w.word(groups.len() as u64);
+        for group in groups {
+            w.word(group.len() as u64);
+            for v in group.iter() {
+                w.word(u64::from(v.raw()));
+            }
+        }
+    })
+}
+
+/// Identity of the background knowledge a result was produced under: the digest of
+/// [`background_knowledge_digest`], plus the parent limit when there is one.
+///
+/// The contracts declare the parent limit under their search limits, so their
+/// `background_knowledge` component stays [`background_knowledge_digest`]; results and accepted
+/// graphs have no such input, and their identity covers the limit here.
+#[must_use]
+pub fn background_knowledge_identity(c: &DiscoveryConstraints) -> Digest {
+    let base = background_knowledge_digest(c);
+    match c.max_parents {
+        None => base,
+        Some(limit) => component("background_knowledge_identity", |w| {
+            w.bytes(&base).word(limit as u64);
+        }),
+    }
+}
+
 const fn mask_tag(mask: CiMaskType) -> u64 {
     match mask {
         CiMaskType::Y => 0,
@@ -343,40 +414,13 @@ fn stage_inputs(
             }
             Some(fdr) => {
                 w.word(1).word(method_tag(fdr.method)).word(u64::from(fdr.exclude_contemporaneous));
-            }
-        }),
-    );
-    components.insert(
-        "background_knowledge",
-        component("background_knowledge", |w| {
-            let required = sorted_links(&c.required);
-            w.word(required.len() as u64);
-            for link in &required {
-                write_link(w, link);
-            }
-            let forbidden = sorted_links(&c.forbidden);
-            w.word(forbidden.len() as u64);
-            for link in &forbidden {
-                write_link(w, link);
-            }
-            w.word(c.tiers.len() as u64);
-            for tier in c.tiers.iter() {
-                let members: BTreeSet<u32> = tier.iter().map(|v| v.raw()).collect();
-                w.word(members.len() as u64);
-                for member in members {
-                    w.word(u64::from(member));
-                }
-            }
-            let groups = c.vector_groups.groups();
-            w.word(groups.len() as u64);
-            for group in groups {
-                w.word(group.len() as u64);
-                for v in group.iter() {
-                    w.word(u64::from(v.raw()));
+                if settings.route == "temporal_pcmci_plus" && !fdr.exclude_contemporaneous {
+                    w.text("all_allowed_edges_mci_max_p_missing_p1.v1");
                 }
             }
         }),
     );
+    components.insert("background_knowledge", background_knowledge_digest(c));
     components.insert(
         "search_limits",
         component("search_limits", |w| {
@@ -410,6 +454,7 @@ fn validate_common(
     constraints: &DiscoveryConstraints,
     population: &str,
     additional: &[String],
+    scope: KnowledgeScope,
 ) -> Result<(), SelectiveDiscoveryError> {
     if !additional.is_empty() {
         return Err(not_supported(
@@ -458,6 +503,9 @@ fn validate_common(
             "the significance threshold must lie strictly between 0 and 1",
         ));
     }
+    constraints
+        .check_background_knowledge(scope, variables)
+        .map_err(|fault| knowledge_refusal(&fault))?;
     constraints.validate()?;
     Ok(())
 }
@@ -561,6 +609,7 @@ impl StaticDiscoveryContract {
             &self.constraints,
             &self.population,
             &self.additional_populations,
+            KnowledgeScope::EquivalenceClass,
         )
     }
 
@@ -670,6 +719,7 @@ impl TemporalDiscoveryContract {
             &self.constraints,
             &self.population,
             &self.additional_populations,
+            KnowledgeScope::Lagged,
         )?;
         let t = &self.constraints.temporal;
         if t.max_lag.raw() == 0 || t.min_lag.raw() > t.max_lag.raw() {

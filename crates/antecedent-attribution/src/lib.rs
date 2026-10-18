@@ -4,7 +4,7 @@
 //!
 //! Browse by concern: [`anomaly`], [`distribution_change`](mod@distribution_change), [`structure_change`](mod@structure_change),
 //! [`unit_change`](mod@unit_change), [`path`], [`feature_relevance`](mod@feature_relevance), [`mechanism_change`], [`robust`],
-//! [`root_cause`], [`shapley`], [`builder`].
+//! [`root_cause`], [`shapley`], [`builder`], [`intrinsic_influence`](mod@intrinsic_influence).
 //!
 //! # Example
 //!
@@ -35,6 +35,7 @@ pub mod coalition;
 pub mod distribution_change;
 pub mod error;
 pub mod feature_relevance;
+pub mod intrinsic_influence;
 pub mod mechanism_change;
 pub mod path;
 pub mod population;
@@ -57,6 +58,12 @@ pub use distribution_change::{
 };
 pub use error::AttributionError;
 pub use feature_relevance::{FeatureRelevanceOptions, feature_relevance};
+pub use intrinsic_influence::{
+    ComponentStatus, ComponentUncertainty, INTRINSIC_MAX_EXACT_PLAYERS, IntrinsicAllocation,
+    IntrinsicBudget, IntrinsicInfluenceQuery, IntrinsicInfluenceResult, IntrinsicMethod,
+    NoiseIndependence, PartialStderr, ShapleyMethod, SourceInfluence, UncertaintyComponent,
+    intrinsic_influence,
+};
 pub use mechanism_change::{MechanismChangeMethod, detect_mechanism_changes};
 pub use path::path_decompose;
 pub use population::resolve_rows;

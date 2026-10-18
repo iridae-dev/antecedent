@@ -400,23 +400,161 @@ where
     }
     let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
     let parallel = threads > 1 && !ctx.adaptive_bootstrap.enabled;
+    let rows = ReplicateRows::Rows { indexes: &indexes, n };
     if parallel {
-        return evaluate_bootstrap_parallel(ctx, &indexes, n, n_rep, make_scratch, estimate);
+        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, make_scratch, estimate);
     }
-    evaluate_bootstrap_serial(ctx, &indexes, n, n_rep, make_scratch, estimate)
+    evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
 }
 
-fn fill_replicate_idx(idx: &mut [usize], indexes: &[u32], n: usize, r: usize) {
-    let slice = &indexes[r * n..(r + 1) * n];
-    for (dst, &src) in idx.iter_mut().zip(slice.iter()) {
-        *dst = src as usize;
+/// The rows of each cluster, in row order, for whole-cluster resampling.
+#[derive(Clone, Debug)]
+pub(crate) struct ClusterRows {
+    members: Vec<Vec<u32>>,
+}
+
+impl ClusterRows {
+    /// Group row indices by cluster label (clusters in order of first appearance).
+    ///
+    /// # Errors
+    ///
+    /// Fewer than two clusters (a one-cluster resample is the data), or rows beyond the
+    /// `u32` index capacity.
+    pub(crate) fn new(labels: &[u32]) -> Result<Self, EstimationError> {
+        let mut slot_of: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
+        let mut members: Vec<Vec<u32>> = Vec::new();
+        for (row, label) in labels.iter().enumerate() {
+            let row = u32::try_from(row).map_err(|_| {
+                EstimationError::data_msg("bootstrap rows exceed u32 index capacity")
+            })?;
+            let next = members.len();
+            let slot = *slot_of.entry(*label).or_insert(next);
+            if slot == members.len() {
+                members.push(Vec::new());
+            }
+            members[slot].push(row);
+        }
+        if members.len() < 2 {
+            return Err(crate::se::few_clusters(members.len()));
+        }
+        Ok(Self { members })
+    }
+
+    /// Number of clusters.
+    pub(crate) fn len(&self) -> usize {
+        self.members.len()
+    }
+
+    /// The rows of each cluster, in row order.
+    pub(crate) fn members(&self) -> &[Vec<u32>] {
+        &self.members
+    }
+}
+
+/// Whole-cluster bootstrap standard error with failure accounting.
+///
+/// Each replicate draws as many clusters as the data has, with replacement, and presents the
+/// union of their rows (clusters in draw order, rows in data order) to `estimate`. A
+/// replicate therefore has a *variable* number of rows: a cluster drawn twice contributes
+/// twice, one not drawn not at all. This is the resampling a cluster-robust variance
+/// assumes, with no row ever split from its cluster; a fixed-length row index would break
+/// the clusters or the sample size.
+///
+/// Otherwise behaves as [`bootstrap_se_with_scratch`]: soft failures, cancellation, and
+/// parallel evaluation are the same, and the draws are common-random-number stable under a
+/// fixed seed.
+///
+/// # Errors
+///
+/// Draw allocation failure, or an `Err` from `estimate`.
+pub(crate) fn bootstrap_se_clusters_with_scratch<S, F>(
+    replicates: u32,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    clusters: &ClusterRows,
+    make_scratch: impl Fn() -> S + Sync,
+    estimate: F,
+) -> Result<BootstrapSeResult, EstimationError>
+where
+    S: Send,
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+{
+    let groups = clusters.len();
+    if replicates == 0 || groups == 0 {
+        return Ok(BootstrapSeResult::skipped());
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
+    }
+    let n_rep = replicates as usize;
+    let len = groups
+        .checked_mul(n_rep)
+        .filter(|&len| {
+            len.checked_mul(std::mem::size_of::<u32>())
+                .is_some_and(|bytes| isize::try_from(bytes).is_ok())
+        })
+        .ok_or_else(|| {
+            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
+        })?;
+    let mut draws = Vec::new();
+    draws.try_reserve_exact(len).map_err(|e| {
+        EstimationError::data_msg(format!("bootstrap index allocation failed: {e}"))
+    })?;
+    draws.resize(len, 0u32);
+    if let Err(error) = fill_resample_index_batch(
+        ResamplingPlan::IidBootstrap,
+        groups,
+        n_rep,
+        None,
+        ctx,
+        stream_base,
+        &mut draws,
+    ) {
+        if ctx.cancellation.is_cancelled() && matches!(&error, DataError::Cancelled) {
+            return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
+        }
+        return Err(error.into());
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
+    }
+    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
+    let parallel = threads > 1 && !ctx.adaptive_bootstrap.enabled;
+    let rows = ReplicateRows::Clusters { draws: &draws, groups, members: &clusters.members };
+    if parallel {
+        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, make_scratch, estimate);
+    }
+    evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
+}
+
+/// How one bootstrap replicate's row indices are drawn from the batch of draws.
+enum ReplicateRows<'a> {
+    /// `n` row draws per replicate: an iid row bootstrap.
+    Rows { indexes: &'a [u32], n: usize },
+    /// `groups` cluster draws per replicate, each expanded to all of its rows in order. The
+    /// replicate is a whole-cluster resample whose length varies with the clusters drawn.
+    Clusters { draws: &'a [u32], groups: usize, members: &'a [Vec<u32>] },
+}
+
+impl ReplicateRows<'_> {
+    fn fill(&self, r: usize, out: &mut Vec<usize>) {
+        out.clear();
+        match self {
+            Self::Rows { indexes, n } => {
+                out.extend(indexes[r * n..(r + 1) * n].iter().map(|&src| src as usize));
+            }
+            Self::Clusters { draws, groups, members } => {
+                for &cluster in &draws[r * groups..(r + 1) * groups] {
+                    out.extend(members[cluster as usize].iter().map(|&src| src as usize));
+                }
+            }
+        }
     }
 }
 
 fn evaluate_bootstrap_serial<S, F>(
     ctx: &ExecutionContext,
-    indexes: &[u32],
-    n: usize,
+    rows: &ReplicateRows<'_>,
     n_rep: usize,
     make_scratch: impl Fn() -> S,
     estimate: F,
@@ -426,7 +564,7 @@ where
 {
     let mut scratch = make_scratch();
     let mut ates = Vec::with_capacity(n_rep);
-    let mut idx = vec![0usize; n];
+    let mut idx = Vec::new();
     let mut cancelled = false;
     let mut early_stopped = false;
     let mut attempted = 0u32;
@@ -436,7 +574,7 @@ where
             cancelled = true;
             break;
         }
-        fill_replicate_idx(&mut idx, indexes, n, r);
+        rows.fill(r, &mut idx);
         attempted += 1;
         let estimate = estimate(&mut scratch, &idx)?.filter(|ate| ate.is_finite());
         if let Some(ate) = estimate {
@@ -465,8 +603,7 @@ where
 
 fn evaluate_bootstrap_parallel<S, F>(
     ctx: &ExecutionContext,
-    indexes: &[u32],
-    n: usize,
+    rows: &ReplicateRows<'_>,
     n_rep: usize,
     make_scratch: impl Fn() -> S + Sync,
     estimate: F,
@@ -489,13 +626,13 @@ where
             let begin = start;
             scope.spawn(move || {
                 let mut scratch = make_scratch();
-                let mut idx = vec![0usize; n];
+                let mut idx = Vec::new();
                 for (k, slot) in mine.iter_mut().enumerate() {
                     let r = begin + k;
                     if ctx.cancellation.is_cancelled() {
                         break;
                     }
-                    fill_replicate_idx(&mut idx, indexes, n, r);
+                    rows.fill(r, &mut idx);
                     *slot =
                         Some(estimate(&mut scratch, &idx).map(|v| v.filter(|ate| ate.is_finite())));
                 }
@@ -654,6 +791,25 @@ pub(crate) fn gather_bootstrap_design(
     for (r, &i) in idx.iter().enumerate() {
         for c in 0..ncols {
             out[c * n + r] = src[c * n + i];
+        }
+    }
+}
+
+/// Gather `idx`-selected rows of a column-major matrix `src` of `src_rows` rows into `out`,
+/// whose row count is `idx.len()`: `out[c·m + r] = src[c·src_rows + idx[r]]` with
+/// `m = idx.len()`. For a resample as long as the data this is [`gather_bootstrap_design`];
+/// a whole-cluster resample has its own length.
+pub(crate) fn gather_resampled_design(
+    out: &mut [f64],
+    src: &[f64],
+    src_rows: usize,
+    ncols: usize,
+    idx: &[usize],
+) {
+    let m = idx.len();
+    for (r, &i) in idx.iter().enumerate() {
+        for c in 0..ncols {
+            out[c * m + r] = src[c * src_rows + i];
         }
     }
 }
@@ -904,5 +1060,47 @@ mod tests {
         let hundred: Vec<f64> = (1..=100).map(f64::from).collect();
         assert!((monte_carlo_critical(&hundred, 0.95) - 96.0).abs() < 1e-12);
         assert!(monte_carlo_critical(&[], 0.95).is_nan());
+    }
+    #[test]
+    fn cluster_bootstrap_replicates_are_unions_of_whole_clusters_with_variable_length() {
+        // Clusters of 1, 2, 3 and 5 rows, interleaved in the data.
+        let labels = [0_u32, 1, 2, 3, 1, 2, 3, 2, 3, 3, 3];
+        let clusters = ClusterRows::new(&labels).unwrap();
+        assert_eq!(clusters.len(), 4);
+        let sizes = [1_usize, 2, 3, 5];
+        let lengths = std::sync::Mutex::new(std::collections::BTreeSet::new());
+        let ctx = ExecutionContext::for_tests(11);
+        let run = || {
+            bootstrap_se_clusters_with_scratch(
+                200,
+                &ctx,
+                9,
+                &clusters,
+                || (),
+                |(), rows| {
+                    // Every drawn cluster is present in full, as many times as it was drawn.
+                    let mut seen = [0_usize; 4];
+                    for &row in rows {
+                        seen[labels[row] as usize] += 1;
+                    }
+                    let mut draws = 0;
+                    for (label, count) in seen.iter().enumerate() {
+                        assert_eq!(count % sizes[label], 0, "cluster {label} was split");
+                        draws += count / sizes[label];
+                    }
+                    assert_eq!(draws, 4, "a replicate draws as many clusters as the data has");
+                    lengths.lock().unwrap().insert(rows.len());
+                    Ok(Some(rows.len() as f64))
+                },
+            )
+            .unwrap()
+        };
+        let first = run();
+        assert_eq!(first.replicates_ok, 200);
+        assert!(lengths.lock().unwrap().len() > 3, "replicate lengths must vary");
+        // Same seed, same draws.
+        assert_eq!(run().se, first.se);
+        // One cluster is not resamplable.
+        assert!(ClusterRows::new(&[7, 7, 7]).is_err());
     }
 }

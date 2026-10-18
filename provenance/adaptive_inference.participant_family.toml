@@ -1,0 +1,35 @@
+# Algorithm provenance for adaptive_inference.participant_family (see docs/adaptive-inference.md).
+
+feature_id = "adaptive_inference.participant_family"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Power prior distributions for regression models (Ibrahim, Chen, Stat Sci 15:46-60)", doi = "10.1214/ss/1009212673", sections = ["Power prior with a fixed discount a0, specialized to a Bernoulli likelihood with a Beta initial prior"] },
+ { title = "Determining the effective sample size of a parametric prior (Morita, Thall, Mueller, Biometrics 64:595-602)", doi = "10.1111/j.1541-0420.2007.00888.x", sections = ["Effective sample size of a Beta prior, alpha + beta"] },
+ { title = "On the likelihood that one unknown probability exceeds another in view of the evidence of two samples (Thompson, Biometrika 25:285-294)", doi = "10.1093/biomet/25.3-4.285", sections = ["Allocation by the probability that an arm is best"] },
+ { title = "The analysis of categorical data from complex sample surveys: chi-squared tests for goodness of fit and independence in two-way tables (Rao, Scott, JASA 76:221-230)", doi = "10.1080/01621459.1981.10477633", sections = ["Design effect and effective sample size of clustered binary data"] },
+ { title = "Time-uniform, nonparametric, nonasymptotic confidence sequences (Howard, Ramdas, McAuliffe, Sekhon, Ann Statist 49:1055-1080)", doi = "10.1214/20-AOS1991", sections = ["Sub-Gaussian normal mixture boundary"] },
+ { title = "Estimating means of bounded random variables by betting (Waudby-Smith, Ramdas, JRSS B 86:1-27)", doi = "10.1093/jrsssb/qkad009", sections = ["Theorem 2: predictable plug-in empirical Bernstein confidence sequence"] },
+]
+implementation_deviations = [
+ "The posterior of an arm mean is the exact posterior under the beta-binomial likelihood of the completed participants success counts, evaluated by composite Gauss-Legendre quadrature in the logit of the arm mean (window and panel width from the logit moments of the design-effect Beta, used only as a locator and checked a posteriori against the density at the window edges); there is no conjugate form and none is imitated. The design-effect discount of Rao and Scott is used for that locator only.",
+ "The intra-participant correlation is either declared, or given a Beta prior (shapes at least one) shared by the arms and integrated jointly with the arm means on an adaptive Gauss-Legendre grid over the correlation placed from its own posterior; the prior is frozen before recruitment.",
+ "Historical borrowing is a power prior with a declared, fixed discount per source, frozen before recruitment; the discount is not estimated and no robust mixture prior is used.",
+ "Thompson sampling is clamped from below at a declared exploration probability and renormalized (repeating the clamp until no probability is under the floor); the clamped rule is not the Thompson rule the cited paper analyzes.",
+ "The confidence sequences are the variance-adaptive predictable plug-in empirical Bernstein sequences of participants' success proportions (provenance/adaptive_inference.predictable_plug_in_sequence.toml), each arm at alpha / K by a union bound over the arms; the simultaneous family covers the comparison of the data-selected best treatment. Procedures retained under the earlier normal-mixture Hoeffding sequences (arms at alpha / (2 (K - 1))) keep and replay that construction, recorded in the contract by label. Finite-time theorem under its premise; not a measured coverage of the whole procedure (derived_unmeasured), with coverage records emitted by the whole-procedure calibration designs.",
+ "Follow-up delay is a fixed number of looks and participants are not lost: a participant whose follow-up has not completed when the procedure ends is enrolled and not analysed.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-stats/tests/adaptive_participant_family.rs",
+ "crates/antecedent-stats/tests/adaptive_procedure_capacity.rs",
+ "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+ "crates/antecedent/tests/adaptive_participant_acceptance.rs",
+ "crates/antecedent/tests/adaptive_participant_facade.rs",
+ "crates/antecedent-estimate/tests/adaptive_whole_procedure_calibration.rs",
+ "python/tests/test_adaptive_binary_family.py",
+]

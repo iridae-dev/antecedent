@@ -1,0 +1,3425 @@
+{
+  "kind": "temporal_and_final_source_composition",
+  "ordinary_capture": {
+    "logs": {
+      "calibration_response__response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.p0.log": "29f1ff604a135cbc7ad04128a5c8b12a4f16c21e39d25373a132c3e488908d35",
+      "calibration_response__response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.p1.log": "61dd0308dba0e09db237c95625fe17528e58dfff4bd09cd97a4e7f6f0c5586a1",
+      "calibration_response__response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.p2.log": "71f9b59dcfe36962c618a571a943c83fc12edcfb7b19c7ff4dce441bbde5ce79",
+      "evidence_synthesis_calibration__pooled_random_effects_homogeneous_five_studies.p0.log": "7485dc0739e1077d68e6b8c2cc56769257bc225128b27f3e41d39f746e462ba0",
+      "evidence_synthesis_calibration__pooled_random_effects_homogeneous_five_studies.p1.log": "ee03b714c19cd65fe94c8876ed3c9962a08d9dfad4a4afca71c8882c0316836f",
+      "evidence_synthesis_calibration__pooled_random_effects_homogeneous_five_studies.p2.log": "3fa0d1e8cf53bda6a71a8a31295dfa335e0f8ca1b30e82dbe803b8bc6fb06b9a",
+      "weighted_interval_calibration__weighted_aipw_interval.p0.log": "6f621b543ddc962170c0e802929fa71ce5e70de3f203825ac02743afb582e031",
+      "weighted_interval_calibration__weighted_aipw_interval.p1.log": "a6934ad72b15856b13ad9043a35546e52a8cd9c603372d1278accd84287ad1f0",
+      "weighted_interval_calibration__weighted_aipw_interval.p2.log": "664b4c4de77ea8671a17e14693aca61b4ca99750ab55b0bb4a1a22e0b4da9061"
+    },
+    "payloads": {
+      "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1892,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.437838721155412,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/weighted_interval_calibration.rs::informative_sampling_heterogeneous_effect",
+        "estimator": "aipw",
+        "functional": "all_observed.mean+weights=sampling",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1892,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.437838721155412,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.005053909377897473,
+            "n_max": 600,
+            "n_min": 600,
+            "observed": 0.946,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1899,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.946858122915899,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.0048964145045124596,
+            "n_max": 1200,
+            "n_min": 1200,
+            "observed": 0.9495,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1895,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.6356766712939009,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.004987171041783106,
+            "n_max": 2400,
+            "n_min": 2400,
+            "observed": 0.9475,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.005053909377897473,
+        "modality": "tabular",
+        "n_max": 2400,
+        "n_min": 600,
+        "nominal": 0.95,
+        "observed": 0.946,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "AverageEffect",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "homoskedastic",
+        "structure": "fixed",
+        "test": "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_aipw_interval",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies": {
+        "boundary": false,
+        "conservative_point": {
+          "justification": "independent_gaussian_study_t.ibragimov_mueller_2010.v1",
+          "target": "common_marginal_study_mean"
+        },
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 379,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.5,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": true,
+          "p_value": 0.4408879375338961,
+          "planned_replicates": 400,
+          "scored": 400,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "independent",
+        "dgp": "crates/antecedent/tests/evidence_synthesis_calibration.rs::homogeneous_gaussian_studies_unequal_scale_random_effects",
+        "estimator": "evidence.synthesis.equal_study_gaussian",
+        "functional": "pooled_mean;equal_study_gaussian;studies=5-30",
+        "graph_class": "NoGraph",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 385,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.5,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": true,
+              "p_value": 0.9010205427812055,
+              "planned_replicates": 400,
+              "scored": 400,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.009499177595981663,
+            "n_max": 75,
+            "n_min": 75,
+            "observed": 0.9625,
+            "point": 0,
+            "replicates": 400,
+            "role": "conservative_point"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 382,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.5,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": true,
+              "p_value": 0.7088385611991034,
+              "planned_replicates": 400,
+              "scored": 400,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.010365206220813944,
+            "n_max": 100,
+            "n_min": 100,
+            "observed": 0.955,
+            "point": 1,
+            "replicates": 400,
+            "role": "conservative_point"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 379,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.5,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": true,
+              "p_value": 0.4408879375338961,
+              "planned_replicates": 400,
+              "scored": 400,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.01115165346484547,
+            "n_max": 200,
+            "n_min": 200,
+            "observed": 0.9475,
+            "point": 2,
+            "replicates": 400,
+            "role": "conservative_point"
+          }
+        ],
+        "id": "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "independent_gaussian_study_t",
+        "mcse": 0.01115165346484547,
+        "modality": "summary",
+        "n_max": 200,
+        "n_min": 75,
+        "nominal": 0.95,
+        "observed": 0.9475,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "PooledEffect",
+        "replicates": 400,
+        "replicates_min": 0,
+        "role": "conservative_point",
+        "se_kind": "empirical_study_variance",
+        "structure": "fixed",
+        "test": "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_homogeneous_five_studies",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1798,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.903209194498239,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+        "estimator": "response.kennedy_dr",
+        "functional": "all_observed.mean.complete",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1816,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.24648940034808858,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006462816723379983,
+            "n_max": 250,
+            "n_min": 250,
+            "observed": 0.908,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1798,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.903209194498239,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006737915107805974,
+            "n_max": 500,
+            "n_min": 500,
+            "observed": 0.899,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1802,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.9187822995846211,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006678285708173917,
+            "n_max": 1000,
+            "n_min": 1000,
+            "observed": 0.901,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.006737915107805974,
+        "modality": "tabular",
+        "n_max": 1000,
+        "n_min": 250,
+        "nominal": 0.9,
+        "observed": 0.899,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "ResponseCurve",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "",
+        "structure": "graph_posterior",
+        "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0_5": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1786,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.3142913697170865,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+        "estimator": "response.kennedy_dr",
+        "functional": "all_observed.mean.complete",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1786,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.3142913697170865,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.0069119823495145,
+            "n_max": 250,
+            "n_min": 250,
+            "observed": 0.893,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1813,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.3521204579896964,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006509905913298595,
+            "n_max": 500,
+            "n_min": 500,
+            "observed": 0.9065,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1809,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.5302782422197073,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006571900410079265,
+            "n_max": 1000,
+            "n_min": 1000,
+            "observed": 0.9045,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0_5",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.0069119823495145,
+        "modality": "tabular",
+        "n_max": 1000,
+        "n_min": 250,
+        "nominal": 0.9,
+        "observed": 0.893,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "ResponseCurve",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "",
+        "structure": "graph_posterior",
+        "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_1": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1780,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.14900963070725062,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+        "estimator": "response.kennedy_dr",
+        "functional": "all_observed.mean.complete",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1780,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.14900963070725062,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006996427659884721,
+            "n_max": 250,
+            "n_min": 250,
+            "observed": 0.89,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1791,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.5225029316154483,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006840312492861713,
+            "n_max": 500,
+            "n_min": 500,
+            "observed": 0.8955,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1795,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.7306954605970072,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006782099601155973,
+            "n_max": 1000,
+            "n_min": 1000,
+            "observed": 0.8975,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_1",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.006996427659884721,
+        "modality": "tabular",
+        "n_max": 1000,
+        "n_min": 250,
+        "nominal": 0.9,
+        "observed": 0.89,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "ResponseCurve",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "",
+        "structure": "graph_posterior",
+        "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__0_5": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1792,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.5715109699672487,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+        "estimator": "response.kennedy_dr",
+        "functional": "all_observed.mean.complete",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1797,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.8446773695438188,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006752693906878944,
+            "n_max": 250,
+            "n_min": 250,
+            "observed": 0.8985,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1792,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.5715109699672487,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.0068258332824644935,
+            "n_max": 500,
+            "n_min": 500,
+            "observed": 0.896,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1808,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.5808458999490148,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006587260432076448,
+            "n_max": 1000,
+            "n_min": 1000,
+            "observed": 0.904,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__0_5",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.0068258332824644935,
+        "modality": "tabular",
+        "n_max": 1000,
+        "n_min": 250,
+        "nominal": 0.9,
+        "observed": 0.896,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "ResponseCurve",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "",
+        "structure": "graph_posterior",
+        "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__1": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1779,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.1296484777901789,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+        "estimator": "response.kennedy_dr",
+        "functional": "all_observed.mean.complete",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1789,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.43157013615746914,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.006869124762296869,
+            "n_max": 250,
+            "n_min": 250,
+            "observed": 0.8945,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1779,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.1296484777901789,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.007010340576605391,
+            "n_max": 500,
+            "n_min": 500,
+            "observed": 0.8895,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1779,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.1296484777901789,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.007010340576605391,
+            "n_max": 1000,
+            "n_min": 1000,
+            "observed": 0.8895,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__1",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.007010340576605391,
+        "modality": "tabular",
+        "n_max": 1000,
+        "n_min": 250,
+        "nominal": 0.9,
+        "observed": 0.8895,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "ResponseCurve",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "",
+        "structure": "graph_posterior",
+        "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1898,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.8658750929497444,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+        "estimator": "response.kennedy_dr",
+        "functional": "all_observed.mean.complete",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1913,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.19586155174050635,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.004561126505590477,
+            "n_max": 250,
+            "n_min": 250,
+            "observed": 0.9565,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1898,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.8658750929497444,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.004919298730510276,
+            "n_max": 500,
+            "n_min": 500,
+            "observed": 0.949,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1901,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.9713490168134884,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.004850244839180801,
+            "n_max": 1000,
+            "n_min": 1000,
+            "observed": 0.9505,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.004919298730510276,
+        "modality": "tabular",
+        "n_max": 1000,
+        "n_min": 250,
+        "nominal": 0.95,
+        "observed": 0.949,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "ResponseCurve",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "",
+        "structure": "graph_posterior",
+        "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0_5": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1896,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.7095607712003886,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+        "estimator": "response.kennedy_dr",
+        "functional": "all_observed.mean.complete",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1896,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.7095607712003886,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.0049646752159632785,
+            "n_max": 250,
+            "n_min": 250,
+            "observed": 0.948,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1911,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.2800294475838317,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.004610843198374891,
+            "n_max": 500,
+            "n_min": 500,
+            "observed": 0.9555,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1903,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.8087519494273976,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.004803527349771207,
+            "n_max": 1000,
+            "n_min": 1000,
+            "observed": 0.9515,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0_5",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.0049646752159632785,
+        "modality": "tabular",
+        "n_max": 1000,
+        "n_min": 250,
+        "nominal": 0.95,
+        "observed": 0.948,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "ResponseCurve",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "",
+        "structure": "graph_posterior",
+        "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_1": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1873,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.008514991412190453,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+        "estimator": "response.kennedy_dr",
+        "functional": "all_observed.mean.complete",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1873,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.008514991412190453,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.005452877680637995,
+            "n_max": 250,
+            "n_min": 250,
+            "observed": 0.9365,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1901,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.9713490168134884,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.004850244839180801,
+            "n_max": 500,
+            "n_min": 500,
+            "observed": 0.9505,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1893,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.4993902385741763,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.005031786462082825,
+            "n_max": 1000,
+            "n_min": 1000,
+            "observed": 0.9465,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_1",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.005452877680637995,
+        "modality": "tabular",
+        "n_max": 1000,
+        "n_min": 250,
+        "nominal": 0.95,
+        "observed": 0.9365,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "ResponseCurve",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "",
+        "structure": "graph_posterior",
+        "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__0_5": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1888,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.24018561040878175,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+        "estimator": "response.kennedy_dr",
+        "functional": "all_observed.mean.complete",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1895,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.6356766712939009,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.004987171041783106,
+            "n_max": 250,
+            "n_min": 250,
+            "observed": 0.9475,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1888,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.24018561040878175,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.005141206084179083,
+            "n_max": 500,
+            "n_min": 500,
+            "observed": 0.944,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1903,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.8087519494273976,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.004803527349771207,
+            "n_max": 1000,
+            "n_min": 1000,
+            "observed": 0.9515,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__0_5",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.005141206084179083,
+        "modality": "tabular",
+        "n_max": 1000,
+        "n_min": 250,
+        "nominal": 0.95,
+        "observed": 0.944,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "ResponseCurve",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "",
+        "structure": "graph_posterior",
+        "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "unidentified_mass_max": 0.0
+      },
+      "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__1": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1886,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.1700149844358153,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "iid",
+        "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+        "estimator": "response.kennedy_dr",
+        "functional": "all_observed.mean.complete",
+        "graph_class": "Dag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1894,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.5654590004075586,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.005009540897128201,
+            "n_max": 250,
+            "n_min": 250,
+            "observed": 0.947,
+            "point": 0,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1899,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.946858122915899,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.0048964145045124596,
+            "n_max": 500,
+            "n_min": 500,
+            "observed": 0.9495,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1886,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.1700149844358153,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.005184158562389852,
+            "n_max": 1000,
+            "n_min": 1000,
+            "observed": 0.943,
+            "point": 2,
+            "replicates": 2000,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a__1",
+        "identification": "point",
+        "inference": "Frequentist",
+        "interval_method": "analytic_se",
+        "mcse": 0.005184158562389852,
+        "modality": "tabular",
+        "n_max": 1000,
+        "n_min": 250,
+        "nominal": 0.95,
+        "observed": 0.943,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "ResponseCurve",
+        "replicates": 2000,
+        "replicates_min": 0,
+        "role": "gated",
+        "se_kind": "",
+        "structure": "graph_posterior",
+        "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "unidentified_mass_max": 0.0
+      }
+    },
+    "records": [
+      "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval",
+      "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0",
+      "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies"
+    ],
+    "source_sha": "2f7d56662e4e86014f907e577b7c854c74c831d4",
+    "version": 1
+  },
+  "ordinary_execution": {
+    "binaries": {
+      "/private/tmp/antecedent-attestation-target/release/deps/calibration_response-4f537d9ddab33443": {
+        "after": "338d8b9cf75c9a20282a10d45a826f7d00213b8826402e4bc9f130b350fa0aaa",
+        "before": "338d8b9cf75c9a20282a10d45a826f7d00213b8826402e4bc9f130b350fa0aaa"
+      },
+      "/private/tmp/antecedent-attestation-target/release/deps/evidence_synthesis_calibration-e03e829c37be223a": {
+        "after": "c5f2b1ad9333b2e7f13dd5c068a1857df735f44d3f55b992a47876f573f51baf",
+        "before": "c5f2b1ad9333b2e7f13dd5c068a1857df735f44d3f55b992a47876f573f51baf"
+      },
+      "/private/tmp/antecedent-attestation-target/release/deps/weighted_interval_calibration-b5d3000732c51f72": {
+        "after": "bdd40cea23259f3c27dd4e03f26c89c926b92c543779edf8de4406adfa34061f",
+        "before": "bdd40cea23259f3c27dd4e03f26c89c926b92c543779edf8de4406adfa34061f"
+      }
+    },
+    "build_receipt": "final-build-receipt.json",
+    "build_receipt_sha256": "00bd0f7b2973e1e6f2f4ffe132d88a268a13af96747734cede230f8a8e24f0f5",
+    "gate": {
+      "after": "0cdaec33770e46ffd1d07abaca81a7bf1e8c2fcf8d33bce5a2b4d6ede736588d",
+      "before": "0cdaec33770e46ffd1d07abaca81a7bf1e8c2fcf8d33bce5a2b4d6ede736588d"
+    },
+    "source": "2f7d56662e4e86014f907e577b7c854c74c831d4"
+  },
+  "payloads": {
+    "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval": {
+      "boundary": false,
+      "decision_protocol": {
+        "cell_cap_per_group": 256,
+        "compatible": true,
+        "covered": 1892,
+        "family_alpha": 0.05,
+        "family_cells": 581376,
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "family_grid_points": 3,
+        "family_groups": 757,
+        "id": "suite_coverage_fwer.v1",
+        "look_weight": 0.25,
+        "looks": [
+          {
+            "planned_replicates": 400,
+            "weight": 0.5
+          },
+          {
+            "planned_replicates": 2000,
+            "weight": 0.25
+          },
+          {
+            "planned_replicates": 20000,
+            "weight": 0.25
+          }
+        ],
+        "lower_only": false,
+        "p_value": 0.437838721155412,
+        "planned_replicates": 2000,
+        "scored": 2000,
+        "validation_domain": "release_2_4_1_validation_v1"
+      },
+      "dependence": "iid",
+      "dgp": "crates/antecedent/tests/weighted_interval_calibration.rs::informative_sampling_heterogeneous_effect",
+      "estimator": "aipw",
+      "functional": "all_observed.mean+weights=sampling",
+      "graph_class": "Dag",
+      "grid": [
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 1892,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.25,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": false,
+            "p_value": 0.437838721155412,
+            "planned_replicates": 2000,
+            "scored": 2000,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.005053909377897473,
+          "n_max": 600,
+          "n_min": 600,
+          "observed": 0.946,
+          "point": 0,
+          "replicates": 2000,
+          "role": "gated"
+        },
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 1899,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.25,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": false,
+            "p_value": 0.946858122915899,
+            "planned_replicates": 2000,
+            "scored": 2000,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.0048964145045124596,
+          "n_max": 1200,
+          "n_min": 1200,
+          "observed": 0.9495,
+          "point": 1,
+          "replicates": 2000,
+          "role": "gated"
+        },
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 1895,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.25,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": false,
+            "p_value": 0.6356766712939009,
+            "planned_replicates": 2000,
+            "scored": 2000,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.004987171041783106,
+          "n_max": 2400,
+          "n_min": 2400,
+          "observed": 0.9475,
+          "point": 2,
+          "replicates": 2000,
+          "role": "gated"
+        }
+      ],
+      "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval",
+      "identification": "point",
+      "inference": "Frequentist",
+      "interval_method": "analytic_se",
+      "mcse": 0.005053909377897473,
+      "modality": "tabular",
+      "n_max": 2400,
+      "n_min": 600,
+      "nominal": 0.95,
+      "observed": 0.946,
+      "posterior": "",
+      "posterior_draws_min": 0,
+      "query": "AverageEffect",
+      "replicates": 2000,
+      "replicates_min": 0,
+      "role": "gated",
+      "se_kind": "homoskedastic",
+      "structure": "fixed",
+      "test": "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_aipw_interval",
+      "unidentified_mass_max": 0.0
+    },
+    "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1": {
+      "boundary": false,
+      "decision_protocol": {
+        "cell_cap_per_group": 256,
+        "compatible": true,
+        "covered": 377,
+        "family_alpha": 0.05,
+        "family_cells": 581376,
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "family_grid_points": 3,
+        "family_groups": 757,
+        "id": "suite_coverage_fwer.v1",
+        "look_weight": 0.5,
+        "looks": [
+          {
+            "planned_replicates": 400,
+            "weight": 0.5
+          },
+          {
+            "planned_replicates": 2000,
+            "weight": 0.25
+          },
+          {
+            "planned_replicates": 20000,
+            "weight": 0.25
+          }
+        ],
+        "lower_only": false,
+        "p_value": 0.5507653296118379,
+        "planned_replicates": 400,
+        "scored": 400,
+        "validation_domain": "release_2_4_1_validation_v1"
+      },
+      "dependence": "block",
+      "dgp": "crates/antecedent/tests/discovered_transport_calibration.rs::lagged_selection_on_autoregressive_z",
+      "estimator": "transport.empirical_table_plugin",
+      "functional": "target_interventional_contrast.pcmci_plus_full_allowed_edge_holm_including_contemporaneous.v1",
+      "graph_class": "TemporalCpdag",
+      "grid": [
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 377,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.5,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": false,
+            "p_value": 0.5507653296118379,
+            "planned_replicates": 400,
+            "scored": 400,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.01163977555625537,
+          "n_max": 2000,
+          "n_min": 2000,
+          "observed": 0.9425,
+          "point": 0,
+          "replicates": 400,
+          "role": "gated"
+        },
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 1886,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.25,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": false,
+            "p_value": 0.1700149844358153,
+            "planned_replicates": 2000,
+            "scored": 2000,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.005184158562389852,
+          "n_max": 4000,
+          "n_min": 4000,
+          "observed": 0.943,
+          "point": 1,
+          "replicates": 2000,
+          "role": "gated"
+        },
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 379,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.5,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": false,
+            "p_value": 0.8817758750677922,
+            "planned_replicates": 400,
+            "scored": 400,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.01115165346484547,
+          "n_max": 8000,
+          "n_min": 8000,
+          "observed": 0.9475,
+          "point": 2,
+          "replicates": 400,
+          "role": "gated"
+        }
+      ],
+      "id": "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1",
+      "identification": "discovered_class",
+      "inference": "Frequentist",
+      "interval_method": "block_percentile_bootstrap",
+      "mcse": 0.01163977555625537,
+      "modality": "tabular",
+      "n_max": 8000,
+      "n_min": 2000,
+      "nominal": 0.95,
+      "observed": 0.9425,
+      "posterior": "",
+      "posterior_draws_min": 0,
+      "query": "DiscoveredTransport",
+      "replicates": 400,
+      "replicates_min": 200,
+      "role": "gated",
+      "se_kind": "percentile",
+      "structure": "discovered",
+      "test": "crates/antecedent/tests/discovered_transport_calibration.rs::discovered_temporal_transport_contrast_complete_procedure_coverage",
+      "unidentified_mass_max": 0.0
+    },
+    "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies": {
+      "boundary": false,
+      "conservative_point": {
+        "justification": "independent_gaussian_study_t.ibragimov_mueller_2010.v1",
+        "target": "common_marginal_study_mean"
+      },
+      "decision_protocol": {
+        "cell_cap_per_group": 256,
+        "compatible": true,
+        "covered": 379,
+        "family_alpha": 0.05,
+        "family_cells": 581376,
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "family_grid_points": 3,
+        "family_groups": 757,
+        "id": "suite_coverage_fwer.v1",
+        "look_weight": 0.5,
+        "looks": [
+          {
+            "planned_replicates": 400,
+            "weight": 0.5
+          },
+          {
+            "planned_replicates": 2000,
+            "weight": 0.25
+          },
+          {
+            "planned_replicates": 20000,
+            "weight": 0.25
+          }
+        ],
+        "lower_only": true,
+        "p_value": 0.4408879375338961,
+        "planned_replicates": 400,
+        "scored": 400,
+        "validation_domain": "release_2_4_1_validation_v1"
+      },
+      "dependence": "independent",
+      "dgp": "crates/antecedent/tests/evidence_synthesis_calibration.rs::homogeneous_gaussian_studies_unequal_scale_random_effects",
+      "estimator": "evidence.synthesis.equal_study_gaussian",
+      "functional": "pooled_mean;equal_study_gaussian;studies=5-30",
+      "graph_class": "NoGraph",
+      "grid": [
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 385,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.5,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": true,
+            "p_value": 0.9010205427812055,
+            "planned_replicates": 400,
+            "scored": 400,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.009499177595981663,
+          "n_max": 75,
+          "n_min": 75,
+          "observed": 0.9625,
+          "point": 0,
+          "replicates": 400,
+          "role": "conservative_point"
+        },
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 382,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.5,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": true,
+            "p_value": 0.7088385611991034,
+            "planned_replicates": 400,
+            "scored": 400,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.010365206220813944,
+          "n_max": 100,
+          "n_min": 100,
+          "observed": 0.955,
+          "point": 1,
+          "replicates": 400,
+          "role": "conservative_point"
+        },
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 379,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.5,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": true,
+            "p_value": 0.4408879375338961,
+            "planned_replicates": 400,
+            "scored": 400,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.01115165346484547,
+          "n_max": 200,
+          "n_min": 200,
+          "observed": 0.9475,
+          "point": 2,
+          "replicates": 400,
+          "role": "conservative_point"
+        }
+      ],
+      "id": "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies",
+      "identification": "point",
+      "inference": "Frequentist",
+      "interval_method": "independent_gaussian_study_t",
+      "mcse": 0.01115165346484547,
+      "modality": "summary",
+      "n_max": 200,
+      "n_min": 75,
+      "nominal": 0.95,
+      "observed": 0.9475,
+      "posterior": "",
+      "posterior_draws_min": 0,
+      "query": "PooledEffect",
+      "replicates": 400,
+      "replicates_min": 0,
+      "role": "conservative_point",
+      "se_kind": "empirical_study_variance",
+      "structure": "fixed",
+      "test": "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_homogeneous_five_studies",
+      "unidentified_mass_max": 0.0
+    },
+    "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0": {
+      "boundary": false,
+      "decision_protocol": {
+        "cell_cap_per_group": 256,
+        "compatible": true,
+        "covered": 1798,
+        "family_alpha": 0.05,
+        "family_cells": 581376,
+        "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+        "family_grid_points": 3,
+        "family_groups": 757,
+        "id": "suite_coverage_fwer.v1",
+        "look_weight": 0.25,
+        "looks": [
+          {
+            "planned_replicates": 400,
+            "weight": 0.5
+          },
+          {
+            "planned_replicates": 2000,
+            "weight": 0.25
+          },
+          {
+            "planned_replicates": 20000,
+            "weight": 0.25
+          }
+        ],
+        "lower_only": false,
+        "p_value": 0.903209194498239,
+        "planned_replicates": 2000,
+        "scored": 2000,
+        "validation_domain": "release_2_4_1_validation_v1"
+      },
+      "dependence": "iid",
+      "dgp": "crates/antecedent/tests/calibration_response.rs::graph_posterior_bayesian_response_data",
+      "estimator": "response.kennedy_dr",
+      "functional": "all_observed.mean.complete",
+      "graph_class": "Dag",
+      "grid": [
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 1816,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.25,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": false,
+            "p_value": 0.24648940034808858,
+            "planned_replicates": 2000,
+            "scored": 2000,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.006462816723379983,
+          "n_max": 250,
+          "n_min": 250,
+          "observed": 0.908,
+          "point": 0,
+          "replicates": 2000,
+          "role": "gated"
+        },
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 1798,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.25,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": false,
+            "p_value": 0.903209194498239,
+            "planned_replicates": 2000,
+            "scored": 2000,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.006737915107805974,
+          "n_max": 500,
+          "n_min": 500,
+          "observed": 0.899,
+          "point": 1,
+          "replicates": 2000,
+          "role": "gated"
+        },
+        {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 1802,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.25,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": false,
+            "p_value": 0.9187822995846211,
+            "planned_replicates": 2000,
+            "scored": 2000,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "mcse": 0.006678285708173917,
+          "n_max": 1000,
+          "n_min": 1000,
+          "observed": 0.901,
+          "point": 2,
+          "replicates": 2000,
+          "role": "gated"
+        }
+      ],
+      "id": "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0",
+      "identification": "point",
+      "inference": "Frequentist",
+      "interval_method": "analytic_se",
+      "mcse": 0.006737915107805974,
+      "modality": "tabular",
+      "n_max": 1000,
+      "n_min": 250,
+      "nominal": 0.9,
+      "observed": 0.899,
+      "posterior": "",
+      "posterior_draws_min": 0,
+      "query": "ResponseCurve",
+      "replicates": 2000,
+      "replicates_min": 0,
+      "role": "gated",
+      "se_kind": "",
+      "structure": "graph_posterior",
+      "test": "crates/antecedent/tests/calibration_response.rs::response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+      "unidentified_mass_max": 0.0
+    }
+  },
+  "records": [
+    "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval",
+    "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0",
+    "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies"
+  ],
+  "source_sha": "2f7d56662e4e86014f907e577b7c854c74c831d4",
+  "temporal_capture": {
+    "kind": "temporal_construction_metadata_transfer",
+    "original_capture": {
+      "logs": {
+        "discovered_transport_calibration__discovered_temporal_transport_contrast_complete_procedure_coverage.p0.log": "906e74839e55f5586af9c12fd5d4275a4f1e03e4e19032ebb0f2999ad46dccd4",
+        "discovered_transport_calibration__discovered_temporal_transport_contrast_complete_procedure_coverage.p0.tallies.jsonl": "82d48ef3ee11626090ff818b7b8c74974b2de81bd3189ba267b2e1dd59f13230",
+        "discovered_transport_calibration__discovered_temporal_transport_contrast_complete_procedure_coverage.p1.log": "796b564f2a14f2714cc7a8a5186959a2b566d14d875a0018c02764bc95df0d1e",
+        "discovered_transport_calibration__discovered_temporal_transport_contrast_complete_procedure_coverage.p1.tallies.jsonl": "0a83a1854d6f41daf8650f1531965d92fa0de2a1468c9d3d6e81a0c905963985",
+        "discovered_transport_calibration__discovered_temporal_transport_contrast_complete_procedure_coverage.p2.log": "4d6482043e720329528799936bc8ab71b53d5bc9a0852274e679a4a88838580c",
+        "discovered_transport_calibration__discovered_temporal_transport_contrast_complete_procedure_coverage.p2.tallies.jsonl": "bf11c21b3d3f893692f2a868c9bf2e735ecfb3a7a38fb2e773b1bd221907fbd1"
+      },
+      "payloads": {
+        "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1": {
+          "boundary": false,
+          "decision_protocol": {
+            "cell_cap_per_group": 256,
+            "compatible": true,
+            "covered": 377,
+            "family_alpha": 0.05,
+            "family_cells": 581376,
+            "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+            "family_grid_points": 3,
+            "family_groups": 757,
+            "id": "suite_coverage_fwer.v1",
+            "look_weight": 0.5,
+            "looks": [
+              {
+                "planned_replicates": 400,
+                "weight": 0.5
+              },
+              {
+                "planned_replicates": 2000,
+                "weight": 0.25
+              },
+              {
+                "planned_replicates": 20000,
+                "weight": 0.25
+              }
+            ],
+            "lower_only": false,
+            "p_value": 0.5507653296118379,
+            "planned_replicates": 400,
+            "scored": 400,
+            "validation_domain": "release_2_4_1_validation_v1"
+          },
+          "dependence": "block",
+          "dgp": "crates/antecedent/tests/discovered_transport_calibration.rs::lagged_selection_on_autoregressive_z",
+          "estimator": "transport.empirical_table_plugin",
+          "functional": "target_interventional_contrast.pcmci_plus_full_allowed_edge_holm_including_contemporaneous.v1",
+          "graph_class": "TemporalCpdag",
+          "grid": [
+            {
+              "boundary": false,
+              "decision_protocol": {
+                "cell_cap_per_group": 256,
+                "compatible": true,
+                "covered": 377,
+                "family_alpha": 0.05,
+                "family_cells": 581376,
+                "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+                "family_grid_points": 3,
+                "family_groups": 757,
+                "id": "suite_coverage_fwer.v1",
+                "look_weight": 0.5,
+                "looks": [
+                  {
+                    "planned_replicates": 400,
+                    "weight": 0.5
+                  },
+                  {
+                    "planned_replicates": 2000,
+                    "weight": 0.25
+                  },
+                  {
+                    "planned_replicates": 20000,
+                    "weight": 0.25
+                  }
+                ],
+                "lower_only": false,
+                "p_value": 0.5507653296118379,
+                "planned_replicates": 400,
+                "scored": 400,
+                "validation_domain": "release_2_4_1_validation_v1"
+              },
+              "mcse": 0.01163977555625537,
+              "n_max": 2000,
+              "n_min": 2000,
+              "observed": 0.9425,
+              "point": 0,
+              "replicates": 400,
+              "role": "gated"
+            },
+            {
+              "boundary": false,
+              "decision_protocol": {
+                "cell_cap_per_group": 256,
+                "compatible": true,
+                "covered": 1886,
+                "family_alpha": 0.05,
+                "family_cells": 581376,
+                "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+                "family_grid_points": 3,
+                "family_groups": 757,
+                "id": "suite_coverage_fwer.v1",
+                "look_weight": 0.25,
+                "looks": [
+                  {
+                    "planned_replicates": 400,
+                    "weight": 0.5
+                  },
+                  {
+                    "planned_replicates": 2000,
+                    "weight": 0.25
+                  },
+                  {
+                    "planned_replicates": 20000,
+                    "weight": 0.25
+                  }
+                ],
+                "lower_only": false,
+                "p_value": 0.1700149844358153,
+                "planned_replicates": 2000,
+                "scored": 2000,
+                "validation_domain": "release_2_4_1_validation_v1"
+              },
+              "mcse": 0.005184158562389852,
+              "n_max": 4000,
+              "n_min": 4000,
+              "observed": 0.943,
+              "point": 1,
+              "replicates": 2000,
+              "role": "gated"
+            },
+            {
+              "boundary": false,
+              "decision_protocol": {
+                "cell_cap_per_group": 256,
+                "compatible": true,
+                "covered": 379,
+                "family_alpha": 0.05,
+                "family_cells": 581376,
+                "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+                "family_grid_points": 3,
+                "family_groups": 757,
+                "id": "suite_coverage_fwer.v1",
+                "look_weight": 0.5,
+                "looks": [
+                  {
+                    "planned_replicates": 400,
+                    "weight": 0.5
+                  },
+                  {
+                    "planned_replicates": 2000,
+                    "weight": 0.25
+                  },
+                  {
+                    "planned_replicates": 20000,
+                    "weight": 0.25
+                  }
+                ],
+                "lower_only": false,
+                "p_value": 0.8817758750677922,
+                "planned_replicates": 400,
+                "scored": 400,
+                "validation_domain": "release_2_4_1_validation_v1"
+              },
+              "mcse": 0.01115165346484547,
+              "n_max": 8000,
+              "n_min": 8000,
+              "observed": 0.9475,
+              "point": 2,
+              "replicates": 400,
+              "role": "gated"
+            }
+          ],
+          "id": "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1",
+          "identification": "discovered_class",
+          "inference": "Frequentist",
+          "interval_method": "block_percentile_bootstrap",
+          "mcse": 0.01163977555625537,
+          "modality": "tabular",
+          "n_max": 8000,
+          "n_min": 2000,
+          "nominal": 0.95,
+          "observed": 0.9425,
+          "posterior": "",
+          "posterior_draws_min": 0,
+          "query": "DiscoveredTransport",
+          "replicates": 400,
+          "replicates_min": 200,
+          "role": "gated",
+          "se_kind": "percentile_or_logical_support",
+          "structure": "discovered",
+          "test": "crates/antecedent/tests/discovered_transport_calibration.rs::discovered_temporal_transport_contrast_complete_procedure_coverage",
+          "unidentified_mass_max": 0.0
+        }
+      },
+      "records": [
+        "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1"
+      ],
+      "source_sha": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4",
+      "version": 1
+    },
+    "original_execution": {
+      "binary": "/private/tmp/antecedent-attestation-target/release/deps/discovered_transport_calibration-397c96eab9b36b60",
+      "binary_sha256_after": "097498e6575af596ad4964f23733a1237785e372f1200223d1220661cf173d35",
+      "binary_sha256_before": "097498e6575af596ad4964f23733a1237785e372f1200223d1220661cf173d35",
+      "build_receipt_sha256": "2661b69c9dbec8d0e42dd35d392736b4d3e960127c7906145d5f4063979affc8",
+      "gate_sha256": "0cdaec33770e46ffd1d07abaca81a7bf1e8c2fcf8d33bce5a2b4d6ede736588d",
+      "source": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4"
+    },
+    "payloads": {
+      "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1": {
+        "boundary": false,
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 377,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.5,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.5507653296118379,
+          "planned_replicates": 400,
+          "scored": 400,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "dependence": "block",
+        "dgp": "crates/antecedent/tests/discovered_transport_calibration.rs::lagged_selection_on_autoregressive_z",
+        "estimator": "transport.empirical_table_plugin",
+        "functional": "target_interventional_contrast.pcmci_plus_full_allowed_edge_holm_including_contemporaneous.v1",
+        "graph_class": "TemporalCpdag",
+        "grid": [
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 377,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.5,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.5507653296118379,
+              "planned_replicates": 400,
+              "scored": 400,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.01163977555625537,
+            "n_max": 2000,
+            "n_min": 2000,
+            "observed": 0.9425,
+            "point": 0,
+            "replicates": 400,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1886,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.1700149844358153,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.005184158562389852,
+            "n_max": 4000,
+            "n_min": 4000,
+            "observed": 0.943,
+            "point": 1,
+            "replicates": 2000,
+            "role": "gated"
+          },
+          {
+            "boundary": false,
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 379,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.5,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.8817758750677922,
+              "planned_replicates": 400,
+              "scored": 400,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "mcse": 0.01115165346484547,
+            "n_max": 8000,
+            "n_min": 8000,
+            "observed": 0.9475,
+            "point": 2,
+            "replicates": 400,
+            "role": "gated"
+          }
+        ],
+        "id": "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1",
+        "identification": "discovered_class",
+        "inference": "Frequentist",
+        "interval_method": "block_percentile_bootstrap",
+        "mcse": 0.01163977555625537,
+        "modality": "tabular",
+        "n_max": 8000,
+        "n_min": 2000,
+        "nominal": 0.95,
+        "observed": 0.9425,
+        "posterior": "",
+        "posterior_draws_min": 0,
+        "query": "DiscoveredTransport",
+        "replicates": 400,
+        "replicates_min": 200,
+        "role": "gated",
+        "se_kind": "percentile",
+        "structure": "discovered",
+        "test": "crates/antecedent/tests/discovered_transport_calibration.rs::discovered_temporal_transport_contrast_complete_procedure_coverage",
+        "unidentified_mass_max": 0.0
+      }
+    },
+    "records": [
+      "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1"
+    ],
+    "source_sha": "2f7d56662e4e86014f907e577b7c854c74c831d4",
+    "source_transfer": {
+      "changed_inputs": [
+        "crates/antecedent/tests/discovered_transport_calibration.rs"
+      ],
+      "compiled_input_entries": 2176,
+      "destination_file_sha256": "716542608283fc6e0719671f52eb97c5af54a8cf61a2d5b15e4babc7bf10b6a8",
+      "destination_input_manifest_sha256": "cbaa26cbc383b1068697a47bf80e1b818b5f25d1504ff57283a14ee26646c6f6",
+      "destination_source": "2f7d56662e4e86014f907e577b7c854c74c831d4",
+      "original_file_sha256": "26e26a01b86687749ce8113dcfc32762cb892befffd703c1e584d9600d330aa9",
+      "original_input_manifest_sha256": "ef2a6cfac985aba0b08b7682e9d4644b9cb1705b99c1d034915e385369ee6094",
+      "original_source": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4"
+    },
+    "version": 2
+  },
+  "version": 3
+}

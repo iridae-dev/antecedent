@@ -236,7 +236,7 @@ def test_interference_design_has_no_fabricated_empty_dag_identification():
 
 
 def test_copied_inspection_and_result_read_models_freeze_replacement_payloads():
-    from test_python_ux_24 import _study
+    from test_notebook_to_system import _study
 
     _, study = _study()
     inspection = study.inspect_plan()

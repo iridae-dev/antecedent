@@ -35,7 +35,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         req.refuse_design("panel difference-in-differences")?;
-        let data = req.load_columns(py, columns)?;
+        let data = req.load_weighted_columns(py, columns)?;
         req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let subject_arc: Vec<Arc<str>> =

@@ -376,9 +376,10 @@ def test_static_binding_resource_guards():
             [np.zeros(1), np.zeros(100_001), np.zeros(1)],
             r.graph,
             _response_spec(r),
+            memory_limit_bytes=800_000,
         )
     assert caught.value.reason_code == "invalid_argument"
-    assert "recalc.limits_exceeded" in str(caught.value)
+    assert "recalc.memory_budget_exceeded" in str(caught.value)
     mz = mz_request()
 
     class IndexedOnly(list):

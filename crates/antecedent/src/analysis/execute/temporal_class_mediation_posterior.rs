@@ -194,7 +194,9 @@ impl super::Study {
         identified: &CachedTemporalClassPosteriorIdentification,
         ctx: &ExecutionContext,
     ) -> Result<Vec<TemporalClassMediationAtomEval>, CausalError> {
-        let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
+        let estimator = TemporalMediationEstimator::new()
+            .with_allow_natural_controlled_alias(true)
+            .with_allow_gaps(self.declares_complete_case());
         ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
             evaluate_temporal_class_mediation_atom_frequentist(
                 self,

@@ -1,0 +1,13 @@
+    Finished `release` profile [optimized] target(s) in 0.12s
+     Running tests/sample_split_parent_set_effect_calibration.rs (/private/tmp/antecedent-attestation-target/release/deps/sample_split_parent_set_effect_calibration-d423820be12b13c5)
+
+running 1 test
+calibration-protocol parent_set_source_version=2
+info summary parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage: replicates=2000 reported=2000 reported_share=1.000 refusals={} coverage=0.950 median_width=0.196 parents_recovered=0.998 skeleton_precision=0.997 skeleton_recall=1.000 orientation_precision=0.995 orientation_recall=0.698
+calibration parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage [discovery_fraction_0_75]: nominal=0.95 coverage=0.950 mcse=0.0049 band=[0.935, 0.965] floor=0.940 ceiling=0.960 mean_length=0.1999 (1900/2000 covered, 0 skipped)
+calibration-record {"bound_replicates":2000,"boundary":false,"dependence":"disjoint_rows","dgp":"crates/antecedent/tests/common/sparse_scm.rs::simulate","estimator":"parent_set_split.pc_parcorr.total_effect_adjustment","functional":"total_effect.variables_10.max_degree_4.discovery_fraction_0_75.knowledge_required.topology_layered_multi_mediator_nuisance","graph_class":"Cpdag","grid_point":2,"id":"cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75","identification":"point","inference":"Frequentist","interval_method":"analytic_se","mcse":0.004873397172404485,"measured_at":"2f7d56662e4e86014f907e577b7c854c74c831d4","modality":"tabular","n_max":1000,"n_min":1000,"nominal":0.95,"observed":0.95,"posterior":"","posterior_draws_min":0,"query":"AverageEffect","replicates":2000,"replicates_min":0,"role":"gated","se_kind":"homoskedastic","structure":"discovered_sample_split.treatment_parent_set","test":"crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage","unidentified_mass_max":0.0}
+test parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 38 filtered out; finished in 17.97s
+
+calibration-measured-at 2f7d56662e4e86014f907e577b7c854c74c831d4

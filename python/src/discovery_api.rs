@@ -8,6 +8,7 @@
 
 use crate::*;
 use antecedent::GraphRef;
+use antecedent::discovery::BackgroundKnowledge;
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
@@ -236,8 +237,16 @@ pub(crate) struct PcmciDiscoveryResult {
     /// algorithm found no adjacency for, which no edge list can name.
     #[pyo3(get)]
     pub(crate) variable_names: Vec<String>,
+    /// Hex identity of the background knowledge the run was given (required and forbidden
+    /// links, tiers, parent limit); `None` when it was given none. The same digest the
+    /// selective contracts declare, so it changes exactly when the knowledge does.
+    #[pyo3(get)]
+    pub(crate) background_knowledge: Option<String>,
     /// The Rust review artifact and variable names this discovery produced.
     pub(crate) review: Option<Arc<(ReviewSlot, Vec<String>)>>,
+    /// Row accounting of a run that reads table rows (NOTEARS), as JSON: rows used and
+    /// dropped, the missing count per variable and the dropped-row digest.
+    pub(crate) row_accounting_json: Option<String>,
 }
 
 /// Discovery review artifact retained so acceptance runs the Rust review gate.
@@ -253,6 +262,17 @@ pub(crate) enum ReviewSlot {
 impl PcmciDiscoveryResult {
     fn with_review(mut self, slot: ReviewSlot, names: &[String]) -> Self {
         self.review = Some(Arc::new((slot, names.to_vec())));
+        self
+    }
+
+    fn with_row_accounting(mut self, accounting: &antecedent_data::RowAccounting) -> Self {
+        self.row_accounting_json =
+            Some(crate::missing_report::accounting_json(accounting).to_string());
+        self
+    }
+
+    fn with_knowledge(mut self, identity: Option<String>) -> Self {
+        self.background_knowledge = identity;
         self
     }
 }
@@ -285,6 +305,17 @@ pub(crate) fn accepted_graph_object(
 
 #[pymethods]
 impl PcmciDiscoveryResult {
+    /// Row accounting of a run that reads table rows (NOTEARS) as a mapping, else `None`:
+    /// `rows_total`, `rows_kept`, `rows_dropped`, `missing_by_variable`, `reasons`,
+    /// `dropped_rows` and `dropped_digest`.
+    #[getter]
+    fn row_accounting(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        self.row_accounting_json
+            .as_deref()
+            .map(|json| Ok(py.import("json")?.call_method1("loads", (json,))?.unbind()))
+            .transpose()
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "PcmciDiscoveryResult(algorithm={:?}, links={}, ci_tests={})",
@@ -370,6 +401,36 @@ pub(crate) fn panel_units_from_batch(
         units.push(series);
     }
     Ok((units, variables))
+}
+
+/// Read the `background_knowledge` argument of a direct entry point: the wire JSON of
+/// [`crate::selective_discovery_api::background_knowledge`], or nothing.
+fn knowledge_arg(text: Option<&str>) -> PyResult<BackgroundKnowledge> {
+    let Some(text) = text else { return Ok(BackgroundKnowledge::default()) };
+    let parsed: serde_json::Value =
+        serde_json::from_str(text).map_err(|e| value_err(format!("background_knowledge: {e}")))?;
+    let map = parsed
+        .as_object()
+        .ok_or_else(|| value_err("background_knowledge must be a JSON object"))?;
+    crate::selective_discovery_api::background_knowledge(map)
+}
+
+/// The hex identity recorded on a result for the knowledge a run was given.
+fn knowledge_identity(knowledge: &BackgroundKnowledge) -> Option<String> {
+    (!knowledge.is_empty())
+        .then(|| antecedent_discovery::selective::digest_hex(&knowledge.identity()))
+}
+
+/// A facade discovery failure as a Python exception. Background knowledge the search cannot
+/// honour (a contradiction, an unsearched variable, a parent limit the algorithm cannot
+/// enforce) is a typed refusal with its registered reason code, never a generic failure.
+fn discovery_err(error: antecedent::CausalError) -> PyErr {
+    match error {
+        antecedent::CausalError::Discovery(antecedent_discovery::DiscoveryError::Knowledge(
+            fault,
+        )) => crate::refusal(fault.reason_code(), fault.message()),
+        other => py_err(other),
+    }
 }
 
 type SharedCi = std::sync::Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>;
@@ -511,7 +572,9 @@ fn discovery_result_fields(
         cpdag_undirected_edges,
         graph_edges,
         variable_names: names.to_vec(),
+        background_knowledge: None,
         review: None,
+        row_accounting_json: None,
     }
 }
 
@@ -554,7 +617,7 @@ fn pcmci_result_from_static_cpdag(
 /// unless `ci` is an explicit slow-path callable — ).
 /// `ci` selects a named test (default `parcorr`) or a Python batch callable.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, unit_lengths=None))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, unit_lengths=None, background_knowledge=None))]
 fn discover_pcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -569,7 +632,10 @@ fn discover_pcmci(
     cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
     unit_lengths: Option<Vec<usize>>,
+    background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    let knowledge = knowledge_arg(background_knowledge.as_deref())?;
+    let identity = knowledge_identity(&knowledge);
     run_series_discovery(
         py,
         names,
@@ -588,13 +654,14 @@ fn discover_pcmci(
                 ci: ci_impl,
                 multi_dataset: MultiDatasetConstraints::default(),
                 max_cond_size,
+                knowledge,
             };
             let result = if panel {
                 facade_discover_pcmci_panel(units, variables, &params, ctx)
             } else {
                 facade_discover_pcmci(&units[0], variables, &params, ctx)
             }
-            .map_err(py_err)?;
+            .map_err(discovery_err)?;
             let slot = ReviewSlot::TemporalGraph(result.review.clone());
             Ok(discovery_result_fields(
                 names,
@@ -610,6 +677,7 @@ fn discover_pcmci(
                 0,
                 Vec::new(),
             )
+            .with_knowledge(identity)
             .with_review(slot, names))
         },
     )
@@ -617,7 +685,7 @@ fn discover_pcmci(
 
 /// Run static PC discovery over tabular (non-temporal) columns.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None))]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None, background_knowledge=None))]
 fn discover_pc(
     py: Python<'_>,
     names: Vec<String>,
@@ -629,7 +697,10 @@ fn discover_pc(
     max_cond_size: usize,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
+    background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    let knowledge = knowledge_arg(background_knowledge.as_deref())?;
+    let identity = knowledge_identity(&knowledge);
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
@@ -644,10 +715,11 @@ fn discover_pc(
             ci: ci_impl,
             screen_pc: false,
             max_subset: None,
+            knowledge,
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result = facade_discover_pc(&data, &variables, &params, &ctx).map_err(py_err)?;
+        let result = facade_discover_pc(&data, &variables, &params, &ctx).map_err(discovery_err)?;
         let slot = ReviewSlot::Cpdag(result.review.clone());
         Ok(pcmci_result_from_static_cpdag(
             &names,
@@ -661,13 +733,14 @@ fn discover_pc(
             &result.evidence.graph,
             ci_name,
         )
+        .with_knowledge(identity)
         .with_review(slot, &names))
     })
 }
 
 /// Run GES discovery over tabular columns → CPDAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None, screen_pc=false, max_subset=None))]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None, screen_pc=false, max_subset=None, background_knowledge=None))]
 fn discover_ges(
     py: Python<'_>,
     names: Vec<String>,
@@ -681,7 +754,10 @@ fn discover_ges(
     cancel: Option<crate::PyCancellationToken>,
     screen_pc: bool,
     max_subset: Option<usize>,
+    background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    let knowledge = knowledge_arg(background_knowledge.as_deref())?;
+    let identity = knowledge_identity(&knowledge);
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
@@ -696,10 +772,12 @@ fn discover_ges(
             ci: ci_impl,
             screen_pc,
             max_subset,
+            knowledge,
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result = facade_discover_ges(&data, &variables, &params, &ctx).map_err(py_err)?;
+        let result =
+            facade_discover_ges(&data, &variables, &params, &ctx).map_err(discovery_err)?;
         let slot = ReviewSlot::Cpdag(result.review.clone());
         Ok(pcmci_result_from_static_cpdag(
             &names,
@@ -713,6 +791,7 @@ fn discover_ges(
             &result.evidence.graph,
             ci_name,
         )
+        .with_knowledge(identity)
         .with_review(slot, &names))
     })
 }
@@ -742,6 +821,7 @@ fn discover_lingam(
             ci: Arc::new(PartialCorrelation),
             screen_pc: false,
             max_subset: None,
+            knowledge: BackgroundKnowledge::default(),
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
@@ -774,7 +854,7 @@ fn discover_lingam(
 
 /// Run NOTEARS discovery over tabular columns → DAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, l1=0.1, threshold=0.3, standardize=true, seed=1, max_cond_size=8, threads=None, cancel=None))]
+#[pyo3(signature = (names, columns, *, l1=0.1, threshold=0.3, standardize=true, seed=1, max_cond_size=8, threads=None, cancel=None, missing=None))]
 fn discover_notears(
     py: Python<'_>,
     names: Vec<String>,
@@ -786,7 +866,9 @@ fn discover_notears(
     max_cond_size: usize,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
+    missing: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    let missing = missing.as_deref().map(crate::missing_report::parse_policy).transpose()?;
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
 
@@ -799,12 +881,21 @@ fn discover_notears(
             ci: Arc::new(PartialCorrelation),
             screen_pc: false,
             max_subset: None,
+            knowledge: BackgroundKnowledge::default(),
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result =
-            facade_discover_notears(&data, &variables, &params, l1, threshold, standardize, &ctx)
-                .map_err(py_err)?;
+        let result = facade_discover_notears(
+            &data,
+            &variables,
+            &params,
+            l1,
+            threshold,
+            standardize,
+            missing,
+            &ctx,
+        )
+        .map_err(py_err)?;
 
         let dag = &result.discovery.evidence.graph;
         let directed = dag.edges().count() as u64;
@@ -825,13 +916,14 @@ fn discover_notears(
             0,
             graph_edges,
         )
-        .with_review(ReviewSlot::Dag(result.discovery.review.clone()), &names))
+        .with_review(ReviewSlot::Dag(result.discovery.review.clone()), &names)
+        .with_row_accounting(&result.row_accounting))
     })
 }
 
 /// Run classic static FCI discovery over tabular columns → PAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None))]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None, background_knowledge=None))]
 fn discover_fci(
     py: Python<'_>,
     names: Vec<String>,
@@ -843,7 +935,10 @@ fn discover_fci(
     max_cond_size: usize,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
+    background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    let knowledge = knowledge_arg(background_knowledge.as_deref())?;
+    let identity = knowledge_identity(&knowledge);
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
@@ -858,10 +953,12 @@ fn discover_fci(
             ci: ci_impl,
             screen_pc: false,
             max_subset: None,
+            knowledge,
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result = facade_discover_fci(&data, &variables, &params, &ctx).map_err(py_err)?;
+        let result =
+            facade_discover_fci(&data, &variables, &params, &ctx).map_err(discovery_err)?;
 
         let pag = &result.evidence.graph;
         let pending = result.review.pending_circles.len() as u64;
@@ -883,13 +980,14 @@ fn discover_fci(
             pending,
             graph_edges,
         )
+        .with_knowledge(identity)
         .with_review(slot, &names))
     })
 }
 
 /// Run classic static RFCI discovery over tabular columns → PAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None))]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None, background_knowledge=None))]
 fn discover_rfci(
     py: Python<'_>,
     names: Vec<String>,
@@ -901,7 +999,10 @@ fn discover_rfci(
     max_cond_size: usize,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
+    background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    let knowledge = knowledge_arg(background_knowledge.as_deref())?;
+    let identity = knowledge_identity(&knowledge);
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
     drop(columns);
@@ -916,10 +1017,12 @@ fn discover_rfci(
             ci: ci_impl,
             screen_pc: false,
             max_subset: None,
+            knowledge,
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let result = facade_discover_rfci(&data, &variables, &params, &ctx).map_err(py_err)?;
+        let result =
+            facade_discover_rfci(&data, &variables, &params, &ctx).map_err(discovery_err)?;
 
         let pag = &result.evidence.graph;
         let pending = result.review.pending_circles.len() as u64;
@@ -941,13 +1044,14 @@ fn discover_rfci(
             pending,
             graph_edges,
         )
+        .with_knowledge(identity)
         .with_review(slot, &names))
     })
 }
 
 /// Run PCMCI+ discovery returning links plus oriented temporal CPDAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, unit_lengths=None))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, unit_lengths=None, background_knowledge=None))]
 fn discover_pcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
@@ -962,7 +1066,10 @@ fn discover_pcmci_plus(
     cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
     unit_lengths: Option<Vec<usize>>,
+    background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    let knowledge = knowledge_arg(background_knowledge.as_deref())?;
+    let identity = knowledge_identity(&knowledge);
     run_series_discovery(
         py,
         names,
@@ -981,13 +1088,14 @@ fn discover_pcmci_plus(
                 ci: ci_impl,
                 multi_dataset: MultiDatasetConstraints::default(),
                 max_cond_size,
+                knowledge,
             };
             let result = if panel {
                 facade_discover_pcmci_plus_panel(units, variables, &params, ctx)
             } else {
                 facade_discover_pcmci_plus(&units[0], variables, &params, ctx)
             }
-            .map_err(py_err)?;
+            .map_err(discovery_err)?;
             let cpdag = &result.evidence.graph;
             let directed = cpdag.directed_edge_count() as u64;
             let undirected = cpdag.undirected_edge_count() as u64;
@@ -1008,6 +1116,7 @@ fn discover_pcmci_plus(
                 undirected,
                 graph_edges,
             )
+            .with_knowledge(identity)
             .with_review(ReviewSlot::TemporalCpdag(result.review.clone()), names))
         },
     )
@@ -1049,6 +1158,7 @@ fn discover_lpcmci(
                 ci: ci_impl,
                 multi_dataset: MultiDatasetConstraints::default(),
                 max_cond_size,
+                knowledge: BackgroundKnowledge::default(),
             };
             let result = if panel {
                 facade_discover_lpcmci_panel(units, variables, &params, ctx)
@@ -1185,6 +1295,7 @@ fn discover_jpcmci_plus(
                 ..MultiDatasetConstraints::default()
             },
             max_cond_size,
+            knowledge: BackgroundKnowledge::default(),
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
@@ -1258,6 +1369,7 @@ fn discover_rpcmci(
             ci: ci_impl,
             multi_dataset: MultiDatasetConstraints::default(),
             max_cond_size,
+            knowledge: BackgroundKnowledge::default(),
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
@@ -1330,6 +1442,7 @@ fn accept_rpcmci(
             ci: ci_impl,
             multi_dataset: MultiDatasetConstraints::default(),
             max_cond_size,
+            knowledge: BackgroundKnowledge::default(),
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);

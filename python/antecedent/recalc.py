@@ -872,19 +872,28 @@ class _Arguments:
     target_depends_on: list[str] | None
 
 
-def _arguments(request: RecalcRequest) -> _Arguments:
-    names = [str(name) for name in request.data]
-    columns = [_column(name, request.data[name]) for name in request.data]
+def _arguments(
+    request: RecalcRequest,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> _Arguments:
+    from ._recalc_bounds import _float_columns
+
     target = request.target
+    named = [(str(name), values) for name, values in request.data.items()]
+    if target is not None:
+        named.append(("target weights", target.weights))
+    columns = _float_columns(named, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
     return _Arguments(
-        names=names,
-        columns=columns,
+        names=[name for name, _ in named[: len(request.data)]],
+        columns=columns[: len(request.data)],
         edges=[(str(a), str(b)) for a, b in request.edges],
         treatment=request.treatment,
         outcome=request.outcome,
         benefit_per_unit=float(request.utility.benefit_per_unit),
         cost=float(request.utility.cost),
-        target_weights=None if target is None else _column("target weights", target.weights),
+        target_weights=None if target is None else columns[-1],
         target_depends_on=None if target is None else [str(v) for v in target.depends_on],
     )
 
@@ -966,10 +975,16 @@ class RecalcSession:
         return None if scores is None else np.asarray(scores, dtype=np.float64)
 
     def plan(
-        self, request: RecalcRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: RecalcRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcPlan:
         """The plan ``request`` would run under, without running it."""
-        a = _arguments(request)
+        a = _arguments(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
         wire = self._handle.plan(
             a.names,
             a.columns,
@@ -982,6 +997,8 @@ class RecalcSession:
             target_depends_on=a.target_depends_on,
             seed=_seed(seed),
             threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
         )
         return RecalcPlan.from_wire(json.loads(wire))
 
@@ -996,9 +1013,18 @@ class RecalcSession:
         return self.plan(request, seed=seed, threads=threads)
 
     def execute(
-        self, request: RecalcRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: RecalcRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcResult:
         """Plan, run only what the plan says must run, count the work and seal the receipt.
+
+        ``memory_limit_bytes`` refuses an input copy above the limit with
+        ``recalc.memory_budget_exceeded`` before it is allocated, and ``cancel`` stops the run.
 
         Raises:
             RecalcRefusal: the plan holds a refused stage (an off-grid or unsupported request,
@@ -1007,7 +1033,7 @@ class RecalcSession:
             RecalcNoLiveState: the plan reuses a derived stage this session cannot back with a
                 live artifact (for example declared portable scores no loader supplies).
         """
-        a = _arguments(request)
+        a = _arguments(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
         result, artifact, refusal = self._handle.execute(
             a.names,
             a.columns,
@@ -1020,6 +1046,8 @@ class RecalcSession:
             target_depends_on=a.target_depends_on,
             seed=_seed(seed),
             threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
         )
         raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - one of the two is set

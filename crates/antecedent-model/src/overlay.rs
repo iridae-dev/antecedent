@@ -5,13 +5,14 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    Intervention, InterventionSequence, MechanismOverride, StochasticPolicy, TemporalPolicy,
-    VariableId,
+    Intervention, InterventionSequence, MechanismOverride, PolicyReads, StochasticPolicy,
+    TemporalPolicy, ValueExpr, VariableId,
 };
 use antecedent_graph::DenseNodeId;
 
-use crate::compile::CompiledCausalModel;
+use crate::compile::{CompiledCausalModel, ParentGatherPlan};
 use crate::error::ModelError;
+use crate::program::{NodeProgram, PolicyRefusal, ProgramKind, execution_order};
 
 /// Compact overlay describing how sampling differs from the observational plan.
 ///
@@ -29,6 +30,12 @@ pub struct InterventionOverlay {
     pub soft: Vec<Option<MechanismOverride>>,
     /// Optional temporal activation mask per node (`true` = active at current step).
     pub active: Vec<bool>,
+    /// Per-node value programs (transform of the generated value, or assignment). A
+    /// vector shorter than the node count means "no program" for the missing nodes.
+    pub programs: Vec<Option<NodeProgram>>,
+    /// Evaluation order (indices into the model's parent gathers) once program reads are
+    /// added to the graph's own edges; `None` keeps the model's topological order.
+    pub order: Option<Arc<[u32]>>,
 }
 
 impl InterventionOverlay {
@@ -41,7 +48,42 @@ impl InterventionOverlay {
             stochastic: vec![None; n_nodes],
             soft: vec![None; n_nodes],
             active: vec![true; n_nodes],
+            programs: vec![None; n_nodes],
+            order: None,
         }
+    }
+
+    /// Derive [`Self::order`] from the programs' reads and the model's parent edges.
+    ///
+    /// Called for you by [`Self::from_interventions`] and [`Self::from_sequence_at`]; call
+    /// it yourself after populating [`Self::programs`] directly.
+    ///
+    /// # Errors
+    ///
+    /// A circular-dependency refusal naming the cycle: a program reads a variable that
+    /// depends on its own node, directly or through other programs.
+    pub fn plan_order(&mut self, model: &CompiledCausalModel) -> Result<(), ModelError> {
+        self.order = execution_order(model, &self.programs).map_err(PolicyRefusal::into_error)?;
+        Ok(())
+    }
+
+    /// The program on dense node `idx`, if any.
+    #[must_use]
+    pub fn program_at(&self, idx: usize) -> Option<&NodeProgram> {
+        self.programs.get(idx).and_then(Option::as_ref)
+    }
+
+    /// The model's parent gathers in the order this overlay evaluates them: the model's
+    /// own topological order, or the dependency order that places every node after the
+    /// variables its program reads.
+    pub fn gathers<'a>(
+        &'a self,
+        model: &'a CompiledCausalModel,
+    ) -> impl Iterator<Item = &'a ParentGatherPlan> + 'a {
+        (0..model.parent_gathers.len()).map(move |i| {
+            let at = self.order.as_ref().and_then(|o| o.get(i)).map_or(i, |g| *g as usize);
+            &model.parent_gathers[at]
+        })
     }
 
     /// Reject a node carrying both a hard set and an additive shift.
@@ -83,6 +125,31 @@ impl InterventionOverlay {
                 return Err(conflicting_directives(idx));
             }
         }
+        // A program composes with at most a stochastic policy or soft mechanism (a
+        // transform then acts on the value they generate). Anything else either replaces
+        // the generated value (hard set), leaves the order of two edits undefined (a shift
+        // before or after the program), or defines the assignment a second time.
+        for (idx, program) in self.programs.iter().enumerate() {
+            let Some(program) = program else { continue };
+            let assigns = program.kind() == ProgramKind::Assign;
+            let other = if self.hard_set.get(idx).is_some_and(Option::is_some) {
+                Some("hard set")
+            } else if self.shifts.get(idx).is_some_and(|s| *s != 0.0) {
+                Some("additive shift")
+            } else if assigns && self.stochastic.get(idx).is_some_and(Option::is_some) {
+                Some("stochastic policy")
+            } else if assigns && self.soft.get(idx).is_some_and(Option::is_some) {
+                Some("soft mechanism")
+            } else {
+                None
+            };
+            if let Some(other) = other {
+                let kind = if assigns { "assignment" } else { "transform" };
+                return Err(program_conflict(format!(
+                    "dense node {idx} carries an {kind} program together with a {other}"
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -93,6 +160,7 @@ impl InterventionOverlay {
             && self.shifts.iter().all(|s| *s == 0.0)
             && self.stochastic.iter().all(Option::is_none)
             && self.soft.iter().all(Option::is_none)
+            && self.programs.iter().all(Option::is_none)
             && self.active.iter().all(|a| *a)
     }
 
@@ -108,12 +176,13 @@ impl InterventionOverlay {
     ) -> Result<Self, ModelError> {
         let mut overlay = Self::observational(model.n_nodes());
         for iv in interventions {
-            apply_intervention(model, &mut overlay, iv, true)?;
+            apply_intervention(model, &mut overlay, iv, true, 0)?;
         }
         // Checked once here rather than per-variant inside `apply_intervention`: the
         // conflict is order-independent, and any future shift-producing variant is
         // covered without having to remember to re-add the check.
         overlay.validate()?;
+        overlay.plan_order(model)?;
         Ok(overlay)
     }
 
@@ -128,17 +197,37 @@ impl InterventionOverlay {
         seq: &InterventionSequence,
         t: i32,
     ) -> Result<Self, ModelError> {
+        Self::from_sequence_with_history(model, seq, t, 0)
+    }
+
+    /// [`Self::from_sequence_at`] for a temporal route that keeps `window` steps of history,
+    /// so a value program active at `t` may read a variable up to `window` steps back.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_sequence_at`]; a history read deeper than `window` is refused.
+    pub fn from_sequence_with_history(
+        model: &CompiledCausalModel,
+        seq: &InterventionSequence,
+        t: i32,
+        window: u32,
+    ) -> Result<Self, ModelError> {
         let mut overlay = Self::observational(model.n_nodes());
         for step in seq.steps.iter() {
             if temporal_active(&step.temporal, t)? {
-                apply_intervention(model, &mut overlay, &step.intervention, true)?;
+                apply_intervention(model, &mut overlay, &step.intervention, true, window)?;
             }
         }
         // Only steps active at `t` compose, so a set and a shift that never overlap in
         // time remain legal — the conflict is evaluated per step, not across the sequence.
         overlay.validate()?;
+        overlay.plan_order(model)?;
         Ok(overlay)
     }
+}
+
+fn program_conflict(subject: String) -> ModelError {
+    crate::program::refusal_directive_conflict(subject).into_error()
 }
 
 fn conflicting_directives(idx: usize) -> ModelError {
@@ -177,6 +266,7 @@ fn apply_intervention(
     overlay: &mut InterventionOverlay,
     iv: &Intervention,
     allow_nested_sequence: bool,
+    window: u32,
 ) -> Result<(), ModelError> {
     match iv {
         Intervention::Set { variable, value } => {
@@ -242,6 +332,12 @@ fn apply_intervention(
             overlay.soft[idx] = Some(mechanism.clone());
             Ok(())
         }
+        Intervention::Transform { variable, expr, reads } => {
+            apply_program(model, overlay, *variable, ProgramKind::Transform, expr, reads, window)
+        }
+        Intervention::Assign { variable, expr, reads } => {
+            apply_program(model, overlay, *variable, ProgramKind::Assign, expr, reads, window)
+        }
         Intervention::Sequence(seq) => {
             if !allow_nested_sequence {
                 return Err(ModelError::Unsupported {
@@ -261,12 +357,36 @@ fn apply_intervention(
                             .into(),
                     });
                 }
-                apply_intervention(model, overlay, &step.intervention, false)?;
+                apply_intervention(model, overlay, &step.intervention, false, window)?;
             }
             Ok(())
         }
         _ => Err(ModelError::Unsupported { message: "unknown intervention variant".into() }),
     }
+}
+
+fn apply_program(
+    model: &CompiledCausalModel,
+    overlay: &mut InterventionOverlay,
+    variable: VariableId,
+    kind: ProgramKind,
+    expr: &ValueExpr,
+    reads: &PolicyReads,
+    window: u32,
+) -> Result<(), ModelError> {
+    let dense = require_dense(model, variable)?;
+    let program = NodeProgram::compile_windowed(model, variable, kind, expr, reads, window)
+        .map_err(PolicyRefusal::into_error)?;
+    let idx = dense.as_usize();
+    // A repeated identical program is idempotent; a different one on the same node has no
+    // well-defined composition.
+    if overlay.programs[idx].as_ref().is_some_and(|prev| prev != &program) {
+        return Err(program_conflict(format!(
+            "variable {variable} is targeted by two different value programs"
+        )));
+    }
+    overlay.programs[idx] = Some(program);
+    Ok(())
 }
 
 fn require_dense(model: &CompiledCausalModel, var: VariableId) -> Result<DenseNodeId, ModelError> {

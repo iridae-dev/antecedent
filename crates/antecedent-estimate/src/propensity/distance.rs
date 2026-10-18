@@ -18,12 +18,13 @@ use super::matching::{MatchingSample, matching_contrast};
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap, gather_optional_multiway, gather_optional_row_labels,
-    prepare_propensity_problem_with_registry, restrict_to_rows, to_row_major, trim_of,
+    prepare_propensity_problem_with_levels, restrict_to_rows, to_row_major, trim_of,
     trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
+use crate::sampling_weights::SamplingWeights;
 use crate::se::{AnalyticSeKind, SeSpec};
 
 /// Distance matching on z-scored adjustment covariates (Euclidean), not the propensity score.
@@ -57,6 +58,9 @@ pub struct DistanceMatching {
     /// clustered influence function exists for fixed-M nearest-neighbour matching; see
     /// [`super::matching::matching_contrast`].
     pub se_kind: AnalyticSeKind,
+    /// Separate outcome residual noise and population treatment-effect heterogeneity in the
+    /// matching variance, declaring linear arm outcome models on the matching features.
+    pub population_variance: bool,
     /// Optional cluster ids aligned to prepared complete-case rows.
     pub cluster_ids: Option<Vec<u32>>,
     /// Optional bindings for named predicates / custom target distributions.
@@ -65,6 +69,10 @@ pub struct DistanceMatching {
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels for panel HAC.
     pub panel_times: Option<Vec<i64>>,
+    /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
+    /// The diagnostic propensity fit is weighted and the matched effect is the weighted
+    /// matched mean of `matching.rs`, with the Abadie–Imbens form for a weighted mean.
+    pub sampling_weights: Option<SamplingWeights>,
 }
 
 impl Default for DistanceMatching {
@@ -84,11 +92,20 @@ impl DistanceMatching {
             glm_options: GlmOptions::default(),
             caliper: None,
             se_kind: AnalyticSeKind::Homoskedastic,
+            population_variance: false,
             cluster_ids: None,
             population_registry: None,
             multiway_ids: None,
             panel_times: None,
+            sampling_weights: None,
         }
+    }
+
+    /// Declare sampling weights for every row of the source table.
+    #[must_use]
+    pub fn with_sampling_weights(mut self, weights: SamplingWeights) -> Self {
+        self.sampling_weights = Some(weights);
+        self
     }
 
     /// Record a bootstrap-replicate count without licensing a bootstrap SE.
@@ -135,6 +152,15 @@ impl DistanceMatching {
         self
     }
 
+    /// Declare linear arm outcome models and include both residual donor-reuse noise and
+    /// population treatment-effect heterogeneity in the analytic variance. The raw
+    /// constant-effect homoskedastic construction remains the default.
+    #[must_use]
+    pub const fn with_population_variance(mut self, enabled: bool) -> Self {
+        self.population_variance = enabled;
+        self
+    }
+
     /// Set cluster ids aligned to prepared complete-case rows.
     #[must_use]
     pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
@@ -167,12 +193,14 @@ impl DistanceMatching {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        prepare_propensity_problem_with_registry(
+        prepare_propensity_problem_with_levels(
             data,
             estimand,
             query,
             self.overlap,
             self.population_registry.as_ref(),
+            crate::propensity::OtherLevels::default(),
+            self.sampling_weights.as_ref(),
         )
     }
 
@@ -187,8 +215,25 @@ impl DistanceMatching {
         &self,
         problem: &PreparedPropensityProblem,
         workspace: &mut PropensityEstimationWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
         assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
+        self.fit_with_matches(problem, workspace, ctx, assumptions, 1)
+    }
+
+    /// [`Self::fit`] averaging the `matches` nearest donors of each unit (`1` is the single
+    /// nearest neighbour).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::fit`]; also `matches == 0` and a donor arm with fewer than `matches` rows.
+    pub(crate) fn fit_with_matches(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut PropensityEstimationWorkspace,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        matches: usize,
     ) -> Result<EffectEstimate, EstimationError> {
         // `bootstrap_replicates` is intentionally unread: the nonparametric bootstrap is
         // invalid for fixed-M NN matching (Abadie–Imbens 2008) and must not land in
@@ -221,10 +266,26 @@ impl DistanceMatching {
             retained.as_deref(),
         );
         standardize_rowmajor_inplace(&mut f_used, t_used.len(), dim);
-        let tw_used: Option<Vec<f64>> = problem.target_weights.as_ref().map(|w| match &retained {
-            Some(idx) => idx.iter().map(|&i| w[i]).collect(),
-            None => w.to_vec(),
-        });
+        let weights_used = |weights: &[f64]| -> Vec<f64> {
+            match &retained {
+                Some(idx) => idx.iter().map(|&i| weights[i]).collect(),
+                None => weights.to_vec(),
+            }
+        };
+        // Target and sampling weights compose by product (see `PropensityMatching::fit`).
+        let tw_used: Option<Vec<f64>> =
+            match (problem.target_weights.as_deref(), problem.sampling_weights.as_ref()) {
+                (None, None) => None,
+                (Some(target), None) => Some(weights_used(target)),
+                (None, Some(sampling)) => Some(weights_used(&sampling.weights)),
+                (Some(target), Some(sampling)) => Some(
+                    weights_used(target)
+                        .into_iter()
+                        .zip(weights_used(&sampling.weights))
+                        .map(|(t, s)| t * s)
+                        .collect(),
+                ),
+            };
         let clusters_used = gather_optional_row_labels(
             self.cluster_ids.as_deref(),
             problem.nrows,
@@ -249,6 +310,9 @@ impl DistanceMatching {
                 features: &f_used,
                 dim,
                 distance: MatchingDistance::Euclidean,
+                matches,
+                population_variance: self.population_variance,
+                ctx,
             },
             &problem.target_population,
             self.caliper,
@@ -276,6 +340,7 @@ impl DistanceMatching {
             .with_se_kind(self.se_kind)
             .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
+            .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes())))
     }
 }
@@ -303,6 +368,9 @@ fn standardize_rowmajor_inplace(features: &mut [f64], n: usize, dim: usize) {
         }
     }
 }
+
+#[cfg(test)]
+mod scale_tests;
 
 #[cfg(test)]
 mod tests {

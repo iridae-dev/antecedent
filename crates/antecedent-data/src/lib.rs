@@ -35,6 +35,7 @@ pub mod error;
 pub mod event;
 pub mod lagged_frame;
 pub mod materialize;
+pub mod missing;
 pub mod multi_env;
 pub mod network;
 pub mod panel;
@@ -73,6 +74,10 @@ pub use discrete::DiscreteColumn;
 pub use error::DataError;
 pub use event::EventData;
 pub use lagged_frame::{LaggedFrame, LaggedFrameOptions};
+pub use missing::{
+    DropReason, GroupAccounting, MissingCell, RowAccounting, UnitAccounting, complete_rows,
+    dropped_row_digest, first_missing_cell, policy_required_text,
+};
 pub use multi_env::MultiEnvironmentData;
 pub use network::{NetworkData, NetworkEdge};
 pub use panel::{PanelData, PanelUnit, PanelUnitView};
@@ -87,10 +92,10 @@ pub use resample::{
     fill_resample_index_batch, fill_resample_indexes, resample_timeseries,
 };
 pub use sample::{
-    DropSummary, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan,
+    DropSummary, GappedSample, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan,
     LaggedSampleWorkspace,
 };
-pub use sample_policy::{MaskPolicy, MissingPolicy};
+pub use sample_policy::{MaskPolicy, MissingDeclaration, MissingPolicy};
 pub use split::{DiscoveryEstimationSplit, EnvHoldoutSplit, TimeRange};
 pub use storage::OwnedColumnarStorage;
 pub use surrogate::{surrogate_permute_columns, surrogate_phase_randomize};

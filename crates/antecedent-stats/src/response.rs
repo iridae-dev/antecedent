@@ -39,6 +39,9 @@ pub struct LocalPolynomialInfluence {
     pub point: LocalPolynomialPoint,
     /// Observation-level linearized residual contributions.
     pub influences: Vec<f64>,
+    /// Satterthwaite degrees of freedom of the leverage-corrected level
+    /// variance quadratic form; absent for the original raw-residual helper.
+    pub variance_degrees_of_freedom: Option<f64>,
     /// Heteroskedasticity-robust standard error from the linearized contributions.
     pub robust_standard_error: f64,
     /// Heteroskedasticity-robust standard error for the first derivative.
@@ -336,7 +339,7 @@ pub fn gaussian_local_quadratic_influence_with(
     at: f64,
     bandwidth: f64,
 ) -> Result<LocalPolynomialInfluence, StatsError> {
-    fit_local_quadratic(workspace, x, y, at, bandwidth, true, None)
+    fit_local_quadratic(workspace, x, y, at, bandwidth, true, None, false)
 }
 
 /// Local quadratic after the caller has already refused non-finite `x`/`y`.
@@ -347,7 +350,30 @@ pub fn gaussian_local_quadratic_influence_prechecked(
     at: f64,
     bandwidth: f64,
 ) -> Result<LocalPolynomialInfluence, StatsError> {
-    fit_local_quadratic(workspace, x, y, at, bandwidth, false, None)
+    fit_local_quadratic(workspace, x, y, at, bandwidth, false, None, false)
+}
+
+/// Local quadratic with residual leverage correction for sampling uncertainty.
+///
+/// Kernel weights localize the fit; they are not inverse noise variances. For
+/// the smoother row `S_i`, a homoskedastic residual has variance
+/// `sigma² (1 - 2 S_ii + ||S_i||²)`, rather than `sigma²`. Dividing each
+/// residual by the square root of this factor avoids the finite-fit downward
+/// bias of the raw-residual sandwich. Point estimates are unchanged.
+/// Inputs must already be checked for finiteness, as for
+/// [`gaussian_local_quadratic_influence_prechecked`].
+///
+/// # Errors
+/// Refuses invalid dimensions, a singular local design, or a residual whose
+/// fixed-design variance cannot be estimated.
+pub fn gaussian_local_quadratic_adjusted_influence_prechecked(
+    workspace: &mut LocalQuadraticWorkspace,
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+) -> Result<LocalPolynomialInfluence, StatsError> {
+    fit_local_quadratic(workspace, x, y, at, bandwidth, false, None, true)
 }
 
 /// Local quadratic with observation weights in addition to the Gaussian kernel.
@@ -376,10 +402,142 @@ pub fn gaussian_local_quadratic_weighted(
         bandwidth,
         true,
         Some(weights),
+        false,
     )?
     .point)
 }
 
+/// Trace and squared-matrix trace of `Q = diag(d) + U C U'`.
+///
+/// `basis` is the row-major `n × rank` matrix `U`, `core` the row-major
+/// symmetric `rank × rank` matrix `C`, and `diagonal` the `n` entries of `d`.
+/// Uses `O(n rank² + rank³)` work and `O(rank²)` scratch, without forming Q.
+/// Rank zero gives a diagonal quadratic form.
+///
+/// These are algebraic traces, not an automatic sampling-variance claim. For
+/// centered Gaussian errors with covariance `sigma² I`, they give
+/// `E[e'Qe] = sigma² tr(Q)` and `Var(e'Qe) = 2 sigma⁴ tr(Q²)`; noncentrality,
+/// heteroskedasticity and nuisance fitting require their own derivation.
+///
+/// # Errors
+/// Empty or mismatched dimensions, non-finite inputs/results, or asymmetric C.
+pub fn diagonal_low_rank_quadratic_traces(
+    diagonal: &[f64],
+    basis: &[f64],
+    core: &[f64],
+    rank: usize,
+) -> Result<(f64, f64), StatsError> {
+    let n = diagonal.len();
+    if n == 0
+        || n.checked_mul(rank) != Some(basis.len())
+        || rank.checked_mul(rank) != Some(core.len())
+    {
+        return Err(StatsError::Shape {
+            message: "invalid diagonal-low-rank quadratic dimensions",
+        });
+    }
+    if diagonal.iter().chain(basis).chain(core).any(|value| !value.is_finite()) {
+        return Err(StatsError::Shape { message: "quadratic representation must be finite" });
+    }
+    for j in 0..rank {
+        for k in 0..j {
+            let (a, b) = (core[j * rank + k], core[k * rank + j]);
+            if (a - b).abs() > 8.0 * f64::EPSILON * a.abs().max(b.abs()).max(1.0) {
+                return Err(StatsError::Shape { message: "quadratic core must be symmetric" });
+            }
+        }
+    }
+    let mut gram = vec![0.0; core.len()];
+    let mut weighted_gram = vec![0.0; core.len()];
+    let (mut trace_d, mut trace_d2) = (0.0, 0.0);
+    for (i, &d) in diagonal.iter().enumerate() {
+        trace_d += d;
+        trace_d2 += d * d;
+        let row = &basis[i * rank..(i + 1) * rank];
+        for j in 0..rank {
+            for k in 0..rank {
+                gram[j * rank + k] += row[j] * row[k];
+                weighted_gram[j * rank + k] += d * row[j] * row[k];
+            }
+        }
+    }
+    let mut cg = vec![0.0; core.len()];
+    for j in 0..rank {
+        for k in 0..rank {
+            cg[j * rank + k] = (0..rank).map(|a| core[j * rank + a] * gram[a * rank + k]).sum();
+        }
+    }
+    let trace = trace_d + (0..rank).map(|j| cg[j * rank + j]).sum::<f64>();
+    let mut trace_square = trace_d2;
+    for j in 0..rank {
+        for k in 0..rank {
+            trace_square += 2.0 * core[j * rank + k] * weighted_gram[k * rank + j]
+                + cg[j * rank + k] * cg[k * rank + j];
+        }
+    }
+    if !trace.is_finite() || !trace_square.is_finite() {
+        return Err(StatsError::Backend("quadratic traces are not finite".into()));
+    }
+    Ok((trace, trace_square))
+}
+
+// For V = e' A e, Cov(e)=sigma² I: df = tr(A)² / tr(A²).
+// A = (I-S)'D(I-S), S=X B, B=(X'WX)^-1 X'W,
+// D_ii=l_i² / Var(residual_i)/sigma². Represent A as D+U C U'
+// with U=[D X, B'] (six columns), avoiding any n-by-n allocation.
+fn local_variance_degrees_of_freedom(
+    rows: &[(f64, [f64; 3], f64)],
+    inverse: [[f64; 3]; 3],
+    smoother_squares: [[f64; 3]; 3],
+) -> Result<f64, StatsError> {
+    let mut diagonal = Vec::with_capacity(rows.len());
+    let mut basis = Vec::with_capacity(rows.len() * 6);
+    let mut h = [[0.0; 3]; 3];
+    for &(w, row, _) in rows {
+        let inv_row = matvec(inverse, row);
+        let leverage = w * row.iter().zip(inv_row).map(|(a, b)| a * b).sum::<f64>();
+        let norm = row.iter().zip(matvec(smoother_squares, row)).map(|(a, b)| a * b).sum::<f64>();
+        let factor = 1.0 - 2.0 * leverage + norm;
+        if !factor.is_finite() || factor <= 0.0 {
+            return Err(StatsError::Backend(
+                "local response residual variance is not estimable".into(),
+            ));
+        }
+        let d = (w * inv_row[0]).powi(2) / factor;
+        diagonal.push(d);
+        let u =
+            [d * row[0], d * row[1], d * row[2], w * inv_row[0], w * inv_row[1], w * inv_row[2]];
+        basis.extend_from_slice(&u);
+        for j in 0..3 {
+            for k in 0..3 {
+                h[j][k] += d * row[j] * row[k];
+            }
+        }
+    }
+    let mut c = [[0.0; 6]; 6];
+    for j in 0..3 {
+        c[j][j + 3] = -1.0;
+        c[j + 3][j] = -1.0;
+        for k in 0..3 {
+            c[j + 3][k + 3] = h[j][k];
+        }
+    }
+    let core: Vec<f64> = c.into_iter().flatten().collect();
+    let (trace, trace_square) = diagonal_low_rank_quadratic_traces(&diagonal, &basis, &core, 6)?;
+    let df = trace * trace / trace_square;
+    if !df.is_finite() || df <= 0.0 {
+        return Err(StatsError::Backend(
+            "local response variance degrees of freedom are not estimable".into(),
+        ));
+    }
+    Ok(df)
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "one fused local fit shares its kernel design, residual correction, covariance and optional variance df"
+)]
 fn fit_local_quadratic(
     workspace: &mut LocalQuadraticWorkspace,
     x: &[f64],
@@ -388,6 +546,7 @@ fn fit_local_quadratic(
     bandwidth: f64,
     check_finite: bool,
     observation_weights: Option<&[f64]>,
+    adjust_residuals: bool,
 ) -> Result<LocalPolynomialInfluence, StatsError> {
     if x.len() != y.len() || x.len() < 3 {
         return Err(StatsError::Shape {
@@ -432,6 +591,7 @@ fn fit_local_quadratic(
     }
     let inverse = inverse_3x3(gram).ok_or(StatsError::SingularLocalDesign { order: 2 })?;
     let beta = matvec(inverse, rhs);
+    let smoother_squares = matmul3(matmul3(inverse, squared_gram), inverse);
     let mut influences = Vec::with_capacity(workspace.weights.len());
     let mut first_derivative_influence_ss = 0.0;
     let mut second_derivative_influence_ss = 0.0;
@@ -443,6 +603,21 @@ fn fit_local_quadratic(
     for &(w, row, yi) in &workspace.weights {
         let residual = yi - row.iter().zip(beta).map(|(a, b)| a * b).sum::<f64>();
         weighted_rss += w * residual * residual;
+        let residual = if adjust_residuals {
+            let leverage =
+                w * row.iter().zip(matvec(inverse, row)).map(|(a, b)| a * b).sum::<f64>();
+            let row_norm =
+                row.iter().zip(matvec(smoother_squares, row)).map(|(a, b)| a * b).sum::<f64>();
+            let variance_factor = 1.0 - 2.0 * leverage + row_norm;
+            if !variance_factor.is_finite() || variance_factor <= 0.0 {
+                return Err(StatsError::Backend(
+                    "local response residual variance is not estimable".into(),
+                ));
+            }
+            residual / variance_factor.sqrt()
+        } else {
+            residual
+        };
         let hat = inverse[0].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
         influences.push(w * hat * residual);
         let first_hat = inverse[1].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
@@ -465,7 +640,7 @@ fn fit_local_quadratic(
     let sigma2 = weighted_rss / (weight_sum - 3.0);
     // sigma^2 (X'WX)^-1 (X'W^2X) (X'WX)^-1 — the kernel weights are not
     // inverse-variance weights, so the bread-only form is not the variance.
-    let sandwich = matmul3(matmul3(inverse, squared_gram), inverse);
+    let sandwich = smoother_squares;
     let coefficient_se = |index: usize| (sigma2 * sandwich[index][index]).max(0.0).sqrt();
     let point = LocalPolynomialPoint {
         value: beta[0],
@@ -481,6 +656,11 @@ fn fit_local_quadratic(
     Ok(LocalPolynomialInfluence {
         point,
         influences,
+        variance_degrees_of_freedom: if adjust_residuals {
+            Some(local_variance_degrees_of_freedom(&workspace.weights, inverse, smoother_squares)?)
+        } else {
+            None
+        },
         robust_standard_error,
         robust_first_derivative_standard_error: first_derivative_influence_ss.sqrt(),
         robust_second_derivative_standard_error: second_derivative_influence_ss.sqrt(),
@@ -1085,6 +1265,97 @@ mod tests {
         assert!(fit.robust_standard_error.is_finite() && fit.robust_standard_error > 0.0);
         assert!(fit.influences.iter().sum::<f64>().abs() < 1e-10);
     }
+    #[test]
+    fn low_rank_quadratic_traces_match_an_independent_dense_matrix() {
+        for n in [1_usize, 3, 8] {
+            for rank in [0_usize, 1, 3] {
+                let diagonal: Vec<f64> = (0..n).map(|i| 0.2 + i as f64 / 7.0).collect();
+                let basis: Vec<f64> = (0..n * rank).map(|i| (i as f64 + 0.3).sin()).collect();
+                let mut core = vec![0.0; rank * rank];
+                for j in 0..rank {
+                    for k in 0..rank {
+                        core[j * rank + k] = ((j + k) as f64 + 0.7).cos();
+                    }
+                }
+                let mut dense = vec![0.0; n * n];
+                for i in 0..n {
+                    for j in 0..n {
+                        let mut value = if i == j { diagonal[i] } else { 0.0 };
+                        for a in 0..rank {
+                            for b in 0..rank {
+                                value +=
+                                    basis[i * rank + a] * core[a * rank + b] * basis[j * rank + b];
+                            }
+                        }
+                        dense[i * n + j] = value;
+                    }
+                }
+                let trace: f64 = (0..n).map(|i| dense[i * n + i]).sum();
+                let square: f64 = (0..n * n).map(|i| dense[i] * dense[(i % n) * n + i / n]).sum();
+                let actual =
+                    diagonal_low_rank_quadratic_traces(&diagonal, &basis, &core, rank).unwrap();
+                assert!((actual.0 - trace).abs() < 1e-12);
+                assert!((actual.1 - square).abs() < 1e-11);
+            }
+        }
+    }
+
+    #[test]
+    fn low_rank_quadratic_refuses_invalid_shapes_asymmetry_and_nonfinite_values() {
+        assert!(diagonal_low_rank_quadratic_traces(&[], &[], &[], 0).is_err());
+        assert!(diagonal_low_rank_quadratic_traces(&[1.0], &[1.0], &[1.0; 4], 2).is_err());
+        assert!(
+            diagonal_low_rank_quadratic_traces(&[1.0], &[1.0, 2.0], &[1.0, 0.5, 0.0, 1.0], 2)
+                .is_err()
+        );
+        assert!(diagonal_low_rank_quadratic_traces(&[f64::NAN], &[], &[], 0).is_err());
+    }
+
+    #[test]
+    fn adjusted_local_influence_recovers_fixed_design_sampling_variance() {
+        // Summing over orthonormal unit-noise vectors evaluates the exact
+        // expectation of every quadratic variance estimator under Cov(e)=I.
+        let x: Vec<f64> = (0..31).map(|i| -2.0 + 4.0 * f64::from(i) / 30.0).collect();
+        let mut expected = 0.0;
+        let mut corrected = 0.0;
+        let mut raw = 0.0;
+        let mut columns = Vec::new();
+        let mut df = 0.0;
+        let mut workspace = LocalQuadraticWorkspace::default();
+        for j in 0..x.len() {
+            let mut y = vec![0.0; x.len()];
+            y[j] = 1.0;
+            let original = gaussian_local_quadratic_influence(&x, &y, 0.7, 0.5).unwrap();
+            let adjusted = gaussian_local_quadratic_adjusted_influence_prechecked(
+                &mut workspace,
+                &x,
+                &y,
+                0.7,
+                0.5,
+            )
+            .unwrap();
+            assert_eq!(original.point, adjusted.point);
+            expected += adjusted.point.value.powi(2);
+            corrected += adjusted.robust_standard_error.powi(2);
+            raw += original.robust_standard_error.powi(2);
+            df = adjusted.variance_degrees_of_freedom.unwrap();
+            columns.push(adjusted.influences);
+        }
+        // Independent dense reference: columns contain D^(1/2)(I-S)e_j,
+        // so their pairwise products form the variance quadratic form A.
+        let trace_square: f64 = columns
+            .iter()
+            .flat_map(|a| {
+                columns
+                    .iter()
+                    .map(move |b| a.iter().zip(b).map(|(x, y)| x * y).sum::<f64>().powi(2))
+            })
+            .sum();
+        assert!((df - corrected * corrected / trace_square).abs() < 1e-10);
+        assert!((corrected - expected).abs() < 1e-12);
+        assert!(raw < expected, "raw fitted residuals understate the variance");
+    }
+
     #[test]
     fn weighted_local_quadratic_matches_repeated_rows() {
         let x: Vec<f64> = (0..30).map(|i| f64::from(i) / 10.0).collect();

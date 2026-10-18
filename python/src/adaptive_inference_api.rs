@@ -306,6 +306,26 @@ impl AdaptiveInferenceHandle {
         })
     }
 
+    /// Export the monitoring contract with the participant-level procedure it
+    /// was collected under: the priors with their historical sources, the
+    /// decisions and the reading at every performed look.
+    fn export_contract_with_procedure(
+        &self,
+        py: Python<'_>,
+        paradigm: &str,
+        procedure: PyRef<'_, crate::adaptive_participant_api::ParticipantProcedureHandle>,
+        artifact_id: &str,
+    ) -> PyResult<Refused<Py<PyBytes>>> {
+        let paradigm = paradigm_of(paradigm)?;
+        Ok(
+            match self.inner.export_contract_with_procedure(paradigm, &procedure.inner, artifact_id)
+            {
+                Ok(bytes) => (Some(PyBytes::new(py, &bytes).unbind()), None),
+                Err(refusal) => refused(&refusal),
+            },
+        )
+    }
+
     /// Export a result bound to its monitoring contract.
     #[pyo3(signature = (request_json, artifact_id, cancel=None))]
     fn export_result(
@@ -389,6 +409,11 @@ fn adaptive_monitoring_contract_consume(
                     consumed.contract().declaration(),
                 ))
                 .unwrap_or(Json::Null),
+                "participant_procedure": consumed.procedure_record().map(|record| json!({
+                    "procedure_identity": record.spec().identity(),
+                    "priors": crate::adaptive_participant_api::priors_json(record.spec().priors()),
+                    "readings": crate::adaptive_participant_api::readings_json(record.readings()),
+                })),
             });
             (Some(ConsumedMonitoringContractHandle { summary: summary.to_string() }), None)
         }

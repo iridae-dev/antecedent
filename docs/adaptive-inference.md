@@ -48,7 +48,7 @@ Each paradigm is a separate route; the result names its paradigm.
 | frequentist fixed-sample | none for adaptive data | refused; authorized only for a design fixed in advance, executed by the existing randomized route | |
 | frequentist adaptive weighting | augmented inverse-probability scores, predictable outcome model and weights (Hadad et al. 2021) | point estimate with a martingale plug-in variance, uncalibrated | an interval |
 | frequentist group sequential | Lan-DeMets alpha spending by recursive integration (fixed randomization) | boundaries and first crossing | adjusted estimates or intervals after stopping; adaptive assignment |
-| anytime-valid frequentist | normal-mixture Hoeffding confidence sequence for bounded outcomes | time-uniform sequence under the stack-of-rewards premise, uncalibrated as a whole procedure | a measured coverage of the adaptive procedure |
+| anytime-valid frequentist | normal-mixture Hoeffding confidence sequence for bounded outcomes (the participant-level family reads the variance-adaptive predictable plug-in empirical Bernstein sequence instead) | time-uniform sequence under the stack-of-rewards premise, uncalibrated as a whole procedure | a measured coverage of the adaptive procedure |
 
 ## The procedure matrix
 
@@ -56,26 +56,313 @@ Assignment policy x outcome structure x monitoring strategy x stopping rule
 gives 360 cells, every one listed in `parity/adaptive_procedures.toml` and
 classified by `procedure_status`:
 
-* **licensed** (6): an estimator and uncertainty method exist, per paradigm:
+* **licensed** (7): an estimator and uncertainty method exist, per paradigm:
   Thompson (Beta-Bernoulli) with fixed looks and an efficacy rule (posterior,
   confidence sequence); Thompson with a decision-theoretic rule (posterior,
-  stopping decision); epsilon-greedy with fixed looks and an efficacy rule
+  stopping decision); Thompson allocation of participants with repeated binary
+  responses, fixed looks and a decision-theoretic rule (posterior, stopping
+  decision, confidence sequence; see the participant-level family below);
+  epsilon-greedy with fixed looks and an efficacy rule
   (adaptive weighting, confidence sequence); epsilon-greedy with repeated
   measures and a final analysis (adaptive weighting on subject means); fixed
   randomization with group-sequential monitoring (boundaries); fixed
   randomization with one final analysis (fixed-sample, executed elsewhere);
 * **closed, incoherent** (144), for example a stopping rule with no interim
   analysis to act on;
-* **closed, pairing** (18): every component is delivered but the pairing is
+* **closed, pairing** (17): every component is delivered but the pairing is
   not. A guarantee for two components never licenses their pairing;
 * **carried forward** (192) with an owner: upper-confidence-bound, contextual
   and batched assignment, hierarchical clustered outcomes, continuous
   monitoring, futility and resource stopping.
 
+## Capacity
+
+A declaration is bounded by what it asks of the routes that derive its
+uncertainty, and each kind of bound is its own refusal with its own detail and
+remedy (`antecedent_stats::adaptive_inference::CapacityError`). A procedure is
+no longer capped at 400 units and 400 policy-update batches under the one detail
+`looks_not_ordered`; that detail now means only that the schedule is empty,
+starts with an empty look or enrols no one.
+
+| Class | Bound | Detail | What to change |
+| --- | --- | --- | --- |
+| declared units | 65,535 (counts are 16-bit) | `declared_units_exceeded` | split the study into declared stages |
+| declared looks | 24 single-outcome looks, 65,535 repeated-measures batches, 64 participant-level looks | `declared_looks_exceeded` | enrol larger batches between looks |
+| exact-law states | 1,000,000 live observed states at one look | `exact_law_states_exceeded` | simulate the procedure |
+| exact-law work | 60,000,000 unit expansions | `exact_law_work_exceeded` | simulate the procedure |
+| simulation replications | 1 to 1,000,000 | `simulation_replications_exceeded` | fewer replications, or several seeded requests |
+| simulation work | replications x units x measurements per unit, 4,000,000,000 | `simulation_work_exceeded` | reduce the product |
+| simulation memory | estimated peak bytes, the smaller soft or hard limit of the execution context's memory budget (4 GiB when it sets none) | `simulation_memory_exceeded` | fewer replications, or a larger budget |
+| retained record | 64 looks of one exported record | `retained_record_exceeded` | retain fewer looks |
+| artifact size | the export budget of one exported contract (at most 256 MiB) | `artifact_size_exceeded` | retain less, or raise the export budget |
+
+Exact enumeration is bounded by the distinct histories it holds, not by
+participants, so a procedure of a few hundred units is already beyond it. Large
+procedures route to the whole-procedure simulation, which checks its work and
+memory budget before any replicate runs, checks for cancellation at every look
+and replicate, and returns a receipt: replications run, looks performed, work
+planned and done (units enrolled times measurements, which is less than planned
+when a stopping rule ends runs early), the largest retained state (`states`:
+the cells of the observed-state tally one replication holds), the peak units and
+the estimated peak bytes. Every counter is added with checked arithmetic and a
+product that would wrap is refused as the largest representable work, even under
+a budget of `u64::MAX`; it is never compared as a wrapped value. Planned
+procedures of 600, 1,200 and 2,400 participants run on the single-outcome,
+repeated-measures and participant-level simulation routes.
+
+`ParticipantProcedure::run` runs the procedure once and retains it. Cancellation
+is polled before the first batch and after each batch that does not end the run,
+so it is honoured within one batch: the result holds the whole batches already
+taken, its receipt counts what was done against what was admitted, and
+`complete` is `false`. A cancelled run is a partial result, not a refusal, and a
+history that stops short of a stopping look does not replay as a finished run.
+The artifact is a separate limit again: an exported monitoring contract above its
+export budget is refused as `artifact_size_exceeded` (naming the bytes needed and
+the budget) by `export_contract_with_procedure_within`, and the run and its
+procedure are untouched.
+
+## The participant-level family
+
+One family combines what trials with several responses per participant need:
+three or four arms (two are accepted), participant-level randomization, three or
+six binary responses per participant (any number from 2 to 32 is accepted),
+historical informative priors, adaptive allocation and decision-based stopping.
+`antecedent.adaptive_inference.ParticipantProcedure` declares it; the
+numerics are `antecedent_stats::adaptive_inference::participant_procedure`.
+
+**Likelihood and posterior.** Participant `i` of arm `k` has a success count
+`s_i` among `m` responses that is beta-binomial: given a propensity
+`p_i ~ Beta(mu_k kappa, (1 - mu_k) kappa)`, `s_i ~ Binomial(m, p_i)`, with
+`kappa = (1 - rho) / rho` for the intra-participant correlation `rho`
+(`rho = 0` is `m` independent Bernoulli responses). The arm mean has a Beta
+prior (below). The posterior of the arm means given the completed participants
+is the exact one: the likelihood of an arm is the product over its participants
+of the beta-binomial mass of their counts, a function of the arm mean and `rho`.
+There is no conjugate form for `rho > 0`, so it is evaluated by composite
+Gauss-Legendre quadrature in the logit of the arm mean, in log space with a
+log-sum-exp shift, updated from the histogram of success counts of each arm.
+The probability that each arm is best, the expected loss of choosing it, the
+exceedance of a margin over the control and the posterior moments all come from
+that posterior; the allocation, the decisions, the simulation and the reading
+of a retained history share this one implementation. Its quadrature error is
+bounded by checks and read from an identity: the window of each arm is widened
+and the computation repeated until the density at its edges is below `1e-13` of
+its peak, panels are at most 1.5 posterior standard deviations wide, and
+`ExactPosterior.probability_error` reports `|sum_k P(k best) - 1|`. In the tests
+the posterior agrees with an arbitrary-precision quadrature to `1e-12`, with
+dense enumerations to `5e-9`, and at `rho = 0` with the conjugate Beta route to
+`1e-8`. The posterior is a function of the completed participants' counts only,
+so the likelihood principle applies as it does for the one-outcome posterior.
+
+**The correlation, declared or estimated.** A producer either declares `rho`
+(`correlation`) or declares a `Beta(alpha, beta)` prior on it
+(`correlation_prior`, shapes at least one), shared by the arms and frozen before
+recruitment like the arm priors. Under a prior, `rho` is integrated jointly with
+the arm means: given `rho` the arms are independent, so the posterior is a
+mixture over `rho`, weighted by the prior of `rho` times the product of the
+arms' marginal likelihoods, and every functional above is the corresponding
+mixture. The correlation's own posterior mean and standard deviation are read at
+every look. The `rho` integral is adaptive: a first pass over `[0, 1]` locates
+the mass, the window narrows to nine posterior standard deviations about the
+mean, and passes repeat until the panels are at most 3.5 standard deviations
+wide and the density at the window edges (other than at 0 and 1) is below
+`1e-13` of its peak. A simulation of a procedure that estimates the correlation
+takes the true correlation of the simulated participants
+(`true_correlation`); a declared procedure may also be simulated under another
+true value to read its sensitivity to a wrong declaration. An estimated
+correlation costs more per look, and a simulation is charged sixteen responses'
+worth of work per response for it.
+
+**Historical priors.** An arm's prior is an initial Beta prior updated by the
+power prior of each historical source `(successes, trials, discount a0 in [0,
+1])`: `alpha = alpha0 + sum a0 successes`, `beta = beta0 + sum a0 (trials -
+successes)`. The discount is declared; a source of clustered participants carries
+less information per response than its trial count says, and the discount is
+where a producer states that. The resolved prior, every source with its
+discount, the prior effective sample size `alpha + beta` and the part borrowed
+from history (`sum a0 trials`) are recorded. **Borrowing is frozen before
+recruitment**: it is part of the declaration identity, `amend_borrowing` accepts
+a different plan only while no look has been performed, and refuses it after
+the first look with `adaptive_inference.borrowing_frozen`
+(`adaptive_assumption_violated`).
+
+**Allocation.** One declared policy: Thompson sampling with a minimum
+exploration probability. The probabilities that each arm is best are clamped
+from below at the floor and renormalized (a single clamp can push an entry back
+under the floor, so the clamp repeats until none is below it); every arm keeps
+at least the floor at every participant, and a floor of `1 / arms` is equal
+randomization. The same function (`apply_exploration_floor`) governs the
+single-outcome procedures (`AssignmentRule::ThompsonBetaFloored`), so the exact
+law and the simulation share it.
+
+**Decisions at completed-participant batch boundaries.** After the participants
+whose follow-up has completed are revealed (`lag_looks` after enrolment), the
+declared decisions are taken in this order, and the first that holds ends the
+procedure: the smallest posterior expected loss of choosing an arm below its
+threshold (decide that arm); futility, when no treatment arm has posterior
+probability of at least `threshold` of exceeding the control by `margin` (decide
+the control; `StoppingRule::PosteriorFutility`, `StoppingSpec::PosteriorFutility`);
+and the recruitment cap. A procedure that no decision ends runs its schedule and
+selects the arm with the highest posterior mean.
+
+**Two claims, never merged.** Every performed look reports a posterior claim
+(`bayesian_posterior`: means, standard deviations, probability best, expected
+loss, probability of exceeding the control by the margin, and the correlation's
+posterior mean and standard deviation) and an anytime-valid claim
+(`anytime_valid_frequentist`) in separate, labelled fields. The anytime-valid
+claim is a time-uniform confidence sequence for each arm's mean, read from the
+participants' success proportions (bounded, independent across participants
+whatever the correlation of one participant's responses). The sequence is the
+predictable plug-in empirical Bernstein betting sequence of Waudby-Smith and
+Ramdas (2024): its tilts follow the running mean and variance of the arm's own
+proportions, so it narrows with the data's actual spread (participant
+proportions vary far less than the worst case `1/4` a Hoeffding bound assumes)
+and is not tuned to a sample size. For each arm it is built from that arm's
+completions in the order they arrive; under the stack-of-rewards premise the
+filtration of that sequence is generated by the arm's own earlier outcomes, so
+the tilts are predictable and the time-uniform bound holds whatever allocation
+decided when each participant was drawn and at the data-dependent stopping time.
+The miscoverage `alpha` is split evenly over the `K` arms, each sequence at
+`alpha / K`; all `K` arm sequences cover their means at once with probability at
+least `1 - alpha`, so every contrast between any two arms is covered at once (a
+comparison with the control is built from two arm sequences and spends
+`2 alpha / K`). The comparison of the data-selected best treatment with the
+control is one of those contrasts and holds whatever the data selected: the
+simultaneous family over all arms covers the selection, and no further
+correction is applied or needed. The sequence construction is part of the
+procedure: a contract produced under the earlier normal-mixture Hoeffding
+sequence (arms at `alpha / (2 (K - 1))`, tuned by `tuning_samples`) names no
+construction, keeps its identity and replays under that sequence, and a new
+contract records `predictable_plug_in_empirical_bernstein`
+(`ParticipantSpec::sequence_kind`, `SequenceKind`); `tuning_samples` is still
+declared and validated but only the Hoeffding sequence reads it. This is a
+finite-time theorem under its
+premise, not a measured coverage of the whole procedure: every number is
+`derived_unmeasured` and the interval routes stay closed until a calibration
+record exists. `simulate_participant_procedure` runs the whole procedure end to
+end and records, per replicate, how it ended and whether the sequences covered
+the truth at every look and at the end; it is the entry point a calibration
+design calls.
+
+**Borrowing receipt and prior-data conflict.** `ParticipantSpec::borrowing_receipt`
+(and `ParticipantHistoryReport::borrowing`) reports, per arm, every historical
+source with its discount, the effective historical sample size the discounts are
+worth, the effective sample size of the resolved prior and the participants whose
+responses had completed. For an arm that borrowed, it also reports the
+prior-data conflict: the exact probability that the arm mean drawn from the
+current data alone (the declared initial prior and the participant-aware
+likelihood of the completed participants) exceeds the mean drawn from the
+borrowed prior, and `agreement = 2 min(p, 1 - p)`, near zero when the current data
+sit entirely on one side of what was borrowed. It is a diagnostic of how far the
+borrowed information is from the new data, not a test with an error rate.
+
+**Batches are whole.** Decisions are taken only on batches of completed
+participants. A retained history in which a batch whose follow-up delay has elapsed
+holds participants without complete responses is refused with
+`adaptive_inference.batch_incomplete`, in `read_history`, in
+`retained_declaration` and when a contract with the procedure section is
+consumed; a recruitment cap between two batch boundaries waits for the next one.
+
+**Retention and replay.** `ParticipantProcedure.prepare_session` builds the
+retained analysis contract of a history (the allocation probabilities, outcome
+availability and the decision rule), and
+`AdaptiveInferenceSession.export_contract_with_procedure` writes it with a
+procedure section in `adaptive_monitoring_contract_v1`: the priors with every
+source, discount and effective sample size, the correlation and responses, the
+floor, the decisions and the reading (prior update, posterior claim, decision and
+anytime-valid claim) at every performed look. A consumer rebuilds the declared
+procedure through its own checks, recomputes each batch's allocation from the
+completed participants and the declared priors and compares it with the retained
+probabilities (`adaptive_inference.assignment_not_replayed`), replays the
+decisions so the procedure neither continued past nor stopped without them
+(`adaptive_inference.stopping_not_replayed`), and recomputes every stored
+reading. A resealed edit of a stored reading, a borrowed discount or an effective
+sample size is refused. Responses are retained as their success count (that many
+ones followed by zeros); their order within a participant is not part of the
+model. A procedure that stops at its first look has a single analysis and cannot
+be retained under interim-look monitoring. The posterior routes of the
+one-outcome result artifact refuse a contract whose units have several
+measurements (`adaptive_inference.measurements_invalid`).
+
+Identities: the new futility spec, the floored Thompson rule and the
+procedure section enter the contract, procedure and artifact identities only
+when present, so contracts and artifacts produced earlier derive their original
+identities and replay unchanged. The participant procedure has its own identity
+(`PARTICIPANT_PROCEDURE_VERSION`).
+
+## Whole-procedure validation of the participant-level family
+
+`crates/antecedent-estimate/tests/adaptive_whole_procedure_calibration.rs` simulates
+the entire loop in every replicate: recruitment in eight batches with one look of
+follow-up delay, Thompson allocation with an exploration floor from the exact
+posterior of the completed participants, correlated beta-binomial responses
+(six per participant, four arms), the posterior update, the expected-loss
+stopping rule, the selection of an arm, and the anytime-valid reading at every
+look. The retained history of each replicate is read back under the declared
+procedure, so the scored numbers are those a consumer of the sealed contract
+recomputes.
+
+Five scenarios at 600, 1,200 and 2,400 participants (fifteen cases, each its own
+`#[ignore]` test named by the acceptance-manifest case it binds, registered in
+`scripts/gate_calibration.sh`, 2,000 replicates each):
+
+| Scenario | True means (control 0.4) | Correlation | Priors | Case-specific gate |
+| --- | --- | --- | --- | --- |
+| `null_effects` | all equal | 0.3 | uniform | false superiority at most 0.05 |
+| `near_ties` | +0, +0, +0.02, +0.03 | 0.3 | uniform | mean regret at most 0.02 |
+| `separated_effects` | +0, +0.05, +0.1, +0.2 | 0.3 | uniform | best-arm identification at least 0.6, 0.9, 0.99 |
+| `strong_correlation` | +0, +0.05, +0.1, +0.15 | 0.7 | uniform | none |
+| `misleading_priors` | +0, +0.05, +0.1, +0.15 | 0.3 | history 0.15 above each truth, 200 trials at discount 0.5 | none |
+
+Every case gates, at the manifest's frozen targets: a reporting rate of 1;
+simultaneous coverage of 0.93 or more of every arm's sequence at every look up to
+the stop, of the same at the stopping look, and of the selected arm's comparison
+with the control at every look and at the stop; and a median arm half-width at
+the stop of at most the case's frozen target. False superiority is a treatment
+comparison whose lower bound exceeds zero at any look.
+
+**Width targets are stated at the realized stopping size.** The expected-loss rule
+stops early by design (on average 27 to 89 percent of the plan is enrolled,
+depending on the scenario), so the width of the sequences at
+the stop follows the participants actually used, not the planned `N`. The targets
+(`max_median_cs_halfwidth`, between 0.10 and 0.315) were re-derived for the
+plug-in sequence by re-simulating the procedure at the stopping-look counts of
+the pilot runs (the stopping rule and the allocation do not read the sequence, so
+those counts are unchanged), taking the median over replicates of the mean arm
+half-width at the stop, adding a 20 percent margin and rounding up to 0.005; each
+case's `targets.target_change` in `parity/acceptance_manifest.toml` records its
+old and new value and this derivation. Coverage floors, replicate minimums and
+reporting rates are unchanged.
+
+**Coverage records.** Each case also emits two coverage records through the shared
+harness, at a nominal 0.95 and measured over the three-point sample-size grid
+around the case's participants (half, one and two times the case's `N`): every
+arm's mean covered at every look up to the stop, and the selected treatment's
+difference from the control covered at every look up to the stop. Both are
+conservative by construction and are recorded as one-sided floors, under
+`adaptive_measured_interval::participant_sequence_calibration_basis`. The
+coverage floors hold at every grid point; the precision, selection and sample-use
+targets are stated for the case's own participants and are asserted at the base
+point only.
+
+Each case prints one `adaptive_whole_procedure_summary` JSON line with the
+published measurements: the coverages above, the median and 90th-percentile arm
+half-width and the median selected-comparison width at the stop, the false
+superiority rate, the selection-error and best-arm-identification rates, mean
+regret, the stopping-look counts and stopping-reason fractions, and the mean
+participants enrolled and completed and the fraction of the plan used. These are
+measured properties of the simulation under the stated truth; they are not a
+coverage claim for any other design, and the claim stays `derived_unmeasured`
+until a record exists. The default suite checks the harness against scenarios
+with an exact answer (a recruitment cap fixing the stopping look and the sample
+used, an unmistakable best arm, the summary arithmetic, and agreement of the
+thresholds with the manifest).
+
 ## Artifacts
 
 * `adaptive_monitoring_contract_v1` holds the contract, the paradigm, the
-  boundaries of an alpha-spending rule and the observation accounting. A fresh
+  boundaries of an alpha-spending rule, the observation accounting and, for
+  the participant-level family, the procedure section above. A fresh
   consumer sees the procedure, the stopping rule and the paradigm, replays the
   contract and recomputes the derived values, and refuses a resealed edit.
 * `adaptive_inference_result_v1` embeds the monitoring contract and the
@@ -139,7 +426,12 @@ contract; any element may be `None` and is then refused by name),
 `GroupSequential`), `fixed_sample` (always refused for adaptive data), `interval`
 (always `cell_not_licensed`), `interim_evidence`, `export_contract`, `export_result`,
 `consume_adaptive_monitoring_contract_artifact`,
-`consume_adaptive_inference_result_artifact` and `procedure_matrix()`.
+`consume_adaptive_inference_result_artifact` and `procedure_matrix()`. The
+participant-level family is `ParticipantDeclaration` (with `ArmPrior`,
+`HistoricalPrior`, `ParticipantDecisions`, `FutilityRule`, `AnytimeSettings`),
+`ParticipantProcedure.declare`, `simulate` (with a work receipt and an optional
+`memory_bytes` budget), `simulate_history`, `read_history`, `amend_borrowing` and
+`prepare_session`, and `AdaptiveInferenceSession.export_contract_with_procedure`.
 
 ### Named Python readings
 

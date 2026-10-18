@@ -181,10 +181,24 @@ class ExternalCallbackSession:
         return bool(self._handle.is_live())
 
     def plan(
-        self, request: ExternalCallbackRequest, *, provider: CallbackProvider | None = None
+        self,
+        request: ExternalCallbackRequest,
+        *,
+        provider: CallbackProvider | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcPlan:
-        names, columns = _columns(request.data)
-        result, error = self._handle.plan(names, columns, request._wire(), provider is not None)
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
+        result, error = self._handle.plan(
+            names,
+            columns,
+            request._wire(),
+            provider is not None,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
+        )
         raise_refusal(error, ExternalCallbackRefusal)
         assert result is not None
         return RecalcPlan.from_wire(json.loads(result))
@@ -195,15 +209,19 @@ class ExternalCallbackSession:
         *,
         provider: CallbackProvider | None = None,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
         cancel: _native.CancellationToken | None = None,
     ) -> ExternalCallbackResult:
-        names, columns = _columns(request.data)
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         wire, receipt, claim, error = self._handle.execute(
             names,
             columns,
             request._wire(),
             None if provider is None else provider._handle,
             threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
             cancel=cancel,
         )
         raise_refusal(error, ExternalCallbackRefusal)
@@ -224,10 +242,24 @@ class ExternalCallbackSession:
         return bytes(result)
 
     @classmethod
-    def resume(cls, artifact: bytes, request: ExternalCallbackRequest) -> ExternalCallbackSession:
-        names, columns = _columns(request.data)
+    def resume(
+        cls,
+        artifact: bytes,
+        request: ExternalCallbackRequest,
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
+    ) -> ExternalCallbackSession:
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         handle, error = _native.ExternalCallbackSessionHandle.resume(
-            artifact, names, columns, request._wire()
+            artifact,
+            names,
+            columns,
+            request._wire(),
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
         )
         raise_refusal(error, ExternalCallbackRefusal)
         if handle is None:

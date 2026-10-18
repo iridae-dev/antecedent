@@ -167,6 +167,7 @@ CI_CLAIM = {
     "mixed_knn_dependence": "ci.knn_dependence",
     "symbolic_cmi": "ci.symbolic_cmi",
     "gpdc": "ci.gpdc",
+    "gpdc_nystrom": "ci.gpdc_nystrom",
     "bayes_factor": "ci.bayes",
     "bayes_factor_ci": "ci.bayes",
     "posterior_dependence": "ci.bayes",

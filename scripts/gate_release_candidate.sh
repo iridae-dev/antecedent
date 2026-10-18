@@ -13,8 +13,14 @@
 #   3. requires the composition and decision exit gates to have no pending calibration or
 #      implementation work, complete bounds documentation and final release claims
 #   4. runs Python lint/types and the full Python test suite
-#   5. builds one local wheel into a fresh directory, installs it into a fresh
-#      venv, and runs the full Python test suite against the installed wheel
+#   5. runs the release-only scale cases inside their frozen budgets, the
+#      release-closure receipts (scripts/check_release_closure.py: refusal
+#      boundaries, replay identity, practitioner scale, calibration replicates and
+#      confirmation, construction binding), the ready-coordinate calibration
+#      receipt and the closure self-tests
+#   6. builds one local wheel into a fresh directory, installs it into a fresh
+#      venv, and runs the documented examples and the full Python test suite
+#      against the installed wheel
 #
 #   CI_RUN_ID=<actions run id for HEAD> bash scripts/gate_release_candidate.sh
 #   bash scripts/gate_release_candidate.sh --self-test
@@ -38,6 +44,12 @@ ci_workflow() {
 # this gate and gate_parity_schema.sh read the key through one reader.
 required_jobs() {
   ci_workflow required-jobs
+}
+
+# The CI-run acceptance rule and the self-tests that pin it (a run must be on this
+# SHA with every display name of every required job green).
+ci_workflow_tests() {
+  uv run --quiet --project python --only-group dev python scripts/test_ci_workflow.py
 }
 
 # check_ci_run RUN_JSON HEAD_SHA — the one acceptance rule for a CI run.
@@ -150,6 +162,19 @@ echo "== release candidate: strict bounds and final claims =="
 python3 scripts/check_limits_agreement.py --strict
 python3 scripts/check_release_claims.py --final
 
+echo "== release candidate: release-only scale cases within their frozen budgets =="
+bash scripts/gate_scale_cases.sh
+
+echo "== release candidate: release-closure receipts =="
+python3 scripts/check_release_closure.py
+python3 scripts/generate_calibration_backlog.py --require-measured
+python3 scripts/check_acceptance_manifest.py --self-test
+python3 scripts/test_check_acceptance_manifest.py
+python3 scripts/test_check_release_closure.py
+python3 scripts/test_generate_calibration_backlog.py
+python3 scripts/run_scale_cases.py --self-test
+ci_workflow_tests
+
 echo "== release candidate: Python lint / types =="
 bash scripts/gate_python_lint.sh
 
@@ -180,6 +205,8 @@ echo "== release candidate: local wheel, full suite against the installed wheel 
   # Run outside python/ so the source tree cannot shadow the installed wheel.
   cd "$run_dir"
   "$venv_dir/venv/bin/python" "$ROOT/scripts/gate_release_candidate_2.py" "$venv_dir"
+  # Every documented snippet and embedded example, from the installed wheel.
+  "$venv_dir/venv/bin/python" "$ROOT/scripts/run_doc_examples.py"
   "$venv_dir/venv/bin/python" -m pytest -q -p no:cacheprovider "$ROOT/python/tests"
 )
 

@@ -223,6 +223,7 @@ fn cross_world_decide(
             model,
             &[
                 ("finite_markovian_scm", M::FiniteMarkovianScm),
+                ("finite_shared_exogenous_scm", M::FiniteSharedExogenousScm),
                 ("additive_linear_two_slice", M::AdditiveLinearTwoSlice),
                 ("additive_linear_static_transported", M::AdditiveLinearStaticTransported),
                 ("semi_markovian", M::SemiMarkovian),

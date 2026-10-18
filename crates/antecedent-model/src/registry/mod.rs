@@ -21,6 +21,7 @@ use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
 use crate::compile::{CompiledCausalModel, CompiledMechanismStore, MechanismSlot};
 use crate::error::ModelError;
+use crate::mechanism::NoiseInferenceMode;
 
 /// Candidate mechanism family known to the registry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -55,6 +56,25 @@ pub enum MechanismFamily {
     LinearGaussianStateSpace,
     /// Gaussian-process regression mechanism (feature `gaussian-process`).
     GaussianProcess,
+    /// Gradient-boosted-tree conditional mean with homoscedastic Gaussian noise.
+    ///
+    /// `y = f(pa) + ε`, `ε ~ N(0, σ²)`, `f` a boosted ensemble and `σ` the
+    /// root-mean-square of its out-of-fold residuals. Invertible. Needs the
+    /// `ml-gbdt` feature to fit.
+    TreeBoostedAdditive,
+    /// Random-forest conditional mean with homoscedastic Gaussian noise; the
+    /// same noise model as [`Self::TreeBoostedAdditive`]. Needs the `ml-forest`
+    /// feature to fit.
+    TreeForestAdditive,
+    /// Categorical outcome whose class probabilities come from boosted-tree
+    /// classifiers (one-vs-rest, renormalised; one classifier for a binary
+    /// outcome). `U(0,1)` noise through the inverse CDF, posterior abduction.
+    /// Needs the `ml-gbdt` feature to fit.
+    TreeBoostedCategorical,
+    /// Categorical outcome with random-forest class probabilities; the same
+    /// noise model as [`Self::TreeBoostedCategorical`]. Needs the `ml-forest`
+    /// feature to fit.
+    TreeForestCategorical,
 }
 
 impl MechanismFamily {
@@ -81,7 +101,11 @@ impl MechanismFamily {
             | Self::LinearInteractions
             | Self::LinearSpline
             | Self::DiscreteInteractions
-            | Self::DiscreteSpline => true,
+            | Self::DiscreteSpline
+            | Self::TreeBoostedAdditive
+            | Self::TreeForestAdditive
+            | Self::TreeBoostedCategorical
+            | Self::TreeForestCategorical => true,
             Self::LinearGaussian
             | Self::Constant
             | Self::HierarchicalLinear
@@ -109,12 +133,80 @@ impl MechanismFamily {
             | Self::Bvar
             | Self::GaussianProcess
             | Self::LinearInteractions
-            | Self::LinearSpline => true,
+            | Self::LinearSpline
+            | Self::TreeBoostedAdditive
+            | Self::TreeForestAdditive => true,
             Self::Discrete
             | Self::HierarchicalGlm
             | Self::DiscreteInteractions
             | Self::DiscreteSpline
+            | Self::TreeBoostedCategorical
+            | Self::TreeForestCategorical
             | Self::LinearGaussianStateSpace => false,
+        }
+    }
+
+    /// Whether this family models a categorical outcome (a CDF-bin noise).
+    #[must_use]
+    pub const fn is_categorical(self) -> bool {
+        matches!(
+            self,
+            Self::Discrete
+                | Self::DiscreteInteractions
+                | Self::DiscreteSpline
+                | Self::HierarchicalGlm
+                | Self::TreeBoostedCategorical
+                | Self::TreeForestCategorical
+        )
+    }
+
+    /// Whether this family models a real-valued outcome. [`Self::Constant`]
+    /// fits either, so it is neither categorical nor continuous.
+    #[must_use]
+    pub const fn is_continuous(self) -> bool {
+        !self.is_categorical() && !matches!(self, Self::Constant)
+    }
+
+    /// How counterfactual abduction recovers this family's exogenous noise.
+    ///
+    /// The disclosure carried by every result computed from a node of this
+    /// family: [`NoiseInferenceMode::Invertible`] for an additive disturbance
+    /// (exact residual), [`NoiseInferenceMode::Posterior`] for a CDF-bin noise
+    /// (a draw from the observed category's bin, which rests on rank
+    /// preservation of the noise across parent settings).
+    #[must_use]
+    pub const fn noise_inference_mode(self) -> NoiseInferenceMode {
+        if self.is_categorical() {
+            NoiseInferenceMode::Posterior
+        } else {
+            NoiseInferenceMode::Invertible
+        }
+    }
+
+    /// Whether a node of this family participates in noise-based attribution
+    /// (anomaly, Shapley, distribution-change): it samples, evaluates, abduces
+    /// noise and names a reference noise value. True for every registered
+    /// family; a categorical family is attributable under the posterior-noise
+    /// assumption its [`Self::noise_inference_mode`] discloses.
+    #[must_use]
+    pub const fn attribution_compatible(self) -> bool {
+        match self {
+            Self::LinearGaussian
+            | Self::Constant
+            | Self::Discrete
+            | Self::LinearInteractions
+            | Self::LinearSpline
+            | Self::DiscreteInteractions
+            | Self::DiscreteSpline
+            | Self::HierarchicalLinear
+            | Self::HierarchicalGlm
+            | Self::Bvar
+            | Self::LinearGaussianStateSpace
+            | Self::GaussianProcess
+            | Self::TreeBoostedAdditive
+            | Self::TreeForestAdditive
+            | Self::TreeBoostedCategorical
+            | Self::TreeForestCategorical => true,
         }
     }
 }
@@ -128,6 +220,12 @@ pub struct MechanismCandidate {
     /// folds) less a `k ln n / 2n` parameter-count penalty; higher is better. Differences
     /// between families are free of the outcome's units. A degenerate `Constant` scores `0`.
     pub score: f64,
+    /// Mean held-out predictive log-likelihood before the complexity penalty (nats per
+    /// row, on the same folds for every candidate of the node).
+    pub held_out_log_likelihood: f64,
+    /// The `k ln n / 2n` charge subtracted from the held-out log-likelihood to give
+    /// [`Self::score`].
+    pub complexity_penalty: f64,
     /// Estimated fit cost (relative).
     pub fit_cost: f64,
     /// Estimated evaluation cost (relative).
@@ -151,6 +249,9 @@ pub struct MechanismAssignment {
     pub fitted: MechanismSlot,
     /// Families that failed to score/fit, with error messages.
     pub failed_families: Arc<[(MechanismFamily, String)]>,
+    /// Candidate set, split scheme, seed and rule that produced the scores and the
+    /// selection.
+    pub provenance: SelectionProvenance,
 }
 
 /// Which rule decided that a node draws its mechanism from the discrete or the
@@ -167,6 +268,18 @@ pub enum MechanismTyping {
     LowCardinality,
     /// Continuous mechanism families.
     Continuous,
+}
+
+impl MechanismTyping {
+    /// Stable id of the rule that typed the node.
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::DeclaredDiscrete => "declared_discrete",
+            Self::LowCardinality => "low_cardinality",
+            Self::Continuous => "continuous",
+        }
+    }
 }
 
 /// Most distinct values a column not declared discrete may take and still be
@@ -214,6 +327,10 @@ const fn mechanism_family_id(family: MechanismFamily) -> &'static str {
         MechanismFamily::Bvar => "bvar",
         MechanismFamily::LinearGaussianStateSpace => "lgssm",
         MechanismFamily::GaussianProcess => "gaussian_process",
+        MechanismFamily::TreeBoostedAdditive => "tree_boosted_additive",
+        MechanismFamily::TreeForestAdditive => "tree_forest_additive",
+        MechanismFamily::TreeBoostedCategorical => "tree_boosted_categorical",
+        MechanismFamily::TreeForestCategorical => "tree_forest_categorical",
     }
 }
 
@@ -247,6 +364,35 @@ impl MechanismRegistry {
                 MechanismFamily::Discrete,
                 MechanismFamily::DiscreteInteractions,
                 MechanismFamily::DiscreteSpline,
+                MechanismFamily::Constant,
+            ]),
+        }
+    }
+
+    /// Standard families plus the nonlinear ones: the cubic-spline expansions and
+    /// the tree ensembles (boosted and forest regressions for continuous nodes,
+    /// boosted and forest classifiers for categorical nodes).
+    ///
+    /// Candidates compete on the shared held-out criterion, so a flexible family
+    /// wins only where it predicts rows it did not fit; the simpler family leads
+    /// the listing and wins exact ties. The tree families need the `ml-gbdt` /
+    /// `ml-forest` features to fit; without a provider they are recorded among
+    /// the failed families instead of silently dropped.
+    #[must_use]
+    pub fn with_nonlinear_families() -> Self {
+        Self {
+            continuous: Arc::from(vec![
+                MechanismFamily::LinearGaussian,
+                MechanismFamily::LinearSpline,
+                MechanismFamily::TreeBoostedAdditive,
+                MechanismFamily::TreeForestAdditive,
+                MechanismFamily::Constant,
+            ]),
+            discrete: Arc::from(vec![
+                MechanismFamily::Discrete,
+                MechanismFamily::DiscreteSpline,
+                MechanismFamily::TreeBoostedCategorical,
+                MechanismFamily::TreeForestCategorical,
                 MechanismFamily::Constant,
             ]),
         }
@@ -390,11 +536,58 @@ impl MechanismRegistry {
         policy: SelectionPolicy,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
+        self.assign_and_fit_with_polled(
+            model,
+            data,
+            policy,
+            &SelectionOptions::default(),
+            cancelled,
+        )
+    }
+
+    /// [`Self::assign_and_fit`] with per-node family constraints and a declared
+    /// validation-split scheme. With [`SelectionOptions::default`] it is exactly
+    /// [`Self::assign_and_fit`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::assign_and_fit`], plus [`ModelError::InvalidSelection`] for a
+    /// constraint or split declaration the model or data cannot honour, and
+    /// [`ModelError::RequiredFamilyUnavailable`] when a required family fails.
+    pub fn assign_and_fit_with(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        policy: SelectionPolicy,
+        options: &SelectionOptions,
+    ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
+        self.assign_and_fit_with_polled(model, data, policy, options, &|| false)
+    }
+
+    /// [`Self::assign_and_fit_with`] that polls `cancelled` as
+    /// [`Self::assign_and_fit_polled`] does.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::assign_and_fit_with`], and [`ModelError::Cancelled`].
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one pass per node: resolve candidates, score each, select, record provenance"
+    )]
+    pub fn assign_and_fit_with_polled(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        policy: SelectionPolicy,
+        options: &SelectionOptions,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
         let n = model.n_nodes();
         let nrows = data.row_count();
         if nrows == 0 {
             return Err(ModelError::Shape { message: "empty data for mechanism fit".into() });
         }
+        validate_constraints(model, options)?;
         let mut slots = vec![MechanismSlot::Vacant; n];
         let mut assignments = Vec::with_capacity(n);
         let backend = FaerBackend;
@@ -406,17 +599,21 @@ impl MechanismRegistry {
             let var = model.output_layout.variables[node.as_usize()];
             let y = data.float64_cow(var).map_err(ModelError::from)?;
             let typing = classify_node(data, var, &y);
-            let families: &[MechanismFamily] = if typing == MechanismTyping::Continuous {
+            let registry_list: &[MechanismFamily] = if typing == MechanismTyping::Continuous {
                 &self.continuous
             } else {
                 &self.discrete
             };
-            let frame = FitFrame::from_data(gather, model, data, y.len())?;
+            let constraint = options.constraint_for(var);
+            let families = resolve_candidates(registry_list, typing, constraint, var)?;
+            let frame =
+                FitFrame::from_data(gather, model, data, y.len())?.with_splits(options.splits);
+            let plan = frame.split_plan()?;
 
             let mut candidates = Vec::new();
             let mut fits: Vec<(MechanismFamily, MechanismSlot)> = Vec::new();
             let mut failed = Vec::new();
-            for &family in families {
+            for &family in &families {
                 poll(cancelled)?;
                 match score_family(family, &frame, &y, backend, &mut ls_ws, cancelled) {
                     // A non-finite score is not a low score: it is the family's own admissibility
@@ -438,7 +635,7 @@ impl MechanismRegistry {
             if candidates.is_empty() {
                 let detail = failed
                     .iter()
-                    .map(|(f, e)| format!("{f:?}: {e}"))
+                    .map(|(f, e)| format!("{}: {e}", f.id()))
                     .collect::<Vec<_>>()
                     .join("; ");
                 return Err(ModelError::Unsupported {
@@ -451,8 +648,32 @@ impl MechanismRegistry {
             // the order is total; exact ties keep the registry's listing order, which lists
             // the simpler family first.
             candidates.sort_by(|a, b| b.score.total_cmp(&a.score));
-            let selected = policy.select(&candidates).ok_or_else(|| ModelError::Unsupported {
-                message: "selection policy produced no family".into(),
+            let (node_policy, rule) = match constraint.and_then(|c| c.required) {
+                Some(family) => (
+                    SelectionPolicy::RequireFamily(family),
+                    SelectionRule::RequiredByNodeConstraint,
+                ),
+                None => match policy {
+                    SelectionPolicy::BestScore => (policy, SelectionRule::BestScore),
+                    SelectionPolicy::RequireFamily(_) => (policy, SelectionRule::RequiredByPolicy),
+                },
+            };
+            let selected = node_policy.select(&candidates).ok_or_else(|| match node_policy {
+                SelectionPolicy::RequireFamily(required) => {
+                    let reason = failed
+                        .iter()
+                        .find(|(f, _)| *f == required)
+                        .map_or("not among the node's candidates", |(_, reason)| reason.as_str());
+                    ModelError::RequiredFamilyUnavailable {
+                        message: format!(
+                            "variable {var}: family {} could not be scored ({reason})",
+                            required.id()
+                        ),
+                    }
+                }
+                SelectionPolicy::BestScore => ModelError::Unsupported {
+                    message: "selection policy produced no family".into(),
+                },
             })?;
             // The scoring fit for the selected family is the fit (same inputs,
             // deterministic solvers); reuse it instead of refitting from scratch.
@@ -471,11 +692,40 @@ impl MechanismRegistry {
                 typing,
                 fitted,
                 failed_families: Arc::from(failed),
+                provenance: SelectionProvenance {
+                    splits: options.splits,
+                    folds: plan.folds,
+                    n_rows: nrows,
+                    seed: plan.seed,
+                    candidate_set: Arc::from(families),
+                    rule,
+                    constraint: constraint.cloned(),
+                },
             });
         }
 
         Ok((CompiledMechanismStore { slots: Arc::from(slots) }, assignments))
     }
+}
+
+/// Refuse constraints that name a variable outside the model or repeat one.
+fn validate_constraints(
+    model: &CompiledCausalModel,
+    options: &SelectionOptions,
+) -> Result<(), ModelError> {
+    for (i, (variable, _)) in options.constraints.iter().enumerate() {
+        if !model.output_layout.variables.contains(variable) {
+            return Err(ModelError::InvalidSelection {
+                message: format!("constraint names variable {variable}, which is not in the model"),
+            });
+        }
+        if options.constraints[..i].iter().any(|(v, _)| v == variable) {
+            return Err(ModelError::InvalidSelection {
+                message: format!("variable {variable} has more than one constraint"),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// How to pick among scored candidates (no silent fallback).
@@ -505,10 +755,16 @@ impl SelectionPolicy {
 mod cv;
 mod fit;
 mod select;
+mod selection;
+
+pub use selection::{
+    NodeFamilyConstraint, SelectionOptions, SelectionProvenance, SelectionRule, ValidationSplits,
+};
 
 use cv::{FitFrame, poll, score_family};
 use fit::{FitSource, fit_family_weighted};
 use select::classify_node;
+use selection::resolve_candidates;
 
 #[cfg(feature = "gaussian-process")]
 pub use fit::GP_FAMILY_MAX_ROWS;

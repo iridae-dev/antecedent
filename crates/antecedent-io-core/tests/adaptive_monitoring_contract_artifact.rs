@@ -15,7 +15,7 @@ use antecedent_contract::adaptive_design::{
 use antecedent_core::SemanticDigest;
 use antecedent_io_core::adaptive_monitoring_contract_artifact::{
     ADAPTIVE_MONITORING_CONTRACT_FEATURE, AdaptiveMonitoringContractArtifact,
-    AdaptiveMonitoringContractError,
+    AdaptiveMonitoringContractError, declaration_from_wire, declaration_to_wire,
 };
 
 type Artifact = AdaptiveMonitoringContractArtifact;
@@ -77,6 +77,30 @@ fn thompson() -> AdaptiveDesignDeclaration {
         ended_by_rule: true,
     });
     declaration
+}
+
+#[test]
+fn a_futility_rule_travels_through_the_wire_with_both_parameters() {
+    let mut declaration = thompson();
+    declaration.cell.stopping = StoppingRuleKind::Futility;
+    declaration.stopping_rule = Some(StoppingRuleDeclaration {
+        kind: StoppingRuleKind::Futility,
+        spec: StoppingSpec::PosteriorFutility { margin: 0.05, threshold: 0.1 },
+        ended_by_rule: true,
+    });
+    let wire = declaration_to_wire(&declaration);
+    let rule = wire.stopping_rule.as_ref().expect("the rule is on the wire");
+    assert_eq!(rule.spec, "posterior_futility");
+    assert_eq!(rule.parameter_bits, Some(0.05_f64.to_bits()));
+    assert_eq!(rule.second_parameter_bits, Some(0.1_f64.to_bits()));
+    assert_eq!(declaration_from_wire(&wire).expect("reads back"), declaration);
+    // A futility rule that lost its second parameter is not a rule.
+    let mut broken = wire;
+    broken.stopping_rule.as_mut().unwrap().second_parameter_bits = None;
+    assert!(declaration_from_wire(&broken).is_err());
+    // Futility boundaries stay carried forward: the cell cannot be sealed for any paradigm.
+    let source = contract(declaration);
+    assert!(Artifact::seal(&source, InferenceParadigm::BayesianPosterior).is_err());
 }
 
 fn contract(declaration: AdaptiveDesignDeclaration) -> AdaptiveDesignContract {

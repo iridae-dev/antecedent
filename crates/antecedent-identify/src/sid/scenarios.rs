@@ -81,7 +81,11 @@ use super::{
 
 /// Scenarios in one set.
 pub const SCENARIO_MAX_COUNT: usize = 64;
-/// Observed variables in each scenario graph.
+/// Observed variables in each scenario graph under the earlier fixed ceiling.
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced: scenario graphs of any size are admitted"
+)]
 pub const SCENARIO_MAX_OBSERVED: usize = 12;
 /// Tolerance on declared weights summing to at most one.
 pub const SCENARIO_WEIGHT_TOLERANCE: f64 = 1e-12;
@@ -296,25 +300,34 @@ impl TransportScenarioSet {
     /// for disagreeing coordinates, `route_not_supported` for an exceeded bound,
     /// and `invalid_argument` otherwise.
     pub fn try_new(scenarios: Vec<TransportScenario>) -> Result<Self, ScenarioSetRefusal> {
+        Self::try_new_within(scenarios, SCENARIO_MAX_COUNT)
+    }
+
+    /// [`Self::try_new`] with the scenario count bounded by `max_scenarios` instead of
+    /// [`SCENARIO_MAX_COUNT`]. The 64-scenario bound limits a *supplied* list; a set derived
+    /// from an enumerated equivalence class is already bounded by the budget that charged
+    /// each completion's memory, so that route passes `usize::MAX`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::try_new`], with `scenarios.count` above `max_scenarios`.
+    pub fn try_new_within(
+        scenarios: Vec<TransportScenario>,
+        max_scenarios: usize,
+    ) -> Result<Self, ScenarioSetRefusal> {
         use ScenarioSetRefusal as R;
         if scenarios.is_empty() {
             return Err(R::invalid("scenarios.empty", "a scenario set needs a scenario"));
         }
-        if scenarios.len() > SCENARIO_MAX_COUNT {
+        if scenarios.len() > max_scenarios {
             return Err(R::bound(
                 "scenarios.count",
-                format!("{} scenarios exceed the bound of {SCENARIO_MAX_COUNT}", scenarios.len()),
+                format!("{} scenarios exceed the bound of {max_scenarios}", scenarios.len()),
             ));
         }
         let mut scenarios = scenarios;
         scenarios.sort_by(|a, b| a.name.cmp(&b.name));
         let first = scenarios[0].diagram.causal_graph();
-        if first.node_count() > SCENARIO_MAX_OBSERVED {
-            return Err(R::bound(
-                "scenarios.observed_count",
-                format!("more than {SCENARIO_MAX_OBSERVED} observed variables"),
-            ));
-        }
         // A schema declares static variables only, so a graph with any other
         // node kind fails the schema check below.
         let variables = first.nodes().iter().copied().collect::<BTreeSet<_>>();

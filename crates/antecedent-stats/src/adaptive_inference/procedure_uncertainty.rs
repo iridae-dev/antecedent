@@ -132,10 +132,13 @@ fn check_paradigm(spec: &ProcedureSpec, paradigm: UncertaintyParadigm) -> Result
                     "a posterior expected loss from observed counts is not valid when loss of outcomes depends on their values",
                 ));
             }
-            if !matches!(spec.stopping(), StoppingRule::PosteriorExpectedLoss { .. }) {
+            if !matches!(
+                spec.stopping(),
+                StoppingRule::PosteriorExpectedLoss { .. } | StoppingRule::PosteriorFutility { .. }
+            ) {
                 return Err(premise(
                     "adaptive_inference.rule_mismatch",
-                    "decision-theoretic stopping needs a posterior expected-loss rule",
+                    "decision-theoretic stopping needs a posterior expected-loss or futility rule",
                 ));
             }
         }

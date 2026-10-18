@@ -112,22 +112,33 @@ impl BootstrapRefute {
         // Rebuilding lags on a block-resampled raw series would pair, at every
         // block junction, an outcome with regressors from an unrelated block, so a
         // refitter without lag-aligned evaluation is not checked at all.
-        let Some(aligned) = problem.effect_refit.and_then(|r| r.prepare_aligned(problem.data, ctx))
+        let Some(aligned) =
+            problem.effect_refit.and_then(|r| r.prepare_aligned_windows(problem.data, ctx))
         else {
             return Err(ValidationError::NotApplicable {
                 message: "composed refitter has no lag-aligned evaluation; a block bootstrap \
                           of the raw series would misalign lags at block junctions",
             });
         };
-        let mut aligned = aligned?;
-        let boot = antecedent_estimate::row_block_bootstrap_vec(
-            aligned.rows,
-            aligned.block_length,
-            self.replicates,
-            BOOTSTRAP_REFUTE_STREAM,
-            ctx,
-            |rows| (aligned.estimate)(rows).map(|value| vec![value]),
-        );
+        let (mut aligned, window_complete) = aligned?;
+        let boot = match window_complete.as_deref() {
+            Some(complete) => antecedent_estimate::gapped_row_block_bootstrap(
+                complete,
+                aligned.block_length,
+                self.replicates,
+                BOOTSTRAP_REFUTE_STREAM,
+                ctx,
+                |rows| (aligned.estimate)(rows).map(|value| vec![value]),
+            ),
+            None => antecedent_estimate::row_block_bootstrap_vec(
+                aligned.rows,
+                aligned.block_length,
+                self.replicates,
+                BOOTSTRAP_REFUTE_STREAM,
+                ctx,
+                |rows| (aligned.estimate)(rows).map(|value| vec![value]),
+            ),
+        };
         if boot.cancelled {
             return Err(ValidationError::Cancelled);
         }
@@ -163,6 +174,10 @@ impl BootstrapRefute {
             antecedent_data::TimeSeriesData::try_new(problem.data.storage().clone(), time.clone())?;
         let estimator = antecedent_estimate::TemporalLinearAdjustment::new()
             .with_inner(forced_refit_estimator(&self.estimator));
+        if temporal.gaps {
+            return self
+                .refute_gapped_series(problem, temporal, &series, &estimator, workspace, ctx);
+        }
         let (prep, rows) = estimator
             .prepare_aligned(
                 &series,
@@ -241,6 +256,76 @@ impl BootstrapRefute {
             self.replicates,
             scale,
             stand_in,
+        ))
+    }
+
+    /// One-series temporal adjustment on a series with gaps: circular blocks on the original
+    /// window axis (a block never joins windows across a gap), each replicate refitting the
+    /// intact windows its blocks cover. The block length is the structural rule on the window
+    /// axis, and no kernel-bias widening is applied (it is defined for consecutive scores).
+    fn refute_gapped_series(
+        &self,
+        problem: &RefutationProblem<'_>,
+        temporal: &crate::common::TemporalRefitContext<'_>,
+        series: &antecedent_data::TimeSeriesData,
+        estimator: &antecedent_estimate::TemporalLinearAdjustment,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<RefutationReport, ValidationError> {
+        let inputs = antecedent_estimate::TemporalDesignInputs {
+            data: series,
+            estimand: problem.estimand,
+            query: temporal.temporal_query,
+            indexer: temporal.indexer,
+            split: temporal.split,
+            policy: temporal.kernel_policy,
+        };
+        let (prep, selection) =
+            estimator.prepare_with_gaps_extras(&inputs, &[]).map_err(ValidationError::from)?;
+        let rows = prep.design.nrows;
+        let p = prep.design.ncols;
+        let span =
+            (temporal.indexer.history() as usize + temporal.indexer.horizon() as usize).max(1);
+        let block = antecedent_data::circular_block_length(span, selection.complete.len());
+        let all_rows: Vec<usize> = (0..rows).collect();
+        let mut x_full = vec![0.0; rows * p];
+        let mut y_full = vec![0.0; rows];
+        let full = estimator
+            .inner
+            .ate_on_row_indices_into(&prep, workspace, &all_rows, &mut x_full, &mut y_full)
+            .map_err(ValidationError::from)?;
+        let boot = antecedent_estimate::gapped_row_block_bootstrap(
+            &selection.complete,
+            block,
+            self.replicates,
+            BOOTSTRAP_REFUTE_STREAM,
+            ctx,
+            |row_src| {
+                if row_src.len() <= p {
+                    return None;
+                }
+                let mut x_boot = vec![0.0; row_src.len() * p];
+                let mut y_boot = vec![0.0; row_src.len()];
+                estimator
+                    .inner
+                    .ate_on_row_indices_into(&prep, workspace, row_src, &mut x_boot, &mut y_boot)
+                    .ok()
+                    .map(|ate| vec![ate])
+            },
+        );
+        if boot.cancelled {
+            return Err(ValidationError::Cancelled);
+        }
+        require_survivors(boot.draws.len(), self.replicates)?;
+        let scale = boot.fixed_b();
+        Ok(coverage_report(
+            problem,
+            boot.column(0),
+            full,
+            self.ci_level,
+            self.replicates,
+            scale,
+            None,
         ))
     }
 

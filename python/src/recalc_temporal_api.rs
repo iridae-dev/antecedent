@@ -1,29 +1,92 @@
 //! Checked empirical two-step history adapter; dependent intervals remain closed.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use crate::recalc_api::{RunPayload, context, invalid, parse_json, refusal_json};
+use crate::recalc_api::{RunPayload, bounded_context, context, invalid, parse_json, refusal_json};
+use crate::recalc_bounds::check_values;
 use crate::recalc_family_api::{caps, payload, resume, run_error};
 use antecedent::analysis::recalc_receipt::RecalcRunError;
 use antecedent::analysis::recalc_temporal::{
     TemporalOutcome, TemporalRequest, TemporalRunError, TemporalSession,
     consume_temporal_recalc_artifact, execute_temporal_with_receipt,
 };
+use antecedent_core::ExecutionContext;
 use antecedent_io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire, plan_to_wire};
+use antecedent_io::temporal_recalc_artifact::{TemporalHistoryWire, TemporalUnitWire};
+use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
 #[cfg(feature = "calibration-internal")]
 mod candidate;
 
-fn request(text: &str) -> PyResult<TemporalRequest> {
-    let request: TemporalRequest = parse_json(text, "temporal histories")?;
-    if request.units.len() > 4096
-        || request
-            .units
-            .iter()
-            .try_fold(0usize, |n, u| n.checked_add(u.histories.len()))
-            .is_none_or(|n| n > 100_000)
-    {
-        return Err(invalid("recalc.limits_exceeded", "temporal units/history rows exceed bounds"));
+/// Numbers carried by one history window: its time id and five binary states.
+const HISTORY_VALUES: usize = 6;
+
+/// Histories as columns: per unit its id and number of windows, then per window its time id, the
+/// four binary states and the outcome. Units own consecutive windows in the order given.
+type HistoryColumns<'py> = (
+    PyReadonlyArray1<'py, u64>,
+    PyReadonlyArray1<'py, u64>,
+    PyReadonlyArray1<'py, u64>,
+    PyReadonlyArray1<'py, u32>,
+    PyReadonlyArray1<'py, u32>,
+    PyReadonlyArray1<'py, u32>,
+    PyReadonlyArray1<'py, u32>,
+    PyReadonlyArray1<'py, f64>,
+);
+
+fn request(
+    text: &str,
+    histories: &HistoryColumns<'_>,
+    ctx: &ExecutionContext,
+) -> PyResult<TemporalRequest> {
+    let (unit_ids, unit_lengths, time_ids, s0, a1, l2, a2, y) = histories;
+    let mut request: TemporalRequest = parse_json(text, "temporal histories")?;
+    if !request.units.is_empty() {
+        return Err(invalid(
+            "recalc.invalid_declaration",
+            "temporal histories travel as columns, not in the declaration",
+        ));
     }
+    let (unit_ids, unit_lengths) = (unit_ids.as_array(), unit_lengths.as_array());
+    let (time_ids, y) = (time_ids.as_array(), y.as_array());
+    let states = [s0.as_array(), a1.as_array(), l2.as_array(), a2.as_array()];
+    let rows = time_ids.len();
+    let total = unit_lengths
+        .iter()
+        .try_fold(0usize, |n, &len| usize::try_from(len).ok().and_then(|len| n.checked_add(len)));
+    if unit_ids.len() != unit_lengths.len()
+        || y.len() != rows
+        || states.iter().any(|column| column.len() != rows)
+        || total != Some(rows)
+    {
+        return Err(invalid(
+            "recalc.invalid_declaration",
+            "history columns must agree with the per-unit window counts",
+        ));
+    }
+    let values = rows
+        .checked_mul(HISTORY_VALUES)
+        .and_then(|n| n.checked_add(unit_ids.len().checked_mul(2)?));
+    check_values(values, 0, ctx)?;
+    let mut next = 0usize;
+    request.units = unit_ids
+        .iter()
+        .zip(unit_lengths)
+        .map(|(&unit_id, &len)| {
+            let end = next + usize::try_from(len).unwrap_or(0);
+            let histories = (next..end)
+                .map(|i| TemporalHistoryWire {
+                    time_id: time_ids[i],
+                    s0: states[0][i],
+                    a1: states[1][i],
+                    l2: states[2][i],
+                    a2: states[3][i],
+                    y: y[i],
+                })
+                .collect();
+            next = end;
+            TemporalUnitWire { unit_id, histories }
+        })
+        .collect();
     Ok(request)
 }
 fn error(error: &TemporalRunError) -> String {
@@ -288,25 +351,37 @@ impl PyTemporalSession {
         serde_json::to_string(&CapabilitiesWire::from_capabilities(&caps(self.inner.boundary())))
             .map_err(crate::py_msg)
     }
-    #[pyo3(signature=(specification,*,seed=1,threads=None))]
-    fn plan(&self, specification: &str, seed: u64, threads: Option<u32>) -> PyResult<String> {
-        let request = request(specification)?;
-        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &context(seed, threads))))
+    #[pyo3(signature=(specification,histories,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    fn plan(
+        &self,
+        specification: &str,
+        histories: HistoryColumns<'_>,
+        seed: u64,
+        threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = request(specification, &histories, &ctx)?;
+        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &ctx)))
             .map_err(crate::py_msg)
     }
-    #[pyo3(signature=(specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(specification,histories,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
     fn execute(
         &mut self,
         py: Python<'_>,
         specification: &str,
+        histories: HistoryColumns<'_>,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<RunPayload> {
-        let request = request(specification)?;
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = request(specification, &histories, &ctx)?;
         let previous = self.inner.identities().clone();
         let capabilities = caps(self.inner.boundary());
         let mut session = std::mem::take(&mut self.inner);
-        let ctx = context(seed, threads);
         let (session, ran) = crate::detach_catch(py, move || {
             let ran = execute_temporal_with_receipt(&mut session, &request, &ctx);
             Ok((session, ran))

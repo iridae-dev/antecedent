@@ -485,7 +485,18 @@ def test_temporal_dag_full_refute_completes_with_data_subset_refuter(graph, quer
     _assert_data_subset_refuter(estimated)
 
 
-def test_pag_analyze_refuses_column_order_mismatch():
+def _outcome(data, graph, query):
+    """Estimate, or the refusal type and message when the cell refuses."""
+    try:
+        result = antecedent.analyze(
+            data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
+        )
+    except Exception as error:  # noqa: BLE001 - the refusal itself is compared
+        return type(error), str(error)
+    return repr(result.estimate.ate), repr(result.estimate.se_analytic)
+
+
+def test_pag_analyze_matches_columns_by_name_not_position():
     pag = antecedent.Pag.from_marked_edges(
         ["z", "t", "y"],
         [
@@ -494,22 +505,18 @@ def test_pag_analyze_refuses_column_order_mismatch():
             ("t", "y", "tail", "arrow"),
         ],
     )
-    with pytest.raises(ValueError, match="must match data column names and order"):
-        antecedent.analyze(_ATE_DATA, graph=pag, query=_ATE, refute=False, bootstrap=0, seed=1)
-    with pytest.raises(ValueError, match="must match data column names and order"):
-        antecedent.estimation.PreparedAnalysis.prepare(
-            _ATE_DATA, graph=pag, query=_ATE, refute=False, seed=1, latency="interactive"
-        )
+    ordered = {name: _ATE_DATA[name] for name in ("z", "t", "y")}
+    assert list(_ATE_DATA) != list(ordered)
+    assert _outcome(_ATE_DATA, pag, _ATE) == _outcome(ordered, pag, _ATE)
 
 
-def test_admg_analyze_refuses_column_order_mismatch():
+def test_admg_analyze_matches_columns_by_name_not_position():
     admg = antecedent.Admg.from_edges(
         ["m", "t", "y"], [("t", "m"), ("m", "y")], bidirected=[("t", "y")]
     )
-    with pytest.raises(ValueError, match="must match data column names and order"):
-        antecedent.analyze(
-            _ADMG_DATA, graph=admg, query=_ADMG_ATE, refute=False, bootstrap=0, seed=1
-        )
+    ordered = {name: _ADMG_DATA[name] for name in ("m", "t", "y")}
+    assert list(_ADMG_DATA) != list(ordered)
+    assert _outcome(_ADMG_DATA, admg, _ADMG_ATE) == _outcome(ordered, admg, _ADMG_ATE)
 
 
 def test_licensed_graph_posterior_prepare_matches_analyze():

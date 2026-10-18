@@ -10,7 +10,12 @@ from typing import Any, ParamSpec, TypeVar, cast
 
 import numpy as np
 
-from ._columns import _data_column_map, collect_column_names, resolve_columns
+from ._columns import (
+    _data_column_map,
+    collect_column_names,
+    guard_identifiers,
+    resolve_columns,
+)
 from ._freeze import freeze
 from .errors import CausalValueError
 
@@ -85,7 +90,8 @@ def retain_preparation(fn: Callable[P, R]) -> Callable[P, R]:
 
 
 def guard_design(study: Any, data: Any) -> None:
-    """Validate supplied design columns before dropping them from numeric ingest."""
+    """Validate supplied design and identifier columns before dropping them from ingest."""
+    guard_identifiers(study, data)
     bindings = getattr(study, "_named_design_bindings", {})
     if not bindings or data is None:
         return

@@ -1,0 +1,19 @@
+import copy,json,sys
+from pathlib import Path
+root=Path('/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent');sys.path.insert(0,str(root/'scripts'));import calibration_facets as f
+main=Path('/Users/charleshinshaw/Desktop/antecedent');out=main/'target/calibration-audit/verifier-refresh-c9659b468';scope=json.loads((out/'minimal-design-scope.json').read_text());summary=[]
+for old in ['unchanged-defaults-and-legacy-synthesis-from-c30','unchanged-defaults-and-legacy-normal-clusters-from-e15','unchanged-validated-procedures-from-70']:
+ ws,errors=f.load_waivers(out/(old+'.toml'));assert not errors;w=ws[0];entry=scope[w.from_];w.paths=entry['paths'];w.reviewed_equivalence=[p for p in w.reviewed_equivalence if p.path in w.paths];w.recordless_gates=False;w.gate_ledger_commit=''
+ origin='c30' if 'from-c30' in old else 'e15' if 'from-e15' in old else '70';w.id='unchanged-design-artifacts-from-'+origin+'-c9659b468'
+ wanted={'c30':['point_derivative_frequentist_curvature_nominal_90_coverage','ipw_hajek_analytic_conformance_scm_ci_coverage','parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage','selection_corrected_two_candidates_l95'], 'e15':['weighted_matching_interval.population_linear','parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage','selection_corrected_four_candidates_l95'], '70':['utility_interval_eight_candidates_l95','pooled_random_effects_homogeneous_five_studies']}[origin]
+ selected=[];seen=set()
+ for r in w.replay:
+  match=next((name for name in wanted if name in r.record),None)
+  if not match:continue
+  if match not in ('selection_corrected_two_candidates_l95','selection_corrected_four_candidates_l95','utility_interval_eight_candidates_l95') and match in seen:continue
+  seen.add(match);r.exercises=[p for p in r.exercises if p in w.paths]
+  selected.append(r)
+ assert set(wanted)==seen,(origin,seen,wanted)
+ w.replay=selected;w.justification+=' This waiver covers only the complete core/design/calibration-suite drift of design-facet rows; other pre-existing waivers/outcomes retain authority for unchanged non-design records.'
+ path=out/(w.id+'.toml');path.write_text(f.render_waivers([w]));summary.append({'id':w.id,'file':str(path),'requests':len(w.replay),'paths':len(w.paths),'origin':origin})
+(out/'minimal-plans.json').write_text(json.dumps(summary,indent=2)+'\n');print(json.dumps(summary,indent=2))

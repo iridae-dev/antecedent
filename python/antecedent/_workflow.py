@@ -14,6 +14,7 @@ from .errors import CausalSerializationError, CausalValueError
 from .estimation import PreparedAnalysis, _PreparedQuery, _PreparedResult
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
+from .missing import MissingPolicy
 from .results import AnalysisResult, CausalResponseView
 from .results._execution import Answer, CalibrationInfo, ResultAPI, answer_from_artifact
 from .results._report import InspectionReport, as_inspection
@@ -45,6 +46,8 @@ def prepare(
     latency: Latency | Literal["interactive", "standard", "report"] | None = None,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
+    participant: str | None = None,
+    missing: str | MissingPolicy | None = None,
     population_registry: Any | None = None,
     cancel: Any | None = None,
     on_progress: Any | None = None,
@@ -79,6 +82,8 @@ def prepare(
         latency=latency,
         class_prior=class_prior,
         max_completions=max_completions,
+        participant=participant,
+        missing=missing,
         population_registry=population_registry,
         cancel=cancel,
         on_progress=on_progress,

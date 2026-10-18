@@ -1,0 +1,46 @@
+{
+  "plan_sha256": "4a70af6a1e18f7024a7af2beffa8489bbf16766c8bf4521f4f1dbd3616c3d65e",
+  "compiled_artifact": {
+    "plan_sha256": "4a70af6a1e18f7024a7af2beffa8489bbf16766c8bf4521f4f1dbd3616c3d65e",
+    "binary_sha256": "9eab3e209eaaee36ada5b8227ed05855739ff613426bd8323b30583eaad8814b",
+    "compiled_at_utc": "2026-10-18T14:54:04.793776+00:00"
+  },
+  "results": [
+    {
+      "case": "policy",
+      "exit_code": 0,
+      "elapsed_seconds": 0.854168833931908,
+      "raw_sha256": "edd6d3243ebdb3b24051ed1e47ebe2df2a28edd1ee695d9c7b5a927927ea3527",
+      "summary_sha256": "f379f5c96c116fbded09997278f01b1b02bc17e737254b34fc63faff80702b13",
+      "independently_recomputed_width_metrics": {
+        "reported": 2028,
+        "attempts": 2048,
+        "median_width": 0.37394577368583315,
+        "median_abs_truth": 1.5982917289710794,
+        "median_per_replicate_width_over_abs_truth": 0.23398814871678916,
+        "median_width_over_median_abs_truth": 0.23396590679134996,
+        "reporting_rate": 0.990234375
+      },
+      "passes_frozen_width_and_reporting": true
+    },
+    {
+      "case": "survival",
+      "exit_code": 0,
+      "elapsed_seconds": 10.469672041013837,
+      "raw_sha256": "12dbe90e5ab4e261b6df72b89d42bd2eefb322b0de586d8922559d1ef1843d5c",
+      "summary_sha256": "9db5aa17410b7787f87cd633660cbcdbe8c9e5c91a60173054824486958a6582",
+      "independently_recomputed_width_metrics": {
+        "reported": 2048,
+        "attempts": 2048,
+        "median_width": 0.1461626845427595,
+        "median_abs_truth": 0.14896576952619978,
+        "median_per_replicate_width_over_abs_truth": 0.9811830261921529,
+        "median_width_over_median_abs_truth": 0.9811830261921529,
+        "reporting_rate": 1.0
+      },
+      "passes_frozen_width_and_reporting": true
+    }
+  ],
+  "coverage_computed": false,
+  "coverage_records_changed": false
+}

@@ -426,7 +426,8 @@ squares fit of the pseudo-outcomes: with `dx_i = a_i - g`,
 `r_i = phi_i - x_i' beta(g)`,
 
 ```
-psi[g, i] = w_i * [(X'WX)^{-1}]_{row 0} . x_i * r_i  +  (c_i - mean(c)) / N
+psi[g, i] = w_i * [(X'WX)^{-1}]_{row 0} . x_i * r_i / sqrt(v_i) + (c_i - mean(c)) / N
+v_i = 1 - 2*S_ii + sum_j S_ij^2; S = X (X'WX)^{-1} X'W
 ```
 
 The first term is the WLS influence of row `i` on the fitted level, in outcome
@@ -442,20 +443,20 @@ retained). The values
 still condition on the fitted nuisances and bandwidth: second-order nuisance
 error and bandwidth selection are not inside them.
 
-**Centering and scaling.** At every grid point the influences sum to zero
-exactly (up to float roundoff): the first term by the first WLS normal
-equation, the second by centering `c`. There is no `1/n` scaling of the sum:
-these are per-row contributions, sized so the identities below hold.
+**Centering and scaling.** The raw WLS residual term and centered covariate term
+sum to zero. Correcting each residual by its local smoother variance factor can
+break exact centering; joint influence covariance centers its supplied scores.
+There is no additional `1/n` scaling: these are per-row contributions.
 
 **Exact relationship to reported uncertainty.** The reported pointwise standard
-error is `SE(g) = sqrt(sum_i psi[g, i]^2)`, and the pointwise band is
-`m(g) ± z * SE(g)` with `z = Phi^{-1}(0.5 + level/2)`. The simultaneous band's
-critical value is the upper `level` quantile, over `B = simultaneous_replicates`
-Rademacher draws (SplitMix64 stream from
-`multiplier_seed`, so deterministic given the seed), of
-`max_g | sum_i eps_i * psi[g, i] | / SE(g)`, read as the `ceil(level·(B+1))`-th
-smallest of the `B` draws (the rank every simultaneous response band uses) and
-floored at `z`; the band is `m(g) ± c * SE(g)`.
+error is `SE(g) = sqrt(sum_i psi[g, i]^2)`. Its band is `m(g) ± t_df * SE(g)`:
+`df = tr(A)^2 / tr(A^2)` matches the first two Gaussian moments of the
+leverage-corrected local residual variance quadratic form. The per-grid df are
+exported as `response.local_variance_degrees_of_freedom`. This is a conditional
+Gaussian working approximation; it excludes nuisance and bandwidth selection
+uncertainty. The simultaneous band's critical value uses the upper `level`
+quantile of the Rademacher max statistic and is floored at the largest
+pointwise Student critical, preserving nesting.
 Both bands can be reconstructed from this export bit-for-bit; if your
 reconstruction disagrees, that is a bug report, not a tolerance issue.
 
@@ -667,8 +668,8 @@ censoring, and other unsupported mechanism/assumption/estimator combinations
 fail closed rather than returning the response of the observed proxy.
 
 See the runnable, deterministic notebooks for a
-[complete-observation response](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/continuous_causal_response.ipynb)
-and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/pricing_availability_latent_demand.ipynb).
+[complete-observation response](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/continuous_causal_response.ipynb)
+and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/pricing_availability_latent_demand.ipynb).
 
 ### Static intervention-level uncertainty
 

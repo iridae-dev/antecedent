@@ -1,0 +1,34 @@
+feature_id = "estimate.sampling_weights"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "On the variances of asymptotically normal estimators from complex surveys", doi = "10.2307/1402588", sections = ["Taylor-series linearization of estimating-equation estimators under a with-replacement design"] },
+ { title = "Fitting regression models to survey data", doi = "10.1214/16-STS605", sections = ["pseudo-likelihood estimating equations and the sandwich variance with sampling weights"] },
+ { title = "What are we weighting for?", doi = "10.3368/jhr.50.2.301", sections = ["when weights change the estimand under heterogeneity"] },
+ { title = "Propensity score analysis with survey weighted data", doi = "10.1515/jci-2014-0039", sections = ["weighted propensity model composed with the sampling weights"] },
+]
+
+# Derived from design-based linearization and the pseudo-likelihood estimating equations of
+# weighted regression and weighted logistic regression, NOT an exact estimator analyzed in
+# any one paper. The estimand is the weighted population; the variance is the with-replacement
+# linearization with rows, or declared clusters, as the primary sampling units.
+implementation_deviations = [
+ "Weights are normalized to mean one over the analysed rows before use. Estimates, standard errors and the Kish effective size are invariant to that scale; the declared weight sum is reported and never read as a population size, and no finite-population correction is made.",
+ "The standard error is the with-replacement linearization, which is conservative for a without-replacement design with non-negligible sampling fractions. The classical homoskedastic standard error is refused with sampling weights under linear adjustment (a model-based variance treats weights as precision).",
+ "Matching selects donors from the sample unweighted and averages the matched unit effects with the sampling weight of the matched unit; its variance is the Abadie-Imbens construction for a weighted matched mean (sigma squared times the sum of squared unit coefficients), not a design-based variance of the matching step. Its interval is a separate calibration claim.",
+ "Propensity stratification cuts strata at the sample quantiles of the weighted-logistic propensity and pools weighted arm means by weighted stratum mass; the analytic standard error is conditional on the strata and their shares, and the whole-cluster bootstrap is the construction that carries the nuisance fit.",
+ "AIPW reads weights on every mean-functional construction: nuisances are fit by weighted logistic and weighted least squares (on the training folds when cross-fitted), the score mean and its influence-function standard error are weighted, the in-sample ATT, ATC and trimmed ATE use the weighted arm share and the weighted stacked-nuisance correction, and cluster-DML takes the cluster sandwich of the weighted influence. A non-mean functional refuses the weights. A penalized propensity chooses its penalty by the weighted inner cross-validated log loss and fits each fold under the prior weights. GLM adjustment is fit by prior-weighted IRLS (logit, probit, Poisson, negative binomial, Gaussian) with the weighted score sandwich; the negative-binomial dispersion is the weighted Pearson moment or weighted profile likelihood. DML and the DR-learner fit every fold's nuisance learners under prior weights (linear, ridge, logistic and gradient-boosted learners; the others refuse, naming the learner) and keep no retargetable score table; the DR-learner's pointwise standard errors and profiles are the HC0 sandwich of the weighted least squares, and cluster-DML takes the cluster sandwich of the weighted influence.",
+ "Rows of weight zero are excluded and counted; a lag window of weight zero in a time series stays in the sequence (it contributes no score) so the block bootstrap keeps consecutive windows; the dependence block length is sized on the windows of positive weight.",
+ "A weighted interval is a different construction than its unweighted namesake. Exact collected normal endpoint constructions are owned by estimate.uncertainty and require their own current method-specific attestation; unmeasured constructions and raw standard-error fields inherit no coverage.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/sampling_weights.rs (independent weighted normal equations, a weighted Newton logistic fit, a case-weight derivative of the whole refitted estimator, a hand-rolled matched-pair computation, and a simulated super-population sampled with known inclusion probabilities)",
+ "crates/antecedent/tests/sampling_weight_routes.rs (Hajek arm means, weighted group means of change scores with a weighted cluster score sandwich, and weighted least squares on lag windows, each computed from the definition)",
+]

@@ -177,6 +177,7 @@ pub(super) fn bayesian_gcomp(cx: &SealContext<'_>) -> SealOutcome {
                 latency: analysis.latency_mode,
                 validators: analysis.custom_validators.clone(),
                 stage_sink: analysis.stage_sink.clone(),
+                draw_controls: analysis.draw_controls,
             },
         )?,
     )))

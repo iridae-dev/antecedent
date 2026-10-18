@@ -71,7 +71,7 @@ fn malformed(detail: &str, message: &str) -> IoError {
     }
 }
 
-fn discovery_refusal(error: &SelectiveDiscoveryError) -> IoError {
+pub(super) fn discovery_refusal(error: &SelectiveDiscoveryError) -> IoError {
     match error {
         SelectiveDiscoveryError::Refused { code, detail, remedy } => {
             IoError::Refused { code, message: format!("{detail}: {remedy}") }

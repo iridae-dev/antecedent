@@ -12,7 +12,7 @@ copied_tests = false
 # introduces this particular state recursion.
 papers = []
 implementation_deviations = [
-  "Bernoulli outcomes, at most 4 arms, 4 contexts, 8 cells, 24 looks, 400 units and a lag of at most 4 looks; discrete contexts with known probabilities and a policy run independently within each context.",
+  "Bernoulli outcomes, at most 4 arms, 4 contexts, 8 cells, 24 looks, 65535 units and a lag of at most 4 looks (the exact law is further bounded by its live states and unit expansions; a larger procedure is simulated); discrete contexts with known probabilities and a policy run independently within each context.",
   "Every element of the procedure must be declared (no defaults); a missing element is refused with its own detail.",
   "Exact finite-law arithmetic supplies no interval or calibration licence: the law is of the declared procedure under a hypothesized truth only.",
 ]

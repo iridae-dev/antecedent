@@ -39,6 +39,11 @@ pub(super) trait AtomEvalView {
     fn analytic_se(&self) -> Option<f64>;
     /// Row-aligned influence, when the route mixes a joint SE.
     fn influence(&self) -> Option<&[f64]>;
+    /// The standard errors this atom's own fit reported, which the aggregate adopts when the
+    /// atom covers the entire target. `None` leaves the aggregate's as mixed.
+    fn reported_uncertainty(&self) -> Option<antecedent_estimate::EstimateUncertainty> {
+        None
+    }
 }
 
 /// Identification proof for one posterior atom.
@@ -222,6 +227,7 @@ where
     let mut outer_se_items = Vec::new();
     let mut outer_atom_ifs: Vec<&[f64]> = Vec::new();
     let mut outer_atom_weights = Vec::new();
+    let mut sole_uncertainty = None;
 
     let key_weights = IdentifiedKeyWeights::new(input.graphs);
     for eval in evals {
@@ -268,6 +274,7 @@ where
             if let Some(se) = eval.analytic_se() {
                 outer_se_items.push((w, se));
             }
+            sole_uncertainty = eval.reported_uncertainty();
             if let Some(influence) = eval.influence() {
                 outer_atom_ifs.push(influence);
                 outer_atom_weights.push(w);
@@ -348,14 +355,17 @@ where
         }
     }
     // A component posterior is not the posterior of a weighted aggregate.
-    // Retain it at the top level only when it covers the entire target.
-    let posterior = if mixable_scalar
+    // Retain it, and the standard errors of its fit, at the top level only when it covers the
+    // entire target.
+    let covers_target = mixable_scalar
         && contributing.len() == 1
-        && atom_posteriors.len() == 1
         && input.unidentified_mass == 0.0
         && unevaluable_mass == 0.0
-        && mixture.full_mass_scope
-    {
+        && mixture.full_mass_scope;
+    if let Some(uncertainty) = sole_uncertainty.filter(|_| covers_target) {
+        estimate.uncertainty = uncertainty;
+    }
+    let posterior = if covers_target && atom_posteriors.len() == 1 {
         atom_posteriors.into_iter().next().map(|(_, posterior)| posterior)
     } else {
         None

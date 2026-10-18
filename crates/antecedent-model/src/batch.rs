@@ -243,6 +243,8 @@ pub struct MechanismWorkspace {
     pub parents: Vec<f64>,
     /// Scratch residuals / linear predictors.
     pub scratch: Vec<f64>,
+    /// Work columns of the intervention-program executor (grown, never shrunk).
+    pub program_scratch: Vec<f64>,
     /// Grow counter (tests / reuse gates).
     pub grow_count: u32,
 }

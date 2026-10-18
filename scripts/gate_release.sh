@@ -30,10 +30,10 @@ section=all
 if [[ "${1:-}" == "--section" && $# -eq 2 ]]; then
   section="$2"
 elif [[ $# -ne 0 ]]; then
-  echo "usage: $0 [--section inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-0..7|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-exits|benches]" >&2
+  echo "usage: $0 [--section inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-0..7|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-conformance|feature-exits|benches]" >&2
   exit 2
 fi
-case "$section" in all|inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-[0-7]|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-exits|benches) ;; *)
+case "$section" in all|inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-[0-7]|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-conformance|feature-exits|benches) ;; *)
   echo "unknown release-gate section: $section" >&2; exit 2 ;;
 esac
 section_start() {
@@ -145,6 +145,8 @@ if [[ "$section" == all || "$section" == inventory ]]; then
 echo "== docs vs support matrix =="
 bash scripts/gate_docs_support_matrix.sh
 
+echo "== acceptance manifest: every case bound to a live test =="
+python3 scripts/check_acceptance_manifest.py --require-bound
 echo "== published docs links resolve =="
 python3 scripts/check_doc_links.py
 
@@ -220,6 +222,17 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_transport.sh
 fi
 section_end feature_transport
+fi
+
+if [[ "$section" == all || "$section" == features || "$section" == feature-conformance ]]; then
+section_start feature_conformance
+if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
+  # Conformance of programmable interventions, mechanism selection, graph falsification, noise
+  # replay and intrinsic influence. The benches section smokes every bench target, including the
+  # three this gate registers, so the tests run here without repeating them.
+  bash scripts/gate_gcm_conformance.sh --tests-only
+fi
+section_end feature_conformance
 fi
 
 if [[ "$section" == all || "$section" == features || "$section" == feature-exits ]]; then

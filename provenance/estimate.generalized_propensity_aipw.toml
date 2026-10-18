@@ -1,0 +1,31 @@
+feature_id = "estimate.generalized_propensity_aipw"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "The role of the propensity score in estimating dose-response functions", doi = "10.1093/biomet/87.3.706", sections = ["generalized propensity score: weak unconfoundedness and the balancing property for a multi-valued treatment"] },
+ { title = "Efficient semiparametric estimation of multi-valued treatment effects under ignorability", doi = "10.1016/j.jeconom.2009.09.023", sections = ["multi-valued treatment AIPW / efficient score under ignorability"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters", doi = "10.1111/ectj.12097", sections = ["cross-fitting of Neyman-orthogonal scores"] },
+]
+
+# Derived from the multi-valued-treatment AIPW score and the cross-fitting construction,
+# NOT the exact estimator analyzed in either paper. The full-population target standardizes
+# every declared level over the whole complete-case population; the pairwise-subpopulation
+# target is binary AIPW on the rows at two levels and speaks only for that subpopulation.
+implementation_deviations = [
+ "Nuisances are a multinomial-logit generalized propensity over the declared level set and a per-level OLS outcome regression, not the arbitrary ML learners the DML analysis admits.",
+ "Cross-fitting uses a fixed five folds from a seeded, level-stratified, unit-level fold plan. A training fold missing a level, or with no more rows at a level than design columns, refuses rather than imputing; with no propensity clip, a generalized propensity of exactly zero refuses instead of being floored. The overlap trim is refused: trimming one level would redefine the common-support population of every contrast.",
+ "Every complete-case row must be at a declared level: rows at an undeclared level refuse for the full-population target instead of being dropped, because dropping them would silently change the population.",
+ "The reported standard error is the plug-in iid influence-function variance of the cross-fitted scores from the shared score table. It is not an efficiency-bound variance. The facade forms the 95% normal interval of the full-population contrast from it but publishes that interval only when a current coverage record measured the construction (target, number of levels, folds and row count); until then it is withheld as scope_not_assessed and the standard error is labelled unmeasured. The pairwise-subpopulation target has no measurement design and always withholds its interval.",
+ "The pairwise-subpopulation target excludes rows at other levels by a declared policy and states the target population on the result; it is not an estimate for those rows.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/treatment_levels.rs (three-level simulated truth: closed-form full-population effect and a numerically integrated pairwise-subpopulation effect, independent of the estimators)",
+ "crates/antecedent/tests/multilevel_interval_calibration.rs (ignored repeated-sampling design for the full-population interval on the confounded three-level simulation; plain tests pin the construction key and the withheld status)",
+]

@@ -45,7 +45,10 @@
 //! prints a `one_sided` record for a conservative interval whose target is
 //! at least nominal coverage of a true extremal bound: it states the `side`
 //! and `target`, and its acceptance is a floor with no upper band or ceiling
-//! ([`passes_one_sided`]). `scripts/collect_coverage_records.py` turns those
+//! ([`passes_one_sided`]). [`CoverageTally::assert_gaussian_study_t`] emits the
+//! distinct `conservative_point` role for independent Gaussian study means.
+//! The collector validates its exact construction and theorem declaration;
+//! other nominal methods cannot adopt this role. `scripts/collect_coverage_records.py` turns those
 //! lines into the registry.
 //!
 //! **Sample-size grid.** A record's scope is a measured range, not one row
@@ -60,6 +63,15 @@
 //! ([`BASE_GRID_POINT`], also the default when the variable is unset)
 //! generates exactly the replicate data the design generated before the grid;
 //! the other points salt every generator in this module ([`grid_salt`]).
+//!
+//! **Independent confirmation.** With [`CONFIRMATION_ENV`] set, the same
+//! design is measured again at the same grid points with a second, fixed seed
+//! salt, so the confirmation shares no replicate data with the first
+//! measurement. Its `calibration-record` lines say `"confirmation": true`, and
+//! the collector keeps their tallies apart from the measurement's: a boundary
+//! record whose grid points pass in both, over a contiguous run reaching the
+//! top or the bottom of the grid, states that run as its
+//! `confirmed_passing_range`.
 //!
 //! `ANTECEDENT_CALIBRATION_NSIM` overrides the replicate count; the band
 //! widens automatically with fewer replicates, and the precision floor applies
@@ -120,6 +132,9 @@
     dead_code,
     reason = "each integration test binary includes this module and uses a subset of it"
 )]
+
+#[path = "calibration_decision.rs"]
+mod decision;
 
 /// Standard-normal 0.95 quantile (two-sided 90% interval).
 pub const Z90: f64 = 1.644_853_626_951_472_2;
@@ -252,7 +267,39 @@ pub fn grid_for(base: usize) -> SampleGrid {
 #[must_use]
 pub fn grid_salt() -> u64 {
     const SALTS: [u64; GRID_POINTS] = [0x9E6C_63D0_676A_9A98, 0, 0xD1B5_4A32_D192_ED02];
-    SALTS[grid_point()]
+    SALTS[grid_point()] ^ validation_seed(0) ^ if confirmation() { CONFIRMATION_SALT } else { 0 }
+}
+
+/// Fresh validation seed for generators outside this module. Historical runs
+/// retain their exact seeds; registered validation uses its source-fixed domain.
+#[must_use]
+pub fn validation_seed(seed: u64) -> u64 {
+    let salt = if let Some(config) = decision::from_environment() {
+        assert!(
+            !confirmation(),
+            "independent confirmation is not a registered family-wise coverage look"
+        );
+        config.validation_salt().expect("validated registered domain")
+    } else {
+        0
+    };
+    seed ^ salt
+}
+
+/// Environment variable of an independent confirmation run (`1`): every
+/// generator is salted a second time ([`CONFIRMATION_SALT`]), so the run's
+/// replicates are fresh data at the same designs and sample sizes.
+pub const CONFIRMATION_ENV: &str = "ANTECEDENT_CALIBRATION_CONFIRMATION";
+
+/// Seed salt folded into [`grid_salt`] by a confirmation run. Distinct from
+/// every grid point's salt, so no confirmation point reuses any measured
+/// point's replicate stream.
+pub const CONFIRMATION_SALT: u64 = 0x5851_F42D_4C95_7F2D;
+
+/// Whether this is an independent confirmation run ([`CONFIRMATION_ENV`]).
+#[must_use]
+pub fn confirmation() -> bool {
+    std::env::var(CONFIRMATION_ENV).is_ok_and(|value| value == "1")
 }
 
 /// A replicate seed for a generator that does not draw through this module
@@ -633,6 +680,20 @@ struct TallyState {
     /// the tally was emitted; an extension must start exactly there.
     map_end: Option<u32>,
     record: Option<RecordState>,
+    /// A prefix belongs to one source, family, grid and validation domain.
+    /// Historical extensions have no family declaration and remain unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    decision_context: Option<serde_json::Value>,
+}
+
+fn decision_context() -> Option<serde_json::Value> {
+    decision::from_environment().map(|config| {
+        serde_json::json!({
+            "config": config,
+            "measured_at": measured_at(),
+            "grid_point": grid_point(),
+        })
+    })
 }
 
 /// The measured part of a [`BoundRecord`] (its key, file and label are the
@@ -722,8 +783,18 @@ impl CoverageTally {
         let prior = prior_tallies().get(&key).unwrap_or_else(|| {
             panic!("{}: no prior tally state under the key {key} to extend from", self.name)
         });
+        assert_eq!(
+            prior.decision_context,
+            decision_context(),
+            "{}: prior coverage prefix belongs to a different source, family, grid or validation domain",
+            self.name
+        );
         assert!(
-            (prior.level - self.level).abs() < 1e-9,
+            if decision::from_environment().is_some() {
+                prior.level.to_bits() == self.level.to_bits()
+            } else {
+                (prior.level - self.level).abs() < 1e-9
+            },
             "{}: the prior tally scored level {}, not {}",
             self.name,
             prior.level,
@@ -772,6 +843,7 @@ impl CoverageTally {
             with_interval: self.with_interval,
             length_sum: self.length_sum,
             map_end: last_map_end(),
+            decision_context: decision_context(),
             record: self.record.as_ref().map(|record| RecordState {
                 construction: record.construction.clone(),
                 n_min: record.n_min,
@@ -931,10 +1003,71 @@ impl CoverageTally {
         record.unidentified_mass_max = record.unidentified_mass_max.max(scope.unidentified_mass);
     }
 
+    /// A versioned, complete-family Monte Carlo decision, when requested by
+    /// the runner. The binomial denominator keeps the tally's existing skip and
+    /// refusal semantics; the spending look uses the planned attempt budget.
+    fn family_decision(&self, lower_only: bool) -> Option<decision::Decision> {
+        if smoke() {
+            return None;
+        }
+        let config = decision::from_environment()?;
+        assert!(
+            !confirmation(),
+            "independent confirmation is not a registered family-wise coverage look"
+        );
+        // A tracked outer map completed its fixed attempt budget. Serial
+        // tallies must account for every attempt; a smaller conditional subset
+        // requires a tracked map, never an unobserved stopping prefix.
+        if let Some(end) = last_map_end() {
+            assert_eq!(
+                end,
+                n_sim(),
+                "{}: outer replicate budget is not the registered look",
+                self.name
+            );
+        } else {
+            assert_eq!(
+                self.attempts(),
+                n_sim(),
+                "{}: conditional coverage requires a tracked fixed-attempt map",
+                self.name
+            );
+        }
+        let decision = config
+            .evaluate(n_sim(), self.attempts(), self.covered, self.level, lower_only)
+            .unwrap_or_else(|error| panic!("{}: invalid family decision: {error}", self.name));
+        let key = serde_json::json!([
+            std::thread::current().name().unwrap_or("unnamed"),
+            self.name,
+            self.level.to_bits(),
+            self.record_id(),
+        ])
+        .to_string();
+        decision::register_cell(&key, &decision, self.level);
+        Some(decision)
+    }
+
+    fn log_family_decision(&self, decision: &decision::Decision) {
+        let payload = serde_json::json!({
+            "test": std::thread::current().name().unwrap_or("unnamed"),
+            "name": self.name,
+            "nominal": self.level,
+            "record_id": self.record_id(),
+            "grid_point": grid_point(),
+            "measured_at": measured_at(),
+            "decision_protocol": decision,
+        });
+        let line = format!("calibration-decision {payload}\n");
+        let _ = std::io::Write::write_all(&mut std::io::stderr().lock(), line.as_bytes());
+    }
+
     /// Whether the rate passes the nominal band and the precision floor /
     /// ceiling at [`PRECISION_N_SIM`] replicates or more.
     fn passes_nominal(&self) -> bool {
-        passes_precision(self.attempts(), self.level, self.rate())
+        self.family_decision(false).map_or_else(
+            || passes_precision(self.attempts(), self.level, self.rate()),
+            |decision| decision.compatible,
+        )
     }
 
     /// Print an [`Self::unasserted`] tally's line and its record.
@@ -989,6 +1122,12 @@ impl CoverageTally {
         );
         if needs_recheck(attempts, self.level, rate) {
             self.print_recheck(attempts, rate);
+        }
+        if let Some(decision) = self.family_decision(false) {
+            self.log_family_decision(&decision);
+            let unresolved = n_sim() == DEFAULT_N_SIM && needs_recheck(attempts, self.level, rate);
+            self.emit_record(!decision.compatible || unresolved, "reported_level");
+            return;
         }
         // A short run more than RECHECK_SHORTFALL under the level is unresolved until
         // the recheck at RECHECK_N_SIM supersedes it; until then it is a boundary,
@@ -1107,8 +1246,25 @@ impl CoverageTally {
         if let Some((side, target)) = one_sided {
             payload["one_sided"] = serde_json::json!({ "side": side.as_str(), "target": target });
         }
+        if role != "named_boundary" {
+            if let Some(decision) =
+                self.family_decision(matches!(role, "one_sided" | "conservative_point"))
+            {
+                payload["decision_protocol"] =
+                    serde_json::to_value(decision).expect("decision serializes");
+            }
+        }
+        if role == "conservative_point" {
+            payload["conservative_point"] = serde_json::json!({
+                "target": "common_marginal_study_mean",
+                "justification": "independent_gaussian_study_t.ibragimov_mueller_2010.v1",
+            });
+        }
         if smoke() {
             payload["smoke"] = serde_json::Value::Bool(true);
+        }
+        if confirmation() {
+            payload["confirmation"] = serde_json::Value::Bool(true);
         }
         // One write of the whole line: a whole-file gate group runs its tests on
         // several threads with stdout and stderr in one pipe, and a line written
@@ -1203,6 +1359,23 @@ impl CoverageTally {
             return;
         }
         self.check_skips();
+        if let Some(decision) = self.family_decision(false) {
+            self.log_family_decision(&decision);
+            // Retain the original inexpensive first-look screen. This is an
+            // extension request, not evidence of a nominal coverage failure.
+            if n_sim() == DEFAULT_N_SIM && needs_recheck(self.attempts(), self.level, self.rate()) {
+                self.print_recheck(self.attempts(), self.rate());
+                self.emit_record(false, "gated");
+                return;
+            }
+            assert!(
+                decision.compatible,
+                "{}: suite coverage decision rejects nominal compatibility (p={}, family risk={})",
+                self.name, decision.p_value, decision.config.family_alpha
+            );
+            self.emit_record(false, "gated");
+            return;
+        }
         let attempts = self.attempts();
         let (lo, hi) = coverage_band(attempts, self.level);
         let rate = self.rate();
@@ -1365,6 +1538,21 @@ impl CoverageTally {
             return;
         }
         self.check_skips();
+        if let Some(decision) = self.family_decision(true) {
+            self.log_family_decision(&decision);
+            if n_sim() == DEFAULT_N_SIM && needs_one_sided_recheck(attempts, self.level, rate) {
+                self.print_recheck(attempts, rate);
+                self.emit_record_as(false, "one_sided", one_sided);
+                return;
+            }
+            assert!(
+                decision.compatible,
+                "{}: suite coverage decision rejects conservative coverage (p={})",
+                self.name, decision.p_value
+            );
+            self.emit_record_as(false, "one_sided", one_sided);
+            return;
+        }
         let (lo, _) = coverage_band(attempts, self.level);
         let floor = precision_floor(attempts, self.level);
         eprintln!(
@@ -1396,6 +1584,73 @@ impl CoverageTally {
             attempts
         );
         self.emit_record_as(false, "one_sided", one_sided);
+    }
+
+    /// Validate the conservative independent-Gaussian equal-study Student method.
+    ///
+    /// Ibragimov--Mueller (2010), section 2.1, proves at least nominal coverage
+    /// for independent Gaussian study estimates with a common mean and unequal
+    /// variances at confidence levels of 95% or greater. This uses the existing
+    /// lower precision floor; it does not assert exactly nominal coverage.
+    /// The collector separately checks the estimator, interval, SE, target and
+    /// theorem identity, so legacy nominal methods cannot borrow this role.
+    /// Design-specific usefulness checks remain the caller's responsibility.
+    ///
+    /// # Panics
+    /// On a shortfall, skipped replicates, confidence below 95%, or missing record.
+    pub fn assert_gaussian_study_t(&self) {
+        assert!(
+            (0.95..1.0).contains(&self.level),
+            "Gaussian study-t theorem requires level >= .95"
+        );
+        assert!(self.record.as_ref().is_some_and(|r| !r.unasserted), "asserted record required");
+        self.finish();
+        let attempts = self.attempts();
+        let rate = self.rate();
+        if smoke() {
+            self.emit_smoke_as(
+                !passes_one_sided(attempts, self.level, rate),
+                "conservative_point",
+                None,
+            );
+            return;
+        }
+        self.check_skips();
+        if let Some(decision) = self.family_decision(true) {
+            self.log_family_decision(&decision);
+            if n_sim() == DEFAULT_N_SIM && needs_one_sided_recheck(attempts, self.level, rate) {
+                self.print_recheck(attempts, rate);
+                self.emit_record_as(false, "conservative_point", None);
+                return;
+            }
+            assert!(
+                decision.compatible,
+                "{}: suite coverage decision rejects Gaussian study-t coverage (p={})",
+                self.name, decision.p_value
+            );
+            self.emit_record_as(false, "conservative_point", None);
+            return;
+        }
+        eprintln!(
+            "calibration {} (conservative Gaussian study-t): nominal={:.2} coverage={rate:.6} ({}/{}, {} skipped) mean_length={:.6}",
+            self.name,
+            self.level,
+            self.covered,
+            attempts,
+            self.skipped,
+            self.mean_length()
+        );
+        if needs_one_sided_recheck(attempts, self.level, rate) {
+            self.print_recheck(attempts, rate);
+            self.emit_record_as(false, "conservative_point", None);
+            return;
+        }
+        assert!(
+            passes_one_sided(attempts, self.level, rate),
+            "{}: conservative Gaussian study-t coverage {rate:.6} falls below the unchanged nominal lower floor",
+            self.name
+        );
+        self.emit_record_as(false, "conservative_point", None);
     }
 
     /// A smoke run's line: never gated, flagged `"smoke": true` (see [`SMOKE_ENV`]).

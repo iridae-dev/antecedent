@@ -56,6 +56,12 @@ nav:
     - Descriptive raw-versus-adjusted comparison: guides/descriptive-comparison.md
     - Tier-aware overlap and E-value diagnostics: guides/tier-diagnostics.md
     - Penalized propensity for AIPW: guides/penalized-aipw.md
+    - Treatment levels and multi-level treatments: guides/treatment-levels.md
+    - Sampling weights: guides/sampling-weights.md
+    - Clusters for propensity weighting, stratification and the forest: guides/cluster-inference.md
+    - Observational survival effects: guides/observational-survival.md
+    - Observational policy value: guides/observational-policy-value.md
+    - Missing data: guides/missing-data.md
     - Joint cells and derived treatments: guides/joint-cells.md
     - Clustered DML and entity-owned screens: guides/clustered-dml.md
     - Preflight diagnostics and cost: guides/preflight-diagnostics.md
@@ -65,6 +71,8 @@ nav:
     - Prior bank: priors.md
     - Graph uncertainty: graph_uncertainty.md
     - Selective discovery: selective-discovery.md
+    - Background knowledge in discovery: guides/discovery-background-knowledge.md
+    - Falsifying a graph by node permutation: guides/graph-falsification.md
   - Transport:
     - Transport and interference: transport-interference.md
     - Transport failures: guides/transport-failure.md
@@ -78,6 +86,10 @@ nav:
   - Decisions and composition:
     - Inverse queries and decisions on composed and transported sources: guides/inverse-and-decision-reach.md
     - Finite-SCM discretization: guides/finite-scm-discretization.md
+    - Noise replay: guides/noise-replay.md
+    - Intrinsic causal influence: guides/intrinsic-influence.md
+    - Programmable interventions: guides/intervention-programs.md
+    - Mechanism selection: guides/mechanism-selection.md
     - Composed uncertainty: guides/composed-uncertainty.md
     - Decision-reliability derived uncertainty: guides/decision-reliability-uncertainty.md
     - Adaptive procedure uncertainty: guides/adaptive-procedure-uncertainty.md
@@ -163,6 +175,7 @@ nav:
   - Conformance: conformance/README.md
   - Hot paths: hot_paths.md
   - Practitioner acceptance: practitioner-acceptance.md
+  - Acceptance manifest: acceptance-manifest.md
   - Security review: security_review.md
   - Callback security: callback-security.md
   - Technical derivations:

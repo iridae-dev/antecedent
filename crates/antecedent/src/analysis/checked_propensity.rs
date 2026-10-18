@@ -153,7 +153,12 @@ fn backdoor_target(
     Ok((target, claim.required_assumptions))
 }
 
-/// Requires unique adjustment roles excluding treatment and outcome, and binary active=1, control=0 arms.
+/// Requires unique adjustment roles excluding treatment and outcome, and two distinct numeric
+/// arms (preparation recodes them to a 0/1 indicator).
+#[allow(
+    clippy::float_cmp,
+    reason = "treatment arms are exact category labels, not computed values"
+)]
 fn binary_backdoor_arms(
     target: &IdentifiedEstimand,
     query: &AverageEffectQuery,
@@ -171,10 +176,8 @@ fn binary_backdoor_arms(
     }
     let active = set_value(&query.active, query.treatment)?;
     let control = set_value(&query.control, query.treatment)?;
-    if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
-        return Err(compile_error(
-            "checked propensity requires binary active=1 and control=0 treatment arms",
-        ));
+    if active == control {
+        return Err(compile_error("checked propensity requires distinct treatment arms"));
     }
     Ok((active, control))
 }
@@ -234,6 +237,11 @@ impl CheckedPropensityOperation {
         let factor_requirements = Arc::from(program.factor_requirements().to_vec());
         let fit = prepare_fit(data, &target, &query, fitter, &context)?;
         let problem = fit.problem();
+        if problem.treatment_levels.excluded_rows > 0 {
+            return Err(compile_error(
+                "checked propensity targets the all-observed population and cannot exclude treatment rows at undeclared levels",
+            ));
+        }
         if problem.method != target.method
             || problem.adjustment_set != target.adjustment_set
             || problem.treatment_id != query.treatment

@@ -36,6 +36,16 @@ What it decides, and what it does not:
   request) raises ``cell_not_licensed``. :meth:`AdaptiveInferenceSession.measured_interval`
   returns the interval of one result for the procedure cells whose whole-procedure coverage was
   measured, bound to its coverage record, and refuses every other procedure.
+* **A participant-level family.** :class:`ParticipantProcedure` declares three or four arms,
+  participant-level randomization, three or six binary responses per participant (a
+  beta-binomial count with a declared or jointly estimated intra-participant correlation), historical informative
+  priors with declared discounts, Thompson allocation with a minimum exploration probability, and
+  expected-loss, futility and recruitment-cap decisions at completed-participant batch boundaries.
+  Every look reads a posterior claim and an anytime-valid confidence-sequence claim, in separate
+  labelled fields. Borrowing is frozen before recruitment (:meth:`ParticipantProcedure.amend_borrowing`
+  refuses a change after the first look), and a history is replayed look by look
+  (:meth:`ParticipantProcedure.read_history`) and exported with its procedure section
+  (:meth:`AdaptiveInferenceSession.export_contract_with_procedure`).
 * **Artifacts.** :meth:`AdaptiveInferenceSession.export_contract` writes
   ``adaptive_monitoring_contract_v1``; :meth:`AdaptiveInferenceSession.export_result` writes
   ``adaptive_inference_result_v1``. The consumers replay the contract and recompute the values, and
@@ -80,19 +90,30 @@ __all__ = [
     "AdaptiveProcedure",
     "AdaptiveWeighting",
     "AnytimeProcedureReport",
+    "AnytimeSettings",
+    "ArmPrior",
     "AssignmentRule",
     "Availability",
     "BayesianProcedureReport",
+    "CorrelationPrior",
     "DERIVED_UNMEASURED",
     "DecisionProcedureReport",
     "ExposureModel",
     "FinalSelection",
     "FinalAnalysis",
     "FixedSampleProcedureReport",
+    "FutilityRule",
     "GroupSequentialProcedureReport",
+    "HistoricalPrior",
     "InversionProcedureReport",
     "OutcomeObservation",
     "OutcomeStructure",
+    "ParticipantDeclaration",
+    "ParticipantDecisions",
+    "ParticipantHistory",
+    "ParticipantProcedure",
+    "ParticipantReadings",
+    "ParticipantSimulation",
     "ProcedureDeclaration",
     "ProcedureElements",
     "ProcedureLaw",
@@ -944,6 +965,34 @@ class AdaptiveInferenceSession:
         """Write ``adaptive_monitoring_contract_v1`` for a paradigm."""
         return bytes(_unwrap(self._handle.export_contract(paradigm, artifact_id)))
 
+    def export_contract_with_procedure(
+        self,
+        paradigm: str,
+        procedure: ParticipantProcedure,
+        artifact_id: str = "adaptive-monitoring",
+    ) -> bytes:
+        """Write ``adaptive_monitoring_contract_v1`` with the participant-level procedure section.
+
+        The section holds the arms' priors with every historical source, discount and effective
+        sample size, the allocation floor, the decisions and the reading at every performed look.
+        A consumer replays it: it recomputes each batch's allocation from the completed
+        participants and the declared priors and compares it with the retained probabilities.
+
+        Raises:
+            AdaptiveInferenceRefusal: the cell is not licensed for the paradigm, or the retained
+                history is not the declared procedure's (``assignment_not_replayed``,
+                ``stopping_not_replayed``).
+        """
+        if not isinstance(procedure, ParticipantProcedure):
+            raise CausalTypeError("procedure must be a ParticipantProcedure")
+        return bytes(
+            _unwrap(
+                self._handle.export_contract_with_procedure(
+                    paradigm, procedure._handle, artifact_id
+                )
+            )
+        )
+
     def export_result(
         self, request: Request, artifact_id: str = "adaptive-result", *, cancel: Any = None
     ) -> bytes:
@@ -971,6 +1020,8 @@ class ConsumedMonitoringContract(ScientificResult):
     #: ``critical`` and ``spend_increments`` of an alpha-spending rule, else ``None``.
     boundaries: dict[str, tuple[float, ...]] | None
     declaration: dict[str, Any] = field(repr=False, default_factory=dict)
+    #: The replayed participant-level procedure section (priors, readings), else ``None``.
+    participant_procedure: dict[str, Any] | None = field(repr=False, default=None)
 
 
 @dataclass(repr=False, frozen=True)
@@ -1022,6 +1073,7 @@ def consume_adaptive_monitoring_contract_artifact(
         if boundaries is None
         else {k: tuple(float(x) for x in v) for k, v in boundaries.items()},
         declaration=wire.get("declaration") or {},
+        participant_procedure=wire.get("participant_procedure"),
     )
 
 
@@ -1089,6 +1141,7 @@ class AssignmentRule:
     epsilon: float | None = None
     exploration: float | None = None
     prior: tuple[float, float] = (1.0, 1.0)
+    min_probability: float | None = None
 
     @classmethod
     def fixed(cls, probabilities: Sequence[float]) -> AssignmentRule:
@@ -1108,6 +1161,17 @@ class AssignmentRule:
         return cls("thompson_beta", prior=prior)
 
     @classmethod
+    def thompson_beta_floored(
+        cls, min_probability: float, prior: tuple[float, float] = (1.0, 1.0)
+    ) -> AssignmentRule:
+        """Thompson sampling with a minimum exploration probability.
+
+        The posterior probabilities that each arm is best are clamped from below at
+        ``min_probability`` and renormalized, so every arm keeps at least that probability.
+        """
+        return cls("thompson_beta_floored", prior=prior, min_probability=float(min_probability))
+
+    @classmethod
     def upper_confidence_bound(cls, exploration: float = 2.0) -> AssignmentRule:
         """Deterministic UCB1 (assignment probabilities are zero or one)."""
         return cls("upper_confidence_bound", exploration=float(exploration))
@@ -1119,6 +1183,12 @@ class AssignmentRule:
             return {"kind": self.kind, "epsilon": self.epsilon, **_prior_wire(self.prior)}
         if self.kind == "thompson_beta":
             return {"kind": self.kind, **_prior_wire(self.prior)}
+        if self.kind == "thompson_beta_floored":
+            return {
+                "kind": self.kind,
+                "min_probability": self.min_probability,
+                **_prior_wire(self.prior),
+            }
         return {"kind": self.kind, "exploration": self.exploration}
 
 
@@ -1161,6 +1231,7 @@ class ProcedureStopping:
     kind: str
     threshold: float | None = None
     prior: tuple[float, float] = (1.0, 1.0)
+    margin: float | None = None
     critical: Sequence[float] | None = None
     sidedness: str | None = None
     max_units: int | None = None
@@ -1185,6 +1256,19 @@ class ProcedureStopping:
         return cls("posterior_expected_loss", threshold=float(loss_threshold), prior=prior)
 
     @classmethod
+    def posterior_futility(
+        cls, margin: float, threshold: float, prior: tuple[float, float] = (1.0, 1.0)
+    ) -> ProcedureStopping:
+        """Stop for futility, deciding for arm 0 (the control).
+
+        The procedure stops when every other arm has posterior probability below ``threshold`` of
+        exceeding the control by more than ``margin``.
+        """
+        return cls(
+            "posterior_futility", threshold=float(threshold), margin=float(margin), prior=prior
+        )
+
+    @classmethod
     def wald_boundaries(cls, critical: Sequence[float], sidedness: str) -> ProcedureStopping:
         """Stop when arm 1's Wald statistic against arm 0 crosses a per-look critical value."""
         return cls(
@@ -1203,6 +1287,13 @@ class ProcedureStopping:
             return {"kind": self.kind, "threshold": self.threshold, **_prior_wire(self.prior)}
         if self.kind == "posterior_expected_loss":
             return {"kind": self.kind, "loss_threshold": self.threshold, **_prior_wire(self.prior)}
+        if self.kind == "posterior_futility":
+            return {
+                "kind": self.kind,
+                "margin": self.margin,
+                "threshold": self.threshold,
+                **_prior_wire(self.prior),
+            }
         if self.kind == "wald_boundaries":
             return {
                 "kind": self.kind,
@@ -1533,6 +1624,8 @@ class ProcedureSimulation(ScientificResult):
     mean_enrolled: float
     rule_stop_fraction: float
     claim: str = DERIVED_UNMEASURED
+    #: The work the simulation was admitted for and did (``work_planned``, ``work_done``, ...).
+    receipt: dict[str, Any] = field(default_factory=dict)
 
 
 class AdaptiveProcedure:
@@ -1616,6 +1709,7 @@ class AdaptiveProcedure:
             replicates=tuple(wire["replicates"]),
             mean_enrolled=float(wire["mean_enrolled"]),
             rule_stop_fraction=float(wire["rule_stop_fraction"]),
+            receipt=wire.get("receipt") or {},
         )
 
     def report(self, request: ProcedureReportRequest, *, cancel: Any = None) -> ProcedureReport:
@@ -1980,3 +2074,430 @@ class RepeatedMeasuresProcedure:
         """Ask whether this cell's guarantee may be stated for another cell (it may not)."""
         wire = {"kind": "cell_transfer", "cell_id": str(cell_id), "paradigm": str(paradigm)}
         return self._report(wire, cancel)
+
+
+# ---------------------------------------------------------------------- participant-level family
+#
+# Three or four arms, participant-level randomization, a few binary responses per participant,
+# historical informative priors, adaptive allocation and decision-based stopping, all at once. The
+# model, the posterior update, the allocation, the decisions and the confidence sequences are
+# Rust's (``antecedent_stats::adaptive_inference::participant_procedure`` documents the update
+# precisely); this section declares the procedure and presents what it reads. Every result is
+# ``derived_unmeasured``: the posterior claim and the anytime-valid frequentist claim of each look
+# are separate fields, and neither is a measured coverage of the whole procedure.
+
+
+@dataclass(frozen=True)
+class HistoricalPrior:
+    """Historical binary responses an arm borrows from, at a declared power-prior discount.
+
+    ``discount`` is the power-prior exponent ``a0`` in ``[0, 1]``: the source counts as
+    ``a0 * trials`` current responses (``0`` ignores it, ``1`` counts it fully). The discount is
+    declared and frozen before recruitment.
+    """
+
+    source: str
+    successes: int
+    trials: int
+    discount: float
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "source": self.source,
+            "successes": int(self.successes),
+            "trials": int(self.trials),
+            "discount": float(self.discount),
+        }
+
+
+@dataclass(frozen=True)
+class ArmPrior:
+    """The prior of one arm: an initial Beta prior and the historical sources it borrows from.
+
+    An empty ``historical`` declares no borrowing.
+    """
+
+    initial: tuple[float, float] = (1.0, 1.0)
+    historical: Sequence[HistoricalPrior] = ()
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "initial_alpha": float(self.initial[0]),
+            "initial_beta": float(self.initial[1]),
+            "historical": [source._wire() for source in self.historical],
+        }
+
+
+@dataclass(frozen=True)
+class FutilityRule:
+    """Stop when no treatment arm is likely to beat the control by ``margin``.
+
+    The procedure stops, deciding for the control, when every treatment arm has posterior
+    probability below ``threshold`` of exceeding the control by more than ``margin``.
+    """
+
+    margin: float
+    threshold: float
+
+
+@dataclass(frozen=True)
+class ParticipantDecisions:
+    """What the procedure decides at each look, in this order.
+
+    ``loss_threshold``: stop when the smallest posterior expected loss of choosing an arm falls
+    below it (decide that arm); ``futility``: stop for futility (decide the control);
+    ``participant_cap``: stop at the first look at which this many participants are enrolled.
+    """
+
+    loss_threshold: float
+    futility: FutilityRule | None = None
+    participant_cap: int | None = None
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "loss_threshold": float(self.loss_threshold),
+            "futility": None
+            if self.futility is None
+            else {
+                "margin": float(self.futility.margin),
+                "threshold": float(self.futility.threshold),
+            },
+            "participant_cap": None if self.participant_cap is None else int(self.participant_cap),
+        }
+
+
+@dataclass(frozen=True)
+class AnytimeSettings:
+    """The confidence sequences read at every look.
+
+    ``alpha`` is the total miscoverage of the simultaneous family over the ``K`` arms (each arm's
+    sequence is built at ``alpha / K``). The sequences are the variance-adaptive predictable
+    plug-in empirical Bernstein sequences, which follow the data's own spread and are not tuned
+    to a sample size: ``tuning_samples`` must be positive but is read only when a retained
+    mixture-Hoeffding procedure is replayed, where it is the participants per arm at which that
+    sequence is tightest.
+    """
+
+    alpha: float
+    tuning_samples: float
+
+
+@dataclass(frozen=True)
+class CorrelationPrior:
+    """A ``Beta(alpha, beta)`` prior on the intra-participant correlation, shapes at least 1.
+
+    Declared in place of a fixed correlation, it is shared by the arms and integrated jointly
+    with the arm success probabilities, so the correlation is estimated from the data at every
+    look. Frozen before recruitment like the arm priors.
+    """
+
+    alpha: float
+    beta: float
+
+    def _wire(self) -> dict[str, float]:
+        return {"alpha": float(self.alpha), "beta": float(self.beta)}
+
+
+@dataclass(frozen=True)
+class ParticipantDeclaration:
+    """Everything a producer states about the participant-level procedure.
+
+    Each element but ``arms`` and ``lag_looks`` may be ``None``; declaring then refuses with that
+    element's own detail. Arm 0 is the control. ``responses`` is the binary responses per
+    participant; ``correlation`` the declared intra-participant correlation (``0`` declares the
+    responses independent) or ``correlation_prior`` a :class:`CorrelationPrior` under which the
+    correlation is estimated jointly with the arm means (exactly one of the two);
+    ``borrowing`` one :class:`ArmPrior` per arm, frozen before
+    recruitment; ``enrolment`` the participants per look; ``lag_looks`` the looks between
+    enrolment and completed follow-up; ``min_exploration`` the smallest probability any arm
+    keeps under Thompson allocation.
+    """
+
+    arms: int
+    responses: int | None = None
+    correlation: float | None = None
+    correlation_prior: CorrelationPrior | None = None
+    borrowing: Sequence[ArmPrior] | None = None
+    enrolment: Sequence[int] | None = None
+    lag_looks: int = 0
+    min_exploration: float | None = None
+    decisions: ParticipantDecisions | None = None
+    anytime: AnytimeSettings | None = None
+
+    def to_wire(self) -> dict[str, Any]:
+        """The declaration as the native wire mapping."""
+        return {
+            "arms": self.arms,
+            "responses": self.responses,
+            "correlation": None if self.correlation is None else float(self.correlation),
+            "correlation_prior": None
+            if self.correlation_prior is None
+            else self.correlation_prior._wire(),
+            "borrowing": None
+            if self.borrowing is None
+            else [prior._wire() for prior in self.borrowing],
+            "enrolment": None if self.enrolment is None else [int(n) for n in self.enrolment],
+            "lag_looks": self.lag_looks,
+            "min_exploration": None
+            if self.min_exploration is None
+            else float(self.min_exploration),
+            "decisions": None if self.decisions is None else self.decisions._wire(),
+            "anytime": None
+            if self.anytime is None
+            else {
+                "alpha": float(self.anytime.alpha),
+                "tuning_samples": float(self.anytime.tuning_samples),
+            },
+        }
+
+
+@dataclass(frozen=True)
+class ParticipantHistory:
+    """What a participant-level procedure retained: batches, arms, outcomes and allocations.
+
+    ``successes`` holds each participant's success count among the responses, or ``None`` while
+    their follow-up had not completed when the procedure ended; ``assignment`` holds the
+    allocation probabilities each participant was randomized under.
+    """
+
+    batches: Sequence[int]
+    arms: Sequence[int]
+    successes: Sequence[int | None]
+    assignment: Sequence[Sequence[float]]
+
+    def to_wire(self) -> dict[str, Any]:
+        """The history as the native wire mapping."""
+        return {
+            "batches": [int(n) for n in self.batches],
+            "arms": [int(a) for a in self.arms],
+            "successes": [None if s is None else int(s) for s in self.successes],
+            "assignment": [[float(p) for p in row] for row in self.assignment],
+        }
+
+    @classmethod
+    def from_wire(cls, wire: dict[str, Any]) -> ParticipantHistory:
+        """Rebuild a history from its wire mapping."""
+        return cls(
+            batches=tuple(int(n) for n in wire["batches"]),
+            arms=tuple(int(a) for a in wire["arms"]),
+            successes=tuple(None if s is None else int(s) for s in wire["successes"]),
+            assignment=tuple(tuple(float(p) for p in row) for row in wire["assignment"]),
+        )
+
+
+@dataclass(repr=False, frozen=True)
+class ParticipantReadings(ScientificResult):
+    """The reading at every performed look of a retained history.
+
+    Each entry of ``looks`` carries the look's ``assignment_probabilities``, its ``decision``, a
+    ``posterior`` claim (paradigm ``bayesian_posterior``) and a ``frequentist`` claim (paradigm
+    ``anytime_valid_frequentist``, with the simultaneous comparisons against the control and the
+    comparison of the data-selected best treatment, which the simultaneous family covers).
+    ``priors`` records every arm's resolved prior with its sources, discounts and effective sample
+    size. ``claim`` is always ``derived_unmeasured``.
+    """
+
+    procedure_identity: str
+    priors: tuple[dict[str, Any], ...]
+    looks: tuple[dict[str, Any], ...]
+    decision: dict[str, Any]
+    claim: str = DERIVED_UNMEASURED
+
+
+@dataclass(repr=False, frozen=True)
+class ParticipantSimulation(ScientificResult):
+    """Replicates of the whole participant-level procedure under a hypothesized truth.
+
+    ``receipt`` records the work the simulation was admitted for and did (``work_planned``,
+    ``work_done``, ``replications``, ``looks``, ``states``, ``peak_units``,
+    ``estimated_peak_bytes``); ``summary`` holds
+    measured properties of this simulation, not a coverage statement.
+    """
+
+    procedure_identity: str
+    receipt: dict[str, Any]
+    summary: dict[str, Any]
+    replicates: tuple[dict[str, Any], ...]
+    claim: str = DERIVED_UNMEASURED
+
+
+class ParticipantProcedure:
+    """A declared participant-level adaptive procedure.
+
+    Declare it (:meth:`declare`), simulate the whole of it (:meth:`simulate`), retain one run
+    (:meth:`simulate_history`), recompute a retained history look by look
+    (:meth:`read_history`), and seal it with its retained contract
+    (:meth:`prepare_session` then
+    :meth:`AdaptiveInferenceSession.export_contract_with_procedure`).
+    """
+
+    def __init__(self, handle: Any) -> None:
+        self._handle = handle
+        self._summary: dict[str, Any] = json.loads(handle.summary_json())
+
+    @classmethod
+    def declare(cls, declaration: ParticipantDeclaration) -> ParticipantProcedure:
+        """Declare the procedure.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``adaptive_contract_incomplete`` with one detail per missing
+                element, or ``invalid_argument`` details for an inconsistent element or a size
+                beyond a declaration capacity (``declared_units_exceeded``,
+                ``declared_looks_exceeded``).
+        """
+        if not isinstance(declaration, ParticipantDeclaration):
+            raise CausalTypeError("declaration must be a ParticipantDeclaration")
+        wire = _procedure_json(declaration.to_wire())
+        return cls(_unwrap(_native.participant_procedure_declare(wire)))
+
+    @property
+    def identity(self) -> str:
+        """Canonical identity (hex) of the declared procedure, borrowing included."""
+        return str(self._handle.identity())
+
+    @property
+    def summary(self) -> dict[str, Any]:
+        """The validated elements, the resolved priors and the matrix cell."""
+        return dict(self._summary)
+
+    @property
+    def priors(self) -> tuple[dict[str, Any], ...]:
+        """Each arm's resolved Beta prior, its sources, discounts and effective sample size."""
+        return tuple(self._summary["priors"])
+
+    def simulate(
+        self,
+        truth: Sequence[float],
+        replications: int,
+        seed: int,
+        *,
+        true_correlation: float | None = None,
+        memory_bytes: int | None = None,
+        cancel: Any = None,
+    ) -> ParticipantSimulation:
+        """Run the whole procedure under the arm means ``truth``.
+
+        ``true_correlation`` is the intra-participant correlation the simulated participants
+        have; absent, the declared one is used. A procedure that estimates the correlation has
+        no declared value and needs it.
+
+        The request is admitted against the library work bound (replications x participants x
+        responses) and the memory budget before any replicate runs.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``simulation_work_exceeded`` or
+                ``simulation_memory_exceeded`` for a request over a budget,
+                ``simulation_replications_exceeded`` over the replication bound, or
+                ``cancelled_no_claim``.
+        """
+        request = _procedure_json(
+            {
+                "replications": int(replications),
+                "seed": int(seed),
+                "true_correlation": None if true_correlation is None else float(true_correlation),
+            }
+        )
+        wire = json.loads(
+            _unwrap(
+                self._handle.simulate(
+                    [float(p) for p in truth],
+                    request,
+                    None if memory_bytes is None else int(memory_bytes),
+                    cancel,
+                )
+            )
+        )
+        return ParticipantSimulation(
+            procedure_identity=wire["procedure_identity"],
+            receipt=wire["receipt"],
+            summary=wire["summary"],
+            replicates=tuple(wire["replicates"]),
+        )
+
+    def simulate_history(
+        self,
+        truth: Sequence[float],
+        seed: int,
+        *,
+        true_correlation: float | None = None,
+        cancel: Any = None,
+    ) -> ParticipantHistory:
+        """Run the procedure once under ``truth`` and retain what happened.
+
+        ``true_correlation`` is as in :meth:`simulate`.
+        """
+        wire = json.loads(
+            _unwrap(
+                self._handle.simulate_history(
+                    [float(p) for p in truth],
+                    int(seed),
+                    None if true_correlation is None else float(true_correlation),
+                    cancel,
+                )
+            )
+        )
+        return ParticipantHistory.from_wire(wire)
+
+    def read_history(
+        self, history: ParticipantHistory, *, cancel: Any = None
+    ) -> ParticipantReadings:
+        """Recompute every look of a retained history under the declared procedure.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``adaptive_assumption_violated`` with
+                ``adaptive_inference.assignment_not_replayed`` when a retained allocation
+                probability is not the declared policy's, or
+                ``adaptive_inference.stopping_not_replayed`` when the procedure continued past, or
+                stopped without, its declared decisions.
+        """
+        if not isinstance(history, ParticipantHistory):
+            raise CausalTypeError("history must be a ParticipantHistory")
+        wire = json.loads(
+            _unwrap(self._handle.read_history(_procedure_json(history.to_wire()), cancel))
+        )
+        return ParticipantReadings(
+            procedure_identity=wire["procedure_identity"],
+            priors=tuple(wire["priors"]),
+            looks=tuple(wire["readings"]),
+            decision=wire["decision"],
+        )
+
+    def amend_borrowing(
+        self, borrowing: Sequence[ArmPrior], looks_performed: int
+    ) -> ParticipantProcedure:
+        """Re-declare the procedure with another borrowing plan while borrowing is still open.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``adaptive_assumption_violated`` with
+                ``adaptive_inference.borrowing_frozen`` when ``looks_performed`` is above zero and
+                the plan differs.
+        """
+        wire = _procedure_json([prior._wire() for prior in borrowing])
+        return ParticipantProcedure(
+            _unwrap(self._handle.amend_borrowing(wire, int(looks_performed)))
+        )
+
+    def prepare_session(
+        self,
+        label: str,
+        arm_labels: Sequence[str],
+        history: ParticipantHistory,
+        *,
+        cancel: Any = None,
+    ) -> AdaptiveInferenceSession:
+        """The prepared analysis of the retained contract of a history.
+
+        The history is read under the declared procedure first, so only a history that replays
+        can be retained. Responses are retained as their success count.
+        """
+        if not isinstance(history, ParticipantHistory):
+            raise CausalTypeError("history must be a ParticipantHistory")
+        handle = _unwrap(
+            self._handle.prepare_session(
+                label,
+                [str(a) for a in arm_labels],
+                _procedure_json(history.to_wire()),
+                cancel,
+            )
+        )
+        return AdaptiveInferenceSession(handle)

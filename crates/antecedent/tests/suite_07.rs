@@ -15,6 +15,10 @@ mod route_evidence_observation_query;
 mod sample_split_analysis_facade;
 #[path = "sample_split_effect_facade.rs"]
 mod sample_split_effect_facade;
+#[path = "sample_split_parent_set_effect_facade.rs"]
+mod sample_split_parent_set_effect_facade;
+#[path = "sample_split_weighted_acceptance.rs"]
+mod sample_split_weighted_acceptance;
 #[path = "saturation_interference_route.rs"]
 mod saturation_interference_route;
 #[path = "schema_binding.rs"]

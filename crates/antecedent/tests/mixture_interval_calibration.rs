@@ -47,7 +47,7 @@ use antecedent_core::{
     ResponseValue, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::set_edge;
+use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::IdentificationStatus;
 use common::calibration::{
@@ -884,7 +884,7 @@ fn bayesian_temporal_dag_multistep_sustained_nominal_90_coverage() {
 }
 
 fn single_atom_two_lag_dbn_posterior() -> GraphPosterior {
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         2,
         vec![1.0],
         vec![0],
@@ -991,7 +991,7 @@ fn bayesian_temporal_dag_response_curve_pointwise_band_coverage() {
 }
 
 fn single_atom_xy_dbn_posterior() -> GraphPosterior {
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         2,
         vec![1.0],
         vec![0],
@@ -1528,61 +1528,56 @@ fn bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage() {
     bayesian_cpdag_mediation_case("Bayesian TemporalCpdag mediation (kappa=0)", 0.0, 26_000);
 }
 
+/// The mediation contrasts and their truths on the mediator-outcome-confounded
+/// DGP (`kappa = 0.5`), in the order their records are labelled.
+fn confounded_contrasts() -> [(&'static str, MediationContrast, f64); 3] {
+    [
+        ("total", MediationContrast::Total, fixtures::mediation_total_truth()),
+        ("direct", MediationContrast::Direct, fixtures::mediation_direct_truth()),
+        ("mediated", MediationContrast::Mediated, fixtures::mediation_truth()),
+    ]
+}
+
 /// Bayesian `TemporalDag` mediation on the mediator-outcome-confounded DGP
-/// (`kappa = 0.5`): the single-horizon composed posterior carries the Total,
-/// Direct and Mediated draw columns; each 90% equal-tail interval is scored
-/// against its path-product truth.
+/// (`kappa = 0.5`). Total, Direct and Mediated are three queries, each executed
+/// on its own and each bound to its own record through the posterior interval
+/// that query reports (the effect column); each 90% equal-tail interval is
+/// scored against its path-product truth, with the reported 0.95 interval beside
+/// it. The three executions of a replicate share one simulated series: each
+/// tally scores one functional of that draw against its own truth and is judged
+/// on its own marginal coverage, never combined into a joint claim.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn bayesian_temporal_dag_mediation_confounded_nominal_90_coverage() {
-    let targets = [
-        ("Total", 1, fixtures::mediation_total_truth()),
-        ("Direct", 2, fixtures::mediation_direct_truth()),
-        ("Mediated", 3, fixtures::mediation_truth()),
-    ];
-    // The query's contrast is Mediated, so the reported posterior interval (the
-    // effect column) is the Mediated column: that tally backs a record, with the
-    // reported 0.95 interval scored on the same replicates. Total and Direct are
-    // decomposition columns the facade does not report as an interval: no record.
     let key = RecordKey {
         test: "bayesian_temporal_dag_mediation_confounded_nominal_90_coverage",
         dgp: MEDIATION_SERIES,
         interval: "posterior_quantile",
     };
-    let mut tallies: Vec<CoverageTally> = targets
+    let contrasts = confounded_contrasts();
+    let mut tallies: Vec<CoverageTally> = contrasts
         .iter()
-        .map(|(name, _, truth)| {
-            if *name == "Mediated" {
-                CoverageTally::for_record(key, LEVEL).labelled(name.to_ascii_lowercase())
-            } else {
-                CoverageTally::new(
-                    format!("Bayesian TemporalDag mediation {name} [kappa=0.5] (θ={truth:.3})"),
-                    LEVEL,
-                )
-            }
+        .map(|(label, _, _)| CoverageTally::for_record(key, LEVEL).labelled(*label))
+        .collect();
+    let mut reported: Vec<CoverageTally> = contrasts
+        .iter()
+        .map(|(label, _, _)| {
+            CoverageTally::for_record(key, REPORTED_LEVEL).labelled(*label).unasserted()
         })
         .collect();
-    let mut reported =
-        CoverageTally::for_record(key, REPORTED_LEVEL).labelled("mediated").unasserted();
     let runs = map_replicates(n_sim(), |s| {
-        run_confounded_mediation_study(
-            grid_n(N),
-            MediationContrast::Mediated,
-            bayes(),
-            0,
-            27_000 + s,
-            s,
-        )
+        contrasts.map(|(_, contrast, _)| {
+            run_confounded_mediation_study(grid_n(N), contrast, bayes(), 0, 27_000 + s, s)
+        })
     });
-    for (study, result) in &runs {
-        let post = result.posterior.as_ref().expect("single-horizon mediation posterior");
-        for ((name, column, truth), tally) in targets.iter().zip(&mut tallies) {
-            let draws = post.draws.column(*column).expect("decomposition draws");
-            if *name == "Mediated" {
-                bind_all(&mut [&mut *tally, &mut reported], study, result);
-                reported.record(quantile_interval(draws, REPORTED_LEVEL), *truth);
-            }
-            tally.record(quantile_interval(draws, LEVEL), *truth);
+    for replicate in &runs {
+        for (((_, _, truth), (study, result)), (tally, reported)) in
+            contrasts.iter().zip(replicate).zip(tallies.iter_mut().zip(&mut reported))
+        {
+            bind_all(&mut [&mut *tally, &mut *reported], study, result);
+            reported
+                .record(posterior_interval_at(result.posterior.as_ref(), REPORTED_LEVEL), *truth);
+            tally.record(posterior_interval_at(result.posterior.as_ref(), LEVEL), *truth);
         }
     }
     // Print every contrast's calibration line before failing on any of them.
@@ -1594,7 +1589,7 @@ fn bayesian_temporal_dag_mediation_confounded_nominal_90_coverage() {
             })
         })
         .collect();
-    reported.emit();
+    reported.iter().for_each(CoverageTally::emit);
     assert!(failures.is_empty(), "{}", failures.join("; "));
 }
 
@@ -1615,7 +1610,7 @@ fn single_atom_mediation_dbn_posterior() -> GraphPosterior {
     for edge in lagged_edges {
         lagged_marginals[edge] = 1.0;
     }
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         VARIABLES,
         vec![1.0],
         vec![contemporaneous],
@@ -1635,9 +1630,45 @@ fn single_atom_mediation_dbn_posterior() -> GraphPosterior {
     .with_algorithm("known_truth_temporal_mediation_dag_atom")
 }
 
-/// Single-atom `TemporalDag` posterior calibration for the mediated path product.
-/// The DGP graph and posterior atom are the same fixed graph, so the interval
-/// targets `fixtures::mediation_truth()` without graph or identified-set spread.
+/// One replicate of the single-atom `TemporalDag` mediation posterior for
+/// `contrast`, on the series drawn for `rep` (shared by the contrasts).
+fn run_single_atom_mediation(
+    contrast: MediationContrast,
+    inference: InferenceMode,
+    boot: u32,
+    rep: u64,
+    seed: u64,
+) -> (Study, StudyResult) {
+    let query = CausalQuery::Mediation(
+        MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            contrast,
+        )
+        .with_horizons(vec![1])
+        .unwrap(),
+    );
+    let study = Study::series(mediation_series(grid_n(N), fixtures::MED_KAPPA, 28_000 + rep))
+        .graph_posterior(single_atom_mediation_dbn_posterior())
+        .query(query)
+        .inference(inference)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(boot)
+        .build()
+        .expect("one-atom temporal mediation posterior builds");
+    let result = study
+        .run(&ExecutionContext::for_tests(seed))
+        .expect("one-atom temporal mediation posterior runs");
+    (study, result)
+}
+
+/// Single-atom `TemporalDag` posterior calibration for the Total, Direct and
+/// Mediated contrasts, each its own query and its own record. The DGP graph and
+/// posterior atom are the same fixed graph, so each interval targets its
+/// contrast's path-product truth without graph or identified-set spread. The
+/// three executions of a replicate share one simulated series (one functional of
+/// a draw per tally, each judged on its own marginal coverage).
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage() {
@@ -1646,49 +1677,38 @@ fn bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_n
         dgp: "mediation_series_single_atom_graph_posterior",
         interval: "posterior_quantile",
     };
-    let mut mediated = CoverageTally::for_record(key, LEVEL).labelled("mediated");
-    let mut reported =
-        CoverageTally::for_record(key, REPORTED_LEVEL).labelled("mediated").unasserted();
-    let posterior = single_atom_mediation_dbn_posterior();
+    let contrasts = confounded_contrasts();
+    let mut tallies: Vec<CoverageTally> = contrasts
+        .iter()
+        .map(|(label, _, _)| CoverageTally::for_record(key, LEVEL).labelled(*label))
+        .collect();
+    let mut reported: Vec<CoverageTally> = contrasts
+        .iter()
+        .map(|(label, _, _)| {
+            CoverageTally::for_record(key, REPORTED_LEVEL).labelled(*label).unasserted()
+        })
+        .collect();
     let runs = map_replicates(n_sim(), |rep| {
         let seed = 0x19_4753_0000_u64 + rep * 7_919;
-        let query = CausalQuery::Mediation(
-            MediationQuery::binary(
-                VariableId::from_raw(0),
-                VariableId::from_raw(2),
-                [VariableId::from_raw(1)],
-                MediationContrast::Mediated,
-            )
-            .with_horizons(vec![1])
-            .unwrap(),
-        );
-        let study = Study::series(mediation_series(grid_n(N), fixtures::MED_KAPPA, 28_000 + rep))
-            .graph_posterior(posterior.clone())
-            .query(query)
-            .inference(bayes())
-            .refute(RefuteSuite::None)
-            .bootstrap_replicates(0)
-            .build()
-            .expect("one-atom temporal mediation posterior builds");
-        let result = study
-            .run(&ExecutionContext::for_tests(seed))
-            .expect("one-atom temporal mediation posterior runs");
-        (study, result)
+        contrasts.map(|(_, contrast, _)| run_single_atom_mediation(contrast, bayes(), 0, rep, seed))
     });
-    for (study, result) in &runs {
-        let post = result.posterior.as_ref().expect("single-horizon mediation posterior");
-        // The single-atom graph-posterior mediation posterior is envelope-aggregated
-        // over the effect (the query's Mediated contrast), so the mediated draws are
-        // the effect column, not a Total/Direct/Mediated decomposition column.
-        let col = post.effect_column().expect("mediation effect column");
-        let mediated_draws = post.draws.column(col).expect("mediated effect draws");
-        bind_all(&mut [&mut mediated, &mut reported], study, result);
-        mediated.record(quantile_interval(mediated_draws, LEVEL), fixtures::mediation_truth());
-        reported
-            .record(quantile_interval(mediated_draws, REPORTED_LEVEL), fixtures::mediation_truth());
+    for replicate in &runs {
+        for (((_, _, truth), (study, result)), (tally, reported)) in
+            contrasts.iter().zip(replicate).zip(tallies.iter_mut().zip(&mut reported))
+        {
+            let post = result.posterior.as_ref();
+            // The single-atom graph-posterior mediation posterior is envelope-aggregated
+            // over the effect (the query's contrast), so the draws are the effect column.
+            assert!(post.is_some_and(|p| p.effect_column().is_some()), "mediation effect column");
+            bind_all(&mut [&mut *tally, &mut *reported], study, result);
+            tally.record(posterior_interval_at(post, LEVEL), *truth);
+            reported.record(posterior_interval_at(post, REPORTED_LEVEL), *truth);
+        }
     }
-    mediated.assert();
-    reported.emit();
+    for tally in &tallies {
+        tally.assert();
+    }
+    reported.iter().for_each(CoverageTally::emit);
 }
 
 /// Frequentist twin of
@@ -1712,64 +1732,53 @@ fn frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_ato
     // Bootstrap replicates for the shared circular block. The manufacturing
     // envelope for this construction records replicates_ok in 20..=40 at 40.
     const BOOT_MED: u32 = 40;
-    // MED_ALPHA·MED_DELTA = 0.6·0.5 = 0.30 (mediated path product t[t-1] -> m -> y).
-    let truth = fixtures::mediation_truth();
-    // Built inline (not via FreqTally) so the calibration-readiness classifier,
-    // which follows `.method(` calls but not `Type::assoc(` calls, sees the
-    // `CoverageTally::for_record` + `RecordKey { test }` emitter in this body —
-    // matching the two sibling TemporalDag graph-posterior response twins.
-    let mut tally = CoverageTally::for_record(
-        RecordKey { test: TEST, dgp: MEDIATION_SERIES, interval: "circular_block_se" },
-        REPORTED_LEVEL,
-    );
-    let posterior = single_atom_mediation_dbn_posterior();
+    // Each contrast is its own query and its own record; the Mediated record keeps
+    // the unlabelled id it always had. The three executions of a replicate share
+    // one simulated series and one run seed, so they share the circular-block
+    // replicate; each tally scores one functional of that draw against its own
+    // truth and is judged on its own marginal coverage.
+    let key = RecordKey { test: TEST, dgp: MEDIATION_SERIES, interval: "circular_block_se" };
+    let contrasts = confounded_contrasts();
+    let mut tallies: Vec<CoverageTally> = contrasts
+        .iter()
+        .map(|(label, _, _)| {
+            let tally = CoverageTally::for_record(key, REPORTED_LEVEL);
+            if *label == "mediated" { tally } else { tally.labelled(*label) }
+        })
+        .collect();
     let runs = map_replicates(n_sim(), |rep| {
         let seed = 0x19_4763_0000_u64 + rep * 7_919;
-        let query = CausalQuery::Mediation(
-            MediationQuery::binary(
-                VariableId::from_raw(0),
-                VariableId::from_raw(2),
-                [VariableId::from_raw(1)],
-                MediationContrast::Mediated,
-            )
-            .with_horizons(vec![1])
-            .unwrap(),
-        );
-        let study = Study::series(mediation_series(grid_n(N), fixtures::MED_KAPPA, 28_000 + rep))
-            .graph_posterior(posterior.clone())
-            .query(query)
-            .inference(InferenceMode::Frequentist)
-            .refute(RefuteSuite::None)
-            .bootstrap_replicates(BOOT_MED)
-            .build()
-            .expect("one-atom temporal mediation frequentist posterior builds");
-        let result = study
-            .run(&ExecutionContext::for_tests(seed))
-            .expect("one-atom temporal mediation frequentist posterior runs");
-        (study, result)
+        contrasts.map(|(_, contrast, _)| {
+            run_single_atom_mediation(contrast, InferenceMode::Frequentist, BOOT_MED, rep, seed)
+        })
     });
-    for (rep, (study, result)) in runs.iter().enumerate() {
-        if rep == 0 {
-            assert_eq!(
-                result.logical_plan.estimator.as_deref(),
-                Some("temporal.mediation"),
-                "single-atom TemporalDag graph-posterior mediation uses the temporal.mediation \
-                 estimator"
-            );
-            assert!(
-                freq_interval_at(result, REPORTED_LEVEL).is_some(),
-                "the frequentist graph-posterior mediation must publish a circular-block SE \
-                 interval; if it withholds the interval this coordinate is blocked"
-            );
-        }
-        bind_all(&mut [&mut tally], study, result);
-        // do(T@-1=1) mediated path product MED_ALPHA·MED_DELTA = 0.6·0.5 = 0.30.
-        match freq_interval_at(result, REPORTED_LEVEL) {
-            Some(interval) => tally.record(Some(interval), truth),
-            None => tally.skip(),
+    for (rep, replicate) in runs.iter().enumerate() {
+        for (((_, _, truth), (study, result)), tally) in
+            contrasts.iter().zip(replicate).zip(&mut tallies)
+        {
+            if rep == 0 {
+                assert_eq!(
+                    result.logical_plan.estimator.as_deref(),
+                    Some("temporal.mediation"),
+                    "single-atom TemporalDag graph-posterior mediation uses the temporal.mediation \
+                     estimator"
+                );
+                assert!(
+                    freq_interval_at(result, REPORTED_LEVEL).is_some(),
+                    "the frequentist graph-posterior mediation must publish a circular-block SE \
+                     interval; if it withholds the interval this coordinate is blocked"
+                );
+            }
+            bind_all(&mut [&mut *tally], study, result);
+            match freq_interval_at(result, REPORTED_LEVEL) {
+                Some(interval) => tally.record(Some(interval), *truth),
+                None => tally.skip(),
+            }
         }
     }
-    tally.assert();
+    for tally in &tallies {
+        tally.assert();
+    }
 }
 
 // ---------------------------------------------------------------------------

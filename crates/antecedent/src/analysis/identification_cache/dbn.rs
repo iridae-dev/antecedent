@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, MediationQuery, ResponseQuery, TemporalEffectQuery};
 use antecedent_data::TemporalIndexer;
-use antecedent_discovery::{GraphPosterior, temporal_dag_from_dbn_masks};
+use antecedent_discovery::GraphPosterior;
+use antecedent_discovery::dbn_posterior::temporal_dag_from_dbn_atoms;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::TemporalDag;
 use antecedent_identify::{IdentificationResult, TemporalBackdoorIdentifier};
@@ -48,7 +49,7 @@ pub(crate) struct CachedDbnPosteriorAtomIdentification {
 /// an unexplained residual.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct DbnIdentifyDemotion {
-    /// `temporal_dag_from_dbn_masks` rejected the atom.
+    /// `temporal_dag_from_dbn_atoms` rejected the atom.
     pub invalid_graph: usize,
     /// Temporal identification returned an error.
     pub identify_failed: usize,
@@ -177,8 +178,8 @@ pub(crate) fn build_dbn_posterior_identification_cache(
         // effect envelope. This key is internal and does not alter the public
         // GraphPosterior representation.
         let key = dbn_envelope_key(i)?;
-        let Ok(graph) = temporal_dag_from_dbn_masks(
-            posterior.adjacency[i],
+        let Ok(graph) = temporal_dag_from_dbn_atoms(
+            posterior.atoms[i],
             lag_masks[i],
             posterior.n_vars,
             max_lag,
@@ -293,8 +294,8 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
     crate::analysis::execute::report_identify_compute(ctx);
     let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let key = dbn_envelope_key(i)?;
-        let Ok(graph) = temporal_dag_from_dbn_masks(
-            posterior.adjacency[i],
+        let Ok(graph) = temporal_dag_from_dbn_atoms(
+            posterior.atoms[i],
             lag_masks[i],
             posterior.n_vars,
             max_lag,
@@ -454,8 +455,8 @@ pub(crate) fn build_dbn_mediation_cache_with_identifier(
         let key = dbn_envelope_key(i)?;
         keys.push(key);
         weights.push(posterior.weights[i]);
-        let Ok(graph) = temporal_dag_from_dbn_masks(
-            posterior.adjacency[i],
+        let Ok(graph) = temporal_dag_from_dbn_atoms(
+            posterior.atoms[i],
             lag_masks[i],
             posterior.n_vars,
             max_lag,
@@ -538,8 +539,8 @@ pub(crate) fn temporal_dag_from_dbn_atom(
     if index >= posterior.n_graphs || index >= lag_masks.len() {
         return Err(CausalError::Compile { message: "DBN envelope key is out of range".into() });
     }
-    temporal_dag_from_dbn_masks(
-        posterior.adjacency[index],
+    temporal_dag_from_dbn_atoms(
+        posterior.atoms[index],
         lag_masks[index],
         posterior.n_vars,
         max_lag,

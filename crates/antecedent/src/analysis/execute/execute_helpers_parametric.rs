@@ -470,11 +470,14 @@ pub(super) fn merge_posterior_notes<'a>(
 ///   for serial dependence; lists every fitted `κ̂`.
 /// - `estimate.bayesian.hmc_draw_floor`: the HMC draw floor raised the requested
 ///   draw count (B-5).
+/// - `estimate.bayesian.draw_controls`: the Monte Carlo standard errors of the interval
+///   endpoints that [`crate::PosteriorDrawControls`] bounded.
 pub(super) fn posterior_note_diagnostics<'a>(
     posteriors: impl IntoIterator<Item = &'a CausalPosterior>,
 ) -> Vec<Diagnostic> {
     let mut kappas = Vec::new();
     let mut floors = Vec::new();
+    let mut endpoint_errors = Vec::new();
     let mut capped = false;
     let mut inestimable = false;
     let mut seen = std::collections::HashSet::new();
@@ -495,6 +498,9 @@ pub(super) fn posterior_note_diagnostics<'a>(
             }
             if let Some(floor) = antecedent_estimate::hmc_draw_floor_from_notes(single) {
                 floors.push(floor);
+            }
+            if let Some(error) = antecedent_estimate::endpoint_mcse_from_notes(single) {
+                endpoint_errors.push(error);
             }
         }
     }
@@ -537,6 +543,24 @@ pub(super) fn posterior_note_diagnostics<'a>(
             "long-run-variance tempering hit the n/(p+2) cap on at least one fit; kappa is \
                  known to be too small and the published credible interval is still too narrow"
                 .to_string(),
+        ));
+    }
+    if let Some(error) = endpoint_errors.first() {
+        out.push(Diagnostic::new(
+            "estimate.bayesian.draw_controls",
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Info,
+            format!(
+                "interval endpoint Monte Carlo standard errors {:.3e} (lower) and {:.3e} (upper) \
+                 are {:.4} of the interval width from {:.0} effective of {} draws, within the \
+                 {} tolerance",
+                error.lower_mcse,
+                error.upper_mcse,
+                error.width_fraction,
+                error.effective_draws,
+                error.draws,
+                antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION
+            ),
         ));
     }
     if let Some(&(requested, used)) = floors.first() {

@@ -289,6 +289,10 @@ impl AtomEvalView for AdmgAtomEval {
     fn influence(&self) -> Option<&[f64]> {
         None
     }
+
+    fn reported_uncertainty(&self) -> Option<antecedent_estimate::EstimateUncertainty> {
+        Some(self.estimate.uncertainty)
+    }
 }
 
 fn mix_admg_posterior_evals(

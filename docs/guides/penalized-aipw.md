@@ -43,7 +43,7 @@ coverage records.
 
 ## What is fixed
 
-- **Scope.** The untrimmed `AllObserved` mean ATE with binary treatment. Other
+- **Scope.** The untrimmed `AllObserved` mean ATE with a binary treatment (two declared levels). Other
   functionals, other target populations and trimmed fits refit full-sample nuisances and
   are refused: `route_not_supported` (`penalized_propensity.scope`) for ridge, and
   `selection_inference_not_licensed` (`penalized_propensity.selection_closed`) for a lasso,

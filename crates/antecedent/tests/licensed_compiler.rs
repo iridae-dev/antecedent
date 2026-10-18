@@ -31,7 +31,10 @@ use antecedent_core::{
 use antecedent_data::{
     NetworkData, NetworkEdge, SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
 };
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::{
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
+};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{
     Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalAdmg,
@@ -448,7 +451,7 @@ fn static_gp(n_vars: usize) -> GraphPosterior {
         contemporaneous[2 * n_vars] = 1.0;
         contemporaneous[2 * n_vars + 1] = 1.0;
     }
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n_vars,
         vec![1.0],
         vec![0],
@@ -469,7 +472,7 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
         let mut lagged = vec![0.0; cell];
         lagged[1] = 1.0;
         lagged[2] = 1.0;
-        return GraphPosterior::new(
+        return GraphPosterior::from_atoms(
             n_vars,
             vec![1.0],
             vec![8],
@@ -507,7 +510,7 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
 fn point_family_gp(n_vars: usize, pag: bool) -> GraphPosterior {
     let cell = n_vars * n_vars;
     let mut lag_mask = 0u64;
-    let mut adjacency = 0u64;
+    let mut adjacency = AdjacencyMask::EMPTY;
     if n_vars >= 2 {
         lag_mask |= 1u64 << 1;
     }
@@ -518,7 +521,7 @@ fn point_family_gp(n_vars: usize, pag: bool) -> GraphPosterior {
     if pag && n_vars >= 4 {
         adjacency = set_edge(adjacency, n_vars, 3, 0, true);
     }
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n_vars,
         vec![1.0],
         vec![adjacency],
@@ -540,7 +543,7 @@ fn point_family_gp(n_vars: usize, pag: bool) -> GraphPosterior {
 fn temporal_class_gp(n_vars: usize) -> GraphPosterior {
     let cell = n_vars * n_vars;
     let mut lagged = vec![0.0; cell];
-    let mut adjacency = 0u64;
+    let mut adjacency = AdjacencyMask::EMPTY;
     let mut lag_mask = 0u64;
     if n_vars >= 2 {
         lagged[1] = 1.0;
@@ -550,7 +553,7 @@ fn temporal_class_gp(n_vars: usize) -> GraphPosterior {
         lagged[2 * n_vars + 1] = 1.0;
         adjacency = set_edge(set_edge(0, n_vars, 2, 0, true), n_vars, 2, 1, true);
     }
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n_vars,
         vec![1.0],
         vec![adjacency],

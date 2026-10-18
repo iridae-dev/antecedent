@@ -22,11 +22,17 @@
 //! The envelope states which members the implemented structural rules certify and which
 //! formulas they emit. It is not a point, an interval or a bound on an effect, and it carries
 //! no probability: members are not weighted, and the true graph is a member only under
-//! [`ENVELOPE_ASSUMPTIONS`], none of which this module can check. A PAG is refused (its
-//! members are ancestral graphs, not causal graphs the rules describe), a temporal structure
-//! is refused (outside this module), and an unfinished search, an orientation conflict, a
-//! selection target outside the structure or a class too large for the member bound is
-//! refused or reported `Partial`; nothing is read as a statement about one member.
+//! [`ENVELOPE_ASSUMPTIONS`], none of which this module can check. A CPDAG's members are DAGs.
+//! A PAG's members are maximal ancestral graphs, each read as the most-confounded graph it is
+//! compatible with: a circle endpoint is enumerated and never read as the absence of
+//! confounding. A temporal structure is answered at a declared horizon in
+//! [`super::discovered_transport_temporal`]. An unfinished search, an orientation conflict, a
+//! selection target outside the structure or a class too large for the member bound is refused
+//! or reported `Partial`; nothing is read as a statement about one member.
+//!
+//! Turning the envelope into numbers is [`super::discovered_transport_estimate`]: a point when
+//! every member agrees, a labelled structural range when the members differ, a refusal when
+//! some member is not identified.
 //!
 //! # Refresh with outcome-only data
 //!
@@ -38,6 +44,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![expect(
+    clippy::result_large_err,
+    reason = "the public error shape is kept as released; boxing the refusal would break callers that match on it"
+)]
+
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::{CanonicalWriter, ExecutionContext, TransportQuery, VariableId};
 use antecedent_data::TabularData;
@@ -46,16 +57,16 @@ use antecedent_discovery::selective::{
     StaticDiscoveryContract, StaticSelectiveDiscovery,
 };
 use antecedent_identify::discovered_transport::{
-    DiscoveredTransportRequest, refuse_pag_transport, transport_across_class,
+    DiscoveredTransportRequest, transport_across_class, transport_across_pag,
 };
 
 pub use antecedent_identify::discovered_transport::{
     DEFAULT_ENVELOPE_MEMBER_BOUND, DISCOVERED_TRANSPORT_REASON, DiscoveredTransportError,
     DiscoveredTransportRefusal, ENVELOPE_ASSUMPTIONS, EnvelopeMember, EnvelopeStatus,
-    MemberVerdict, StructuralTransportEnvelope, UnresolvedPair,
+    MemberVerdict, PagTransportRequest, StructuralTransportEnvelope, UnresolvedPair,
 };
 
-/// Detail of the refusal of a temporal structure.
+/// Detail of the refusal of a temporal structure offered without a horizon.
 pub const TEMPORAL_STRUCTURE_DETAIL: &str = "discovered_transport.temporal_structure_unsupported";
 
 const REPORT_TAG: &str = "antecedent.discovered_transport.report.v1";
@@ -136,6 +147,16 @@ fn report_identity(
         for (parent, child) in &member.directed_edges {
             writer.word(u64::from(parent.raw())).word(u64::from(child.raw()));
         }
+        // A PAG member's latent structure enters the identity only when it has any, so the
+        // identity of a CPDAG member is the bytes it always was.
+        for edges in [&member.bidirected_edges, &member.confounded_edges] {
+            if !edges.is_empty() {
+                writer.word(0x4c41_5445_4e54).word(edges.len() as u64);
+                for (a, b) in edges {
+                    writer.word(u64::from(a.raw())).word(u64::from(b.raw()));
+                }
+            }
+        }
         match &member.verdict {
             MemberVerdict::Identified { rule, .. } => writer.word(1).text(rule),
             MemberVerdict::NotCertified { reason } => writer.word(2).text(reason),
@@ -173,10 +194,12 @@ fn unresolved_of(outcome: &DiscoveryOutcome) -> Vec<UnresolvedPair> {
 ///
 /// # Errors
 ///
-/// [`DiscoveredTransportError::Refused`] for a PAG
-/// (`discovered_transport.pag_members_not_causal_graphs`), a temporal structure
+/// [`DiscoveredTransportError::Refused`] for a temporal structure offered without a horizon
 /// ([`TEMPORAL_STRUCTURE_DETAIL`]), an exhausted search bound, an orientation conflict, a
-/// target outside the structure, a zero member bound, or a class that cannot be enumerated;
+/// target outside the structure, a zero member bound, a class that cannot be enumerated, or a
+/// PAG whose circle endpoints admit more than one Markov equivalence class
+/// (`discovered_transport.pag_class_ambiguous`) or whose completions carry a selection-bias
+/// edge (`discovered_transport.pag_selection_bias_edge`);
 /// [`DiscoveredTransportError::Identification`] for a malformed query or diagram.
 pub fn transport_discovered_structure(
     outcome: &DiscoveryOutcome,
@@ -185,11 +208,26 @@ pub fn transport_discovered_structure(
     member_bound: usize,
 ) -> Result<DiscoveredTransportReport, DiscoveredTransportError> {
     let exhausted = exhausted_bounds(outcome);
-    let class = match &outcome.native {
-        NativeResult::StaticCpdag(result) => &result.evidence.graph,
-        NativeResult::StaticPag(_) => {
-            return Err(refuse_pag_transport(unresolved_of(outcome), exhausted));
-        }
+    let envelope = match &outcome.native {
+        NativeResult::StaticCpdag(result) => transport_across_class(
+            &DiscoveredTransportRequest {
+                class: &result.evidence.graph,
+                selection_targets,
+                exhausted_search_bounds: exhausted,
+                member_bound,
+            },
+            query,
+        )?,
+        NativeResult::StaticPag(result) => transport_across_pag(
+            &PagTransportRequest {
+                class: &result.evidence.graph,
+                selection_targets,
+                exhausted_search_bounds: exhausted,
+                member_bound,
+                completion_operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
+            },
+            query,
+        )?,
         _ => {
             return Err(DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
                 code: antecedent_core::reason_code!("discovered_structure_unresolved"),
@@ -197,20 +235,14 @@ pub fn transport_discovered_structure(
                 unresolved: unresolved_of(outcome),
                 exhausted_search_bounds: exhausted,
                 unknown_selection_targets: Vec::new(),
-                remedy: "a temporal discovered structure is not enumerated here: declare the \
-                         unrolled causal graph and its selection diagram and request \
-                         transport through the temporal transport route"
+                member_reasons: Vec::new(),
+                remedy: "a temporal discovered structure is answered at a declared horizon: \
+                         request transport through the temporal transport entry with the \
+                         treatment, the outcome and the number of steps between them"
                     .to_owned(),
             }));
         }
     };
-    let request = DiscoveredTransportRequest {
-        class,
-        selection_targets,
-        exhausted_search_bounds: exhausted,
-        member_bound,
-    };
-    let envelope = transport_across_class(&request, query)?;
     let mut targets = selection_targets.to_vec();
     targets.sort_unstable_by_key(|t| t.raw());
     targets.dedup();
@@ -290,9 +322,34 @@ fn remedy_of(detail: &str) -> &'static str {
             "rerun discovery or declare the causal graph; the structure is not the CPDAG of any \
              graph"
         }
-        "discovered_transport.pag_members_not_causal_graphs" => {
-            "resolve the PAG to a declared causal graph, or run PC under causal sufficiency, \
-             then request transport"
+        "discovered_transport.pag_class_ambiguous" => {
+            "rerun discovery, or declare the causal graph; the circle endpoints admit \
+             completions from more than one Markov equivalence class"
+        }
+        "discovered_transport.pag_selection_bias_edge" => {
+            "remove the selection-bias edge with background knowledge, or declare the causal \
+             graph and its selection diagram"
+        }
+        "discovered_transport.class_not_identified" => {
+            "the effect is not identified in some member of the class: resolve the marks that \
+             separate the members with background knowledge or an intervention, or declare the \
+             causal graph and its selection diagram"
+        }
+        "discovered_transport.member_not_estimable" => {
+            "supply source and target evidence that covers every factor the identified formula \
+             needs, or declare the causal graph"
+        }
+        "discovered_transport.class_enumeration_partial" => {
+            "raise the member bound and the completion budget until the whole class is \
+             enumerated, or declare the causal graph"
+        }
+        "discovered_transport.evidence_invalid" => {
+            "supply source and target tables whose columns are the structure's variables as \
+             non-negative integer codes"
+        }
+        "discovered_transport.temporal_query_invalid" => {
+            "state a mean response curve of one outcome under the declared treatment, with the \
+             treatment, outcome and selection targets among the structure's variables"
         }
         _ => {
             "declare the causal graph and its selection diagram and request transport with \
@@ -305,12 +362,20 @@ fn remedy_of(detail: &str) -> &'static str {
 /// refusal surface.
 ///
 /// Unresolved pairs are listed in `offending` as `a~b:reason`, joined by `;`; for a refusal on
-/// unknown selection targets `offending` names those targets instead.
+/// unknown selection targets `offending` names those targets instead, and for a refusal of the
+/// estimation step it names each unidentified or inestimable member as `memberN:reason`.
 #[must_use]
 pub fn discovered_transport_refusal(refusal: &DiscoveredTransportRefusal) -> ExternalRefusal {
     let mut out = ExternalRefusal::new(refusal.code, "bind", refusal.detail)
         .with_remedy(remedy_of(refusal.detail));
-    let offending = if refusal.unknown_selection_targets.is_empty() {
+    let offending = if !refusal.member_reasons.is_empty() {
+        refusal
+            .member_reasons
+            .iter()
+            .map(|(index, reason)| format!("member{index}:{reason}"))
+            .collect::<Vec<_>>()
+            .join(";")
+    } else if refusal.unknown_selection_targets.is_empty() {
         refusal
             .unresolved
             .iter()

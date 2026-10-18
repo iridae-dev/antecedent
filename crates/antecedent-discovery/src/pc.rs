@@ -22,13 +22,13 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Cpdag, CpdagReview, DenseNodeId};
 use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
-use crate::constraints::DiscoveryConstraints;
+use crate::constraints::{DiscoveryConstraints, KnowledgeScope};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::evidence::retain_after_family_fdr;
 use crate::orientation::{
-    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule, OrientationState,
-    run_static_orientation_to_fixed_point,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationRule, OrientationState, RuleDelta,
+    run_static_orientation_to_fixed_point, try_orient_undirected,
 };
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryPerformanceRecord, DiscoveryResult, EvidenceSource,
@@ -128,6 +128,9 @@ impl Pc {
         ctx: &ExecutionContext,
     ) -> Result<StaticCpdagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        self.constraints
+            .check_background_knowledge(KnowledgeScope::EquivalenceClass, variables)
+            .map_err(DiscoveryError::Knowledge)?;
         let (col_owned, var_index) = prepare_static_columns(
             StaticColumnRequest {
                 ci: &*self.ci,
@@ -160,7 +163,14 @@ impl Pc {
         )?;
         let mut scored = skeleton_scored_links(&skel);
         let StaticSkeleton {
-            mut adj, sepsets, ci_tests, iterations, family_p, family_edge, ..
+            mut adj,
+            sepsets,
+            ci_tests,
+            iterations,
+            family_p,
+            family_edge,
+            parent_limit_removed,
+            ..
         } = skel;
 
         // Multiplicity correction (when configured) covers the edges that were actually
@@ -211,12 +221,15 @@ impl Pc {
 
         let mut state = OrientationState::default();
         load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
+        orient_fixed_directions(&mut cpdag, &self.constraints, variables, &dense_of, &mut state)?;
 
         let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 5] =
             [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
         let orient_delta = run_static_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
 
         let mut diagnostics: Vec<_> = fdr_diagnostic.into_iter().collect();
+        diagnostics
+            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, "pc"));
         if state.conflicts > 0 || orient_delta.conflicts > 0 {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("pc.orientation_conflict"),
@@ -242,7 +255,13 @@ impl Pc {
             review,
             algorithm: crate::pipeline::algorithm_record(
                 "pc",
-                format!("alpha={},max_cond={},fdr={}", alpha, max_cond, self.fdr.is_some()),
+                format!(
+                    "alpha={},max_cond={},fdr={}{}",
+                    alpha,
+                    max_cond,
+                    self.fdr.is_some(),
+                    self.constraints.knowledge_config()
+                ),
             ),
             assumptions: discovery_assumptions("pc", true),
             iterations,
@@ -257,6 +276,50 @@ impl Pc {
             sepsets,
         })
     }
+}
+
+/// Orient the undirected edges of `cpdag` whose direction background knowledge fixes.
+///
+/// Knowledge is applied before colliders (Meek 1995), so a collider the data imply against a
+/// fixed direction is recorded as an orientation conflict on that edge rather than silently
+/// overriding the knowledge; knowledge that would close a directed cycle is recorded the same
+/// way. Pairs the search found non-adjacent are left alone: knowledge never adds an edge.
+///
+/// # Errors
+///
+/// A variable outside the graph, or a graph mutation failure other than a cycle.
+pub(crate) fn orient_fixed_directions(
+    cpdag: &mut Cpdag,
+    constraints: &DiscoveryConstraints,
+    variables: &[VariableId],
+    dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
+    state: &mut OrientationState,
+) -> Result<(), DiscoveryError> {
+    let mut delta = RuleDelta::default();
+    for (i, &a) in variables.iter().enumerate() {
+        for &b in &variables[i + 1..] {
+            let Some(fixed) = constraints.static_direction(a, b) else {
+                continue;
+            };
+            let (from, to) = (dense_of(fixed.from)?, dense_of(fixed.to)?);
+            let Some(edge) = cpdag.edge_between(from, to) else {
+                continue;
+            };
+            if !edge.is_undirected() {
+                // A score search can hand over an edge it has already directed. As stated there
+                // is nothing to orient; against the statement the data compelled it, which is
+                // recorded as a conflict like a collider that disagrees.
+                if edge.parent_child().is_some_and(|(parent, _)| parent == to) {
+                    state.record_conflict(&mut delta, from, to, "knowledge");
+                    let _ = cpdag.mark_conflict(from, to);
+                }
+                continue;
+            }
+            let premise = format!("background knowledge: {}→{}", fixed.from.raw(), fixed.to.raw());
+            try_orient_undirected(cpdag, state, &mut delta, from, to, premise)?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn edge_key(a: VariableId, b: VariableId) -> (u32, u32) {
@@ -406,6 +469,41 @@ mod tests {
     use super::*;
     use crate::result::LaggedLink;
     use crate::test_tables::tabular_n;
+
+    #[test]
+    fn fixed_directions_leave_an_edge_the_search_already_directed_alone_or_mark_it_a_conflict() {
+        // 0 → 1 and 2 → 3 are directed; 4 - 5 is undirected. Knowledge fixes 0 → 1 (as it is),
+        // 3 → 2 (against the search) and 4 → 5 (open).
+        let variables: Vec<VariableId> = (0..6).map(VariableId::from_raw).collect();
+        let node = |raw: u32| DenseNodeId::from_raw(raw);
+        let mut cpdag = Cpdag::with_variables(6);
+        cpdag.insert_directed(node(0), node(1)).unwrap();
+        cpdag.insert_directed(node(2), node(3)).unwrap();
+        cpdag.insert_undirected(node(4), node(5)).unwrap();
+        let constraints = DiscoveryConstraints {
+            required: Arc::from([
+                crate::constraints::contemp_link(variables[0], variables[1]),
+                crate::constraints::contemp_link(variables[3], variables[2]),
+                crate::constraints::contemp_link(variables[4], variables[5]),
+            ]),
+            ..DiscoveryConstraints::default()
+        };
+        let index: HashMap<VariableId, usize> =
+            variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
+        let dense = |v| crate::pipeline::dense_of(&index, v);
+        let mut state = OrientationState::default();
+        orient_fixed_directions(&mut cpdag, &constraints, &variables, &dense, &mut state).unwrap();
+        let direction = |a: u32, b: u32| {
+            cpdag
+                .edge_between(node(a), node(b))
+                .and_then(antecedent_graph::MarkedEdge::parent_child)
+                .map(|(p, c)| (p.raw(), c.raw()))
+        };
+        assert_eq!(direction(0, 1), Some((0, 1)), "an edge already as stated is untouched");
+        assert_eq!(direction(4, 5), Some((4, 5)), "an open edge is oriented as stated");
+        assert_eq!(direction(2, 3), None, "an edge compelled against the statement is a conflict");
+        assert_eq!(state.conflicts, 1);
+    }
 
     #[test]
     fn map_sepset_refuses_an_unknown_variable() {
@@ -917,5 +1015,197 @@ mod tests {
         ctx.cancellation.cancel();
         let out = pc.run(&data, &vars, &mut ws, &ctx);
         assert!(matches!(out, Err(DiscoveryError::Cancelled)), "{out:?}");
+    }
+
+    /// Background knowledge on static PC. The dependent pairs of `OracleCi` are the adjacent
+    /// pairs, and a non-adjacent pair is independent given the empty set (so every unshielded
+    /// triple is a collider); the single-edge and triangle graphs below have none.
+    mod knowledge {
+        use std::sync::Arc;
+
+        use antecedent_core::{ExecutionContext, VariableId};
+        use antecedent_graph::{Cpdag, DenseNodeId};
+        use antecedent_stats::OracleCi;
+
+        use super::super::Pc;
+        use crate::constraints::{DiscoveryConstraints, KnowledgeFault, contemp_link};
+        use crate::engine::DiscoveryWorkspace;
+        use crate::error::DiscoveryError;
+        use crate::test_tables::tabular_n;
+
+        fn v(i: u32) -> VariableId {
+            VariableId::from_raw(i)
+        }
+
+        fn run(
+            n: usize,
+            oracle: &[(usize, usize)],
+            constraints: DiscoveryConstraints,
+        ) -> Result<crate::pc::StaticCpdagDiscoveryResult, DiscoveryError> {
+            let data = tabular_n(n, 10);
+            let vars: Vec<VariableId> = (0..n as u32).map(v).collect();
+            let pc = Pc::new()
+                .with_fdr(false)
+                .with_constraints(constraints)
+                .with_ci(Arc::new(OracleCi::new(oracle.to_vec())));
+            let mut ws = DiscoveryWorkspace::default();
+            pc.run(&data, &vars, &mut ws, &ExecutionContext::for_tests(1))
+        }
+
+        fn directed(graph: &Cpdag, a: u32, b: u32) -> Option<(u32, u32)> {
+            graph
+                .edge_between(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+                .and_then(antecedent_graph::MarkedEdge::parent_child)
+                .map(|(p, c)| (p.raw(), c.raw()))
+        }
+
+        fn base() -> DiscoveryConstraints {
+            Pc::new().constraints
+        }
+
+        #[test]
+        fn without_knowledge_a_single_edge_stays_undirected() {
+            let result = run(2, &[(0, 1)], base()).unwrap();
+            let edge = result
+                .evidence
+                .graph
+                .edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
+                .unwrap();
+            assert!(edge.is_undirected());
+        }
+
+        #[test]
+        fn a_tier_a_forbidden_reverse_or_a_required_link_orient_the_edge() {
+            let mut tiered = base();
+            tiered.tiers = Arc::from([Arc::from([v(0)]), Arc::from([v(1)])]);
+            let g = run(2, &[(0, 1)], tiered).unwrap().evidence.graph;
+            assert_eq!(directed(&g, 0, 1), Some((0, 1)));
+
+            // Forbidding 0 -> 1 leaves only 1 -> 0.
+            let mut forbidden = base();
+            forbidden.forbidden = Arc::from([contemp_link(v(0), v(1))]);
+            let g = run(2, &[(0, 1)], forbidden).unwrap().evidence.graph;
+            assert_eq!(directed(&g, 0, 1), Some((1, 0)));
+
+            let mut required = base();
+            required.required = Arc::from([contemp_link(v(1), v(0))]);
+            let g = run(2, &[(0, 1)], required).unwrap().evidence.graph;
+            assert_eq!(directed(&g, 0, 1), Some((1, 0)));
+        }
+
+        #[test]
+        fn forbidding_both_directions_removes_the_adjacency() {
+            let mut c = base();
+            c.forbidden = Arc::from([contemp_link(v(0), v(1)), contemp_link(v(1), v(0))]);
+            let g = run(2, &[(0, 1)], c).unwrap().evidence.graph;
+            assert!(!g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+        }
+
+        #[test]
+        fn fixed_directions_propagate_by_meek_rule_two() {
+            // Triangle, no unshielded triple. 0 -> 1 -> 2 are required, so 0 - 2 must be 0 -> 2
+            // (the other orientation closes a directed cycle).
+            let mut c = base();
+            c.required = Arc::from([contemp_link(v(0), v(1)), contemp_link(v(1), v(2))]);
+            let g = run(3, &[(0, 1), (1, 2), (0, 2)], c).unwrap().evidence.graph;
+            assert_eq!(directed(&g, 0, 1), Some((0, 1)));
+            assert_eq!(directed(&g, 1, 2), Some((1, 2)));
+            assert_eq!(directed(&g, 0, 2), Some((0, 2)));
+        }
+
+        #[test]
+        fn a_collider_against_a_fixed_direction_is_a_reported_conflict() {
+            // 0 - 1 - 2 is an unshielded collider (0 and 2 are independent given nothing), but
+            // 1 -> 0 is required: the data-implied arrow into 1 disagrees, and the edge is
+            // marked as a conflict rather than silently taking either side.
+            let mut c = base();
+            c.required = Arc::from([contemp_link(v(1), v(0))]);
+            let result = run(3, &[(0, 1), (1, 2)], c).unwrap();
+            assert!(
+                result.diagnostics.iter().any(|d| &*d.code == "pc.orientation_conflict"),
+                "{:?}",
+                result.diagnostics
+            );
+            let edge = result
+                .evidence
+                .graph
+                .edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
+                .unwrap();
+            assert!(edge.is_conflict());
+        }
+
+        /// A star `0 - 1, 0 - 2, 0 - 3` (oracle: dependent pairs are the adjacencies).
+        const STAR: [(usize, usize); 3] = [(0, 1), (0, 2), (0, 3)];
+
+        fn degree(g: &Cpdag, node: u32) -> usize {
+            (0..4)
+                .filter(|&m| {
+                    m != node && g.has_edge(DenseNodeId::from_raw(node), DenseNodeId::from_raw(m))
+                })
+                .count()
+        }
+
+        #[test]
+        fn a_parent_limit_drops_the_weakest_adjacencies_and_reports_them() {
+            let mut capped = base();
+            capped.max_parents = Some(2);
+            let result = run(4, &STAR, capped).unwrap();
+            assert_eq!(degree(&result.evidence.graph, 0), 2);
+            assert!(
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|d| &*d.code == "pc.parent_limit_removed_adjacencies"),
+                "{:?}",
+                result.diagnostics
+            );
+            // A limit that never binds changes nothing and reports nothing.
+            let mut loose = base();
+            loose.max_parents = Some(3);
+            let result = run(4, &STAR, loose).unwrap();
+            assert_eq!(degree(&result.evidence.graph, 0), 3);
+            assert!(result.diagnostics.iter().all(|d| !d.code.contains("parent_limit")));
+        }
+
+        #[test]
+        fn adjacencies_known_to_be_children_do_not_count_toward_the_limit() {
+            // 0 -> 1 is required, so 1 cannot be a parent of 0: only 2 and 3 count.
+            let mut c = base();
+            c.max_parents = Some(2);
+            c.required = Arc::from([contemp_link(v(0), v(1))]);
+            let result = run(4, &STAR, c).unwrap();
+            assert_eq!(degree(&result.evidence.graph, 0), 3);
+        }
+
+        #[test]
+        fn required_adjacencies_beyond_the_limit_cannot_all_hold() {
+            let mut c = base();
+            c.max_parents = Some(2);
+            c.required = Arc::from([
+                contemp_link(v(1), v(0)),
+                contemp_link(v(2), v(0)),
+                contemp_link(v(3), v(0)),
+            ]);
+            assert!(matches!(
+                run(4, &STAR, c).unwrap_err(),
+                DiscoveryError::Knowledge(KnowledgeFault::Contradictory(_))
+            ));
+        }
+
+        #[test]
+        fn unusable_knowledge_is_refused_before_any_test() {
+            let fault = |c: DiscoveryConstraints| match run(2, &[(0, 1)], c).unwrap_err() {
+                DiscoveryError::Knowledge(fault) => fault,
+                other => panic!("expected a knowledge fault, got {other:?}"),
+            };
+            let mut contradictory = base();
+            contradictory.required = Arc::from([contemp_link(v(0), v(1))]);
+            contradictory.forbidden = Arc::from([contemp_link(v(0), v(1))]);
+            assert!(matches!(fault(contradictory), KnowledgeFault::Contradictory(_)));
+
+            let mut unknown = base();
+            unknown.required = Arc::from([contemp_link(v(0), v(7))]);
+            assert!(matches!(fault(unknown), KnowledgeFault::UnknownVariable(_)));
+        }
     }
 }

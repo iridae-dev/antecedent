@@ -390,6 +390,8 @@ _LAZY_MODULES: tuple[str, ...] = (
     "execution_attempt",
     "functional_source",
     "interface_contract",
+    "intervention_callbacks",
+    "intervention_programs",
     "inverse",
     "inverse_query",
     "inverse_sources",
@@ -399,9 +401,13 @@ _LAZY_MODULES: tuple[str, ...] = (
     "measurement_models",
     "mechanism_composition",
     "mechanism_discrepancy",
+    "missing",
     "msm_sensitivity",
+    "multi_level_treatment",
     "nonlinear_mediation",
     "observation_query",
+    "observational_policy",
+    "observational_survival",
     "predictive_assessment",
     "preflight",
     "program_claims",
@@ -460,6 +466,8 @@ if _TYPE_CHECKING:
     from . import execution_attempt as execution_attempt
     from . import functional_source as functional_source
     from . import interface_contract as interface_contract
+    from . import intervention_callbacks as intervention_callbacks
+    from . import intervention_programs as intervention_programs
     from . import inverse as inverse
     from . import inverse_query as inverse_query
     from . import inverse_sources as inverse_sources
@@ -469,9 +477,13 @@ if _TYPE_CHECKING:
     from . import measurement_models as measurement_models
     from . import mechanism_composition as mechanism_composition
     from . import mechanism_discrepancy as mechanism_discrepancy
+    from . import missing as missing
     from . import msm_sensitivity as msm_sensitivity
+    from . import multi_level_treatment as multi_level_treatment
     from . import nonlinear_mediation as nonlinear_mediation
     from . import observation_query as observation_query
+    from . import observational_policy as observational_policy
+    from . import observational_survival as observational_survival
     from . import predictive_assessment as predictive_assessment
     from . import preflight as preflight
     from . import program_claims as program_claims

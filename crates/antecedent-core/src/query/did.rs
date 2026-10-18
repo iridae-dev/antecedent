@@ -191,6 +191,38 @@ impl PanelDidQuery {
         query
     }
 
+    /// The query restricted to the rows where `keep` is true, preserving row order, subject,
+    /// cluster, period and cohort labels. Nothing is relabelled.
+    ///
+    /// Returns `None` for an augmented panel, whose nuisance columns are row-aligned in the
+    /// data and would need the same restriction, and when `keep` does not match the rows.
+    #[must_use]
+    pub fn restrict_rows(&self, keep: &[bool]) -> Option<Self> {
+        // Optional label columns are empty when undeclared and stay empty.
+        fn pick<T: Clone>(values: &Arc<[T]>, keep: &[bool]) -> Arc<[T]> {
+            if values.len() != keep.len() {
+                return Arc::from([]);
+            }
+            values.iter().zip(keep).filter(|(_, kept)| **kept).map(|(v, _)| v.clone()).collect()
+        }
+        let n = self.treated.len();
+        if keep.len() != n || self.augmented.is_some() {
+            return None;
+        }
+        Some(Self {
+            design: self.design,
+            outcome: self.outcome,
+            treated: pick(&self.treated, keep),
+            post: pick(&self.post, keep),
+            subjects: pick(&self.subjects, keep),
+            clusters: pick(&self.clusters, keep),
+            periods: pick(&self.periods, keep),
+            cohorts: pick(&self.cohorts, keep),
+            target: self.target,
+            augmented: None,
+        })
+    }
+
     /// Validate metadata dimensions and labels.
     ///
     /// # Errors

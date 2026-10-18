@@ -71,6 +71,7 @@ __all__ = [
     "EvidenceLedger",
     "EvidenceLedgerRefusal",
     "FixedEffect",
+    "EqualStudyGaussian",
     "HierarchicalPosterior",
     "LedgerExport",
     "LedgerRefresh",
@@ -474,6 +475,21 @@ class FixedEffect:
 
 
 @dataclass(frozen=True, slots=True)
+class EqualStudyGaussian:
+    """Equal-study mean and empirical variance of the mean.
+
+    Independent Gaussian study estimates share a marginal mean but may have
+    arbitrary unequal variances. The study-level Student interval, when licensed,
+    has at least 95% coverage; this is not a fitted between-study variance model.
+    """
+
+    estimate: float
+    variance: float
+    weights: tuple[float, ...]
+    degrees_of_freedom: int
+
+
+@dataclass(frozen=True, slots=True)
 class RandomEffects:
     """Random-effects pooled estimate with heterogeneity; the variance is conditional on
     the estimated ``tau_squared``."""
@@ -520,7 +536,9 @@ class DependenceEnvelope:
     rho_at_variance_max: float
 
 
-SynthesisValue = FixedEffect | RandomEffects | HierarchicalPosterior | DependenceEnvelope
+SynthesisValue = (
+    FixedEffect | EqualStudyGaussian | RandomEffects | HierarchicalPosterior | DependenceEnvelope
+)
 
 
 def _value(wire: dict[str, Any]) -> SynthesisValue:
@@ -531,6 +549,13 @@ def _value(wire: dict[str, Any]) -> SynthesisValue:
             variance=float(wire["variance"]),
             weights=tuple(float(w) for w in wire["weights"]),
             heterogeneity_q=float(wire["heterogeneity_q"]),
+            degrees_of_freedom=int(wire["degrees_of_freedom"]),
+        )
+    if kind == "equal_study_gaussian":
+        return EqualStudyGaussian(
+            estimate=float(wire["estimate"]),
+            variance=float(wire["variance"]),
+            weights=tuple(float(w) for w in wire["weights"]),
             degrees_of_freedom=int(wire["degrees_of_freedom"]),
         )
     if kind == "random_effects":
@@ -927,10 +952,15 @@ class EvidenceLedger(ScientificResult):
         replaces: str | None = None,
         cancel: Any = None,
     ) -> SynthesisOutcome:
-        """Random-effects pooling of independent studies (``dersimonian_laird`` or ``reml``).
+        """Pool independent study estimates about a common population mean.
 
-        Independence is known and disjoint observations, never assumed; the variance is
-        conditional on the estimated ``tau^2``. Point-only.
+        ``dersimonian_laird`` and ``reml`` fit between-study variance. The explicit
+        ``equal_study_gaussian`` method gives studies equal weights and uses their
+        empirical variance; it declares independent Gaussian study estimates with
+        one common marginal mean and arbitrary unequal variances. Its study-level
+        Student interval is conservative at confidence levels of at least 95%.
+        Independence requires known disjoint observations. This call is point-only;
+        :meth:`pooled_interval` requires evidence for the exact interval method.
         """
         request = {
             "label": label,

@@ -1,0 +1,12 @@
+    Finished `release` profile [optimized] target(s) in 0.10s
+     Running unittests src/lib.rs (/private/tmp/antecedent-attestation-target/release/deps/antecedent_estimate-c32a2e49857a2664)
+
+running 1 test
+test calibration_coverage::ipw_hajek_analytic_conformance_scm_ci_coverage ... calibration ipw_hajek_analytic_conformance_scm: nominal=0.95 coverage=0.935 mcse=0.0109 band=[0.917, 0.983] mean_length=0.1593 mean_se=0.0406 mc_sd=0.0403 mean_point=2.0048 (374/400 covered)
+calibration ipw_hajek_analytic_conformance_scm_ci_coverage: nominal=0.95 coverage=0.935 mcse=0.0109 band=[0.917, 0.983] mean_length=0.1593 (374/400 covered, 0 skipped)
+calibration-record {"bound_replicates":400,"boundary":false,"dependence":"iid","dgp":"crates/antecedent-estimate/src/calibration_coverage.rs::propensity_ipw_conformance_scm","estimator":"propensity.weighting","functional":"all_observed.mean","graph_class":"Dag","grid_point":1,"id":"cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage","identification":"point","inference":"Frequentist","interval_method":"analytic_se","mcse":0.012326293035621046,"measured_at":"c9659b468b86366886facff69a73eeee5fc1f0f8","modality":"tabular","n_max":1200,"n_min":1200,"nominal":0.95,"observed":0.935,"posterior":"","posterior_draws_min":0,"query":"AverageEffect","replicates":400,"replicates_min":0,"role":"gated","se_kind":"","structure":"fixed","test":"crates/antecedent-estimate/src/calibration_coverage.rs::ipw_hajek_analytic_conformance_scm_ci_coverage","unidentified_mass_max":0.0}
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 830 filtered out; finished in 0.07s
+
+calibration-measured-at c9659b468b86366886facff69a73eeee5fc1f0f8

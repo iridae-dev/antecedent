@@ -347,7 +347,10 @@ SNAPSHOT: dict[str, set[str]] = {
         "joint_distribution",
         "matched",
         "model",
+        "multi_level_treatment",
         "observation",
+        "observational_policy",
+        "observational_survival",
         "policy",
         "preflight",
         "regimes",
@@ -393,6 +396,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "descriptive",
         "dose_grid",
         "interface_contract",
+        "intervention_callbacks",
+        "intervention_programs",
         "inverse",
         "inverse_query",
         "latent_class",
@@ -429,9 +434,13 @@ SNAPSHOT: dict[str, set[str]] = {
         "inverse_sources",
         "discretized_composition",
         "vector_treatment",
+        "missing",
+        "graph_falsification",
+        "intrinsic_influence",
     },
     "AnalysisResult": {
         "artifact",
+        "estimand_text",
         "fitted_model",
         # The five-line API (`ResultAPI`)
         "answer",
@@ -506,8 +515,10 @@ SNAPSHOT: dict[str, set[str]] = {
         # Licensed GCM attribution cells
         "anomaly",
         "change_attribution",
+        "missing_data",
     },
     "PreparedAnalysis": {
+        "participants",
         "identification",
         "inspect_plan",
         "last_result",
@@ -576,6 +587,7 @@ SNAPSHOT: dict[str, set[str]] = {
     # the propensity overlap policy are reviewed surface, like the verbs.
     "Bayesian": {
         "backend",
+        "draw_controls",
         "kind",
         "likelihood",
         "mapping",
@@ -594,6 +606,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "target_population",
         "treatment",
         "treatment_lag",
+        "weights",
     },
     "SustainedEffect": {
         "active_level",
@@ -633,6 +646,8 @@ SNAPSHOT: dict[str, set[str]] = {
     "estimators.Overlap": {"clip", "trim"},
     "estimators.Aipw": {
         "bootstrap",
+        "cluster",
+        "other_levels",
         "cluster_dml",
         "cluster_ids",
         "estimator_id",
@@ -644,6 +659,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "propensity_penalty",
         "se",
         "se_lag",
+        "weights",
     },
 }
 

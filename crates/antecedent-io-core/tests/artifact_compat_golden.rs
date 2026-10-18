@@ -437,6 +437,217 @@ fn the_adaptive_monitoring_contract_golden_is_consumed_and_gated() {
     assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
 }
 
+const PARTICIPANT_GOLDEN: &str = "adaptive_monitoring_contract_participant_v1.bin";
+
+/// A retained run of the participant-level family under the confidence sequence the released
+/// golden was written with, and the procedure it ran under.
+fn participant_run()
+-> (AdaptiveDesignContract, antecedent_stats::adaptive_inference::ParticipantSpec) {
+    participant_run_under(antecedent_stats::adaptive_inference::SequenceKind::MixtureHoeffding)
+}
+
+fn participant_spec(
+    sequence: antecedent_stats::adaptive_inference::SequenceKind,
+) -> antecedent_stats::adaptive_inference::ParticipantSpec {
+    use antecedent_stats::adaptive_inference::{
+        AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, CorrelationPrior, DecisionRules,
+        HistoricalPrior, ParticipantDeclaration, ParticipantSpec,
+    };
+    let control = ArmPrior {
+        initial: BetaPrior::UNIFORM,
+        historical: vec![HistoricalPrior {
+            source: "registry".to_owned(),
+            successes: 40,
+            trials: 100,
+            discount: 0.5,
+        }],
+    };
+    ParticipantSpec::new(ParticipantDeclaration {
+        arms: 3,
+        responses: Some(3),
+        correlation: None,
+        // The correlation is estimated jointly with the arm means under a Beta(2, 6) prior.
+        correlation_prior: Some(CorrelationPrior { alpha: 2.0, beta: 6.0 }),
+        borrowing: Some(BorrowingPlan {
+            arms: vec![
+                control,
+                ArmPrior::without_history(BetaPrior::UNIFORM),
+                ArmPrior::without_history(BetaPrior::UNIFORM),
+            ],
+        }),
+        enrolment: Some(vec![10, 10, 10]),
+        lag_looks: 0,
+        min_exploration: Some(0.1),
+        decisions: Some(DecisionRules {
+            loss_threshold: 1e-12,
+            futility: None,
+            participant_cap: None,
+        }),
+        anytime: Some(AnytimeSettings { alpha: 0.05, tuning_samples: 10.0 }),
+    })
+    .expect("a valid procedure")
+    .with_sequence_kind(sequence)
+}
+
+/// A retained run of the participant-level family and the procedure it ran under, reading the
+/// given confidence-sequence construction.
+fn participant_run_under(
+    sequence: antecedent_stats::adaptive_inference::SequenceKind,
+) -> (AdaptiveDesignContract, antecedent_stats::adaptive_inference::ParticipantSpec) {
+    use antecedent_stats::adaptive_inference::{LookDecision, simulate_participant_history};
+    let spec = participant_spec(sequence);
+    let history = simulate_participant_history(&spec, &[0.4, 0.4, 0.4], Some(0.2), 5, &|| false)
+        .expect("a history");
+    let readings = spec.read_history(&history, &|| false).expect("replays");
+    assert!(matches!(readings.last().map(|r| r.decision), Some(LookDecision::Stop { .. })));
+    assert!(history.batches.len() >= 2);
+    let total: u32 = history.batches.iter().sum();
+    let mut cumulative = 0;
+    let mut policy_history = Vec::new();
+    let mut interim_analyses = Vec::new();
+    let mut available_at_look = Vec::new();
+    for (look, &size) in history.batches.iter().enumerate() {
+        policy_history.push(PolicyEpoch {
+            first_unit: cumulative,
+            policy_identity: SemanticDigest::from_bytes([u8::try_from(look).unwrap() + 1; 32]),
+        });
+        cumulative += size;
+        interim_analyses.push(InterimAnalysis {
+            units_enrolled: cumulative,
+            information_fraction: f64::from(cumulative) / f64::from(total),
+        });
+        available_at_look.extend((0..size).map(|_| Some(u32::try_from(look).unwrap())));
+    }
+    let arms: Vec<u32> = history.arms.iter().map(|&a| u32::try_from(a).unwrap()).collect();
+    let contract = AdaptiveDesignContract::new(AdaptiveDesignDeclaration {
+        label: "participant_trial".to_owned(),
+        cell: ProcedureCell {
+            assignment: AssignmentFamily::ThompsonBetaBernoulli,
+            outcome: OutcomeStructure::RepeatedMeasures,
+            monitoring: MonitoringStrategy::FixedInterimLooks,
+            stopping: StoppingRuleKind::DecisionTheoretic,
+        },
+        arm_labels: vec!["control".to_owned(), "low".to_owned(), "high".to_owned()],
+        assigned_arm: arms.clone(),
+        policy_history: Some(policy_history),
+        assignment_probabilities: Some(history.assignment.clone()),
+        exposure: Some(arms),
+        availability: Some(OutcomeAvailability {
+            available_at_look,
+            delay: DelayMechanism::Immediate,
+        }),
+        outcomes: history
+            .successes
+            .iter()
+            .map(|count| {
+                let ones = count.unwrap_or(0) as usize;
+                let mut values = vec![1.0; ones];
+                values.resize(3, 0.0);
+                values
+            })
+            .collect(),
+        interim_analyses: Some(interim_analyses),
+        stopping_rule: Some(StoppingRuleDeclaration {
+            kind: StoppingRuleKind::DecisionTheoretic,
+            spec: StoppingSpec::PosteriorExpectedLoss { loss_threshold: 1e-12 },
+            ended_by_rule: false,
+        }),
+        probability_floor: 0.1,
+    })
+    .expect("complete contract");
+    (contract, spec)
+}
+
+#[test]
+#[ignore = "writes tests/fixtures; run with `-- --ignored write_`"]
+fn write_adaptive_participant_procedure_golden() {
+    let (contract, spec) = participant_run();
+    write(
+        PARTICIPANT_GOLDEN,
+        &AdaptiveMonitoringContractArtifact::to_bytes_with_procedure(
+            &contract,
+            InferenceParadigm::BayesianPosterior,
+            &spec,
+            "golden-adaptive-participant",
+        )
+        .unwrap(),
+    );
+}
+
+#[test]
+fn the_adaptive_participant_procedure_golden_is_replayed_and_gated() {
+    let bytes = load(PARTICIPANT_GOLDEN);
+    assert_eq!(container_kind(&bytes).as_deref(), Some("adaptive_monitoring_contract_v1"));
+    let consumed = AdaptiveMonitoringContractArtifact::from_bytes(&bytes, None)
+        .expect("a fresh consumer replays the contract and the procedure section");
+    // Replay the retained history, rather than simulating it again: adaptive
+    // allocation probabilities depend on platform libm rounding. The golden's
+    // exact declaration and identity remain the compatibility contract.
+    let contract = AdaptiveDesignContract::new(consumed.contract().declaration().clone())
+        .expect("the retained declaration validates independently");
+    assert_eq!(
+        contract.identity().to_hex(),
+        "fe8105eb2f91aca3ec7d44ec90c0d7cf733c079766970282ef8f38b3565c3785"
+    );
+    let record = consumed.procedure_record().expect("the procedure section is replayed");
+    let spec =
+        participant_spec(antecedent_stats::adaptive_inference::SequenceKind::MixtureHoeffding);
+    assert_eq!(record.spec().identity(), spec.identity());
+    let (fresh, _) = AdaptiveMonitoringContractArtifact::seal_with_procedure(
+        &contract,
+        InferenceParadigm::BayesianPosterior,
+        &spec,
+    )
+    .expect("a fresh producer replays the retained history");
+    assert_eq!(consumed.contract().identity(), fresh.contract().identity());
+    // The released contract names no sequence construction and replays under its own.
+    assert_eq!(
+        record.spec().sequence_kind(),
+        antecedent_stats::adaptive_inference::SequenceKind::MixtureHoeffding
+    );
+    assert_eq!(record.readings().len(), contract.looks());
+    // A reading that was edited and resealed does not replay.
+    let mut meta = AdaptiveMonitoringContractArtifact::decode_unchecked(&bytes).expect("meta");
+    let look = &mut meta.participant_procedure.as_mut().expect("section").looks[0];
+    look.numbers_bits[0] = (f64::from_bits(look.numbers_bits[0]) + 0.01).to_bits();
+    AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
+    assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
+}
+
+#[test]
+fn a_plug_in_sequence_procedure_records_its_construction_and_replays() {
+    use antecedent_stats::adaptive_inference::SequenceKind;
+    let plug_in = SequenceKind::PredictablePlugInBernstein;
+    let (contract, spec) = participant_run_under(plug_in);
+    let (_, released) = participant_run();
+    // The construction is part of the procedure's identity.
+    assert_ne!(spec.identity(), released.identity());
+    let bytes = AdaptiveMonitoringContractArtifact::to_bytes_with_procedure(
+        &contract,
+        InferenceParadigm::BayesianPosterior,
+        &spec,
+        "plug-in-sequence",
+    )
+    .unwrap();
+    let consumed = AdaptiveMonitoringContractArtifact::from_bytes(&bytes, None)
+        .expect("a fresh consumer replays the plug-in sequence");
+    let record = consumed.procedure_record().expect("the procedure section is replayed");
+    assert_eq!(record.spec().sequence_kind(), plug_in);
+    assert_eq!(record.spec().identity(), spec.identity());
+    // A section edited to name the released sequence, and resealed, does not replay.
+    let mut meta = AdaptiveMonitoringContractArtifact::decode_unchecked(&bytes).expect("meta");
+    let section = meta.participant_procedure.as_mut().expect("section");
+    assert_eq!(section.anytime_sequence.as_deref(), Some(plug_in.label()));
+    section.anytime_sequence = None;
+    AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
+    assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
+    // A construction the consumer does not know is refused, not defaulted.
+    let section = meta.participant_procedure.as_mut().expect("section");
+    section.anytime_sequence = Some("unknown_construction".to_owned());
+    AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
+    assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
+}
+
 // -- composition verification -----------------------------------------------------------------
 
 fn digest_of(byte: u8) -> SemanticDigest {

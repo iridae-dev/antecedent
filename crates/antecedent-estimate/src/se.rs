@@ -98,6 +98,76 @@ pub(crate) fn require_clusters(ids: Option<&[u32]>, n: usize) -> Result<&[u32], 
     Ok(ids)
 }
 
+/// Check cluster labels declared for every row of the source table, before a design is
+/// drawn from it.
+///
+/// # Errors
+///
+/// Labels declared both per source row and per retained row, or a count that is not the
+/// source table's row count.
+pub(crate) fn require_source_labels(
+    source: &[u32],
+    retained: Option<&[u32]>,
+    source_rows: usize,
+) -> Result<(), EstimationError> {
+    if retained.is_some() {
+        return Err(EstimationError::unsupported(
+            "source_cluster_ids and cluster_ids both declared; labels are per source row or per \
+             retained row, not both",
+        ));
+    }
+    if source.len() != source_rows {
+        return Err(EstimationError::data_msg(format!(
+            "source_cluster_ids length {} != source rows {source_rows}",
+            source.len()
+        )));
+    }
+    Ok(())
+}
+
+/// The cluster labels of the retained rows, declared per retained row (`retained`) or per
+/// source row (`source`, subset by `rows`, the original index of each retained row).
+///
+/// # Errors
+///
+/// A retained row without a declared source label.
+pub(crate) fn declared_row_labels<'a>(
+    retained: Option<&'a [u32]>,
+    source: Option<&[u32]>,
+    rows: impl IntoIterator<Item = usize>,
+) -> Result<Option<std::borrow::Cow<'a, [u32]>>, EstimationError> {
+    let Some(source) = source else {
+        return Ok(retained.map(std::borrow::Cow::Borrowed));
+    };
+    let rows: Vec<usize> = rows.into_iter().collect();
+    retained_row_labels(source, &rows).map(|labels| Some(std::borrow::Cow::Owned(labels)))
+}
+
+/// Labels of the rows a design retained, from labels declared for every source row.
+///
+/// `row_selection` holds the original index of each retained row, so the result lines up
+/// with the design rows however many rows the complete-case and population masks removed.
+///
+/// # Errors
+///
+/// A retained row without a declared label.
+pub(crate) fn retained_row_labels(
+    source: &[u32],
+    row_selection: &[usize],
+) -> Result<Vec<u32>, EstimationError> {
+    row_selection
+        .iter()
+        .map(|&row| {
+            source.get(row).copied().ok_or_else(|| {
+                EstimationError::data_msg(format!(
+                    "source_cluster_ids has no label for retained row {row} of {}",
+                    source.len()
+                ))
+            })
+        })
+        .collect()
+}
+
 /// Require panel time labels matching prepared row count.
 ///
 /// # Errors

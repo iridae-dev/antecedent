@@ -111,6 +111,7 @@ class AteAnalysisResult:
     def effect_source_json(
         self, units: str, population: str, supplied_value: float
     ) -> tuple[str | None, str | None]: ...
+    missing_data_json: str | None
     structural_weight_basis: str | None
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
@@ -658,6 +659,7 @@ class EstimateSection:
     score_table: ScoreTableSection | None
     joint_covariance: list[list[float]] | None
     score_inference: ScoreInferenceSection | None
+    sampling_weights: tuple[int, int, float, float] | None
     scenario_effects: list[float] | None
     scenario_intervals: list[tuple[float, float]] | None
     simultaneous_interval: tuple[float, float, float] | None
@@ -847,6 +849,8 @@ class PcmciDiscoveryResult:
     cpdag_undirected_edges: int
     graph_edges: list[GraphEdge]
     variable_names: list[str]
+    background_knowledge: str | None
+    row_accounting: dict[str, Any] | None
 
     def accepted_graph(self, *, accept_discovered: bool = True) -> Any:
         """The reviewed accepted graph; refuses while edges are pending."""
@@ -875,6 +879,9 @@ class GraphPosterior:
     algorithm: str | None
     atom_kind: str
     mark_masks: list[int] | None
+    edge_mcse: list[float] | None
+    edge_rhat: list[float] | None
+    edge_ess: list[float] | None
     def to_weighted_samples(self) -> dict[str, object]: ...
     def edge_marginal_matrix(self) -> list[list[float]]: ...
     @classmethod
@@ -2044,6 +2051,7 @@ class FittedGcm:
     names: list[str]
     n_assignments: int
     def mechanism_kinds(self) -> list[tuple[str, str]]: ...
+    def mechanism_selection(self) -> list[dict[str, Any]]: ...
     def sample_do(
         self,
         interventions: dict[str, float],
@@ -2052,7 +2060,47 @@ class FittedGcm:
         shifts: dict[str, float] | None = None,
         seed: int = 0,
         threads: int | None = None,
+        programs: list[tuple[str, str, BatchCallbackHandle, list[str | None]]] | None = None,
     ) -> GcmSampleResult: ...
+    def sample_noise(
+        self,
+        interventions: dict[str, float],
+        n: int,
+        *,
+        shifts: dict[str, float] | None = None,
+        seed: int = 0,
+        threads: int | None = None,
+        programs: list[tuple[str, str, BatchCallbackHandle, list[str | None]]] | None = None,
+    ) -> tuple[GcmSampleResult, NDArray[np.float64]]: ...
+    def replay_noise(
+        self,
+        noise: NDArray[np.float64],
+        interventions: dict[str, float] | None = None,
+        *,
+        shifts: dict[str, float] | None = None,
+        policy_salt: int = 0,
+        seed: int = 0,
+        threads: int | None = None,
+        programs: list[tuple[str, str, BatchCallbackHandle, list[str | None]]] | None = None,
+    ) -> GcmSampleResult: ...
+    def attribute_intrinsic_influence(
+        self,
+        target: str,
+        *,
+        independent_noise: bool = False,
+        bidirected_edges: list[tuple[str, str]] | None = None,
+        allocation: str = "auto",
+        n_permutations: int = 200,
+        outer_draws: int = 200,
+        inner_draws: int = 40,
+        replicates: int = 4,
+        fit_bootstrap: int = 0,
+        level: float = 0.95,
+        max_sources: int = 64,
+        seed: int = 0,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
     def counterfactual_ite(
         self,
         treatment: str,
@@ -2168,7 +2216,164 @@ def fit_gcm(
     edges: list[tuple[str, str]],
     *,
     threads: int | None = None,
+    candidates: list[str] | None = None,
+    constraints: dict[str, dict[str, Any]] | None = None,
+    splits: str = "shuffled",
+    purge: int = 0,
 ) -> FittedGcm: ...
+
+class BatchCallbackHandle:
+    def __init__(
+        self,
+        function: Callable[..., Any],
+        name: str,
+        inputs: list[str],
+        output_kind: str,
+        output_params: list[float],
+        dependencies: list[tuple[str, str]],
+        source_sha256: str | None = None,
+        entry_point: str | None = None,
+    ) -> None: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def inputs(self) -> list[str]: ...
+    @property
+    def recoverable(self) -> bool: ...
+    def recovery_record(self) -> dict[str, Any] | None: ...
+
+def callback_export_refusal(
+    callbacks: list[BatchCallbackHandle],
+) -> tuple[str, str] | None: ...
+def encode_callback_policy_program(
+    names: list[str],
+    items: list[
+        tuple[
+            str | None,
+            tuple[str, str, BatchCallbackHandle, list[str | None]] | None,
+        ]
+    ],
+) -> bytes: ...
+def policy_program_callback_records(data: bytes) -> list[dict[str, Any]]: ...
+def decode_callback_policy_program(
+    names: list[str],
+    data: bytes,
+    supplied: list[BatchCallbackHandle],
+) -> list[tuple[str, str, str | None, str | None, list[str | None] | None]]: ...
+def verify_callback_recovery(
+    name: str,
+    inputs: list[str],
+    output_kind: str,
+    output_params: list[float],
+    source_sha256: str,
+    entry_point: str,
+    dependencies: list[tuple[str, str]],
+    supplied: BatchCallbackHandle,
+) -> None: ...
+def evaluate_graph(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, str]],
+    *,
+    ci_test: str = "parcorr",
+    alpha: float = 0.05,
+    significance: float = 0.05,
+    n_permutations: int = 200,
+    min_permutations: int = 20,
+    max_equivalent_share: float | None = None,
+    max_ci_tests: int | None = None,
+    ci_replicates: int = 199,
+    permutation_seed: int | None = None,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def attribute_intrinsic_influence(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, str]],
+    target: str,
+    *,
+    independent_noise: bool = False,
+    bidirected_edges: list[tuple[str, str]] | None = None,
+    allocation: str = "auto",
+    n_permutations: int = 200,
+    outer_draws: int = 200,
+    inner_draws: int = 40,
+    replicates: int = 4,
+    fit_bootstrap: int = 0,
+    level: float = 0.95,
+    max_sources: int = 64,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def sample_policy(
+    fitted: FittedGcm,
+    policies: str,
+    n: int,
+    seed: int,
+    threads: int | None = None,
+) -> GcmSampleResult: ...
+def counterfactual_policy(
+    fitted: FittedGcm,
+    policies: str,
+    outcomes: list[str],
+    seed: int,
+    threads: int | None = None,
+) -> dict[str, NDArray[np.float64]]: ...
+def sample_temporal_policy(
+    fitted: FittedGcm,
+    policies: str,
+    n_rows: int,
+    n_steps: int,
+    window: int,
+    seed: int,
+    start: int = 0,
+    history: list[dict[str, list[float]]] | None = None,
+    threads: int | None = None,
+) -> list[GcmSampleResult]: ...
+def counterfactual_temporal_policy(
+    fitted: FittedGcm,
+    policies: str,
+    steps: list[dict[str, NDArray[np.float64]]],
+    window: int,
+    seed: int,
+    start: int = 0,
+    history: list[dict[str, list[float]]] | None = None,
+    threads: int | None = None,
+) -> list[GcmSampleResult]: ...
+def policy_support(fitted: FittedGcm, policies: str) -> dict[str, dict[str, Any]]: ...
+def policy_value(
+    fitted: FittedGcm,
+    policies: str,
+    outcome: str,
+    n: int,
+    seed: int,
+    threads: int | None = None,
+) -> dict[str, Any]: ...
+
+class PreparedPolicy:
+    def __init__(self, fitted: FittedGcm, policies: str) -> None: ...
+    @property
+    def identity(self) -> str | None: ...
+    @property
+    def program_compilations(self) -> int: ...
+    @property
+    def model_bindings(self) -> int: ...
+    def support(self) -> dict[str, dict[str, Any]]: ...
+    def rebind(self, fitted: FittedGcm) -> PreparedPolicy: ...
+    def sample(self, n: int, seed: int, threads: int | None = None) -> GcmSampleResult: ...
+    def counterfactual(
+        self, outcomes: list[str], seed: int, threads: int | None = None
+    ) -> dict[str, NDArray[np.float64]]: ...
+    def value(
+        self, outcome: str, n: int, seed: int, threads: int | None = None
+    ) -> dict[str, Any]: ...
+
+def encode_policy_program(names: list[str], policies: str) -> bytes: ...
+def decode_policy_program(names: list[str], data: bytes) -> str: ...
+def policy_program_identity(names: list[str], policies: str) -> str: ...
 def load_float64_columns(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -2459,6 +2664,7 @@ def discover_pcmci(
     cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
     unit_lengths: list[int] | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_pcmci_plus(
     names: list[str],
@@ -2474,6 +2680,7 @@ def discover_pcmci_plus(
     cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
     unit_lengths: list[int] | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_pc(
     names: list[str],
@@ -2486,6 +2693,7 @@ def discover_pc(
     max_cond_size: int = 2,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_ges(
     names: list[str],
@@ -2500,6 +2708,7 @@ def discover_ges(
     cancel: CancellationToken | None = None,
     screen_pc: bool = False,
     max_subset: int | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_lingam(
     names: list[str],
@@ -2522,6 +2731,7 @@ def discover_notears(
     max_cond_size: int = 8,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
+    missing: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_fci(
     names: list[str],
@@ -2534,6 +2744,7 @@ def discover_fci(
     max_cond_size: int = 2,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_rfci(
     names: list[str],
@@ -2546,6 +2757,7 @@ def discover_rfci(
     max_cond_size: int = 2,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
+    background_knowledge: str | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_lpcmci(
     names: list[str],
@@ -2605,6 +2817,14 @@ def discover_exact_dag_posterior(
     seed: int = 1,
     threads: int | None = None,
 ) -> GraphPosterior: ...
+def discover_exact_dag_marginals(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    max_parents: int | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> tuple[list[float], float]: ...
 def discover_order_mcmc(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -2614,6 +2834,7 @@ def discover_order_mcmc(
     n_draws: int = 1000,
     thin: int = 1,
     require_diagnostics_gate: bool = True,
+    max_parents: int | None = None,
     seed: int = 1,
     threads: int | None = None,
 ) -> GraphPosterior: ...
@@ -2625,6 +2846,7 @@ def discover_structure_mcmc(
     n_warmup: int = 500,
     n_draws: int = 1000,
     thin: int = 1,
+    max_parents: int | None = None,
     seed: int = 1,
     threads: int | None = None,
 ) -> GraphPosterior: ...
@@ -5482,6 +5704,8 @@ class RecalcSessionHandle:
         target_depends_on: list[str] | None = None,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -5497,6 +5721,8 @@ class RecalcSessionHandle:
         target_depends_on: list[str] | None = None,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
 
 class CellSessionHandle:
@@ -5648,7 +5874,10 @@ def evaluate_vector_treatment(
     artifact_id: str,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_vector_treatment_artifact(
-    artifact: bytes, expected_identity_json: str | None = None
+    artifact: bytes,
+    expected_identity_json: str | None = None,
+    *,
+    memory_limit_bytes: int | None = None,
 ) -> tuple[str | None, str | None]: ...
 def evaluate_categorical_treatment(
     outcome: NDArray[np.float64] | list[float],
@@ -5658,8 +5887,33 @@ def evaluate_categorical_treatment(
     artifact_id: str,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_categorical_treatment_artifact(
-    artifact: bytes, expected_identity_json: str | None = None
+    artifact: bytes,
+    expected_identity_json: str | None = None,
+    *,
+    memory_limit_bytes: int | None = None,
 ) -> tuple[str | None, str | None]: ...
+def evaluate_multi_level_treatment(
+    outcome: NDArray[np.float64] | list[float],
+    treatment: NDArray[np.float64] | list[float],
+    adjustment_names: list[str],
+    adjustment_columns: list[NDArray[np.float64] | list[float]],
+    declaration_json: str,
+) -> str: ...
+def evaluate_observational_survival(
+    duration: NDArray[np.float64] | list[float],
+    event: NDArray[np.float64] | list[float],
+    treatment: NDArray[np.float64] | list[float],
+    adjustment_names: list[str],
+    adjustment_columns: list[NDArray[np.float64] | list[float]],
+    declaration_json: str,
+) -> str: ...
+def evaluate_observational_policy(
+    outcome: NDArray[np.float64] | list[float],
+    treatment: NDArray[np.float64] | list[float],
+    adjustment_names: list[str],
+    adjustment_columns: list[NDArray[np.float64] | list[float]],
+    declaration_json: str,
+) -> str: ...
 def build_compact_export(
     spec_json: str, artifact_id: str
 ) -> tuple[str | None, bytes | None, str | None]: ...
@@ -5694,6 +5948,7 @@ def count_fitted_observation_build(
     target_level: str,
     evidence_json: str,
     seed: int | None = None,
+    draws: int | None = None,
 ) -> tuple[bytes | None, str | None]: ...
 def count_fitted_observation_point(bytes: bytes) -> tuple[float | None, str | None]: ...
 def count_fitted_observation_interval(
@@ -5738,9 +5993,22 @@ def evaluate_nonlinear_mediation(
     premises_json: str,
     config_json: str,
     artifact_id: str,
+    *,
+    digest_bound: bool = False,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_nonlinear_mediation_artifact(
-    artifact: bytes, expected_identity_json: str | None = None
+    artifact: bytes,
+    expected_identity_json: str | None = None,
+    *,
+    memory_limit_bytes: int | None = None,
+    data: tuple[
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        list[str],
+        list[NDArray[np.float64]],
+    ]
+    | None = None,
 ) -> tuple[str | None, str | None]: ...
 def evaluate_latent_class_effects(
     outcome: NDArray[np.float64],
@@ -5749,9 +6017,16 @@ def evaluate_latent_class_effects(
     covariate_names: list[str],
     config_json: str,
     artifact_id: str,
+    *,
+    digest_bound: bool = False,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_latent_class_artifact(
-    artifact: bytes, expected_identity_json: str | None = None
+    artifact: bytes,
+    expected_identity_json: str | None = None,
+    *,
+    memory_limit_bytes: int | None = None,
+    data: tuple[NDArray[np.float64], NDArray[np.float64], list[str], list[NDArray[np.float64]]]
+    | None = None,
 ) -> tuple[str | None, str | None]: ...
 def evaluate_temporal_counterfactual(
     request_json: str, artifact_id: str, *, seed: int = 0
@@ -5884,7 +6159,11 @@ class AdjustedSessionHandle:
     def capabilities_json(self) -> str: ...
     def prediction_columns(self) -> list[str] | None: ...
     def predict(
-        self, rows: list[list[float]], columns: list[str]
+        self,
+        rows: list[list[float]],
+        columns: list[str],
+        *,
+        memory_limit_bytes: int | None = None,
     ) -> tuple[str | None, str | None]: ...
     def plan(
         self,
@@ -5894,6 +6173,8 @@ class AdjustedSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -5903,6 +6184,8 @@ class AdjustedSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
 
 class DrSessionHandle:
@@ -5923,6 +6206,8 @@ class DrSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -5932,6 +6217,8 @@ class DrSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def predict(
         self,
@@ -5940,6 +6227,7 @@ class DrSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
     ) -> tuple[str | None, str | None]: ...
     def export_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
     def export_predictor(
@@ -5963,6 +6251,8 @@ class StaticResponseSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -5973,6 +6263,8 @@ class StaticResponseSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
         self, *, seed: int = 1, threads: int | None = None
@@ -6022,6 +6314,8 @@ class DesignSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[DesignSessionHandle | None, str | None, bytes | None, str | None, str | None]: ...
     def is_live(self) -> bool: ...
     def identities_json(self) -> str: ...
@@ -6034,6 +6328,8 @@ class DesignSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -6043,6 +6339,8 @@ class DesignSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(self) -> tuple[bytes | None, str | None]: ...
 
@@ -6062,6 +6360,8 @@ class BayesianSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -6072,6 +6372,8 @@ class BayesianSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_prior_source(self) -> tuple[bytes | None, str | None]: ...
     def effect_draws(self) -> list[float] | None: ...
@@ -6093,9 +6395,25 @@ class TemporalSessionHandle:
     def is_live(self) -> bool: ...
     def identities_json(self) -> str: ...
     def capabilities_json(self) -> str: ...
-    def plan(self, specification: str, *, seed: int = 1, threads: int | None = None) -> str: ...
+    def plan(
+        self,
+        specification: str,
+        histories: tuple[NDArray[np.uint64], ...],
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
     def execute(
-        self, specification: str, *, seed: int = 1, threads: int | None = None
+        self,
+        specification: str,
+        histories: tuple[NDArray[np.uint64], ...],
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
         self, *, seed: int = 1, threads: int | None = None
@@ -6131,7 +6449,14 @@ class ExternalCallbackSessionHandle:
     def __init__(self) -> None: ...
     def is_live(self) -> bool: ...
     def plan(
-        self, names: list[str], columns: list[Any], text: str, supplied_provider: bool
+        self,
+        names: list[str],
+        columns: list[Any],
+        text: str,
+        supplied_provider: bool,
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, str | None]: ...
     def execute(
         self,
@@ -6141,12 +6466,19 @@ class ExternalCallbackSessionHandle:
         provider: ExternalCallbackProviderHandle | None = None,
         *,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, ExternalClaimArtifact | None, str | None]: ...
     def export_output(self) -> tuple[bytes | None, str | None]: ...
     @staticmethod
     def resume(
-        data: bytes, names: list[str], columns: list[Any], text: str
+        data: bytes,
+        names: list[str],
+        columns: list[Any],
+        text: str,
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[ExternalCallbackSessionHandle | None, str | None]: ...
 
 def estimate_proposal_arrival(
@@ -6174,7 +6506,13 @@ class SourceEvidenceHandle:
 
 class CompositeSessionHandle:
     def __init__(self, native: StaticResponseSessionHandle, payload: dict[str, object]) -> None: ...
-    def plan(self, payload: dict[str, object]) -> tuple[str | None, str | None]: ...
+    def plan(
+        self,
+        payload: dict[str, object],
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
     def execute(
         self,
         payload: dict[str, object],
@@ -6182,6 +6520,7 @@ class CompositeSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def rank_conditional_studies(
@@ -6823,6 +7162,9 @@ class AdaptiveInferenceHandle:
     def export_contract(
         self, paradigm: str, artifact_id: str
     ) -> tuple[bytes | None, str | None]: ...
+    def export_contract_with_procedure(
+        self, paradigm: str, procedure: ParticipantProcedureHandle, artifact_id: str
+    ) -> tuple[bytes | None, str | None]: ...
     def export_result(
         self, request_json: str, artifact_id: str, cancel: CancellationToken | None = None
     ) -> tuple[bytes | None, str | None]: ...
@@ -6877,6 +7219,41 @@ def adaptive_procedure_from_contract(
 def repeated_measures_procedure_declare(
     declaration_json: str,
 ) -> tuple[RepeatedMeasuresProcedureHandle | None, str | None]: ...
+
+class ParticipantProcedureHandle:
+    def identity(self) -> str: ...
+    def summary_json(self) -> str: ...
+    def simulate(
+        self,
+        truth: list[float],
+        request_json: str,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def simulate_history(
+        self,
+        truth: list[float],
+        seed: int,
+        true_correlation: float | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def read_history(
+        self, history_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def amend_borrowing(
+        self, borrowing_json: str, looks_performed: int
+    ) -> tuple[ParticipantProcedureHandle | None, str | None]: ...
+    def prepare_session(
+        self,
+        label: str,
+        arm_labels: list[str],
+        history_json: str,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[AdaptiveInferenceHandle | None, str | None]: ...
+
+def participant_procedure_declare(
+    declaration_json: str,
+) -> tuple[ParticipantProcedureHandle | None, str | None]: ...
 def decision_reliability_assess(
     draws_json: str,
     validation_json: str | None,
@@ -7221,6 +7598,14 @@ class SelectiveDiscoveryHandle:
         selection_targets: list[int],
         member_bound: int | None = None,
     ) -> tuple[str | None, str | None]: ...
+    def transport_across_temporal_class(
+        self,
+        query_json: str,
+        selection_targets: list[int],
+        horizon_steps: int,
+        history: int | None = None,
+        member_bound: int | None = None,
+    ) -> tuple[str | None, str | None]: ...
 
 class PerPopulationDiscoveryHandle:
     def __init__(self) -> None: ...
@@ -7247,8 +7632,18 @@ class SampleSplitDiscoveryHandle:
     def analysis_columns(self) -> list[Any]: ...
     def evidence_sources(self, snapshot_id: bytes) -> tuple[str | None, str | None]: ...
     def verify(self) -> str | None: ...
+    def discovery_row_ids(self) -> list[int]: ...
+    def analysis_row_ids(self) -> list[int]: ...
+    def analysis_weights(self) -> list[float] | None: ...
+    def verify_source(
+        self,
+        names: list[str],
+        columns: list[Any],
+        weights: list[float] | None,
+        mask: list[bool] | None,
+    ) -> str | None: ...
     def check_analysis_table(
-        self, names: list[str], columns: list[Any]
+        self, names: list[str], columns: list[Any], weights: list[float] | None
     ) -> tuple[str | None, str | None]: ...
     def request_unsplit_interval(self) -> str: ...
 
@@ -7279,6 +7674,8 @@ def sample_split_discover(
     columns: list[Any],
     rule_json: str,
     *,
+    weights: list[float] | None = None,
+    mask: list[bool] | None = None,
     threads: int | None = None,
     cancel: Any = None,
 ) -> tuple[SampleSplitDiscoveryHandle | None, str | None, str | None]: ...
@@ -7300,6 +7697,28 @@ def sample_split_effect_measure(
     threads: int | None = None,
     cancel: Any = None,
 ) -> tuple[NativeMeasuredInference | None, str | None]: ...
+def sample_split_parent_set_effect(
+    names: list[str],
+    columns: list[Any],
+    treatment: int,
+    outcome: int,
+    split_seed: int,
+    seed: int,
+    transformation: str,
+    max_degree: int,
+    log_shift: float | None = None,
+    knowledge: str | None = None,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def sample_split_parent_set_effect_measure(
+    source: bytes,
+    seed: int,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[NativeMeasuredInference | None, str | None]: ...
 def discovered_transport_run(
     contract_json: str,
     names: list[str],
@@ -7311,6 +7730,45 @@ def discovered_transport_run(
     threads: int | None = None,
     cancel: Any = None,
 ) -> tuple[str | None, str | None, str | None, str | None]: ...
+def discovered_transport_estimate_run(
+    contract_json: str,
+    names: list[str],
+    source_columns: list[Any],
+    target_columns: list[Any],
+    query_json: str,
+    selection_targets: list[int],
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 0,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
+def verify_discovered_transport_estimate_artifact(artifact: bytes, *, seed: int = 0) -> str: ...
+def discovered_temporal_graph_transport(
+    graph: Any,
+    horizon_steps: int,
+    query_json: str,
+    selection_targets: list[int],
+    history: int | None = None,
+    member_bound: int | None = None,
+    exhausted_search_bounds: int = 0,
+) -> tuple[str | None, str | None]: ...
+def discovered_temporal_transport_estimate_run(
+    contract_json: str,
+    names: list[str],
+    source_columns: list[Any],
+    target_columns: list[Any],
+    query_json: str,
+    selection_targets: list[int],
+    horizon_steps: int,
+    history: int | None = None,
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 0,
+    block_length: int | None = None,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
 
 class CrossWorldExecutor:
     def __init__(self) -> None: ...
@@ -7389,6 +7847,7 @@ def transported_policy_construct(
     coordinate_json: str,
     provider_id: str,
     max_nodes: int | None = None,
+    target_utility_json: str | None = None,
     *,
     cancel: CancellationToken | None = None,
 ) -> tuple[TransportedResponseHandle | None, str | None, str | None]: ...
@@ -7425,6 +7884,7 @@ def transported_policy_verify(
     diagram_json: str | None,
     stored_json: str,
     max_nodes: int | None = None,
+    target_utility_json: str | None = None,
     *,
     cancel: CancellationToken | None = None,
 ) -> str | None: ...

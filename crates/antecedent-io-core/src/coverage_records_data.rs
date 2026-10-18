@@ -105,6 +105,13 @@ pub struct CoverageRecord {
     /// `n_min..n_max` spans these points; the record is a boundary when any
     /// point is.
     pub grid: &'static [CoverageGridPoint],
+    /// The same sample sizes re-measured with fresh seeds, smallest `n`
+    /// first; empty when the record was never independently confirmed.
+    pub confirmation: &'static [CoverageGridPoint],
+    /// Contiguous sample-size span `(n_lo, n_hi)` of a boundary record whose
+    /// every grid point passed in the measurement and again in the
+    /// confirmation. Rows in it are not governed by the failing points outside it.
+    pub confirmed_passing_range: Option<(u64, u64)>,
     pub dgp: &'static str,
     pub test: &'static str,
     pub calibration_sha: &'static str,
@@ -229,6 +236,10 @@ struct RawRecord {
     replicates: u32,
     boundary: bool,
     grid: Vec<RawGrid>,
+    #[serde(default)]
+    confirmation: Vec<RawGrid>,
+    #[serde(default)]
+    confirmed_passing_range: Option<[u64; 2]>,
     dgp: String,
     test: String,
     calibration_sha: String,
@@ -291,6 +302,8 @@ impl CoverageRecord {
             replicates: raw.replicates,
             boundary: raw.boundary,
             grid: leak_grid(raw.grid, id),
+            confirmation: leak_grid(raw.confirmation, id),
+            confirmed_passing_range: raw.confirmed_passing_range.map(|[lo, hi]| (lo, hi)),
             dgp: leak_str(raw.dgp),
             test: leak_str(raw.test),
             calibration_sha: leak_str(raw.calibration_sha),

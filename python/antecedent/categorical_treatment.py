@@ -247,7 +247,9 @@ class CategoricalEffects(ScientificResult):
     calibration: str
     inference_claim: str
     identity: CategoricalTreatmentIdentity
-    _artifact_bytes: bytes = field(repr=False)
+    #: ``None`` when the artifact would exceed its export byte budget; the fit above stands.
+    _artifact_bytes: bytes | None = field(repr=False)
+    _export_refusal: str | None = field(default=None, repr=False)
 
     def artifact(self) -> ExportedArtifact[CategoricalEffects]:
         """Typed bytes envelope for shared scientific consumption."""
@@ -256,7 +258,15 @@ class CategoricalEffects(ScientificResult):
         return exported_artifact(self)
 
     def export(self) -> bytes:
-        """The checksummed ``categorical_treatment_v1`` artifact."""
+        """The checksummed ``categorical_treatment_v1`` artifact.
+
+        Raises :class:`CategoricalTreatmentRefusal` (``route_not_supported``,
+        ``categorical_treatment.export_budget_exceeded``) when the artifact would not fit the
+        export byte budget; the fit itself is unaffected.
+        """
+        if self._artifact_bytes is None:
+            assert self._export_refusal is not None
+            raise CategoricalTreatmentRefusal(json.loads(self._export_refusal))
         return self._artifact_bytes
 
     def effect(self, level: str) -> LevelEffect:
@@ -362,7 +372,9 @@ class CategoricalEffects(ScientificResult):
         }
 
 
-def _result(report_json: str, artifact: bytes) -> CategoricalEffects:
+def _result(
+    report_json: str, artifact: bytes | None, export_refusal: str | None = None
+) -> CategoricalEffects:
     report = json.loads(report_json)
     result = report["result"]
     spec = report["spec"]
@@ -440,6 +452,7 @@ def _result(report_json: str, artifact: bytes) -> CategoricalEffects:
         inference_claim=report["inference_claim"],
         identity=CategoricalTreatmentIdentity(**report["identity"]),
         _artifact_bytes=artifact,
+        _export_refusal=export_refusal,
     )
 
 
@@ -486,8 +499,8 @@ def categorical_effects(
     one Holm family. ``monotonicity`` (``"non_decreasing"`` or ``"non_increasing"``) declares a
     monotonicity test and requires ``ordered=True``. ``min_level_rows`` is the fewest rows a
     declared level may have. ``adjust`` maps shared adjustment column names to their columns.
-    ``covariance`` is ``"model_based"`` or a robust sandwich ``"hc0"`` to ``"hc3"`` (the rows
-    are embedded in the artifact, capped).
+    ``covariance`` is ``"model_based"`` or a robust sandwich ``"hc0"`` to ``"hc3"`` (the meat of
+    the sandwich is embedded beside ``X'X``, not the rows, so there is no row ceiling).
 
     Raises :class:`CategoricalTreatmentRefusal` (a
     :class:`~antecedent.errors.CausalUnsupportedError`) for an absent or sparse declared level
@@ -548,6 +561,8 @@ def categorical_effects(
         json.dumps(declaration, allow_nan=False),
         _name(artifact_id, "artifact_id"),
     )
+    if report is not None and artifact is None and refusal is not None:
+        return _result(report, None, refusal)  # the export was refused; the fit stands
     if refusal is not None:
         raise CategoricalTreatmentRefusal(json.loads(refusal))
     if report is None or artifact is None:  # pragma: no cover - the native contract
@@ -559,6 +574,7 @@ def consume_categorical_effects(
     artifact: bytes,
     *,
     expected_identity: CategoricalTreatmentIdentity | Mapping[str, str] | None = None,
+    memory_limit_bytes: int | None = None,
 ) -> CategoricalEffects:
     """Recompute an exported categorical artifact and accept only an identical one.
 
@@ -569,6 +585,8 @@ def consume_categorical_effects(
     when the artifact was resealed consistently (:class:`CategoricalTreatmentRefusal`,
     ``route_not_supported``, ``categorical_treatment.wrong_contract``). Corruption and unknown
     major versions raise :class:`~antecedent.errors.CausalSerializationError`.
+
+    ``memory_limit_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -583,7 +601,7 @@ def consume_categorical_effects(
             "expected_identity must be a CategoricalTreatmentIdentity or a mapping"
         )
     data = bytes(artifact)
-    report, refusal = _consume(data, expected_json)
+    report, refusal = _consume(data, expected_json, memory_limit_bytes=memory_limit_bytes)
     if refusal is not None:
         raise CategoricalTreatmentRefusal(json.loads(refusal))
     if report is None:  # pragma: no cover - the native contract

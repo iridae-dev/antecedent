@@ -26,6 +26,112 @@ Practical distinction:
 
 Priors never upgrade an unidentified atom into an identified one. Failed estimation on an identified atom is **unevaluable** mass, not unidentified mass—keep those axes separate when reading diagnostics.
 
+## Completion search budgets
+
+Completions of a CPDAG or PAG are enumerated under a search budget, not under a count of
+undirected edges, circle endpoints or nodes. The walk over endpoint assignments prunes every
+subtree whose already-decided edges cannot be ancestral, so a CPDAG with more than 64
+undirected edges, or a PAG with more than 16 circle endpoints, completes whenever its class
+is structured enough for the pruning to keep the visited states within the budget (an
+undirected tree on `n` nodes has exactly `n` members however large `n` is).
+
+The budget bounds the states visited (and, for a PAG, the m-separation queries of the
+equivalence audit), the live memory, and observes cancellation. Exhausting it is a typed
+partial result, never a statement about the unvisited completions: the sampler reports the
+bound that stopped it (`search_stop`) with a receipt of the limits in force, the work done
+and the region left unexamined. A partial enumeration withdraws every class-wide claim: the
+envelope is at most partially identified and carries the stop in its critical graph
+features, and PAG class-wide m-separation answers `Undetermined`. The same holds when the
+equivalence audit is skipped because a single member's m-separation signature (one query
+per node pair and conditioning subset) would not fit the budget.
+
+## Graph posteriors above six variables
+
+`ExactDagPosterior` enumerates every labeled DAG and stops at **6** variables. For more,
+`OrderMcmc` and `StructureMcmc` (and `CiScreenedPosterior`, which runs structure MCMC on the
+pairs its screen kept) sample the same Gaussian-BIC pseudo-posterior over DAGs and accept up to
+**16** variables. The posterior carries each atom's directed edges as a packed edge set whose
+first word is the earlier 64-bit encoding unchanged: a graph on at most eight variables is
+exactly the integer it was before, and a stored one decodes as it is. `GraphPosterior.adjacency`
+in Python holds one Python `int` per atom, so graphs of up to 16 variables decode with ordinary
+integer arithmetic (bit `from * (n_vars - 1) + (to if to < from else to - 1)` is the edge
+`from -> to`). The DBN posterior keeps its own smaller bound, set by its lag-edge space. The
+identity of a frozen posterior is built from each atom's canonical graph, not from the packed
+integer, so it does not depend on the packing.
+
+Conditions of the validated 10- and 12-variable workflow:
+
+| Condition | Value |
+| --- | --- |
+| Variables | 10 or 12 (up to 16 run; cost below) |
+| Parents per node | at most 3 (`max_parents` in the prior's constraints) |
+| Chains | 4; above 8 variables each runs 8 replicas at inverse temperatures 1, 0.75, 0.56, 0.42, 0.32, 0.24, 0.18, 0.13 (the default 4-replica ladder 1, 1/2, 1/4, 1/8 is kept at 8 or fewer); replica exchange every 10 iterations |
+| Warmup per chain | structure MCMC 3 000 iterations; order MCMC 6 000 |
+| Retained draws per chain | structure MCMC 12 000, order MCMC 24 000, thinned by 2 |
+| Publication gate | split R-hat below 1.2 over every edge indicator, bulk ESS above 10, every edge's Monte-Carlo standard error at most 0.05, every chain made a structural move, every chain's edge marginals agree with the pooled ones (at most 6 standard errors, with the excursion error for edges a chain rarely flips), and rank-normalized split R-hat of the log target at most 1.1 |
+
+A schedule far shorter than this is refused by the gate rather than published.
+
+Single-edge add/delete/reverse moves alone get trapped on interacting structures: in a ring of
+colliders where each parent is shared by two children, chains settle in local modes 100 nats
+below the truth and split R-hat stays far above 1.2. Both samplers therefore run replica
+exchange, and structure MCMC adds a paired parent-set move:
+
+- **Replica exchange.** Each chain runs one replica per entry of `temperatures`; replica `k`
+  targets the posterior raised to `b_k`, and neighbouring temperatures exchange replicas with the
+  Metropolis probability `min(1, exp((b_k - b_{k+1})(f_{k+1} - f_k)))`, so the `b = 1` replica
+  (the only one recorded) has exactly the target as its stationary law. `temperatures = [1]` is
+  a single chain. Order MCMC keeps its correction for the number of topological orders inside
+  the tempered density, `(exp(score) / orders)^b`, so the order-modular bias stays removed.
+- **Paired parent-set resampling** (structure MCMC, probability 0.1 per iteration; a
+  generalisation of the new-edge-reversal move of Grzegorczyk and Husmeier, 2008). Two nodes are
+  drawn uniformly and their parent sets are redrawn jointly from the exact conditional of the
+  target given everybody else's parents. It contains an edge reversal together with the parent
+  changes the reversal needs, is always accepted, and keeps the target invariant. It is disabled
+  when a node has more than 4 096 allowed parent sets (set `max_parents`).
+- **Equivalence-class and order moves** (above 8 variables). Both samplers reverse a covered
+  edge with probability 0.25 per iteration, walking the Markov equivalence class whose members
+  share a score; the Metropolis–Hastings ratio carries the ratio of covered-edge counts. Order
+  MCMC also relocates one node to a uniformly drawn position in the order, a symmetric move
+  that reshapes the order in one step where adjacent transpositions random-walk.
+- **Start states.** Every chain after the first begins with a short random walk at inverse
+  temperature 0.1, so chains start dispersed but biased toward the target, and R-hat compares
+  chains that began in different places.
+
+Acceptance cases at the published conditions: independent colliders and the interacting ring,
+each at 10 and 12 variables, with both samplers clearing the gate and agreeing with each other,
+and the interacting ring's twelve-edge skeleton compared with an exhaustive enumeration of its
+3^12 states. On sparse random graphs at 10 and 12 variables, every posterior the gate publishes
+matches the exact dynamic-programming marginals of the same score, prior and constraints within
+its Monte Carlo error. These marginals are the posterior of the Gaussian BIC score; they are not
+claimed to be calibrated against the true graph.
+
+Chain diagnostics are reported per edge, not only as a worst case:
+`GraphPosterior.edge_rhat`, `edge_ess` and `edge_mcse` (Python and Rust) hold the split R-hat,
+bulk ESS and Monte-Carlo standard error of each `n_vars x n_vars` edge indicator across the
+chains, aligned with `edge_marginals`. A cell whose indicator never varied reports R-hat 1.
+`diagnostics.rhat_max` and `ess_bulk_min` are the worst of them. Read the cells before trusting
+a marginal near 0.5: the gate bounds the worst edge, and it is the ambiguous edges that mix
+slowest.
+
+What is checked, and what is not:
+
+- The samplers are compared with exhaustive enumeration at five variables (all 29 281 DAGs) and,
+  at twelve, with an exhaustive enumeration of the 3^12 states of a twelve-pair candidate
+  skeleton scored by a separate Gaussian-BIC implementation. Their proposal kernels are
+  compared with a closed-form law with no data: the uniform prior on DAGs with at most one
+  parent per node has `(n + 1)^(n - 1)` members and an exact edge-count law.
+- Four independent, strongly identified 12-variable colliders are recovered through the multi-word encoding.
+- `antecedent_discovery::exact_dag_marginals` computes the exact `P(i -> j)` of the same posterior (Gaussian BIC, the uniform or Bernoulli edge prior and every constraint, including the parent cap) for up to 12 variables by dynamic programming over node subsets, without enumerating DAGs: the sum over DAGs of a product of per-node factors is a sink recursion, and the sum over the DAGs containing an edge is the same recursion with that node's factor restricted. It agrees with an independent enumeration of every DAG to 1e-9 at five, six and seven variables (1.1 billion DAGs), and the published-condition samplers agree with it at 10 and 12 variables on 2,000 rows. This is the route behind `ExactDagPosterior().run(...)` from 7 to 12 variables (`discover_exact_dag_marginals`): it returns `ExactDagMarginals` (exact `P(i -> j)` and the log normalizing constant) and no graph atoms, so the list of graphs, weights, the MAP graph and the mixture that `analyze` takes over graphs are refused (`option_not_applicable`) rather than approximated; up to 6 variables the enumerating engine and its `GraphPosterior` are unchanged. More than 12 variables are refused naming `EXACT_MARGINAL_MAX_NODES`; larger problems are the samplers' alone.
+- The paired move is checked against the exact conditional from every one of the 543 four-variable DAGs, and the whole samplers (paired moves alone, then the default ladder) against all 543 DAGs of four variables and all 29 281 of five.
+- **No calibration is claimed.** A reported skeleton marginal of 0.7 does not mean that 70% of
+  such pairs are adjacent: the weights are a BIC pseudo-posterior, not an integrated Bayesian
+  posterior, and against simulated truths its low marginals are overstated or understated
+  depending on how the true effect sizes are distributed (the printed diagnostic
+  `exact_marginals_locate_the_skeleton_overstatement` in `antecedent-discovery`). What is
+  checked is computational: the exact marginals against enumeration, and the published samplers
+  against the exact marginals. The marginals are conditional on the prior and the parent cap.
+
 ## Reading `unidentified_mass` and envelope cases
 
 After `analyze(...)` with a graph posterior or class envelope, inspect the result
@@ -91,7 +197,7 @@ graph is true.
 ## Worked vignette: marketing channel structural uncertainty
 
 Full walkthrough:
-[`examples/notebooks/marketing_channel_structural_uncertainty.ipynb`](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb).
+[`examples/notebooks/marketing_channel_structural_uncertainty.ipynb`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/marketing_channel_structural_uncertainty.ipynb).
 
 Synthetic weekly spend / demand / pipeline data are generated so the true effect
 of paid-search spend on qualified pipeline is **1.5** (£k pipeline per £k
@@ -144,7 +250,7 @@ state.
 
 ## Further reading
 
-- Notebook: [marketing channel structural uncertainty](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
+- Notebook: [marketing channel structural uncertainty](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
 - Conformance: [graph effect envelope](conformance/bayesian__graph_effect_envelope.md),
   [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md),
   [known-truth mixtures](conformance/bayesian__known_truth_mixtures.md)

@@ -45,6 +45,14 @@ Do not introduce a `CausalProgram` builder, rename existing stages, or
 expose pass ordering as a user-managed protocol. `antecedent-expr` remains
 the identified-functional IR.
 
+Interventions that compute a value are a separate typed value language in
+`antecedent-core` (`ValueExpr`, carried by `Intervention::Transform` and
+`Intervention::Assign`), compiled into `antecedent-model` overlays; it does not
+stretch `antecedent-expr` into a value engine. Their wire encoding enters the
+target identity only when such an intervention is present. A program is licensed
+separately for simulation, counterfactual execution and observational
+identification; identification accepts only programs that reduce to a hard level.
+
 ### Cheap inspection versus identification
 
 `Study::inspect` performs cheap structural inspection: query, schema,

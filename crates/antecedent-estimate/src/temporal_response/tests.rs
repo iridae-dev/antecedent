@@ -1039,6 +1039,7 @@ fn fitted_horizon(
         treatment: Arc::from(treatment.to_vec()),
         active: 1.0,
         control: 0.0,
+        sampling_weights: None,
     };
     FittedHorizon::fit(prepared, &mut LeastSquaresWorkspace::default()).expect("OLS fit")
 }

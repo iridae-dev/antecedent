@@ -121,18 +121,18 @@ Identification, empirical support and uncertainty stay separate:
 
 The [support matrix](docs/support-matrix.md) separates licenses from coverage measurements. See [guarantees](docs/guarantees.md) and [refusals](docs/refusal-and-partial-knowledge.md) for partial or unavailable answers.
 
-## What's new in 2.4
+## What's new in 2.4.1
 
-Scientific composition connects models while preserving meaning, evidence and uncertainty. The release covers:
+More complete workflows for weighted studies, effects after discovery and combining independent evidence:
 
-- **Inputs and mechanisms.** Propagate measurement and latent uncertainty; compose fitted mechanisms with explicit support and dependence.
-- **Evidence synthesis and revision.** Prevent double-counting; revalidate claims when evidence changes. Distinguish pooling, borrowing and transport.
-- **Scientific bridges.** Connect predictions, proxies and outcomes to causal questions and decisions under declared assumptions, including cohort decisions and broader transported counterfactuals.
-- **Sequential decisions.** Evaluate supplied action–observation policies with belief updates; keep observation and intervention distinct.
-- **Adaptive experiments.** Represent assignment, delayed outcomes and stopping rules; calibrate the complete procedure.
-- **Composition guarantees.** Check compatibility, propagate dependent uncertainty and inspect or replay pipeline evidence.
+- **Weighted effects and uncertainty.** Separate population targets, corrected matching and responder variances, finite-cluster references, and explicit arm-linear population interval methods. Each construction keeps its own assumptions and measured scope. See [sampling weights](docs/guides/sampling-weights.md).
+- **Pool studies with unequal, unknown variances.** Equal-study Gaussian pooling uses empirical study-level variation and a Student reference for a common marginal mean. Rust provides `pool_gaussian_studies`; Python selects `random_effects(..., method="equal_study_gaussian")`. Request the measured interval through `pooled_interval`. See [evidence synthesis](docs/evidence-ledger.md).
+- **Estimate an effect after discovering its parents.** A versioned procedure devotes three quarters of rows to discovery and the remaining quarter to independent analysis. Unresolved edges elsewhere need not prevent an effect estimate when the treatment's parent set is invariant. See [selective discovery](docs/selective-discovery.md).
+- **Transport through uncertain structure.** PAG and temporal class transport retain member-level evidence, actual available experiments and replayable proofs. A declared randomized binary trial can refine a static class. With known outcome bounds, Rust also returns a labelled confidence set when the effect remains unidentified; dependent temporal rows use block bootstrap. See [discovered-structure transport](docs/guides/discovered-structure-transport.md).
+- **Program interventions and choose fitted mechanisms.** Typed policies support arithmetic, conditions, clipping and history reads across simulation, counterfactuals and temporal rollouts. Boosted and forest mechanism families support declared candidates and validation splits. See [intervention programs](docs/guides/intervention-programs.md) and [mechanism selection](docs/guides/mechanism-selection.md).
+- **Check models and work at larger scales.** Graph falsification tests local Markov implications; noise replay and intrinsic influence expose mechanism-level variation. Budgeted searches, wider graph posteriors, matching, sensitivity and participant trials extend earlier size limits with explicit completion diagnostics. See [graph falsification](docs/guides/graph-falsification.md), [noise replay](docs/guides/noise-replay.md) and [intrinsic influence](docs/guides/intrinsic-influence.md).
 
-See the [changelog](CHANGELOG.md) for release history and the [roadmap](ROADMAP.md) for what follows.
+Read the [2.4.1 release notes](docs/release-notes/v2.4.1.md) for method boundaries and compatibility, the [changelog](CHANGELOG.md) for the full delta, or the [roadmap](ROADMAP.md) for future work.
 
 ## Documentation and contribution
 

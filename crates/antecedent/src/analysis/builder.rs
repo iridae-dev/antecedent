@@ -572,6 +572,8 @@ pub struct StudyBuilder {
     /// Numerical/inference options for response-family estimators.
     response_options: Option<ContinuousResponseOptions>,
     observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    /// Numerical controls on the Bayesian posterior draws behind the interval.
+    draw_controls: Option<crate::PosteriorDrawControls>,
     observation_delayed_entry: Option<antecedent_core::VariableId>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
@@ -581,6 +583,10 @@ pub struct StudyBuilder {
     overlap_policy: Option<OverlapPolicy>,
     /// Optional bindings for named predicates / custom target distributions.
     population_registry: Option<PopulationRegistry>,
+    /// Participant labels bound to the rows of the data (digests only).
+    participants: Option<antecedent_io::ParticipantBindingWire>,
+    /// Declared handling of missing values; `None` leaves each route on its own default.
+    missing: Option<antecedent_data::MissingDeclaration>,
     /// Custom slow-path validators appended after the built-in refute suite.
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     /// Optional tier-rule background (fast-path generalized adjustment).
@@ -754,6 +760,61 @@ pub(super) fn population_estimable(query: &CausalQuery) -> bool {
     }
 }
 
+/// Refuse [`crate::PosteriorDrawControls`] where they would not be enforced or are not met.
+///
+/// The controls bound the draws behind a Bayesian g-computation interval of a tabular
+/// average effect on one fixed `Dag`; any other route refuses them rather than ignore them.
+/// A draw count below the backend's supported minimum is refused naming it, never rewritten.
+pub(super) fn refuse_unsupported_draw_controls(
+    query: &CausalQuery,
+    data: &DataInput,
+    class: GraphClass,
+    structure_fixed: bool,
+    estimator: Option<EstimatorId>,
+    controls: Option<crate::PosteriorDrawControls>,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    if controls.is_none() {
+        return Ok(());
+    }
+    let cfg = match inference {
+        InferenceMode::Bayesian(cfg) => Some(cfg),
+        InferenceMode::Frequentist => None,
+    };
+    let enforced = cfg.is_some()
+        && matches!(query, CausalQuery::AverageEffect(_))
+        && matches!(data, DataInput::Tabular(_))
+        && class == GraphClass::Dag
+        && structure_fixed
+        && matches!(estimator, None | Some(EstimatorId::BayesianGcomp));
+    if !enforced {
+        return Err(crate::unsupported_reason!(
+            "invalid_argument",
+            "posterior draw controls bound the draws behind a Bayesian g-computation interval of \
+             a tabular AverageEffect on one fixed Dag; this route does not enforce them, so it \
+             refuses them rather than publish an interval they do not bound"
+        ));
+    }
+    let Some(cfg) = cfg else {
+        return Ok(());
+    };
+    if cfg.n_draws >= antecedent_estimate::supported_min_draws(cfg.backend) {
+        return Ok(());
+    }
+    Err(if cfg.backend == antecedent_estimate::BayesianBackendKind::Hmc {
+        crate::unsupported_reason!(
+            "posterior_draws_below_supported",
+            "the supported minimum is 3000 posterior draws for the hmc backend, the floor its \
+             chain diagnostics need; request at least 3000 draws"
+        )
+    } else {
+        crate::unsupported_reason!(
+            "posterior_draws_below_supported",
+            "the supported minimum is 2000 posterior draws; request at least 2000 draws"
+        )
+    })
+}
+
 /// Refuse a non-Gaussian Bayesian likelihood where no executor fits it.
 ///
 /// The one owner of which routes honour [`crate::BayesianConfig::likelihood`].
@@ -889,12 +950,15 @@ impl StudyBuilder {
             estimator_spec: None,
             response_options: None,
             observation_options: antecedent_estimate::ObservationEstimatorOptions::default(),
+            draw_controls: None,
             observation_delayed_entry: None,
             rd: None,
             inference: InferenceMode::Frequentist,
             n_draws_explicit: false,
             overlap_policy: None,
             population_registry: None,
+            participants: None,
+            missing: None,
             custom_validators: Vec::new(),
             tiered: None,
             caller_graph: None,
@@ -1158,6 +1222,18 @@ impl StudyBuilder {
         self
     }
 
+    /// Bound the Bayesian posterior draws behind the published interval.
+    ///
+    /// See [`crate::PosteriorDrawControls`]: the draw count must reach the backend's
+    /// supported minimum, and the interval is refused when its endpoint Monte Carlo
+    /// error is too large. Only a tabular `AverageEffect` on a fixed `Dag` under
+    /// Bayesian g-computation enforces them; any other route refuses them at build.
+    #[must_use]
+    pub fn draw_controls(mut self, controls: crate::PosteriorDrawControls) -> Self {
+        self.draw_controls = Some(controls);
+        self
+    }
+
     /// Select the estimator for the static ATE path.
     ///
     /// Defaults to [`EstimatorId::LinearAdjustmentAte`] when unset. Wire strings such as
@@ -1291,6 +1367,26 @@ impl StudyBuilder {
         self
     }
 
+    /// Bind participant labels to the rows of the data. The binding enters the data-snapshot
+    /// identity only when set; it labels rows and changes no estimate.
+    #[must_use]
+    pub fn participants(mut self, binding: antecedent_io::ParticipantBindingWire) -> Self {
+        self.participants = Some(binding);
+        self
+    }
+
+    /// Declare how missing values are handled.
+    ///
+    /// Without a declaration, average-effect routes keep their complete-case selection and
+    /// report the rows it dropped, while randomized, panel and temporal routes refuse any
+    /// missing value. A declaration enters the data-snapshot identity only when a route
+    /// would behave differently for it.
+    #[must_use]
+    pub fn missing(mut self, declaration: antecedent_data::MissingDeclaration) -> Self {
+        self.missing = Some(declaration);
+        self
+    }
+
     /// Bindings for named predicates and custom target-distribution weights.
     #[must_use]
     pub fn population_registry(mut self, registry: PopulationRegistry) -> Self {
@@ -1367,12 +1463,15 @@ impl StudyBuilder {
             estimator_spec: self.estimator_spec,
             response_options: self.response_options,
             observation_options: self.observation_options,
+            draw_controls: self.draw_controls,
             observation_delayed_entry: self.observation_delayed_entry,
             rd: self.rd,
             inference: self.inference,
             n_draws_explicit: self.n_draws_explicit,
             overlap_policy: self.overlap_policy,
             population_registry: self.population_registry,
+            participants: self.participants,
+            missing: self.missing,
             custom_validators: self.custom_validators,
             tiered: self.tiered,
             caller_graph: self.caller_graph.is_some(),

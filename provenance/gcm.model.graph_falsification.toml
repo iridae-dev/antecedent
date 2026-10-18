@@ -1,0 +1,36 @@
+feature_id = "gcm.model.graph_falsification"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Graph permutation falsification: count the violated local Markov implications of a DAG
+# (each node independent of its non-parent non-descendants given its parents) and compare the
+# count with the counts of random node relabellings of the same graph on the same data, with the
+# share of relabellings that are Markov equivalent to the graph (Verma and Pearl: equal
+# skeleton and unshielded colliders) as the informativeness check. The design follows the
+# permutation-test idea for evaluating a causal graph against data; the implication set,
+# the add-one Monte Carlo p-value, the exhaustive enumeration for small graphs and the
+# equivalence-share rule are derived here from those definitions.
+# Published in AAAI 2025 (vol. 39); the DOI is that of the arXiv record (arXiv:2305.09565).
+papers = [
+ { title = "Toward Falsifying Causal Graphs Using a Permutation-Based Test", doi = "10.48550/arXiv.2305.09565", sections = ["Section 3 (violations of local Markov conditions compared with node permutations)", "Section 4 (informativeness through Markov equivalence)"] },
+]
+
+implementation_deviations = [
+ "Implications are enumerated as pairwise statements (node vs each non-parent non-descendant given its parents) rather than as joint local Markov statements; each is one conditional-independence test and the count is not corrected for multiple testing.",
+ "Conditional-independence tests are the library's tests chosen by name, including nonlinear tests; their p-values may come from permutation nulls whose draws depend on evaluation order under the execution seed.",
+ "The comparison p-value is the add-one Monte Carlo share of relabellings with at most as many violations; for graphs whose factorial does not exceed the request every non-identity relabelling is used.",
+ "The informativeness threshold defaults to the comparison significance level; no calibration of the rejection rate under a true graph is claimed.",
+]
+
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "crates/antecedent-model/src/falsify.rs unit tests",
+ "python/tests/test_graph_falsification.py",
+ "python/tests/test_dowhy_comparison.py (rejected and not-rejected outcomes on correct, relabelled and one-edge-short graphs against gcm.falsify.falsify_graph; DoWhy values computed at test time by the pinned version, skipped when it is absent)",
+]

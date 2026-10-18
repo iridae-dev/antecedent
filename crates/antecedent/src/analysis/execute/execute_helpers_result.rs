@@ -18,6 +18,8 @@ pub(crate) struct IdentifiedResultContext {
     structure_source: crate::support::StructureSource,
     tiered: Option<antecedent_graph::TieredBackground>,
     custom_validators: bool,
+    /// Declared handling of missing values, frozen with the study.
+    pub(crate) missing: Option<antecedent_data::MissingDeclaration>,
 }
 
 impl IdentifiedResultContext {
@@ -40,6 +42,7 @@ impl IdentifiedResultContext {
             structure_source: study.structure_source,
             tiered: study.tiered.clone(),
             custom_validators: !study.custom_validators.is_empty(),
+            missing: study.missing.clone(),
         }
     }
 }

@@ -39,3 +39,14 @@ def test_discover_pcmci_weighted_parcorr_accepts_weights():
     ).run((names, cols), seed=2, weights=w.tolist())
     assert result.ci_name == "weighted_parcorr"
     assert result.ci_tests >= 0
+
+
+def test_discover_pcmci_accepts_the_low_rank_gpdc_name():
+    # `gpdc_nystrom` is the separately identified GPDC construction without a row limit; it
+    # is selected by name exactly like `gpdc`, and the result records which one ran.
+    names, cols = _series(300)
+    result = antecedent.discovery.PCMCI(max_lag=1, alpha=0.05, fdr=False, ci="gpdc_nystrom").run(
+        (names, cols), seed=4
+    )
+    assert result.ci_name == "gpdc_nystrom"
+    assert result.ci_tests >= 0

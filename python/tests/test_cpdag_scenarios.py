@@ -134,6 +134,42 @@ def test_enumerated_truth_effects_and_envelope():
     assert isinstance(refused.value, CausalUnsupportedError)
 
 
+def test_classes_beyond_six_nodes_enumerate_and_a_starved_budget_is_partial():
+    # Four isolated nodes beside the chain leave its class unchanged: the same three
+    # completions, now over seven coordinates (the old ceiling was six nodes).
+    wide = [*NAMES, "d", "e", "f", "g"]
+    graph = Cpdag.from_directed_undirected(wide, [], [("a", "b"), ("b", "c")])
+    table = tuple(
+        joint(a, b, c) / 16 for a in (0, 1) for b in (0, 1) for c in (0, 1) for _ in range(16)
+    )
+    wide_laws = transport.ExactTransportData(
+        (
+            transport.ExactDiscreteLaw(
+                "target", "obs", tuple((n, (0.0, 1.0)) for n in wide), table, "target"
+            ),
+        )
+    )
+    result = run(
+        graph,
+        coordinates=coordinates(wide),
+        evidence=transport.CompletionEvidence(catalog(wide), "wide-law"),
+        laws=wide_laws,
+    )
+    assert result.complete and len(result.completions) == 3
+    for completion in result.completions:
+        assert completion.mean("c") == pytest.approx(truth(completion.edges), abs=1e-12)
+    partial = run(
+        graph,
+        coordinates=coordinates(wide),
+        laws=wide_laws,
+        evidence=transport.CompletionEvidence(catalog(wide), "wide-law"),
+        max_steps=2,
+    )
+    # A budget stop exports its prefix (only cancellation does not); it is never "complete".
+    assert not partial.complete and partial.counts.not_enumerated > 0
+    assert partial.receipt.stop == "search.operations"
+
+
 def test_missing_evidence_is_counted_not_redistributed():
     evidence = [
         bind(sorted(FORWARD), "ev-forward"),
@@ -337,27 +373,6 @@ def test_refusals_carry_exact_code_and_detail():
     # A graph that is not maximally oriented: a -> b - c compels b -> c.
     compelled = Cpdag.from_directed_undirected(NAMES, [("a", "b")], [("b", "c")])
     assert refusal(lambda: run(compelled)) == ("invalid_argument", "cpdag_scenarios.not_a_cpdag")
-    # More than six nodes.
-    wide = [f"n{i}" for i in range(7)]
-    seven = Cpdag.from_directed_undirected(wide, [], [("n0", "n1"), ("n1", "n2")])
-    over = {"coordinates": coordinates(wide), "outcomes": ["n2"], "treatments": ["n1"]}
-    over["at"] = {"n1": 1.0}
-    over["evidence"] = transport.CompletionEvidence(catalog(wide[:3]), "ev")
-    over["laws"] = transport.ExactTransportData(
-        (
-            transport.ExactDiscreteLaw(
-                "target",
-                "obs",
-                tuple((n, (0.0, 1.0)) for n in wide[:3]),
-                TABLE,
-                "target",
-            ),
-        )
-    )
-    assert refusal(lambda: run(seven, **over)) == (
-        "route_not_supported",
-        "cpdag_scenarios.bounds_exceeded",
-    )
     # Evidence for a completion this CPDAG does not have (a collider), or twice for one.
     collider = bind([("a", "b"), ("c", "b")], "ev-collider")
     mismatch = ("invalid_argument", "cpdag_scenarios.evidence_identity_mismatch")

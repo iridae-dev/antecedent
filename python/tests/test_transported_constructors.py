@@ -25,6 +25,7 @@ from antecedent import measurement_models as mm
 from antecedent import scientific_bridge as sb
 from antecedent import sequential_evaluation as se
 from antecedent import transported_constructors as tc
+from antecedent.errors import CausalTypeError
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.transported_response import TransportedResponse, TransportedResponseRefusal
 
@@ -198,6 +199,134 @@ def test_a_policy_route_refusal_is_the_routes_own_and_a_source_coordinate_is_ref
     assert error.expected == "plant_b" and error.supplied == "plant_a"
 
 
+# --------------------------------------------------------------------------- target utility
+
+TARGET_DIGEST = "5d41402abc4b2a76b9719d911017c592" * 2
+
+
+def target_utility(**overrides) -> tc.TargetUtility:
+    """Plant B values the outcomes differently: ship +6/-14, hold -1, inspect costs 0.5."""
+    fields = dict(
+        source="plant_b_loss_schedule",
+        digest=TARGET_DIGEST,
+        terminal=(0.0, 0.0),
+        actions=(
+            tc.ActionUtility(cost=0.5, immediate=(0.4, -0.4)),
+            tc.ActionUtility(cost=0.0, immediate=(6.0, -14.0)),
+            tc.ActionUtility(cost=0.0, immediate=(-1.0, -1.0)),
+        ),
+    )
+    fields.update(overrides)
+    return tc.TargetUtility(**fields)
+
+
+def hand_target_value(p_faulty: float) -> float:
+    """Sum over the latent state and the panel outcome of the two-stage tree, by hand."""
+    total = 0.0
+    for state, mass in enumerate((1.0 - p_faulty, p_faulty)):
+        alarm = 0.75 if state == 1 else 0.25
+        first = -0.5 + (0.4, -0.4)[state]
+        ship = (6.0, -14.0)[state]
+        total += mass * (first + (1.0 - alarm) * ship + alarm * -1.0)
+    return total
+
+
+def utility_shifted() -> tc.SelectionDiagram:
+    return diagram(mechanisms=dict(MECHANISMS, utility="shifted"))
+
+
+def test_a_target_native_utility_is_evaluated_bound_into_the_identity_and_replayed():
+    m = model()
+
+    def build(utility, **overrides):
+        fields = dict(
+            target_population="plant_b",
+            target_initial=(0.2, 0.8),
+            diagram=utility_shifted(),
+            coordinate=quantity("value", "plant_b"),
+            provider_id="plant-transport",
+            target_utility=utility,
+        )
+        fields.update(overrides)
+        return tc.from_policy(m, policy(m), **fields)
+
+    built = build(target_utility())
+    assert built.evaluation["target_value"] == pytest.approx(hand_target_value(0.8), abs=TOL)
+    assert built.evaluation["target_value"] == pytest.approx(-3.29, abs=TOL)
+    assert built.evaluation["source_value"] == pytest.approx(2.5, abs=TOL)
+    assert built.evaluation["target_utility"]["source"] == "plant_b_loss_schedule"
+    assert built.evaluation["target_utility"]["digest"] == TARGET_DIGEST
+    receipt = built.response.receipt
+    assert f"target_utility:plant_b_loss_schedule:{TARGET_DIGEST}" in receipt.assumptions
+    assert "shifted:utility" in receipt.assumptions
+    assert len(receipt.transport_identities) == 2 and all(
+        is_digest(identity) for identity in receipt.transport_identities
+    )
+
+    # Provenance alone moves the identity but not the value.
+    relabelled = build(target_utility(source="plant_b_loss_schedule_v2"))
+    assert relabelled.evaluation["target_value"] == built.evaluation["target_value"]
+    assert relabelled.evaluation["identity"] != built.evaluation["identity"]
+
+    # Replay: the unedited declaration verifies; an edited value or provenance does not.
+    kwargs = dict(target_population="plant_b", target_initial=(0.2, 0.8), diagram=utility_shifted())
+    tc.verify_policy(m, policy(m), built, target_utility=target_utility(), **kwargs)
+    edited = (
+        target_utility(
+            actions=(
+                tc.ActionUtility(cost=0.5, immediate=(0.4, -0.4)),
+                tc.ActionUtility(cost=0.0, immediate=(6.0, -20.0)),
+                tc.ActionUtility(cost=0.0, immediate=(-1.0, -1.0)),
+            )
+        ),
+        target_utility(source="someone_else"),
+        target_utility(digest="0" * 64),
+    )
+    for tampered in edited:
+        error = refused(
+            lambda tampered=tampered: tc.verify_policy(
+                m, policy(m), built, target_utility=tampered, **kwargs
+            )
+        )
+        assert error.detail == "transported_policy.value_mismatch"
+
+
+def test_a_target_utility_refusals_name_the_declaration_that_is_wrong():
+    m = model()
+
+    def build(**overrides):
+        fields = dict(
+            target_population="plant_b",
+            target_initial=(0.2, 0.8),
+            diagram=utility_shifted(),
+            coordinate=quantity("value", "plant_b"),
+            provider_id="plant-transport",
+            target_utility=target_utility(),
+        )
+        fields.update(overrides)
+        return tc.from_policy(m, policy(m), **fields)
+
+    error = refused(lambda: build(target_utility=None))
+    assert error.reason_code == "transport_missing_evidence"
+    assert error.detail == "transported_policy.target_utility_missing"
+
+    error = refused(lambda: build(diagram=diagram()))
+    assert error.detail == "transported_policy.utility_declared_invariant"
+
+    shifted = dict(MECHANISMS, utility="shifted", **{"observation[0]": "shifted"})
+    error = refused(lambda: build(diagram=diagram(mechanisms=shifted)))
+    assert error.detail == "transported_policy.mechanism_not_invariant"
+
+    error = refused(lambda: build(target_utility=target_utility(digest="not-a-digest")))
+    assert error.detail == "transported_policy.target_utility_digest"
+    error = refused(lambda: build(target_utility=target_utility(source=" ")))
+    assert error.detail == "transported_policy.target_utility_provenance_missing"
+    error = refused(lambda: build(target_utility=target_utility(terminal=(0.0, 0.0, 0.0))))
+    assert error.detail == "transported_policy.target_utility_support"
+    with pytest.raises(CausalTypeError):
+        build(target_utility="plant_b")
+
+
 # --------------------------------------------------------------------------- period shift
 
 
@@ -269,6 +398,14 @@ def test_a_time_varying_mechanism_and_a_missing_declaration_are_refused():
 
     error = refused(lambda: build(None))
     assert error.detail == "temporal_policy_transport.time_invariance_missing"
+
+    # A shifted utility is a population-route allowance; across periods it stays refused.
+    shifted_utility = tc.InvarianceDeclaration(
+        "2026", "2027", 2, dict(MECHANISMS, utility="shifted")
+    )
+    error = refused(lambda: build(shifted_utility))
+    assert error.reason_code == "transport_missing_evidence"
+    assert error.detail == "temporal_policy_transport.mechanism_time_varying"
 
 
 # --------------------------------------------------------------------------- adaptive trial

@@ -1,0 +1,29 @@
+feature_id = "ci.gpdc_nystrom"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Measuring and Testing Dependence by Correlation of Distances", doi = "10.1214/009053607000000505", sections = ["population and empirical distance covariance and distance correlation"] },
+ { title = "Using the Nystrom Method to Speed Up Kernel Machines", sections = ["Nystrom low-rank approximation of the kernel matrix from a subset of the data"] },
+ { title = "A Unifying View of Sparse Approximate Gaussian Process Regression", sections = ["subset-of-regressors predictive mean"] },
+]
+
+implementation_deviations = [
+ "Replaces the full-rank RBF kernel-ridge predictor of ci.gpdc by the rank-m subset-of-regressors predictor K_nm (K_mn K_nm + lambda K_mm + eps I)^-1 K_mn y on m inducing rows drawn without replacement from the sample with a declared seed; eps is 1e-10 times the mean diagonal because the inducing-point kernel matrix is numerically rank deficient. The cited papers do not specify this residualize-then-test construction, so no distributional result transfers: the permutation null is the one of ci.gpdc applied to the Nystrom residuals, and its Type I error and power are measured by the gpdc_nystrom calibration gates rather than inherited.",
+ "A Z effect the m-point kernel cannot represent stays in both residuals and inflates the rejection rate; the rank is therefore part of the construction (default 256, at most 1024).",
+ "Normal equations are accumulated in row blocks (time O(n m^2), memory O(n + m^2)), so any row count is accepted; the block split depends only on n, so results do not depend on the thread count.",
+]
+
+upstream_implementations_observed = [
+ { project = "tigramite", exposure = "none" },
+]
+
+test_sources = [
+ "crates/antecedent-stats/src/ci/advanced.rs (gpdc_nystrom unit tests: dense independent reference, known-truth residual recovery, agreement with the exact GP, 6000-row dependence)",
+ "crates/antecedent-stats/src/ci/calibration.rs (gpdc_nystrom_conditional_null_gate, gpdc_nystrom_conditional_null_large_n_gate, gpdc_nystrom_conditional_power_gate)",
+ "crates/antecedent-stats/src/ci/calibration.rs (conditional_gpdc_beyond_4k_8000_rows, conditional_gpdc_beyond_4k_20000_rows, scalable_gpdc_replacement_validated_separately: two conditioning variables, Type I error, power and 2000-replicate coverage)",
+ "crates/antecedent-stats/src/ci/advanced.rs (exact_conditional_gpdc_retained_at_small_sizes: the exact test at 2000 rows is bit-identical to its dense construction)",
+]

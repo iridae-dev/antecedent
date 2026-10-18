@@ -170,8 +170,38 @@ impl PublishedRoute {
     }
 }
 
-/// The `functional` label a record is keyed under at a coordinate: the candidate-set
-/// size, the selection rule and the functional family are part of what was measured.
+/// Candidate-set size bands a coverage record is keyed by, inclusive on both ends.
+///
+/// A record measured at several sizes inside a band licenses every size of the band,
+/// and only because each size visited passed; a size above the last band has no
+/// record and is closed. The width of a band is what the measurement has to visit: a
+/// selection correction grows with the logarithm of the count, and the best-candidate
+/// set switches from paired comparisons to the dependence-free construction above
+/// 64 candidates, so no band spans that switch.
+pub const CANDIDATE_COUNT_BANDS: [(u64, u64); 4] = [(2, 4), (5, 16), (17, 64), (65, 100)];
+
+/// The band of [`CANDIDATE_COUNT_BANDS`] containing `count`, if any.
+#[must_use]
+pub fn candidate_count_band(count: u64) -> Option<(u64, u64)> {
+    CANDIDATE_COUNT_BANDS.into_iter().find(|&(low, high)| (low..=high).contains(&count))
+}
+
+/// The `functional` label a record is keyed under at a coordinate: the band of the
+/// candidate-set size, the selection rule and the functional family are part of what
+/// was measured. `None` when the size lies in no measured band.
+#[must_use]
+pub fn banded_record_functional(coordinate: &CalibrationCoordinate) -> Option<String> {
+    let (low, high) = candidate_count_band(coordinate.candidate_set_size)?;
+    Some(format!(
+        "candidates={low}-{high};rule={};functional={}",
+        coordinate.selection_rule, coordinate.functional
+    ))
+}
+
+/// The `functional` label of a record that measured one exact candidate count: the
+/// candidate-set size, the selection rule and the functional family. Records measured
+/// now key by band ([`banded_record_functional`]); this label still keys the records
+/// that were measured at one count.
 #[must_use]
 pub fn record_functional(coordinate: &CalibrationCoordinate) -> String {
     format!(
@@ -184,12 +214,32 @@ pub fn record_functional(coordinate: &CalibrationCoordinate) -> String {
 /// coverage record must equal and the execution scope (the per-candidate Monte Carlo
 /// budget is the row count) it must cover. `None` when the coordinate carries a
 /// declaration no record can cover (undeclared serial dependence, weights, adaptive
-/// candidates or an unknown coupling).
+/// candidates, an unknown coupling or a candidate-set size outside every measured band).
 #[must_use]
 pub fn calibration_basis(
     route: PublishedRoute,
     coordinate: &CalibrationCoordinate,
     level: f64,
+) -> Option<CalibrationBasisWire> {
+    basis_with_functional(route, coordinate, level, banded_record_functional(coordinate)?)
+}
+
+/// The basis under the key of records that measured one exact candidate count. Such a
+/// record licenses exactly that count; a measurement now keys by band
+/// ([`calibration_basis`]).
+fn exact_count_basis(
+    route: PublishedRoute,
+    coordinate: &CalibrationCoordinate,
+    level: f64,
+) -> Option<CalibrationBasisWire> {
+    basis_with_functional(route, coordinate, level, record_functional(coordinate))
+}
+
+fn basis_with_functional(
+    route: PublishedRoute,
+    coordinate: &CalibrationCoordinate,
+    level: f64,
+    functional: String,
 ) -> Option<CalibrationBasisWire> {
     if coordinate.within_stream == WithinStreamDependence::Unknown
         || coordinate.importance_weighted
@@ -215,7 +265,7 @@ pub fn calibration_basis(
                 coordinate.within_stream.as_str()
             ),
             posterior: String::new(),
-            functional: record_functional(coordinate),
+            functional,
             level,
             identification: "point".to_owned(),
         },
@@ -243,8 +293,9 @@ pub fn license_route(
 /// Ask for a published route at a coordinate and nominal level.
 ///
 /// The route is licensed only when the shipped coverage table holds a current,
-/// attesting, non-boundary record whose construction equals [`calibration_basis`] and
-/// whose measured sample-size range contains the coordinate's Monte Carlo budget.
+/// attesting, non-boundary record whose construction equals [`calibration_basis`] (or,
+/// for a record measured at one exact count, that count) and whose measured sample-size
+/// range contains the coordinate's Monte Carlo budget.
 /// Nothing a caller passes can open a route.
 ///
 /// # Errors
@@ -254,8 +305,11 @@ pub fn license_route_at(
     coordinate: &CalibrationCoordinate,
     level: f64,
 ) -> Result<(), ReliabilityError> {
-    let licensed = calibration_basis(route, coordinate, level)
-        .is_some_and(|basis| calibration_slot(&basis).status == CalibrationStatus::Calibrated);
+    let licensed =
+        [calibration_basis(route, coordinate, level), exact_count_basis(route, coordinate, level)]
+            .into_iter()
+            .flatten()
+            .any(|basis| calibration_slot(&basis).status == CalibrationStatus::Calibrated);
     if licensed {
         Ok(())
     } else {

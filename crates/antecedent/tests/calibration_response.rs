@@ -40,9 +40,8 @@ use antecedent_core::{
     ResponseIdentification, ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_discovery::{
-    GraphPosteriorAtomKind, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
-};
+use antecedent_discovery::GraphPosteriorAtomKind;
+use antecedent_discovery::adjacency_mask::{adjacency_mask_from_cpdag, adjacency_masks_from_pag};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{
     Cpdag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TieredBackground, WithinTier,
@@ -216,11 +215,11 @@ const GP_WEIGHTS: [f64; 3] = [0.5, 0.3, 0.2];
 const GP_TRUTH: f64 = (0.5 * 3.24 + 0.3 * 3.0) / 0.8;
 
 fn graph_posterior() -> GraphPosterior {
-    use antecedent_discovery::set_edge;
+    use antecedent_discovery::adjacency_mask::set_edge;
     let direct = set_edge(0, 3, 0, 1, true);
     let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
     let unidentified = set_edge(0, 3, 1, 0, true);
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         GP_WEIGHTS.to_vec(),
         vec![direct, adjusted, unidentified],
@@ -239,9 +238,9 @@ fn graph_posterior() -> GraphPosterior {
 /// atom is `T -> Y` with isolated `Z`; the DGP randomizes `T` independently of
 /// `Z`, so the posterior target at level `a` is exactly `1 + 2a`.
 fn single_atom_response_posterior() -> GraphPosterior {
-    use antecedent_discovery::set_edge;
+    use antecedent_discovery::adjacency_mask::set_edge;
     let direct = set_edge(0, 3, 0, 1, true);
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         vec![1.0],
         vec![direct],
@@ -514,7 +513,7 @@ fn single_class_graph_posterior(graph: &Structure) -> GraphPosterior {
             (GraphPosteriorAtomKind::Pag, vec![adjacency], Some(vec![marks]))
         }
     };
-    let posterior = GraphPosterior::new(
+    let posterior = GraphPosterior::from_atoms(
         4,
         vec![1.0],
         adjacency,
@@ -528,7 +527,7 @@ fn single_class_graph_posterior(graph: &Structure) -> GraphPosterior {
     )
     .unwrap()
     .with_atom_kind(atom_kind);
-    if let Some(marks) = mark_masks { posterior.with_mark_masks(marks).unwrap() } else { posterior }
+    if let Some(marks) = mark_masks { posterior.with_mark_atoms(marks).unwrap() } else { posterior }
 }
 
 /// Repeated-sampling evidence for a one-atom class-posterior response. The
@@ -607,10 +606,22 @@ fn run_freq_class_graph_posterior(
     level: Option<f64>,
     seed: u64,
 ) -> Option<(Study, StudyResult)> {
+    run_class_graph_posterior(data, posterior, query, InferenceMode::Frequentist, level, seed)
+}
+
+/// [`run_freq_class_graph_posterior`] under any inference mode.
+fn run_class_graph_posterior(
+    data: &TabularData,
+    posterior: &GraphPosterior,
+    query: ResponseQuery,
+    inference: InferenceMode,
+    level: Option<f64>,
+    seed: u64,
+) -> Option<(Study, StudyResult)> {
     let mut builder = Study::tabular(data.clone())
         .graph_posterior(posterior.clone())
         .query(CausalQuery::Response(query))
-        .inference(InferenceMode::Frequentist);
+        .inference(inference);
     if let Some(level) = level {
         builder = builder.response_options(ContinuousResponseOptions {
             confidence_level: level,
@@ -779,33 +790,230 @@ fn response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage()
     gate_at(&tallies, &CPDAG_GP_FREQ_CURVE_MEASURED);
 }
 
-/// Named boundary cells measured at 1000 replicates (floor 0.936 at 0.95,
-/// 0.881 at 0.90). Tally layout is `2*j + k` over `GRID = [-1, -0.5, 0, 0.5, 1]`
-/// with `k = 0` the reported 0.95 level and `k = 1` the 0.90 gate level; the
-/// low-dose coordinates under-cover mildly at the tails. Coordinates and grid
-/// points not listed gate at nominal.
-const CPDAG_GP_FREQ_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [
-    // a=-1, 0.95: 0.935 at p0 (935/1000), 0.936 floor. p2 gates at nominal.
-    [Some(0.935), None, None],
-    // a=-1, 0.90: 0.878 at p0 (878/1000), 0.881 floor.
-    [Some(0.878), None, None],
-    // a=-0.5, 0.95: 0.936 at p0 (936/1000); 0.931 at p2 (931/1000), 0.936 floor.
-    [Some(0.936), None, Some(0.931)],
-    // a=-0.5, 0.90: 0.875 at p0 (875/1000), 0.881 floor.
-    [Some(0.875), None, None],
-    // a=0, 0.95: nominal.
-    [None, None, None],
-    // a=0, 0.90: nominal.
-    [None, None, None],
-    // a=0.5, 0.95: nominal.
-    [None, None, None],
-    // a=0.5, 0.90: nominal.
-    [None, None, None],
-    // a=1, 0.95: nominal.
-    [None, None, None],
-    // a=1, 0.90: 0.873 at p0 (873/1000), 0.881 floor.
-    [Some(0.873), None, None],
-];
+// These linear-Gaussian, supported mean-curve designs target nominal coverage.
+// Historical empirical misses do not define an out-of-scope DGP boundary.
+const CPDAG_GP_FREQ_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [[None; 3]; 10];
+
+/// A single-atom graph posterior's pointwise band of `m(a)` on [`GRID`], at the
+/// level the study reports and again at the gate's level on the same data and
+/// seed. `truth(a, z̄)` is the level the band targets: the sample-covariate
+/// curve for a Bayesian response, the population curve for a Frequentist one.
+///
+/// A band's five coordinates move together, so this measures at
+/// [`PRECISION_N_SIM`] replicates.
+fn graph_posterior_curve_coverage(
+    test: &'static str,
+    cell: Cell,
+    posterior: &GraphPosterior,
+    inference: fn() -> InferenceMode,
+    data: fn(usize, u64) -> TabularData,
+    truth: fn(f64, f64) -> f64,
+    family: u64,
+) {
+    let mut tallies: Vec<CoverageTally> = GRID
+        .iter()
+        .flat_map(|&a| {
+            let label = band_label(a);
+            [
+                keyed(test, cell, REPORTED_LEVEL).labelled(label.clone()),
+                keyed(test, cell, GATE_LEVEL).labelled(label),
+            ]
+        })
+        .collect();
+    let runs = map_replicates(n_sim_at_least(PRECISION_N_SIM), |rep| {
+        let seed = stream_seed(family, rep);
+        let data = data(grid_n(cell.n as usize), seed);
+        let z_bar = mean_z(&data);
+        let reported =
+            run_class_graph_posterior(&data, posterior, curve_query(), inference(), None, seed);
+        let gate_run = run_class_graph_posterior(
+            &data,
+            posterior,
+            curve_query(),
+            inference(),
+            Some(GATE_LEVEL),
+            seed,
+        );
+        let (Some((reported_study, reported)), Some((gate_study, gate_run))) = (reported, gate_run)
+        else {
+            return None;
+        };
+        let bands = [response_band(&reported), response_band(&gate_run)];
+        if rep == 0 {
+            assert!(bands[0].is_some(), "a single identified atom must publish its band");
+            assert!(bands[1].is_some(), "the gate-level band is the facade's own construction");
+            let structural =
+                reported.structural_response.as_ref().expect("posterior atom evidence");
+            assert_eq!(structural.atoms.len(), 1, "the graph posterior is single-atom");
+        }
+        Some(((reported_study, reported), (gate_study, gate_run), bands, z_bar))
+    });
+    for scored in &runs {
+        let Some(((reported_study, reported), (gate_study, gate_run), bands, z_bar)) = scored
+        else {
+            for tally in &mut tallies {
+                tally.skip();
+            }
+            continue;
+        };
+        {
+            let (mut at_reported, mut at_gate) = (Vec::new(), Vec::new());
+            for (i, tally) in tallies.iter_mut().enumerate() {
+                if i % 2 == 0 {
+                    at_reported.push(tally);
+                } else {
+                    at_gate.push(tally);
+                }
+            }
+            bind_all(&mut at_reported, reported_study, reported);
+            bind_all(&mut at_gate, gate_study, gate_run);
+        }
+        for (j, &a) in GRID.iter().enumerate() {
+            for (k, level) in [REPORTED_LEVEL, GATE_LEVEL].into_iter().enumerate() {
+                let interval = bands[k].as_ref().map(|(lower, upper, published)| {
+                    assert!((published - level).abs() < 1e-12, "published level {published}");
+                    (lower[j], upper[j])
+                });
+                tallies[2 * j + k].record(interval, truth(a, *z_bar));
+            }
+        }
+    }
+    gate_at(&tallies, &[[None; GRID_POINTS]; 2 * GRID.len()]);
+}
+
+/// The class-aware and plain graph-posterior curve cells below score a
+/// single-atom posterior: one identified atom publishes its own band, whereas a
+/// multi-atom curve is withheld (Frequentist) or a distribution over graphs
+/// (Bayesian), neither of which is a sampling band.
+fn dag_curve_cell(estimator: &'static str, interval_method: &'static str) -> Cell {
+    Cell {
+        graph_class: "Dag",
+        estimator,
+        interval_method,
+        dgp: "graph_posterior_bayesian_response_data",
+        n: 500,
+    }
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage() {
+    graph_posterior_curve_coverage(
+        "response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage",
+        dag_curve_cell("response.bayesian", "posterior_quantile"),
+        &single_atom_response_posterior(),
+        bayes,
+        graph_posterior_bayesian_response_data,
+        |a, _| 1.0 + 2.0 * a,
+        0x110_BA02,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage() {
+    graph_posterior_curve_coverage(
+        "response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        dag_curve_cell("response.kennedy_dr", "analytic_se"),
+        &single_atom_response_posterior(),
+        || InferenceMode::Frequentist,
+        graph_posterior_bayesian_response_data,
+        |a, _| 1.0 + 2.0 * a,
+        0x110_F002,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage() {
+    let case = cpdag_case();
+    graph_posterior_curve_coverage(
+        "response_curve_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage",
+        case.cell,
+        &single_class_graph_posterior(&(case.graph)()),
+        bayes,
+        case.data,
+        case.truth,
+        case.family ^ 0x4750,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_pag_graph_posterior_bayesian_pointwise_nominal_coverage() {
+    let case = pag_case();
+    graph_posterior_curve_coverage(
+        "response_curve_pag_graph_posterior_bayesian_pointwise_nominal_coverage",
+        case.cell,
+        &single_class_graph_posterior(&(case.graph)()),
+        bayes,
+        case.data,
+        case.truth,
+        case.family ^ 0x4750,
+    );
+}
+
+/// Frequentist single-atom PAG graph-posterior cells: the population law of
+/// [`pag_data`] (`y = 1 + 2t + 0.8z + e`, `E[z] = 0`) gives `E[Y | do(T = a)] =
+/// 1 + 2a`, and the influence-function SE standardizes over the sample.
+const PAG_GP_FREQ_CELL: Cell = Cell {
+    graph_class: "Pag",
+    estimator: "response.kennedy_dr",
+    interval_method: "analytic_se",
+    dgp: "pag_data",
+    n: 500,
+};
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage() {
+    graph_posterior_curve_coverage(
+        "response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        PAG_GP_FREQ_CELL,
+        &single_class_graph_posterior(&Structure::Pag(agreeing_pag())),
+        || InferenceMode::Frequentist,
+        pag_data,
+        |a, _| 1.0 + 2.0 * a,
+        0x110_0F72,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_pag_graph_posterior_frequentist_nominal_coverage() {
+    let test = "intervention_response_pag_graph_posterior_frequentist_nominal_coverage";
+    let cell = Cell { estimator: "response.intervention_gcomp", ..PAG_GP_FREQ_CELL };
+    let mut tallies = keyed_pair(test, cell);
+    let posterior = single_class_graph_posterior(&Structure::Pag(agreeing_pag()));
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0F71, rep);
+        let data = pag_data(grid_n(cell.n as usize), seed);
+        let (study, result) =
+            run_freq_class_graph_posterior(&data, &posterior, level_query(1.0), None, seed)?;
+        let pair = response_normal_pair(&result);
+        if rep == 0 {
+            assert_eq!(
+                result.logical_plan.estimator.as_deref(),
+                Some(cell.estimator),
+                "the default class graph-posterior intervention estimator"
+            );
+            assert!(pair[0].is_some() && pair[1].is_some(), "both levels derive from the SE");
+            let structural = result.structural_response.as_ref().expect("posterior atom evidence");
+            assert_eq!(structural.atoms.len(), 1, "the graph posterior is single-atom");
+        }
+        Some((study, result, pair))
+    });
+    for scored in &runs {
+        let Some((study, result, pair)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind_pair(&mut tallies, study, result);
+        // E[Y | do(T = 1)] = 1 + 2 under the population law of `pag_data`.
+        record_pair(&mut tallies, *pair, 3.0);
+    }
+    gate(&tallies, &[None, None]);
+}
 
 /// Bayesian class-aware `E[Y | do(T = 1)]`: the 0.95 interval the study
 /// reports, and the facade's own 0.90 interval on the same data and seed.
@@ -983,22 +1191,9 @@ fn response_curve_cpdag_bayesian_pointwise_nominal_coverage() {
     );
 }
 
-/// Grid-point-0 floor miss at `a = 1` (0.95): 0.932 against floor 0.936.
-/// Grid-point-1 ceiling miss at `a = 1` (0.90): 0.919 against ceiling 0.919.
-/// Grid-point-2 misses: `a = 0` 0.95 (0.969), `a = 0` 0.90 (0.929), `a = 0.5`
-/// 0.95 (0.964), all 1000-replicate measurements.
-const CPDAG_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [
-    [None, None, None],
-    [None, None, None],
-    [None, None, None],
-    [None, None, None],
-    [None, None, Some(0.969)],
-    [None, None, Some(0.929)],
-    [None, None, Some(0.964)],
-    [None, None, None],
-    [Some(0.932), None, None],
-    [None, Some(0.919), None],
-];
+// Supported linear-Gaussian Bayesian curves are checked at nominal, without
+// defining boundaries from earlier finite-Monte-Carlo coverage misses.
+const CPDAG_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [[None; 3]; 10];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -1010,21 +1205,7 @@ fn response_curve_pag_bayesian_pointwise_nominal_coverage() {
     );
 }
 
-/// Grid-point-0 misses: `a = −0.5` 0.95 (0.933), `a = 0` 0.90 (0.881),
-/// `a = 0.5` 0.95 (0.924). Grid-point-1 misses (1000 replicates): `a = 0`
-/// 0.95 (0.964), `a = 0.5` 0.90 (0.925), `a = 1` 0.95 (0.964).
-const PAG_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [
-    [None, None, None],
-    [None, None, None],
-    [Some(0.933), None, None],
-    [None, None, None],
-    [None, Some(0.964), None],
-    [Some(0.881), None, None],
-    [Some(0.924), None, None],
-    [None, Some(0.925), None],
-    [None, Some(0.964), None],
-    [None, None, None],
-];
+const PAG_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [[None; 3]; 10];
 
 // ============================================ CoDetermined joint intervention
 

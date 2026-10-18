@@ -80,9 +80,9 @@ pub use super::design_exports::design_crate::transported_bridge::{
     BridgeSelectionDiagram, SURROGATE_TRANSPORT_PREMISE_ID, TransportedSurrogateBridge,
 };
 pub use super::design_exports::design_crate::transported_policy::{
-    MechanismStatus, ModelMechanism, SelectionDiagram, TransportPremises,
-    TransportedPolicyEvaluation, TransportedPolicyRequest, evaluate_transported_policy,
-    verify_transported_policy,
+    ActionUtility, MechanismStatus, ModelMechanism, SelectionDiagram, TargetUtility,
+    TransportPremises, TransportedPolicyEvaluation, TransportedPolicyRequest, UtilityProvenance,
+    evaluate_transported_policy, verify_transported_policy,
 };
 pub use super::design_exports::design_crate::transported_synthesis::{
     TransportedContribution, TransportedSynthesis, TransportedSynthesisMethod,

@@ -21,6 +21,7 @@ antecedent-core = { workspace = true }
 antecedent-data = { workspace = true }
 antecedent-graph = { workspace = true }
 antecedent-kernels = { workspace = true }
+antecedent-learn = { workspace = true }
 antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 
@@ -37,6 +38,13 @@ default = []
 # path, hence the `GP_FAMILY_MAX_ROWS` refusal. Family selection scores it out of fold, like
 # every other family. CI builds and tests this feature (`.github/workflows/ci.yml`).
 gaussian-process = []
+# Tree-ensemble mechanism families (registry auto-fit path only — a deserialized
+# `MechanismSlot::TreeAdditive` / `TreeCategorical` always evaluates, samples and abduces
+# regardless of these features). Fitting delegates to the `antecedent-learn` providers; without
+# the provider a family is recorded as a failed candidate with the provider-unavailable reason.
+ml-gbdt = ["antecedent-learn/ml-gbdt"]
+ml-forest = ["antecedent-learn/ml-forest"]
+ml-full = ["ml-gbdt", "ml-forest"]
 
 [dev-dependencies]
 antecedent-identify = { workspace = true }
@@ -45,4 +53,12 @@ serde_json = { workspace = true }
 
 [[bench]]
 name = "sample_overlay"
+harness = false
+
+[[bench]]
+name = "policy_sampling"
+harness = false
+
+[[bench]]
+name = "noise_replay"
 harness = false

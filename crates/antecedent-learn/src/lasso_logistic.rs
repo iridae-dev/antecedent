@@ -74,15 +74,31 @@ fn soft_threshold(value: f64, threshold: f64) -> f64 {
 }
 
 /// `-loglik + lambda * sum |beta_j|` over the penalized coordinates.
-fn objective(eta: &[f64], y: &[f64], beta: &[f64], lambda: f64, pen_start: usize) -> f64 {
-    let loss: f64 = eta.iter().zip(y).map(|(&e, &t)| softplus(e) - t * e).sum();
+fn objective(
+    eta: &[f64],
+    y: &[f64],
+    prior: &[f64],
+    beta: &[f64],
+    lambda: f64,
+    pen_start: usize,
+) -> f64 {
+    let loss: f64 =
+        eta.iter().zip(y).zip(prior).map(|((&e, &t), &m)| m * (softplus(e) - t * e)).sum();
     loss + lambda * beta[pen_start..].iter().map(|b| b.abs()).sum::<f64>()
 }
 
 /// `g = X' (y - p)`: the negative gradient of the negative log likelihood.
-fn score(x: &[f64], n: usize, p: usize, y: &[f64], prob: &[f64]) -> Vec<f64> {
+fn score(x: &[f64], n: usize, p: usize, y: &[f64], prob: &[f64], prior: &[f64]) -> Vec<f64> {
     (0..p)
-        .map(|j| x[j * n..(j + 1) * n].iter().zip(y).zip(prob).map(|((v, t), q)| v * (t - q)).sum())
+        .map(|j| {
+            x[j * n..(j + 1) * n]
+                .iter()
+                .zip(y)
+                .zip(prob)
+                .zip(prior)
+                .map(|(((v, t), q), m)| m * v * (t - q))
+                .sum()
+        })
         .collect()
 }
 
@@ -160,6 +176,7 @@ fn solve(
     n: usize,
     p: usize,
     y: &[f64],
+    prior: &[f64],
     lambda: f64,
     intercept: bool,
 ) -> Result<Vec<f64>, LearnError> {
@@ -167,7 +184,7 @@ fn solve(
     let mut beta = vec![0.0; p];
     let mut eta = vec![0.0; n];
     if intercept {
-        let ybar = y.iter().sum::<f64>() / n as f64;
+        let ybar = y.iter().zip(prior).map(|(t, m)| m * t).sum::<f64>() / prior.iter().sum::<f64>();
         if !(ybar > 0.0 && ybar < 1.0) {
             return Err(LearnError::Shape {
                 message: "logistic lasso needs both classes in the training target",
@@ -185,13 +202,14 @@ fn solve(
     let mut converged = false;
     for _ in 0..MAX_NEWTON {
         let prob: Vec<f64> = eta.iter().map(|&e| sigmoid(e)).collect();
-        if kkt_violation(&score(x, n, p, y, &prob), &beta, lambda, pen_start) <= tolerance {
+        if kkt_violation(&score(x, n, p, y, &prob, prior), &beta, lambda, pen_start) <= tolerance {
             converged = true;
             break;
         }
         for i in 0..n {
-            weights[i] = (prob[i] * (1.0 - prob[i])).max(MIN_WEIGHT);
-            resid[i] = (y[i] - prob[i]) / weights[i];
+            let curvature_i = (prob[i] * (1.0 - prob[i])).max(MIN_WEIGHT);
+            weights[i] = prior[i] * curvature_i;
+            resid[i] = (y[i] - prob[i]) / curvature_i;
         }
         for j in 0..p {
             curvature[j] = x[j * n..(j + 1) * n].iter().zip(&weights).map(|(v, w)| w * v * v).sum();
@@ -217,7 +235,7 @@ fn solve(
                 *slot += v * delta[j];
             }
         }
-        let current = objective(&eta, y, &beta, lambda, pen_start);
+        let current = objective(&eta, y, prior, &beta, lambda, pen_start);
         let mut step = 1.0_f64;
         let mut accepted = false;
         for _ in 0..MAX_HALVINGS {
@@ -225,7 +243,7 @@ fn solve(
                 beta.iter().zip(&delta).map(|(b, d)| b + step * d).collect();
             let candidate_eta: Vec<f64> =
                 eta.iter().zip(&x_delta).map(|(e, d)| e + step * d).collect();
-            let value = objective(&candidate_eta, y, &candidate_beta, lambda, pen_start);
+            let value = objective(&candidate_eta, y, prior, &candidate_beta, lambda, pen_start);
             if value <= current + 1e-12 * current.abs() {
                 beta = candidate_beta;
                 eta = candidate_eta;
@@ -240,7 +258,8 @@ fn solve(
     }
     if !converged {
         let prob: Vec<f64> = eta.iter().map(|&e| sigmoid(e)).collect();
-        converged = kkt_violation(&score(x, n, p, y, &prob), &beta, lambda, pen_start) <= tolerance;
+        converged =
+            kkt_violation(&score(x, n, p, y, &prob, prior), &beta, lambda, pen_start) <= tolerance;
     }
     if !converged {
         return Err(LearnError::Backend(format!(
@@ -259,6 +278,7 @@ impl LearnerFactory for LassoLogisticLearner {
     fn capabilities(&self) -> LearnerCapabilities {
         LearnerCapabilities {
             binary_probability: true,
+            sample_weights: true,
             deterministic_seed: true,
             ..LearnerCapabilities::none()
         }
@@ -271,11 +291,6 @@ impl LearnerFactory for LassoLogisticLearner {
         weights: Option<&[f64]>,
         _ctx: &ExecutionContext,
     ) -> Result<Box<dyn FittedPredictor>, LearnError> {
-        if weights.is_some() {
-            return Err(LearnError::Unsupported {
-                message: "logistic lasso learner does not accept sample weights",
-            });
-        }
         let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
         if y.len() != x.physical_nrows() {
             return Err(LearnError::Shape { message: "target length != physical rows" });
@@ -286,7 +301,26 @@ impl LearnerFactory for LassoLogisticLearner {
             return Err(LearnError::Shape { message: "logistic lasso needs a non-empty design" });
         }
         let intercept = first_col_is_exact_ones(&design, nrows);
-        let coefficients = solve(&design, nrows, ncols, &gathered_y, self.lambda, intercept)?;
+        // Nonnegative prior (case) weights: the objective is `-Σ m_i loglik_i + λ Σ|β_j|`.
+        let prior = match weights {
+            Some(w) => {
+                if w.len() != x.physical_nrows() {
+                    return Err(LearnError::Shape { message: "weights length != physical rows" });
+                }
+                let gathered = gather_physical(w, x, nrows)?;
+                if gathered.iter().any(|v| !v.is_finite() || *v < 0.0)
+                    || !gathered.iter().any(|v| *v > 0.0)
+                {
+                    return Err(LearnError::Shape {
+                        message: "prior weights must be finite, non-negative and not all zero",
+                    });
+                }
+                gathered
+            }
+            None => vec![1.0; nrows],
+        };
+        let coefficients =
+            solve(&design, nrows, ncols, &gathered_y, &prior, self.lambda, intercept)?;
         Ok(Box::new(crate::coefficient::CoefficientPredictor::new(
             coefficients,
             true,
@@ -458,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_penalties_targets_and_weights_are_refused() {
+    fn invalid_penalties_targets_and_weights_are_refused_and_valid_weights_fit() {
         for lambda in [0.0, -1.0, f64::NAN, f64::INFINITY] {
             assert!(LassoLogisticLearner::new(lambda).is_err());
         }
@@ -468,9 +502,11 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         assert!(learner.fit(view, TargetView::new(&[0.0, 0.5, 1.0]), None, &ctx).is_err());
         assert!(learner.fit(view, TargetView::new(&[1.0, 1.0, 1.0]), None, &ctx).is_err());
-        assert!(
-            learner.fit(view, TargetView::new(&[0.0, 1.0, 1.0]), Some(&[1.0; 3]), &ctx).is_err()
-        );
+        let target = TargetView::new(&[0.0, 1.0, 1.0]);
+        assert!(learner.fit(view, target, Some(&[1.0; 3]), &ctx).is_ok());
+        assert!(learner.fit(view, target, Some(&[1.0, -1.0, 1.0]), &ctx).is_err());
+        assert!(learner.fit(view, target, Some(&[1.0, f64::NAN, 1.0]), &ctx).is_err());
+        assert!(learner.fit(view, target, Some(&[1.0; 2]), &ctx).is_err());
         assert_eq!(learner.task(), PredictionTask::BinaryProbability);
         assert!(learner.capabilities().binary_probability);
     }

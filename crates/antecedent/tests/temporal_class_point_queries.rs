@@ -14,7 +14,10 @@ use antecedent_core::{
     ResponseValue, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::{
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
+};
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -169,13 +172,13 @@ fn posterior_masks(
     lag_edges: &[(usize, usize)],
     contemporaneous: &[(usize, usize)],
     pag: bool,
-) -> (usize, u64, u64) {
+) -> (usize, AdjacencyMask, u64) {
     let n = if pag { base_n + 1 } else { base_n };
     let mut lag_mask = 0u64;
     for &(from, to) in lag_edges {
         lag_mask |= lag_bit(n, from, to);
     }
-    let mut adjacency = 0u64;
+    let mut adjacency = AdjacencyMask::EMPTY;
     for &(from, to) in contemporaneous {
         adjacency = set_edge(adjacency, n, from, to, true);
     }
@@ -185,9 +188,9 @@ fn posterior_masks(
     (n, adjacency, lag_mask)
 }
 
-fn class_posterior(n: usize, adjacency: u64, lag_mask: u64, pag: bool) -> GraphPosterior {
+fn class_posterior(n: usize, adjacency: AdjacencyMask, lag_mask: u64, pag: bool) -> GraphPosterior {
     let cell = n * n;
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![adjacency],

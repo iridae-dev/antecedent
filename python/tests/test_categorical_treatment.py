@@ -233,26 +233,61 @@ def test_categorical_artifact_round_trip_recomputes_everything() -> None:
     assert mapped.identity == result.identity
 
 
-def test_categorical_robust_covariance_embeds_the_rows_and_replays() -> None:
+def test_categorical_robust_covariance_embeds_a_summary_and_replays() -> None:
     model = abc()
     robust = abc(covariance="hc1")
-    assert robust.replay == "rows"
+    assert robust.replay == "robust_summary"
     assert not np.allclose(robust.covariance, model.covariance)
     assert robust.effect("c").estimate == pytest.approx(7.0, abs=1e-9)
     again = consume_categorical_effects(robust.export(), expected_identity=robust.identity)
     assert np.array_equal(again.covariance, robust.covariance)
 
 
-def test_categorical_robust_replay_above_the_row_cap_is_refused() -> None:
-    n = 4097
-    index = np.arange(n)
-    labels = np.array(["a", "b", "c"])[index % 3]
-    outcome = (index % 5).astype(float)
+def sandwich(x: np.ndarray, y: np.ndarray, kind: str) -> np.ndarray:
+    """Independent HC0-HC3 covariance of the full coefficient vector."""
+    n, p = x.shape
+    ginv = np.linalg.inv(x.T @ x)
+    e = y - x @ (ginv @ (x.T @ y))
+    h = np.einsum("ij,jk,ik->i", x, ginv, x)
+    weight = {
+        "hc0": np.ones(n),
+        "hc1": np.full(n, n / (n - p)),
+        "hc2": 1.0 / (1.0 - h),
+        "hc3": 1.0 / (1.0 - h) ** 2,
+    }[kind]
+    return ginv @ (x.T * (weight * e * e)) @ x @ ginv
+
+
+@pytest.mark.parametrize("kind", ["hc0", "hc1", "hc2", "hc3"])
+def test_categorical_robust_fit_has_no_row_ceiling_and_matches_an_independent_sandwich(
+    kind,
+) -> None:
+    n = 30_000
+    rng = np.random.default_rng(7)
+    labels = np.array(["a", "b", "c"])[np.arange(n) % 3]
+    shift = {"a": 0.0, "b": 1.0, "c": -2.0}
+    outcome = np.array([shift[label] for label in labels]) + (0.5 + rng.random(n)) * rng.normal(
+        size=n
+    )
+    result = categorical_effects(outcome, labels, reference="a", covariance=kind)
+    assert result.replay == "robust_summary"
+    design = np.column_stack([np.ones(n), labels == "b", labels == "c"]).astype(float)
+    expected = sandwich(design, outcome, kind)[1:, 1:]
+    assert result.covariance == pytest.approx(expected, rel=1e-8, abs=1e-14)
+    # The artifact is a summary of fixed size, and a fresh consumer replays it bit for bit.
+    assert len(result.export()) < 64 * 1024
+    again = consume_categorical_effects(result.export(), expected_identity=result.identity)
+    assert np.array_equal(again.covariance, result.covariance)
+
+
+def test_categorical_consume_respects_the_memory_limit() -> None:
+    result = abc(covariance="hc1")
+    assert consume_categorical_effects(result.export(), memory_limit_bytes=10_000_000).identity == (
+        result.identity
+    )
     with pytest.raises(CategoricalTreatmentRefusal) as refused:
-        categorical_effects(outcome, labels, reference="a", covariance="hc0")
-    assert refused.value.reason_code == "route_not_supported"
-    assert refused.value.detail == "categorical_treatment.hc_replay_row_cap_exceeded"
-    assert categorical_effects(outcome, labels, reference="a").replay == "summary"
+        consume_categorical_effects(result.export(), memory_limit_bytes=1)
+    assert refused.value.detail == "categorical_treatment.memory_budget_exceeded"
 
 
 def test_categorical_resealed_change_is_refused_against_the_retained_identity() -> None:

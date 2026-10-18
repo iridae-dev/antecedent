@@ -10,16 +10,21 @@
     )
 )]
 
+mod draw_controls;
 mod evaluator;
 mod gcomp;
 mod hydrate;
 #[cfg(test)]
 mod tests;
 
+pub use draw_controls::{
+    DRAW_CONTROL_NOTE_PREFIX, EndpointMonteCarloError, MIN_CONTROLLED_DRAWS,
+    endpoint_mcse_from_notes, endpoint_monte_carlo_error, supported_min_draws,
+};
 pub use evaluator::{CompiledGCompAte, GCompAteEvaluator, PosteriorFunctionalEvaluator};
 pub use gcomp::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
-    PreparedBayesianProblem,
+    LAPLACE_RANK_INTERVAL_BELOW_DRAWS, PreparedBayesianProblem,
 };
 #[cfg(test)]
 pub(crate) use hydrate::HYDRATED_COEFFICIENT_COVARIANCE_ID;

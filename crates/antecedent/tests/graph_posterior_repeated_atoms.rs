@@ -24,21 +24,23 @@ use antecedent_core::{
     ResponseQuery, ResponseUncertainty, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::set_edge;
+use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_prob::InferenceDiagnostics;
 
 const N: usize = 400;
 
 fn direct() -> u64 {
-    set_edge(0, 3, 0, 1, true)
+    set_edge(0, 3, 0, 1, true).to_word().expect("a three-variable graph fits one word")
 }
 
 fn adjusted() -> u64 {
     set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true)
+        .to_word()
+        .expect("a three-variable graph fits one word")
 }
 
 fn unidentified() -> u64 {
-    set_edge(0, 3, 1, 0, true)
+    set_edge(0, 3, 1, 0, true).to_word().expect("a three-variable graph fits one word")
 }
 
 fn lcg(seed: u64) -> impl FnMut() -> f64 {
@@ -81,7 +83,7 @@ fn continuous_data(seed: u64) -> TabularData {
 }
 
 fn posterior(masks: &[u64], weights: &[f64]) -> GraphPosterior {
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         weights.to_vec(),
         masks.to_vec(),

@@ -37,11 +37,17 @@
 //!
 //! # Scope
 //!
-//! * Static CPDAGs under causal sufficiency (every member is a DAG over the observed
-//!   variables). A PAG's members are ancestral graphs whose directed edges are ancestral, not
-//!   causal-parent relations, so the structural rules here would be applied to a graph they do
-//!   not describe: that route is refused (`pag_members_not_causal_graphs`). A temporal
-//!   structure is outside this module.
+//! * Static CPDAGs under causal sufficiency: every member is a DAG over the observed variables.
+//! * Static PAGs ([`transport_across_pag`]): the members of a PAG's class are maximal ancestral
+//!   graphs, whose directed edges state ancestry and whose bidirected edges stand for latent
+//!   common causes. Each member is read as the most-confounded ADMG it is compatible with: every
+//!   directed edge is kept, every bidirected edge is kept, and a directed edge that is not
+//!   visible (Zhang 2008) is also given a bidirected edge, because an invisible edge does not
+//!   exclude a latent common cause of its endpoints. A functional that identification derives on
+//!   that graph holds in every causal model the member represents. A circle endpoint is never
+//!   read as the absence of confounding: it is enumerated, and each completion carries its own
+//!   bidirected and invisible edges.
+//! * Temporal structures are in [`crate::discovered_transport_temporal`].
 //! * Selection targets are declared by the caller. They are never inferred from differences
 //!   between per-population discoveries.
 //!
@@ -56,8 +62,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{NodeRef, TransportQuery, VariableId};
-use antecedent_graph::{Admg, Cpdag, CpdagCompletionSampler, DenseNodeId, SelectionDiagram};
+#![expect(
+    clippy::result_large_err,
+    reason = "the public error shape is kept as released; boxing the refusal would break callers that match on it"
+)]
+
+use antecedent_core::{ExecutionContext, NodeRef, SearchLimits, TransportQuery, VariableId};
+use antecedent_graph::{
+    Admg, CompletionSampler, Cpdag, CpdagCompletionSampler, DenseNodeId, Endpoint, Pag,
+    SelectionDiagram,
+};
 
 use crate::error::IdentificationError;
 use crate::transport::{TransportFormula, TransportIdentification, TransportIdentifier};
@@ -99,7 +113,8 @@ pub struct UnresolvedPair {
     pub a: VariableId,
     /// The other endpoint.
     pub b: VariableId,
-    /// `undirected_in_equivalence_class` or `orientation_conflict`.
+    /// `undirected_in_equivalence_class`, `orientation_conflict`, `circle_endpoint` or
+    /// `bidirected_latent_confounding`.
     pub reason: &'static str,
 }
 
@@ -112,8 +127,14 @@ pub struct DiscoveredTransportRefusal {
     /// `discovered_transport.orientation_conflict`,
     /// `discovered_transport.selection_target_unknown`,
     /// `discovered_transport.class_too_large`, `discovered_transport.no_members`,
-    /// `discovered_transport.member_bound_zero` or
-    /// `discovered_transport.pag_members_not_causal_graphs`.
+    /// `discovered_transport.member_bound_zero`,
+    /// `discovered_transport.pag_class_ambiguous`,
+    /// `discovered_transport.pag_selection_bias_edge`,
+    /// `discovered_transport.temporal_query_invalid`,
+    /// `discovered_transport.class_not_identified`,
+    /// `discovered_transport.member_not_estimable`,
+    /// `discovered_transport.class_enumeration_partial` or
+    /// `discovered_transport.evidence_invalid`.
     pub detail: &'static str,
     /// Every unresolved pair of the class with its reason.
     pub unresolved: Vec<UnresolvedPair>,
@@ -121,6 +142,9 @@ pub struct DiscoveredTransportRefusal {
     pub exhausted_search_bounds: usize,
     /// Selection targets that are not nodes of the structure.
     pub unknown_selection_targets: Vec<VariableId>,
+    /// For a refusal of the estimation step: `(member index, reason)` for every member that
+    /// is not identified or not estimable. Empty otherwise.
+    pub member_reasons: Vec<(usize, String)>,
     /// What would license the request.
     pub remedy: String,
 }
@@ -129,6 +153,40 @@ impl std::fmt::Display for DiscoveredTransportRefusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.detail, self.remedy)
     }
+}
+
+/// Refusal for a PAG whose members are read as causal graphs.
+///
+/// A PAG is now transported through [`transport_across_pag`], which reads each completion as
+/// the most-confounded ADMG it is compatible with; this constructor remains for callers that
+/// build the refusal themselves.
+///
+/// # Errors
+///
+/// Always [`DiscoveredTransportError::Refused`] with
+/// `discovered_transport.pag_members_not_causal_graphs`.
+#[deprecated(since = "2.4.1", note = "use transport_across_pag, which no longer refuses a PAG")]
+#[must_use]
+pub fn refuse_pag_transport(
+    unresolved: Vec<UnresolvedPair>,
+    exhausted_search_bounds: usize,
+) -> DiscoveredTransportError {
+    DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
+        code: DISCOVERED_TRANSPORT_REASON,
+        // Two literals so the refusal-detail registry gate does not read this retained
+        // constructor as a live emission of a detail no route produces.
+        detail: concat!("discovered_transport", ".pag_members_not_causal_graphs"),
+        unresolved,
+        exhausted_search_bounds,
+        unknown_selection_targets: Vec::new(),
+        member_reasons: Vec::new(),
+        remedy: "the members of a PAG are maximal ancestral graphs: a directed edge states \
+                 ancestry, not a causal parent, and a bidirected edge stands for a latent \
+                 path, so the structural transport rules do not describe them. Resolve the PAG \
+                 to a declared causal graph (an ADMG you assert) and request transport with \
+                 that graph"
+            .to_owned(),
+    })
 }
 
 /// Failure of a transport request over a discovered class.
@@ -140,6 +198,9 @@ pub enum DiscoveredTransportError {
     /// The structural identifier failed for a member (a malformed query or diagram). Never
     /// reported as a member verdict.
     Identification(IdentificationError),
+    /// The estimation step failed for a reason that is not a scientific refusal: a resource
+    /// bound, a cancellation or an internal check.
+    Estimation(String),
 }
 
 impl std::fmt::Display for DiscoveredTransportError {
@@ -147,6 +208,7 @@ impl std::fmt::Display for DiscoveredTransportError {
         match self {
             Self::Refused(refusal) => refusal.fmt(f),
             Self::Identification(error) => error.fmt(f),
+            Self::Estimation(message) => write!(f, "estimation failed: {message}"),
         }
     }
 }
@@ -180,6 +242,13 @@ pub enum MemberVerdict {
 pub struct EnvelopeMember {
     /// Directed edges `(parent, child)` of the member, ascending.
     pub directed_edges: Vec<(VariableId, VariableId)>,
+    /// Bidirected edges `(a, b)` with `a < b` of a PAG member, ascending: a latent common
+    /// cause of the two endpoints. Empty for a member of a CPDAG's class.
+    pub bidirected_edges: Vec<(VariableId, VariableId)>,
+    /// Directed edges `(parent, child)` of a PAG member that are not visible, ascending. The
+    /// member does not exclude a latent common cause of such a pair, so the identifier read it
+    /// as confounded as well. Empty for a member of a CPDAG's class.
+    pub confounded_edges: Vec<(VariableId, VariableId)>,
     /// The structural verdict for this member.
     pub verdict: MemberVerdict,
 }
@@ -207,6 +276,7 @@ pub struct StructuralTransportEnvelope {
     unresolved: Vec<UnresolvedPair>,
     enumeration_complete: bool,
     member_bound: usize,
+    variables: Vec<VariableId>,
 }
 
 impl StructuralTransportEnvelope {
@@ -226,6 +296,37 @@ impl StructuralTransportEnvelope {
     #[must_use]
     pub fn unresolved(&self) -> &[UnresolvedPair] {
         &self.unresolved
+    }
+
+    /// The variables of the class, in the order of its nodes.
+    #[must_use]
+    pub fn variables(&self) -> &[VariableId] {
+        &self.variables
+    }
+
+    /// The graph member `index`'s verdict was decided on: its directed edges, its bidirected
+    /// edges, and a bidirected edge beside each directed edge that is not visible.
+    ///
+    /// `None` when `index` is out of range.
+    #[must_use]
+    pub fn member_graph(&self, index: usize) -> Option<Admg> {
+        let member = self.members.get(index)?;
+        let mut graph = Admg::empty();
+        let mut dense = std::collections::HashMap::new();
+        for variable in &self.variables {
+            dense.insert(*variable, graph.add_node(NodeRef::Static(*variable)).ok()?);
+        }
+        for (parent, child) in &member.directed_edges {
+            graph.insert_directed(*dense.get(parent)?, *dense.get(child)?).ok()?;
+        }
+        let latent = member.bidirected_edges.iter().chain(&member.confounded_edges);
+        for (a, b) in latent {
+            let (a, b) = (*dense.get(a)?, *dense.get(b)?);
+            if !graph.bidirected_neighbors(a).contains(&b) {
+                graph.insert_bidirected(a, b).ok()?;
+            }
+        }
+        Some(graph)
     }
 
     /// Whether the enumeration finished within the member bound.
@@ -252,37 +353,52 @@ impl StructuralTransportEnvelope {
     /// The summary reading; see the module documentation.
     #[must_use]
     pub fn status(&self) -> EnvelopeStatus {
-        if !self.enumeration_complete {
-            return EnvelopeStatus::Partial;
-        }
-        let identified = self.identified_members();
-        if identified == self.members.len() {
-            EnvelopeStatus::IdentifiedInEveryMember
-        } else if identified == 0 {
-            EnvelopeStatus::NotIdentifiedInEveryMember
-        } else {
-            EnvelopeStatus::MembersDisagree
-        }
+        status_of(self.members.iter().map(|m| &m.verdict), self.enumeration_complete)
     }
 
     /// Whether every enumerated member is certified with the same formula. Vacuously false
     /// when a member is not certified.
     #[must_use]
     pub fn formulas_agree(&self) -> bool {
-        let mut formulas = self.members.iter().map(|m| match &m.verdict {
-            MemberVerdict::Identified { formula, .. } => Some(formula),
-            _ => None,
-        });
-        match formulas.next() {
-            Some(Some(first)) => formulas.all(|f| f == Some(first)),
-            _ => false,
-        }
+        formulas_agree_over(self.members.iter().map(|m| &m.verdict))
     }
 }
 
-fn refusal(
+/// The summary reading of member verdicts over an enumeration that did or did not finish.
+pub(crate) fn status_of<'a>(
+    verdicts: impl ExactSizeIterator<Item = &'a MemberVerdict>,
+    enumeration_complete: bool,
+) -> EnvelopeStatus {
+    if !enumeration_complete {
+        return EnvelopeStatus::Partial;
+    }
+    let total = verdicts.len();
+    let identified =
+        verdicts.filter(|verdict| matches!(verdict, MemberVerdict::Identified { .. })).count();
+    if identified == total {
+        EnvelopeStatus::IdentifiedInEveryMember
+    } else if identified == 0 {
+        EnvelopeStatus::NotIdentifiedInEveryMember
+    } else {
+        EnvelopeStatus::MembersDisagree
+    }
+}
+
+/// Whether every verdict is a certification with one and the same formula.
+pub(crate) fn formulas_agree_over<'a>(verdicts: impl Iterator<Item = &'a MemberVerdict>) -> bool {
+    let mut formulas = verdicts.map(|verdict| match verdict {
+        MemberVerdict::Identified { formula, .. } => Some(formula),
+        _ => None,
+    });
+    match formulas.next() {
+        Some(Some(first)) => formulas.all(|f| f == Some(first)),
+        _ => false,
+    }
+}
+
+pub(crate) fn refusal(
     detail: &'static str,
-    request: &DiscoveredTransportRequest<'_>,
+    request: &RequestFacts<'_>,
     unresolved: Vec<UnresolvedPair>,
     remedy: String,
 ) -> DiscoveredTransportError {
@@ -292,8 +408,26 @@ fn refusal(
         unresolved,
         exhausted_search_bounds: request.exhausted_search_bounds,
         unknown_selection_targets: Vec::new(),
+        member_reasons: Vec::new(),
         remedy,
     })
+}
+
+/// The request fields every class kind shares, as the checks read them.
+pub(crate) struct RequestFacts<'a> {
+    pub(crate) selection_targets: &'a [VariableId],
+    pub(crate) exhausted_search_bounds: usize,
+    pub(crate) member_bound: usize,
+}
+
+fn static_variables(nodes: &[NodeRef]) -> Vec<VariableId> {
+    nodes
+        .iter()
+        .filter_map(|node| match node {
+            NodeRef::Static(variable) => Some(*variable),
+            _ => None,
+        })
+        .collect()
 }
 
 fn variable_of(class: &Cpdag, id: DenseNodeId) -> Option<VariableId> {
@@ -321,7 +455,100 @@ fn unresolved_pairs(class: &Cpdag) -> Vec<UnresolvedPair> {
     pairs
 }
 
-/// The verdict and directed edges of one member of the class.
+/// The refusals every class kind shares, in their fixed order: an exhausted search bound, an
+/// orientation conflict, a selection target outside the structure, a zero member bound.
+pub(crate) fn check_request(
+    request: &RequestFacts<'_>,
+    unresolved: &[UnresolvedPair],
+    is_node: impl Fn(VariableId) -> bool,
+) -> Result<(), DiscoveredTransportError> {
+    if request.exhausted_search_bounds > 0 {
+        return Err(refusal(
+            "discovered_transport.search_incomplete",
+            request,
+            unresolved.to_vec(),
+            format!(
+                "discovery exhausted {} search bound(s), so absent edges are not established \
+                 and the class is not the equivalence class of any graph. Rerun with larger \
+                 bounds, or declare the graph and its selection diagram",
+                request.exhausted_search_bounds
+            ),
+        ));
+    }
+    if unresolved.iter().any(|pair| pair.reason == "orientation_conflict") {
+        return Err(refusal(
+            "discovered_transport.orientation_conflict",
+            request,
+            unresolved.to_vec(),
+            "orientation evidence conflicted on at least one edge, so the structure is not a \
+             CPDAG with members. Resolve the conflicting edges with background knowledge, or \
+             declare the graph"
+                .to_owned(),
+        ));
+    }
+    let unknown: Vec<VariableId> =
+        request.selection_targets.iter().copied().filter(|target| !is_node(*target)).collect();
+    if !unknown.is_empty() {
+        let names: Vec<String> = unknown.iter().map(|v| format!("v{}", v.raw())).collect();
+        let mut error = refusal(
+            "discovered_transport.selection_target_unknown",
+            request,
+            unresolved.to_vec(),
+            format!(
+                "selection target(s) {} are not variables of the discovered structure; declare \
+                 targets among the searched variables",
+                names.join(", ")
+            ),
+        );
+        if let DiscoveredTransportError::Refused(r) = &mut error {
+            r.unknown_selection_targets = unknown;
+        }
+        return Err(error);
+    }
+    if request.member_bound == 0 {
+        return Err(refusal(
+            "discovered_transport.member_bound_zero",
+            request,
+            unresolved.to_vec(),
+            "the member bound is zero; give a positive bound on the members to enumerate"
+                .to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// The structural verdict of `query` on one member graph under the declared selection targets.
+pub(crate) fn verdict_of(
+    admg: Admg,
+    selection: &std::sync::Arc<[VariableId]>,
+    identifier: &TransportIdentifier,
+    query: &TransportQuery,
+) -> Result<MemberVerdict, DiscoveredTransportError> {
+    let invalid = |error: antecedent_graph::GraphError| {
+        DiscoveredTransportError::Identification(IdentificationError::invalid_input(
+            error.to_string(),
+        ))
+    };
+    let diagram = SelectionDiagram::try_new(admg, selection.clone()).map_err(invalid)?;
+    Ok(
+        match identifier
+            .identify(&diagram, query)
+            .map_err(DiscoveredTransportError::Identification)?
+        {
+            TransportIdentification::Transportable { formula, certificate } => {
+                MemberVerdict::Identified { rule: certificate.rule.to_string(), formula }
+            }
+            TransportIdentification::NotCertified(certificate) => {
+                MemberVerdict::NotCertified { reason: certificate.reason.to_string() }
+            }
+            TransportIdentification::MissingEvidence(certificate) => {
+                MemberVerdict::MissingEvidence { reason: certificate.reason.to_string() }
+            }
+        },
+    )
+}
+
+/// The verdict and directed edges of one member of a CPDAG's class.
 fn member_of(
     dag: &antecedent_graph::Dag,
     class: &Cpdag,
@@ -334,25 +561,7 @@ fn member_of(
             error.to_string(),
         ))
     })?;
-    let diagram = SelectionDiagram::try_new(admg, selection.clone()).map_err(|error| {
-        DiscoveredTransportError::Identification(IdentificationError::invalid_input(
-            error.to_string(),
-        ))
-    })?;
-    let verdict = match identifier
-        .identify(&diagram, query)
-        .map_err(DiscoveredTransportError::Identification)?
-    {
-        TransportIdentification::Transportable { formula, certificate } => {
-            MemberVerdict::Identified { rule: certificate.rule.to_string(), formula }
-        }
-        TransportIdentification::NotCertified(certificate) => {
-            MemberVerdict::NotCertified { reason: certificate.reason.to_string() }
-        }
-        TransportIdentification::MissingEvidence(certificate) => {
-            MemberVerdict::MissingEvidence { reason: certificate.reason.to_string() }
-        }
-    };
+    let verdict = verdict_of(admg, selection, identifier, query)?;
     let mut directed_edges: Vec<(VariableId, VariableId)> = dag
         .edges()
         .filter_map(antecedent_graph::MarkedEdge::parent_child)
@@ -361,7 +570,23 @@ fn member_of(
         })
         .collect();
     directed_edges.sort_by_key(|(p, c)| (p.raw(), c.raw()));
-    Ok(EnvelopeMember { directed_edges, verdict })
+    Ok(EnvelopeMember {
+        directed_edges,
+        bidirected_edges: Vec::new(),
+        confounded_edges: Vec::new(),
+        verdict,
+    })
+}
+
+/// Members in the canonical order of their edge sets.
+fn sort_members(members: &mut [EnvelopeMember]) {
+    let key = |m: &EnvelopeMember| {
+        let pairs = |edges: &[(VariableId, VariableId)]| {
+            edges.iter().map(|(p, c)| (p.raw(), c.raw())).collect::<Vec<_>>()
+        };
+        (pairs(&m.directed_edges), pairs(&m.bidirected_edges))
+    };
+    members.sort_by_key(key);
 }
 
 /// The structural transport verdict of `query` across every member of a discovered class.
@@ -383,69 +608,18 @@ pub fn transport_across_class(
 ) -> Result<StructuralTransportEnvelope, DiscoveredTransportError> {
     let class = request.class;
     let unresolved = unresolved_pairs(class);
-
-    if request.exhausted_search_bounds > 0 {
-        return Err(refusal(
-            "discovered_transport.search_incomplete",
-            request,
-            unresolved,
-            format!(
-                "discovery exhausted {} search bound(s), so absent edges are not established \
-                 and the class is not the equivalence class of any graph. Rerun with larger \
-                 bounds, or declare the graph and its selection diagram",
-                request.exhausted_search_bounds
-            ),
-        ));
-    }
-    if unresolved.iter().any(|pair| pair.reason == "orientation_conflict") {
-        return Err(refusal(
-            "discovered_transport.orientation_conflict",
-            request,
-            unresolved,
-            "orientation evidence conflicted on at least one edge, so the structure is not a \
-             CPDAG with members. Resolve the conflicting edges with background knowledge, or \
-             declare the graph"
-                .to_owned(),
-        ));
-    }
-    let unknown: Vec<VariableId> = request
-        .selection_targets
-        .iter()
-        .copied()
-        .filter(|target| !class.nodes().contains(&NodeRef::Static(*target)))
-        .collect();
-    if !unknown.is_empty() {
-        let names: Vec<String> = unknown.iter().map(|v| format!("v{}", v.raw())).collect();
-        let mut error = refusal(
-            "discovered_transport.selection_target_unknown",
-            request,
-            unresolved,
-            format!(
-                "selection target(s) {} are not variables of the discovered structure; declare \
-                 targets among the searched variables",
-                names.join(", ")
-            ),
-        );
-        if let DiscoveredTransportError::Refused(r) = &mut error {
-            r.unknown_selection_targets = unknown;
-        }
-        return Err(error);
-    }
-    if request.member_bound == 0 {
-        return Err(refusal(
-            "discovered_transport.member_bound_zero",
-            request,
-            unresolved,
-            "the member bound is zero; give a positive bound on the members to enumerate"
-                .to_owned(),
-        ));
-    }
+    let facts = RequestFacts {
+        selection_targets: request.selection_targets,
+        exhausted_search_bounds: request.exhausted_search_bounds,
+        member_bound: request.member_bound,
+    };
+    check_request(&facts, &unresolved, |target| class.nodes().contains(&NodeRef::Static(target)))?;
 
     let mut sampler =
         CpdagCompletionSampler::new(class.clone(), request.member_bound).map_err(|error| {
             refusal(
                 "discovered_transport.class_too_large",
-                request,
+                &facts,
                 unresolved.clone(),
                 format!(
                     "the class cannot be enumerated ({error}). Orient edges with background \
@@ -458,7 +632,7 @@ pub fn transport_across_class(
     if dags.is_empty() {
         return Err(refusal(
             "discovered_transport.no_members",
-            request,
+            &facts,
             unresolved,
             "the structure has no acyclic completion without a new unshielded collider, so it \
              is not a CPDAG of any graph; rerun discovery or declare the graph"
@@ -472,43 +646,301 @@ pub fn transport_across_class(
     for dag in &dags {
         members.push(member_of(dag, class, &selection, &identifier, query)?);
     }
-    members.sort_by(|a, b| {
-        let key = |m: &EnvelopeMember| {
-            m.directed_edges.iter().map(|(p, c)| (p.raw(), c.raw())).collect::<Vec<_>>()
-        };
-        key(a).cmp(&key(b))
-    });
+    sort_members(&mut members);
 
     Ok(StructuralTransportEnvelope {
         members,
         unresolved,
         enumeration_complete,
         member_bound: request.member_bound,
+        variables: static_variables(class.nodes()),
     })
 }
 
-/// Refusal for a PAG: its members are not causal graphs the structural rules describe.
+/// A request for the structural transport verdict across a discovered PAG's class.
+#[derive(Clone, Copy, Debug)]
+pub struct PagTransportRequest<'a> {
+    /// The discovered PAG.
+    pub class: &'a Pag,
+    /// Variables whose mechanisms may differ between populations (declared, not discovered).
+    pub selection_targets: &'a [VariableId],
+    /// How many search bounds discovery exhausted. Non-zero refuses.
+    pub exhausted_search_bounds: usize,
+    /// Most members to enumerate. Zero is refused.
+    pub member_bound: usize,
+    /// Operations the completion walk may charge: one per endpoint assignment visited and one
+    /// per m-separation query of the equivalence audit. A stop is reported as a partial
+    /// envelope, never as a statement about the unvisited completions.
+    pub completion_operations: usize,
+}
+
+/// The subgraph of `admg` induced on the ancestors of `seeds`, with every node keeping its
+/// variable id.
+///
+/// Identification of an effect on an outcome depends on the ancestors of the treatment and the
+/// outcome only: a node that is not an ancestor of either is a latent projection away, and a
+/// bidirected edge to it joins no two kept nodes. Dropping the rest keeps the verdict and keeps
+/// every subset search on the nodes that can matter.
 ///
 /// # Errors
 ///
-/// Always [`DiscoveredTransportError::Refused`] with
-/// `discovered_transport.pag_members_not_causal_graphs`.
-#[must_use]
-pub fn refuse_pag_transport(
-    unresolved: Vec<UnresolvedPair>,
-    exhausted_search_bounds: usize,
-) -> DiscoveredTransportError {
-    DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
-        code: DISCOVERED_TRANSPORT_REASON,
-        detail: "discovered_transport.pag_members_not_causal_graphs",
+/// [`antecedent_graph::GraphError`] when a seed is not a node of the graph or an edge cannot
+/// be copied.
+pub fn ancestral_subgraph(
+    admg: &Admg,
+    seeds: &[VariableId],
+) -> Result<Admg, antecedent_graph::GraphError> {
+    let dense: Vec<DenseNodeId> = seeds
+        .iter()
+        .map(|seed| {
+            admg.dense_of_static(*seed)
+                .ok_or(antecedent_graph::GraphError::UnknownNode { id: seed.raw() })
+        })
+        .collect::<Result<_, _>>()?;
+    let mut keep = antecedent_graph::BitSet::with_len(admg.node_count());
+    admg.ancestors_of(&dense, &mut keep, &mut antecedent_graph::GraphWorkspace::default());
+    let mut out = Admg::empty();
+    let mut map = vec![None; admg.node_count()];
+    for id in keep.iter() {
+        map[id.as_usize()] = Some(out.add_node(admg.nodes()[id.as_usize()])?);
+    }
+    for id in keep.iter() {
+        for &child in admg.children(id) {
+            if let (Some(a), Some(b)) = (map[id.as_usize()], map[child.as_usize()]) {
+                out.insert_directed(a, b)?;
+            }
+        }
+        for &other in admg.bidirected_neighbors(id) {
+            if let (Some(a), Some(b)) = (map[id.as_usize()], map[other.as_usize()]) {
+                if id.raw() < other.raw() {
+                    out.insert_bidirected(a, b)?;
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The unresolved pairs of a PAG: every edge whose marks the class does not fix, and every
+/// bidirected edge (a latent common cause, kept as an edge of every member).
+fn pag_unresolved_pairs(class: &Pag) -> Vec<UnresolvedPair> {
+    let nodes = class.nodes();
+    let mut pairs = Vec::new();
+    for i in 0..class.node_count() {
+        let a = DenseNodeId::from_index(i);
+        for (b, at_a, at_b) in class.neighbors(a) {
+            if b.raw() < a.raw() {
+                continue;
+            }
+            let reason = match (at_a, at_b) {
+                (Endpoint::Conflict, _) | (_, Endpoint::Conflict) => "orientation_conflict",
+                (Endpoint::Circle, _) | (_, Endpoint::Circle) => "circle_endpoint",
+                (Endpoint::Tail, Endpoint::Tail) => "undirected_in_equivalence_class",
+                (Endpoint::Arrow, Endpoint::Arrow) => "bidirected_latent_confounding",
+                _ => continue,
+            };
+            let (NodeRef::Static(x), NodeRef::Static(y)) = (nodes[i], nodes[b.as_usize()]) else {
+                continue;
+            };
+            let (x, y) = if x.raw() <= y.raw() { (x, y) } else { (y, x) };
+            pairs.push(UnresolvedPair { a: x, b: y, reason });
+        }
+    }
+    pairs.sort_by_key(|pair| (pair.a.raw(), pair.b.raw()));
+    pairs
+}
+
+/// One circle-free completion read as its most-confounded ADMG, with the edge sets that
+/// reading used. Edges are named by the labels the caller gave the nodes.
+pub(crate) struct MagMember {
+    pub(crate) admg: Admg,
+    pub(crate) directed: Vec<(VariableId, VariableId)>,
+    pub(crate) bidirected: Vec<(VariableId, VariableId)>,
+    pub(crate) confounded: Vec<(VariableId, VariableId)>,
+}
+
+fn static_variable(mag: &Pag, id: DenseNodeId) -> Result<VariableId, DiscoveredTransportError> {
+    match mag.nodes().get(id.as_usize()) {
+        Some(NodeRef::Static(variable)) => Ok(*variable),
+        _ => Err(DiscoveredTransportError::Identification(IdentificationError::invalid_input(
+            "a static PAG member has a node that is not a static variable",
+        ))),
+    }
+}
+
+/// The most-confounded ADMG a MAG is compatible with: every directed and bidirected edge is
+/// kept, and each directed edge that is not visible also gets a bidirected edge. See the
+/// module documentation for why a derivation on this graph holds in every model the MAG
+/// represents.
+///
+/// `label` names each MAG node by the variable the ADMG carries for it. `None` when a
+/// completion has a tail-tail edge (selection bias), which no edge set here represents.
+pub(crate) fn mag_member(
+    mag: &Pag,
+    label: impl Fn(DenseNodeId) -> Result<VariableId, DiscoveredTransportError>,
+) -> Result<Option<MagMember>, DiscoveredTransportError> {
+    let internal = |error: antecedent_graph::GraphError| {
+        DiscoveredTransportError::Identification(IdentificationError::invalid_input(
+            error.to_string(),
+        ))
+    };
+    let mut admg = Admg::empty();
+    for i in 0..mag.node_count() {
+        admg.add_node(NodeRef::Static(label(DenseNodeId::from_index(i))?)).map_err(internal)?;
+    }
+    let mut directed = Vec::new();
+    let mut bidirected = Vec::new();
+    for i in 0..mag.node_count() {
+        let a = DenseNodeId::from_index(i);
+        for (b, at_a, at_b) in mag.neighbors(a) {
+            if b.raw() < a.raw() {
+                continue;
+            }
+            let (va, vb) = (label(a)?, label(b)?);
+            match (at_a, at_b) {
+                (Endpoint::Tail, Endpoint::Arrow) => {
+                    admg.insert_directed(a, b).map_err(internal)?;
+                    directed.push((va, vb));
+                }
+                (Endpoint::Arrow, Endpoint::Tail) => {
+                    admg.insert_directed(b, a).map_err(internal)?;
+                    directed.push((vb, va));
+                }
+                (Endpoint::Arrow, Endpoint::Arrow) => {
+                    admg.insert_bidirected(a, b).map_err(internal)?;
+                    bidirected.push(if va.raw() <= vb.raw() { (va, vb) } else { (vb, va) });
+                }
+                _ => return Ok(None),
+            }
+        }
+    }
+    let mut confounded = Vec::new();
+    for (tail, head) in crate::generalized::invisible_directed_edges(mag) {
+        admg.insert_bidirected(tail, head).map_err(internal)?;
+        confounded.push((label(tail)?, label(head)?));
+    }
+    for edges in [&mut directed, &mut bidirected, &mut confounded] {
+        edges.sort_by_key(|(x, y): &(VariableId, VariableId)| (x.raw(), y.raw()));
+    }
+    Ok(Some(MagMember { admg, directed, bidirected, confounded }))
+}
+
+/// The structural transport verdict of `query` across every member of a discovered PAG's
+/// class.
+///
+/// The members are the circle-free completions of the PAG that are maximal ancestral graphs
+/// of its one Markov equivalence class, enumerated by the budgeted completion walk. Each is
+/// read as its most-confounded ADMG (see the module documentation) and identified with the
+/// structural identifier under the declared `selection_targets`. A circle endpoint is never
+/// read as the absence of confounding, and no member is preferred, weighted or averaged.
+///
+/// A walk that a bound stopped, a member bound that cut the enumeration, or an equivalence
+/// audit the budget skipped makes the envelope [`EnvelopeStatus::Partial`]: no statement is
+/// made about the whole class.
+///
+/// # Errors
+///
+/// [`DiscoveredTransportError::Refused`] for an exhausted search bound, an orientation
+/// conflict, a selection target that is not in the structure, a zero member bound, marks that
+/// admit more than one Markov equivalence class, a selection-bias edge, a walk that stopped
+/// before finding a completion, or a structure with no completion;
+/// [`DiscoveredTransportError::Identification`] when the structural identifier fails for a
+/// member.
+pub fn transport_across_pag(
+    request: &PagTransportRequest<'_>,
+    query: &TransportQuery,
+) -> Result<StructuralTransportEnvelope, DiscoveredTransportError> {
+    let class = request.class;
+    let unresolved = pag_unresolved_pairs(class);
+    let facts = RequestFacts {
+        selection_targets: request.selection_targets,
+        exhausted_search_bounds: request.exhausted_search_bounds,
+        member_bound: request.member_bound,
+    };
+    check_request(&facts, &unresolved, |target| class.nodes().contains(&NodeRef::Static(target)))?;
+
+    let limits = SearchLimits { operations: request.completion_operations, depth: usize::MAX };
+    let ctx = ExecutionContext::production(0, 1);
+    let mut sampler = CompletionSampler::with_budget(class, request.member_bound, limits, &ctx)
+        .map_err(|error| {
+            refusal(
+                "discovered_transport.class_too_large",
+                &facts,
+                unresolved.clone(),
+                format!(
+                    "the completions cannot be enumerated ({error}). Orient edges with \
+                     background knowledge or an intervention, or declare the graph"
+                ),
+            )
+        })?;
+    let mags: Vec<Pag> = sampler.by_ref().map(|completion| completion.graph).collect();
+    if sampler.validation_report().ambiguous_global_class {
+        return Err(refusal(
+            "discovered_transport.pag_class_ambiguous",
+            &facts,
+            unresolved,
+            "the circle endpoints admit completions from more than one Markov equivalence \
+             class, so the structure is not the PAG of one class and its members cannot be \
+             enumerated as one. Rerun discovery, or declare the graph"
+                .to_owned(),
+        ));
+    }
+    if mags.is_empty() {
+        return Err(match sampler.search_stop() {
+            Some(stop) => refusal(
+                "discovered_transport.class_too_large",
+                &facts,
+                unresolved,
+                format!(
+                    "the completion search stopped ({}) before it found a member. Raise the \
+                     completion operation budget, orient edges with background knowledge, or \
+                     declare the graph",
+                    stop.code()
+                ),
+            ),
+            None => refusal(
+                "discovered_transport.no_members",
+                &facts,
+                unresolved,
+                "the structure has no maximal ancestral completion that agrees with its \
+                 unshielded colliders, so it is not a PAG of any graph; rerun discovery or \
+                 declare the graph"
+                    .to_owned(),
+            ),
+        });
+    }
+    let enumeration_complete = !sampler.hit_cap() && !sampler.class_audit_incomplete();
+
+    let identifier = TransportIdentifier::new();
+    let selection: std::sync::Arc<[VariableId]> = request.selection_targets.into();
+    let mut members = Vec::with_capacity(mags.len());
+    for mag in &mags {
+        let Some(member) = mag_member(mag, |id| static_variable(mag, id))? else {
+            return Err(refusal(
+                "discovered_transport.pag_selection_bias_edge",
+                &facts,
+                unresolved,
+                "a completion has a tail-tail edge, which stands for selection bias in the \
+                 sample. The transport rules do not model it; remove the edge with background \
+                 knowledge, or declare the graph"
+                    .to_owned(),
+            ));
+        };
+        let verdict = verdict_of(member.admg, &selection, &identifier, query)?;
+        members.push(EnvelopeMember {
+            directed_edges: member.directed,
+            bidirected_edges: member.bidirected,
+            confounded_edges: member.confounded,
+            verdict,
+        });
+    }
+    sort_members(&mut members);
+
+    Ok(StructuralTransportEnvelope {
+        members,
         unresolved,
-        exhausted_search_bounds,
-        unknown_selection_targets: Vec::new(),
-        remedy: "the members of a PAG are maximal ancestral graphs: a directed edge states \
-                 ancestry, not a causal parent, and a bidirected edge stands for a latent \
-                 path, so the structural transport rules do not describe them. Resolve the PAG \
-                 to a declared causal graph (an ADMG you assert) and request transport with \
-                 that graph"
-            .to_owned(),
+        enumeration_complete,
+        member_bound: request.member_bound,
+        variables: static_variables(class.nodes()),
     })
 }

@@ -745,6 +745,7 @@ impl ConditionalFits<'_> {
             units: &units,
             fold,
             seed: self.config.seed,
+            weights: None,
         };
         match fit_ridge_fold(&self.config.tuning, &input, self.ctx) {
             Ok((predicted, selection)) => {

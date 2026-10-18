@@ -7,6 +7,7 @@ use super::atom_mix::{
     drive_posterior_refuters, mix_atom_evals,
 };
 use super::sequential_validation::SequentialValidation;
+use super::temporal_effect_core::shared_gap_report;
 use super::{
     Arc, AtomRefutationPolicy, BayesianGCompWorkspace, BayesianGComputationAte,
     BootstrapAccounting, CausalError, CausalPosterior, Diagnostic, DiagnosticKind,
@@ -48,6 +49,9 @@ struct TemporalClassAtomEval {
     refute_atoms: Vec<EnvelopeRefuteAtom>,
     sequential_atoms: Vec<super::sequential_validation::SequentialValidationAtom>,
     fitted_designs: Vec<TemporalClassFittedDesign>,
+    /// The windows the atom's completions were fitted on, on the original window axis; empty
+    /// unless the series has missing time points.
+    windows: Vec<antecedent_estimate::GapSelection>,
 }
 
 impl super::Study {
@@ -266,7 +270,7 @@ impl super::Study {
     /// on the context's workers.
     fn evaluate_temporal_class_atoms(
         &self,
-        (data, query): (&TimeSeriesData, &TemporalEffectQuery),
+        (data, query, gaps): (&TimeSeriesData, &TemporalEffectQuery, bool),
         identified: &CachedTemporalClassPosteriorIdentification,
         ctx: &ExecutionContext,
     ) -> Result<Vec<TemporalClassAtomEval>, CausalError> {
@@ -274,10 +278,10 @@ impl super::Study {
             let atom = &identified.class_atoms[i];
             match &self.inference {
                 InferenceMode::Frequentist => {
-                    evaluate_temporal_class_atom_frequentist(self, data, query, atom, inner)
+                    evaluate_temporal_class_atom_frequentist(self, (data, query, gaps), atom, inner)
                 }
                 InferenceMode::Bayesian(_) => {
-                    evaluate_temporal_class_atom_bayesian(self, data, query, atom, inner)
+                    evaluate_temporal_class_atom_bayesian(self, (data, query, gaps), atom, inner)
                 }
             }
         })
@@ -302,7 +306,8 @@ impl super::Study {
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let (identified, identify_cached) =
             self.temporal_class_posterior_identification(gp, &vars, query, ctx)?;
-        let evals = self.evaluate_temporal_class_atoms((data, query), &identified, ctx)?;
+        let gaps = self.admit_posterior_gaps(data, &vars, false)?;
+        let evals = self.evaluate_temporal_class_atoms((data, query, gaps), &identified, ctx)?;
 
         let unidentified_mass = identified.graphs.unidentified_mass();
         let mixed = mix_temporal_class_posterior_evals(&identified, &evals, unidentified_mass)?;
@@ -353,7 +358,14 @@ impl super::Study {
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
         let bootstrap_replicates_ok = estimate.uncertainty.bootstrap.replicates_ok;
-        Ok(self.finish_identified_execute(
+        let missing_data = if gaps {
+            let windows: Vec<_> =
+                evals.iter().flat_map(|eval| eval.windows.iter().cloned()).collect();
+            Some(shared_gap_report(data, &vars, &windows)?)
+        } else {
+            None
+        };
+        let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
@@ -379,7 +391,46 @@ impl super::Study {
                 structural_response: Some(mixed.mixture),
                 ..Default::default()
             }),
-        ))
+        );
+        result.missing_data = missing_data;
+        Ok(result)
+    }
+
+    /// Whether a graph posterior fits the intact lag windows of a series with missing time
+    /// points: the series has a gap in the posterior's variables and complete-case handling
+    /// was declared. Without the declaration the fit refuses an incomplete series as it always
+    /// has. A discovery-estimation split fits aligned rows of a complete series only, and a
+    /// Bayesian fit with `bayesian_checks` reads consecutive rows in its predictive checks.
+    pub(super) fn admit_posterior_gaps(
+        &self,
+        data: &TimeSeriesData,
+        variables: &[antecedent_core::VariableId],
+        bayesian_checks: bool,
+    ) -> Result<bool, CausalError> {
+        use crate::analysis::missing_data::MissingRoute;
+        if !self.declares_complete_case()
+            || antecedent_data::first_missing_cell(data, variables)?.is_none()
+        {
+            return Ok(false);
+        }
+        let route = MissingRoute::Temporal;
+        let refuse = |reason: &str| {
+            CausalError::Estimate(antecedent_estimate::missing_policy::policy_not_applicable(
+                antecedent_data::MissingPolicy::CompleteCase,
+                route.label(),
+                reason,
+                &route.supported()[..1],
+            ))
+        };
+        if self.split.is_some() {
+            return Err(refuse("gap-aware windows are executed on an unsplit series"));
+        }
+        if bayesian_checks && self.refute != RefuteSuite::None {
+            return Err(refuse(
+                "the Bayesian predictive checks and prior sensitivity read consecutive rows; request no refuters on a series with gaps",
+            ));
+        }
+        Ok(true)
     }
 }
 
@@ -420,7 +471,7 @@ type FittedClassCase = (
 /// sequential DAG), otherwise the linear adjustment.
 fn fit_temporal_class_case(
     study: &Study,
-    (data, query): (&TimeSeriesData, &TemporalEffectQuery),
+    (data, query, gaps): (&TimeSeriesData, &TemporalEffectQuery, bool),
     (case, indexer): (
         &antecedent_identify::GraphIdentificationCase<antecedent_identify::TemporalCompletionGraph>,
         &TemporalIndexer,
@@ -435,13 +486,14 @@ fn fit_temporal_class_case(
             .or_else(|_| select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment))?;
         let mut assumptions = case.result.required_assumptions.clone();
         assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
-        let design = TemporalAtomDesign::sequential(
+        let design = TemporalAtomDesign::sequential_with_gaps(
             data,
             &dag,
             indexer,
             &estimand,
             query,
             case.result.status,
+            gaps,
             ctx,
         )?;
         let estimate = design.effect_estimate(assumptions);
@@ -457,8 +509,15 @@ fn fit_temporal_class_case(
         Ok(Some((estimand, estimate, design, Some(sequential))))
     } else {
         let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-        let design =
-            TemporalAtomDesign::linear(data, &estimand, query, indexer, study.split.as_ref(), ctx)?;
+        let design = TemporalAtomDesign::linear_with_gaps(
+            data,
+            &estimand,
+            query,
+            indexer,
+            study.split.as_ref(),
+            gaps,
+            ctx,
+        )?;
         let estimate = design.effect_estimate(case.result.required_assumptions.clone());
         Ok(Some((estimand, estimate, design, None)))
     }
@@ -466,8 +525,7 @@ fn fit_temporal_class_case(
 
 fn evaluate_temporal_class_atom_frequentist(
     study: &Study,
-    data: &TimeSeriesData,
-    query: &TemporalEffectQuery,
+    (data, query, gaps): (&TimeSeriesData, &TemporalEffectQuery, bool),
     atom: &CachedTemporalClassPosteriorAtomIdentification,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassAtomEval, CausalError> {
@@ -481,6 +539,7 @@ fn evaluate_temporal_class_atom_frequentist(
     let mut refute_atoms = Vec::new();
     let mut sequential_atoms = Vec::new();
     let mut fitted_designs = Vec::new();
+    let mut windows = Vec::new();
     for (i, (case, indexer)) in envelope.cases.iter().zip(atom.envelope.indexers.iter()).enumerate()
     {
         if !identification_status_ok_for_case(case.result.status)
@@ -489,7 +548,7 @@ fn evaluate_temporal_class_atom_frequentist(
             continue;
         }
         let Some((estimand, estimate, design, sequential)) =
-            fit_temporal_class_case(study, (data, query), (case, indexer), ctx)?
+            fit_temporal_class_case(study, (data, query, gaps), (case, indexer), ctx)?
         else {
             continue;
         };
@@ -500,6 +559,9 @@ fn evaluate_temporal_class_atom_frequentist(
             lo = lo.min(estimate.ate);
             hi = hi.max(estimate.ate);
             se_items.push((w, estimate.se_analytic()));
+            if gaps {
+                windows.push(design.window_selection());
+            }
             fitted_designs.push(TemporalClassFittedDesign {
                 completion_weight: w,
                 design,
@@ -545,13 +607,17 @@ fn evaluate_temporal_class_atom_frequentist(
         refute_atoms,
         sequential_atoms,
         fitted_designs,
+        windows,
     })
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the atom's gap admission, prepared design and segment-wise tempering read one completion"
+)]
 fn evaluate_temporal_class_atom_bayesian(
     study: &Study,
-    data: &TimeSeriesData,
-    query: &TemporalEffectQuery,
+    (data, query, gaps): (&TimeSeriesData, &TemporalEffectQuery, bool),
     atom: &CachedTemporalClassPosteriorAtomIdentification,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassAtomEval, CausalError> {
@@ -564,7 +630,12 @@ fn evaluate_temporal_class_atom_bayesian(
         }
     };
     if query.is_multi_step_sustained() {
-        return evaluate_temporal_class_atom_sequential_bayesian(study, data, query, atom, ctx);
+        return evaluate_temporal_class_atom_sequential_bayesian(
+            study,
+            (data, query, gaps),
+            atom,
+            ctx,
+        );
     }
     let envelope = &atom.envelope.envelope;
     let mut estimator = TemporalLinearAdjustment::new();
@@ -580,6 +651,7 @@ fn evaluate_temporal_class_atom_bayesian(
     let mut atom_posterior = None;
     let mut assumptions = antecedent_core::AssumptionSet::default();
     let mut refute_atoms = Vec::new();
+    let mut windows = Vec::new();
     for (i, (case, indexer)) in envelope.cases.iter().zip(atom.envelope.indexers.iter()).enumerate()
     {
         if !identification_status_ok_for_case(case.result.status)
@@ -588,14 +660,32 @@ fn evaluate_temporal_class_atom_bayesian(
             continue;
         }
         let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-        let prep = estimator
-            .prepare(data, &estimand, query, indexer, study.split.as_ref(), &ctx.kernel_policy)
-            .map_err(CausalError::from)?;
+        let (prep, selection) = if gaps {
+            let (prep, selection) = estimator
+                .prepare_with_gaps(data, &estimand, query, indexer, &ctx.kernel_policy)
+                .map_err(CausalError::from)?;
+            (prep, Some(selection))
+        } else {
+            let prep = estimator
+                .prepare(data, &estimand, query, indexer, study.split.as_ref(), &ctx.kernel_policy)
+                .map_err(CausalError::from)?;
+            (prep, None)
+        };
         let names =
             antecedent_estimate::temporal_coefficient_names(data, &estimand, query, indexer)
                 .map_err(CausalError::from)?;
-        let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
-            .map_err(CausalError::from)?;
+        // The likelihood is tempered by the segment-wise long-run variance over the intact
+        // windows when the atom lost any, so no autocovariance crosses a gap.
+        let bprep = match selection.as_ref().filter(|s| s.complete.iter().any(|intact| !intact)) {
+            Some(selection) => BayesianGComputationAte::from_prepared_temporal_gapped(
+                &prep,
+                names,
+                selection.segments(),
+            ),
+            None => BayesianGComputationAte::from_prepared_temporal(&prep, names),
+        }
+        .map_err(CausalError::from)?;
+        windows.extend(selection);
         let posterior =
             bayes.fit(&bprep, case.result.status, &mut ws, ctx).map_err(CausalError::from)?;
         let summary = effect_from_posterior(&posterior)?;
@@ -638,13 +728,13 @@ fn evaluate_temporal_class_atom_bayesian(
         refute_atoms,
         sequential_atoms: Vec::new(),
         fitted_designs: Vec::new(),
+        windows,
     })
 }
 
 fn evaluate_temporal_class_atom_sequential_bayesian(
     study: &Study,
-    data: &TimeSeriesData,
-    query: &TemporalEffectQuery,
+    (data, query, gaps): (&TimeSeriesData, &TemporalEffectQuery, bool),
     atom: &CachedTemporalClassPosteriorAtomIdentification,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassAtomEval, CausalError> {
@@ -666,6 +756,7 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
     let mut atom_posterior = None;
     let mut assumptions = antecedent_core::AssumptionSet::default();
     let mut sequential_atoms = Vec::new();
+    let mut windows = Vec::new();
     for (i, (case, indexer)) in envelope.cases.iter().zip(atom.envelope.indexers.iter()).enumerate()
     {
         if !identification_status_ok_for_case(case.result.status)
@@ -682,8 +773,8 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
         case_assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
         let seed = completion_fit_seed(ctx, atom.key.wrapping_add(i as u64));
         let completion_bayes = BayesianGComputationAte { seed, ..bayes.clone() };
-        let (estimate, posterior) =
-            antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
+        let (estimate, posterior, selection) =
+            antecedent_estimate::temporal_sequential::estimate_sustained_window_gaps_if(
                 &antecedent_estimate::SequentialProblem {
                     data,
                     graph: &dag,
@@ -699,8 +790,10 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
                 },
                 ctx,
                 None,
+                gaps,
             )
             .map_err(CausalError::from)?;
+        windows.extend(selection);
         if estimate.ate.is_finite() {
             weighted += case.weight.0 * estimate.ate;
             total += case.weight.0;
@@ -742,6 +835,7 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
         refute_atoms: Vec::new(),
         sequential_atoms,
         fitted_designs: Vec::new(),
+        windows,
     })
 }
 
@@ -829,6 +923,10 @@ fn mix_temporal_class_posterior_evals(
 
 /// Inner: `TemporalDag` Pulse/Sustained refuters per identified completion.
 /// Outer: mix those atom reports by frozen posterior weight.
+#[allow(
+    clippy::too_many_lines,
+    reason = "per-completion refuters and their posterior-weight mixing share the gap context of one frozen posterior"
+)]
 fn refute_temporal_class_graph_posterior(
     study: &Study,
     data: &TimeSeriesData,
@@ -843,6 +941,9 @@ fn refute_temporal_class_graph_posterior(
         return Ok((Vec::new(), Vec::new()));
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
+    // The atoms were fitted on the intact windows of a series with missing time points: the
+    // refuters refit through them and resample blocks of the original window axis.
+    let gaps = evals.iter().any(|eval| !eval.windows.is_empty());
     let tabular = TabularData::new(data.storage().clone());
     let ate_q = temporal_refuter_average(query);
     let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
@@ -871,6 +972,7 @@ fn refute_temporal_class_graph_posterior(
                         predictive_sims: super::super::latency::predictive_check_sims(
                             study.latency_mode,
                         ),
+                        gaps,
                     },
                     &eval.sequential_atoms,
                     None,
@@ -893,6 +995,7 @@ fn refute_temporal_class_graph_posterior(
                         query,
                         split: study.split.as_ref(),
                         time_index: data.time_index(),
+                        gaps,
                     }),
                 }
                 .run(

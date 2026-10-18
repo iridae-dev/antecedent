@@ -23,7 +23,9 @@ use super::{
     shared_circular_block_mixture_se, temporal_class_block_span,
 };
 use crate::result::{StructuralResponseAtom, StructuralResponseMixture, StructuralWeightBasis};
-use antecedent_discovery::{temporal_cpdag_from_dbn_masks, temporal_pag_from_dbn_masks};
+use antecedent_discovery::dbn_posterior::{
+    temporal_cpdag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
+};
 
 impl super::Study {
     /// Mix TemporalCpdag/Pag posterior atoms through the existing class response envelope.
@@ -180,10 +182,13 @@ impl super::Study {
                         by_horizon: vec![(horizon, atom.envelope.clone())],
                     })
                 });
-            let mark = gp.mark_masks.as_ref().map_or(0, |marks| marks[i]);
+            let mark = gp
+                .mark_atoms
+                .as_ref()
+                .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
             let reconstructed = reconstruct_temporal_class_atom(
                 gp.atom_kind,
-                gp.adjacency[i],
+                gp.atoms[i],
                 lag_masks[i],
                 mark,
                 gp.n_vars,
@@ -785,10 +790,11 @@ fn identify_posterior_atom_pulse(
     i: usize,
     pulse: &TemporalEffectQuery,
 ) -> Option<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>> {
-    let mark = gp.mark_masks.as_ref().map_or(0, |marks| marks[i]);
+    let mark =
+        gp.mark_atoms.as_ref().map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
     let graph = reconstruct_temporal_class_atom(
         gp.atom_kind,
-        gp.adjacency[i],
+        gp.atoms[i],
         lag_masks[i],
         mark,
         gp.n_vars,
@@ -807,9 +813,9 @@ fn identify_posterior_atom_pulse(
 
 fn reconstruct_temporal_class_atom(
     kind: antecedent_discovery::GraphPosteriorAtomKind,
-    adjacency: u64,
+    adjacency: antecedent_discovery::AdjacencyMask,
     lag_mask: u64,
-    mark: u64,
+    mark: antecedent_discovery::AdjacencyMask,
     n_vars: usize,
     max_lag: u32,
     variables: &[VariableId],
@@ -817,13 +823,13 @@ fn reconstruct_temporal_class_atom(
     match kind {
         antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
             let cpdag =
-                temporal_cpdag_from_dbn_masks(adjacency, lag_mask, n_vars, max_lag, variables)
+                temporal_cpdag_from_dbn_atoms(adjacency, lag_mask, n_vars, max_lag, variables)
                     .map_err(CausalError::rejected)?;
             Ok(AcceptedGraph::from(cpdag))
         }
         antecedent_discovery::GraphPosteriorAtomKind::Pag => {
             let pag =
-                temporal_pag_from_dbn_masks(adjacency, lag_mask, mark, n_vars, max_lag, variables)
+                temporal_pag_from_dbn_atoms(adjacency, lag_mask, mark, n_vars, max_lag, variables)
                     .map_err(CausalError::rejected)?;
             Ok(AcceptedGraph::from(pag))
         }
@@ -950,6 +956,7 @@ fn refute_temporal_class_graph_posterior_intervention(
             query: &pulse,
             split: study.split.as_ref(),
             time_index: data.time_index(),
+            gaps: false,
         }),
     }
     .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?;

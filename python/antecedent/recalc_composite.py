@@ -37,8 +37,13 @@ class CompositeResult:
     decision: SupportedDecision
 
 
-def _native_payload(request: StaticResponseRequest) -> dict[str, object]:
-    names, columns = _columns(request.data)
+def _native_payload(
+    request: StaticResponseRequest,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> dict[str, object]:
+    names, columns = _columns(request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
     return {
         "names": names,
         "columns": columns,
@@ -47,7 +52,12 @@ def _native_payload(request: StaticResponseRequest) -> dict[str, object]:
     }
 
 
-def _payload(request: CompositeRequest) -> dict[str, object]:
+def _payload(
+    request: CompositeRequest,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> dict[str, object]:
     if len(request.externals) != 2:
         raise CausalValueError(
             "exactly two callback requests are required", reason_code="invalid_argument"
@@ -56,10 +66,12 @@ def _payload(request: CompositeRequest) -> dict[str, object]:
         raise CausalTypeError("decision_contract must be decision.Contract")
     branches = []
     for external in request.externals:
-        names, columns = _columns(external.data)
+        names, columns = _columns(
+            external.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         branches.append({"names": names, "columns": columns, "specification": external._wire()})
     return {
-        **_native_payload(request.native),
+        **_native_payload(request.native, memory_limit_bytes=memory_limit_bytes, cancel=cancel),
         "program": json.dumps(request.native_program._wire()),
         "externals": branches,
         "contract": json.dumps(request.decision_contract._wire()),
@@ -190,8 +202,18 @@ class CompositeSession:
         self._origin = native
         self._handle = _native.CompositeSessionHandle(native._handle, _native_payload(request))
 
-    def plan(self, request: CompositeRequest) -> RecalcPlan:
-        wire, error = self._handle.plan(_payload(request))
+    def plan(
+        self,
+        request: CompositeRequest,
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
+    ) -> RecalcPlan:
+        wire, error = self._handle.plan(
+            _payload(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel),
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
+        )
         raise_refusal(error, ExternalCallbackRefusal)
         assert wire is not None
         return RecalcPlan.from_wire(json.loads(wire))
@@ -203,6 +225,7 @@ class CompositeSession:
         providers: Mapping[int, CallbackProvider],
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
         cancel: _native.CancellationToken | None = None,
     ) -> CompositeResult:
         if len(providers) > 2 or any(
@@ -210,10 +233,11 @@ class CompositeSession:
         ):
             raise CausalTypeError("providers must map at most two branches to CallbackProvider")
         wire, receipt, error = self._handle.execute(
-            _payload(request),
+            _payload(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel),
             {branch: provider._handle for branch, provider in providers.items()},
             seed=_seed(seed),
             threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
             cancel=cancel,
         )
         raise_refusal(error, ExternalCallbackRefusal)

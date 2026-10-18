@@ -1028,6 +1028,147 @@ fn nonparametric_sensitivity_reports_a_bounded_robustness_value() {
     );
 }
 
+/// Table of `n` rows with a binary treatment, a continuous outcome and two continuous
+/// covariates, together with the true residuals of `T` and `Y` given the covariates.
+///
+/// `p(z) = logistic(1.2 sin(1.5 z1) + 0.6 z2)`, `T ~ Bernoulli(p)`, and
+/// `Y = 0.5 T + 1.5 tanh(1.5 z1) - 0.6 z2 + 1.4 e`, so `E[T | Z] = p(z)`,
+/// `E[Y | Z] = 0.5 p(z) + 1.5 tanh(1.5 z1) - 0.6 z2` and the true residuals are
+/// `T - p(z)` and `0.5 (T - p(z)) + 1.4 e`.
+fn nonlinear_confounded(n: usize) -> (TabularData, IdentifiedEstimand, Vec<f64>, Vec<f64>) {
+    let mut b = CausalSchemaBuilder::new();
+    for (name, hint) in [
+        ("t", RoleHint::TreatmentCandidate),
+        ("y", RoleHint::OutcomeCandidate),
+        ("z1", RoleHint::Context),
+        ("z2", RoleHint::Context),
+    ] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(hint),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let mut rng = ExecutionContext::for_tests(61).rng.stream(0x30_000);
+    let mut gaussian = || antecedent_kernels::standard_normal(&mut rng);
+    let z1: Vec<f64> = (0..n).map(|_| gaussian()).collect();
+    let z2: Vec<f64> = (0..n).map(|_| gaussian()).collect();
+    let noise: Vec<f64> = (0..n).map(|_| gaussian()).collect();
+    let p: Vec<f64> =
+        (0..n).map(|i| 1.0 / (1.0 + (-(1.2 * (1.5 * z1[i]).sin() + 0.6 * z2[i])).exp())).collect();
+    let mut uniform = ExecutionContext::for_tests(62).rng.stream(0x30_001);
+    let t: Vec<f64> = p.iter().map(|&p| if uniform.next_f64() < p { 1.0 } else { 0.0 }).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| 0.5 * t[i] + 1.5 * (1.5 * z1[i]).tanh() - 0.6 * z2[i] + 1.4 * noise[i])
+        .collect();
+    let true_t_res: Vec<f64> = (0..n).map(|i| t[i] - p[i]).collect();
+    let true_y_res: Vec<f64> = (0..n).map(|i| 0.5 * true_t_res[i] + 1.4 * noise[i]).collect();
+    let column = |id: u32, v: Vec<f64>| {
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(id),
+                Arc::from(v),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        )
+    };
+    let cols = vec![column(0, t), column(1, y), column(2, z1), column(3, z2)];
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
+        ExprId::from_raw(0),
+    );
+    (TabularData::new(storage), estimand, true_t_res, true_y_res)
+}
+
+/// 100000 complete cases through the neighbourhood construction (acceptance workload).
+#[test]
+#[ignore = "acceptance workload: 100k rows; run with --ignored in a release build"]
+fn neighborhood_sensitivity_one_hundred_thousand_row_acceptance() {
+    let n = 100_000usize;
+    let (data, estimand, _, _) = nonlinear_confounded(n);
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let ctx = ExecutionContext::production(64, 4);
+    let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    let started = std::time::Instant::now();
+    let report = NeighborhoodSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
+    eprintln!("100k-row neighborhood sensitivity took {:?}", started.elapsed());
+    assert!(report.comparison.is_finite());
+}
+
+/// 30000 complete cases are above the exact smoother's cap, which refuses them and points at
+/// the neighbourhood construction; that construction's tipping value must be the one the TRUE
+/// residuals imply. On an OLS design the simulated tipping partial R² is `|ρ| / (1 + |ρ|)`
+/// with `ρ` the partial correlation of `T` and `Y` given `Z` (module docs of `sensitivity`), so
+/// the reported grid value is the first grid point above that number computed from the known
+/// conditional means rather than from any smoother.
+#[test]
+fn neighborhood_sensitivity_reproduces_the_tipping_value_of_the_true_residuals() {
+    let n = 30_000usize;
+    let (data, estimand, true_t_res, true_y_res) = nonlinear_confounded(n);
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let ctx = ExecutionContext::production(63, 4);
+    let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+
+    let refused = NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap_err();
+    assert!(refused.to_string().contains("NeighborhoodSensitivity"), "{refused}");
+
+    let report = NeighborhoodSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
+    assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
+    assert_eq!(report.replicates as usize, NeighborhoodSensitivity::new().partial_r2_grid.len());
+
+    let m = n as f64;
+    let (mt, my) = (true_t_res.iter().sum::<f64>() / m, true_y_res.iter().sum::<f64>() / m);
+    let (mut stt, mut syy, mut sty) = (0.0, 0.0, 0.0);
+    for (a, b) in true_t_res.iter().zip(&true_y_res) {
+        stt += (a - mt) * (a - mt);
+        syy += (b - my) * (b - my);
+        sty += (a - mt) * (b - my);
+    }
+    let rho = (sty / (stt * syy).sqrt()).abs();
+    let tipping = rho / (1.0 + rho);
+    let grid = NeighborhoodSensitivity::new().partial_r2_grid;
+    // The truth must sit clear of the grid points, or the comparison below would be a coin flip.
+    assert!(grid.iter().all(|g| (g - tipping).abs() > 0.01), "tipping {tipping} sits on the grid");
+    let expected = grid.iter().copied().find(|&g| g > tipping).unwrap_or(f64::INFINITY);
+    assert!(
+        (report.comparison - expected).abs() < 1e-12,
+        "reported tipping {} vs {expected} from the true residuals (true tipping {tipping})",
+        report.comparison
+    );
+}
+
 /// The sensitivity grid is a *partial* R², so the injected confounder must be scaled by the
 /// residual SD of `T` given `Z` — not its marginal SD.
 ///
@@ -1231,6 +1372,7 @@ fn panel_refit_effect_round_trip_matches_copy_all() {
         kernel_policy: &ctx.kernel_policy,
         time_index: None,
         panel: Some(&panel),
+        gaps: false,
     };
     let problem = RefutationProblem::new(
         &stacked,
@@ -2032,6 +2174,7 @@ fn composed_bootstrap_refute_uses_the_interval_block_length_and_reports_the_stan
         kernel_policy: &ctx.kernel_policy,
         time_index: Some(series.time_index()),
         panel: None,
+        gaps: false,
     };
     let ate_q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     // The check centres on the full-sample refit, not on this published value.

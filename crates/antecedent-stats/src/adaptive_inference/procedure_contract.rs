@@ -23,8 +23,16 @@
 //! known probabilities and the policy runs independently within each context
 //! (stratified bandit).
 //!
+//! Declaration capacity is separate from the cost of deriving a procedure's
+//! uncertainty. A declaration may enrol up to [`MAX_PROCEDURE_UNITS`] units
+//! (observed counts are 16-bit); whether the exact law can enumerate it is the
+//! business of [`super::procedure_law`] (state and work bounds), and a
+//! procedure the enumeration cannot reach is simulated under a work budget
+//! ([`super::capacity`]).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::capacity::CapacityError;
 use super::group_sequential::Sidedness;
 
 /// Most arms of one procedure.
@@ -35,8 +43,9 @@ pub const MAX_PROCEDURE_CONTEXTS: usize = 4;
 pub const MAX_PROCEDURE_CELLS: usize = 8;
 /// Most looks of one procedure.
 pub const MAX_PROCEDURE_LOOKS: usize = 24;
-/// Most units one procedure enrols in total.
-pub const MAX_PROCEDURE_UNITS: u32 = 400;
+/// Most units one procedure enrols in total: the largest count a 16-bit
+/// observed-count cell holds.
+pub const MAX_PROCEDURE_UNITS: u32 = 65_535;
 /// Longest outcome delay, in looks.
 pub const MAX_OUTCOME_LAG: usize = 4;
 
@@ -83,6 +92,16 @@ pub enum AssignmentRule {
     ThompsonBeta {
         /// Prior of every arm.
         prior: BetaPrior,
+    },
+    /// Beta-Bernoulli Thompson sampling with a minimum exploration
+    /// probability: the posterior probabilities that each arm is best are
+    /// clamped from below and renormalized, so every arm keeps at least
+    /// `min_probability` at every unit (see [`super::procedure_law::apply_exploration_floor`]).
+    ThompsonBetaFloored {
+        /// Prior of every arm.
+        prior: BetaPrior,
+        /// Smallest probability any arm may have, in `(0, 1 / arms]`.
+        min_probability: f64,
     },
     /// Deterministic UCB1: an untried arm first (lowest index), otherwise the
     /// arm maximizing `mean + sqrt(exploration ln(t) / n)`, ties to the lowest
@@ -233,6 +252,18 @@ pub enum StoppingRule {
         /// Which crossings stop the trial.
         sidedness: Sidedness,
     },
+    /// Stop for futility: at a look where every non-control arm (arms 1 and
+    /// up) has posterior probability below `threshold` of exceeding the
+    /// control (arm 0) by more than `margin`. The decision is the control.
+    PosteriorFutility {
+        /// Smallest advantage over the control that matters, in `[0, 1)`.
+        margin: f64,
+        /// Probability below which an arm is judged not to beat the control
+        /// by the margin, in `(0, 0.5)`.
+        threshold: f64,
+        /// Prior of every arm.
+        prior: BetaPrior,
+    },
     /// Stop at the first look at which the enrolled units reach the cap.
     ResourceCap {
         /// Units at which the trial stops.
@@ -279,8 +310,15 @@ pub enum ContractGap {
     WithinUnitVarianceMissing,
     /// No declared final-analysis estimator.
     FinalAnalysisMissing,
+    /// No declared prior (and historical borrowing) of the arms.
+    HistoricalBorrowingMissing,
+    /// No declared level and tuning of the confidence sequences.
+    AnytimeSettingsMissing,
     /// An element is present and not valid; the slug names which.
     Invalid(&'static str),
+    /// A declared size is beyond a declaration capacity; the class of bound
+    /// carries its own detail and remedy.
+    Capacity(CapacityError),
 }
 
 impl ContractGap {
@@ -301,14 +339,17 @@ impl ContractGap {
             Self::BetweenUnitVarianceMissing => "adaptive_inference.between_unit_variance_missing",
             Self::WithinUnitVarianceMissing => "adaptive_inference.within_unit_variance_missing",
             Self::FinalAnalysisMissing => "adaptive_inference.final_analysis_missing",
+            Self::HistoricalBorrowingMissing => "adaptive_inference.historical_borrowing_missing",
+            Self::AnytimeSettingsMissing => "adaptive_inference.anytime_settings_missing",
             Self::Invalid(detail) => detail,
+            Self::Capacity(capacity) => capacity.detail(),
         }
     }
 
     /// Registered reason code of the refusal.
     #[must_use]
     pub fn reason_code(self) -> &'static str {
-        if matches!(self, Self::Invalid(_)) {
+        if matches!(self, Self::Invalid(_) | Self::Capacity(_)) {
             antecedent_core::reason_code!("invalid_argument")
         } else {
             antecedent_core::reason_code!("adaptive_contract_incomplete")
@@ -352,7 +393,14 @@ impl ContractGap {
             Self::FinalAnalysisMissing => {
                 "declare the final-analysis estimator: a cluster-robust contrast of unit summaries, or the adaptively weighted score"
             }
+            Self::HistoricalBorrowingMissing => {
+                "declare the prior of every arm before recruitment: an initial Beta prior and the historical sources borrowed from with their discounts, or an empty source list to declare no borrowing"
+            }
+            Self::AnytimeSettingsMissing => {
+                "declare the miscoverage level and the tuning sample size of the confidence sequences read at every look"
+            }
             Self::Invalid(_) => "correct the declared element",
+            Self::Capacity(capacity) => capacity.remedy(),
         }
     }
 }
@@ -465,6 +513,12 @@ impl ProcedureSpec {
                     epsilon.is_finite() && (0.0..=1.0).contains(epsilon) && prior.is_valid()
                 }
                 AssignmentRule::ThompsonBeta { prior } => prior.is_valid(),
+                AssignmentRule::ThompsonBetaFloored { prior, min_probability } => {
+                    prior.is_valid()
+                        && min_probability.is_finite()
+                        && *min_probability > 0.0
+                        && *min_probability <= 1.0 / arms as f64
+                }
                 AssignmentRule::UpperConfidenceBound { exploration } => {
                     exploration.is_finite() && *exploration > 0.0
                 }
@@ -477,13 +531,20 @@ impl ProcedureSpec {
         if let Some(schedule) = &declaration.enrolment {
             looks = schedule.len();
             let total: u64 = schedule.iter().map(|&n| u64::from(n)).sum();
-            let ordered = !schedule.is_empty()
-                && schedule.len() <= MAX_PROCEDURE_LOOKS
-                && total > 0
-                && total <= u64::from(MAX_PROCEDURE_UNITS)
-                && schedule[0] > 0;
-            if !ordered {
+            if schedule.first().is_none_or(|&first| first == 0) || total == 0 {
                 gaps.push(ContractGap::Invalid("adaptive_inference.looks_not_ordered"));
+            }
+            if schedule.len() > MAX_PROCEDURE_LOOKS {
+                gaps.push(ContractGap::Capacity(CapacityError::DeclaredLooks {
+                    limit: MAX_PROCEDURE_LOOKS as u64,
+                    requested: schedule.len() as u64,
+                }));
+            }
+            if total > u64::from(MAX_PROCEDURE_UNITS) {
+                gaps.push(ContractGap::Capacity(CapacityError::DeclaredUnits {
+                    limit: u64::from(MAX_PROCEDURE_UNITS),
+                    requested: total,
+                }));
             }
         }
         if let Some(observation) = &declaration.observation {
@@ -523,6 +584,15 @@ impl ProcedureSpec {
                         && arms == 2
                         && critical.len() == looks
                         && critical.iter().all(|c| c.is_finite())
+                }
+                StoppingRule::PosteriorFutility { margin, threshold, prior } => {
+                    single_context
+                        && margin.is_finite()
+                        && (0.0..1.0).contains(margin)
+                        && threshold.is_finite()
+                        && *threshold > 0.0
+                        && *threshold < 0.5
+                        && prior.is_valid()
                 }
                 StoppingRule::ResourceCap { max_units } => *max_units > 0,
             };
@@ -652,7 +722,9 @@ impl ProcedureSpec {
             AssignmentRule::Fixed { .. } => "fixed_randomization",
             _ if batched => "batched_adaptive",
             AssignmentRule::EpsilonGreedy { .. } => "epsilon_greedy",
-            AssignmentRule::ThompsonBeta { .. } => "thompson_beta_bernoulli",
+            AssignmentRule::ThompsonBeta { .. } | AssignmentRule::ThompsonBetaFloored { .. } => {
+                "thompson_beta_bernoulli"
+            }
             AssignmentRule::UpperConfidenceBound { .. } => "upper_confidence_bound",
         }
     }
@@ -680,6 +752,7 @@ impl ProcedureSpec {
                 "efficacy"
             }
             StoppingRule::PosteriorExpectedLoss { .. } => "decision_theoretic",
+            StoppingRule::PosteriorFutility { .. } => "futility",
             StoppingRule::ResourceCap { .. } => "resource",
         }
     }

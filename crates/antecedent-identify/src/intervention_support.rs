@@ -39,6 +39,8 @@ pub(crate) fn intervention_kind_name(intervention: &Intervention) -> &'static st
         Intervention::Shift { .. } => "Shift",
         Intervention::Stochastic { .. } => "Stochastic",
         Intervention::Soft { .. } => "Soft",
+        Intervention::Transform { .. } => "Transform",
+        Intervention::Assign { .. } => "Assign",
         Intervention::Sequence(_) => "Sequence",
         _ => "unknown",
     }
@@ -59,6 +61,14 @@ pub(crate) fn non_set_unsupported_message(kind: &'static str) -> &'static str {
         }
         "Sequence" => {
             "supports Sequence of hard Sets only; got a Sequence containing non-Set steps"
+        }
+        "Transform" => {
+            "supports hard Set levels only; a Transform of the generated value depends on each \
+             unit's own noise and is not a population-level do-level"
+        }
+        "Assign" => {
+            "supports hard Set levels only; an Assign that reads other variables is a function \
+             of them, not a level (an Assign that folds to a constant reduces to a Set)"
         }
         _ => {
             "supports hard Set interventions (plus Soft(constant), discrete Stochastic, \
@@ -111,6 +121,10 @@ pub(crate) fn normalize_to_set(
                 _ => Err(IdentificationError::unsupported(non_set_unsupported_message("Soft"))),
             }
         }
+        Intervention::Assign { variable, expr, .. } => match expr.as_constant() {
+            Some(level) => Ok(Intervention::set(*variable, Value::f64(level))),
+            None => Err(IdentificationError::unsupported(non_set_unsupported_message("Assign"))),
+        },
         Intervention::Shift { .. } => Err(IdentificationError::unsupported(
             "Shift(X := X+δ) is not do(X=δ); nonparametric ID refuses the reduction. \
              Use Intervention::Set for a hard level, or a parametric SCM for an additive shift",

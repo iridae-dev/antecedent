@@ -64,17 +64,31 @@ fn keyed_record(key: RecordKey, level: f64) -> CoverageTally {
     CoverageTally::for_record(key, level)
 }
 
-fn mediated_query() -> CausalQuery {
+fn mediation_query(contrast: MediationContrast) -> CausalQuery {
     CausalQuery::Mediation(
         MediationQuery::binary(
             VariableId::from_raw(0),
             VariableId::from_raw(2),
             [VariableId::from_raw(1)],
-            MediationContrast::Mediated,
+            contrast,
         )
         .with_horizons(vec![1])
         .unwrap(),
     )
+}
+
+fn mediated_query() -> CausalQuery {
+    mediation_query(MediationContrast::Mediated)
+}
+
+/// The mediation contrasts, each executed as its own query with its own record,
+/// and the path-product truth each interval is scored against.
+fn contrasts() -> [(&'static str, MediationContrast, f64); 3] {
+    [
+        ("total", MediationContrast::Total, fixtures::mediation_total_truth()),
+        ("direct", MediationContrast::Direct, fixtures::mediation_direct_truth()),
+        ("mediated", MediationContrast::Mediated, fixtures::mediation_truth()),
+    ]
 }
 
 /// The executed study beside its result: [`bind_all`] reads the construction
@@ -85,13 +99,23 @@ fn run(
     suite: RefuteSuite,
     seed: u64,
 ) -> Option<(Study, StudyResult)> {
+    run_contrast(data, MediationContrast::Mediated, accepted, suite, seed)
+}
+
+fn run_contrast(
+    data: TimeSeriesData,
+    contrast: MediationContrast,
+    accepted: bool,
+    suite: RefuteSuite,
+    seed: u64,
+) -> Option<(Study, StudyResult)> {
     let builder = Study::series(data);
     let builder = if accepted {
         builder.graph(AcceptedGraph::temporal_cpdag(mediation_cpdag_two()).ok()?)
     } else {
         builder.graph(mediation_cpdag_two())
     };
-    let study = builder.query(mediated_query()).refute(suite).build().ok()?;
+    let study = builder.query(mediation_query(contrast)).refute(suite).build().ok()?;
     let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
     Some((study, result))
 }
@@ -113,15 +137,37 @@ fn pair(result: &StudyResult) -> [Option<(f64, f64)>; 2] {
     })
 }
 
+/// Total, Direct and Mediated coverage of the agreeing-completion class
+/// interval, each contrast executed as its own query on the replicate's series
+/// and bound to its own record (the Mediated record keeps `label`; the others
+/// append their contrast). Sharing the series is valid because each tally scores
+/// one functional of that draw against its own truth and is judged on its own
+/// marginal coverage; the tallies are never combined into a joint claim.
 fn mediation_coverage(test: &'static str, label: &str, kappa: f64, seed_base: u64) {
-    let truth = fixtures::mediation_truth();
-    let mut tallies = [keyed(test, label, REPORTED_LEVEL), keyed(test, label, GATE_LEVEL)];
+    let contrasts = contrasts();
+    let mut tallies: Vec<[CoverageTally; 2]> = contrasts
+        .iter()
+        .map(|(name, _, _)| {
+            let label =
+                if *name == "mediated" { label.to_owned() } else { format!("{label} {name}") };
+            [keyed(test, &label, REPORTED_LEVEL), keyed(test, &label, GATE_LEVEL)]
+        })
+        .collect();
     let runs = map_replicates(n_sim(), |rep| {
         let seed = seed_base + rep;
         let data = mediation_series(grid_n(N), kappa, seed);
-        let (study, result) = run(data.clone(), false, RefuteSuite::None, rep)?;
-        let intervals = pair(&result);
+        let scored: Option<Vec<_>> = contrasts
+            .iter()
+            .map(|(_, contrast, _)| {
+                let (study, result) =
+                    run_contrast(data.clone(), *contrast, false, RefuteSuite::None, rep)?;
+                let intervals = pair(&result);
+                Some((study, result, intervals))
+            })
+            .collect();
+        let scored = scored?;
         if rep == 0 {
+            let intervals = scored[2].2;
             assert!(intervals[0].is_some(), "agreeing completions must publish the block interval");
             for (accepted, suite) in
                 [(true, RefuteSuite::None), (false, RefuteSuite::Cheap), (false, RefuteSuite::Full)]
@@ -131,18 +177,29 @@ fn mediation_coverage(test: &'static str, label: &str, kappa: f64, seed_base: u6
                 assert_eq!(pair(&other), intervals, "accepted={accepted} {suite:?}");
             }
         }
-        Some((study, result, intervals))
+        Some(scored)
     });
-    for scored in &runs {
-        let Some((study, result, intervals)) = scored else {
-            skip_pair(&mut tallies);
-            continue;
-        };
-        let [first, second] = &mut tallies;
-        bind_all(&mut [first, second], study, result);
-        record_pair(&mut tallies, *intervals, truth);
+    for replicate in &runs {
+        for (i, (_, _, truth)) in contrasts.iter().enumerate() {
+            let Some(scored) = replicate else {
+                skip_pair(&mut tallies[i]);
+                continue;
+            };
+            let (study, result, intervals) = &scored[i];
+            let [first, second] = &mut tallies[i];
+            bind_all(&mut [first, second], study, result);
+            record_pair(&mut tallies[i], *intervals, *truth);
+        }
     }
-    gate(&tallies, &[None, None]);
+    let failures: Vec<String> = tallies
+        .iter()
+        .filter_map(|pair| {
+            std::panic::catch_unwind(|| gate(pair, &[None, None])).err().map(|e| {
+                e.downcast_ref::<String>().cloned().unwrap_or_else(|| "coverage failure".into())
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("; "));
 }
 
 /// Mediator–outcome confounding through `z[t-1] -> w[t-1] -> y`

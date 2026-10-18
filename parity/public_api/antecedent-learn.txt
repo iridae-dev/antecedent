@@ -873,6 +873,7 @@ pub fn <antecedent_learn::PolynomialBasis>::fn evaluate(&self, x: &[f64], out: &
 pub fn <antecedent_learn::PolynomialBasis>::fn id(&self) -> alloc::string::String
 pub fn <antecedent_learn::PolynomialBasis>::fn new(degree: usize) -> core::result::Result<Self, antecedent_learn::LearnError>
 pub fn <antecedent_learn::PolynomialBasis>::fn term_names(&self, covariate_names: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
+pub fn <antecedent_learn::PortablePredictor>::fn predict_trees_with(&self, n_rows: usize, value: &dyn core::ops::function::Fn(usize, usize) -> f64, out: &mut [f64]) -> core::result::Result<(), antecedent_learn::LearnError>
 pub fn <antecedent_learn::PortablePredictor>::fn validate(&self) -> core::result::Result<(), antecedent_learn::LearnError>
 pub fn <antecedent_learn::PosteriorPrediction>::fn draw_target(&self, draw: usize, target: usize) -> core::result::Result<&[f64], antecedent_learn::LearnError>
 pub fn <antecedent_learn::PosteriorPrediction>::fn new(draw_count: usize, target_names: alloc::vec::Vec<alloc::sync::Arc<str>>, row_ids: alloc::vec::Vec<u32>, fold_ids: core::option::Option<alloc::vec::Vec<u16>>, values: alloc::vec::Vec<f64>, provenance: antecedent_learn::PosteriorPredictionProvenance) -> core::result::Result<Self, antecedent_learn::LearnError>
@@ -899,6 +900,7 @@ pub fn antecedent_learn::assign_folds(n_rows: usize, folds: usize, rng: &mut ant
 pub fn antecedent_learn::bayesian_basis_regression::information_rank(design: &antecedent_learn::BasisDesign<'_>) -> core::result::Result<antecedent_learn::InformationRank, antecedent_learn::LearnError>
 pub fn antecedent_learn::cross_fit_selected(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, fold_assignment: &[u16], eligible: &[bool], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
 pub fn antecedent_learn::cross_fit_with_folds(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, fold_assignment: alloc::vec::Vec<u16>, ctx: &antecedent_core::execution::ExecutionContext, transformer: core::option::Option<&dyn antecedent_learn::TransformerFactory>) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
+pub fn antecedent_learn::cross_fit_with_folds_weighted(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, weights: core::option::Option<&[f64]>, fold_assignment: alloc::vec::Vec<u16>, ctx: &antecedent_core::execution::ExecutionContext, transformer: core::option::Option<&dyn antecedent_learn::TransformerFactory>) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
 pub fn antecedent_learn::crossfit::diagnose(task: antecedent_learn::PredictionTask, y: &[f64], pred: &[f64]) -> antecedent_learn::NuisanceDiagnostics
 pub fn antecedent_learn::fit_counts::count_resolved_fits<T>(operation: impl core::ops::function::FnOnce() -> T) -> (T, u64)
 pub fn antecedent_learn::fit_counts::observe_resolved_fits<T>(operation: impl core::ops::function::FnOnce() -> T) -> (T, u64)
@@ -1014,6 +1016,7 @@ pub use antecedent_learn::crossfit::NuisanceDiagnostics = antecedent_learn::Nuis
 pub use antecedent_learn::crossfit::assign_folds = antecedent_learn::assign_folds
 pub use antecedent_learn::crossfit::cross_fit_selected = antecedent_learn::cross_fit_selected
 pub use antecedent_learn::crossfit::cross_fit_with_folds = antecedent_learn::cross_fit_with_folds
+pub use antecedent_learn::crossfit::cross_fit_with_folds_weighted = antecedent_learn::cross_fit_with_folds_weighted
 pub use antecedent_learn::design::DenseDesign = antecedent_learn::DenseDesign
 pub use antecedent_learn::design::DesignView = antecedent_learn::DesignView
 pub use antecedent_learn::design::Layout = antecedent_learn::Layout

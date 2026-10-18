@@ -15,7 +15,7 @@ mod temporal_class;
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
-use antecedent_discovery::GraphPosterior;
+use antecedent_discovery::{AdjacencyMask, GraphPosterior};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationResult;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
@@ -46,15 +46,15 @@ fn identify_unique_adjacency_masks<T, F>(
     posterior: &GraphPosterior,
     ctx: &ExecutionContext,
     identify: F,
-) -> Result<std::collections::HashMap<u64, T>, CausalError>
+) -> Result<std::collections::HashMap<AdjacencyMask, T>, CausalError>
 where
     T: Send,
-    F: Fn(u64, &ExecutionContext) -> Result<T, CausalError> + Sync,
+    F: Fn(AdjacencyMask, &ExecutionContext) -> Result<T, CausalError> + Sync,
 {
     let mut unique = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for i in 0..posterior.n_graphs {
-        let mask = posterior.adjacency[i];
+        let mask = posterior.atoms[i];
         if seen.insert(mask) {
             unique.push(mask);
         }
@@ -103,7 +103,8 @@ fn collect_graph_posterior_atoms<A>(
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
     let mut atoms = Vec::new();
-    let mut atom_masks: std::collections::HashMap<u64, u64> = std::collections::HashMap::new();
+    let mut atom_masks: std::collections::HashMap<u64, AdjacencyMask> =
+        std::collections::HashMap::new();
 
     for i in 0..posterior.n_graphs {
         if ctx.cancellation.is_cancelled() {
@@ -112,7 +113,7 @@ fn collect_graph_posterior_atoms<A>(
         if let Some(progress) = &ctx.progress {
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
-        let mask = posterior.adjacency[i];
+        let mask = posterior.atoms[i];
         let key = posterior.graph_keys[i];
         keys.push(key);
         weights.push(posterior.weights[i]);
@@ -142,7 +143,7 @@ fn collect_graph_posterior_atoms<A>(
 /// The identified atoms of a DAG/ADMG posterior by adjacency mask, as
 /// [`identify_unique_adjacency_masks`] returns them.
 type MaskIdentifications =
-    std::collections::HashMap<u64, Option<(IdentifiedEstimand, IdentificationResult)>>;
+    std::collections::HashMap<AdjacencyMask, Option<(IdentifiedEstimand, IdentificationResult)>>;
 
 /// [`collect_graph_posterior_atoms`] over per-mask identifications: a sample is identified
 /// when its mask is, and the first sample of a key contributes the atom.
@@ -152,7 +153,7 @@ fn collect_mask_atoms(
     by_mask: &MaskIdentifications,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
     let (graphs, atoms) = collect_graph_posterior_atoms(posterior, ctx, |i, first_for_key| {
-        let Some(Some((estimand, identification))) = by_mask.get(&posterior.adjacency[i]) else {
+        let Some(Some((estimand, identification))) = by_mask.get(&posterior.atoms[i]) else {
             return Ok((GraphIdentFlag::Unidentified, None));
         };
         let atom = first_for_key.then(|| CachedGraphPosteriorAtomIdentification {

@@ -32,6 +32,7 @@
 include!(concat!(env!("OUT_DIR"), "/python_test_link.rs"));
 
 mod adaptive_inference_api;
+mod adaptive_participant_api;
 mod adaptive_procedure_api;
 mod artifact_api;
 mod ate_api;
@@ -79,11 +80,13 @@ mod forward_source_api;
 mod functional_source_api;
 mod gcm_api;
 mod graph_build;
+mod graph_falsification_api;
 mod graph_io;
 mod graphs;
 mod identification_details;
 mod interference_saturation_api;
 mod interrupt;
+mod intrinsic_influence_api;
 mod inverse_outcome_api;
 mod inverse_query_api;
 mod joint_law_propagation_api;
@@ -97,13 +100,17 @@ mod measured_inference_api;
 mod measurement_model_api;
 mod mechanism_composition_api;
 mod mechanism_discrepancy_api;
+mod missing_report;
 mod msm_sensitivity_api;
+mod multi_level_treatment_api;
 mod nested_bayesian_api;
 mod nested_fisher_api;
 mod nonlinear_mediation_api;
 mod observation_api;
 mod observation_query_api;
 mod observational_interference_api;
+mod observational_policy_api;
+mod observational_survival_api;
 mod policy_api;
 mod predictive_assessment_api;
 mod preflight_api;
@@ -134,6 +141,8 @@ mod registry;
 mod sequential_evaluation_api;
 pub(crate) use registry::transport_defaults;
 mod interface_contract_api;
+mod intervention_callback_api;
+mod intervention_program_api;
 mod provider_callbacks_api;
 mod repair_api;
 mod response_api;
@@ -226,7 +235,7 @@ use antecedent::discovery::{
     discover_ges as facade_discover_ges, discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lingam as facade_discover_lingam, discover_lpcmci as facade_discover_lpcmci,
     discover_lpcmci_panel as facade_discover_lpcmci_panel,
-    discover_notears as facade_discover_notears, discover_pc as facade_discover_pc,
+    discover_notears_with as facade_discover_notears, discover_pc as facade_discover_pc,
     discover_pcmci as facade_discover_pcmci, discover_pcmci_panel as facade_discover_pcmci_panel,
     discover_pcmci_plus as facade_discover_pcmci_plus,
     discover_pcmci_plus_panel as facade_discover_pcmci_plus_panel,
@@ -832,8 +841,20 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
         RustCausalError::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
         RustCausalError::Validate(e) => CausalValidateError::new_err(e.to_string()),
         RustCausalError::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
+        // A model or attribution refusal that names its reason code is the one refusal
+        // class too.
+        RustCausalError::Model(e @ antecedent_model::ModelError::Unsupported { .. })
+            if reason_code_in_message(&e.to_string()).is_some() =>
+        {
+            unsupported_py_err(e.to_string())
+        }
         RustCausalError::Model(e) => CausalModelError::new_err(e.to_string()),
         RustCausalError::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
+        RustCausalError::Attribution(e @ antecedent_attribution::AttributionError::Message(_))
+            if reason_code_in_message(&e.to_string()).is_some() =>
+        {
+            unsupported_py_err(e.to_string())
+        }
         RustCausalError::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
         RustCausalError::Serialization(e) => crate::serialization_err(e.to_string()),
         RustCausalError::Data(e) => CausalDataError::new_err(e.to_string()),
@@ -1075,6 +1096,9 @@ pub(crate) struct AteAnalysisResult {
     pub(crate) structural_identified_set_interval_truncated: Option<bool>,
     #[pyo3(get)]
     pub(crate) certificate_json: Option<String>,
+    /// Missing-data policy, assumption and row accounting of this execution, as JSON.
+    #[pyo3(get)]
+    pub(crate) missing_data_json: Option<String>,
     #[pyo3(get)]
     ate: f64,
     #[pyo3(get)]
@@ -1488,6 +1512,11 @@ pub(crate) struct EstimateSection {
     joint_covariance: Option<Vec<Vec<f64>>>,
     #[pyo3(get)]
     score_inference: Option<ScoreInferenceSection>,
+    /// What declared sampling weights did to the analysis, as
+    /// `(rows_used, zero_weight_rows, effective_sample_size, weight_sum)`; `None` when no
+    /// weights were declared.
+    #[pyo3(get)]
+    sampling_weights: Option<(u64, u64, f64, f64)>,
     #[pyo3(get)]
     scenario_effects: Option<Vec<f64>>,
     #[pyo3(get)]
@@ -1794,6 +1823,14 @@ pub(crate) fn shared_study_sections(
             .as_ref()
             .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
         score_inference: estimate.scores.inference.as_ref().map(ScoreInferenceSection::from),
+        sampling_weights: estimate.diagnostics.sampling_weights.map(|record| {
+            (
+                record.rows_used,
+                record.zero_weight_rows,
+                record.effective_sample_size,
+                record.weight_sum,
+            )
+        }),
         scenario_effects: estimate.scenarios.effects.as_ref().map(|v| v.to_vec()),
         scenario_intervals: estimate.scenarios.intervals.as_ref().map(|v| v.to_vec()),
         exceedance_cdf: estimate.joint.exceedance_cdf.as_ref().map(|v| v.to_vec()),

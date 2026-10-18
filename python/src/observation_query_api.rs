@@ -533,7 +533,7 @@ type CountFittedBytes = (Option<Vec<u8>>, Option<String>);
 
 /// Retain tables fitted to counts and the question: `(source bytes, refusal json)`.
 #[pyfunction]
-#[pyo3(signature = (nodes_json, rows, target, target_level, evidence_json, seed=None))]
+#[pyo3(signature = (nodes_json, rows, target, target_level, evidence_json, seed=None, draws=None))]
 fn count_fitted_observation_build(
     nodes_json: &str,
     rows: u64,
@@ -541,6 +541,7 @@ fn count_fitted_observation_build(
     target_level: &str,
     evidence_json: &str,
     seed: Option<u64>,
+    draws: Option<u32>,
 ) -> PyResult<CountFittedBytes> {
     use antecedent::analysis::count_fitted_observation::{
         CountFittedNodeWire, CountFittedObservation,
@@ -563,7 +564,12 @@ fn count_fitted_observation_build(
             format!("observation_query.invalid_request: {e}"),
         )
     })?;
-    match CountFittedObservation::new(nodes, rows, target, target_level, &evidence, seed) {
+    let built = CountFittedObservation::new(nodes, rows, target, target_level, &evidence, seed)
+        .and_then(|claim| match draws {
+            Some(draws) => claim.with_draws(draws),
+            None => Ok(claim),
+        });
+    match built {
         Ok(claim) => match claim.source().encode() {
             Ok(bytes) => Ok((Some(bytes), None)),
             Err(error) => Err(crate::transport_common::error(error)),

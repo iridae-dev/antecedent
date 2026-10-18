@@ -16,19 +16,39 @@ bash scripts/gate_parity_schema.sh --self-test
 bash scripts/gate_docs_support_matrix.sh --self-test
 bash scripts/gate_composition.sh --self-test
 bash scripts/gate_transport.sh --self-test
+bash scripts/gate_gcm_conformance.sh --self-test
 bash scripts/gate_promotion.sh --self-test
 python3 scripts/release_evidence_report.py --self-test
 python3 scripts/decision_exit_report_cli_selftest.py
 python3 scripts/check_prerequisites.py --self-test
+python3 scripts/check_acceptance_manifest.py --self-test
+python3 scripts/test_check_acceptance_manifest.py
+python3 scripts/test_check_release_closure.py
+python3 scripts/test_calibration_recipe_receipts.py
+python3 scripts/test_generate_calibration_backlog.py
+python3 scripts/test_ci_workflow.py
+bash scripts/gate_scale_cases.sh --self-test
 python3 scripts/run_evidence_rows_selftest.py
 python3 scripts/test_calibration_groups.py
+python3 scripts/test_calibration_decision.py
+python3 scripts/test_calibration_family.py
+python3 scripts/test_calibration_decision_logs.py
 python3 scripts/test_calibration_key_aliases.py
 python3 scripts/test_collect_coverage_records.py
 python3 scripts/test_coverage_snapshot_attestation.py
 python3 scripts/test_promotion_refusal_helpers.py
+python3 scripts/test_interval_attestation_cache.py
+python3 scripts/test_interval_coordinate_emission.py
 python3 scripts/test_publish_crates.py
 python3 scripts/test_release_support_delta.py
 python3 scripts/test_rust_source.py
+python3 scripts/test_rust_equivalence.py
+python3 scripts/test_calibration_replay_recipes.py
+python3 scripts/test_calibration_build_cache.py
+python3 scripts/test_calibration_dependency_facets.py
+python3 scripts/test_calibration_private_unit_scaffolding.py
+python3 scripts/test_temporal_capture_transfer.py
+python3 scripts/test_calibration_source_only.py
 python3 scripts/test_transport_replay_contract.py
 python3 scripts/verify_release_selftest.py
 python3 scripts/verify_wheel_matrix_selftest.py

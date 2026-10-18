@@ -80,10 +80,12 @@ def has_record_emitter(key: tuple[str, str, str, str], groups: list[tuple[str, s
             continue
         if structure == "accepted" and "accepted" not in test_filter.lower():
             continue
-        # Some correctly scoped class-posterior tests use the query + graph
-        # names in their test filter without repeating "graph_posterior"
-        # (e.g. average_effect_cpdag_*). The gate's exact test filter and the
-        # required query/graph/inference tokens are the binding here.
+        # A graph-posterior coordinate is credited only by a test that builds
+        # its study on a graph posterior. An explicit-structure design of the
+        # same query, graph class and inference reports structure `fixed`, so
+        # its records can never cover the `graph_posterior` coordinate.
+        if structure == "graph_posterior" and "graph_posterior" not in test_filter.lower():
+            continue
         if structure == "explicit" and any(
             marker in test_filter.lower() for marker in ("accepted", "graph_posterior", "class_posterior")
         ):

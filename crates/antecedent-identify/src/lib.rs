@@ -20,6 +20,7 @@ pub mod assumptions;
 pub mod auto;
 pub mod backdoor;
 pub mod bounds;
+mod class_envelope_cache;
 pub mod counterfactual_id;
 pub mod cross_world;
 pub mod efficient;
@@ -69,6 +70,8 @@ pub use recovery_chain::{
     ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism, decide_chain_recovery,
     verify_chain_witness,
 };
+#[allow(deprecated, reason = "the retained released name stays reachable")]
+pub use sid::MZ_TRANSPORT_MAX_OBSERVED;
 pub use sid::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
     ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS,
@@ -92,20 +95,22 @@ pub use sid::{
     CatalogTransportResult, ClassicalTransportDerivation, ClassicalTransportQuery,
     ClassicalTransportResult, ComponentFactorization, MZ_TRANSPORT_DEFAULT_LIMITS,
     MZ_TRANSPORT_MAX_CANDIDATE_REGIMES, MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE,
-    MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES, MZ_TRANSPORT_MEMORY_BYTES, MetaSource,
-    MetaTransportQuery, MzSearchInspection, MzSearchRecord, MzStageRecord, MzTransportDecision,
-    MzTransportDerivation, MzTransportDerivationRecord, MzTransportObstruction, MzTransportQuery,
-    MzTransportRoute, SidLimits, TwoSourceZTransportComponent, TwoSourceZTransportDecision,
-    TwoSourceZTransportQuery, ValidatedMzTransportQuery, ZExperimentFamilyError, ZFactorObligation,
-    ZProofOperation, ZTransportBudgetKind, ZTransportDecision, ZTransportDerivation,
-    ZTransportDerivationRecord, ZTransportLimitsReceipt, ZTransportMissingEvidence,
-    ZTransportNotCertifiedInspection, ZTransportNotCertifiedKind, ZTransportObstruction,
-    ZTransportObstructionRecord, ZTransportOutcome, ZTransportProofInspection, ZTransportQuery,
-    ZTransportResult, ZTransportSourceSpec, ZTransportTerminalRecord, bind_mz_transport_catalog,
+    MZ_TRANSPORT_MAX_SOURCES, MZ_TRANSPORT_MEMORY_BYTES, MetaSource, MetaTransportQuery,
+    MzSearchInspection, MzSearchRecord, MzStageRecord, MzTransportDecision, MzTransportDerivation,
+    MzTransportDerivationRecord, MzTransportObstruction, MzTransportQuery, MzTransportRoute,
+    SidLimits, TwoSourceZTransportComponent, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
+    ValidatedMzTransportQuery, ZExperimentFamilyError, ZFactorObligation, ZProofOperation,
+    ZTransportBudgetKind, ZTransportDecision, ZTransportDerivation, ZTransportDerivationRecord,
+    ZTransportLimitsReceipt, ZTransportMissingEvidence, ZTransportNotCertifiedInspection,
+    ZTransportNotCertifiedKind, ZTransportObstruction, ZTransportObstructionRecord,
+    ZTransportOutcome, ZTransportProofInspection, ZTransportQuery, ZTransportResult,
+    ZTransportSourceSpec, ZTransportTerminalRecord, bind_mz_transport_catalog,
     bind_z_transport_catalog, decide_mz_transport, decide_two_source_z_transport,
     decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_catalog_transport,
-    identify_classical_transport, identify_meta_catalog, identify_meta_transport,
-    identify_z_transport, identify_z_transport_reporting, intervention_ancestral_treatments,
+    identify_catalog_transport_selection_standardization_first,
+    identify_catalog_transport_standardization_first, identify_classical_transport,
+    identify_meta_catalog, identify_meta_transport, identify_z_transport,
+    identify_z_transport_reporting, intervention_ancestral_treatments,
     intervention_levels_conflict, intervention_mutilated_admg, mz_transport_refusal,
     validate_mz_transport_query, validate_z_experiment_family, validate_z_transport_query,
     verify_classical_transport, verify_meta_s_hedge, verify_meta_transport,
@@ -163,6 +168,7 @@ mod test_support {
     }
 }
 pub mod discovered_transport;
+pub mod discovered_transport_temporal;
 #[cfg(test)]
 mod id_scm_property;
 #[cfg(test)]

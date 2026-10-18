@@ -271,6 +271,88 @@ impl LaggedSamplePlan {
         workspace: &'a mut LaggedSampleWorkspace,
         policy: &KernelPolicy,
     ) -> Result<LaggedPreparedSample<'a>, DataError> {
+        self.gather(data, workspace, *policy, false)?;
+        Ok(self.borrow_sample(workspace))
+    }
+
+    /// Like [`Self::prepare`], but a window that contains a missing value is kept in place
+    /// instead of refusing the series, and `complete[i]` says whether window `i` is intact.
+    ///
+    /// Row `i` stays at its original time: sample `i` at lag `l` still reads raw row
+    /// `base_row + i - l`, so no lag ever crosses a gap and no later row moves earlier.
+    /// The values of an incomplete window are not meaningful and must be skipped by the
+    /// caller using `complete`. A row-hiding analysis mask still refuses.
+    ///
+    /// # Errors
+    ///
+    /// Missing / non-float64 columns, series length mismatch, or a row-hiding analysis mask.
+    pub fn prepare_with_gaps<'a>(
+        &'a self,
+        data: &TimeSeriesData,
+        workspace: &'a mut LaggedSampleWorkspace,
+        policy: &KernelPolicy,
+    ) -> Result<GappedSample<'a>, DataError> {
+        let complete = self.gather(data, workspace, *policy, true)?;
+        Ok(GappedSample {
+            sample: self.borrow_sample(workspace),
+            complete: complete.unwrap_or_default(),
+        })
+    }
+
+    /// Like [`Self::prepare_with_gaps`], with the incomplete windows removed from the sample.
+    ///
+    /// The returned sample holds only the intact windows, in time order, each with its own
+    /// lags read at its original time; `complete[i]` tells which of the plan's windows they
+    /// are (window `i` is the one whose anchor is `base_row + i`), so a caller that needs the
+    /// time axis (a block bootstrap that must not cross a gap) still has it. A series without
+    /// gaps returns exactly the sample [`Self::prepare`] returns.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare_with_gaps`].
+    pub fn prepare_complete_windows<'a>(
+        &'a self,
+        data: &TimeSeriesData,
+        workspace: &'a mut LaggedSampleWorkspace,
+        policy: &KernelPolicy,
+    ) -> Result<(LaggedPreparedSample<'a>, Vec<bool>), DataError> {
+        let complete = self.gather(data, workspace, *policy, true)?.unwrap_or_default();
+        let n = self.lag_map.n_effective;
+        let ncols = self.columns.len();
+        let kept = complete.iter().filter(|intact| **intact).count();
+        if kept < n {
+            // Compact each column block in place, front to back: a destination index never
+            // exceeds its source index, and a block's destination ends where the next
+            // block's source begins, so no unread value is overwritten.
+            for c in 0..ncols {
+                let mut write = c * kept;
+                for (i, intact) in complete.iter().enumerate() {
+                    if *intact {
+                        workspace.values[write] = workspace.values[c * n + i];
+                        write += 1;
+                    }
+                }
+            }
+        }
+        let sample = LaggedPreparedSample {
+            n: kept,
+            ncols,
+            values: &workspace.values[..kept * ncols],
+            columns: &self.columns,
+            dropped: DropSummary { requested: self.lag_map.series_len, retained: kept },
+        };
+        Ok((sample, complete))
+    }
+
+    /// Fill `workspace` with the planned columns. With `allow_gaps`, returns which windows are
+    /// intact instead of refusing a column with missing values.
+    fn gather(
+        &self,
+        data: &TimeSeriesData,
+        workspace: &mut LaggedSampleWorkspace,
+        policy: KernelPolicy,
+        allow_gaps: bool,
+    ) -> Result<Option<Vec<bool>>, DataError> {
         if data.row_count() != self.lag_map.series_len {
             return Err(DataError::LengthMismatch {
                 expected: self.lag_map.series_len,
@@ -282,31 +364,57 @@ impl LaggedSamplePlan {
         let n = self.lag_map.n_effective;
         let ncols = self.columns.len();
         workspace.prepare(n, ncols);
+        let mut complete = allow_gaps.then(|| vec![true; n]);
 
         for (c, col) in self.columns.iter().enumerate() {
             let ColumnView::Float64(src) = data.column(col.variable)? else {
                 return Err(DataError::TypeMismatch { id: col.variable, expected: "float64" });
             };
-            ensure_complete_float(src)?;
+            if !allow_gaps {
+                ensure_complete_float(src)?;
+            }
             self.lag_map.fill_row_indexes(col.lag, &mut workspace.row_indexes[..n])?;
+            if let Some(complete) = complete.as_mut() {
+                for (slot, &row) in complete.iter_mut().zip(&workspace.row_indexes[..n]) {
+                    *slot = *slot && src.validity.is_valid(row);
+                }
+            }
             let dst = &mut workspace.values[c * n..(c + 1) * n];
             gather(
-                policy,
+                &policy,
                 F64VectorView::contiguous(src.values.as_slice()),
                 &workspace.row_indexes[..n],
                 dst,
             )
             .map_err(|err| DataError::InvalidArgument { message: err.to_string() })?;
         }
+        Ok(complete)
+    }
 
-        Ok(LaggedPreparedSample {
+    fn borrow_sample<'a>(
+        &'a self,
+        workspace: &'a LaggedSampleWorkspace,
+    ) -> LaggedPreparedSample<'a> {
+        let n = self.lag_map.n_effective;
+        let ncols = self.columns.len();
+        LaggedPreparedSample {
             n,
             ncols,
             values: &workspace.values[..n * ncols],
             columns: &self.columns,
             dropped: DropSummary { requested: self.lag_map.series_len, retained: n },
-        })
+        }
     }
+}
+
+/// A lagged sample whose windows may contain missing values, with the windows that do not.
+#[derive(Clone, Debug)]
+pub struct GappedSample<'a> {
+    /// Gathered windows, in original time order. Values of an incomplete window are not
+    /// meaningful.
+    pub sample: LaggedPreparedSample<'a>,
+    /// `complete[i]` is true when every planned column of window `i` is observed.
+    pub complete: Vec<bool>,
 }
 
 /// Caller-owned scratch for repeated [`LaggedSamplePlan::prepare`] calls.

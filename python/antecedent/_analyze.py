@@ -13,6 +13,8 @@ from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPa
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
+from .intervention_programs import PolicyProgramValue
+from .missing import MissingPolicy
 from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
 from .quasi import (
     AugmentedPanelDiD,
@@ -145,6 +147,8 @@ def analyze(
     return_posterior_artifact: bool = False,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
+    participant: str | None = None,
+    missing: str | MissingPolicy | None = None,
     outcome_units: str | None = None,
     dose_units: str | None = None,
     quantity_population: str = "target",
@@ -227,6 +231,19 @@ def analyze(
         (``accept_discovered=False`` raises ``ReviewRequired`` while anything is
         pending); ``RPCMCI`` also needs ``regimes=``, and ``JPCMCIPlus`` takes a
         ``MultiEnvFrame`` or a sequence of environment tables.
+    participant:
+        Optional name of a data column of participant (row-owner) labels, strings or whole
+        numbers. The labels are read from the raw table, kept with their original rows and
+        frozen in the prepared study: ``refresh`` refuses a table that holds other labels or
+        other rows, and ``reprepare`` rebuilds them.
+    missing:
+        How rows with missing values are handled: a policy name (``"error"``,
+        ``"complete_case"``, ``"inverse_probability"``, ``"balanced_panel"``,
+        ``"available_case"``) or an :class:`antecedent.missing.MissingPolicy`. Average-effect
+        routes keep their complete-case selection by default and report the rows it dropped;
+        randomized, panel, temporal and NOTEARS routes refuse a missing value until a policy
+        is declared, naming the first missing cell. Every result carries ``missing_data``:
+        the policy, the assumption it needs and the row accounting.
     latency:
         Optional compute tier (``interactive`` / ``standard`` / ``report``).
         The study builder maps it onto the omitted bootstrap / refute / draw
@@ -301,6 +318,8 @@ def analyze(
                     max_completions,
                 )
             )
+            or participant is not None
+            or missing is not None
             or seed != 1
             or not accept_discovered
             or return_posterior_artifact
@@ -330,6 +349,16 @@ def analyze(
             query_family=registered.spec.query_family,
             provider_result=provider_result,
             query=query,
+        )
+
+    if isinstance(query, PolicyProgramValue):
+        from .errors import CausalUnsupportedError
+
+        raise CausalUnsupportedError(
+            "a policy-program question is posed through antecedent.prepare(...) and its "
+            "retained handle, or answered once with intervention_programs.policy_value; "
+            "analyze() returns identified-estimand results",
+            reason_code="option_not_applicable",
         )
 
     if return_posterior_artifact:
@@ -394,6 +423,8 @@ def analyze(
         latency=latency,
         class_prior=class_prior,
         max_completions=max_completions,
+        participant=participant,
+        missing=missing,
         population_registry=population_registry,
         cancel=cancel,
         on_progress=on_progress,

@@ -469,6 +469,7 @@ impl<'a> core::marker::Sync for antecedent_graph::DagView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_graph::DagView<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DagView<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_graph::DagView<'a> [auto]
+pub const antecedent_graph::DEFAULT_COMPLETION_OPERATIONS: usize
 pub enum antecedent_graph::CopyLabels
 pub enum antecedent_graph::Endpoint
 pub enum antecedent_graph::MiddleMark
@@ -478,11 +479,13 @@ pub enum antecedent_graph::WithinTier
 pub field antecedent_graph::CompletionValidationReport::ambiguous_global_class: bool
 pub field antecedent_graph::CompletionValidationReport::assignments_examined: u64
 pub field antecedent_graph::CompletionValidationReport::equivalence_audit_skipped: bool
+pub field antecedent_graph::CompletionValidationReport::operations_consumed: usize
 pub field antecedent_graph::CompletionValidationReport::rejected_constraints: u64
 pub field antecedent_graph::CompletionValidationReport::rejected_local_incompatible: u64
 pub field antecedent_graph::CompletionValidationReport::rejected_non_ancestral: u64
 pub field antecedent_graph::CompletionValidationReport::rejected_nonmaximal: u64
 pub field antecedent_graph::CompletionValidationReport::represented_completions: usize
+pub field antecedent_graph::CompletionValidationReport::search_stop: core::option::Option<antecedent_core::search::SearchStop>
 pub field antecedent_graph::CpdagCompletion::graph: antecedent_graph::Dag
 pub field antecedent_graph::CpdagCompletion::index: usize
 pub field antecedent_graph::CpdagReview::algorithm: alloc::sync::Arc<str>
@@ -601,11 +604,14 @@ pub fn <antecedent_graph::BitSet>::fn union_with(&mut self, other: &Self)
 pub fn <antecedent_graph::BitSet>::fn with_len(len: usize) -> Self
 pub fn <antecedent_graph::BitSet>::fn words(&self) -> &[u64]
 pub fn <antecedent_graph::CompletionSampler>::const fn class_audit_incomplete(&self) -> bool
+pub fn <antecedent_graph::CompletionSampler>::const fn search_receipt(&self) -> core::option::Option<&antecedent_core::search::SearchReceipt>
+pub fn <antecedent_graph::CompletionSampler>::const fn search_stop(&self) -> core::option::Option<antecedent_core::search::SearchStop>
 pub fn <antecedent_graph::CompletionSampler>::const fn validation_report(&self) -> antecedent_graph::CompletionValidationReport
 pub fn <antecedent_graph::CompletionSampler>::fn hit_cap(&self) -> bool
 pub fn <antecedent_graph::CompletionSampler>::fn max_completions(&self) -> usize
 pub fn <antecedent_graph::CompletionSampler>::fn n_circle_sites(&self) -> usize
 pub fn <antecedent_graph::CompletionSampler>::fn new(pag: antecedent_graph::Pag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CompletionSampler>::fn with_budget(pag: &antecedent_graph::Pag, max_completions: usize, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Cpdag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Cpdag>::fn adjacent(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
 pub fn <antecedent_graph::Cpdag>::fn children(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
@@ -639,6 +645,9 @@ pub fn <antecedent_graph::CpdagCompletionSampler>::fn hit_cap(&self) -> bool
 pub fn <antecedent_graph::CpdagCompletionSampler>::fn max_completions(&self) -> usize
 pub fn <antecedent_graph::CpdagCompletionSampler>::fn n_undirected(&self) -> usize
 pub fn <antecedent_graph::CpdagCompletionSampler>::fn new(cpdag: antecedent_graph::Cpdag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CpdagCompletionSampler>::fn search_receipt(&self) -> core::option::Option<antecedent_core::search::SearchReceipt>
+pub fn <antecedent_graph::CpdagCompletionSampler>::fn search_stop(&self) -> core::option::Option<antecedent_core::search::SearchStop>
+pub fn <antecedent_graph::CpdagCompletionSampler>::fn with_budget(cpdag: antecedent_graph::Cpdag, max_completions: usize, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::CpdagReview>::fn accept_edge(self, from: antecedent_core::ids::VariableId, to: antecedent_core::ids::VariableId) -> Self
 pub fn <antecedent_graph::CpdagReview>::fn from_cpdag(graph: antecedent_graph::Cpdag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_graph::CpdagReview>::fn is_complete(&self) -> bool
@@ -795,6 +804,9 @@ pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn hit_cap(&self) -> 
 pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn max_completions(&self) -> usize
 pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn n_undirected(&self) -> usize
 pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn new(cpdag: antecedent_graph::TemporalCpdag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn search_receipt(&self) -> core::option::Option<antecedent_core::search::SearchReceipt>
+pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn search_stop(&self) -> core::option::Option<antecedent_core::search::SearchStop>
+pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn with_budget(cpdag: antecedent_graph::TemporalCpdag, max_completions: usize, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalCpdagReview>::fn accept_edge(self, from: antecedent_core::temporal::TemporalNodeKey, to: antecedent_core::temporal::TemporalNodeKey) -> Self
 pub fn <antecedent_graph::TemporalCpdagReview>::fn from_cpdag(graph: antecedent_graph::TemporalCpdag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_graph::TemporalCpdagReview>::fn is_complete(&self) -> bool
@@ -847,9 +859,13 @@ pub fn <antecedent_graph::TemporalPag>::fn set_marks(&mut self, a: antecedent_gr
 pub fn <antecedent_graph::TemporalPag>::fn set_middle(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId, middle: antecedent_graph::MiddleMark) -> core::result::Result<(), antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPag>::fn try_into_temporal_dag(&self) -> core::result::Result<antecedent_graph::TemporalDag, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPag>::fn unfold(&self, indexer: antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::UnfoldedTemporalPag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn class_audit_incomplete(&self) -> bool
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn max_completions(&self) -> usize
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn search_receipt(&self) -> core::option::Option<&antecedent_core::search::SearchReceipt>
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn search_stop(&self) -> core::option::Option<antecedent_core::search::SearchStop>
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn validation_report(&self) -> antecedent_graph::CompletionValidationReport
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn for_window(pag: antecedent_graph::TemporalPag, max_completions: usize, indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn for_window_with_budget(pag: antecedent_graph::TemporalPag, max_completions: usize, indexer: &antecedent_core::temporal::TemporalIndexer, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn hit_cap(&self) -> bool
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn new(pag: antecedent_graph::TemporalPag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPagReview>::fn from_pag(graph: antecedent_graph::TemporalPag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
@@ -965,6 +981,7 @@ pub use antecedent_graph::admg::Admg = antecedent_graph::Admg
 pub use antecedent_graph::admg::CopyLabels = antecedent_graph::CopyLabels
 pub use antecedent_graph::completion::CompletionSampler = antecedent_graph::CompletionSampler
 pub use antecedent_graph::completion::CompletionValidationReport = antecedent_graph::CompletionValidationReport
+pub use antecedent_graph::completion::DEFAULT_COMPLETION_OPERATIONS = antecedent_graph::DEFAULT_COMPLETION_OPERATIONS
 pub use antecedent_graph::completion::PagCompletion = antecedent_graph::PagCompletion
 pub use antecedent_graph::cpdag::Cpdag = antecedent_graph::Cpdag
 pub use antecedent_graph::cpdag::CpdagReview = antecedent_graph::CpdagReview

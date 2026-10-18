@@ -41,8 +41,8 @@ catalog.filter(target) → rank(similarity)
    resolution; multi-step Sustained windows and Bayesian mediation refuse
    transfer, so their isotropic per-mechanism prior is the one checked.
 
-Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/prior_bank_surveys.py)
-(Rust: [`examples/rust/prior_bank_surveys.rs`](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/rust/prior_bank_surveys.rs)).
+Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/prior_bank_surveys.py)
+(Rust: [`examples/rust/prior_bank_surveys.rs`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/rust/prior_bank_surveys.rs)).
 
 ## Invariants
 

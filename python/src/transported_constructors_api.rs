@@ -17,14 +17,15 @@ use antecedent::analysis::adaptive_inference::{
 };
 use antecedent::analysis::sequential_evaluation as seq;
 use antecedent::analysis::transported_constructors::{
-    ActionAlphabet, AdaptiveTransportRequest, AdaptiveTransportedValue, BridgeSelectionDiagram,
-    HistoryAlphabet, MechanismStatus, ModelMechanism, SelectionDiagram, TemporalPolicyRequest,
-    TemporalTarget, TimeInvariance, TransportedContribution, TransportedPolicyRequest,
-    TransportedSurrogateBridge, TransportedSynthesisMethod, TrialMechanism, TrialSelectionDiagram,
-    adaptive_trial_response, evaluate_temporal_policy, evaluate_transported_policy,
-    surrogate_bridge_response, temporal_policy_response, transport_adaptive_trial,
-    transported_policy_response, transported_synthesis_response, verify_adaptive_transport,
-    verify_temporal_policy, verify_transported_policy,
+    ActionAlphabet, ActionUtility, AdaptiveTransportRequest, AdaptiveTransportedValue,
+    BridgeSelectionDiagram, HistoryAlphabet, MechanismStatus, ModelMechanism, SelectionDiagram,
+    TargetUtility, TemporalPolicyRequest, TemporalTarget, TimeInvariance, TransportedContribution,
+    TransportedPolicyRequest, TransportedSurrogateBridge, TransportedSynthesisMethod,
+    TrialMechanism, TrialSelectionDiagram, UtilityProvenance, adaptive_trial_response,
+    evaluate_temporal_policy, evaluate_transported_policy, surrogate_bridge_response,
+    temporal_policy_response, transport_adaptive_trial, transported_policy_response,
+    transported_synthesis_response, verify_adaptive_transport, verify_temporal_policy,
+    verify_transported_policy,
 };
 use antecedent_contract::bridge::{BridgeScope, TrialEffectPair, TrialLevelValidation};
 use antecedent_contract::evidence_ledger::SourceId;
@@ -115,6 +116,24 @@ struct DecisionIn {
 struct PolicyIn {
     version: String,
     decisions: Vec<DecisionIn>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ActionUtilityIn {
+    cost: f64,
+    immediate: Vec<f64>,
+    #[serde(default)]
+    delayed: Option<Vec<f64>>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TargetUtilityIn {
+    source: String,
+    digest: String,
+    terminal: Vec<f64>,
+    actions: Vec<ActionUtilityIn>,
 }
 
 #[derive(Deserialize)]
@@ -241,6 +260,22 @@ fn mechanisms_of(rows: Vec<MechanismIn>) -> PyResult<Vec<(ModelMechanism, Mechan
         .collect()
 }
 
+fn utility_of(text: Option<&str>) -> PyResult<Option<TargetUtility>> {
+    text.map(|text| {
+        let wire: TargetUtilityIn = declaration(text, "target utility")?;
+        Ok(TargetUtility {
+            provenance: UtilityProvenance { source: wire.source, digest: wire.digest },
+            terminal: wire.terminal,
+            actions: wire
+                .actions
+                .into_iter()
+                .map(|a| ActionUtility { cost: a.cost, immediate: a.immediate, delayed: a.delayed })
+                .collect(),
+        })
+    })
+    .transpose()
+}
+
 fn trial_mechanisms_of(
     rows: Vec<TrialMechanismIn>,
 ) -> PyResult<Vec<(TrialMechanism, MechanismStatus)>> {
@@ -329,7 +364,7 @@ fn transported_history_alphabet(model_json: &str) -> PyResult<(Option<String>, O
 
 /// A policy's value in another population, as a transported response.
 #[pyfunction]
-#[pyo3(signature = (model_json, policy_json, target_population, target_initial, diagram_json, coordinate_json, provider_id, max_nodes=None, *, cancel=None))]
+#[pyo3(signature = (model_json, policy_json, target_population, target_initial, diagram_json, coordinate_json, provider_id, max_nodes=None, target_utility_json=None, *, cancel=None))]
 #[allow(clippy::too_many_arguments)] // Mirrors the Python signature.
 fn transported_policy_construct(
     py: Python<'_>,
@@ -341,6 +376,7 @@ fn transported_policy_construct(
     coordinate_json: &str,
     provider_id: &str,
     max_nodes: Option<u64>,
+    target_utility_json: Option<&str>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Built> {
     let model = crate::sequential_evaluation_api::model_of(model_json)?;
@@ -359,6 +395,7 @@ fn transported_policy_construct(
             })
         }
     };
+    let target_utility = utility_of(target_utility_json)?;
     let coordinate = quantity_of(coordinate_json, "transported coordinate")?;
     let target_population = target_population.to_owned();
     let provider = provider_id.to_owned();
@@ -370,6 +407,7 @@ fn transported_policy_construct(
             target_population: &target_population,
             target_initial: target_initial.as_deref(),
             diagram: diagram.as_ref(),
+            target_utility: target_utility.as_ref(),
             limits: limits_of(max_nodes),
         };
         Ok(transported_policy_response(&request, coordinate, &provider, &ctx))
@@ -386,6 +424,11 @@ fn transported_policy_construct(
                 "shifted_mechanisms": e.shifted_mechanisms.iter().map(|m| m.name()).collect::<Vec<_>>(),
                 "diagram_identity": e.diagram_identity,
                 "target_initial": e.target_initial,
+                "target_utility": e.target_utility.as_ref().map(|u| json!({
+                    "source": u.provenance.source,
+                    "digest": u.provenance.digest,
+                    "identity": u.identity_hex(),
+                })),
                 "nodes_visited": e.nodes_visited,
                 "premises": premises_json(&e.premises),
                 "identity": e.identity,
@@ -806,7 +849,7 @@ fn stored_of(text: &str) -> PyResult<Json> {
 /// compare the stored identity and values bit for bit. Returns the refusal, or `None` when the
 /// stored evaluation replays.
 #[pyfunction]
-#[pyo3(signature = (model_json, policy_json, target_population, target_initial, diagram_json, stored_json, max_nodes=None, *, cancel=None))]
+#[pyo3(signature = (model_json, policy_json, target_population, target_initial, diagram_json, stored_json, max_nodes=None, target_utility_json=None, *, cancel=None))]
 #[allow(clippy::too_many_arguments)] // Mirrors the Python signature.
 fn transported_policy_verify(
     py: Python<'_>,
@@ -817,6 +860,7 @@ fn transported_policy_verify(
     diagram_json: Option<&str>,
     stored_json: &str,
     max_nodes: Option<u64>,
+    target_utility_json: Option<&str>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Option<String>> {
     let model = crate::sequential_evaluation_api::model_of(model_json)?;
@@ -835,6 +879,7 @@ fn transported_policy_verify(
             })
         }
     };
+    let target_utility = utility_of(target_utility_json)?;
     let stored = stored_of(stored_json)?;
     let (identity, target_value, source_value) = (
         stored_text(&stored, "identity")?,
@@ -850,6 +895,7 @@ fn transported_policy_verify(
             target_population: &target_population,
             target_initial: target_initial.as_deref(),
             diagram: diagram.as_ref(),
+            target_utility: target_utility.as_ref(),
             limits: limits_of(max_nodes),
         };
         // The stored claim is the re-derived evaluation with the stored identity and values

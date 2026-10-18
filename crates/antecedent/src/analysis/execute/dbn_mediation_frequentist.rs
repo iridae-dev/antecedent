@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Frequentist DBN-posterior temporal mediation.
 
+use super::temporal_effect_core::{mixture_read_variables, shared_gap_report};
 use super::temporal_posterior_response::dbn_posterior_structural_atoms;
 use super::{
     Arc, BootstrapAccounting, CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity,
@@ -90,6 +91,10 @@ impl super::Study {
     /// mediation refuters per contributing atom against that atom's own
     /// contrast (not the pooled mean) and mix by frozen graph weight; the mixed
     /// check passes only if every atom passes.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "every atom shares the gap admission, the replicate loop and the mixed refuters of one frozen posterior"
+    )]
     pub(super) fn execute_dbn_posterior_mediation_frequentist(
         &self,
         data: &TimeSeriesData,
@@ -122,7 +127,9 @@ impl super::Study {
         let horizon = query.horizons[0];
         let identified = identified.mediation_horizon(horizon)?;
         let mut atoms = dbn_posterior_structural_atoms(&identified);
-        let est = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
+        let est = TemporalMediationEstimator::new()
+            .with_allow_natural_controlled_alias(true)
+            .with_allow_gaps(self.declares_complete_case());
         let DbnMediationFits {
             designs,
             weights,
@@ -175,7 +182,21 @@ impl super::Study {
             )?;
         }
         let atom_points: Vec<f64> = designs.iter().map(|d| d.estimate().effect.ate).collect();
-        Ok(self.finish_dbn_mediation(
+        let missing_data = if self.declares_complete_case() {
+            let variables = mixture_read_variables(
+                [query.treatment, query.outcome],
+                refute_atoms.iter().map(|(_, _, estimand, _)| estimand),
+                std::iter::empty(),
+            );
+            let windows: Vec<_> = designs
+                .iter()
+                .map(antecedent_estimate::PreparedTemporalMediation::window_selection)
+                .collect();
+            Some(shared_gap_report(data, &variables, &windows)?)
+        } else {
+            None
+        };
+        let mut result = self.finish_dbn_mediation(
             physical,
             query,
             DbnMediationParts {
@@ -194,7 +215,9 @@ impl super::Study {
             },
             started,
             ctx,
-        ))
+        );
+        result.missing_data = missing_data;
+        Ok(result)
     }
 
     /// The fixed-weight mean of the atoms' point, Total, Direct and Mediated

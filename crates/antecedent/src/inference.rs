@@ -98,6 +98,35 @@ pub struct BayesianConfig {
     pub external_compose: Option<Box<ExternalComposeSpec>>,
 }
 
+/// Numerical controls on the posterior draws behind a published interval.
+///
+/// Requested with [`crate::StudyBuilder::draw_controls`]. The draw count must reach the
+/// supported minimum of the backend (2000 draws for the exact conjugate and Laplace
+/// samplers, 3000 for HMC, the floor its chain diagnostics need), and a smaller count is
+/// refused at build, naming the minimum, never rewritten. The interval is then refused
+/// when the Monte Carlo standard error of its larger endpoint is more than a twentieth of
+/// its width, where an MCMC sampler's draws are discounted by their tail effective sample
+/// size, so a sampler that mixes poorly refuses naming that error; the error is reported
+/// beside the interval. The controls apply to a tabular average or conditional effect on one
+/// `Dag` estimated by Bayesian g-computation; any other route refuses them rather than
+/// ignore them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PosteriorDrawControls {
+    /// The supported minimum draw count and the endpoint Monte Carlo error bound.
+    Measured,
+}
+
+impl PosteriorDrawControls {
+    /// Stable name carried in the inference identity.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Measured => "measured",
+        }
+    }
+}
+
 impl BayesianConfig {
     /// Whether the config carries any coefficient prior beyond the isotropic
     /// scale: an explicit prior, a mapped posterior artifact, or an external

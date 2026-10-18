@@ -18,10 +18,10 @@ use antecedent_core::{
 use antecedent_graph::{Cpdag, DenseNodeId, NodeRef};
 use antecedent_identify::ClassicalTransportQuery;
 use antecedent_identify::sid::cpdag_completion::{
-    CPDAG_BOUNDS_EXCEEDED_DETAIL, CPDAG_EVIDENCE_MISMATCH_DETAIL, CPDAG_NO_EVIDENCE_DETAIL,
-    CPDAG_NOT_A_CPDAG_DETAIL, CPDAG_SELECTION_OR_LATENT_DETAIL, CompletionEvidenceBinding,
-    CpdagCompletionDecision, CpdagCompletionInput, CpdagEnumeration, CpdagEvidence,
-    CpdagScenarioError, decide_cpdag_completions, enumerate_cpdag_completions,
+    CPDAG_EVIDENCE_MISMATCH_DETAIL, CPDAG_NO_EVIDENCE_DETAIL, CPDAG_NOT_A_CPDAG_DETAIL,
+    CPDAG_SELECTION_OR_LATENT_DETAIL, CompletionEvidenceBinding, CpdagCompletionDecision,
+    CpdagCompletionInput, CpdagEnumeration, CpdagEvidence, CpdagScenarioError,
+    decide_cpdag_completions, enumerate_cpdag_completions,
 };
 use antecedent_identify::sid::scenarios::{ScenarioCoordinate, ScenarioOutcome};
 
@@ -269,20 +269,48 @@ fn refusal(error: CpdagScenarioError) -> (&'static str, &'static str) {
 }
 
 #[test]
+fn classes_beyond_the_old_six_node_bound_enumerate_under_the_budget() {
+    let ctx = ExecutionContext::for_tests(1);
+    // An undirected path on 20 nodes has one completion per source (19 undirected edges).
+    let mut path = Cpdag::with_variables(20);
+    for i in 0..19 {
+        path.insert_undirected(d(i), d(i + 1)).unwrap();
+    }
+    let all =
+        enumerate_cpdag_completions(&CpdagCompletionInput::new(path.clone()), BIG, &ctx).unwrap();
+    assert_eq!(all.completions.len(), 20);
+    assert!(all.is_exportable());
+    let identities: BTreeSet<_> = all.completions.iter().map(|c| c.identity.clone()).collect();
+    assert_eq!(identities.len(), 20, "every completion has its own identity");
+    // Every completion has exactly one source, the root of its orientation.
+    for completion in &all.completions {
+        let sources =
+            (0..20).filter(|&n| completion.edges.iter().all(|&(_, child)| child != v(n))).count();
+        assert_eq!(sources, 1);
+    }
+    // The complete undirected graph on five nodes has 5! = 120 completions, more than the
+    // 64 a supplied scenario list may hold.
+    let mut complete = Cpdag::with_variables(5);
+    for a in 0..5 {
+        for b in (a + 1)..5 {
+            complete.insert_undirected(d(a), d(b)).unwrap();
+        }
+    }
+    let k5 = enumerate_cpdag_completions(&CpdagCompletionInput::new(complete), BIG, &ctx).unwrap();
+    assert_eq!(k5.completions.len(), 120);
+    // A budget too small for the class stops with a receipt and a conservative remainder.
+    let starved = SearchLimits { operations: 5, depth: 64 };
+    let stopped =
+        enumerate_cpdag_completions(&CpdagCompletionInput::new(path), starved, &ctx).unwrap();
+    let receipt = stopped.receipt.as_ref().expect("the budget stops the enumeration");
+    assert_eq!(receipt.stop, SearchStop::Operations);
+    assert!(!stopped.is_exportable());
+    assert!(stopped.not_enumerated > 0);
+}
+
+#[test]
 fn cpdag_missing_evidence_refusals() {
     let ctx = ExecutionContext::for_tests(1);
-    // More than six nodes.
-    let mut seven = Cpdag::with_variables(7);
-    for i in 0..6 {
-        seven.insert_undirected(d(i), d(i + 1)).unwrap();
-    }
-    let refused =
-        enumerate_cpdag_completions(&CpdagCompletionInput::new(seven), BIG, &ctx).unwrap_err();
-    assert_eq!(
-        (refused.code, refused.detail),
-        ("route_not_supported", CPDAG_BOUNDS_EXCEEDED_DETAIL)
-    );
-    assert_eq!(CPDAG_BOUNDS_EXCEEDED_DETAIL, "cpdag_scenarios.bounds_exceeded");
     // A selection target and a latent pair.
     let chain = || CpdagCompletionInput::new(cpdag(&case_named("chain")));
     let mut selected = chain();
@@ -557,6 +585,88 @@ fn cpdag_budget_stop_decisions() {
     assert!(partial.not_enumerated > 0);
     let decision = partial.decision.as_ref().unwrap();
     assert_eq!(decision.decisions.len(), partial.completions.len());
+    assert!(decision.decisions.iter().all(|d| d.outcome.status() == "unevaluated"));
+    assert_eq!(decision.receipt.as_ref().unwrap().stop, SearchStop::Operations);
+}
+
+/// The limits of a class with 72 undirected edges: the depth is the edges being oriented.
+const WIDE: SearchLimits = SearchLimits { operations: 1_000_000, depth: 128 };
+
+#[test]
+fn a_seventy_two_edge_class_completes_with_the_oracle_completions_and_audited_identities() {
+    let ctx = ExecutionContext::for_tests(1);
+    // An undirected path on 73 nodes: 72 undirected edges, past the old ceiling of 64. A
+    // completion is a choice of the single source, with every edge oriented away from it.
+    let nodes = 73_u32;
+    let mut path = Cpdag::with_variables(nodes);
+    for i in 0..nodes - 1 {
+        path.insert_undirected(d(i), d(i + 1)).unwrap();
+    }
+    let all =
+        enumerate_cpdag_completions(&CpdagCompletionInput::new(path.clone()), WIDE, &ctx).unwrap();
+    assert!(all.is_exportable() && all.not_enumerated == 0 && all.receipt.is_none());
+    assert_eq!(all.completions.len(), nodes as usize);
+    let expected: BTreeSet<Edges> = (0..nodes)
+        .map(|source| {
+            let mut edges: Edges =
+                (0..nodes - 1).map(|i| if i < source { (i + 1, i) } else { (i, i + 1) }).collect();
+            edges.sort_unstable();
+            edges
+        })
+        .collect();
+    assert_eq!(found(&all), expected, "one completion per source, nothing else");
+    let ids = all.completions.iter().map(|c| c.identity.to_string()).collect::<Vec<_>>();
+    assert!(ids.windows(2).all(|w| w[0] < w[1]), "identities are distinct and ordered");
+    // Replaying the enumeration reproduces the class and its identity.
+    let replay = enumerate_cpdag_completions(&CpdagCompletionInput::new(path), WIDE, &ctx).unwrap();
+    assert_eq!(replay.cpdag_identity, all.cpdag_identity);
+    assert_eq!(replay.completions, all.completions);
+}
+
+#[test]
+fn a_partial_search_is_labelled_partial_and_supports_no_class_wide_claim() {
+    let case = six();
+    let total = oracle(&case).len();
+    let ctx = ExecutionContext::for_tests(1);
+    // A completed audit: no receipt, every completion found, exportable.
+    let whole = run(&case, BIG, &ctx);
+    assert!(whole.receipt.is_none() && whole.is_exportable() && whole.not_enumerated == 0);
+    assert_eq!(found(&whole), oracle(&case));
+    // The same class under an exhausted budget: a receipt names the stop, the enumeration is
+    // not exportable, and what it found is a subset of the class with an unenumerated remainder.
+    let partial = run(&case, SearchLimits { operations: 10, depth: 64 }, &ctx);
+    let receipt = partial.receipt.as_ref().expect("an exhausted budget leaves a receipt");
+    assert_eq!(receipt.stop, SearchStop::Operations);
+    assert!(!partial.is_exportable());
+    assert!(partial.not_enumerated > 0 && partial.completions.len() < total);
+    assert!(found_in(&partial, &oracle(&case)));
+    assert!(partial.total() >= total, "the remainder is an upper bound, never a made-up count");
+    // No class-wide claim follows from the partial search: every completion it holds is
+    // unevaluated, while the completed audit evaluates every completion of the class.
+    let evidence = || CpdagEvidence::Shared {
+        evidence_identity: Arc::from("target-law"),
+        catalog: target_catalog(&[0, 1, 2, 3, 4, 5]),
+    };
+    let decide_under = |limits: SearchLimits| {
+        decide_cpdag_completions(
+            &CpdagCompletionInput::new(cpdag(&case)),
+            &binary_coordinates(6),
+            &query(),
+            &evidence(),
+            limits,
+            &ctx,
+        )
+        .unwrap()
+    };
+    let complete = decide_under(SEARCH);
+    assert!(complete.is_exportable() && complete.completions.len() == total);
+    let statuses = complete.decision.as_ref().unwrap();
+    assert_eq!(statuses.decisions.len(), total);
+    assert!(statuses.decisions.iter().all(|d| d.outcome.status() != "unevaluated"));
+    assert!(statuses.receipt.is_none());
+    let stopped = decide_under(SearchLimits { operations: 12, depth: 256 });
+    assert!(!stopped.is_exportable() && stopped.not_enumerated > 0);
+    let decision = stopped.decision.as_ref().unwrap();
     assert!(decision.decisions.iter().all(|d| d.outcome.status() == "unevaluated"));
     assert_eq!(decision.receipt.as_ref().unwrap().stop, SearchStop::Operations);
 }

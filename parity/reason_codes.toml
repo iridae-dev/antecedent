@@ -7,7 +7,7 @@
 id = "no_interval_reported"
 applies_to = ["calibration"]
 meaning = "The cell reports no interval; nothing to calibrate."
-max_uses = 249
+max_uses = 250
 # Eligibility: a licensed cell may cite this code only for these queries,
 # which report a point quantity without a sampling interval.
 queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution", "AverageEffect", "InterventionResponse", "InterventionalDistribution", "PathSpecificEffect", "ResponseCurve", "TransportQuery", "TemporalConditionalPulse", "TemporalConditionalSustained", "AverageDerivative", "PointDerivative", "Elasticity", "SemiElasticity", "DirectionalDerivative", "ResponseJacobian"]
@@ -22,7 +22,7 @@ max_uses = 36
 id = "estimator_grid_not_measured"
 applies_to = ["calibration"]
 meaning = "No coverage record measured this construction (query, graph class, structure, inference, estimator, interval method, SE kind, dependence, posterior, functional)."
-max_uses = 175
+max_uses = 176
 
 [[code]]
 id = "interval_level_not_measured"
@@ -108,6 +108,16 @@ meaning = "A banked posterior's coefficient count does not match the target desi
 id = "likelihood_not_supported"
 applies_to = ["runtime_refusal"]
 meaning = "The Bayesian route fits a Gaussian identity-link model only, or cannot carry a transferred prior onto a non-Gaussian link; a Bernoulli or Poisson likelihood is refused rather than fitted as Gaussian."
+
+[[code]]
+id = "posterior_draws_below_supported"
+applies_to = ["runtime_refusal"]
+meaning = "A posterior draw count below the supported minimum of the backend was requested under draw controls. The refusal names the minimum; the count is never rewritten."
+
+[[code]]
+id = "posterior_draws_not_converged"
+applies_to = ["runtime_refusal"]
+meaning = "Under draw controls the Monte Carlo standard error of an interval endpoint exceeds the accepted fraction of the interval width, because the draws (too few, or autocorrelated by a sampler that mixes poorly) rather than the posterior set the endpoints. The refusal names the endpoint errors, the effective draws and the tolerance."
 
 [[code]]
 id = "stage_stream_unavailable"
@@ -350,6 +360,11 @@ applies_to = ["runtime_refusal"]
 meaning = "The point is retained but its interval is withheld: sampling dependence between the studies or units it combines is undeclared, and independence is never assumed."
 
 [[code]]
+id = "sampling_weights_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "Declared sampling weights are not a valid weighted population: a weight is negative, NaN or infinite, every weight is zero, no analysed row has a positive weight, or the declaration does not cover the table's rows. The refusal names the first offending weight."
+
+[[code]]
 id = "scenario_aggregate_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "An inferential statement across structural scenarios that share data was requested; only per-scenario results and structural envelopes are licensed."
@@ -429,6 +444,17 @@ meaning = "A diagnostic is requested that the executed route's own design does n
 id = "mechanism_composition_incoherent"
 applies_to = ["runtime_refusal"]
 meaning = "Independently fitted mechanisms do not establish one coherent joint law: a support gap between a producer and its consumer, a conditioning set that is not the parent set, a dropped or unloaded shared latent cause, misaligned or contradicted parameter uncertainty, missing mechanism provenance, mixed families, or a mechanism outside the bounded composition family. The detail names the defect and the refusal states the declaration that would license the composition."
+
+# Mechanism selection (candidate sets, per-node constraints, validation splits).
+[[code]]
+id = "mechanism_candidates_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A mechanism candidate list, per-node family constraint or validation-split declaration cannot be honoured: an unknown family or alias, an empty list, a variable outside the model, two constraints on one variable, a family both required and excluded or outside the allowed list, a required family of the wrong outcome type, or time-ordered or clustered splits the rows cannot support. Raised before any family is fit; the message names the node and the defect."
+
+[[code]]
+id = "mechanism_family_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "A family a node requires could not be scored or fit on that node (a tree ensemble on a root or on fewer rows than it needs, a provider that is not compiled in, a fit that failed on every fold). The message names the node, the family and its failure; the other candidates' scores are not used to substitute another family."
 
 # Evidence ledger (promotion records: evidence_ledger.* in parity/promotion.toml).
 [[code]]
@@ -686,3 +712,78 @@ meaning = "A single adjustment column near-deterministically predicts a treatmen
 id = "adjustment_column_tracks_outcome"
 applies_to = ["runtime_refusal"]
 meaning = "A single adjustment column near-deterministically predicts the outcome; review finding."
+
+[[code]]
+id = "treatment_level_undeclared"
+applies_to = ["runtime_refusal"]
+meaning = "The treatment column has rows at a level that is none of the levels the estimate declares (the active and control levels of a pairwise contrast, or the declared level set of a full-population generalized-propensity estimate). Dropping those rows would restrict the target population, so the estimate refuses unless the restriction to the rows at the declared levels is declared."
+
+[[code]]
+id = "positivity_violated"
+applies_to = ["runtime_refusal"]
+meaning = "A probability the estimand divides by is not supported by the data or the declaration: a treatment action's propensity, or the probability of remaining uncensored through the declared horizon, is zero or below the declared floor, a policy takes an action outside the declared treatment support, or no unit is followed to the horizon. The refusal names the action, arm or horizon and the smallest probability found."
+
+[[code]]
+id = "policy_learned_on_evaluation_rows"
+applies_to = ["runtime_refusal"]
+meaning = "A treatment policy declared as learned on the rows that would score it. Its value on those rows is estimated too high because the policy was chosen to fit them; the refusal names the two honest evaluations, independent held-out rows and cross-fitted learning."
+
+[[code]]
+id = "missing_policy_required"
+applies_to = ["runtime_refusal"]
+meaning = "A route that has no default for missing values found one and no missing-data policy was declared. Randomized, panel, temporal and NOTEARS routes never delete, weight or restrict rows on their own. The refusal names the first missing cell (column and row) and the policies the route can execute."
+
+[[code]]
+id = "missing_policy_not_applicable"
+applies_to = ["runtime_refusal"]
+meaning = "A declared missing-data policy cannot be executed validly on this route or design: deleting rows would unbalance a panel or compress a time axis, the design (cluster, stratified, factorial, multi-arm, switchback, receipt-adjusted) has no responder-weighted estimator, or the covariates of the observation model are themselves incomplete. The refusal names the policies the route supports."
+
+[[code]]
+id = "policy_dependency_circular"
+applies_to = ["runtime_refusal"]
+meaning = "A value program reads a variable that depends on the node it assigns, directly, through the graph's edges or through other programs' reads, so no evaluation order computes the inputs before the node. The refusal names the cycle and the policies in it."
+
+[[code]]
+id = "policy_dependency_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "A value program reads a variable it cannot see: a variable absent from the compiled model, a read it did not declare exactly, or the generated value of a node whose mechanism the program replaces (an assignment). The refusal names the policy and the missing or undeclared read."
+
+[[code]]
+id = "policy_directive_conflict"
+applies_to = ["runtime_refusal"]
+meaning = "Two directives on one node have no well-defined composition: two different value programs, a program with a hard set or an additive shift, or an assignment with a stochastic policy or soft mechanism. The refusal names the node and both directives."
+
+[[code]]
+id = "policy_output_type_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A value program produces a type its node cannot hold: a boolean written to a numeric node without an explicit indicator, or a number that is not a level of a categorical node's support. The refusal names the node and the expression's type."
+
+[[code]]
+id = "policy_history_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "A value program reads temporal history that the route cannot supply: a lagged read on a static model with no declared history window, a look-back deeper than the route's declared window, a look-back that reaches before the first available step of a temporal rollout, or a look-back of zero steps (a future value does not exist when the policy applies). The refusal names the offending reference and, for a rollout, the step."
+
+[[code]]
+id = "policy_route_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "A policy is licensed for some execution routes but not the one requested. Simulation and counterfactual execution accept any valid program; observational identification accepts only programs that reduce to a hard level (a set, or an assignment that folds to a constant). The refusal names the route and the routes the policy is licensed for."
+
+[[code]]
+id = "policy_callback_failed"
+applies_to = ["runtime_refusal"]
+meaning = "A caller-supplied batch callback in a value program raised while it ran (a Python exception, for instance). The refusal carries the callback's own error message and the callback's name; a failure is never turned into a missing value or a default."
+
+[[code]]
+id = "policy_callback_output_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A batch callback returned an output that violates its declaration: the wrong number of values, a dtype that is not real-valued, a non-finite value, or a value outside the declared support or levels. The refusal names the callback, the first offending row and the declaration."
+
+[[code]]
+id = "policy_callback_not_portable"
+applies_to = ["runtime_refusal"]
+meaning = "A value program contains a callback that is a runtime binding (an in-process function with no verifiable recoverable implementation), so no artifact, identity or wire encoding can carry it. A callback is exportable only when declared with a content digest of its self-contained source and pinned dependency versions that the consumer re-verifies; a dependency declared without a pinned version leaves nothing to verify and is refused the same way. The refusal names the callback."
+
+[[code]]
+id = "policy_callback_unrecoverable"
+applies_to = ["runtime_refusal"]
+meaning = "A recovery record for a callback does not verify against the implementation supplied for replay: the source digest, entry point, input labels, output declaration or a pinned dependency version differs, a pinned dependency is not installed, or no implementation was supplied for a record the artifact carries. The refusal names the callback and the first mismatching field."

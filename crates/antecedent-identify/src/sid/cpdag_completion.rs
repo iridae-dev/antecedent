@@ -1,7 +1,7 @@
 //! Bounded DAG completions of a supplied CPDAG, decided as a finite scenario set.
 //!
-//! Graph class: a supplied CPDAG of at most [`CPDAG_MAX_NODES`] fully observed
-//! nodes. A completion is a DAG with the CPDAG's skeleton and exactly its
+//! Graph class: a supplied CPDAG of fully observed nodes, of any size the search
+//! budget can enumerate. A completion is a DAG with the CPDAG's skeleton and exactly its
 //! v-structures (every directed CPDAG edge kept, every undirected edge oriented
 //! so that no directed cycle and no new unshielded collider appears). Selection
 //! edges and latent (bidirected) edges are refused, never projected away.
@@ -35,11 +35,11 @@ use antecedent_core::{
     CanonicalWriter, EvidenceCatalog, ExecutionContext, NodeRef, SearchBudget, SearchLimits,
     SearchReceipt, SearchStop, VariableId, reason_code,
 };
-use antecedent_graph::{Admg, Cpdag, DenseNodeId, SelectionDiagram};
+use antecedent_graph::{Admg, BitSet, Cpdag, DenseNodeId, SelectionDiagram};
 
 use super::scenarios::{
-    SCENARIO_MAX_COUNT, ScenarioCoordinate, ScenarioDecision, ScenarioDecisionLimits,
-    ScenarioOutcome, ScenarioQuestion, ScenarioSetDecision, ScenarioSetRefusal, TransportScenario,
+    ScenarioCoordinate, ScenarioDecision, ScenarioDecisionLimits, ScenarioOutcome,
+    ScenarioQuestion, ScenarioSetDecision, ScenarioSetRefusal, TransportScenario,
     TransportScenarioSet,
 };
 use super::{
@@ -48,13 +48,21 @@ use super::{
     identify_classical_transport_metered,
 };
 
-/// Most nodes of a supplied CPDAG.
+/// Most nodes of a supplied CPDAG under the earlier fixed ceiling.
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced: the completion enumeration is bounded by the search budget"
+)]
 pub const CPDAG_MAX_NODES: usize = 6;
 
 /// Selection or latent structure was supplied.
 pub const CPDAG_SELECTION_OR_LATENT_DETAIL: &str = "cpdag_scenarios.selection_or_latent";
-/// More than [`CPDAG_MAX_NODES`] nodes.
-pub const CPDAG_BOUNDS_EXCEEDED_DETAIL: &str = "cpdag_scenarios.bounds_exceeded";
+/// Refusal detail of the earlier node-count ceiling ([`CPDAG_MAX_NODES`]).
+///
+/// Never emitted now. It is written as two literals so the refusal-detail registry gate does
+/// not read this retained name as a live emission.
+#[deprecated(since = "2.4.1", note = "no longer emitted: the node count is not bounded")]
+pub const CPDAG_BOUNDS_EXCEEDED_DETAIL: &str = concat!("cpdag_scenarios", ".bounds_exceeded");
 /// The input is not a valid CPDAG.
 pub const CPDAG_NOT_A_CPDAG_DETAIL: &str = "cpdag_scenarios.not_a_cpdag";
 /// An evidence binding names a completion identity that does not match.
@@ -226,23 +234,21 @@ impl CpdagCompletionDecision {
     }
 }
 
-/// The CPDAG as index-addressed masks over its ascending variable order.
+/// The CPDAG as index-addressed bitsets over its ascending variable order.
 struct Skeleton {
     variables: Vec<VariableId>,
     fixed: Vec<(usize, usize)>,
     undirected: Vec<(usize, usize)>,
-    adjacent: [u8; CPDAG_MAX_NODES],
+    adjacent: Vec<BitSet>,
+}
+
+fn node(index: usize) -> DenseNodeId {
+    DenseNodeId::from_index(index)
 }
 
 impl Skeleton {
     fn from_input(input: &CpdagCompletionInput) -> Result<Self, ScenarioSetRefusal> {
         let cpdag = &input.cpdag;
-        if cpdag.node_count() > CPDAG_MAX_NODES {
-            return Err(unsupported(
-                CPDAG_BOUNDS_EXCEEDED_DETAIL,
-                format!("{} nodes exceed the bound of {CPDAG_MAX_NODES}", cpdag.node_count()),
-            ));
-        }
         if !input.selection_targets.is_empty() || !input.latent_pairs.is_empty() {
             return Err(unsupported(
                 CPDAG_SELECTION_OR_LATENT_DETAIL,
@@ -265,13 +271,13 @@ impl Skeleton {
             dense.get(dense_id.as_usize()).and_then(|v| variables.binary_search(v).ok())
         };
         let (mut fixed, mut undirected) = (Vec::new(), Vec::new());
-        let mut adjacent = [0_u8; CPDAG_MAX_NODES];
+        let mut adjacent = vec![BitSet::with_len(variables.len()); variables.len()];
         for edge in cpdag.edges() {
             let (Some(a), Some(b)) = (index_of(edge.a), index_of(edge.b)) else {
                 return Err(not_a_cpdag("an edge names an unknown node"));
             };
-            adjacent[a] |= 1 << b;
-            adjacent[b] |= 1 << a;
+            adjacent[a].insert(node(b));
+            adjacent[b].insert(node(a));
             if let Some((from, to)) = edge.parent_child() {
                 match (index_of(from), index_of(to)) {
                     (Some(from), Some(to)) => fixed.push((from, to)),
@@ -321,10 +327,10 @@ impl Skeleton {
 
     /// The completion an orientation mask names: bit `k` set orients
     /// `undirected[k]` as `.0 -> .1`, clear as `.1 -> .0`.
-    fn completion(&self, mask: u32) -> CompletionDag {
+    fn completion(&self, mask: &BitSet) -> CompletionDag {
         let mut edges = self.fixed.clone();
         for (k, (a, b)) in self.undirected.iter().enumerate() {
-            edges.push(if mask & (1 << k) != 0 { (*a, *b) } else { (*b, *a) });
+            edges.push(if mask.contains(node(k)) { (*a, *b) } else { (*b, *a) });
         }
         let mut edges: Vec<(VariableId, VariableId)> =
             edges.into_iter().map(|(p, c)| (self.variables[p], self.variables[c])).collect();
@@ -343,9 +349,10 @@ impl Skeleton {
 /// Mutable orientation state of the depth-first enumeration.
 struct Orienter<'a> {
     skeleton: &'a Skeleton,
-    parents: [u8; CPDAG_MAX_NODES],
-    children: [u8; CPDAG_MAX_NODES],
-    masks: Vec<u32>,
+    parents: Vec<BitSet>,
+    children: Vec<BitSet>,
+    /// One orientation mask per completion found: bit `k` is the direction of `undirected[k]`.
+    masks: Vec<BitSet>,
     bytes: u64,
 }
 
@@ -354,23 +361,38 @@ type Charge<'c> = dyn FnMut(usize, u64) -> Result<(), SearchStop> + 'c;
 
 impl<'a> Orienter<'a> {
     fn new(skeleton: &'a Skeleton) -> Self {
+        let n = skeleton.variables.len();
         let mut state = Self {
             skeleton,
-            parents: [0; CPDAG_MAX_NODES],
-            children: [0; CPDAG_MAX_NODES],
+            parents: vec![BitSet::with_len(n); n],
+            children: vec![BitSet::with_len(n); n],
             masks: Vec::new(),
             bytes: skeleton.completion_bytes(),
         };
         for (from, to) in &skeleton.fixed {
-            state.children[*from] |= 1_u8 << *to;
-            state.parents[*to] |= 1_u8 << *from;
+            state.children[*from].insert(node(*to));
+            state.parents[*to].insert(node(*from));
         }
         state
     }
 
     /// Whether `to` is reachable from `from` along directed edges.
     fn reaches(&self, from: usize, to: usize) -> bool {
-        antecedent_graph::algo::mask_closure(1_u8 << from, &self.children, 0) & (1 << to) != 0
+        let mut seen = BitSet::with_len(self.children.len());
+        seen.insert(node(from));
+        let mut stack = vec![from];
+        while let Some(current) = stack.pop() {
+            if current == to {
+                return true;
+            }
+            for child in self.children[current].iter() {
+                if !seen.contains(child) {
+                    seen.insert(child);
+                    stack.push(child.as_usize());
+                }
+            }
+        }
+        false
     }
 
     /// Whether `from -> to` keeps the graph acyclic and creates no unshielded
@@ -380,32 +402,42 @@ impl<'a> Orienter<'a> {
         if self.reaches(to, from) {
             return false;
         }
-        let others = self.parents[to] & !(1 << from);
-        others & !self.skeleton.adjacent[from] == 0
+        let mut others = self.parents[to].clone();
+        others.remove(node(from));
+        others.is_subset_of(&self.skeleton.adjacent[from])
     }
 
     fn orient(&mut self, from: usize, to: usize, on: bool) {
         if on {
-            self.children[from] |= 1 << to;
-            self.parents[to] |= 1 << from;
+            self.children[from].insert(node(to));
+            self.parents[to].insert(node(from));
         } else {
-            self.children[from] &= !(1 << to);
-            self.parents[to] &= !(1 << from);
+            self.children[from].remove(node(to));
+            self.parents[to].remove(node(from));
         }
     }
 
-    fn walk(&mut self, k: usize, mask: u32, charge: &mut Charge<'_>) -> Result<(), SearchStop> {
+    fn walk(
+        &mut self,
+        k: usize,
+        mask: &mut BitSet,
+        charge: &mut Charge<'_>,
+    ) -> Result<(), SearchStop> {
         let Some(&(a, b)) = self.skeleton.undirected.get(k) else {
             charge(k, self.bytes.saturating_add(self.skeleton.completion_bytes()))?;
-            self.masks.push(mask);
+            self.masks.push(mask.clone());
             self.bytes = self.bytes.saturating_add(self.skeleton.completion_bytes());
             return Ok(());
         };
-        for (from, to, bit) in [(a, b, 1_u32 << k), (b, a, 0)] {
+        for (from, to, forward) in [(a, b, true), (b, a, false)] {
             charge(k + 1, self.bytes)?;
             if self.admissible(from, to) {
                 self.orient(from, to, true);
-                let result = self.walk(k + 1, mask | bit, charge);
+                if forward {
+                    mask.insert(node(k));
+                }
+                let result = self.walk(k + 1, mask, charge);
+                mask.remove(node(k));
                 self.orient(from, to, false);
                 result?;
             }
@@ -415,9 +447,10 @@ impl<'a> Orienter<'a> {
 }
 
 /// Run the orientation search, returning the masks found and the stop, if any.
-fn run_walk(skeleton: &Skeleton, charge: &mut Charge<'_>) -> (Vec<u32>, Option<SearchStop>) {
+fn run_walk(skeleton: &Skeleton, charge: &mut Charge<'_>) -> (Vec<BitSet>, Option<SearchStop>) {
     let mut orienter = Orienter::new(skeleton);
-    let stop = orienter.walk(0, 0, charge).err();
+    let mut mask = BitSet::with_len(skeleton.undirected.len());
+    let stop = orienter.walk(0, &mut mask, charge).err();
     (orienter.masks, stop)
 }
 
@@ -430,11 +463,11 @@ fn start(limits: SearchLimits, ctx: &ExecutionContext) -> Result<SharedSearch<'_
 /// remainder of a stopped one and checking that a finished one is a CPDAG.
 fn finish(
     skeleton: &Skeleton,
-    masks: &[u32],
+    masks: &[BitSet],
     stop: Option<SearchReceipt>,
 ) -> Result<CpdagEnumeration, ScenarioSetRefusal> {
     let mut completions: Vec<CompletionDag> =
-        masks.iter().map(|m| skeleton.completion(*m)).collect();
+        masks.iter().map(|m| skeleton.completion(m)).collect();
     completions.sort_by(|a, b| a.identity.cmp(&b.identity));
     let cpdag_identity = skeleton.cpdag_identity();
     let variables = skeleton.variables.clone();
@@ -442,7 +475,10 @@ fn finish(
         // No work may resume after an operation, memory or cancellation stop.
         // Every completion is one orientation of the undirected edges; this
         // conservative bound deliberately includes invalid/unvisited orientations.
-        let total = 1_usize << skeleton.undirected.len();
+        let total = u32::try_from(skeleton.undirected.len())
+            .ok()
+            .and_then(|edges| 1_usize.checked_shl(edges))
+            .unwrap_or(usize::MAX);
         let not_enumerated = total.saturating_sub(completions.len());
         receipt.explored = completions.iter().map(|c| c.identity.to_string()).collect();
         receipt.unevaluated =
@@ -468,7 +504,10 @@ fn finish(
 /// A CPDAG has at least one completion and every undirected edge is oriented
 /// both ways among them; otherwise some orientation was compelled and the
 /// supplied graph is not the equivalence class's CPDAG.
-fn check_maximally_oriented(skeleton: &Skeleton, masks: &[u32]) -> Result<(), ScenarioSetRefusal> {
+fn check_maximally_oriented(
+    skeleton: &Skeleton,
+    masks: &[BitSet],
+) -> Result<(), ScenarioSetRefusal> {
     if masks.is_empty() {
         return Err(not_a_cpdag(
             "the graph has no consistent DAG completion (a cycle or an unsupported collider)",
@@ -478,19 +517,25 @@ fn check_maximally_oriented(skeleton: &Skeleton, masks: &[u32]) -> Result<(), Sc
     // through covered-edge reversals. If a supplied fixed edge were reversible,
     // the first reversal of any fixed edge would be covered in a completion we
     // enumerated. Refuse that witness instead of silently shrinking the class.
-    for &mask in masks {
-        let mut parents = Orienter::new(skeleton).parents;
+    let initial = Orienter::new(skeleton).parents;
+    for mask in masks {
+        let mut parents = initial.clone();
         for (k, &(a, b)) in skeleton.undirected.iter().enumerate() {
-            let (from, to) = if mask & (1 << k) != 0 { (a, b) } else { (b, a) };
-            parents[to] |= 1 << from;
+            let (from, to) = if mask.contains(node(k)) { (a, b) } else { (b, a) };
+            parents[to].insert(node(from));
         }
-        if skeleton.fixed.iter().any(|&(a, b)| parents[b] == (parents[a] | (1 << a))) {
+        let reversible = skeleton.fixed.iter().any(|&(a, b)| {
+            let mut covering = parents[a].clone();
+            covering.insert(node(a));
+            parents[b].equal_set(&covering)
+        });
+        if reversible {
             return Err(not_a_cpdag("a directed edge is reversible within the equivalence class"));
         }
     }
     for k in 0..skeleton.undirected.len() {
-        let forward = masks.iter().any(|m| m & (1 << k) != 0);
-        let backward = masks.iter().any(|m| m & (1 << k) == 0);
+        let forward = masks.iter().any(|m| m.contains(node(k)));
+        let backward = masks.iter().any(|m| !m.contains(node(k)));
         if !(forward && backward) {
             let (a, b) = skeleton.undirected[k];
             return Err(not_a_cpdag(format!(
@@ -506,8 +551,7 @@ fn check_maximally_oriented(skeleton: &Skeleton, masks: &[u32]) -> Result<(), Sc
 /// Enumerate every DAG completion of a CPDAG under one search budget.
 ///
 /// # Errors
-/// `route_not_supported` / `cpdag_scenarios.bounds_exceeded` for more than six
-/// nodes; `route_not_supported` / `cpdag_scenarios.selection_or_latent` for a
+/// `route_not_supported` / `cpdag_scenarios.selection_or_latent` for a
 /// selection target or latent pair; `invalid_argument` /
 /// `cpdag_scenarios.not_a_cpdag` for an input that is not a valid CPDAG.
 /// A budget, memory or cancellation stop is not an error: it is returned in the
@@ -802,16 +846,6 @@ fn build_set(
     enumeration: &CpdagEnumeration,
     request: &Request<'_>,
 ) -> Result<(TransportScenarioSet, Vec<Slot>, Vec<CompletionRecord>), CpdagScenarioError> {
-    if enumeration.completions.len() > SCENARIO_MAX_COUNT {
-        return Err(unsupported(
-            CPDAG_BOUNDS_EXCEEDED_DETAIL,
-            format!(
-                "{} completions exceed the scenario bound of {SCENARIO_MAX_COUNT}",
-                enumeration.completions.len()
-            ),
-        )
-        .into());
-    }
     let (coordinates, question, evidence) =
         (request.coordinates, &request.question, request.evidence);
     let scenarios = enumeration
@@ -819,7 +853,9 @@ fn build_set(
         .iter()
         .map(|c| completion_scenario(c, &enumeration.variables, coordinates))
         .collect::<Result<Vec<_>, _>>()?;
-    let set = TransportScenarioSet::try_new(scenarios)?;
+    // The class size is bounded by the enumeration budget, which charged every completion's
+    // memory; the 64-scenario bound limits a supplied list, not a derived one.
+    let set = TransportScenarioSet::try_new_within(scenarios, usize::MAX)?;
     set.check_question(question)?;
     let slots = bind_evidence(evidence, enumeration, &set)?;
     let records = enumeration

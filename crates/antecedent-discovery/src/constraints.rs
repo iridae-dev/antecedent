@@ -11,7 +11,7 @@ use antecedent_graph::{BitSet, DenseNodeId};
 use antecedent_stats::SignificanceMethod;
 
 use crate::error::DiscoveryError;
-use crate::result::LaggedLink;
+use crate::result::{LaggedLink, ScoredLink};
 
 /// Temporal constraint knobs for PCMCI-style search.
 #[derive(Clone, Debug)]
@@ -295,6 +295,145 @@ impl MultiDatasetConstraints {
     }
 }
 
+/// The kind of search background knowledge is applied to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KnowledgeScope {
+    /// Constraint-based search over a table that returns an equivalence class (PC, FCI, RFCI).
+    EquivalenceClass,
+    /// Score-based search over a table (GES).
+    ScoreSearch,
+    /// Lagged search over a series (PCMCI, PCMCI+).
+    Lagged,
+}
+
+/// Why background knowledge cannot be applied.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum KnowledgeFault {
+    /// The statements cannot all hold.
+    Contradictory(String),
+    /// A statement names a variable the search does not cover.
+    UnknownVariable(String),
+    /// A statement has no meaning for the algorithm, so it is refused rather than ignored.
+    NotApplicable(String),
+}
+
+impl KnowledgeFault {
+    /// The precise reason, naming the offending statement.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        match self {
+            Self::Contradictory(m) | Self::UnknownVariable(m) | Self::NotApplicable(m) => m,
+        }
+    }
+
+    /// The registered reason code a refusal of this fault carries.
+    #[must_use]
+    pub fn reason_code(&self) -> &'static str {
+        match self {
+            Self::Contradictory(_) => antecedent_core::reason_code!("invalid_argument"),
+            Self::UnknownVariable(_) => antecedent_core::reason_code!("unknown_variable"),
+            Self::NotApplicable(_) => antecedent_core::reason_code!("option_not_applicable"),
+        }
+    }
+}
+
+impl std::fmt::Display for KnowledgeFault {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.message())
+    }
+}
+
+fn describe_link(link: LaggedLink) -> String {
+    format!(
+        "variable {} at lag {} -> variable {} at lag {}",
+        link.source.raw(),
+        link.source_lag.raw(),
+        link.target.raw(),
+        link.target_lag.raw()
+    )
+}
+
+/// Whether the directed graph with these `(from, to)` edges has a cycle (a self-loop counts).
+fn has_directed_cycle(edges: &[(u32, u32)]) -> bool {
+    let mut in_degree: std::collections::BTreeMap<u32, usize> = std::collections::BTreeMap::new();
+    for &(from, to) in edges {
+        in_degree.entry(from).or_insert(0);
+        *in_degree.entry(to).or_insert(0) += 1;
+    }
+    let mut ready: Vec<u32> = in_degree.iter().filter(|(_, d)| **d == 0).map(|(n, _)| *n).collect();
+    let mut removed = 0usize;
+    while let Some(node) = ready.pop() {
+        removed += 1;
+        for &(from, to) in edges {
+            if from == node {
+                if let Some(d) = in_degree.get_mut(&to) {
+                    *d -= 1;
+                    if *d == 0 {
+                        ready.push(to);
+                    }
+                }
+            }
+        }
+    }
+    removed < in_degree.len()
+}
+
+/// The background knowledge of a discovery request: what the analyst asserts about the graph
+/// before the data are consulted.
+///
+/// This is the part of [`DiscoveryConstraints`] the ordinary entry points and the selective
+/// contracts share, so one wire parser and one identity cover both.
+#[derive(Clone, Debug)]
+pub struct BackgroundKnowledge {
+    /// Links that must be in the graph (adjacency, and the orientation they state).
+    pub required: Arc<[LaggedLink]>,
+    /// Links that must not be in the graph.
+    pub forbidden: Arc<[LaggedLink]>,
+    /// Variable tiers: a later tier cannot cause an earlier one.
+    pub tiers: Arc<[Arc<[VariableId]>]>,
+    /// Upper bound on the parents of each variable.
+    pub max_parents: Option<usize>,
+}
+
+impl Default for BackgroundKnowledge {
+    fn default() -> Self {
+        Self {
+            required: Arc::from([]),
+            forbidden: Arc::from([]),
+            tiers: Arc::from([]),
+            max_parents: None,
+        }
+    }
+}
+
+impl BackgroundKnowledge {
+    /// Whether nothing is asserted.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.required.is_empty()
+            && self.forbidden.is_empty()
+            && self.tiers.is_empty()
+            && self.max_parents.is_none()
+    }
+
+    /// Set these statements on `constraints`, replacing its own.
+    pub fn apply_to(&self, constraints: &mut DiscoveryConstraints) {
+        constraints.required = Arc::clone(&self.required);
+        constraints.forbidden = Arc::clone(&self.forbidden);
+        constraints.tiers = Arc::clone(&self.tiers);
+        constraints.max_parents = self.max_parents;
+    }
+
+    /// Canonical identity of the statements: the same digest the selective contracts declare as
+    /// their `background_knowledge` input, independent of the order the links are listed in.
+    #[must_use]
+    pub fn identity(&self) -> [u8; 32] {
+        let mut constraints = DiscoveryConstraints::default();
+        self.apply_to(&mut constraints);
+        crate::selective::background_knowledge_identity(&constraints)
+    }
+}
+
 /// Compiled discovery constraints.
 #[derive(Clone, Debug)]
 pub struct DiscoveryConstraints {
@@ -338,6 +477,18 @@ impl Default for DiscoveryConstraints {
             mask_type: CiMaskType::Yxz,
         }
     }
+}
+
+/// A direction background knowledge fixes on one contemporaneous pair (see
+/// [`DiscoveryConstraints::static_direction`]).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct FixedDirection {
+    /// The cause end.
+    pub(crate) from: VariableId,
+    /// The effect end.
+    pub(crate) to: VariableId,
+    /// A required link (a direct cause), as against the reverse of a forbidden link.
+    pub(crate) required: bool,
 }
 
 /// Contemporaneous link `source → target`.
@@ -449,6 +600,94 @@ impl DiscoveryConstraints {
         self.is_required(contemp_link(a, b)) || self.is_required(contemp_link(b, a))
     }
 
+    /// The suffix an algorithm appends to its configuration record: empty without background
+    /// knowledge, else `,background_knowledge=<digest>`. A result's algorithm record, and every
+    /// identity built on it, then changes exactly when the knowledge does.
+    pub(crate) fn knowledge_config(&self) -> String {
+        let none = self.required.is_empty()
+            && self.forbidden.is_empty()
+            && self.tiers.is_empty()
+            && self.max_parents.is_none()
+            && self.vector_groups.groups().is_empty();
+        if none {
+            return String::new();
+        }
+        let digest = crate::selective::background_knowledge_identity(self);
+        format!(",background_knowledge={}", crate::selective::digest_hex(&digest))
+    }
+
+    /// `kept` plus the required links the threshold dropped, with their own scores.
+    ///
+    /// A required link is an edge by statement. Its test is still run and its p-value is
+    /// reported as it is; the threshold only decides which *other* links survive. A required
+    /// link that was never scored cannot be reported and is left out.
+    pub(crate) fn with_required_links(
+        &self,
+        mut kept: Vec<ScoredLink>,
+        scored: &[ScoredLink],
+    ) -> Vec<ScoredLink> {
+        for required in self.required.iter().filter(|r| r.target_lag.is_contemporaneous()) {
+            if kept.iter().any(|s| s.link == *required) {
+                continue;
+            }
+            if let Some(found) = scored.iter().find(|s| s.link == *required) {
+                kept.push(*found);
+            }
+        }
+        kept
+    }
+
+    /// Give each contemporaneous link whose reverse cannot be a candidate (the reverse is
+    /// forbidden, or the link itself is required) a mirror image, so that the symmetrization
+    /// that keeps an edge only when both directions survive does not discard an edge because
+    /// of a direction knowledge has already ruled out.
+    pub(crate) fn with_mirrored_contemporaneous(
+        &self,
+        mut scored: Vec<ScoredLink>,
+    ) -> Vec<ScoredLink> {
+        let mut mirrors = Vec::new();
+        for s in &scored {
+            let l = s.link;
+            if !(l.source_lag.is_contemporaneous() && l.target_lag.is_contemporaneous()) {
+                continue;
+            }
+            let reverse = contemp_link(l.target, l.source);
+            if (self.is_forbidden(reverse) || self.is_required(l))
+                && !scored.iter().any(|o| o.link == reverse)
+            {
+                mirrors.push(ScoredLink { link: reverse, ..*s });
+            }
+        }
+        scored.extend(mirrors);
+        scored
+    }
+
+    /// Whether any statement can fix the direction of a contemporaneous edge: a required
+    /// contemporaneous link, a forbidden link, or a tier.
+    pub(crate) fn has_directional_knowledge(&self) -> bool {
+        !self.required.is_empty() || !self.forbidden.is_empty() || !self.tiers.is_empty()
+    }
+
+    /// The direction background knowledge fixes on the contemporaneous pair `{a, b}`, if any.
+    ///
+    /// A required link `a → b` fixes that direction and states a direct cause. Failing that, a
+    /// direction is fixed when exactly the opposite link is forbidden, directly or by a tier:
+    /// the pair may still be non-adjacent, but if it is adjacent the edge runs the other way.
+    pub(crate) fn static_direction(&self, a: VariableId, b: VariableId) -> Option<FixedDirection> {
+        let (ab, ba) = (contemp_link(a, b), contemp_link(b, a));
+        if self.is_required(ab) {
+            return Some(FixedDirection { from: a, to: b, required: true });
+        }
+        if self.is_required(ba) {
+            return Some(FixedDirection { from: b, to: a, required: true });
+        }
+        match (self.is_forbidden(ab), self.is_forbidden(ba)) {
+            (false, true) => Some(FixedDirection { from: a, to: b, required: false }),
+            (true, false) => Some(FixedDirection { from: b, to: a, required: false }),
+            _ => None,
+        }
+    }
+
     /// Tier index of `v`, or `None` if tiers are unused / variable absent.
     #[must_use]
     pub fn tier_of(&self, v: VariableId) -> Option<usize> {
@@ -471,22 +710,115 @@ impl DiscoveryConstraints {
     ///
     /// # Errors
     ///
-    /// Conflicting required/forbidden edges, or context variables listed as
-    /// both context and ordinary without a clear role.
+    /// Conflicting required/forbidden edges, required contemporaneous links that form a cycle,
+    /// or context variables listed as both context and ordinary without a clear role.
     pub fn validate(&self) -> Result<(), DiscoveryError> {
-        for r in self.required.iter() {
-            if self.is_forbidden(*r) {
-                return Err(DiscoveryError::Unsupported {
-                    message: "required edge conflicts with forbidden or tier constraints",
-                });
-            }
-        }
+        self.check_consistency().map_err(DiscoveryError::Knowledge)?;
         // Context → context lagged links are out of scope for J-PCMCI+ system search.
         for r in self.required.iter() {
             if self.multi_dataset.is_context(r.source) && self.multi_dataset.is_context(r.target) {
                 return Err(DiscoveryError::Unsupported {
                     message: "required context→context lagged links are unsupported",
                 });
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether the background knowledge can hold at all, whatever the variables and the search.
+    fn check_consistency(&self) -> Result<(), KnowledgeFault> {
+        for r in self.required.iter() {
+            if self.is_forbidden(*r) {
+                return Err(KnowledgeFault::Contradictory(format!(
+                    "required link {} is also forbidden, directly or by the tiers",
+                    describe_link(*r)
+                )));
+            }
+        }
+        let contemporaneous: Vec<(u32, u32)> = self
+            .required
+            .iter()
+            .filter(|r| r.source_lag.is_contemporaneous() && r.target_lag.is_contemporaneous())
+            .map(|r| (r.source.raw(), r.target.raw()))
+            .collect();
+        if has_directed_cycle(&contemporaneous) {
+            return Err(KnowledgeFault::Contradictory(
+                "the required contemporaneous links form a directed cycle (a variable would cause \
+                 itself)"
+                    .to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Check that the background knowledge can be applied by a search of the given kind over
+    /// `variables`, so that no statement is silently dropped.
+    ///
+    /// The statements are checked for consistency ([`Self::validate`] does the same), every
+    /// variable they name must be searched, and each statement must have a meaning for the
+    /// search: a static search has no lags, a lagged search cannot honour a required link
+    /// outside its lag window, and a parent limit is refused where the algorithm returns an
+    /// equivalence class (see [`KnowledgeScope`]).
+    ///
+    /// # Errors
+    ///
+    /// A [`KnowledgeFault`] naming the offending statement.
+    pub fn check_background_knowledge(
+        &self,
+        scope: KnowledgeScope,
+        variables: &[VariableId],
+    ) -> Result<(), KnowledgeFault> {
+        self.check_consistency()?;
+        let known: HashSet<VariableId> = variables.iter().copied().collect();
+        for (what, links) in [("required", &self.required), ("forbidden", &self.forbidden)] {
+            for link in links.iter() {
+                for v in [link.source, link.target] {
+                    if !known.contains(&v) {
+                        return Err(KnowledgeFault::UnknownVariable(format!(
+                            "the {what} link {} names variable {}, which is not searched",
+                            describe_link(*link),
+                            v.raw()
+                        )));
+                    }
+                }
+            }
+        }
+        for tier in self.tiers.iter() {
+            if let Some(v) = tier.iter().find(|v| !known.contains(v)) {
+                return Err(KnowledgeFault::UnknownVariable(format!(
+                    "a tier names variable {}, which is not searched",
+                    v.raw()
+                )));
+            }
+        }
+        match scope {
+            KnowledgeScope::EquivalenceClass | KnowledgeScope::ScoreSearch => {
+                for (what, links) in [("required", &self.required), ("forbidden", &self.forbidden)]
+                {
+                    if let Some(link) = links.iter().find(|l| {
+                        !l.source_lag.is_contemporaneous() || !l.target_lag.is_contemporaneous()
+                    }) {
+                        return Err(KnowledgeFault::NotApplicable(format!(
+                            "the {what} link {} is lagged, but a search over a table has no lags",
+                            describe_link(*link)
+                        )));
+                    }
+                }
+            }
+            KnowledgeScope::Lagged => {
+                let (min, max) = (self.temporal.min_lag.raw(), self.temporal.max_lag.raw());
+                if let Some(link) = self.required.iter().find(|l| {
+                    !l.target_lag.is_contemporaneous()
+                        || l.source_lag.raw() < min
+                        || l.source_lag.raw() > max
+                }) {
+                    return Err(KnowledgeFault::NotApplicable(format!(
+                        "the required link {} lies outside the searched lag window {min}..={max} \
+                         at the target's own time, so it could never be honoured; widen the window \
+                         or drop the link",
+                        describe_link(*link)
+                    )));
+                }
             }
         }
         Ok(())
@@ -887,5 +1219,205 @@ mod tests {
             empty.candidate_sources(&vars[..1], vars[0]),
             vec![(vars[0], empty.temporal.min_lag)]
         );
+    }
+
+    fn lagged(source: u32, lag: u32, target: u32) -> LaggedLink {
+        LaggedLink {
+            source: VariableId::from_raw(source),
+            source_lag: Lag::from_raw(lag),
+            target: VariableId::from_raw(target),
+            target_lag: Lag::CONTEMPORANEOUS,
+        }
+    }
+
+    fn ids(n: u32) -> Vec<VariableId> {
+        (0..n).map(VariableId::from_raw).collect()
+    }
+
+    fn fault(
+        constraints: &DiscoveryConstraints,
+        scope: KnowledgeScope,
+        n: u32,
+    ) -> Option<KnowledgeFault> {
+        constraints.check_background_knowledge(scope, &ids(n)).err()
+    }
+
+    #[test]
+    fn contradictory_knowledge_is_named_as_such() {
+        let tier = |ids: &[u32]| -> Arc<[VariableId]> {
+            ids.iter().copied().map(VariableId::from_raw).collect()
+        };
+        let both = DiscoveryConstraints {
+            required: Arc::from([lagged(0, 0, 1)]),
+            forbidden: Arc::from([lagged(0, 0, 1)]),
+            ..DiscoveryConstraints::default()
+        };
+        // The tier order makes a later variable unable to cause an earlier one.
+        let against_tier = DiscoveryConstraints {
+            required: Arc::from([lagged(1, 0, 0)]),
+            tiers: Arc::from([tier(&[0]), tier(&[1])]),
+            ..DiscoveryConstraints::default()
+        };
+        let cycle = DiscoveryConstraints {
+            required: Arc::from([lagged(0, 0, 1), lagged(1, 0, 2), lagged(2, 0, 0)]),
+            ..DiscoveryConstraints::default()
+        };
+        let reciprocal = DiscoveryConstraints {
+            required: Arc::from([lagged(0, 0, 1), lagged(1, 0, 0)]),
+            ..DiscoveryConstraints::default()
+        };
+        for (name, c) in
+            [("both", both), ("tier", against_tier), ("cycle", cycle), ("reciprocal", reciprocal)]
+        {
+            for scope in [
+                KnowledgeScope::EquivalenceClass,
+                KnowledgeScope::ScoreSearch,
+                KnowledgeScope::Lagged,
+            ] {
+                assert!(
+                    matches!(fault(&c, scope, 3), Some(KnowledgeFault::Contradictory(_))),
+                    "{name} {scope:?}"
+                );
+            }
+            assert!(c.validate().is_err(), "{name}");
+        }
+        // A lagged self-link is not a cycle.
+        let lagged_self = DiscoveryConstraints {
+            required: Arc::from([lagged(0, 1, 0)]),
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+            ..DiscoveryConstraints::default()
+        };
+        assert_eq!(fault(&lagged_self, KnowledgeScope::Lagged, 1), None);
+    }
+
+    #[test]
+    fn unsearched_variables_are_refused_wherever_they_appear() {
+        let tier: Arc<[VariableId]> = Arc::from([VariableId::from_raw(5)]);
+        let in_required = DiscoveryConstraints {
+            required: Arc::from([lagged(0, 0, 4)]),
+            ..DiscoveryConstraints::default()
+        };
+        let in_forbidden = DiscoveryConstraints {
+            forbidden: Arc::from([lagged(7, 0, 0)]),
+            ..DiscoveryConstraints::default()
+        };
+        let in_tier =
+            DiscoveryConstraints { tiers: Arc::from([tier]), ..DiscoveryConstraints::default() };
+        for c in [in_required, in_forbidden, in_tier] {
+            assert!(matches!(
+                fault(&c, KnowledgeScope::EquivalenceClass, 3),
+                Some(KnowledgeFault::UnknownVariable(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn a_statement_with_no_meaning_for_the_search_is_refused_not_dropped() {
+        let capped =
+            DiscoveryConstraints { max_parents: Some(2), ..DiscoveryConstraints::default() };
+        // Every search enforces the parent limit, so none refuses it.
+        assert_eq!(fault(&capped, KnowledgeScope::EquivalenceClass, 3), None);
+        assert_eq!(fault(&capped, KnowledgeScope::ScoreSearch, 3), None);
+        assert_eq!(fault(&capped, KnowledgeScope::Lagged, 3), None);
+
+        let lagged_in_table = DiscoveryConstraints {
+            forbidden: Arc::from([lagged(0, 1, 1)]),
+            ..DiscoveryConstraints::default()
+        };
+        assert!(matches!(
+            fault(&lagged_in_table, KnowledgeScope::ScoreSearch, 3),
+            Some(KnowledgeFault::NotApplicable(_))
+        ));
+
+        // Window 1..=2: a required lag-0 or lag-3 link could never be honoured.
+        let window = TemporalConstraints { max_lag: Lag::from_raw(2), min_lag: Lag::from_raw(1) };
+        for lag in [0, 3] {
+            let c = DiscoveryConstraints {
+                required: Arc::from([lagged(0, lag, 1)]),
+                temporal: window.clone(),
+                ..DiscoveryConstraints::default()
+            };
+            assert!(
+                matches!(
+                    fault(&c, KnowledgeScope::Lagged, 3),
+                    Some(KnowledgeFault::NotApplicable(_))
+                ),
+                "lag {lag}"
+            );
+        }
+        let inside = DiscoveryConstraints {
+            required: Arc::from([lagged(0, 2, 1)]),
+            temporal: window,
+            ..DiscoveryConstraints::default()
+        };
+        assert_eq!(fault(&inside, KnowledgeScope::Lagged, 3), None);
+    }
+
+    #[test]
+    fn faults_carry_registered_reason_codes() {
+        assert_eq!(KnowledgeFault::Contradictory(String::new()).reason_code(), "invalid_argument");
+        assert_eq!(
+            KnowledgeFault::UnknownVariable(String::new()).reason_code(),
+            "unknown_variable"
+        );
+        assert_eq!(
+            KnowledgeFault::NotApplicable(String::new()).reason_code(),
+            "option_not_applicable"
+        );
+    }
+
+    #[test]
+    fn a_direction_is_fixed_by_a_required_link_or_exactly_one_forbidden_direction() {
+        let (a, b) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let none = DiscoveryConstraints::default();
+        assert_eq!(none.static_direction(a, b), None);
+
+        let required =
+            DiscoveryConstraints { required: Arc::from([lagged(1, 0, 0)]), ..none.clone() };
+        assert_eq!(
+            required.static_direction(a, b),
+            Some(FixedDirection { from: b, to: a, required: true })
+        );
+
+        let one_way =
+            DiscoveryConstraints { forbidden: Arc::from([lagged(1, 0, 0)]), ..none.clone() };
+        assert_eq!(
+            one_way.static_direction(a, b),
+            Some(FixedDirection { from: a, to: b, required: false })
+        );
+
+        // Both directions forbidden: no edge at all, so no direction to fix.
+        let both = DiscoveryConstraints {
+            forbidden: Arc::from([lagged(0, 0, 1), lagged(1, 0, 0)]),
+            ..none
+        };
+        assert_eq!(both.static_direction(a, b), None);
+        assert!(both.static_forbidden(a, b));
+    }
+
+    #[test]
+    fn the_knowledge_identity_ignores_link_order_and_changes_with_any_statement() {
+        let base = BackgroundKnowledge {
+            required: Arc::from([lagged(0, 1, 1), lagged(1, 1, 2)]),
+            forbidden: Arc::from([lagged(2, 0, 0)]),
+            tiers: Arc::from([Arc::from([VariableId::from_raw(0)])]),
+            max_parents: Some(2),
+        };
+        let reordered = BackgroundKnowledge {
+            required: Arc::from([lagged(1, 1, 2), lagged(0, 1, 1)]),
+            ..base.clone()
+        };
+        assert_eq!(base.identity(), reordered.identity());
+        assert_ne!(base.identity(), BackgroundKnowledge::default().identity());
+        let edits = [
+            BackgroundKnowledge { required: Arc::from([lagged(0, 1, 1)]), ..base.clone() },
+            BackgroundKnowledge { forbidden: Arc::from([]), ..base.clone() },
+            BackgroundKnowledge { tiers: Arc::from([]), ..base.clone() },
+            BackgroundKnowledge { max_parents: Some(3), ..base.clone() },
+            BackgroundKnowledge { max_parents: None, ..base.clone() },
+        ];
+        for edit in edits {
+            assert_ne!(edit.identity(), base.identity());
+        }
     }
 }

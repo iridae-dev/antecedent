@@ -7,7 +7,8 @@
 
 use crate::prepared::AncestorMemo;
 use crate::selection_separation::{
-    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset, independently_separated,
+    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset_preferring,
+    independently_separated,
 };
 use crate::{IdentificationBudget, IdentificationError, PreparedAdmg};
 use antecedent_core::{
@@ -85,14 +86,15 @@ pub use mixed_source::{
     mixed_source_rule_names, render_quantity, validate_mixed_source_query,
     verify_mixed_source_derivation,
 };
+#[allow(deprecated, reason = "the retained released name stays reachable")]
+pub use mz_transport::MZ_TRANSPORT_MAX_OBSERVED;
 pub use mz_transport::{
     BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
-    MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
-    MZ_TRANSPORT_MEMORY_BYTES, MzSearchInspection, MzSearchRecord, MzStageRecord,
-    MzTransportDecision, MzTransportDerivation, MzTransportDerivationRecord,
-    MzTransportObstruction, MzTransportQuery, MzTransportRoute, ValidatedMzTransportQuery,
-    bind_mz_transport_catalog, decide_mz_transport, mz_transport_refusal,
-    validate_mz_transport_query, verify_mz_transport_obstruction,
+    MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_SOURCES, MZ_TRANSPORT_MEMORY_BYTES,
+    MzSearchInspection, MzSearchRecord, MzStageRecord, MzTransportDecision, MzTransportDerivation,
+    MzTransportDerivationRecord, MzTransportObstruction, MzTransportQuery, MzTransportRoute,
+    ValidatedMzTransportQuery, bind_mz_transport_catalog, decide_mz_transport,
+    mz_transport_refusal, validate_mz_transport_query, verify_mz_transport_obstruction,
 };
 pub use study_planning::{
     STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_PROPOSALS,
@@ -2178,7 +2180,11 @@ pub fn verify_s_hedge(
 mod catalog;
 use catalog::bind_distribution;
 pub(crate) use catalog::identify_catalog_transport_metered;
-pub use catalog::{CatalogTransportResult, identify_catalog_transport};
+pub use catalog::{
+    CatalogTransportResult, identify_catalog_transport,
+    identify_catalog_transport_selection_standardization_first,
+    identify_catalog_transport_standardization_first,
+};
 
 fn check_sid_memory(
     diagram: &SelectionDiagram,

@@ -103,6 +103,28 @@ pub fn estimate(
     cohorts: &[i64],
     clusters: &[impl AsRef<str>],
 ) -> Result<Vec<EventTimeEffect>, String> {
+    estimate_with(outcomes, subjects, periods, cohorts, clusters, false)
+}
+
+/// [`estimate`], optionally on an unbalanced panel.
+///
+/// With `available_case`, a unit may lack some periods and each contrast uses the units
+/// observed in both its period and the cohort's baseline period; the subjects and clusters
+/// each contrast reports are those it used. Unit identities and period labels are never
+/// changed. Valid when a unit's chance of being observed in both periods is independent of
+/// its outcome change within cohort. Without it, a missing unit-period refuses.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one linear pass: validate the panel, form the cohort contrasts, then aggregate"
+)]
+pub fn estimate_with(
+    outcomes: &[f64],
+    subjects: &[impl AsRef<str>],
+    periods: &[i64],
+    cohorts: &[i64],
+    clusters: &[impl AsRef<str>],
+    available_case: bool,
+) -> Result<Vec<EventTimeEffect>, String> {
     let n = outcomes.len();
     if n == 0
         || subjects.len() != n
@@ -138,10 +160,11 @@ pub fn estimate(
         }
     }
     if all_periods.len() < 2
-        || units.values().any(|unit| {
-            unit.2.len() != all_periods.len()
-                || all_periods.iter().any(|period| !unit.2.contains_key(period))
-        })
+        || (!available_case
+            && units.values().any(|unit| {
+                unit.2.len() != all_periods.len()
+                    || all_periods.iter().any(|period| !unit.2.contains_key(period))
+            }))
     {
         return Err("event study requires a balanced panel with at least two common periods".into());
     }
@@ -149,15 +172,32 @@ pub fn estimate(
     if !cohorts_present.contains(&0) {
         return Err("event study requires never-treated controls (cohort 0)".into());
     }
-    let controls: Vec<_> = units.values().filter(|unit| unit.0 == 0).collect();
     let mut effects = Vec::new();
     for cohort in cohorts_present.into_iter().filter(|cohort| *cohort > 0) {
         let baseline = cohort - 1;
         if !all_periods.contains(&baseline) || !all_periods.contains(&cohort) {
             return Err("each adoption cohort needs an observed immediately pre-treatment baseline and adoption period".into());
         }
-        let treated: Vec<_> = units.values().filter(|unit| unit.0 == cohort).collect();
         for period in all_periods.iter().copied().filter(|period| *period != baseline) {
+            // Units observed in both periods of this contrast. On a balanced panel that is
+            // every unit of the group, in the same order.
+            let controls: Vec<_> = units
+                .values()
+                .filter(|unit| {
+                    unit.0 == 0 && unit.2.contains_key(&period) && unit.2.contains_key(&baseline)
+                })
+                .collect();
+            let treated: Vec<_> = units
+                .values()
+                .filter(|unit| {
+                    unit.0 == cohort
+                        && unit.2.contains_key(&period)
+                        && unit.2.contains_key(&baseline)
+                })
+                .collect();
+            if controls.is_empty() || treated.is_empty() {
+                return Err("an event-time contrast has no unit observed in both its period and the baseline".into());
+            }
             // Each unit's period-vs-baseline delta, computed once in the means
             // pass (same iteration order) and reused in the score/cluster pass
             // below rather than repeating the two BTreeMap lookups.

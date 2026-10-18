@@ -278,6 +278,7 @@ _EXPECTED_STAGE_ALL = {
         "exact_randomization_test",
     },
     "discovery": {
+        "BackgroundKnowledge",
         "CiScreenedPosterior",
         "DbnPosterior",
         "DiscoveredLink",
@@ -290,6 +291,7 @@ _EXPECTED_STAGE_ALL = {
         "JPCMCIPlus",
         "LPCMCI",
         "LiNGAM",
+        "Link",
         "NOTEARS",
         "OrderMcmc",
         "PC",
@@ -308,6 +310,7 @@ _EXPECTED_STAGE_ALL = {
         "run_static_discovery",
         "run_temporal_discovery",
         "two_regime_half_split",
+        "ExactDagMarginals",
     },
     "errors": {
         "ExternalRefusal",
@@ -431,6 +434,14 @@ _EXPECTED_STAGE_ALL = {
         "attribute_distribution_change_discovered",
         "attribute_paths_discovered",
         "fit_gcm_discovered",
+        "GraphFalsification",
+        "MarkovImplicationTest",
+        "evaluate_graph",
+        "ComponentUncertainty",
+        "IntrinsicInfluence",
+        "SourceInfluence",
+        "intrinsic_influence",
+        "fitted_intrinsic_influence",
     },
     "graph": {
         "Admg",

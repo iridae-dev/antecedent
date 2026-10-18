@@ -39,6 +39,11 @@ use super::{
     require_bayesian_n_draws,
 };
 
+/// Draw count below which a Laplace posterior's effect interval is the exchangeable-rank
+/// (type-6) interval of its draws rather than the type-7 interval its records were measured with
+/// at this count and above. Keyed separately (`rank_quantile_interval`).
+pub const LAPLACE_RANK_INTERVAL_BELOW_DRAWS: usize = 1000;
+
 /// Which inference backend to use for Bayesian g-computation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum BayesianBackendKind {
@@ -376,6 +381,24 @@ impl BayesianGComputationAte {
         Ok(problem)
     }
 
+    /// [`Self::from_prepared_temporal`] for a design built from the intact windows of a series
+    /// with gaps: the likelihood is tempered by the segment-wise long-run variance, so no
+    /// autocovariance crosses a gap (see [`SerialDependence::SegmentedTempering`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_prepared_temporal`].
+    pub fn from_prepared_temporal_gapped(
+        prep: &PreparedEstimationProblem,
+        coef_names: Arc<[Arc<str>]>,
+        segments: Arc<[u32]>,
+    ) -> Result<PreparedBayesianProblem, EstimationError> {
+        let mut problem = Self::from_prepared_temporal(prep, coef_names)?;
+        problem.serial_dependence =
+            SerialDependence::SegmentedTempering { scope: DependenceScope::Treatment, segments };
+        Ok(problem)
+    }
+
     /// Fit mechanism + evaluate ATE g-computation posterior.
     ///
     /// `identification` is recorded as-is; informative priors never change it.
@@ -383,6 +406,10 @@ impl BayesianGComputationAte {
     /// # Errors
     ///
     /// Backend / evaluation failures.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one linear fit: draw, optional interval supplement, then summaries"
+    )]
     pub fn fit(
         &self,
         problem: &PreparedBayesianProblem,
@@ -405,7 +432,7 @@ impl BayesianGComputationAte {
             Some((x, y)) => (x.as_slice(), y.as_slice()),
             None => (problem.design.matrix.as_ref(), problem.design.outcome.as_ref()),
         };
-        let design_ref = BayesDesignRef {
+        let design_ref: BayesDesignRef<'_> = BayesDesignRef {
             x_colmajor: x_fit,
             nrows: problem.design.nrows,
             ncols: problem.design.ncols,
@@ -472,6 +499,40 @@ impl BayesianGComputationAte {
             self.seed,
         )?;
         let summaries = draws.summarize();
+        // A Laplace interval is the type-7 quantile interval of the draws, whose expected posterior
+        // mass `0.95(m-1)/(m+1)` is 0.921 at 64 draws and 0.949 at 1,000. Below the measured draw
+        // count the effect's interval is the exchangeable-rank (type-6) interval of the same
+        // draws instead, whose expected mass is exactly 0.95 at every count. It is a function of
+        // the embedded draws alone, so artifacts stay self-verifying, and the declared draws,
+        // their count and every other summary are untouched.
+        let mut summaries = summaries;
+        if matches!(self.backend, BayesianBackendKind::Laplace)
+            && n_draws < LAPLACE_RANK_INTERVAL_BELOW_DRAWS
+        {
+            let column = draws
+                .schema
+                .quantities
+                .iter()
+                .position(|quantity| matches!(quantity, PosteriorQuantityKind::Effect { .. }));
+            let values = column.and_then(|column| draws.column(column).ok());
+            if let (Some(column), Some(values)) = (column, values) {
+                if values.len() >= 2 && values.iter().all(|value| value.is_finite()) {
+                    let mut sorted = values.to_vec();
+                    sorted.sort_by(f64::total_cmp);
+                    let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+                        &sorted,
+                        0.95,
+                        antecedent_stats::QuantileRule::ExchangeableRank,
+                    );
+                    let mut q025 = summaries.q025.to_vec();
+                    let mut q975 = summaries.q975.to_vec();
+                    q025[column] = lower;
+                    q975[column] = upper;
+                    summaries.q025 = Arc::from(q025);
+                    summaries.q975 = Arc::from(q975);
+                }
+            }
+        }
         Ok(CausalPosterior {
             subsampled_out_mass: 0.0,
             unevaluable_mass: 0.0,
@@ -697,6 +758,18 @@ fn temper_likelihood(
                 ));
             }
             Some(long_run_tempering_factor(&problem.design, scope)?)
+        }
+        SerialDependence::SegmentedTempering { scope, segments } => {
+            if problem.unit_ids.is_some() {
+                return Err(EstimationError::unsupported(
+                    "segmented tempering applies to one series with gaps, not stacked panel units",
+                ));
+            }
+            Some(crate::serial_dependence::segmented_tempering_factor(
+                &problem.design,
+                scope,
+                segments,
+            )?)
         }
     };
     let weights = tempering

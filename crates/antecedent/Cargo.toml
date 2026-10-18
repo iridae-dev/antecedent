@@ -20,8 +20,8 @@ workspace = true
 [features]
 default = []
 calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-io/calibration-internal", "antecedent-validate/calibration-internal"]
-ml-gbdt = ["antecedent-estimate/ml-gbdt"]
-ml-forest = ["antecedent-estimate/ml-forest"]
+ml-gbdt = ["antecedent-estimate/ml-gbdt", "antecedent-model/ml-gbdt"]
+ml-forest = ["antecedent-estimate/ml-forest", "antecedent-model/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent-estimate/ml-neural"]
 
@@ -143,6 +143,32 @@ path = "../../examples/rust/transport_exact.rs"
 name = "transport_meta_grid"
 path = "../../examples/rust/transport_meta_grid.rs"
 
+[[example]]
+name = "shared_exogenous_counterfactual"
+path = "../../examples/rust/shared_exogenous_counterfactual.rs"
+
+[[example]]
+name = "intervention_programs"
+path = "../../examples/rust/intervention_programs.rs"
+
+[[example]]
+name = "mechanism_selection"
+path = "../../examples/rust/mechanism_selection.rs"
+# The one-parent quadratic is fitted by the tree families.
+required-features = ["ml-gbdt", "ml-forest"]
+
+[[example]]
+name = "graph_falsification"
+path = "../../examples/rust/graph_falsification.rs"
+
+[[example]]
+name = "noise_replay"
+path = "../../examples/rust/noise_replay.rs"
+
+[[example]]
+name = "intrinsic_influence"
+path = "../../examples/rust/intrinsic_influence.rs"
+
 [[bench]]
 name = "staged_handle"
 harness = false
@@ -166,6 +192,26 @@ harness = false
 [[bench]]
 name = "transport"
 harness = false
+
+[[test]]
+name = "missing_outcome_calibration"
+path = "tests/missing_outcome_calibration.rs"
+
+[[test]]
+name = "weighted_interval_calibration"
+path = "tests/weighted_interval_calibration.rs"
+
+[[test]]
+name = "missing_data_routes"
+path = "tests/missing_data_routes.rs"
+
+[[test]]
+name = "observational_survival_policy_routes"
+path = "tests/observational_survival_policy_routes.rs"
+
+[[test]]
+name = "sampling_weight_routes"
+path = "tests/sampling_weight_routes.rs"
 
 [[test]]
 name = "adjusted_recalc_precision"
@@ -214,6 +260,14 @@ path = "tests/calibration_backlog.rs"
 [[test]]
 name = "calibration_bayesian_static"
 path = "tests/calibration_bayesian_static.rs"
+
+[[test]]
+name = "bayesian_draw_controls"
+path = "tests/bayesian_draw_controls.rs"
+
+[[test]]
+name = "calibration_posterior_draws"
+path = "tests/calibration_posterior_draws.rs"
 
 [[test]]
 name = "calibration_counterfactual"
@@ -356,6 +410,14 @@ name = "mixture_interval_calibration"
 path = "tests/mixture_interval_calibration.rs"
 
 [[test]]
+name = "multilevel_interval_calibration"
+path = "tests/multilevel_interval_calibration.rs"
+
+[[test]]
+name = "randomized_interval_calibration"
+path = "tests/randomized_interval_calibration.rs"
+
+[[test]]
 name = "mz_transport_calibration"
 path = "tests/mz_transport_calibration.rs"
 
@@ -370,6 +432,10 @@ path = "tests/panel_calibration.rs"
 [[test]]
 name = "predictive_score_interval_calibration"
 path = "tests/predictive_score_interval_calibration.rs"
+
+[[test]]
+name = "practitioner_scale_calibration"
+path = "tests/practitioner_scale_calibration.rs"
 
 [[test]]
 name = "prepared_analysis"
@@ -406,6 +472,14 @@ path = "tests/retarget_alloc_count.rs"
 [[test]]
 name = "sample_split_effect_calibration"
 path = "tests/sample_split_effect_calibration.rs"
+
+[[test]]
+name = "sample_split_parent_set_effect_calibration"
+path = "tests/sample_split_parent_set_effect_calibration.rs"
+
+[[test]]
+name = "sample_split_weighted_effect_calibration"
+path = "tests/sample_split_weighted_effect_calibration.rs"
 
 [[test]]
 name = "scientific_bridge_interval_calibration"
@@ -466,6 +540,10 @@ path = "tests/temporal_transport.rs"
 [[test]]
 name = "transport_statistical_calibration"
 path = "tests/transport_statistical_calibration.rs"
+
+[[test]]
+name = "discovered_transport_calibration"
+path = "tests/discovered_transport_calibration.rs"
 
 [[test]]
 name = "transported_constructors_facade"

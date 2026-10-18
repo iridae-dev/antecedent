@@ -11,7 +11,7 @@ use antecedent::analysis::recalc_static::{
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RequestSupport, ResumeContext, RetargetSupport, StageIdentities,
 };
-use antecedent_core::{SearchLimits, VariableId};
+use antecedent_core::{ExecutionContext, SearchLimits, VariableId};
 use antecedent_expr::ExactEvaluationLimits;
 use antecedent_identify::{MzTransportQuery, ZTransportSourceSpec};
 use antecedent_io::recalc_receipt_artifact::{
@@ -24,8 +24,8 @@ use serde::Deserialize;
 
 use crate::graphs::Admg;
 use crate::recalc_api::{
-    RunPayload, artifact_invalid, context, counts_wire, invalid, parse_json, plan_refusal_json,
-    refusal_json,
+    RunPayload, artifact_invalid, bounded_context, context, counts_wire, invalid, parse_json,
+    plan_refusal_json, refusal_json,
 };
 use crate::recalc_bounds::{check_columns, sequence_item, sequence_len};
 use crate::transport_common::{
@@ -82,8 +82,9 @@ pub(crate) fn response_request(
     columns: &[PyReadonlyArray1<'_, f64>],
     graph: &Admg,
     text: &str,
+    ctx: &ExecutionContext,
 ) -> PyResult<StaticResponseRequest> {
-    check_columns(&names, columns)?;
+    check_columns(columns, ctx)?;
     let wire: ResponseWire = parse_json(text, "static response")?;
     if names.len() > MAX_VARIABLES || wire.support.len() > MAX_GRID || wire.actions.len() > MAX_GRID
     {
@@ -517,7 +518,8 @@ impl PyStaticSession {
         serde_json::to_string(&CapabilitiesWire::from_capabilities(&caps(self.inner.boundary())))
             .map_err(py_msg)
     }
-    #[pyo3(signature=(names,columns,graph,specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(names,columns,graph,specification,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn plan(
         &self,
         names: Vec<String>,
@@ -526,12 +528,14 @@ impl PyStaticSession {
         specification: &str,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let request = response_request(names, &columns, &graph, specification)?;
-        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &context(seed, threads))))
-            .map_err(py_msg)
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = response_request(names, &columns, &graph, specification, &ctx)?;
+        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &ctx))).map_err(py_msg)
     }
-    #[pyo3(signature=(names,columns,graph,specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(names,columns,graph,specification,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
     #[allow(clippy::too_many_arguments)]
     fn execute(
         &mut self,
@@ -542,13 +546,15 @@ impl PyStaticSession {
         specification: &str,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<RunPayload> {
-        let request = response_request(names, &columns, &graph, specification)?;
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = response_request(names, &columns, &graph, specification, &ctx)?;
         drop(columns);
         let previous = self.inner.identities().clone();
         let capabilities = caps(self.inner.boundary());
         let mut session = std::mem::take(&mut self.inner);
-        let ctx = context(seed, threads);
         let (session, ran) = detach_catch(py, move || {
             let ran = execute_static_response_with_receipt(&mut session, &request, &ctx);
             Ok((session, ran))

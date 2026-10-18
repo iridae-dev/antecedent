@@ -21,7 +21,7 @@ use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::distance_correlation;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, dcor::DistanceY};
 
-use crate::constraints::DiscoveryConstraints;
+use crate::constraints::{DiscoveryConstraints, KnowledgeScope};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::pc::collect_float_columns;
@@ -101,6 +101,9 @@ impl DirectLingam {
         ctx: &ExecutionContext,
     ) -> Result<StaticDagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        self.constraints
+            .check_background_knowledge(KnowledgeScope::ScoreSearch, variables)
+            .map_err(DiscoveryError::Knowledge)?;
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "DirectLiNGAM requires at least one variable",
@@ -381,8 +384,9 @@ impl DirectLingam {
             algorithm: AlgorithmRecord {
                 id: Arc::from("direct_lingam"),
                 config: Arc::from(format!(
-                    "prune_threshold={} order={order:?}",
-                    self.prune_threshold
+                    "prune_threshold={} order={order:?}{}",
+                    self.prune_threshold,
+                    self.constraints.knowledge_config()
                 )),
             },
             assumptions: discovery_assumptions("direct_lingam", true),

@@ -9,6 +9,7 @@ use antecedent_graph::{Dag, DenseNodeId, NodeRef};
 
 use crate::basis::ParentBasis;
 use crate::error::ModelError;
+use crate::tree::TreeEnsemble;
 
 /// Plan for gathering parent values into an aligned buffer for one child node.
 #[derive(Clone, Debug)]
@@ -105,6 +106,17 @@ pub trait DynamicMechanism: Send + Sync {
             output[i] = value[i] - mean[i];
         }
         Ok(())
+    }
+
+    /// Whether this mechanism can recover its noise from an observation.
+    ///
+    /// The default is `true`: the additive inversion of [`Self::infer_noise_column`]. A
+    /// mechanism whose noise is not recoverable returns `false`, so every operation that
+    /// needs abduction (counterfactuals, replay of observed rows) is refused with a typed
+    /// error that names the mechanism and the operation, while evaluation, sampling and
+    /// likelihood stay available wherever they are declared.
+    fn supports_noise_inference(&self) -> bool {
+        true
     }
 
     /// How [`Self::infer_noise_column`] recovers noise.
@@ -290,6 +302,33 @@ pub enum MechanismSlot {
         /// Dual coefficients `α = (K + σ²I)^{-1} (y − mean)`.
         alpha: Arc<[f64]>,
     },
+    /// Additive-noise regression on a tree ensemble.
+    ///
+    /// `y = f(pa) + ε`, `ε ~ N(0, sigma²)`, with `f` the ensemble's conditional mean
+    /// (piecewise constant, flat beyond the training support) and `sigma` the
+    /// root-mean-square of its out-of-fold residuals. The disturbance is additive,
+    /// so abduction is exact: `ε = y − f(pa)`.
+    TreeAdditive {
+        /// Conditional-mean ensemble over the parents, in compiled parent order.
+        ensemble: TreeEnsemble,
+        /// Residual standard deviation.
+        sigma: f64,
+    },
+    /// Categorical mechanism whose class probabilities come from tree classifiers.
+    ///
+    /// The conditional law is a categorical over `support` (ascending). A binary
+    /// support carries one classifier scoring `P(support[1])`; `k > 2` levels carry
+    /// one one-vs-rest classifier per level, renormalised row by row. The noise is
+    /// `u ~ U(0,1)` read through the inverse CDF, and abduction draws from the
+    /// observed category's CDF bin, exactly as for [`Self::Discrete`].
+    TreeCategorical {
+        /// Support values, ascending.
+        support: Arc<[f64]>,
+        /// Marginal probabilities (same length as support), for reporting.
+        probs: Arc<[f64]>,
+        /// One classifier (binary support) or one per level.
+        classifiers: Arc<[TreeEnsemble]>,
+    },
     /// Explicit slow-path dynamic / user mechanism (not serializable).
     Dynamic {
         /// Stable label for diagnostics (e.g. variable name).
@@ -334,6 +373,9 @@ impl MechanismSlot {
             // unit's other parents regardless.
             Self::DiscreteBasis { .. }
             | Self::GaussianProcess { .. }
+            // Piecewise constant in the parents, with splits free to combine them.
+            | Self::TreeAdditive { .. }
+            | Self::TreeCategorical { .. }
             | Self::Dynamic { .. }
             | Self::Pending { .. }
             | Self::Vacant => false,
@@ -342,6 +384,7 @@ impl MechanismSlot {
 }
 
 impl std::fmt::Debug for MechanismSlot {
+    #[allow(clippy::too_many_lines, reason = "one arm per mechanism family")]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Vacant => write!(f, "Vacant"),
@@ -427,6 +470,18 @@ impl std::fmt::Debug for MechanismSlot {
                 .field("mean", mean)
                 .field("n_train", n_train)
                 .field("n_parents", n_parents)
+                .finish(),
+            Self::TreeAdditive { ensemble, sigma } => f
+                .debug_struct("TreeAdditive")
+                .field("learner", &ensemble.learner())
+                .field("n_parents", &ensemble.n_parents())
+                .field("sigma", sigma)
+                .finish(),
+            Self::TreeCategorical { support, probs, classifiers } => f
+                .debug_struct("TreeCategorical")
+                .field("support", support)
+                .field("probs", probs)
+                .field("n_classifiers", &classifiers.len())
                 .finish(),
             Self::Dynamic { id, .. } => f
                 .debug_struct("Dynamic")

@@ -40,7 +40,7 @@ pub enum EstimatorSpec {
     PropensityWeighting(Box<PropensityWeighting>),
     /// Caller-configured propensity-score matching.
     PropensityMatching(Box<PropensityMatching>),
-    /// Caller-configured propensity stratification.
+    /// Caller-configured propensity stratification (raw means or declared regression adjustment).
     PropensityStratification(Box<PropensityStratification>),
     /// Caller-configured covariate distance matching.
     DistanceMatching(Box<DistanceMatching>),
@@ -129,6 +129,44 @@ impl EstimatorSpec {
         }
     }
 
+    /// Whether the configured estimator declares the exclusion of treatment rows at neither
+    /// declared level. That restricts the target population to the rows at the two declared
+    /// levels, which the checked all-observed routes do not cover, so such a spec executes
+    /// through the ordinary dispatcher.
+    #[must_use]
+    pub fn excludes_undeclared_levels(&self) -> bool {
+        let policy = match self {
+            Self::PropensityWeighting(cfg) => cfg.other_levels,
+            Self::PropensityMatching(cfg) => cfg.other_levels,
+            Self::PropensityStratification(cfg) => cfg.other_levels,
+            Self::Aipw(cfg) => cfg.other_levels,
+            Self::Dml(cfg) => cfg.other_levels,
+            _ => return false,
+        };
+        policy != antecedent_estimate::OtherLevels::Refuse
+    }
+
+    /// The suffix declared sampling weights add to the calibration key's functional label, so
+    /// an interval measured on unweighted rows never binds to a weighted-population estimate
+    /// (the standard error, the estimand and the effective sample size all differ); `None`
+    /// when the configured estimator reads no weights.
+    #[must_use]
+    pub fn sampling_weights_calibration_label(&self) -> Option<&'static str> {
+        let weighted = match self {
+            Self::LinearAdjustmentAte(cfg) => cfg.sampling_weights.is_some(),
+            Self::PropensityWeighting(cfg) => cfg.sampling_weights.is_some(),
+            Self::PropensityMatching(cfg) => cfg.sampling_weights.is_some(),
+            Self::PropensityStratification(cfg) => cfg.sampling_weights.is_some(),
+            Self::Aipw(cfg) => cfg.sampling_weights.is_some(),
+            Self::DistanceMatching(cfg) => cfg.sampling_weights.is_some(),
+            Self::GlmAdjustment(cfg) => cfg.sampling_weights.is_some(),
+            Self::Dml(cfg) => cfg.sampling_weights.is_some(),
+            Self::DrLearner(cfg) => cfg.sampling_weights.is_some(),
+            _ => false,
+        };
+        weighted.then_some(SAMPLING_WEIGHTS_LABEL)
+    }
+
     /// The suffix a declared non-default AIPW propensity nuisance (a ridge or lasso penalty,
     /// or a GLM-to-penalized fallback) adds to the calibration key's functional label, so an
     /// interval measured under one nuisance never binds to another; `None` otherwise.
@@ -136,10 +174,38 @@ impl EstimatorSpec {
     pub fn propensity_calibration_label(&self) -> Option<String> {
         match self {
             Self::Aipw(cfg) => cfg.propensity.calibration_label(),
+            Self::PropensityWeighting(cfg) if cfg.covariate_balance => {
+                Some("weighting=balanced_linear_hc3".into())
+            }
             _ => None,
         }
     }
+
+    /// Distinguish declared regression-standardized strata from raw stratum means.
+    #[must_use]
+    pub fn stratification_calibration_label(&self) -> Option<&'static str> {
+        match self {
+            Self::PropensityStratification(cfg) if cfg.regression_adjustment => {
+                Some("stratification=regression_linear_hc3")
+            }
+            _ => None,
+        }
+    }
+
+    /// Separate population matching variance from the raw constant-effect approximation.
+    #[must_use]
+    pub fn matching_calibration_label(&self) -> Option<&'static str> {
+        let declared = match self {
+            Self::PropensityMatching(cfg) => cfg.population_variance,
+            Self::DistanceMatching(cfg) => cfg.population_variance,
+            _ => false,
+        };
+        declared.then_some("matching=population_linear")
+    }
 }
+
+/// The functional-label suffix of a weighted-population estimate.
+pub const SAMPLING_WEIGHTS_LABEL: &str = "weights=sampling";
 
 impl From<EstimatorId> for EstimatorSpec {
     fn from(id: EstimatorId) -> Self {

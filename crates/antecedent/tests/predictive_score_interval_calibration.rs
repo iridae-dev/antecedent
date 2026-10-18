@@ -10,8 +10,12 @@
 //! * CRPS: `tau (2 phi(z) + z (2 Phi(z) - 1)) - s / sqrt(pi)` with
 //!   `tau = sqrt(s^2 + sigma^2)` and `z = (m - mu) / tau`.
 //!
-//! Designs (each at nominal 0.95; sample sizes `grid_n(base)`: iid 400/800/1,600, cluster 800/1,600/3,200 and serial
-//! 1,600/3,200/6,400 cases):
+//! Designs (each at nominal 0.95; sample sizes `grid_n(base)`: iid 400/800/1,600, cluster
+//! 800/1,600/3,200 and serial 1,600/3,200/6,400 cases). The iid construction is also measured
+//! over three larger grids (bases 3,200, 12,800 and 51,200: 1,600 to 6,400, 6,400 to 25,600 and
+//! 25,600 to 102,400 cases, so 10,000, 30,000 and 100,000 cases lie inside measured ranges);
+//! the cluster-count and serial-bandwidth requirements are properties of the construction and
+//! are not widened by it:
 //!
 //! * `iid`: held-out split, independent outcomes `N(0, 1)`; Student-t, `n - 1` df.
 //! * `serial`: held-out split with a stationary Gaussian AR(1) outcome series
@@ -268,6 +272,7 @@ fn interval_method(design: Design) -> &'static str {
 fn run(
     test: &'static str,
     dgp: &'static str,
+    n_base: usize,
     design: Design,
     truth_family: Truth,
     kind: ScoreKind,
@@ -275,7 +280,7 @@ fn run(
     functional_suffix: &'static str,
     boundary: bool,
 ) {
-    let n = grid_n(base_cases(design));
+    let n = grid_n(n_base);
     let truth = if difference {
         expected(kind, FORECAST_B) - expected(kind, FORECAST_A)
     } else {
@@ -285,7 +290,9 @@ fn run(
         RecordKey { test, dgp, interval: interval_method(design) },
         LEVEL,
     );
-    let base = 0x5c00_0000_u64 + (design as u64) * 0x1000 + (kind as u64) * 0x100;
+    // The first grids keep the seeds they were measured with; larger grids draw their own.
+    let size_salt = if n_base == base_cases(design) { 0 } else { (n_base as u64) << 24 };
+    let base = 0x5c00_0000_u64 + size_salt + (design as u64) * 0x1000 + (kind as u64) * 0x100;
     let scored = map_replicates(n_sim(), |r| {
         replicate(
             design,
@@ -319,21 +326,45 @@ fn run(
 
 macro_rules! gated {
     ($name:ident, $design:expr, $kind:expr, $difference:expr, $dgp:literal) => {
+        gated_at!($name, $design, base_cases($design), $kind, $difference, $dgp);
+    };
+}
+
+macro_rules! gated_at {
+    ($name:ident, $design:expr, $n_base:expr, $kind:expr, $difference:expr, $dgp:literal) => {
         #[test]
         #[ignore = "calibration: run only at the final measurement step"]
         fn $name() {
-            run(stringify!($name), $dgp, $design, Truth::Gaussian, $kind, $difference, "", false);
+            run(
+                stringify!($name),
+                $dgp,
+                $n_base,
+                $design,
+                Truth::Gaussian,
+                $kind,
+                $difference,
+                "",
+                false,
+            );
         }
     };
 }
 
-gated!(
-    iid_crps_mean_l95,
-    Design::Iid,
-    ScoreKind::Crps,
-    false,
-    "fixed_gaussian_forecast_against_iid_standard_normal_outcomes"
-);
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn iid_crps_mean_l95() {
+    run(
+        "iid_crps_mean_l95",
+        "fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
+        base_cases(Design::Iid),
+        Design::Iid,
+        Truth::Gaussian,
+        ScoreKind::Crps,
+        false,
+        "",
+        false,
+    );
+}
 gated!(
     iid_log_score_mean_l95,
     Design::Iid,
@@ -391,6 +422,144 @@ gated!(
     "two_fixed_gaussian_forecasts_against_clustered_standard_normal_outcomes_size_5"
 );
 
+// The iid interval over larger case counts: grids 1,600 to 6,400, 6,400 to 25,600 and
+// 25,600 to 102,400 cases, contiguous with the first grid (400 to 1,600).
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn iid_crps_mean_3200_cases_l95() {
+    run(
+        "iid_crps_mean_3200_cases_l95",
+        "fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
+        3200,
+        Design::Iid,
+        Truth::Gaussian,
+        ScoreKind::Crps,
+        false,
+        "",
+        false,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn iid_log_score_mean_3200_cases_l95() {
+    run(
+        "iid_log_score_mean_3200_cases_l95",
+        "fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
+        3200,
+        Design::Iid,
+        Truth::Gaussian,
+        ScoreKind::Log,
+        false,
+        "",
+        false,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn iid_crps_difference_3200_cases_l95() {
+    run(
+        "iid_crps_difference_3200_cases_l95",
+        "two_fixed_gaussian_forecasts_against_iid_standard_normal_outcomes",
+        3200,
+        Design::Iid,
+        Truth::Gaussian,
+        ScoreKind::Crps,
+        true,
+        "",
+        false,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn iid_crps_mean_12800_cases_l95() {
+    run(
+        "iid_crps_mean_12800_cases_l95",
+        "fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
+        12800,
+        Design::Iid,
+        Truth::Gaussian,
+        ScoreKind::Crps,
+        false,
+        "",
+        false,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn iid_log_score_mean_12800_cases_l95() {
+    run(
+        "iid_log_score_mean_12800_cases_l95",
+        "fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
+        12800,
+        Design::Iid,
+        Truth::Gaussian,
+        ScoreKind::Log,
+        false,
+        "",
+        false,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn iid_crps_difference_12800_cases_l95() {
+    run(
+        "iid_crps_difference_12800_cases_l95",
+        "two_fixed_gaussian_forecasts_against_iid_standard_normal_outcomes",
+        12800,
+        Design::Iid,
+        Truth::Gaussian,
+        ScoreKind::Crps,
+        true,
+        "",
+        false,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn iid_crps_mean_51200_cases_l95() {
+    run(
+        "iid_crps_mean_51200_cases_l95",
+        "fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
+        51200,
+        Design::Iid,
+        Truth::Gaussian,
+        ScoreKind::Crps,
+        false,
+        "",
+        false,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn iid_log_score_mean_51200_cases_l95() {
+    run(
+        "iid_log_score_mean_51200_cases_l95",
+        "fixed_gaussian_forecast_against_iid_standard_normal_outcomes",
+        51200,
+        Design::Iid,
+        Truth::Gaussian,
+        ScoreKind::Log,
+        false,
+        "",
+        false,
+    );
+}
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn iid_crps_difference_51200_cases_l95() {
+    run(
+        "iid_crps_difference_51200_cases_l95",
+        "two_fixed_gaussian_forecasts_against_iid_standard_normal_outcomes",
+        51200,
+        Design::Iid,
+        Truth::Gaussian,
+        ScoreKind::Crps,
+        true,
+        "",
+        false,
+    );
+}
+
 #[test]
 #[ignore = "calibration: run only at the final measurement step"]
 fn iid_log_score_heavy_tailed_truth_boundary_l95() {
@@ -402,6 +571,7 @@ fn iid_log_score_heavy_tailed_truth_boundary_l95() {
     run(
         "iid_log_score_heavy_tailed_truth_boundary_l95",
         "fixed_gaussian_forecast_against_iid_student_t3_unit_variance_outcomes",
+        base_cases(Design::Iid),
         Design::Iid,
         Truth::HeavyTailed,
         ScoreKind::Log,

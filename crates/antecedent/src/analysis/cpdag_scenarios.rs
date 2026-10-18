@@ -1,8 +1,8 @@
 //! DAG completions of a supplied CPDAG as one finite scenario set, and the
 //! shared-data covariance of scenario estimates.
 //!
-//! Preparation enumerates the completions of the CPDAG (at most six fully
-//! observed nodes), binds evidence to each completion, decides each through the
+//! Preparation enumerates the completions of the CPDAG (fully observed
+//! nodes, bounded by the search budget), binds evidence to each completion, decides each through the
 //! classical catalog route on one shared budget and compiles each identified one
 //! against supplied exact laws; estimation evaluates the retained plans and never
 //! re-identifies. The report keeps every completion whatever its status, an
@@ -56,8 +56,7 @@ impl StudyBuilder {
     /// against supplied exact laws.
     ///
     /// # Errors
-    /// `route_not_supported` / `cpdag_scenarios.bounds_exceeded` (more than six
-    /// nodes), `cpdag_scenarios.selection_or_latent`; `invalid_argument` /
+    /// `route_not_supported` / `cpdag_scenarios.selection_or_latent`; `invalid_argument` /
     /// `cpdag_scenarios.not_a_cpdag`, `cpdag_scenarios.evidence_identity_mismatch`;
     /// `schema_mismatch` for a catalog, law or request outside the shared
     /// coordinate schema; invalid query, catalog or laws; or a request that fails

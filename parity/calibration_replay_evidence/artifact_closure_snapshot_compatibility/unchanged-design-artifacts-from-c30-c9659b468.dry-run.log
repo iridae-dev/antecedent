@@ -1,0 +1,5 @@
+replay of waiver unchanged-design-artifacts-from-c30-c9659b468 at c9659b468b86366886facff69a73eeee5fc1f0f8: 6 record(s), 4 gate group(s)
+  group 295: derivative_calibration: point_derivative_frequentist_curvature_nominal_90_coverage
+  group 189: antecedent-estimate: ipw_hajek_analytic_conformance_scm_ci_coverage
+  group 617: sample_split_parent_set_effect_calibration: parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage [stored parent protocol 1]
+  group 87: decision_reliability_interval_calibration: selection_corrected_two_candidates_l95

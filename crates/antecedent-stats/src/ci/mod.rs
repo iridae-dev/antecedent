@@ -15,7 +15,10 @@ mod parcorr_variants;
 mod residualize;
 mod types;
 
-pub use advanced::{Gpdc, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCmi};
+pub use advanced::{
+    GPDC_NYSTROM_MAX_INDUCING_POINTS, Gpdc, GpdcNystrom, KnnDependence, MixedKnnDependence,
+    OracleCi, SymbolicCmi,
+};
 pub use bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 pub use calibration::{CalibrationReport, calibrate_parcorr_like};
 pub use factory::ci_from_name;

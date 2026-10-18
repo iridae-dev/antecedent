@@ -44,6 +44,12 @@
 //!
 //! Every result is labelled [`DERIVED_UNMEASURED`]; no coverage is claimed.
 //!
+//! The simulation is the route for procedures of any declared size. Its cost
+//! is replications times units times measurements per unit; the request is
+//! admitted against a work and memory budget before any replicate runs
+//! ([`super::capacity::ResourceBudget`]), the loop checks for cancellation at
+//! every batch, and the result carries a [`ResourceReceipt`] of the work done.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
@@ -59,6 +65,7 @@ use antecedent_core::CausalRng;
 use antecedent_kernels::norm_cdf;
 
 use super::AdaptiveInferenceError as Error;
+use super::capacity::{CapacityError, ResourceBudget, ResourceReceipt, SimulationShape};
 use super::procedure_contract::{
     ContractGap, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_UNITS, ProcedureContractError, StoppingRule,
 };
@@ -71,7 +78,7 @@ use super::weighting::{
 /// Most measurements per unit (or members per cluster).
 pub const MAX_MEASUREMENTS_PER_UNIT: u32 = 32;
 /// Most policy-update batches of one procedure.
-pub const MAX_UNIT_BATCHES: usize = 400;
+pub const MAX_UNIT_BATCHES: usize = 65_535;
 /// Longest follow-up delay, in batches.
 pub const MAX_UNIT_LAG: usize = 32;
 
@@ -485,13 +492,20 @@ impl RepeatedMeasuresSpec {
             None => gaps.push(ContractGap::EnrolmentScheduleMissing),
             Some(schedule) => {
                 let total: u64 = schedule.iter().map(|&n| u64::from(n)).sum();
-                if schedule.is_empty()
-                    || schedule.len() > MAX_UNIT_BATCHES
-                    || total == 0
-                    || total > u64::from(MAX_PROCEDURE_UNITS)
-                    || schedule[0] == 0
-                {
+                if schedule.first().is_none_or(|&first| first == 0) || total == 0 {
                     gaps.push(ContractGap::Invalid("adaptive_inference.looks_not_ordered"));
+                }
+                if schedule.len() > MAX_UNIT_BATCHES {
+                    gaps.push(ContractGap::Capacity(CapacityError::DeclaredLooks {
+                        limit: MAX_UNIT_BATCHES as u64,
+                        requested: schedule.len() as u64,
+                    }));
+                }
+                if total > u64::from(MAX_PROCEDURE_UNITS) {
+                    gaps.push(ContractGap::Capacity(CapacityError::DeclaredUnits {
+                        limit: u64::from(MAX_PROCEDURE_UNITS),
+                        requested: total,
+                    }));
                 }
             }
         }
@@ -1064,6 +1078,8 @@ pub struct RepeatedMeasuresReplicate {
 pub struct RepeatedMeasuresLaw {
     /// Replicates, in index order.
     pub replicates: Vec<RepeatedMeasuresReplicate>,
+    /// The work the simulation was admitted for and did.
+    pub receipt: ResourceReceipt,
 }
 
 /// Summary of the simulated estimates against the known contrast.
@@ -1149,8 +1165,10 @@ fn draw_arm(rng: &mut CausalRng, probabilities: &[f64]) -> usize {
 
 struct Unit {
     arm: usize,
-    row: Vec<f64>,
+    /// Index of the unit's assignment row (one per batch) in the row store.
+    row: usize,
     summary: f64,
+    /// The measurements, kept only for the analysis that pools them.
     values: Vec<f64>,
 }
 
@@ -1166,6 +1184,7 @@ fn mean_and_variance(values: &[f64]) -> Option<(f64, f64)> {
 fn analyse(
     spec: &RepeatedMeasuresSpec,
     units: &[Unit],
+    rows: &[Vec<f64>],
     revealed: &[usize],
     cancelled: &dyn Fn() -> bool,
 ) -> Result<(Option<f64>, Option<f64>), Error> {
@@ -1216,7 +1235,7 @@ fn analyse(
             }
             let assigned: Vec<usize> = revealed.iter().map(|&i| units[i].arm).collect();
             let probabilities: Vec<f64> =
-                revealed.iter().flat_map(|&i| units[i].row.iter().copied()).collect();
+                revealed.iter().flat_map(|&i| rows[units[i].row].iter().copied()).collect();
             let outcomes: Vec<f64> = revealed.iter().map(|&i| units[i].summary).collect();
             let scores =
                 adaptive_scores(spec.arms, &assigned, &probabilities, &outcomes, prior, cancelled)?;
@@ -1235,7 +1254,7 @@ fn analyse(
 }
 
 /// Run the declared procedure `request.replications` times under the arm
-/// means `arm_means`.
+/// means `arm_means`, within the library work and memory bounds.
 ///
 /// Replicate streams are keyed by the seed and the replicate index, so a
 /// replicate does not depend on how many others are run. The policy sees only
@@ -1252,13 +1271,58 @@ pub fn simulate_repeated_measures(
     request: &RepeatedMeasuresRequest,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<RepeatedMeasuresLaw, Error> {
+    simulate_repeated_measures_within(spec, arm_means, request, &ResourceBudget::DEFAULT, cancelled)
+}
+
+/// [`simulate_repeated_measures`] within an explicit work and memory budget.
+///
+/// The request is admitted before any replicate runs: replications times
+/// units times measurements per unit within `budget.max_work`, and the
+/// estimated peak bytes within `budget.max_memory_bytes`.
+///
+/// # Errors
+/// As [`simulate_repeated_measures`], and a capacity refusal for a request
+/// over the replication bound, the work budget or the memory budget.
+pub fn simulate_repeated_measures_within(
+    spec: &RepeatedMeasuresSpec,
+    arm_means: &[f64],
+    request: &RepeatedMeasuresRequest,
+    budget: &ResourceBudget,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<RepeatedMeasuresLaw, Error> {
     admit_repeated_measures(spec, spec.declared_paradigm())?;
     check_means(spec, arm_means)?;
-    if request.replications == 0 || request.replications > MAX_SIMULATION_REPLICATIONS {
-        return Err(Error::Limit("between 1 and 1,000,000 replications"));
+    if request.replications == 0 {
+        return Err(Error::InvalidParameter("a simulation needs at least one replication"));
     }
+    if request.replications > MAX_SIMULATION_REPLICATIONS {
+        return Err(Error::Capacity(CapacityError::SimulationReplications {
+            limit: u64::from(MAX_SIMULATION_REPLICATIONS),
+            requested: u64::from(request.replications),
+        }));
+    }
+    let measurements = spec.covariance.measurements as u64;
+    let pooled = matches!(spec.analysis.estimator, AnalysisEstimator::PooledIndependent);
+    let values_bytes = if pooled { measurements * std::mem::size_of::<f64>() as u64 } else { 0 };
+    let admitted = budget.admit(&SimulationShape {
+        replications: request.replications,
+        units: spec.total_units(),
+        measurements: spec.covariance.measurements as u32,
+        record_bytes: (std::mem::size_of::<RepeatedMeasuresReplicate>()
+            + spec.arms * std::mem::size_of::<u32>()) as u64,
+        unit_bytes: (std::mem::size_of::<Unit>() + 2 * std::mem::size_of::<usize>()) as u64
+            + values_bytes
+            + 4 * spec.arms as u64 * std::mem::size_of::<f64>() as u64,
+        fixed_bytes: 0,
+    })?;
     let summary_kind = spec.analysis_summary();
+    let states = 2 * spec.arms as u64;
     let mut replicates = Vec::with_capacity(request.replications as usize);
+    let mut receipt = ResourceReceipt {
+        work_planned: admitted.work_planned,
+        estimated_peak_bytes: admitted.estimated_peak_bytes,
+        ..ResourceReceipt::default()
+    };
     for replicate in 0..request.replications {
         if cancelled() {
             return Err(Error::Cancelled);
@@ -1269,17 +1333,27 @@ pub fn simulate_repeated_measures(
         let mut sums = vec![0.0; spec.arms];
         let mut counts = vec![0_u32; spec.arms];
         let mut units: Vec<Unit> = Vec::with_capacity(spec.total_units() as usize);
+        let mut rows: Vec<Vec<f64>> = Vec::with_capacity(spec.enrolment.len());
         let mut pending: VecDeque<Vec<usize>> = VecDeque::new();
         let mut revealed: Vec<usize> = Vec::new();
         for &size in &spec.enrolment {
-            let row = spec.policy_row(&sums, &counts);
+            if cancelled() {
+                return Err(Error::Cancelled);
+            }
+            rows.push(spec.policy_row(&sums, &counts));
+            let row_index = rows.len() - 1;
             let mut batch = Vec::with_capacity(size as usize);
             for _ in 0..size {
-                let arm = draw_arm(&mut rng, &row);
+                let arm = draw_arm(&mut rng, &rows[row_index]);
                 let values = spec.covariance.draw(&mut rng, arm_means[arm]);
                 let summary = spec.covariance.reduce(&values, summary_kind);
                 batch.push(units.len());
-                units.push(Unit { arm, row: row.clone(), summary, values });
+                units.push(Unit {
+                    arm,
+                    row: row_index,
+                    summary,
+                    values: if pooled { values } else { Vec::new() },
+                });
             }
             pending.push_back(batch);
             if pending.len() > spec.lag_looks {
@@ -1292,7 +1366,7 @@ pub fn simulate_repeated_measures(
                 }
             }
         }
-        let (estimate, variance) = analyse(spec, &units, &revealed, cancelled)?;
+        let (estimate, variance) = analyse(spec, &units, &rows, &revealed, cancelled)?;
         replicates.push(RepeatedMeasuresReplicate {
             estimate,
             variance,
@@ -1300,8 +1374,16 @@ pub fn simulate_repeated_measures(
             analysed_units: revealed.len(),
             units_per_arm: counts,
         });
+        receipt
+            .record_replicate(
+                spec.enrolment.len(),
+                spec.total_units(),
+                spec.covariance.measurements as u32,
+                states,
+            )
+            .map_err(Error::Capacity)?;
     }
-    Ok(RepeatedMeasuresLaw { replicates })
+    Ok(RepeatedMeasuresLaw { replicates, receipt })
 }
 
 // -- Derivation -----------------------------------------------------------------------------------
@@ -1336,6 +1418,8 @@ pub struct RepeatedMeasuresDerivation {
     pub enrolled: u32,
     /// Mean analysed units per replicate.
     pub mean_analysed_units: f64,
+    /// The work the simulation was admitted for and did.
+    pub receipt: ResourceReceipt,
     /// Always [`DERIVED_UNMEASURED`].
     pub calibration: &'static str,
 }
@@ -1353,9 +1437,32 @@ pub fn derive_repeated_measures(
     z: f64,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<RepeatedMeasuresDerivation, Error> {
+    derive_repeated_measures_within(
+        spec,
+        arm_means,
+        request,
+        z,
+        &ResourceBudget::DEFAULT,
+        cancelled,
+    )
+}
+
+/// [`derive_repeated_measures`] within an explicit work and memory budget.
+///
+/// # Errors
+/// As [`derive_repeated_measures`], and the capacity refusals of
+/// [`simulate_repeated_measures_within`].
+pub fn derive_repeated_measures_within(
+    spec: &RepeatedMeasuresSpec,
+    arm_means: &[f64],
+    request: &RepeatedMeasuresRequest,
+    z: f64,
+    budget: &ResourceBudget,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<RepeatedMeasuresDerivation, Error> {
     let paradigm = spec.declared_paradigm();
     admit_repeated_measures(spec, paradigm)?;
-    let law = simulate_repeated_measures(spec, arm_means, request, cancelled)?;
+    let law = simulate_repeated_measures_within(spec, arm_means, request, budget, cancelled)?;
     let contrast_value = arm_means[spec.analysis.plus] - arm_means[spec.analysis.minus];
     let simulated = law.summarize(contrast_value, z)?;
     let exact_law = exact_fixed_contrast_law(spec, arm_means).ok();
@@ -1374,6 +1481,7 @@ pub fn derive_repeated_measures(
         enrolled: spec.total_units(),
         mean_analysed_units: law.replicates.iter().map(|r| r.analysed_units as f64).sum::<f64>()
             / n,
+        receipt: law.receipt,
         calibration: DERIVED_UNMEASURED,
     })
 }

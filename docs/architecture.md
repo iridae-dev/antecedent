@@ -72,6 +72,9 @@ A crate that owns an error type owns its conversion into a lower crate's error
 `antecedent-estimate` depends on `antecedent-learn` for nuisance
 prediction and never names Forust, SmartCore, or other ML
 providers (ADR 0023).
+`antecedent-model` depends on `antecedent-learn` for the tree-ensemble mechanism
+families: it fits through the learner contract and stores only the provider-independent
+tree map (`PortablePredictor`), so it too never names a provider (ADR 0012).
 Bayesian discovery may use `antecedent-prob` without pulling `antecedent-model`.
 
 ## Analysis pipeline

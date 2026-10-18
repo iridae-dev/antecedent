@@ -89,7 +89,8 @@ fn quantity_label(quantity: &FiniteQuantity) -> &'static str {
 ///
 /// # Errors
 /// A request outside the measured model class: a sampled posterior, a
-/// transported population, more than three variables or more than four levels.
+/// transported population, more than three variables, more than four levels
+/// or an exogenous term shared by several variables.
 #[allow(clippy::result_large_err, reason = "the refusal wire is the shared execution refusal type")]
 pub fn whole_path_interval_basis(
     request: &FiniteExecutionRequest,
@@ -112,6 +113,17 @@ pub fn whole_path_interval_basis(
         || request.scm.variables.iter().any(|v| v.levels > MEASURED_LEVELS)
     {
         return Err(outside("scm"));
+    }
+    // The measured design drew one exogenous term per variable; a shared term
+    // is a different model class with no coverage record.
+    let mut users = vec![0usize; request.scm.exogenous.len()];
+    for variable in &request.scm.variables {
+        if let Some(count) = users.get_mut(variable.exogenous) {
+            *count += 1;
+        }
+    }
+    if users.iter().any(|count| *count > 1) {
+        return Err(outside("shared_exogenous"));
     }
     let a = |text: &str| Arc::<str>::from(text);
     Ok(CalibrationBasis::new(

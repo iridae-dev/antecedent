@@ -113,6 +113,62 @@ pub struct PooledEstimate {
     pub degrees_of_freedom: usize,
 }
 
+/// Equal-study Gaussian mean with its empirical variance estimate.
+///
+/// This construction does not estimate a between-study variance or Cochran's Q.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GaussianStudyEstimate {
+    /// Arithmetic mean of the study estimates.
+    pub estimate: f64,
+    /// Empirical variance of the mean, `sum (y_i-mean)^2 / (k*(k-1))`.
+    pub variance: f64,
+    /// Equal study weights, each `1/k`.
+    pub weights: Vec<f64>,
+    /// Student reference degrees of freedom, `k-1`.
+    pub degrees_of_freedom: usize,
+}
+
+/// Equal-study pooling for independent Gaussian study estimates with a common mean.
+///
+/// The empirical variance of the mean is `sum (y_i - mean)^2 / (k*(k-1))`.
+/// A Student reference with `k-1` degrees of freedom yields at least nominal
+/// coverage at confidence levels of 95% or greater, even when the unknown
+/// study variances differ. Estimated within-study variances are deliberately
+/// not used as random precision weights. Gaussian between-study effects are
+/// included in each study's marginal variance.
+///
+/// See Ibragimov and Müller (2010), DOI 10.1198/jbes.2009.08046, section 2.1.
+/// This is a conservative construction, not an exactly nominal interval.
+///
+/// # Errors
+/// Refuses fewer than two or more than [`MAX_STUDIES`] estimates, or nonfinite input.
+pub fn equal_study_gaussian(estimates: &[f64]) -> Result<GaussianStudyEstimate, SynthesisError> {
+    let k = estimates.len();
+    if k < 2 {
+        return Err(SynthesisError::TooFewStudies { needed: 2, got: k });
+    }
+    if k > MAX_STUDIES {
+        return Err(SynthesisError::Shape("more studies than the synthesis bound"));
+    }
+    if estimates.iter().any(|y| !y.is_finite()) {
+        return Err(SynthesisError::NonFinite("estimate"));
+    }
+    #[allow(clippy::cast_precision_loss, reason = "study count is bounded by MAX_STUDIES")]
+    let count = k as f64;
+    let estimate = estimates.iter().sum::<f64>() / count;
+    let spread = estimates.iter().map(|y| (y - estimate).powi(2)).sum::<f64>();
+    let variance = spread / (count * (count - 1.0));
+    if !estimate.is_finite() || !variance.is_finite() {
+        return Err(SynthesisError::NonFinite("equal-study pooled value"));
+    }
+    Ok(GaussianStudyEstimate {
+        estimate,
+        variance,
+        weights: vec![1.0 / count; k],
+        degrees_of_freedom: k - 1,
+    })
+}
+
 /// What was learned about a covariance matrix.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CovarianceCheck {
@@ -995,5 +1051,42 @@ mod dependence_envelope_tests {
         let result =
             finite_extremes(&[0.0, 1.0], 0.0, |rho| if rho == 0.0 { 1.0 } else { f64::NAN });
         assert!(matches!(result, Err(SynthesisError::NonFinite(_))));
+    }
+}
+
+#[cfg(test)]
+mod equal_study_tests {
+    use super::*;
+
+    #[test]
+    fn equal_study_pool_matches_hand_mean_and_pairwise_variance() {
+        let ys = [0.0, 2.0, 6.0, 7.0, 10.0];
+        let fit = equal_study_gaussian(&ys).unwrap();
+        assert!((fit.estimate - 5.0).abs() < 1e-14);
+        // sum (y_i-y_j)^2 / (k^2*(k-1)) is an independent variance identity.
+        let pairwise: f64 = ys
+            .iter()
+            .enumerate()
+            .map(|(i, a)| ys.iter().skip(i + 1).map(|b| (a - b).powi(2)).sum::<f64>())
+            .sum();
+        assert!((fit.variance - pairwise / 100.0).abs() < 1e-14);
+        assert_eq!(fit.degrees_of_freedom, 4);
+        assert!(fit.weights.iter().all(|w| (*w - 0.2).abs() < 1e-14));
+        let transformed = equal_study_gaussian(&ys.map(|y| 3.0 - 2.0 * y)).unwrap();
+        assert!((transformed.estimate - (3.0 - 2.0 * fit.estimate)).abs() < 1e-14);
+        assert!((transformed.variance - 4.0 * fit.variance).abs() < 1e-14);
+    }
+
+    #[test]
+    fn equal_study_pool_refuses_bad_shapes_and_nonfinite_input() {
+        assert!(equal_study_gaussian(&[]).is_err());
+        assert!(equal_study_gaussian(&[1.0]).is_err());
+        assert!(equal_study_gaussian(&[1.0, f64::NAN]).is_err());
+        assert!(equal_study_gaussian(&vec![0.0; MAX_STUDIES + 1]).is_err());
+        assert!(equal_study_gaussian(&[f64::MAX, f64::MAX]).is_err());
+        assert_eq!(
+            equal_study_gaussian(&[2.0, 2.0]).unwrap().variance.to_bits(),
+            0.0_f64.to_bits()
+        );
     }
 }

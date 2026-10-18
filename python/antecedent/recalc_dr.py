@@ -22,7 +22,7 @@ from typing import Any
 from numpy.typing import ArrayLike
 
 from . import _native
-from ._recalc_bounds import MAX_COLUMNS, MAX_ROWS, MAX_VALUES, _columns
+from ._recalc_bounds import _admit, _check_resources, _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .estimators import DML, DRLearner
@@ -153,21 +153,55 @@ class DrSession:
         scores = self._handle.score_contrast()
         return None if scores is None else tuple(scores)
 
-    def plan(self, request: DrRequest, *, seed: int = 1, threads: int | None = None) -> RecalcPlan:
+    def plan(
+        self,
+        request: DrRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
+    ) -> RecalcPlan:
         """Plan native preparation, fitting, retargeting and utility without running."""
-        names, columns = _columns(request.data)
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         wire = self._handle.plan(
-            names, columns, json.dumps(_spec(request)), seed=_seed(seed), threads=threads
+            names,
+            columns,
+            json.dumps(_spec(request)),
+            seed=_seed(seed),
+            threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
         )
         return RecalcPlan.from_wire(json.loads(wire))
 
     def execute(
-        self, request: DrRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: DrRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcResult:
-        """Run only invalidated stages; seal a shared receipt with actual fit counts."""
-        names, columns = _columns(request.data)
+        """Run only invalidated stages; seal a shared receipt with actual fit counts.
+
+        ``memory_limit_bytes`` bounds the input copies and the fit's planned working set,
+        and ``cancel`` stops the run; both refuse with ``recalc.*`` details.
+        """
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         result, artifact, refusal = self._handle.execute(
-            names, columns, json.dumps(_spec(request)), seed=_seed(seed), threads=threads
+            names,
+            columns,
+            json.dumps(_spec(request)),
+            seed=_seed(seed),
+            threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
         )
         raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - native invariant
@@ -187,22 +221,15 @@ class DrSession:
         columns: Sequence[str],
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
     ) -> CatePrediction:
         """Predict named CATE feature rows with the retained final-stage map.
 
         This distinct operation measures actual zero model fits, supplies no new
         shared-stage receipt, and grants no score-retarget or inference license.
         """
-        if (
-            len(rows) > MAX_ROWS
-            or len(columns) > MAX_COLUMNS
-            or any(len(row) > MAX_COLUMNS for row in rows)
-            or sum(len(row) for row in rows) > MAX_VALUES
-        ):
-            raise CausalValueError(
-                "recalc.limits_exceeded: predictions exceed size limits",
-                reason_code="invalid_argument",
-            )
+        _check_resources(memory_limit_bytes, None)
+        _admit(sum(len(row) for row in rows), memory_limit_bytes)
         try:
             features = [[float(value) for value in row] for row in rows]
         except (TypeError, ValueError) as error:
@@ -210,7 +237,11 @@ class DrSession:
                 "prediction rows must contain numeric features", reason_code="invalid_argument"
             ) from error
         report, refusal = self._handle.predict(
-            features, list(columns), seed=_seed(seed), threads=threads
+            features,
+            list(columns),
+            seed=_seed(seed),
+            threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
         )
         raise_refusal(refusal, _refusal_type)
         if report is None:  # pragma: no cover - native invariant

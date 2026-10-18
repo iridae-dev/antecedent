@@ -44,3 +44,30 @@ data; it states which premise or declaration was not met.
   model; no coverage has been measured.
 - Transported: a claim about a target population carried with its transport
   identity; never presented as native target data.
+
+## Sample size, series length and the measured range
+
+A reported interval is `calibrated` only when its construction has a coverage
+record whose measured range contains the execution's row count. The range is
+the span of the record's sample-size grid points, and nothing beyond it is
+inferred: three passing grid points license the span they bracket, not an
+unlimited range, and a larger sample is `scope_not_assessed` with reason
+`sample_size_outside_measured_range`. The ranges below are the designs the
+calibration gate measures (`crates/antecedent/tests/practitioner_scale_calibration.rs`);
+a design that fails at any grid point is recorded as a named boundary over its
+whole range, and a result stays `scope_not_assessed` until a record exists.
+
+| Construction | Measured range (design) | Beyond the range |
+| --- | --- | --- |
+| Linear adjustment, classical, HC1, cluster-robust (500 clusters) and 199-replicate bootstrap SE; cross-fitted AIPW, classical, HC1 and cluster-robust SE; twenty adjustment covariates | 1,000 to 100,000 rows | Not assessed. The point estimate and standard error are still returned; the interval carries no calibration claim |
+| Default Bayesian (Laplace, 1,000 draws, prior scale 10) average effect | 1,000 to 100,000 rows | Not assessed above 100,000 rows. A request for fewer than 1,000 Laplace draws keeps its declared draws and summaries; its effect interval is the exchangeable-rank interval of those draws (expected posterior mass 0.95 at every count; the type-7 interval of 64 draws has 0.921), a separate construction (`rank_quantile_interval`) with its own records |
+| CPDAG class graph posterior, joint influence-function SE | 1,000 to 100,000 rows | Not assessed |
+| Frequentist temporal Pulse (horizons 1 and 2), single-step Sustained and Total, Direct and Mediated mediation effects (each contrast its own record), circular-block interval; default Bayesian Pulse and Bayesian mediation | 320 to 4,160 steps, so series of 1,024 and 4,096 steps with up to three lags are inside | Not assessed above 4,160 steps; the earlier records still cover 80 to 320 steps |
+| Bernoulli ITT score, ANCOVA (one or two covariates) and fixed CUPED interval | No row count: 30 observed and 40 expected rows in each arm, probabilities 0.2 to 0.8 (ANCOVA: one common probability) | Refused with the arm rule named; 300 balanced rows, a 2:1 allocation and a 200-row trial at probability 0.2 are supported. Known-truth coverage is 2,000 allocations per cell from 80 to 600 rows ([graphless support matrix](graphless-support-matrix.md)) |
+| Complete-randomization Neyman difference in means | 30 units per arm, unchanged | Its own construction; neither the arm rule above nor a row count applies |
+| Small-arm Student interval of a complete randomization's difference in means and of the Bernoulli ANCOVA (one or two covariates): HC2 variance with Bell-McCaffrey degrees of freedom | A smaller arm of 20 of 300 participants, at the sample sizes 150 to 600 of its grid | Offered where the construction above is unsupported, from 100 rows with at least 2 in each arm and positive variance; it is its own construction (standard-error kind `hc2`), carries no calibration claim until a coverage record covers the execution, and is never graphless-licensed. Below 2 rows in an arm, below 100 rows or with zero variance the interval is withheld with the arm rule named |
+
+Memory for the practitioner designs is bounded by the table: a 100,000-row,
+22-column table is 17.6 MB, and the calibration replicates hold one table per
+worker thread. A series is processed in place; the circular-block bootstrap
+holds one resampled index vector per replicate.

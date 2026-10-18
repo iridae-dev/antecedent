@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use antecedent_model::{BasisTerm, CompiledMechanismStore, MechanismSlot, ParentBasis};
+use antecedent_learn::PortablePredictor;
+use antecedent_model::{
+    BasisTerm, CompiledMechanismStore, MechanismSlot, ParentBasis, TreeEnsemble,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::error::IoError;
@@ -146,6 +149,22 @@ pub enum MechanismSlotWire {
         /// Row-major `k × (1 + n_terms)` logit coefficients.
         logit_coeffs: Vec<f64>,
     },
+    /// Additive-noise regression on a tree ensemble.
+    TreeAdditive {
+        /// Provider-independent tree map over the parents.
+        ensemble: PortablePredictor,
+        /// Residual σ.
+        sigma: f64,
+    },
+    /// Categorical mechanism with tree-classifier class probabilities.
+    TreeCategorical {
+        /// Support, ascending.
+        support: Vec<f64>,
+        /// Marginal probs.
+        probs: Vec<f64>,
+        /// One classifier (binary support) or one per level.
+        classifiers: Vec<PortablePredictor>,
+    },
 }
 
 /// A [`ParentBasis`] on the wire. Every constant the expansion needs is here, so
@@ -264,6 +283,7 @@ pub fn mechanisms_from_wire(w: &MechanismStoreWire) -> Result<CompiledMechanismS
     })
 }
 
+#[allow(clippy::too_many_lines, reason = "one arm per mechanism slot variant")]
 fn slot_to_wire(s: &MechanismSlot) -> Result<MechanismSlotWire, IoError> {
     match s {
         MechanismSlot::Vacant => Ok(MechanismSlotWire::Vacant),
@@ -354,6 +374,17 @@ fn slot_to_wire(s: &MechanismSlot) -> Result<MechanismSlotWire, IoError> {
                 probs: probs.to_vec(),
                 basis: basis_to_wire(basis),
                 logit_coeffs: logit_coeffs.to_vec(),
+            })
+        }
+        MechanismSlot::TreeAdditive { ensemble, sigma } => Ok(MechanismSlotWire::TreeAdditive {
+            ensemble: ensemble.predictor().clone(),
+            sigma: *sigma,
+        }),
+        MechanismSlot::TreeCategorical { support, probs, classifiers } => {
+            Ok(MechanismSlotWire::TreeCategorical {
+                support: support.to_vec(),
+                probs: probs.to_vec(),
+                classifiers: classifiers.iter().map(|c| c.predictor().clone()).collect(),
             })
         }
         MechanismSlot::Dynamic { id, .. } => Err(IoError::Convert(format!(
@@ -452,7 +483,22 @@ fn slot_from_wire(s: &MechanismSlotWire) -> Result<MechanismSlot, IoError> {
                 logit_coeffs: Arc::from(logit_coeffs.as_slice()),
             }
         }
+        MechanismSlotWire::TreeAdditive { ensemble, sigma } => {
+            MechanismSlot::TreeAdditive { ensemble: tree_from_wire(ensemble)?, sigma: *sigma }
+        }
+        MechanismSlotWire::TreeCategorical { support, probs, classifiers } => {
+            MechanismSlot::TreeCategorical {
+                support: Arc::from(support.as_slice()),
+                probs: Arc::from(probs.as_slice()),
+                classifiers: classifiers.iter().map(tree_from_wire).collect::<Result<_, _>>()?,
+            }
+        }
     })
+}
+
+fn tree_from_wire(w: &PortablePredictor) -> Result<TreeEnsemble, IoError> {
+    TreeEnsemble::new(w.clone())
+        .map_err(|e| IoError::Convert(format!("invalid tree ensemble: {e}")))
 }
 
 #[cfg(test)]
@@ -560,6 +606,76 @@ mod tests {
             evaluate_column(&restored.slots[i], batch, &[0.25], &mut after, &mut ws).unwrap();
             assert_eq!(before[0].to_bits(), after[0].to_bits(), "slot {i}");
         }
+    }
+
+    fn stump(threshold: f64, low: f64, high: f64, probability: bool) -> TreeEnsemble {
+        use antecedent_learn::{LearnerProvenance, PredictionMap, PredictionNode};
+        TreeEnsemble::new(PortablePredictor {
+            version: 1,
+            columns: 1,
+            provenance: LearnerProvenance {
+                spec: "gradient_boosted_trees".into(),
+                implementation: "test".into(),
+                version: "1".into(),
+            },
+            model: PredictionMap::Trees {
+                trees: vec![vec![
+                    PredictionNode::Split {
+                        feature: 0,
+                        threshold,
+                        inclusive: false,
+                        left: 1,
+                        right: 2,
+                        missing: 2,
+                    },
+                    PredictionNode::Leaf { value: Some(low) },
+                    PredictionNode::Leaf { value: Some(high) },
+                ]],
+                base: 0.0,
+                average: false,
+                logistic: false,
+                probability,
+            },
+        })
+        .unwrap()
+    }
+
+    /// A tree-ensemble mechanism decodes to an identical conditional law with no
+    /// provider present, and a corrupted ensemble is refused on decode.
+    #[test]
+    fn tree_slots_roundtrip_and_evaluate_identically() {
+        use antecedent_model::{MechanismWorkspace, ParentBatch, evaluate_column};
+        let store = CompiledMechanismStore {
+            slots: Arc::from([
+                MechanismSlot::TreeAdditive { ensemble: stump(0.5, -1.0, 2.0, false), sigma: 0.4 },
+                MechanismSlot::TreeCategorical {
+                    support: Arc::from([0.0, 1.0]),
+                    probs: Arc::from([0.5, 0.5]),
+                    classifiers: Arc::from([stump(0.5, 0.2, 0.9, true)]),
+                },
+            ]),
+        };
+        let wire = mechanisms_to_wire(&store).unwrap();
+        let bytes = crate::to_cbor(&wire).unwrap();
+        let decoded: MechanismStoreWire = crate::from_cbor(&bytes).unwrap();
+        let restored = mechanisms_from_wire(&decoded).unwrap();
+        assert_eq!(mechanisms_to_wire(&restored).unwrap(), wire);
+        let parents = [0.1, 0.9];
+        let batch = ParentBatch { n_rows: 2, n_parents: 1, values: &parents };
+        for i in 0..2 {
+            let mut before = [0.0; 2];
+            let mut after = [0.0; 2];
+            let mut ws = MechanismWorkspace::default();
+            evaluate_column(&store.slots[i], batch, &[0.3, 0.7], &mut before, &mut ws).unwrap();
+            evaluate_column(&restored.slots[i], batch, &[0.3, 0.7], &mut after, &mut ws).unwrap();
+            assert_eq!(before.map(f64::to_bits), after.map(f64::to_bits), "slot {i}");
+        }
+        let mut corrupted = wire;
+        let MechanismSlotWire::TreeAdditive { ensemble, .. } = &mut corrupted.slots[0] else {
+            panic!("tree slot expected");
+        };
+        ensemble.columns = 0;
+        assert!(matches!(mechanisms_from_wire(&corrupted), Err(IoError::Convert(_))));
     }
 
     #[test]

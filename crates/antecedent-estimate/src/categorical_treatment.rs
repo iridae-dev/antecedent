@@ -55,8 +55,9 @@ use crate::error::EstimationError;
 use crate::util::{count, refuse};
 use crate::vector_treatment::{
     CoefficientEstimate, Contrast, ContrastEstimate, DesignSummary, JointWald, NamedColumn,
-    TreatmentColumn, VectorCovariance, VectorTreatmentFit, VectorTreatmentInput,
-    VectorTreatmentOptions, fit_joint, fit_joint_from_summary, summarize_joint,
+    RobustDesignSummary, TreatmentColumn, VectorCovariance, VectorTreatmentFit,
+    VectorTreatmentInput, VectorTreatmentOptions, fit_joint, fit_joint_from_robust_summary,
+    fit_joint_from_summary, summarize_joint, summarize_joint_robust,
 };
 
 /// Null of the non-decreasing monotonicity test.
@@ -526,6 +527,76 @@ pub fn fit_categorical_from_summary(
     spec: &CategoricalTreatmentSpec,
     summary: &CategoricalSummary,
 ) -> Result<CategoricalTreatmentFit, EstimationError> {
+    let (order, names) = check_summary(spec, &summary.counts, &summary.design)?;
+    let (contrasts, n_levels, n_pairs) = declared_contrasts(spec, &order);
+    let options = VectorTreatmentOptions { covariance: spec.covariance, contrasts };
+    let fit = fit_joint_from_summary(&summary.design, &names, &options, 1)?;
+    Ok(assemble_categorical(fit, spec, order, summary.counts.clone(), (n_levels, n_pairs)))
+}
+
+/// Level counts and the sufficient statistics of the dummy-coded design with the sandwich meat
+/// of the declared robust covariance: the replay summary of a robust categorical fit (no rows).
+#[derive(Clone, Debug, PartialEq)]
+pub struct CategoricalRobustSummary {
+    /// Rows per level, in canonical order.
+    pub counts: Vec<LevelCount>,
+    /// Gram matrix, `X'y`, residual sum of squares and meat of the design
+    /// `[intercept, adjustment..., level:<non-reference levels>...]`.
+    pub design: RobustDesignSummary,
+}
+
+/// Validate, count and fit the declared design once and keep the sufficient statistics and the
+/// meat of the robust covariance `spec.covariance`.
+///
+/// # Errors
+///
+/// The refusals of [`fit_categorical_treatment`] for the declared design, the level counts and
+/// the dummy-coded regression, and `vector_treatment.summary_inconsistent` for the model-based
+/// covariance, which has [`summarize_categorical_design`].
+pub fn summarize_categorical_design_robust(
+    input: &CategoricalTreatmentInput,
+    spec: &CategoricalTreatmentSpec,
+) -> Result<CategoricalRobustSummary, EstimationError> {
+    let order = validate_spec(spec)?;
+    let counts = count_levels(input, spec, &order)?;
+    let vector_input = VectorTreatmentInput {
+        outcome: input.outcome.clone(),
+        row_snapshot: input.row_snapshot.clone(),
+        adjustment: input.adjustment.clone(),
+        treatments: dummy_columns(input, &order, &spec.reference),
+    };
+    let design = summarize_joint_robust(&vector_input, 1, spec.covariance)?;
+    Ok(CategoricalRobustSummary { counts, design })
+}
+
+/// Categorical fit from the sufficient statistics and meat of a robust covariance, bit-identical
+/// to the robust [`fit_categorical_treatment`] of the rows the summary came from.
+///
+/// # Errors
+///
+/// `invalid_argument` with `vector_treatment.summary_inconsistent` for the model-based
+/// covariance or a malformed summary, `categorical_treatment.summary_inconsistent` when the
+/// counts disagree with the design or the declared levels, and the declared-design refusals of
+/// [`fit_categorical_treatment`] (`categorical_treatment.absent_level`,
+/// `categorical_treatment.sparse_level`, ...).
+pub fn fit_categorical_from_robust_summary(
+    spec: &CategoricalTreatmentSpec,
+    summary: &CategoricalRobustSummary,
+) -> Result<CategoricalTreatmentFit, EstimationError> {
+    let (order, names) = check_summary(spec, &summary.counts, &summary.design.design)?;
+    let (contrasts, n_levels, n_pairs) = declared_contrasts(spec, &order);
+    let options = VectorTreatmentOptions { covariance: spec.covariance, contrasts };
+    let fit = fit_joint_from_robust_summary(&summary.design, &names, &options, 1)?;
+    Ok(assemble_categorical(fit, spec, order, summary.counts.clone(), (n_levels, n_pairs)))
+}
+
+/// The declared design against a stored summary: canonical level order, populated levels and
+/// level counts that agree with the Gram diagonal. Returns the order and the dummy names.
+fn check_summary(
+    spec: &CategoricalTreatmentSpec,
+    counts: &[LevelCount],
+    design: &DesignSummary,
+) -> Result<(Vec<String>, Vec<String>), EstimationError> {
     let order = validate_spec(spec)?;
     let inconsistent = |message: &str| {
         refuse(
@@ -534,12 +605,12 @@ pub fn fit_categorical_from_summary(
             message,
         )
     };
-    let matches_order = summary.counts.len() == order.len()
-        && summary.counts.iter().zip(&order).all(|(c, level)| &c.level == level);
+    let matches_order = counts.len() == order.len()
+        && counts.iter().zip(&order).all(|(c, level)| &c.level == level);
     if !matches_order {
         return Err(inconsistent("the stored level counts do not follow the declared levels"));
     }
-    for entry in &summary.counts {
+    for entry in counts {
         if entry.rows == 0 {
             return Err(refuse(
                 reason_code!("arm_not_populated"),
@@ -559,27 +630,23 @@ pub fn fit_categorical_from_summary(
         }
     }
     let non_reference: Vec<&String> = order.iter().filter(|l| **l != spec.reference).collect();
-    let design = &summary.design;
     let t0 = design.first_treatment;
     let p = t0 + non_reference.len();
-    let total: usize = summary.counts.iter().map(|c| c.rows).sum();
+    let total: usize = counts.iter().map(|c| c.rows).sum();
     let stored_n = |i: usize| design.gram.get(i * p + i).copied();
     let counts_agree = t0 >= 1
         && design.gram.len() == p * p
         && design.n_rows == total
         && stored_n(0) == Some(count(total))
         && non_reference.iter().enumerate().all(|(j, level)| {
-            let rows = summary.counts.iter().find(|c| &&c.level == level).map(|c| c.rows);
+            let rows = counts.iter().find(|c| &&c.level == level).map(|c| c.rows);
             rows.map(count) == stored_n(t0 + j)
         });
     if !counts_agree {
         return Err(inconsistent("the level counts disagree with the stored Gram matrix"));
     }
-    let (contrasts, n_levels, n_pairs) = declared_contrasts(spec, &order);
     let names: Vec<String> = non_reference.iter().map(|l| dummy_name(l)).collect();
-    let options = VectorTreatmentOptions { covariance: spec.covariance, contrasts };
-    let fit = fit_joint_from_summary(design, &names, &options, 1)?;
-    Ok(assemble_categorical(fit, spec, order, summary.counts.clone(), (n_levels, n_pairs)))
+    Ok((order, names))
 }
 
 fn assemble_categorical(

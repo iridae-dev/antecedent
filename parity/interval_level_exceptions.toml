@@ -1,0 +1,12 @@
+# Constructions whose records are measured below the level the runtime would report by default,
+# because the runtime publishes no interval for them. scripts/check_interval_levels.py reads this
+# file: a construction named here is exempt from "the runtime reports 95% but only a 90% record
+# exists", and an entry whose construction gains a record at the reported level fails as stale.
+
+[[exception]]
+construction = "cov.response_jacobian.dag.frequentist.analytic_se"
+reason = "The Frequentist Jacobian publishes the point only (response.derivative_interval_withheld). The coefficient-sandwich band the record scores stays closed, so there is no runtime interval at any level."
+
+[[exception]]
+construction = "cov.directional_derivative.dag.frequentist.analytic_se"
+reason = "The Frequentist directional derivative publishes the point only (response.derivative_interval_withheld). The coefficient-sandwich band the record scores stays closed, so there is no runtime interval at any level."

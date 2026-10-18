@@ -783,6 +783,11 @@ def _coverage_record(row: dict) -> dict:
             "grid": _coverage_grid(row.get("grid") or []),
         }
     )
+    # Only a boundary record that passed an independent confirmation carries these.
+    if row.get("confirmation"):
+        item["confirmation"] = _coverage_grid(row["confirmation"])
+    if row.get("confirmed_passing_range"):
+        item["confirmed_passing_range"] = [int(n) for n in row["confirmed_passing_range"]]
     for key in COVERAGE_TAIL_STR_FIELDS:
         item[key] = str(row[key])
     return item

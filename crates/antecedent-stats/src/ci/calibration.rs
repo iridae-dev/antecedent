@@ -519,9 +519,9 @@ pub(crate) fn collect_null_pvalues_parcorr_like(
 mod tests {
     use super::*;
     use crate::ci::{
-        GSquared, Gpdc, KnnDependence, MixedKnnDependence, MultivariatePartialCorrelation,
-        PartialCorrelation, RegressionCi, RobustPartialCorrelation, SymbolicCmi,
-        WeightedPartialCorrelation,
+        GSquared, Gpdc, GpdcNystrom, KnnDependence, MixedKnnDependence,
+        MultivariatePartialCorrelation, PartialCorrelation, RegressionCi, RobustPartialCorrelation,
+        SymbolicCmi, WeightedPartialCorrelation,
     };
 
     #[test]
@@ -1161,12 +1161,31 @@ mod tests {
         seed: u64,
         family: u64,
         significance: SignificanceMethod,
+        draw: impl FnMut(&mut CausalRng) -> Vec<Vec<f64>>,
+    ) -> (u32, u32) {
+        conditional_rejections_given(ci, &[2], trials, alpha, seed, family, significance, draw)
+    }
+
+    /// As [`conditional_null_rejections`] with the conditioning set `z_flat` (columns of the
+    /// drawn data) instead of the single column 2: the share of trials whose `X`, `Y` test
+    /// rejects at `alpha`, with the number of trials that ran.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the test, its conditioning set, trial budget, level, stream identities, significance and data generator are all distinct inputs of one calibration run"
+    )]
+    fn conditional_rejections_given(
+        ci: &dyn ConditionalIndependence,
+        z_flat: &[usize],
+        trials: u32,
+        alpha: f64,
+        seed: u64,
+        family: u64,
+        significance: SignificanceMethod,
         mut draw: impl FnMut(&mut CausalRng) -> Vec<Vec<f64>>,
     ) -> (u32, u32) {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(seed);
-        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
-        let z_flat = [2usize];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() }];
         let mut rejections = 0u32;
         let mut refused = 0u32;
         for t in 0..trials {
@@ -1176,7 +1195,7 @@ mod tests {
             let req = CiBatchRequest {
                 columns: &cols,
                 queries: &queries,
-                z_flat: &z_flat,
+                z_flat,
                 significance,
                 confidence: ConfidenceMethod::None,
             };
@@ -1343,6 +1362,186 @@ mod tests {
             |rng| confounded_gaussian(100, 100.0, rng),
         );
         assert_conditional_null_calibrated("GPDC", rej, trials, alpha);
+    }
+
+    /// `[x, y, z]` with a smooth nonlinear confounder: `z ~ N(0, 1)`,
+    /// `x = 1.5 sin(1.5 z) + e₁`, `y = 1.5 tanh(1.5 z) + e₂ + effect · x`. At `effect = 0`,
+    /// `X ⊥ Y | Z`.
+    fn nonlinear_confounded(n: usize, effect: f64, rng: &mut CausalRng) -> Vec<Vec<f64>> {
+        let z: Vec<f64> = (0..n).map(|_| standard_normal(rng)).collect();
+        let x: Vec<f64> = z.iter().map(|&z| 1.5 * (1.5 * z).sin() + standard_normal(rng)).collect();
+        let y: Vec<f64> = z
+            .iter()
+            .zip(&x)
+            .map(|(&z, &x)| 1.5 * (1.5 * z).tanh() + standard_normal(rng) + effect * x)
+            .collect();
+        vec![x, y, z]
+    }
+
+    /// The Nyström-residualized GPDC (declared rank 256), which is the only GPDC route above
+    /// 4000 rows, must hold its Type I rate where the exact test cannot run: a nonlinear
+    /// confounder that the 256-point kernel has to represent, at n = 6000.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn gpdc_nystrom_conditional_null_gate() {
+        let (trials, alpha) = (200u32, 0.05);
+        let (rej, trials) = conditional_null_rejections(
+            &GpdcNystrom::new(),
+            trials,
+            alpha,
+            137,
+            0xC0_0A,
+            SignificanceMethod::BlockShuffle { replicates: 99, block_size: 1 },
+            |rng| nonlinear_confounded(6000, 0.0, rng),
+        );
+        assert_conditional_null_calibrated("GPDC Nystrom (n=6000)", rej, trials, alpha);
+    }
+
+    /// As [`gpdc_nystrom_conditional_null_gate`] at n = 20000, where a fixed rank covers a
+    /// smaller share of the sample.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn gpdc_nystrom_conditional_null_large_n_gate() {
+        let (trials, alpha) = (100u32, 0.05);
+        let (rej, trials) = conditional_null_rejections(
+            &GpdcNystrom::new(),
+            trials,
+            alpha,
+            139,
+            0xC0_0B,
+            SignificanceMethod::BlockShuffle { replicates: 99, block_size: 1 },
+            |rng| nonlinear_confounded(20_000, 0.0, rng),
+        );
+        assert_conditional_null_calibrated("GPDC Nystrom (n=20000)", rej, trials, alpha);
+    }
+
+    /// Power of the Nyström-residualized GPDC against a conditional dependence of
+    /// `Y` on `X` of 0.1 per unit (partial correlation about 0.1) at n = 6000.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn gpdc_nystrom_conditional_power_gate() {
+        let (trials, alpha) = (100u32, 0.05);
+        let (rej, trials) = conditional_null_rejections(
+            &GpdcNystrom::new(),
+            trials,
+            alpha,
+            149,
+            0xC0_0C,
+            SignificanceMethod::BlockShuffle { replicates: 99, block_size: 1 },
+            |rng| nonlinear_confounded(6000, 0.1, rng),
+        );
+        let power = f64::from(rej) / f64::from(trials);
+        assert!(power >= 0.9, "GPDC Nystrom power {power} ({rej}/{trials}) below 0.9");
+    }
+
+    /// `[x, y, z1, z2]` with a smooth nonlinear confounder `(z1, z2)`:
+    /// `x = 1.5 sin(1.5 z1) + 0.8 z2 + e₁`, `y = 1.5 tanh(1.5 z1) - 0.8 z2 + e₂ + effect · x`.
+    /// At `effect = 0`, `X ⊥ Y | (Z1, Z2)`.
+    fn two_conditioner_testbed(n: usize, effect: f64, rng: &mut CausalRng) -> Vec<Vec<f64>> {
+        let z1: Vec<f64> = (0..n).map(|_| standard_normal(rng)).collect();
+        let z2: Vec<f64> = (0..n).map(|_| standard_normal(rng)).collect();
+        let x: Vec<f64> = (0..n)
+            .map(|i| 1.5 * (1.5 * z1[i]).sin() + 0.8 * z2[i] + standard_normal(rng))
+            .collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                1.5 * (1.5 * z1[i]).tanh() - 0.8 * z2[i] + standard_normal(rng) + effect * x[i]
+            })
+            .collect();
+        vec![x, y, z1, z2]
+    }
+
+    /// Type I error under conditional independence and power under a conditional dependence of
+    /// `Y` on `X` of 0.1 per unit, both given the two conditioners of
+    /// [`two_conditioner_testbed`], for the low-rank GPDC test at `n` rows.
+    fn assert_two_conditioner_type_i_and_power(n: usize, seed: u64, family: u64, trials: u32) {
+        let alpha = 0.05;
+        let significance = SignificanceMethod::BlockShuffle { replicates: 99, block_size: 1 };
+        let (rej, ran) = conditional_rejections_given(
+            &GpdcNystrom::new(),
+            &[2, 3],
+            trials,
+            alpha,
+            seed,
+            family,
+            significance,
+            |rng| two_conditioner_testbed(n, 0.0, rng),
+        );
+        assert_conditional_null_calibrated(
+            &format!("GPDC Nystrom, two conditioners (n={n})"),
+            rej,
+            ran,
+            alpha,
+        );
+        let (rej, ran) = conditional_rejections_given(
+            &GpdcNystrom::new(),
+            &[2, 3],
+            trials,
+            alpha,
+            seed,
+            family ^ 0x100,
+            significance,
+            |rng| two_conditioner_testbed(n, 0.1, rng),
+        );
+        let power = f64::from(rej) / f64::from(ran);
+        assert!(power >= 0.9, "GPDC Nystrom power {power} ({rej}/{ran}) at n={n} below 0.9");
+    }
+
+    /// The low-rank GPDC test beyond the exact test's 4000-row limit, 8000 rows, two
+    /// conditioning variables: Type I error near nominal and power under dependence.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn conditional_gpdc_beyond_4k_8000_rows() {
+        assert_two_conditioner_type_i_and_power(8_000, 5_996_245, 0xC0_10, 200);
+    }
+
+    /// As [`conditional_gpdc_beyond_4k_8000_rows`] at 20000 rows.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn conditional_gpdc_beyond_4k_20000_rows() {
+        assert_two_conditioner_type_i_and_power(20_000, 6_766_463, 0xC0_11, 100);
+    }
+
+    /// The low-rank construction is a separate identity with its own provenance record, and its
+    /// own 2000-replicate Type I measurement at 8000 rows (the sample size the exact test
+    /// cannot run): the rejection rate at level 0.05 stays within the exact binomial region and
+    /// its coverage (one minus that rate) stays above the 0.93 floor.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn scalable_gpdc_replacement_validated_separately() {
+        let record = |id: &str| {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../provenance")
+                .join(format!("{id}.toml"));
+            std::fs::read_to_string(path).unwrap_or_default()
+        };
+        assert!(record("ci.gpdc_nystrom").contains("feature_id = \"ci.gpdc_nystrom\""));
+        assert!(record("ci.gpdc").contains("feature_id = \"ci.gpdc\""));
+        assert!(crate::ci::ci_from_name("gpdc_nystrom").is_ok());
+
+        let (trials, alpha) = (2_000u32, 0.05);
+        let (rej, ran) = conditional_rejections_given(
+            &GpdcNystrom::new(),
+            &[2, 3],
+            trials,
+            alpha,
+            6_101_623,
+            0xC0_12,
+            SignificanceMethod::BlockShuffle { replicates: 99, block_size: 1 },
+            |rng| two_conditioner_testbed(8_000, 0.0, rng),
+        );
+        assert!(ran >= 1_800, "only {ran} of {trials} replicates reported");
+        assert_conditional_null_calibrated(
+            "GPDC Nystrom (n=8000, 2000 replicates)",
+            rej,
+            ran,
+            alpha,
+        );
+        let coverage = 1.0 - f64::from(rej) / f64::from(ran);
+        assert!(coverage >= 0.93, "coverage {coverage} ({rej}/{ran} rejections) below 0.93");
+        ::std::eprintln!(
+            "calibration-assertion-receipt {{\"profile\":\"gpdc_nystrom_conditional_null.v1\",\"rows\":8000,\"attempted\":{trials},\"reported\":{ran},\"rejected\":{rej},\"alpha\":{alpha:.17},\"conditional_nonrejection\":{coverage:.17},\"width\":\"not_applicable\"}}"
+        );
     }
 
     /// AR(1) Z and independent AR(1) arm noise: `X ⊥ Y | Z` with serial dependence, block 20.

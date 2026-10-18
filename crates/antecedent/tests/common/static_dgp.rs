@@ -80,6 +80,23 @@ pub fn linear_ate_data(n: usize, seed: u64) -> TabularData {
     table(&[("t", &t), ("y", &y), ("z", &z)])
 }
 
+/// Linear Gaussian SCM with a confounded binary treatment (columns `t, y, z`):
+/// `z ~ N(0,1)`, `t ~ Bern(σ(−0.8 + z))`, `y = effect·t + z + N(0,1)`. The adjusted
+/// average effect is exactly `effect`, so the Bayesian linear adjustment posterior
+/// has a known truth at every sample size.
+#[must_use]
+pub fn bayesian_linear_scm(n: usize, effect: f64, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = g();
+        t[i] = bernoulli(&mut u, sigmoid(-0.8 + z[i]));
+        y[i] = effect * t[i] + z[i] + g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
+}
+
 /// Binary chain `t -> m -> y` (columns `t, m, y`): `t ~ Bern(1/2)`,
 /// `m | t ~ Bern(0.3 + 0.4t)`, `y | m ~ Bern(0.2 + 0.5m)`. The only directed
 /// path runs through `m`, so the path-specific effect is `0.4·0.5 = 0.2`.

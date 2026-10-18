@@ -11,6 +11,18 @@ report = study.inspect()        # includes cached identification; does not estim
 result = study.estimate()      # uses retained data and preparation's seed/threads
 ```
 
+### Ask a policy question
+
+`ant.prepare(data, graph=dag, query=PolicyProgramValue(programs, outcome, n_draws=...))`
+(from `antecedent.intervention_programs`) prepares the value of an intervention program such as
+`price := max(1, 0.85 * price)` on a fitted structural model. The model is fitted and the program
+compiled and licensed once; `estimate(seed=...)` and `refresh(new_data)` rerun the value without
+compiling the program again (`study.preparation.program_compilations` stays 1), and each result
+equals `policy_value` on the same model and seed. The result reports the support decision of the
+simulation, counterfactual and identification routes, the contract (the structural assumptions the
+value rests on) and the provenance record. Estimand options such as `estimator=` and `refute=`
+do not apply and are refused; see the [intervention programs guide](guides/intervention-programs.md).
+
 ### Defaults and latency
 
 `analyze` and `prepare` use the same defaults. Set `bootstrap`, `refute`, or
@@ -200,6 +212,35 @@ key's posterior construction. A Bayesian fit under the Gaussian likelihood to
 an outcome that is 0/1 or nonnegative-integer valued reports the warning
 diagnostic `estimate.bayesian.gaussian_likelihood_discrete_outcome`.
 
+## Bound the draws behind a Bayesian interval
+
+An interval from posterior draws is a finite-sample quantile, so each endpoint
+carries a Monte Carlo standard error that belongs to the draws, not the
+posterior. `Bayesian(n_draws=..., draw_controls="measured")` bounds it for a
+tabular `AverageEffect` on a `Dag`:
+
+- `n_draws` must reach the backend's supported minimum, 2000 for `laplace` and
+  `conjugate` and 3000 for `hmc` (the floor its chain diagnostics need). A
+  smaller count, or the default count, is refused when the study is built with
+  `reason_code="posterior_draws_below_supported"`, naming the minimum. The
+  count is never rewritten.
+- The Monte Carlo standard error of the larger interval endpoint must be at most
+  a twentieth of the interval width. Independent draws (`laplace`, `conjugate`)
+  carry the order-statistic error of the draw count. An `hmc` chain's draws are
+  autocorrelated, so the same error is discounted by the tail effective sample
+  size; a sampler that mixes poorly is refused with
+  `reason_code="posterior_draws_not_converged"`, naming R-hat and the effective
+  sample sizes (or the endpoint errors and the tolerance). The reported errors
+  are the `estimate.bayesian.draw_controls` diagnostic.
+- The actual draw count is part of the inference-binding identity, the controls
+  enter it only when requested, and the seed is part of the execution identity,
+  so changing either changes the identity and replaying with both reproduces
+  every draw.
+
+Any other route refuses the option with `reason_code="invalid_argument"` rather
+than ignore it. The interval stays `scope_not_assessed` until a coverage record
+covers the draw count and sample size.
+
 ## Clip or trim propensity scores
 
 The propensity-score estimators (`PropensityWeighting`, `PropensityMatching`,
@@ -243,13 +284,31 @@ up front (`cluster_interval_not_licensed`), fewer clusters than
 second_cluster_ids=...)` declares two-way dependence: folds own whole connected components of
 the endpoint graph (no endpoint crosses folds) and `se_analytic` is the two-way sandwich; an entity used in both
 endpoint roles or one giant component refuses `dyadic_dependence_not_licensed`, and fewer
-than `min_components_per_fold` components per fold refuse `too_few_clusters`. `DML`,
-`DRLearner` and `CausalForest` take no cluster option: a `cluster_ids`/`cluster_dml`/
+than `min_components_per_fold` components per fold refuse `too_few_clusters`. `DML` and
+`DRLearner` declare dependence through `cluster_dml` only, and `CausalForest` through
+`cluster="site"` (whole-cluster subsampling, honesty and cross-fitting; see
+[the guide](guides/cluster-inference.md)): a row-aligned `cluster_ids`, `cluster_dml` or
 `multiway_ids` key in their `estimator_config` refuses `route_not_supported`.
+`PropensityWeighting` and `PropensityStratification` take `cluster="site"` for a cluster
+sandwich with the propensity-estimation correction and a whole-cluster bootstrap.
 `CandidateScreen.from_units(...)` builds a
 deterministic screen/estimate split from entity labels, or from dyad endpoints so that
 connected endpoints never cross the split, and records the seed and a unit digest in
 `screen_id`. See [the guide](guides/clustered-dml.md).
+
+## Sampling weights
+
+`weights="w"` on `LinearAdjustment`, `GlmAdjustment`, `Aipw`, `PropensityWeighting`,
+`PropensityMatching`, `DistanceMatching`, `PropensityStratification`, `DML` and `DRLearner`, on
+`RandomizedEffect`, on `PanelDifferenceInDifferences` and on
+`PulseEffect` names a column of sampling weights (or gives one weight per row). The estimate
+speaks for the weighted population, weights are normalized to mean one (so their scale changes
+nothing), rows of weight zero are excluded and counted, a negative, NaN or infinite weight
+refuses naming its row (`sampling_weights_invalid`), and `result.estimate.sampling_weights`
+reports the rows used, the zero-weight rows, the Kish effective sample size and the declared
+weight sum. A construction with no weighted contrast refuses the weights
+(`option_not_applicable`, `sampling_weights.route_unsupported`). See
+[the guide](guides/sampling-weights.md).
 
 ## Read identification details
 

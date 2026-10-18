@@ -1,0 +1,66 @@
+"""Finish genuine witnesses without repeating the preserved temporal computation."""
+import hashlib,json,os,shutil,subprocess,sys,time
+from pathlib import Path
+main=Path('/Users/charleshinshaw/Desktop/antecedent');root=Path('/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent');sys.path.insert(0,str(root/'scripts'))
+import calibration_facets as f
+import _temporal_capture_transfer as t
+source=subprocess.check_output(['git','rev-parse','2f7d56662'],cwd=root,text=True).strip();assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()==source
+assert not subprocess.check_output(['git','status','--porcelain'],cwd=root,text=True).strip()
+plan_dir=main/'target/calibration-audit/final-waivers-2f7d56662';build_path=main/'target/calibration-audit'/f'final-witness-build-{source[:9]}/receipt.json';build=json.loads(build_path.read_text(encoding='utf-8'));assert build['source']==source and build['status']=='passed' and build['default_features'] is True
+receipt=main/'target/calibration-audit/corrected-genuine-waiver-execution.json'
+state={'source':source,'requested_records':38,'preserved_numeric_group':t.RECORD,'threads':2,'status':'running','build_receipt_sha256':t.sha256(build_path.read_bytes()),'waivers':[],'controller_sha256':t.sha256(Path(__file__).read_bytes())}
+def save():receipt.write_text(json.dumps(state,indent=2)+'\n',encoding='utf-8')
+def hashes():
+ for path,value in build['executables'].items():assert t.sha256(Path(path).read_bytes())==value['sha256'],path
+ assert not subprocess.check_output(['git','status','--porcelain'],cwd=root,text=True).strip()
+def gate_digest():return t.sha256((root/'scripts/gate_calibration.sh').read_bytes())
+env={k:v for k,v in os.environ.items() if not k.startswith('ANTECEDENT_CALIBRATION_') and k not in {'ANTECEDENT_PARENT_PROTOCOL_VERSION','ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION','ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL','ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL'}}
+env.update(CARGO_TARGET_DIR='/private/tmp/antecedent-attestation-target',CARGO_BUILD_JOBS='1',ANTECEDENT_CALIBRATION_THREADS='2')
+plans=[('unchanged-validated-procedures-from-70','unchanged-validated-procedures-from-70.toml'),('unchanged-weighted-hc3-from-da811','unchanged-weighted-hc3-from-da811.toml'),('unchanged-defaults-and-legacy-synthesis-from-c30','combined-original-domain-waiver.toml'),('unchanged-defaults-and-legacy-normal-clusters-from-e15','e15-unchanged-defaults-waiver-draft.toml')]
+# All frozen final-source policy preflights precede any additional scientific draw.
+for name,filename in plans:
+ result=subprocess.run([sys.executable,'scripts/calibration_facets.py','replay','--dry-run','--waiver',name,'--waiver-file',str(plan_dir/filename)],cwd=root,env=env)
+ assert result.returncode==0,(name,'preflight')
+save();hashes()
+for name,filename in plans:
+ entry={'id':name,'started_ns':time.time_ns(),'status':'running'};state['waivers'].append(entry);save();hashes()
+ waiver_file=plan_dir/filename
+ if name=='unchanged-validated-procedures-from-70':
+  preserved=main/'target/calibration-audit/temporal-original70-preserved';out=root/'target/calibration-replay'/name;out.mkdir(parents=True,exist_ok=True)
+  old=json.loads((preserved/'original-capture.json').read_text(encoding='utf-8'));execution=json.loads((preserved/'original-execution.json').read_text(encoding='utf-8'))
+  for log in old['logs']:shutil.copy2(preserved/log,out/log)
+  shutil.copy2(preserved/'original-build-receipt.json',out/'original-build-receipt.json')
+  temporal={'version':2,'kind':'temporal_construction_metadata_transfer','source_sha':source,'records':[t.RECORD],'source_transfer':t.verify_input_transfer(root,source),'original_capture':old,'original_execution':execution,'payloads':t.derive_payloads(old['payloads'],[t.RECORD])}
+  selected=[record for record in f.load_records() if record['id'] in t.ORDINARY_RECORDS];assert len(selected)==3
+  _,total,matches=f._gate_groups_for(selected);groups={g.index:g for record in selected for g in matches[record['id']]};ordinary_logs={};executed={};gate_before=gate_digest()
+  for group in groups.values():
+   records=[record for record in selected if any(g.index==group.index for g in matches[record['id']])]
+   invocations=f.coverage_family_replay_environments(records);assert invocations
+   protocol={**f.parent_replay_environment(records),**f.synthesis_replay_environment(records),**f.weighted_split_replay_environment(records),**f.weighted_cluster_replay_environment(records)}
+   print('START genuine final-source group',group.index,group.label,flush=True)
+   for invocation in invocations:
+    hashes();result=subprocess.run(['bash',str(root/'scripts/gate_calibration.sh')],cwd=root,env={**env,**protocol,**invocation,'ANTECEDENT_CALIBRATION_SHARD':f'{group.index-1}/{total}'})
+    assert result.returncode==0,(group.label,'original gate failed');hashes()
+   for log in f.group_log_names(f._safe_label(group.label)):
+    path=root/'target/calibration-records'/log
+    if path.is_file():shutil.copy2(path,out/log);ordinary_logs[log]=t.sha256(path.read_bytes())
+  payloads=f.replay_payloads([out/name for name in ordinary_logs]);assert set(t.ORDINARY_RECORDS)<=set(payloads)
+  # Executed paths are observed from the real original Cargo gate logs.
+  import re
+  for log in ordinary_logs:
+   if log.endswith('.log'):
+    for binary in re.findall(r'Running [^\n]*\((/[^)]+)\)',(out/log).read_text(encoding='utf-8')):
+     expected=build['executables'][binary]['sha256'];executed[binary]={'before':expected,'after':expected}
+  shutil.copy2(build_path,out/'final-build-receipt.json')
+  capture={'version':3,'kind':'temporal_and_final_source_composition','source_sha':source,'records':[t.RECORD,*t.ORDINARY_RECORDS],'temporal_capture':temporal,'ordinary_capture':{'version':1,'source_sha':source,'records':list(t.ORDINARY_RECORDS),'logs':ordinary_logs,'payloads':payloads},'ordinary_execution':{'source':source,'gate':{'before':gate_before,'after':gate_digest()},'build_receipt':'final-build-receipt.json','build_receipt_sha256':t.sha256(build_path.read_bytes()),'binaries':executed},'payloads':temporal['payloads']|{record:payloads[record] for record in t.ORDINARY_RECORDS}}
+  (out/'raw-replay-capture.json').write_text(json.dumps(capture,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+  f.load_replay_capture(out,source,[t.RECORD,*t.ORDINARY_RECORDS])
+  extra=['--reuse-capture']
+ else:extra=[]
+ logfile=main/'target/calibration-audit'/f'corrected-final-replay-{name}.log'
+ with logfile.open('w',encoding='utf-8') as stream:
+  result=subprocess.run([sys.executable,'-u','scripts/calibration_facets.py','replay',*extra,'--waiver',name,'--waiver-file',str(waiver_file)],cwd=root,env=env,stdout=stream,stderr=subprocess.STDOUT)
+ entry.update(exit_code=result.returncode,finished_ns=time.time_ns(),status='passed' if result.returncode==0 else 'failed',log=str(logfile));save();hashes()
+ if result.returncode:state['status']='failed';save();raise SystemExit(result.returncode)
+ print('PASS',name,flush=True)
+state['status']='passed';save()

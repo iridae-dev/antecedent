@@ -48,12 +48,13 @@ use antecedent_io::{
 use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::result::{RowWeightsBinding, StudyResult};
+use crate::result::{IntervalBinding, RowWeightsBinding, StudyResult};
 use crate::support::{CellStatus, StructureSource};
 
 use super::batch::PreparedBatch;
 use super::builder::DataInput;
 use super::execute::Study;
+use super::missing_data;
 use super::prepared::{
     CachedTemporalHorizonIdentification, CachedTemporalIdentification, CheckedProgramBinding,
     PreparedStudy,
@@ -586,6 +587,8 @@ impl PreparedStudy {
         let snapshot = data_snapshot_wire(
             data,
             self.study().interference.as_ref(),
+            self.study().participants.as_ref(),
+            missing_data::policy_wire(self.study()),
             &program.observation_digest,
         )?;
         let mut snapshot = snapshot;
@@ -1145,6 +1148,26 @@ impl PreparedBatch {
     }
 }
 
+/// The evidence references of a claim: the three identities, plus, only when the result's
+/// missing-data policy differs from its route default, the policy, the assumption it needs and
+/// the digest of the dropped rows. Default claims keep exactly the references they always had.
+fn claim_evidence(result: &StudyResult, contract: &CausalContract) -> Vec<Arc<str>> {
+    let mut evidence: Vec<Arc<str>> = vec![
+        Arc::from(format!("snapshot:{}", contract.identities.data_snapshot.to_hex())),
+        Arc::from(format!("identification:{}", contract.identities.identification.to_hex())),
+        Arc::from(format!(
+            "program:{}",
+            contract.identities.program.map_or_else(String::new, |p| p.to_hex())
+        )),
+    ];
+    if let Some(report) = result.missing_data.as_ref().filter(|report| report.non_default) {
+        evidence.push(Arc::from(format!("missing_policy:{}", report.policy().name())));
+        evidence.push(Arc::from(format!("missing_assumption:{}", report.assumption)));
+        evidence.push(Arc::from(format!("missing_dropped:{}", report.accounting.dropped_digest)));
+    }
+    evidence
+}
+
 impl StudyResult {
     /// Portable claim over `contract` and this execution.
     ///
@@ -1262,17 +1285,7 @@ impl StudyResult {
                 domain(&domains.evaluated)?,
             ),
             Some(execution),
-            [
-                Arc::from(format!("snapshot:{}", contract.identities.data_snapshot.to_hex())),
-                Arc::from(format!(
-                    "identification:{}",
-                    contract.identities.identification.to_hex()
-                )),
-                Arc::from(format!(
-                    "program:{}",
-                    contract.identities.program.map_or_else(String::new, |p| p.to_hex())
-                )),
-            ],
+            claim_evidence(self, contract),
         );
         envelope.calibration = calibration_view(&calibration);
         envelope.attested = attested_evidence(self);
@@ -1715,8 +1728,13 @@ fn contract_payloads(
     study: &Study,
     prepared: Option<&PreparedStudy>,
 ) -> Result<ContractPayloads, CausalError> {
-    let mut data_snapshot =
-        data_snapshot_wire(&study.data, study.interference.as_ref(), &program.observation_digest)?;
+    let mut data_snapshot = data_snapshot_wire(
+        &study.data,
+        study.interference.as_ref(),
+        study.participants.as_ref(),
+        missing_data::policy_wire(study),
+        &program.observation_digest,
+    )?;
     if let (Some(prepared), DataInput::Tabular(tabular)) = (prepared, &study.data) {
         let laws = prepared
             .distribution_factor_snapshot(tabular)?
@@ -1894,7 +1912,9 @@ fn inference_binding_wire(study: &Study, inference: String) -> InferenceBindingW
         inference,
         bootstrap_replicates: study.bootstrap_replicates,
         bayesian: match &study.inference {
-            InferenceMode::Bayesian(cfg) => Some(super::contract_identity::bayesian_binding(cfg)),
+            InferenceMode::Bayesian(cfg) => {
+                Some(super::contract_identity::bayesian_binding(cfg, study.draw_controls))
+            }
             InferenceMode::Frequentist => None,
         },
         validation_suite: study.refute.validation_suite_id().map(str::to_string),
@@ -1974,14 +1994,34 @@ fn compile_with_payloads(
         Some(overlap) => format!("{}+{overlap}", functional_label(&study.query)),
         None => functional_label(&study.query),
     };
-    // A penalized propensity (or its fallback) changes the nuisance the interval is about, so
-    // the label binds it only to records measured under that nuisance.
-    if let Some(propensity) = study
-        .estimator_spec
-        .as_deref()
-        .and_then(crate::estimator_spec::EstimatorSpec::propensity_calibration_label)
+    // Calibration labels retain nuisance, stratification and matching choices in order.
+    if let Some(estimator) = study.estimator_spec.as_deref() {
+        for label in [
+            estimator.propensity_calibration_label(),
+            estimator.stratification_calibration_label().map(str::to_owned),
+            estimator.matching_calibration_label().map(str::to_owned),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            functional = format!("{functional}+{label}");
+        }
+    }
+    // Sampling weights change the estimand and the variance: an interval measured on unweighted
+    // rows must not bind to a weighted-population estimate.
+    let weighted_table = match &study.data {
+        DataInput::Tabular(data) => data.storage().weights().is_some(),
+        DataInput::Temporal(data) | DataInput::Event(data) => data.storage().weights().is_some(),
+        DataInput::MultiEnv(_) | DataInput::Panel(_) => false,
+    };
+    if weighted_table
+        || study
+            .estimator_spec
+            .as_deref()
+            .and_then(crate::estimator_spec::EstimatorSpec::sampling_weights_calibration_label)
+            .is_some()
     {
-        functional = format!("{functional}+{propensity}");
+        functional = format!("{functional}+{}", crate::estimator_spec::SAMPLING_WEIGHTS_LABEL);
     }
     Ok((
         CausalContract {
@@ -2009,7 +2049,13 @@ fn compile_with_payloads(
             score_reuse: None,
             target_weights: None,
             checked_aipw_rows: None,
-            posterior: Arc::from(posterior_label(&study.inference)),
+            posterior: Arc::from(posterior_label(
+                &study.inference,
+                matches!(study.query, CausalQuery::AverageEffect(_))
+                    && study.graph.class() == GraphClass::Dag
+                    || matches!(study.query, CausalQuery::TemporalEffect(_))
+                        && study.graph.class() == GraphClass::TemporalDag,
+            )),
             functional: Arc::from(functional),
             posterior_draws: match &study.inference {
                 InferenceMode::Bayesian(cfg) => u32::try_from(cfg.n_draws).ok(),
@@ -2052,6 +2098,8 @@ const fn snapshot_modality(data_input: &DataInput) -> &'static str {
 fn data_snapshot_wire(
     data_input: &DataInput,
     interference: Option<&super::builder::InterferenceSpec>,
+    participants: Option<&antecedent_io::ParticipantBindingWire>,
+    missing: Option<antecedent_io::MissingPolicyWire>,
     observation: &antecedent_core::SemanticDigest,
 ) -> Result<DataSnapshotIdentityWire, CausalError> {
     let modality = snapshot_modality(data_input);
@@ -2097,6 +2145,8 @@ fn data_snapshot_wire(
         distribution_factor_laws: None,
         nested_counterfactual_fit: None,
         linear_fit_moments: None,
+        participants: participants.cloned(),
+        missing,
     })
 }
 
@@ -2480,6 +2530,36 @@ fn data_row_count(data: &DataInput) -> u64 {
     }
 }
 
+/// Match the historical cluster constructions by their actual published reference.
+/// The unweighted normal key's `iid` spelling is a legacy key convention; its `cluster`
+/// SE kind still denotes clustered uncertainty. It does not assert independent errors.
+fn cluster_reference_key(
+    result: &StudyResult,
+    binding: &IntervalBinding,
+    contract: &CausalContract,
+) -> (&'static str, String, &'static str) {
+    let ordinary = (binding.method.as_str(), contract.functional.to_string(), binding.dependence);
+    if binding.method != IntervalMethod::AnalyticSe
+        || binding.se_kind != Some(antecedent_estimate::AnalyticSeKind::Cluster)
+        || result.logical_plan.data_classification
+            != antecedent_contract::DataClassification::Tabular
+    {
+        return ordinary;
+    }
+    let student = result.estimate.as_effect().is_some_and(|estimate| {
+        estimate.uncertainty.analytic.reference_df.is_some_and(|df| df.is_finite() && df > 0.0)
+    });
+    match (contract.functional.strip_suffix("+weights=sampling"), student) {
+        (Some(functional), true) => (
+            "student_analytic",
+            format!("{functional}+reference=cluster_df+weights=sampling"),
+            "cluster",
+        ),
+        (Some(_), false) | (None, true) => (ordinary.0, ordinary.1, "cluster"),
+        (None, false) => ordinary,
+    }
+}
+
 impl StudyResult {
     /// Calibration match bases of every interval this execution reported
     /// ([`StudyResult::reported_interval_bindings`]), primary first: the keys
@@ -2551,32 +2631,36 @@ impl StudyResult {
         let bayesian = contract.inference.eq_ignore_ascii_case("bayesian");
         self.reported_interval_bindings(bayesian)
             .into_iter()
-            .map(|binding| CalibrationBasisWire {
-                key: CalibrationKeyWire {
-                    query: query.clone(),
-                    graph_class: graph_class.clone(),
-                    structure: structure.to_string(),
-                    modality: modality.to_string(),
-                    inference: inference.clone(),
-                    estimator: self.logical_plan.estimator.as_deref().unwrap_or("").to_string(),
-                    interval_method: binding.method.as_str().to_string(),
-                    se_kind: binding.se_kind.map_or("", |kind| kind.as_str()).to_string(),
-                    dependence: binding.dependence.to_string(),
-                    posterior: contract.posterior.to_string(),
-                    functional: contract.functional.to_string(),
-                    level: if binding.level.is_finite() { binding.level } else { 0.0 },
-                    identification: label.to_string(),
-                },
-                scope: CalibrationScopeWire {
-                    row_count: analysis_row_count(self, contract),
-                    replicates_ok: binding.replicates_ok,
-                    posterior_draws: binding.posterior_draws.or_else(|| {
-                        (binding.method == IntervalMethod::PosteriorQuantile)
-                            .then_some(contract.posterior_draws)
-                            .flatten()
-                    }),
-                    unidentified_mass,
-                },
+            .map(|binding| {
+                let (interval_method, functional, dependence) =
+                    cluster_reference_key(self, &binding, contract);
+                CalibrationBasisWire {
+                    key: CalibrationKeyWire {
+                        query: query.clone(),
+                        graph_class: graph_class.clone(),
+                        structure: structure.to_string(),
+                        modality: modality.to_string(),
+                        inference: inference.clone(),
+                        estimator: self.logical_plan.estimator.as_deref().unwrap_or("").to_string(),
+                        interval_method: interval_method.to_string(),
+                        se_kind: binding.se_kind.map_or("", |kind| kind.as_str()).to_string(),
+                        dependence: dependence.to_string(),
+                        posterior: contract.posterior.to_string(),
+                        functional,
+                        level: if binding.level.is_finite() { binding.level } else { 0.0 },
+                        identification: label.to_string(),
+                    },
+                    scope: CalibrationScopeWire {
+                        row_count: analysis_row_count(self, contract),
+                        replicates_ok: binding.replicates_ok,
+                        posterior_draws: binding.posterior_draws.or_else(|| {
+                            (binding.method == IntervalMethod::PosteriorQuantile)
+                                .then_some(contract.posterior_draws)
+                                .flatten()
+                        }),
+                        unidentified_mass,
+                    },
+                }
             })
             .collect()
     }
@@ -2732,7 +2816,7 @@ fn overlap_label(study: &Study, resolved_estimator: Option<&str>) -> Option<Stri
 }
 
 /// Posterior construction label: backend, likelihood and prior.
-fn posterior_label(inference: &InferenceMode) -> String {
+fn posterior_label(inference: &InferenceMode, rank_interval: bool) -> String {
     let InferenceMode::Bayesian(cfg) = inference else {
         return String::new();
     };
@@ -2753,7 +2837,18 @@ fn posterior_label(inference: &InferenceMode) -> String {
         } else {
             format!("prior_scale={}", cfg.prior_scale)
         };
-    format!("{backend}.{likelihood}.{prior}")
+    // Below the measured draw count the g-computation's effect interval is the exchangeable-rank
+    // interval of its draws, not the type-7 interval its 1,000-draw records measured: another
+    // construction, keyed apart. The default count and above keep the original label.
+    let interval = if rank_interval
+        && matches!(cfg.backend, antecedent_estimate::BayesianBackendKind::Laplace)
+        && cfg.n_draws < antecedent_estimate::LAPLACE_RANK_INTERVAL_BELOW_DRAWS
+    {
+        ".rank_quantile_interval"
+    } else {
+        ""
+    };
+    format!("{backend}.{likelihood}.{prior}{interval}")
 }
 
 fn attested_evidence(result: &StudyResult) -> Arc<[AttestedEvidence]> {

@@ -81,7 +81,7 @@ pub struct AdaptiveProcedure {
     from_contract: Vec<&'static str>,
 }
 
-fn gap_refusal(gap: ContractGap) -> AdaptiveInferenceRefusal {
+pub(super) fn gap_refusal(gap: ContractGap) -> AdaptiveInferenceRefusal {
     AdaptiveInferenceRefusal {
         code: gap.reason_code(),
         detail: gap.detail().to_owned(),
@@ -109,7 +109,9 @@ fn rule_family(rule: &AssignmentRule) -> Option<AssignmentFamily> {
     match rule {
         AssignmentRule::Fixed { .. } => Some(AssignmentFamily::FixedRandomization),
         AssignmentRule::EpsilonGreedy { .. } => Some(AssignmentFamily::EpsilonGreedy),
-        AssignmentRule::ThompsonBeta { .. } => Some(AssignmentFamily::ThompsonBetaBernoulli),
+        AssignmentRule::ThompsonBeta { .. } | AssignmentRule::ThompsonBetaFloored { .. } => {
+            Some(AssignmentFamily::ThompsonBetaBernoulli)
+        }
         AssignmentRule::UpperConfidenceBound { .. } => Some(AssignmentFamily::UpperConfidenceBound),
         _ => None,
     }
@@ -134,6 +136,10 @@ fn identity_of(spec: &ProcedureSpec) -> String {
         }
         AssignmentRule::ThompsonBeta { prior } => {
             writer.text("thompson_beta");
+            encode_prior(&mut writer, prior);
+        }
+        AssignmentRule::ThompsonBetaFloored { prior, min_probability } => {
+            writer.text("thompson_beta_floored").real(*min_probability);
             encode_prior(&mut writer, prior);
         }
         AssignmentRule::UpperConfidenceBound { exploration } => {
@@ -169,6 +175,10 @@ fn identity_of(spec: &ProcedureSpec) -> String {
         }
         StoppingRule::PosteriorExpectedLoss { loss_threshold, prior } => {
             writer.text("posterior_expected_loss").real(*loss_threshold);
+            encode_prior(&mut writer, prior);
+        }
+        StoppingRule::PosteriorFutility { margin, threshold, prior } => {
+            writer.text("posterior_futility").real(*margin).real(*threshold);
             encode_prior(&mut writer, prior);
         }
         StoppingRule::WaldBoundaries { critical, sidedness } => {
@@ -376,6 +386,14 @@ impl AdaptiveProcedure {
                     Some(StoppingRule::PosteriorExpectedLoss { loss_threshold, prior })
                 } else {
                     problems.push(needs_prior("expected loss"));
+                    None
+                }
+            }
+            StoppingSpec::PosteriorFutility { margin, threshold } => {
+                if let Some(prior) = elements.stopping_prior {
+                    Some(StoppingRule::PosteriorFutility { margin, threshold, prior })
+                } else {
+                    problems.push(needs_prior("futility"));
                     None
                 }
             }

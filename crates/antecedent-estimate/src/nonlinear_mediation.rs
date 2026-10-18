@@ -473,8 +473,8 @@ struct Fit {
     degree: usize,
     n_x: usize,
     residuals: Vec<f64>,
-    mediator_design: DesignSummary,
-    outcome_design: DesignSummary,
+    mediator_rss: f64,
+    outcome_rss: f64,
 }
 
 fn design_summary(cols: &[Vec<f64>], y: &[f64], rss: f64) -> DesignSummary {
@@ -512,8 +512,7 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
             "the mediator has no spread",
         ));
     }
-    let mut med_design = vec![vec![1.0; n], cols.a.clone()];
-    med_design.extend(cols.x.iter().cloned());
+    let (med_design, out_design) = design_columns(cols, degree, center, scale);
     let med = ols(&med_design, &cols.m)?;
     let sigma2 = med.rss / (count(n) - count(med_design.len()));
     if !(sigma2.is_finite() && sigma2 > 1e-12 * scale * scale) {
@@ -523,9 +522,34 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
             "the mediator residual has no spread",
         ));
     }
+    let out = ols(&out_design, &cols.y)?;
+    Ok(Fit {
+        med: med.beta,
+        sigma: sigma2.sqrt(),
+        out: out.beta,
+        center,
+        scale,
+        degree,
+        n_x: cols.x.len(),
+        residuals: med.residuals,
+        mediator_rss: med.rss,
+        outcome_rss: out.rss,
+    })
+}
+
+/// Mediator and outcome regression columns: intercept, treatment, covariates, then for the
+/// outcome the standardized-mediator powers and their treatment interactions.
+fn design_columns(
+    cols: &Columns,
+    degree: usize,
+    center: f64,
+    scale: f64,
+) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
+    let n = cols.len();
+    let mut med_design = vec![vec![1.0; n], cols.a.clone()];
+    med_design.extend(cols.x.iter().cloned());
     let z: Vec<f64> = cols.m.iter().map(|&m| (m - center) / scale).collect();
-    let mut out_design = vec![vec![1.0; n], cols.a.clone()];
-    out_design.extend(cols.x.iter().cloned());
+    let mut out_design = med_design.clone();
     let mut pow = vec![1.0; n];
     let mut z_cols: Vec<Vec<f64>> = Vec::with_capacity(degree);
     for _ in 0..degree {
@@ -538,21 +562,17 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
         z_cols.iter().map(|zc| zc.iter().zip(&cols.a).map(|(zv, av)| zv * av).collect()).collect();
     out_design.extend(z_cols);
     out_design.extend(interactions);
-    let out = ols(&out_design, &cols.y)?;
-    let mediator_design = design_summary(&med_design, &cols.m, med.rss);
-    let outcome_design = design_summary(&out_design, &cols.y, out.rss);
-    Ok(Fit {
-        med: med.beta,
-        sigma: sigma2.sqrt(),
-        out: out.beta,
-        center,
-        scale,
-        degree,
-        n_x: cols.x.len(),
-        residuals: med.residuals,
-        mediator_design,
-        outcome_design,
-    })
+    (med_design, out_design)
+}
+
+/// Normal-equation summaries of the two retained regressions, built once for the point fit
+/// (bootstrap refits never read them).
+fn design_summaries(cols: &Columns, fit: &Fit) -> (DesignSummary, DesignSummary) {
+    let (med_design, out_design) = design_columns(cols, fit.degree, fit.center, fit.scale);
+    (
+        design_summary(&med_design, &cols.m, fit.mediator_rss),
+        design_summary(&out_design, &cols.y, fit.outcome_rss),
+    )
 }
 
 /// Gauss-Hermite rule for the standard normal: nodes `t` and weights summing to one, so that
@@ -635,28 +655,43 @@ fn row_dot(x: &[Vec<f64>], i: usize, coefs: &[f64]) -> f64 {
     x.iter().zip(coefs).map(|(c, b)| c[i] * b).sum()
 }
 
-/// Outcome regression at treatment `a`, mediator `m`, covariate part `xb`.
-fn outcome_at(fit: &Fit, xb: f64, a: f64, m: f64) -> f64 {
-    let z = (m - fit.center) / fit.scale;
-    let k = fit.degree;
-    let base = 2 + fit.n_x;
-    let mut acc = fit.out[0] + fit.out[1] * a + xb;
-    let mut pow = 1.0;
-    for d in 0..k {
-        pow *= z;
-        acc += (fit.out[base + d] + fit.out[base + k + d] * a) * pow;
+/// Moments `U_i = sum_j w_j u_j^i` (`i <= degree`) of the quadrature offsets
+/// `u_j = sigma sqrt(2) t_j / scale` of the standardized mediator. The outcome regression is a
+/// polynomial of that degree in the standardized mediator, so the quadrature of a row is the
+/// binomial expansion in these moments: the same node sum as evaluating every node, at a cost
+/// independent of the node count.
+fn offset_moments(fit: &Fit, q: &Quadrature) -> Vec<f64> {
+    let mut moments = vec![0.0; fit.degree + 1];
+    for (t, w) in q.nodes.iter().zip(&q.weights) {
+        let u = fit.sigma * SQRT_2 * t / fit.scale;
+        let mut pow = *w;
+        for slot in &mut moments {
+            *slot += pow;
+            pow *= u;
+        }
     }
-    acc
+    moments
 }
 
-/// `∫ E[Y | a, m, x] dN(m; mu_M(a', x), sigma^2)` for one row.
-fn row_theta(fit: &Fit, xb: f64, xm: f64, a: f64, a_med: f64, q: &Quadrature) -> f64 {
+/// `∫ E[Y | a, m, x] dN(m; mu_M(a', x), sigma^2)` for one row, from the offset moments.
+fn row_theta(fit: &Fit, xb: f64, xm: f64, a: f64, a_med: f64, moments: &[f64]) -> f64 {
     let mu = fit.med[0] + fit.med[1] * a_med + xm;
-    q.nodes
-        .iter()
-        .zip(&q.weights)
-        .map(|(t, w)| w * outcome_at(fit, xb, a, mu + fit.sigma * SQRT_2 * t))
-        .sum()
+    let z0 = (mu - fit.center) / fit.scale;
+    let k = fit.degree;
+    let base = 2 + fit.n_x;
+    let mut acc = (fit.out[0] + fit.out[1] * a + xb) * moments[0];
+    // Binomial coefficient C(d, i) built incrementally; `pow` runs over z0^(d - i).
+    for d in 1..=k {
+        let coef = fit.out[base + d - 1] + fit.out[base + k + d - 1] * a;
+        let mut binom = 1.0;
+        let mut term = 0.0;
+        for (i, moment) in moments.iter().enumerate().take(d + 1) {
+            term += binom * z0.powi(i32::try_from(d - i).unwrap_or(0)) * moment;
+            binom = binom * count(d - i) / count(i + 1);
+        }
+        acc += coef * term;
+    }
+    acc
 }
 
 struct Thetas {
@@ -674,13 +709,14 @@ struct Effects {
 
 fn thetas(cols: &Columns, fit: &Fit, q: &Quadrature) -> Thetas {
     let n = cols.len();
+    let moments = offset_moments(fit, q);
     let (mut s11, mut s10, mut s00, mut st) = (0.0, 0.0, 0.0, 0.0);
     for i in 0..n {
         let xb = row_dot(&cols.x, i, &fit.out[2..]);
         let xm = row_dot(&cols.x, i, &fit.med[2..]);
-        let r11 = row_theta(fit, xb, xm, 1.0, 1.0, q);
-        let r10 = row_theta(fit, xb, xm, 1.0, 0.0, q);
-        let r00 = row_theta(fit, xb, xm, 0.0, 0.0, q);
+        let r11 = row_theta(fit, xb, xm, 1.0, 1.0, &moments);
+        let r10 = row_theta(fit, xb, xm, 1.0, 0.0, &moments);
+        let r00 = row_theta(fit, xb, xm, 0.0, 0.0, &moments);
         s11 += r11;
         s10 += r10;
         s00 += r00;
@@ -805,6 +841,10 @@ fn run_bootstrap(
 /// `nonlinear_mediation.interventional_effects_closed`, `nonlinear_mediation.overlap`,
 /// `nonlinear_mediation.integration_error`, `nonlinear_mediation.identity_violation`,
 /// `nonlinear_mediation.rank_deficient` or an input-validation detail.
+#[allow(
+    clippy::too_many_lines,
+    reason = "validation, the design summaries, the fit and the integration checks of one estimate"
+)]
 pub fn estimate_nonlinear_mediation(
     input: &NonlinearMediationInput<'_>,
     premises: &NonlinearMediationPremises,
@@ -871,6 +911,7 @@ pub fn estimate_nonlinear_mediation(
         ));
     }
     let boot = run_bootstrap(&cols, config, &fine_q);
+    let (mediator_design, outcome_design) = design_summaries(&cols, &fit);
     let (skew, kurt) = residual_shape(&fit);
     Ok(NonlinearMediationEstimate {
         natural_direct: fine.direct,
@@ -907,8 +948,8 @@ pub fn estimate_nonlinear_mediation(
             "assumption:polynomial_outcome_in_mediator",
         ],
         outcome_coefficients: fit.out,
-        mediator_design: fit.mediator_design,
-        outcome_design: fit.outcome_design,
+        mediator_design,
+        outcome_design,
     })
 }
 

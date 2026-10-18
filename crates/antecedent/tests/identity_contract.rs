@@ -44,7 +44,8 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TabularData,
     TimeIndex, TimeSeriesData, ValidityBitmap,
 };
-use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::{GraphPosterior, SamplingSummary};
 use antecedent_graph::{
     Admg, Cpdag, CpdagReview, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag,
     TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalPag, ensure_lagged,
@@ -1586,6 +1587,7 @@ fn static_discover_params() -> StaticDiscoverParams {
         ci: resolve_ci("parcorr", None).unwrap(),
         screen_pc: false,
         max_subset: None,
+        knowledge: antecedent_discovery::BackgroundKnowledge::default(),
     }
 }
 
@@ -1597,6 +1599,7 @@ fn temporal_discover_params(max_lag: u32) -> DiscoverParams {
         ci: resolve_ci("parcorr", None).unwrap(),
         multi_dataset: MultiDatasetConstraints::default(),
         max_cond_size: 2,
+        knowledge: antecedent_discovery::BackgroundKnowledge::default(),
     }
 }
 
@@ -3096,7 +3099,7 @@ fn lag1_temporal_pag() -> TemporalPag {
 }
 
 fn lag1_gp_posterior() -> GraphPosterior {
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         2,
         vec![1.0],
         vec![0],
@@ -6233,7 +6236,7 @@ fn weighted_posterior(weights: [f64; 3]) -> GraphPosterior {
     let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
     let unidentified = set_edge(0, 3, 1, 0, true);
     let marginals = vec![0.0; 9];
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         weights.to_vec(),
         vec![direct, adjusted, unidentified],

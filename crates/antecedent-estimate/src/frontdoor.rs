@@ -105,6 +105,8 @@ pub struct PreparedFrontDoorProblem {
     pub active: f64,
     /// Control treatment level.
     pub control: f64,
+    /// Original row index of each complete-case row.
+    pub row_selection: Arc<[usize]>,
 }
 
 /// Typed functional and estimator roles checked for a front-door lowering.
@@ -437,6 +439,11 @@ pub(crate) fn prepare_frontdoor_problem(
         treatment_delta,
         active,
         control,
+        row_selection: row_mask
+            .iter()
+            .enumerate()
+            .filter_map(|(row, keep)| keep.then_some(row))
+            .collect(),
     })
 }
 
@@ -462,6 +469,10 @@ pub struct FrontDoorTwoStage {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids (`length = nrows`) for [`AnalyticSeKind::Cluster`].
     pub cluster_ids: Option<Arc<[u32]>>,
+    /// Optional cluster labels of every row of the source table (`length = source rows`),
+    /// subset to the complete-case rows by their original index. Exclusive with
+    /// [`Self::cluster_ids`].
+    pub source_cluster_ids: Option<Arc<[u32]>>,
 }
 
 impl Default for FrontDoorTwoStage {
@@ -480,6 +491,7 @@ impl FrontDoorTwoStage {
             overlap: OverlapPolicy::ExplicitOverride,
             se_kind: AnalyticSeKind::Hc0,
             cluster_ids: None,
+            source_cluster_ids: None,
         }
     }
 
@@ -517,6 +529,14 @@ impl FrontDoorTwoStage {
         self
     }
 
+    /// Set cluster labels for every row of the source table (length must equal its row
+    /// count); each complete-case row keeps the label of its original row.
+    #[must_use]
+    pub fn with_source_cluster_ids(mut self, cluster_ids: Arc<[u32]>) -> Self {
+        self.source_cluster_ids = Some(cluster_ids);
+        self
+    }
+
     /// Prepare the treatment/mediator/outcome design.
     ///
     /// # Errors
@@ -530,6 +550,13 @@ impl FrontDoorTwoStage {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedFrontDoorProblem, EstimationError> {
+        if let Some(source) = self.source_cluster_ids.as_deref() {
+            crate::se::require_source_labels(
+                source,
+                self.cluster_ids.as_deref(),
+                data.row_count(),
+            )?;
+        }
         prepare_frontdoor_problem(data, estimand, query, self.overlap)
     }
 
@@ -671,10 +698,15 @@ impl FrontDoorTwoStage {
             stage2_coefs: &stage2.coefficients,
             treatment_delta: problem.treatment_delta,
         };
+        let declared_clusters = crate::se::declared_row_labels(
+            self.cluster_ids.as_deref(),
+            self.source_cluster_ids.as_deref(),
+            problem.row_selection.iter().copied(),
+        )?;
         let se_analytic = stacked_path_sum_se(
             &stages,
             self.se_kind,
-            self.cluster_ids.as_deref(),
+            declared_clusters.as_deref(),
             CrossStagePolicy::Empirical,
         )?;
         Ok((ate, se_analytic))

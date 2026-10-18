@@ -6,24 +6,21 @@
 //!
 //! Search orients one undirected edge at a time and rejects a partial assignment
 //! as soon as it creates a cycle, a future→past edge, or an unshielded collider
-//! absent from the CPDAG. A hard ceiling ([`MAX_TEMPORAL_UNDIRECTED_EDGES`])
-//! still refuses pathological unconstrained instances. The search itself is shared
-//! with the static sampler (`crate::mec_search`).
+//! absent from the CPDAG. No edge-count ceiling applies: a search budget bounds the
+//! visited states, and a stop is typed and counted by `hit_cap`. The search itself is
+//! shared with the static sampler (`crate::mec_search`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::{ExecutionContext, SearchLimits, SearchReceipt, SearchStop};
+
+use crate::completion::default_completion_search;
 use crate::cpdag::TemporalCpdag;
 use crate::error::GraphError;
 use crate::mec_search::{self, MecSearch};
 use crate::temporal::TemporalDag;
 #[cfg(test)]
 use crate::types::DenseNodeId;
-
-/// Hard ceiling on undirected edges accepted by the temporal completion search.
-///
-/// Matches [`crate::cpdag_completion::MAX_UNDIRECTED_EDGES`]: above the ~25-edge
-/// hang threshold of a blind mask scan; pruning handles sparse classes below it.
-pub(crate) const MAX_TEMPORAL_UNDIRECTED_EDGES: usize = 64;
 
 /// One [`TemporalDag`] completion of a [`TemporalCpdag`].
 #[derive(Clone, Debug)]
@@ -43,16 +40,35 @@ pub struct TemporalCpdagCompletionSampler {
 impl TemporalCpdagCompletionSampler {
     /// Build a sampler that yields at most `max_completions` valid MEC [`TemporalDag`]s.
     ///
+    /// The visited states are bounded by [`crate::DEFAULT_COMPLETION_OPERATIONS`]; use
+    /// [`Self::with_budget`] to choose the limits, memory cap and cancellation.
+    ///
     /// # Errors
     ///
-    /// Conflict edges, or more than [`MAX_TEMPORAL_UNDIRECTED_EDGES`] undirected edges.
+    /// Conflict edges present.
     pub fn new(cpdag: TemporalCpdag, max_completions: usize) -> Result<Self, GraphError> {
+        let (limits, ctx) = default_completion_search();
+        Self::with_budget(cpdag, max_completions, limits, &ctx)
+    }
+
+    /// [`Self::new`] under an explicit search budget; see
+    /// [`CpdagCompletionSampler::with_budget`](crate::CpdagCompletionSampler::with_budget).
+    ///
+    /// # Errors
+    ///
+    /// Conflict edges present.
+    pub fn with_budget(
+        cpdag: TemporalCpdag,
+        max_completions: usize,
+        limits: SearchLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GraphError> {
         let search = MecSearch::new(
             cpdag,
             max_completions,
-            MAX_TEMPORAL_UNDIRECTED_EDGES,
+            limits,
+            ctx,
             "TemporalCpdagCompletionSampler refuses conflict (x-x) edges",
-            "TemporalCpdagCompletionSampler supports at most 64 undirected edges",
         )?;
         Ok(Self { search })
     }
@@ -69,10 +85,25 @@ impl TemporalCpdagCompletionSampler {
         self.search.n_undirected()
     }
 
-    /// Whether the retention cap stopped the stream before the search finished.
+    /// Whether the stream ended before the search finished, because the retention cap was
+    /// reached or the search budget stopped it ([`Self::search_stop`]).
     #[must_use]
     pub fn hit_cap(&self) -> bool {
         self.search.hit_cap()
+    }
+
+    /// The bound that stopped the search, if a budget rather than the retention cap ended
+    /// the stream.
+    #[must_use]
+    pub fn search_stop(&self) -> Option<SearchStop> {
+        self.search.search_stop()
+    }
+
+    /// The limits in force, the states visited and the orientations left pending, once a
+    /// budget has stopped the search.
+    #[must_use]
+    pub fn search_receipt(&self) -> Option<SearchReceipt> {
+        self.search.search_receipt()
     }
 }
 
@@ -186,19 +217,68 @@ mod tests {
         }
     }
 
-    #[test]
-    fn refuses_above_hard_undirected_ceiling() {
+    fn contemporaneous_path(n: u32) -> (TemporalCpdag, Vec<DenseNodeId>) {
         let mut g = TemporalCpdag::empty();
-        let n = MAX_TEMPORAL_UNDIRECTED_EDGES + 2;
-        let mut nodes = Vec::with_capacity(n);
-        for i in 0..n {
-            nodes.push(lagged(&mut g, u32::try_from(i).unwrap(), 0));
-        }
+        let nodes: Vec<_> = (0..n).map(|i| lagged(&mut g, i, 0)).collect();
         for w in nodes.windows(2) {
             g.insert_undirected(w[0], w[1]).unwrap();
         }
-        assert_eq!(g.undirected_edge_count(), MAX_TEMPORAL_UNDIRECTED_EDGES + 1);
-        let err = TemporalCpdagCompletionSampler::new(g, 4).unwrap_err();
-        assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
+        (g, nodes)
+    }
+
+    #[test]
+    fn a_seventy_one_edge_path_completes_with_one_dag_per_source() {
+        // An undirected path on n nodes has n members (one per choice of source).
+        let n = 72u32;
+        let (g, nodes) = contemporaneous_path(n);
+        assert_eq!(g.undirected_edge_count(), 71);
+        let mut sampler = TemporalCpdagCompletionSampler::new(g.clone(), 128).unwrap();
+        let collected: Vec<_> = sampler.by_ref().collect();
+        assert!(!sampler.hit_cap());
+        assert_eq!(sampler.search_stop(), None);
+        assert_eq!(collected.len(), n as usize);
+        let mut sources = std::collections::BTreeSet::new();
+        for completion in &collected {
+            assert!(is_temporal_mec_member(&g, &completion.graph));
+            let source: Vec<usize> = nodes
+                .iter()
+                .enumerate()
+                .filter(|(_, v)| completion.graph.parents(**v).is_empty())
+                .map(|(i, _)| i)
+                .collect();
+            assert_eq!(source.len(), 1);
+            sources.insert(source[0]);
+        }
+        assert_eq!(sources.len(), n as usize);
+    }
+
+    #[test]
+    fn an_exhausted_budget_or_cancellation_is_a_typed_partial_result() {
+        // Six contemporaneous nodes, all pairs undirected: 6! members.
+        let mut g = TemporalCpdag::empty();
+        let nodes: Vec<_> = (0..6u32).map(|i| lagged(&mut g, i, 0)).collect();
+        for (i, &a) in nodes.iter().enumerate() {
+            for &b in &nodes[i + 1..] {
+                g.insert_undirected(a, b).unwrap();
+            }
+        }
+        let ctx = ExecutionContext::for_tests(0);
+        let limits = SearchLimits { operations: 100, depth: usize::MAX };
+        let mut sampler =
+            TemporalCpdagCompletionSampler::with_budget(g.clone(), usize::MAX, limits, &ctx)
+                .unwrap();
+        let yielded = sampler.by_ref().count();
+        assert!(yielded < 720);
+        assert_eq!(sampler.search_stop(), Some(SearchStop::Operations));
+        assert!(sampler.hit_cap());
+        assert_eq!(sampler.search_receipt().unwrap().operations_consumed, Some(100));
+
+        let ctx = ExecutionContext::for_tests(0);
+        ctx.cancellation.cancel();
+        let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
+        let mut sampler =
+            TemporalCpdagCompletionSampler::with_budget(g, usize::MAX, limits, &ctx).unwrap();
+        assert!(sampler.next().is_none());
+        assert_eq!(sampler.search_stop(), Some(SearchStop::Cancelled));
     }
 }

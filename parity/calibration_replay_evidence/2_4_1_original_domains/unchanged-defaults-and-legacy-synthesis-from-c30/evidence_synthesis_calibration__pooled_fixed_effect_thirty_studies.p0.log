@@ -1,0 +1,13 @@
+    Finished `release` profile [optimized] target(s) in 0.13s
+     Running tests/evidence_synthesis_calibration.rs (/private/tmp/antecedent-attestation-target/release/deps/evidence_synthesis_calibration-e03e829c37be223a)
+
+running 1 test
+calibration-protocol synthesis_source_version=2
+calibration-replay synthesis_artifact_verified method=fixed_effect_inverse_variance studies=30 rows=75 first_counter=0
+calibration pooled_fixed_effect_thirty_studies: nominal=0.95 coverage=0.940 mcse=0.0109 band=[0.917, 0.983] mean_length=0.1086 (376/400 covered, 0 skipped)
+calibration-record {"bound_replicates":400,"boundary":false,"dependence":"independent","dgp":"crates/antecedent/tests/evidence_synthesis_calibration.rs::homogeneous_gaussian_studies_unequal_scale","estimator":"evidence.synthesis.fixed_effect_gls","functional":"pooled_mean;fixed_effect;studies=5-30","graph_class":"NoGraph","grid_point":0,"id":"cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_thirty_studies","identification":"point","inference":"Frequentist","interval_method":"wald_z","mcse":0.011874342087037922,"measured_at":"2f7d56662e4e86014f907e577b7c854c74c831d4","modality":"summary","n_max":75,"n_min":75,"nominal":0.95,"observed":0.94,"posterior":"","posterior_draws_min":0,"query":"PooledEffect","replicates":400,"replicates_min":0,"role":"gated","se_kind":"model_variance","structure":"fixed","test":"crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_fixed_effect_thirty_studies","unidentified_mass_max":0.0}
+test pooled_fixed_effect_thirty_studies ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.40s
+
+calibration-measured-at 2f7d56662e4e86014f907e577b7c854c74c831d4

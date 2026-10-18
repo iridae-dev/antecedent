@@ -192,10 +192,25 @@ fn validate_summaries_against_draws(
         (stored - derived).abs() <= RELATIVE * derived.abs().max(stored.abs()).max(1.0)
     };
     for q in 0..meta.quantities.len() {
+        // The interval is the type-7 interval of the draws, or the exchangeable-rank (type-6)
+        // interval a Laplace posterior publishes below its measured draw count: both are
+        // functions of the embedded draws alone.
+        let rank = || {
+            let mut column = draws[q * n_draws..(q + 1) * n_draws].to_vec();
+            column.sort_by(f64::total_cmp);
+            let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+                &column,
+                0.95,
+                antecedent_stats::QuantileRule::ExchangeableRank,
+            );
+            close(meta.q025[q], lower) && close(meta.q975[q], upper)
+        };
+        let interval_agrees = (close(meta.q025[q], recomputed.q025[q])
+            && close(meta.q975[q], recomputed.q975[q]))
+            || rank();
         let agrees = close(meta.mean[q], recomputed.mean[q])
             && close(meta.sd[q], recomputed.sd[q])
-            && close(meta.q025[q], recomputed.q025[q])
-            && close(meta.q975[q], recomputed.q975[q]);
+            && interval_agrees;
         if !agrees {
             return Err(IoError::Convert(format!(
                 "posterior summaries for quantity {q} disagree with the embedded draws"

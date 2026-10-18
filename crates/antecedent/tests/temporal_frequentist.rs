@@ -126,6 +126,32 @@ fn headline_tallies(test: &'static str, dgp: &'static str) -> (CoverageTally, Co
     )
 }
 
+/// [`headline_tallies`] for each mediation contrast, in `Total`, `Direct`,
+/// `Mediated` order: every contrast is its own query, so each backs its own
+/// labelled record with its own gated 90% tally and reported-level tally.
+fn contrast_tallies(
+    test: &'static str,
+    dgp: &'static str,
+) -> (Vec<CoverageTally>, Vec<CoverageTally>) {
+    let key = RecordKey { test, dgp, interval: "circular_block_se" };
+    CONTRASTS
+        .iter()
+        .map(|(label, _)| {
+            (
+                CoverageTally::for_record(key, 0.9).labelled(*label),
+                CoverageTally::for_record(key, REPORTED_LEVEL).labelled(*label).unasserted(),
+            )
+        })
+        .unzip()
+}
+
+/// The mediation contrasts, each executed as its own query.
+const CONTRASTS: [(&str, MediationContrast); 3] = [
+    ("total", MediationContrast::Total),
+    ("direct", MediationContrast::Direct),
+    ("mediated", MediationContrast::Mediated),
+];
+
 /// Coverage of the headline circular-block interval `ate ± z·se_bootstrap`,
 /// plus how many replicates carried the short-series warning.
 ///
@@ -397,7 +423,8 @@ impl Spread {
     }
 }
 
-/// Coverage of all three contrasts from the shared block replicate of one run.
+/// Coverage of the Total, Direct and Mediated contrasts, each executed as its own
+/// query on one simulated series per replicate.
 fn mediation_coverage(test: &'static str, s: Scenario) -> Coverage {
     let s = Scenario { n: grid_n(s.n), ..s };
     mediation_coverage_on(
@@ -413,10 +440,14 @@ fn mediation_coverage(test: &'static str, s: Scenario) -> Coverage {
 /// [`mediation_coverage`] on any one-mediator design with an empty adjustment
 /// set (`data(rep)` draws replicate `rep`; the run seed is `seed + rep`).
 ///
-/// The query asks for the Mediated contrast, so the runtime's reported
-/// (primary) interval is the Mediated circular-block interval: that tally backs
-/// the coverage record. Total and Direct are grid slices beside it, not a
-/// reported interval, so their tallies emit no record.
+/// Total, Direct and Mediated are three queries, each executed on its own and
+/// each bound to its own record through the interval that query reports. The
+/// three executions of a replicate share one simulated series and one run seed,
+/// so they share the circular-block replicate (see the `temporal mediation`
+/// short-series family). Sharing is valid because each tally scores one
+/// functional (`c' + ab`, `c'`, `ab`) of that series against its own truth and is
+/// judged on its own marginal coverage; the tallies are never combined into a
+/// joint claim.
 fn mediation_coverage_on(
     test: &'static str,
     dgp: &'static str,
@@ -425,51 +456,46 @@ fn mediation_coverage_on(
     data: impl Fn(u32) -> TimeSeriesData + Sync,
     graph: fn() -> TemporalDag,
 ) -> Coverage {
-    // No record: the Total / Direct slices are not the reported interval of a Mediated query.
-    let mut total = CoverageTally::new(format!("temporal mediation Total [{label}]"), 0.9);
-    let mut direct = CoverageTally::new(format!("temporal mediation Direct [{label}]"), 0.9);
-    let (mut mediated, mut reported) = headline_tallies(test, dgp);
+    let (mut tallies, mut reported) = contrast_tallies(test, dgp);
     let mut spreads = [Spread::default(), Spread::default(), Spread::default()];
     let mut warned = warn_tally(test);
     let runs = map_replicates(n_sim(), |rep| {
-        run_study(
-            data(u32::try_from(rep).unwrap()),
-            graph(),
-            mediation_query(MediationContrast::Mediated),
-            BOOT,
-            seed + rep,
-        )
+        let series = data(u32::try_from(rep).unwrap());
+        CONTRASTS.map(|(_, contrast)| {
+            run_study(series.clone(), graph(), mediation_query(contrast), BOOT, seed + rep)
+        })
     });
-    for (study, result) in &runs {
-        let grid = result.mediation_grid().expect("mediation grid");
-        let slice = &grid.slices[0];
-        // No mediator-outcome confounder and an empty t -> y back-door set.
-        assert!(slice.adjustment.is_empty(), "unexpected adjustment {:?}", slice.adjustment);
-        let TemporalMediationUncertainty::FrequentistBlockBootstrap { block, .. } =
-            &slice.uncertainty
-        else {
-            panic!("temporal mediation must publish shared circular-block SEs");
-        };
-        let points = &slice.estimate;
-        assert!(
-            result.estimate.as_effect().unwrap().se_analytic().is_nan(),
-            "iid analytic SE must be withheld"
-        );
-        record_warned(&mut warned, has_diagnostic(result, SHORT_SERIES));
-        total.record(normal_interval(points.total.unwrap(), block.total, Z90), C + A * B);
-        direct.record(normal_interval(points.direct.unwrap(), block.direct, Z90), C);
-        let interval = normal_interval(points.mediated.unwrap(), block.mediated, Z90);
-        if interval.is_some() {
-            bind_all(&mut [&mut mediated, &mut reported], study, result);
-        }
-        mediated.record(interval, A * B);
-        reported.record(normal_interval(points.mediated.unwrap(), block.mediated, Z95), A * B);
-        for (spread, (point, se)) in spreads.iter_mut().zip([
-            (points.total, block.total),
-            (points.direct, block.direct),
-            (points.mediated, block.mediated),
-        ]) {
-            spread.push(point.unwrap(), se.unwrap_or(f64::NAN));
+    for replicate in &runs {
+        for (i, (study, result)) in replicate.iter().enumerate() {
+            let grid = result.mediation_grid().expect("mediation grid");
+            let slice = &grid.slices[0];
+            // No mediator-outcome confounder and an empty t -> y back-door set.
+            assert!(slice.adjustment.is_empty(), "unexpected adjustment {:?}", slice.adjustment);
+            let TemporalMediationUncertainty::FrequentistBlockBootstrap { block, .. } =
+                &slice.uncertainty
+            else {
+                panic!("temporal mediation must publish shared circular-block SEs");
+            };
+            let points = &slice.estimate;
+            assert!(
+                result.estimate.as_effect().unwrap().se_analytic().is_nan(),
+                "iid analytic SE must be withheld"
+            );
+            if i == 0 {
+                record_warned(&mut warned, has_diagnostic(result, SHORT_SERIES));
+            }
+            let (point, se, truth) = [
+                (points.total, block.total, C + A * B),
+                (points.direct, block.direct, C),
+                (points.mediated, block.mediated, A * B),
+            ][i];
+            let interval = normal_interval(point.unwrap(), se, Z90);
+            if interval.is_some() {
+                bind_all(&mut [&mut tallies[i], &mut reported[i]], study, result);
+            }
+            tallies[i].record(interval, truth);
+            reported[i].record(normal_interval(point.unwrap(), se, Z95), truth);
+            spreads[i].push(point.unwrap(), se.unwrap_or(f64::NAN));
         }
     }
     for (spread, (name, truth)) in
@@ -478,7 +504,7 @@ fn mediation_coverage_on(
         spread.report(&format!("temporal mediation {name} [{label}]"), truth);
     }
     warned.persist();
-    Coverage { tallies: vec![total, direct, mediated], reported: vec![reported], warned }
+    Coverage { tallies, reported, warned }
 }
 
 /// Total / Direct / Mediated coverage on the mediator-outcome-confounded
@@ -487,8 +513,8 @@ fn mediation_coverage_on(
 /// intervals are only calibrated if the outcome model adjusts `{z[t-1],
 /// w[t-1]}` as well as the (empty) `t -> y` back-door set.
 ///
-/// As in [`mediation_coverage_on`], only the Mediated tally (the reported
-/// interval of the Mediated query) backs a coverage record.
+/// As in [`mediation_coverage_on`], each contrast is its own execution on the
+/// shared series and backs its own record.
 fn confounded_mediation_coverage(test: &'static str) -> Coverage {
     use common::fixtures;
     const SEED: u64 = 600_000;
@@ -498,54 +524,45 @@ fn confounded_mediation_coverage(test: &'static str) -> Coverage {
         ("Direct", fixtures::mediation_direct_truth()),
         ("Mediated", fixtures::mediation_truth()),
     ];
-    let (mediated, mut reported) =
-        headline_tallies(test, "crates/antecedent/tests/common/fixtures.rs::mediation_series");
-    // No record for Total / Direct: not the reported interval of a Mediated query.
-    let mut tallies: Vec<CoverageTally> = truths[..2]
-        .iter()
-        .map(|(name, _)| {
-            CoverageTally::new(format!("temporal mediation {name} confounded [{label}]"), 0.9)
-        })
-        .collect();
-    tallies.push(mediated);
+    let (mut tallies, mut reported) =
+        contrast_tallies(test, "crates/antecedent/tests/common/fixtures.rs::mediation_series");
     let mut spreads = [Spread::default(), Spread::default(), Spread::default()];
     let runs = map_replicates(n_sim(), |rep| {
         let seed = SEED + rep;
-        run_study(
-            fixtures::mediation_series(grid_n(160), fixtures::MED_KAPPA, seed),
-            fixtures::mediation_dag(),
-            mediation_query(MediationContrast::Mediated),
-            BOOT,
-            seed,
-        )
+        let series = fixtures::mediation_series(grid_n(160), fixtures::MED_KAPPA, seed);
+        CONTRASTS.map(|(_, contrast)| {
+            run_study(
+                series.clone(),
+                fixtures::mediation_dag(),
+                mediation_query(contrast),
+                BOOT,
+                seed,
+            )
+        })
     });
-    for (study, result) in &runs {
-        let slice = &result.mediation_grid().expect("mediation grid").slices[0];
-        let adjustment: Vec<(u32, i32)> =
-            slice.adjustment.iter().map(|k| (k.variable.raw(), k.offset)).collect();
-        assert_eq!(adjustment, vec![(3, -1), (4, -1)], "S(1) = {{z[t-1], w[t-1]}}");
-        let TemporalMediationUncertainty::FrequentistBlockBootstrap { block, .. } =
-            &slice.uncertainty
-        else {
-            panic!("temporal mediation must publish shared circular-block SEs");
-        };
-        let points = &slice.estimate;
-        for (i, (point, se)) in [
-            (points.total, block.total),
-            (points.direct, block.direct),
-            (points.mediated, block.mediated),
-        ]
-        .into_iter()
-        .enumerate()
-        {
+    for replicate in &runs {
+        for (i, (study, result)) in replicate.iter().enumerate() {
+            let slice = &result.mediation_grid().expect("mediation grid").slices[0];
+            let adjustment: Vec<(u32, i32)> =
+                slice.adjustment.iter().map(|k| (k.variable.raw(), k.offset)).collect();
+            assert_eq!(adjustment, vec![(3, -1), (4, -1)], "S(1) = {{z[t-1], w[t-1]}}");
+            let TemporalMediationUncertainty::FrequentistBlockBootstrap { block, .. } =
+                &slice.uncertainty
+            else {
+                panic!("temporal mediation must publish shared circular-block SEs");
+            };
+            let points = &slice.estimate;
+            let (point, se) = [
+                (points.total, block.total),
+                (points.direct, block.direct),
+                (points.mediated, block.mediated),
+            ][i];
             let point = point.unwrap();
             let interval = normal_interval(point, se, Z90);
-            if i == 2 {
-                if interval.is_some() {
-                    bind_all(&mut [&mut tallies[i], &mut reported], study, result);
-                }
-                reported.record(normal_interval(point, se, Z95), truths[i].1);
+            if interval.is_some() {
+                bind_all(&mut [&mut tallies[i], &mut reported[i]], study, result);
             }
+            reported[i].record(normal_interval(point, se, Z95), truths[i].1);
             tallies[i].record(interval, truths[i].1);
             spreads[i].push(point, se.unwrap_or(f64::NAN));
         }
@@ -556,7 +573,7 @@ fn confounded_mediation_coverage(test: &'static str) -> Coverage {
     // Never checked against the short-series threshold (only gate() reads this
     // Coverage, which prints the rate but never asserts it), so an empty,
     // never-recorded tally is fine here.
-    Coverage { tallies, reported: vec![reported], warned: warn_tally(test) }
+    Coverage { tallies, reported, warned: warn_tally(test) }
 }
 
 #[test]

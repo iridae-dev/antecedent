@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::StatsError;
-use crate::glm::{GlmDesignRef, GlmFamily, GlmFit, GlmOptions, fit_glm};
+use crate::glm::{GlmDesignRef, GlmFamily, GlmFit, GlmOptions, fit_glm, fit_logistic_weighted};
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresWorkspace};
 
 /// Fitted propensity scores retained for diagnostics and resampling.
@@ -99,6 +99,70 @@ pub fn fit_propensity_in_place(
     glm.require_ok()?;
     predict_propensity(x_colmajor, nrows, ncols, &glm.coefficients, &mut workspace.scores)?;
     Ok(glm)
+}
+
+/// Fit propensity scores into `workspace.scores` under prior (sampling) weights: the
+/// weighted logistic maximum likelihood, whose score equation is `Σ w_i x_i (T_i − e_i) = 0`.
+/// Numerically identical to [`fit_propensity_in_place`] when every weight is one.
+///
+/// # Errors
+///
+/// Shape mismatch, invalid weights, non-binary treatment, GLM failure, non-convergence, or
+/// separation.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the unweighted entry point's arguments plus the weights"
+)]
+pub fn fit_propensity_weighted_in_place(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    treatment: &[f64],
+    weights: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut PropensityWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    if treatment.len() != nrows {
+        return Err(StatsError::Shape { message: "treatment length != nrows" });
+    }
+    workspace.prepare(nrows);
+    let glm = fit_logistic_weighted(
+        GlmDesignRef { x_colmajor, nrows, ncols, y: treatment },
+        weights,
+        backend,
+        &mut workspace.ols,
+        &options.without_separation_ridge(),
+    )?;
+    glm.require_ok()?;
+    predict_propensity(x_colmajor, nrows, ncols, &glm.coefficients, &mut workspace.scores)?;
+    Ok(glm)
+}
+
+/// [`fit_propensity`] under prior (sampling) weights; scores are returned per row.
+///
+/// # Errors
+///
+/// As [`fit_propensity_weighted_in_place`].
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the unweighted entry point's arguments plus the weights"
+)]
+pub fn fit_propensity_weighted(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    treatment: &[f64],
+    weights: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut PropensityWorkspace,
+    options: &GlmOptions,
+) -> Result<PropensityFit, StatsError> {
+    let glm = fit_propensity_weighted_in_place(
+        x_colmajor, nrows, ncols, treatment, weights, backend, workspace, options,
+    )?;
+    let scores = workspace.scores[..nrows].to_vec();
+    Ok(PropensityFit { coefficients: glm.coefficients.clone(), scores, glm })
 }
 
 /// Diagnostic propensity fit that keeps soft-clamped scores under separation / non-convergence.
@@ -252,5 +316,43 @@ mod tests {
         let min = diag.scores.iter().copied().fold(f64::INFINITY, f64::min);
         let max = diag.scores.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         assert!(min < 0.05 && max > 0.95, "min={min} max={max}");
+    }
+    /// A prior weight of `k` is `k` copies of the row: the weighted fit equals the fit on the
+    /// replicated table, and a common rescaling of the weights changes nothing.
+    #[test]
+    fn integer_prior_weights_equal_replicated_rows() {
+        let base_n = 40usize;
+        let z: Vec<f64> = (0..base_n).map(|i| (i as f64 * 0.37).sin() * 1.5).collect();
+        let t: Vec<f64> = (0..base_n)
+            .map(|i| f64::from(u8::from(z[i] + 0.4 * ((i * 7 % 5) as f64 - 2.0) > 0.0)))
+            .collect();
+        let counts: Vec<usize> = (0..base_n).map(|i| 1 + i % 3).collect();
+        let mut x = vec![1.0; base_n];
+        x.extend_from_slice(&z);
+        let weights: Vec<f64> = counts.iter().map(|&c| c as f64).collect();
+        let (mut xr, mut zr, mut tr) = (Vec::new(), Vec::new(), Vec::new());
+        for i in 0..base_n {
+            for _ in 0..counts[i] {
+                zr.push(z[i]);
+                tr.push(t[i]);
+            }
+        }
+        let big_n = tr.len();
+        xr.extend(std::iter::repeat_n(1.0, big_n));
+        xr.extend_from_slice(&zr);
+        let opts = GlmOptions::new(100, 1e-12);
+        let mut ws = PropensityWorkspace::default();
+        let weighted =
+            fit_propensity_weighted(&x, base_n, 2, &t, &weights, &FaerBackend, &mut ws, &opts)
+                .unwrap();
+        let replicated = fit_propensity(&xr, big_n, 2, &tr, &FaerBackend, &mut ws, &opts).unwrap();
+        let scaled: Vec<f64> = weights.iter().map(|w| w * 1000.0).collect();
+        let rescaled =
+            fit_propensity_weighted(&x, base_n, 2, &t, &scaled, &FaerBackend, &mut ws, &opts)
+                .unwrap();
+        for c in 0..2 {
+            assert!((weighted.coefficients[c] - replicated.coefficients[c]).abs() < 1e-8);
+            assert!((weighted.coefficients[c] - rescaled.coefficients[c]).abs() < 1e-8);
+        }
     }
 }

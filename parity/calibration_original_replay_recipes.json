@@ -1,0 +1,1995 @@
+{
+  "schema": "calibration_original_replay_recipes.v1",
+  "meaning": "Original fixed attempted prefixes, audited from source-scoped raw logs and persisted map_end counters. Conditional reported counts do not select attempts. Replays preserve legacy seeds and local decisions; no prospective risk claim. Dependency retagging alone does not change payload binding.",
+  "records": [
+    {
+      "record_id": "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "b5adf7984dbf97463b33c7fe4b59e088513d75dab706cf8dadffa9057389bef5",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.885,
+          "log_sha256": "19c21ae3474bf0f806b1e05bdff8ed2a895bbecee2c836082023aa6825c5a30a",
+          "tally_sha256": "8624855e57ec1dc00501f3151cef80d574ee9b7dba4d99e3e78ba013a081afb8",
+          "producer_blob": "ba788dadbafa8a92e932e08c775034fd8c7691e4",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.895,
+          "log_sha256": "2a6b3d337098018dea819a3852ef384ff4da744d3383f31706a999166da8eaa1",
+          "tally_sha256": "cf7ee3c2f8853dc65084d12c88d21114fb83605dd9e2253a242aafb237e09d62",
+          "producer_blob": "ba788dadbafa8a92e932e08c775034fd8c7691e4",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.895,
+          "log_sha256": "038b68d6a79a9d9b2f6842b5c9af01007a62ec7a3bb94ebf904ca9060691ae89",
+          "tally_sha256": "0a7a61ba1c6be895b8656f1623b35c49b75881593aeec32ab4d0dd49b75d61de",
+          "producer_blob": "ba788dadbafa8a92e932e08c775034fd8c7691e4",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.point_derivative.dag.frequentist.analytic_se.l95.point_derivative_frequentist_curvature_nominal_90_coverage",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "83b91beec9abd9637fa9ed8076b49af9a0e791bac3b56780736bad9267bab6e7",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "19c21ae3474bf0f806b1e05bdff8ed2a895bbecee2c836082023aa6825c5a30a",
+          "tally_sha256": "8624855e57ec1dc00501f3151cef80d574ee9b7dba4d99e3e78ba013a081afb8",
+          "producer_blob": "ba788dadbafa8a92e932e08c775034fd8c7691e4",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9525,
+          "log_sha256": "2a6b3d337098018dea819a3852ef384ff4da744d3383f31706a999166da8eaa1",
+          "tally_sha256": "cf7ee3c2f8853dc65084d12c88d21114fb83605dd9e2253a242aafb237e09d62",
+          "producer_blob": "ba788dadbafa8a92e932e08c775034fd8c7691e4",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.955,
+          "log_sha256": "038b68d6a79a9d9b2f6842b5c9af01007a62ec7a3bb94ebf904ca9060691ae89",
+          "tally_sha256": "0a7a61ba1c6be895b8656f1623b35c49b75881593aeec32ab4d0dd49b75d61de",
+          "producer_blob": "ba788dadbafa8a92e932e08c775034fd8c7691e4",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/derivative_calibration__point_derivative_frequentist_curvature_nominal_90_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "bd20ea8498e2330a4d387126a4a33f9b84350c7e67faf785640943a81b70a8cc",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "1be2a68d8f6371ce3702d08c4f3303210b4733c3cdc6e893520cfe6ba73e026d",
+          "tally_sha256": "84f95b6eb6f5282c19d0390187ff12305ff9ffaf98f64d6307a9e1f884d2dc5b",
+          "producer_blob": "b4d47c727db5a659e8430628998a1af043c12104",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__matching_homoskedastic_ci_coverage.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__matching_homoskedastic_ci_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9525,
+          "log_sha256": "8bdb8c38c36927ba8ed05ff460236f58ccf5aa282dd0d095754bf6b6e0320707",
+          "tally_sha256": "0c329b260455538458c3ab938a0248f25b82ff60434e993086dc3ce35631f355",
+          "producer_blob": "b4d47c727db5a659e8430628998a1af043c12104",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__matching_homoskedastic_ci_coverage.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__matching_homoskedastic_ci_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9525,
+          "log_sha256": "a4f08d5893ef46df036f84193c7b8c80973c52f3c0276b1e5812b4cd3877f5ab",
+          "tally_sha256": "8b628a10a4af3c1927269885327e7b16f833a2d4fa68612cac7da7b07d100aa4",
+          "producer_blob": "b4d47c727db5a659e8430628998a1af043c12104",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__matching_homoskedastic_ci_coverage.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__matching_homoskedastic_ci_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "cb04313db6a6ef07445fb8514d5bebe0b56a817c39aaad92ac6c44794b0ac234",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9275,
+          "log_sha256": "b5ebd9520e41448bb8c1dd27b48f652836f513335fad6e8305347048e9af4280",
+          "tally_sha256": "c6ae7f541ce884af91db845ae4501dbfe68c6bfbbca71016c1454f18c3765bf0",
+          "producer_blob": "b4d47c727db5a659e8430628998a1af043c12104",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__ipw_hajek_analytic_conformance_scm_ci_coverage.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__ipw_hajek_analytic_conformance_scm_ci_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.935,
+          "log_sha256": "881b2016f3304e544188f1d07e606052f4eb85ecc2c317290f5aa60f318da370",
+          "tally_sha256": "e47bd38e82e9581cd92f0defef9b36f523c7608db3206bf931bfe170f465d9e2",
+          "producer_blob": "b4d47c727db5a659e8430628998a1af043c12104",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__ipw_hajek_analytic_conformance_scm_ci_coverage.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__ipw_hajek_analytic_conformance_scm_ci_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.94,
+          "log_sha256": "ba9e83ccc244423a4750998acfa211340f90f2aa70133102e7105d907d66183a",
+          "tally_sha256": "5e64a247669131868078491af4316d9426e8785360582326a1664eb47e61b2cb",
+          "producer_blob": "b4d47c727db5a659e8430628998a1af043c12104",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__ipw_hajek_analytic_conformance_scm_ci_coverage.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__ipw_hajek_analytic_conformance_scm_ci_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "47a3c6fc7ea6aae71736f611040bb48a244963f931fd30bb7d73f7cacef0e45a",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9425,
+          "log_sha256": "e4e7e0a4744db277fbf18a942f60c7c32c0cb0b6de50429371ad8594939d5194",
+          "tally_sha256": "96190345bb8b69eb675f89ad9c92d0b9896343bd256fa20415df6b8175f8033c",
+          "producer_blob": "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p0.recheck.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p0.recheck.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.935,
+          "log_sha256": "4e6601d57a361ae1af202723875893605594688a0d464322517b3e7fd8799aa0",
+          "tally_sha256": "414f8874630776dcca0f889726e5c9e9483478d0f5c46660a74b3ddeefdd6d72",
+          "producer_blob": "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.945,
+          "log_sha256": "7afee454eb080992a5b72dd1364cc08baeedca541f26057da1681a08cf652a65",
+          "tally_sha256": "02f59af139c89914c2690c6ebe28371b9f0446625a686867c85d4fe1447f8f2c",
+          "producer_blob": "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "99d1623e9c9f59ccf18aba64e0e3c4f621a9bf7ac66c2120ad544079fa98b0ce",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9625,
+          "log_sha256": "3e7a0fe09865103733c8172242ef234aab615432fee740d56d6abbecc72ffdbc",
+          "tally_sha256": "16bb5f9038ede9d21da26bd0e675926ad60c30bfb4cef18b79b64615238aa685",
+          "producer_blob": "41bf073c54b21a5d8ccabad37cc5bcddfe7a24d5",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.96,
+          "log_sha256": "d36e9dbe4a8d7ac5ce3b4fa957093a715be0e81253f2830564a43022a54dfe26",
+          "tally_sha256": "b89a185faf4ab0d81dfb87c2824f14485c8570637741b3cc0977c476000974d1",
+          "producer_blob": "41bf073c54b21a5d8ccabad37cc5bcddfe7a24d5",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9775,
+          "log_sha256": "7d44630e60ffa7e7539cf807c26c4e18f51e986249c5c7b489fe1458d1c875d8",
+          "tally_sha256": "bd3d415140b603a1752fe84717f72541119f8abf2598ae38f25e170290d527cb",
+          "producer_blob": "41bf073c54b21a5d8ccabad37cc5bcddfe7a24d5",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "0c81908ef9e88763ead4dfef59ec0b01f6c46a75f3a4b0c5170511d6dbe6255b",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9525,
+          "log_sha256": "3e7a0fe09865103733c8172242ef234aab615432fee740d56d6abbecc72ffdbc",
+          "tally_sha256": "16bb5f9038ede9d21da26bd0e675926ad60c30bfb4cef18b79b64615238aa685",
+          "producer_blob": "41bf073c54b21a5d8ccabad37cc5bcddfe7a24d5",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9725,
+          "log_sha256": "d36e9dbe4a8d7ac5ce3b4fa957093a715be0e81253f2830564a43022a54dfe26",
+          "tally_sha256": "b89a185faf4ab0d81dfb87c2824f14485c8570637741b3cc0977c476000974d1",
+          "producer_blob": "41bf073c54b21a5d8ccabad37cc5bcddfe7a24d5",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.975,
+          "log_sha256": "7d44630e60ffa7e7539cf807c26c4e18f51e986249c5c7b489fe1458d1c875d8",
+          "tally_sha256": "bd3d415140b603a1752fe84717f72541119f8abf2598ae38f25e170290d527cb",
+          "producer_blob": "41bf073c54b21a5d8ccabad37cc5bcddfe7a24d5",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "cc1406b80ef550e97efe7b4931ee9b9d6269e0d0fcfa94618e7a55b812fa7ff9",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9825,
+          "log_sha256": "3e7a0fe09865103733c8172242ef234aab615432fee740d56d6abbecc72ffdbc",
+          "tally_sha256": "16bb5f9038ede9d21da26bd0e675926ad60c30bfb4cef18b79b64615238aa685",
+          "producer_blob": "41bf073c54b21a5d8ccabad37cc5bcddfe7a24d5",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.975,
+          "log_sha256": "d36e9dbe4a8d7ac5ce3b4fa957093a715be0e81253f2830564a43022a54dfe26",
+          "tally_sha256": "b89a185faf4ab0d81dfb87c2824f14485c8570637741b3cc0977c476000974d1",
+          "producer_blob": "41bf073c54b21a5d8ccabad37cc5bcddfe7a24d5",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.975,
+          "log_sha256": "7d44630e60ffa7e7539cf807c26c4e18f51e986249c5c7b489fe1458d1c875d8",
+          "tally_sha256": "bd3d415140b603a1752fe84717f72541119f8abf2598ae38f25e170290d527cb",
+          "producer_blob": "41bf073c54b21a5d8ccabad37cc5bcddfe7a24d5",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.intervention_response.cpdag.bayesian.posterior_quantile.l90.intervention_response_cpdag_bayesian_nominal_coverage",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "5efdc8c2e4b7d992b52ec7c5e6c2ffe0c960042448f928909fa6bd0825953027",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.8875,
+          "log_sha256": "498ca2f1d46bfead11e63e25388dbcd0ce425e8311cfca8127e00172f5ac3e5f",
+          "tally_sha256": "6aa4cd4cd461f0c78235375020e3394f3b144c2e07010ef811dcb172b425ad02",
+          "producer_blob": "c8aeaa216094d2fc33e41820bbfdb2abaf3da021",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9,
+          "log_sha256": "a0f714b066ff49dfa41a6d81b2aeef0067f8c6cc875018fb2450ed463c72ea3e",
+          "tally_sha256": "cf5c7d68637a8e9d85bfd48da63f766ae8ce33d1b945aa68440bf2018b0b2bc2",
+          "producer_blob": "c8aeaa216094d2fc33e41820bbfdb2abaf3da021",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.885,
+          "log_sha256": "b2089eb83473a0e7fc75a4b2bdc9b2fc31fe1882bd1598d579e6f283032a1627",
+          "tally_sha256": "75ffe1e24c5616a1f2cd3ee3460374db25945ceb1388c253a828ed9587b3a4a0",
+          "producer_blob": "c8aeaa216094d2fc33e41820bbfdb2abaf3da021",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.intervention_response.cpdag.bayesian.posterior_quantile.l95.intervention_response_cpdag_bayesian_nominal_coverage",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "c9394877c086ce48f0af20a688a12ed9de49ff33e762b333b045019f9f936abf",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.955,
+          "log_sha256": "498ca2f1d46bfead11e63e25388dbcd0ce425e8311cfca8127e00172f5ac3e5f",
+          "tally_sha256": "6aa4cd4cd461f0c78235375020e3394f3b144c2e07010ef811dcb172b425ad02",
+          "producer_blob": "c8aeaa216094d2fc33e41820bbfdb2abaf3da021",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.945,
+          "log_sha256": "a0f714b066ff49dfa41a6d81b2aeef0067f8c6cc875018fb2450ed463c72ea3e",
+          "tally_sha256": "cf5c7d68637a8e9d85bfd48da63f766ae8ce33d1b945aa68440bf2018b0b2bc2",
+          "producer_blob": "c8aeaa216094d2fc33e41820bbfdb2abaf3da021",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.935,
+          "log_sha256": "b2089eb83473a0e7fc75a4b2bdc9b2fc31fe1882bd1598d579e6f283032a1627",
+          "tally_sha256": "75ffe1e24c5616a1f2cd3ee3460374db25945ceb1388c253a828ed9587b3a4a0",
+          "producer_blob": "c8aeaa216094d2fc33e41820bbfdb2abaf3da021",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_response__intervention_response_cpdag_bayesian_nominal_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.bayesian.posterior_quantile.l95.posterior_draws_2000_rows_1000_l95",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "212706f0eda65d191953dd1703fa72a42d4e397f411787be0446c06492b70a03",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9325,
+          "log_sha256": "cf68455c50667419b04ad2271d29c493cd1c75cd2939f98ae30c614600851e8e",
+          "tally_sha256": "cef1b4ee27acee11370f7dde4df4aa793574786f0de6afd2df5ab890074b808c",
+          "producer_blob": "2343ed44bc96c2989ddaede417320ef9f6832549",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_posterior_draws__posterior_draws_2000_rows_1000_l95.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_posterior_draws__posterior_draws_2000_rows_1000_l95.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9485,
+          "log_sha256": "4b6c97acd4b02ec07ee52d358dcd92166f004f75dc513ea41b98aaacb789cc47",
+          "tally_sha256": "1b5be0eadb3e099a68bb4203ffa2071069ce653d63da1a4120311039ed61bc8a",
+          "producer_blob": "2343ed44bc96c2989ddaede417320ef9f6832549",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_posterior_draws__posterior_draws_2000_rows_1000_l95.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_posterior_draws__posterior_draws_2000_rows_1000_l95.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.945,
+          "log_sha256": "5770dea855f9a421121d85b57ca8961b467fb764c3cc1b24e15ef382ee5b5487",
+          "tally_sha256": "93e3a6675d41c4549974bc2a839ce1283901e9a5a1d976b5096c3887b96d2c1b",
+          "producer_blob": "2343ed44bc96c2989ddaede417320ef9f6832549",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_posterior_draws__posterior_draws_2000_rows_1000_l95.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/calibration_posterior_draws__posterior_draws_2000_rows_1000_l95.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_linear_adjustment_hc1_interval",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "2fa43757ee618c60b0d91e0552b8a1e748d9ed44ecefdd236191d593125f972e",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.96,
+          "log_sha256": "9806f6632e1c2d4e33ad83bbf86ba9124de6fdf04dc61673c734505bcb104463",
+          "tally_sha256": "5c27b9d08b0b9535c7f463a998a3df8dc63550565d6c19224b436c6f5fb852e6",
+          "producer_blob": "8ebab04fc483e143751b16a5fb8ffd31998f4fe1",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_linear_adjustment_hc1_interval.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_linear_adjustment_hc1_interval.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.95,
+          "log_sha256": "d954285df315834fee2f98a70e303e4b443f568e16ce440b59a7e447654122ee",
+          "tally_sha256": "12394d1f5ad9b41a79cf0a87f637dc926bb393390c593b2aa81359c7d283df8b",
+          "producer_blob": "8ebab04fc483e143751b16a5fb8ffd31998f4fe1",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_linear_adjustment_hc1_interval.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_linear_adjustment_hc1_interval.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "511804b6a3237efb522963fe56d1aeee606cad48856b91395d2b8e14a7807252",
+          "tally_sha256": "4eae5d023b2f864f5449d4f7c8fd3d211addbd27951464d51f0bc6092feb040c",
+          "producer_blob": "8ebab04fc483e143751b16a5fb8ffd31998f4fe1",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_linear_adjustment_hc1_interval.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_linear_adjustment_hc1_interval.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_att_interval",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "b35af87c3e0e5b488f072abf74ee69634b48dcacde99a7dfad4ce382f296deb4",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "93bd15bdf391c5ce297df666664d4de521a51b1c5415e7c1f136be02f4d2033e",
+          "tally_sha256": "cbbc0ff540675abebe59b0c6db76e7baa4b3dfdcd9806f88a09974e9fb74da28",
+          "producer_blob": "8ebab04fc483e143751b16a5fb8ffd31998f4fe1",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_aipw_att_interval.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_aipw_att_interval.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.945,
+          "log_sha256": "83ecc476a6dafdf9fb9a279400bebb3f4f42d54fe6dee7f662012c82ee88896c",
+          "tally_sha256": "9604dce0c150ff631d7e0e9bb858f50531ccab32d7620c50c82f739752968c2b",
+          "producer_blob": "8ebab04fc483e143751b16a5fb8ffd31998f4fe1",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_aipw_att_interval.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_aipw_att_interval.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9425,
+          "log_sha256": "4223060f46aae2d72353d7bf2f8a566341b8b9be628b649232208ff65b642cfa",
+          "tally_sha256": "3ac1fa203554f107a8de6816a3f722cb4fed6adb4b80daa0cc840bb778f1ca0b",
+          "producer_blob": "8ebab04fc483e143751b16a5fb8ffd31998f4fe1",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_aipw_att_interval.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_aipw_att_interval.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_partially_linear_interval",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "bed5455d01636fbae36cb1be2c11e934266293fb549eaafba1d5d6403e0ee3d8",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.945,
+          "log_sha256": "bfbff67a40bc01b5c4b24adc01f5d38b33529d113a64f76c2f70a200faa26ff9",
+          "tally_sha256": "cf9b6dbb6d19e1decc7f42b049de6394d60b0574e3de00da861280657edeaac4",
+          "producer_blob": "8ebab04fc483e143751b16a5fb8ffd31998f4fe1",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_dml_partially_linear_interval.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_dml_partially_linear_interval.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.945,
+          "log_sha256": "490b372724a0612d6c2f09f2a00f06493ab0b236e29500629ae52a4906500ef6",
+          "tally_sha256": "24c53557faf959a78161a874dee51c1721f67ea7dcc4d43a1b259dd09555517a",
+          "producer_blob": "8ebab04fc483e143751b16a5fb8ffd31998f4fe1",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_dml_partially_linear_interval.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_dml_partially_linear_interval.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "330dcec9ff48a543b82a5eb6892ee2f81d634d564deca401387bcdb9bf237dce",
+          "tally_sha256": "c0147dbdaacd76ec4f6c44b5126f60d45892f636209a3f096e14c058e31b3735",
+          "producer_blob": "8ebab04fc483e143751b16a5fb8ffd31998f4fe1",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_dml_partially_linear_interval.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/weighted_interval_calibration__weighted_dml_partially_linear_interval.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "469f1692c5de9ae25c0a737ec5e427d9b210feaa6e18be6f9ac28d7bb8206a1d",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.935,
+          "log_sha256": "d49765b7b9b0ead54f1434828516f39ef3ec020928860d7167cc18eaef0b7600",
+          "tally_sha256": "e8cd2e102e0a0674f04a2a2902332d660f7ed55cda0efbb3cb9e8d2dd2741f34",
+          "producer_blob": "b4d47c727db5a659e8430628998a1af043c12104",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__dr_learner_analytic_ci_coverage.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__dr_learner_analytic_ci_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9625,
+          "log_sha256": "116cf7b79c82df05c35482d3a2f96dcae041dc597a726021c2a26da9af075016",
+          "tally_sha256": "c774b5733f9b72389c80f37ef85d9ff2324fc6f1b00e2c49faf0d87b28538820",
+          "producer_blob": "b4d47c727db5a659e8430628998a1af043c12104",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__dr_learner_analytic_ci_coverage.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__dr_learner_analytic_ci_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "56a03a81c5e79ad2aa70b752f41823f2f6e8978a14ca5d130a30ec4e2d032b7b",
+          "tally_sha256": "250fe48c34135b9dcd35f9cfd5758815763acd51811c1aa0493fd883de67a52e",
+          "producer_blob": "b4d47c727db5a659e8430628998a1af043c12104",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__dr_learner_analytic_ci_coverage.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/antecedent-estimate__dr_learner_analytic_ci_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "9291413ca833657f33dbb5a50357e66584e65656e3ec596fcd91852efd246a2f",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9575,
+          "log_sha256": "a14120bdd6b2d0bd26cdf6de8ef038cfad1a18a6679f755715e3725f2d34b6f6",
+          "tally_sha256": "c092070b324527127bdae7c24f86ee894687ba3483648e3aa1a913507b43766f",
+          "producer_blob": "4f4bcd93b3d5ca3b07ef1469886f6ae8679a72cf",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/transport_statistical_calibration__source_target_imbalance_standardize_nominal_coverage.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/transport_statistical_calibration__source_target_imbalance_standardize_nominal_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.955,
+          "log_sha256": "feb17958805e70dae0c94ed9a7d8ba2025bede65f4b00c9c2071b2cace55bc83",
+          "tally_sha256": "b52db58d841e394a0ad304844981533fabd68d0278934a3866383ff98490b40e",
+          "producer_blob": "4f4bcd93b3d5ca3b07ef1469886f6ae8679a72cf",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/transport_statistical_calibration__source_target_imbalance_standardize_nominal_coverage.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/transport_statistical_calibration__source_target_imbalance_standardize_nominal_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.935,
+          "log_sha256": "0b1335cb587895892ab69cf654e51d579411780d61135234ff2a450aea16f498",
+          "tally_sha256": "7fa4ffc3af1f3969fb618566af5c74f547db2643531e91de5c875087799406c8",
+          "producer_blob": "4f4bcd93b3d5ca3b07ef1469886f6ae8679a72cf",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/transport_statistical_calibration__source_target_imbalance_standardize_nominal_coverage.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/transport_statistical_calibration__source_target_imbalance_standardize_nominal_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_fifteen_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "5a2f2bbebc1fa3b816fe1f5e279cb0e72f2acdd4b8115a3b76fc1f320cf6322e",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9675,
+          "log_sha256": "b3de632b8e732567d825d4aa7ba47972c108f375b743bd3262dff7693b36eab2",
+          "tally_sha256": "fbfe462ffcef5bc8b664cf2db1c57efb9f2a85057b371355b9bc3ad66aac5910",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_fifteen_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_fifteen_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9575,
+          "log_sha256": "a88d75e182aea83af9fc908ac4e816df39298351d03d54dcd7ccdd9ea4825f1f",
+          "tally_sha256": "13267d60ec5ddf60f481061b411ffc53f8b2107dd2967faf36b01217008b294e",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_fifteen_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_fifteen_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.95,
+          "log_sha256": "ca36a1a747e5b464237669a1a975c6108552920a690a4556ccdcadb4b9b69c0e",
+          "tally_sha256": "c79d59561bf87e025027ccb08a69179e839ef7978adf7f8b2207c104ecedb3e9",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_fifteen_studies.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_fifteen_studies.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_five_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "646b18210a509ebaa04125122e563a30425f98466572a7b517cb9512c97c20fd",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9675,
+          "log_sha256": "493c98ecacd17684a7504f2ecd7a6bfe465e96e1c4dd8206981b70b51125cec4",
+          "tally_sha256": "2dd4915064a48e834a9297a5b67e64cec49589d353ab3ca0b53b9f35d3367a0c",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_five_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_five_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.935,
+          "log_sha256": "193066df3a76b0ee64de3e088286f11b4b352ec633099e3640dcc4e231b63922",
+          "tally_sha256": "b0a4bc4f39716d4cf446f8a8ddb5e89b3d6b44a7da4696d75767e97dcdfd2174",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_five_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_five_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.955,
+          "log_sha256": "37f3e710e0116137c13231a7dc7296e61c2462773d8c526ea702fff0ea4ad96c",
+          "tally_sha256": "124d1d8f0fc831cadaf726830e8f577fe585021e526701b518ef39d7831fb939",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_five_studies.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_strong_heterogeneity_five_studies.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_thirty_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "28f91d368795cbfb09aa2f1372cb95754c7adc53694f71de1a46e010c02ab424",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "5edfc46deb59ef1c91e8bf83f27231877aa6cbeb51254ef14eb2ab7c5c78d79e",
+          "tally_sha256": "825daba843aff58edb20001c65cc332aae4cddcbbd5c90af583f372db4984e45",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_thirty_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_thirty_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.953,
+          "log_sha256": "a56d29de4fd71454a89a0810599f4c0927d904aa2845a21c8a2be2ba28bd4aa0",
+          "tally_sha256": "ab3ed1f8267c62f46e236e08884d20279e72085c09757ff7a66a9edf5ebb524f",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_thirty_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_thirty_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9625,
+          "log_sha256": "64ccc8d5764b11761bc6ec2270eebd68d9ec96396a9135509b210c8f9a5b88e2",
+          "tally_sha256": "09ba65b52df499c790da10e2834cedadcc3dd3973a4e097c0317cb247eb524a0",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_thirty_studies.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_thirty_studies.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_five_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "a5a10184ca64f30f6e4794bb1eb2f372801a125b6107df64350512e51351bb87",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.955,
+          "log_sha256": "472d0548ebead9d5e1e314eebedaec8e6a05ad682a616151e18f6b69ee9ef53e",
+          "tally_sha256": "a8ee403f348cdf6e34b4b7003e8153dd1ca3697693841b4971195b142b2f6017",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_five_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_five_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9505,
+          "log_sha256": "3716d075fcea7f7a115b722b83c83469f74a7dd5ef747021f6f324e46a766854",
+          "tally_sha256": "40eb089853d425b85dfc631f3be324e6f190763dd038ce302f71646296e26133",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_five_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_five_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.95,
+          "log_sha256": "dba6a565937fc766065af31347afff2c2cc621b7c0e297c38fa9353c0ca3ef76",
+          "tally_sha256": "f5ab371b77844f583966fc33140b820a0d951255c3c41c72dfc34882e1ede413",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_five_studies.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_five_studies.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "4783ffd66b76f5caf8ff3cfadc150795ce7844ea26b4ea5b90d2b317577c6b85",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9675,
+          "log_sha256": "88acc3d0f4696caa5934545e28bfbd7d5925b507ee4d0f0ca51b358719a3c06d",
+          "tally_sha256": "9a0911311c809083387aa36799d9a6c1426ace3a6ae90625ee9a71ed02517032",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9575,
+          "log_sha256": "1d3faf89c8bb74f36f2862c5764b92ec819a69a1e83c0f8425098f5f24333fd3",
+          "tally_sha256": "0f1cd7875553bc27679acfe1b2211f3fbc68803cd6299f42eb340a7214e6406d",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.97,
+          "log_sha256": "10e493a74a3e1a0c070e26e69e55c879cb596530af46cfec8665d674e0360e23",
+          "tally_sha256": "94d1db4c195235df30969e5a7279e2d55119aab302e48a099986e6652f1af6a2",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_studies.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_random_effects_twenty_studies.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_fifteen_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "f6d3cc912f1fe9401187395cc82aee455a84d3edc8494092e782afba62dad262",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9375,
+          "log_sha256": "c5c3224f64ce6d58abb7323f6f9ddef7c9a5dda5124b4bdf65cc460768e113dd",
+          "tally_sha256": "e1a8493a9059ae470b6c8eb36b70139dba10f08abd65aeedbbcedcd9ebc7a3df",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_fifteen_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_fifteen_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9465,
+          "log_sha256": "9fda61144ec4f5c0b50d89a0eb983ae0adcfac6fd922ea71499b9abd7bf015c7",
+          "tally_sha256": "df39e8ef4bbfb607bd2594a605d1706a5985bcd15f8d12abd03127fb554f21e5",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_fifteen_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_fifteen_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9575,
+          "log_sha256": "00cee34bd19cf09921b8152f51dd39e31975c0a873e25936fbb233f0bc29dc76",
+          "tally_sha256": "d88761fce789faf227f07491c1fd6a9906992dbeaaf8219abe7959f591427d60",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_fifteen_studies.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_fifteen_studies.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_five_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "d1391fbf5860ae80385b8e9f7ca5ef696f999974428321d260eea7d1f4d73f04",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "4a15a515c5b50e19e336a734566bc086fe5e7b09ea723a8d58fe026cf65a915a",
+          "tally_sha256": "f42efd13c61acb79947e782fa8679d29066f50528d79cc40d8b50f49afed6452",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_five_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_five_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9425,
+          "log_sha256": "c4c20bdeed2ffc3cad09aee9806f09ca334e851883d6a08657cecea698c79e55",
+          "tally_sha256": "533b70e3a16efb79dd86d4847693fdd45ae2122394e778934f30957184f150aa",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_five_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_five_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "6c7cadaff657066662be15785385e60cf7f7566b36b40c7b74ce26c7f7c5532b",
+          "tally_sha256": "95dfd68df95bb6e83e907b545c69e681e49335b9e69f3f80dcc209e7d648eabb",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_five_studies.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_five_studies.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_ten_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "131bbf6278844eff0e95abc370dfd7b7c62e5741b49c7e67f335a32697226204",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "c72dd3f5388342fdee2521a68cac719773bd00c4d6846abde987f0e6ed4e8c3b",
+          "tally_sha256": "e39aeef248283bc634d89d9c043054af542795c796acb84e040b4e17c28d9fef",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_ten_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_ten_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9415,
+          "log_sha256": "299649666a693637a009b2cb9192b516a0b274cf554a1638aeb7cb52ab2f46a7",
+          "tally_sha256": "01ad7ef052411b7d7a0d1f2e8208780e545074091422e91bf387203a744f3f06",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_ten_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_ten_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.94,
+          "log_sha256": "ba551537ea56672becaea0553a909db55909136fd4431fe4b8fde906898d8785",
+          "tally_sha256": "ec450eb43441dba794dff8c169de698f49616c8e89b03d45e07f248a08f2bc09",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_ten_studies.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_ten_studies.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_thirty_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "bbe2f03bc2d82b3a8c908547573718f920d1a688b6324baaf2da2e7e2a2af5a1",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.94,
+          "log_sha256": "df87f1de1218d6ee52674a9f758ff288c24b900b5b531e271e1f2b9f6f307b6a",
+          "tally_sha256": "899b9257c34fbf505496b8781805b49dc140f55b1903d258247ca8e5bcd21359",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_thirty_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_thirty_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.947,
+          "log_sha256": "2d8a481f67632fc542f5672366fb5be06ed5fd5d049b08af84e5ed67a8165e27",
+          "tally_sha256": "bd039cffa5fde84c5dda67da5afde01af6a855e0321eff994937a70fa2127c76",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_thirty_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_thirty_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "99a502b5e46c967040228a936ef8ab6fe18741d135d6eebf1acb114273629e85",
+          "tally_sha256": "a885af8a1eabfeba335180b182ffb509c34d0b0e03363ee6f2957467cffe962c",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_thirty_studies.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_thirty_studies.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_five_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "82cc2b3119e1a3c95f7bb5e1a645b739eaeafd7c59ae6ae1748232f5ed1edf76",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9475,
+          "log_sha256": "8675c790252c89fbed08c08abf6a8767a0647b3d44dcc6c83f507ddab7b42ea9",
+          "tally_sha256": "d6124b2811bee8354d12768176c19dab5f857cd396c8cf11a3757a8abfdde775",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_five_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_five_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.944,
+          "log_sha256": "39a71894dd3547a8e5e36ddf75255a0436be7bc3924c13e26b2e9c04c4a7fe91",
+          "tally_sha256": "f674fafae8031756913b466aeb3c05506ef0c38b83b784a3d9182b3b44212724",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_five_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_five_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9405,
+          "log_sha256": "31aff4e7bd5c52ca466c6da283b8cf6eec42b83ed8d666f0339bee17131001a3",
+          "tally_sha256": "efa54a0f2c131eadfa8ba7cb6ed089358a115921bcb2cd0da99e74bb9eda9ef5",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_five_studies.p2.recheck.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_five_studies.p2.recheck.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_studies",
+      "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "measurement_payload_sha256": "032071bb19b385f1c588af34ce21993de8811530aab35a6eda9a8983435df2ae",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.935,
+          "log_sha256": "a748c51ae8e72e09148bc08e2b8c98661d6f3f06da1076b3232854157de6a502",
+          "tally_sha256": "b3db6611571e1b3ca5dea15c81a17c81e93a0959592e10ea0bd797e2e2732708",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_studies.p0.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_studies.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.947,
+          "log_sha256": "f2ba0879529bb93bf9f2cfcfb360991a45c709eff894bf7d944c2a8eb9fcbef6",
+          "tally_sha256": "818901a1c2e359a39840dc8995acd0c151dca3d6f7a585f7603122c09c7d5d7c",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_studies.p1.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_studies.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.94,
+          "log_sha256": "803f0bed2a321e52e94a5e9c00f63feaaa67c13aaedb358dc26abc2c76710287",
+          "tally_sha256": "1a92765235e2c7a0d38653feb8116719b33112c7397a1388eb5a73adfa933fff",
+          "producer_blob": "045acfa7c89237fabb853af01c135f25ffc42c4b",
+          "raw_log": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_studies.p2.log",
+          "raw_tally": "target/calibration-archives/c30e10304f4bd85a01ad81dd133a360ddc95c2f1/full-run-preserved-before-targeted-work/calibration-records/evidence_synthesis_calibration__pooled_fixed_effect_twenty_studies.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_cluster_dml_interval",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "5e64367ac919f14bb1157a9dc3e4851c57b62dc118978c09c9425028f4eef734",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9525,
+          "log_sha256": "3b164399ca82e77e88c44f769fd8748cdb8c7c1fd05312ecb7726768b38ad8ff",
+          "tally_sha256": "5587480a7451be908ae8dd22762ac3cb1ac0f24ea2133eba721848b50e3b48d2",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_aipw_cluster_dml_interval/weighted_interval_calibration__weighted_aipw_cluster_dml_interval.p0.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_aipw_cluster_dml_interval/weighted_interval_calibration__weighted_aipw_cluster_dml_interval.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.96,
+          "log_sha256": "b937645a7e880d672e431a0c276c36b3a8639a5d1cc83db35ef3e1d60634446f",
+          "tally_sha256": "ea653cba48dd21bc4b7cdbb9a19ea2e1dee94d48c86e890e3a5ce78058ef5cfc",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_aipw_cluster_dml_interval/weighted_interval_calibration__weighted_aipw_cluster_dml_interval.p1.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_aipw_cluster_dml_interval/weighted_interval_calibration__weighted_aipw_cluster_dml_interval.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9575,
+          "log_sha256": "8ea59ebd1563b71f83fb8cf0393b5a9fe5c93f05b47bd66590b03fb4173aa465",
+          "tally_sha256": "4e904f47c62d3656ad5594ac5322395c0031767daf5f624f21eb1f5e76ffceb5",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_aipw_cluster_dml_interval/weighted_interval_calibration__weighted_aipw_cluster_dml_interval.p2.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_aipw_cluster_dml_interval/weighted_interval_calibration__weighted_aipw_cluster_dml_interval.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_cluster_interval",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "9831f1a65af90b39eb748c2f7963aa54de523da5f7053b2a629689b7132aa03e",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9525,
+          "log_sha256": "02bf4a342b2c0ab0859d66ebfcc3c23897e5ffb166ea4738f7285ba2987c3c6d",
+          "tally_sha256": "23de95d60896fd91b2e5dac9f326e648f92f99a76d671d75eccb8e6f375dd0de",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dml_cluster_interval/weighted_interval_calibration__weighted_dml_cluster_interval.p0.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dml_cluster_interval/weighted_interval_calibration__weighted_dml_cluster_interval.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9575,
+          "log_sha256": "04a633692a49c81e6f171c1e8c1ffbb38e337d704e668fc45fdb8f9a48646560",
+          "tally_sha256": "f7cbfea5971e9d40cab2586fb0c80158f5daae93e388abbc45cae6c1074b6b90",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dml_cluster_interval/weighted_interval_calibration__weighted_dml_cluster_interval.p1.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dml_cluster_interval/weighted_interval_calibration__weighted_dml_cluster_interval.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9575,
+          "log_sha256": "6cc9325131a5ea78b6d0d3b273ad7e92dca25fdd5d06aada52c5f0d2bdf17229",
+          "tally_sha256": "14afd9d7ea52963a7190cf7d50f07801187269d4d083bc0b50144d9f5a2339f0",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dml_cluster_interval/weighted_interval_calibration__weighted_dml_cluster_interval.p2.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dml_cluster_interval/weighted_interval_calibration__weighted_dml_cluster_interval.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dr_learner_cluster_interval",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "96cc19471b0b36726766eac6f826ae9396db0e13a9eff2cad02c24c8b12dcb54",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9525,
+          "log_sha256": "e9780422c8185233df63fa09fcdac08c35bcf8e98b1851c75036b89cf4724f55",
+          "tally_sha256": "1ee1fef2c705b7e9d8163ee373f74dfbcdb6dd116388c7c881d672781ea711d7",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dr_learner_cluster_interval/weighted_interval_calibration__weighted_dr_learner_cluster_interval.p0.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dr_learner_cluster_interval/weighted_interval_calibration__weighted_dr_learner_cluster_interval.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9575,
+          "log_sha256": "b90eed2848b9e5e03bfb8fc3e068ab2076f51bbb592c62134200c6f7495d0cc5",
+          "tally_sha256": "9ea9241a226de66b83e561d653f4002037ad7abb3dc0f105c5bd111c3b9a2599",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dr_learner_cluster_interval/weighted_interval_calibration__weighted_dr_learner_cluster_interval.p1.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dr_learner_cluster_interval/weighted_interval_calibration__weighted_dr_learner_cluster_interval.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9575,
+          "log_sha256": "b7cdbf745320cd27082e89b2f55f8da337058b471db08dd5ea2f624d08d8e1e8",
+          "tally_sha256": "d36505138acc9ae50d7c7f2562153ac97bd0ea9c979ba9715d428193eaf2c1b1",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dr_learner_cluster_interval/weighted_interval_calibration__weighted_dr_learner_cluster_interval.p2.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_dr_learner_cluster_interval/weighted_interval_calibration__weighted_dr_learner_cluster_interval.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "72f874dd7bb008d2b5836d2e9036f39582b2168aa1f48b76febb6b524ca8789e",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 20000,
+          "computed_indices": [
+            0,
+            20000
+          ],
+          "domain": "legacy",
+          "replicates": 20000,
+          "observed": 0.9503,
+          "log_sha256": "fea8f0ba2031c4a1ae313fa410b8760cba9f6b657240c7f5764321cc88f7c513",
+          "tally_sha256": "108e86992a115fb4163b7de456f9774a50df9d88c2654caf9b860dcceabd9713",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_matching_interval/weighted_interval_calibration__weighted_matching_interval.p0.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_matching_interval/weighted_interval_calibration__weighted_matching_interval.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 20000,
+          "computed_indices": [
+            0,
+            20000
+          ],
+          "domain": "legacy",
+          "replicates": 20000,
+          "observed": 0.94965,
+          "log_sha256": "6cefbcec4de291e74192af42a4ebfb5d38be77c2c51709b2be6cb2eacafec08f",
+          "tally_sha256": "75530e8d77bf94d947745778ea4493ed230e3794b97dc04c9b3f7961bceb200d",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_matching_interval/weighted_interval_calibration__weighted_matching_interval.p1.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_matching_interval/weighted_interval_calibration__weighted_matching_interval.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 20000,
+          "computed_indices": [
+            0,
+            20000
+          ],
+          "domain": "legacy",
+          "replicates": 20000,
+          "observed": 0.95155,
+          "log_sha256": "0ac18dcd618aea0267b1739d07e9d3b54e4e4ae241fef74fd2da1308fcf854b9",
+          "tally_sha256": "01ae87a5d56936e3427883929d885371d78fa2abe22cd6e749e576b646ddc986",
+          "producer_blob": "050850bd7a08142bcb935193037522370de71bff",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_matching_interval/weighted_interval_calibration__weighted_matching_interval.p2.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/weighted_interval_calibration__weighted_matching_interval/weighted_interval_calibration__weighted_matching_interval.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "4bcaeb45ffe4f8e9fba0a5a0c3569dd38a24716b60298dce94436018b290093b",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.95,
+          "log_sha256": "e3aeeddfaa3a7390beeb11d751016857122a97f64f6841525345de5f8c5f17da",
+          "tally_sha256": "08eacba49197de30663e313216b950452a50be91d7d9b22cd0f4d3864f612dc3",
+          "producer_blob": "6cd811de0d46e019ffdae774beabfb0cd00e3368",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p0.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9495,
+          "log_sha256": "7b44c03acd85cd973632dad12525318c7f9840ef606b014e9961f29447d1cd67",
+          "tally_sha256": "04ea9cb8ff1a838554dc059553235788f9cca053335043ec6d306a6acd339711",
+          "producer_blob": "6cd811de0d46e019ffdae774beabfb0cd00e3368",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p1.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.95,
+          "log_sha256": "7f5307f818896f0b75f62ff2205068f0a5a79260255a49d2c857af79cc75af42",
+          "tally_sha256": "b67b6cee63cc67f9237e81cd1b9c364c4a4bd553532b6f9c768609c82798f415",
+          "producer_blob": "6cd811de0d46e019ffdae774beabfb0cd00e3368",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p2.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage/sample_split_parent_set_effect_calibration__parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.intervention_response.pag.frequentist.analytic_se.l95.intervention_response_pag_graph_posterior_frequentist_nominal_coverage",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "02a11b9d7cc1d23cd6ffba41cfa0efdda7a26ae23295bef3fb6ee189ea559b3a",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9425,
+          "log_sha256": "2076b5914a264746c186997a6a9cf01abee52ad461be1772f695feb58cedaf1f",
+          "tally_sha256": "2cf07921cbb1fad5c2d4b4c9661edc4e183440e31f4bb586a409c353796ff0c8",
+          "producer_blob": "15e1fd2cbb524c8e67fd00c9f18eef3396983ece",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p0.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p0.tallies.jsonl"
+        },
+        {
+          "point": 1,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9525,
+          "log_sha256": "6a50abd77e959ae2a683ecf9499658b4a46e382ef8c8408703c289be820493df",
+          "tally_sha256": "bdbec67ac3fb368bc7405dc4562545968cc62bb7a4502ccf8b924c92a667c4ce",
+          "producer_blob": "15e1fd2cbb524c8e67fd00c9f18eef3396983ece",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p1.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p1.tallies.jsonl"
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.95,
+          "log_sha256": "03e02e3d94a30a43d83e8c6b5bea5da50305413bbf428b9bcae48d127afaf163",
+          "tally_sha256": "acb8b179f788756a3a4f1803bef15ae80686836c84220b37ae28548a68c73c11",
+          "producer_blob": "15e1fd2cbb524c8e67fd00c9f18eef3396983ece",
+          "raw_log": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p2.log",
+          "raw_tally": "target/calibration-frozen-runs/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/20261018T103652Z/groups/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage/calibration_response__intervention_response_pag_graph_posterior_frequentist_nominal_coverage.p2.tallies.jsonl"
+        }
+      ]
+    },
+    {
+      "record_id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.separate_streams",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "753bcb27d08d5c1d70c9d6d37d12645bf994a3346e0ee3ee6a3f5182d4ffb17c",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9925,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "84b9253944e95b9c991fbee0f000b6f14f6d98bf2c8820281e8ec3af1ef5171f",
+          "tally_sha256": "588a30b23c13b7478b48bd765e7389e3ba790a78a9a313b05cf15844d2ed2f8d",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9865,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "2d14e8f69c6f20803a4247526e18323fbaacf6629304e5e1a9856740fe816c10",
+          "tally_sha256": "bc33623385c246b3bceeb9ab50dda0c18d5815ad175d50c41a348eddbe3e29b5",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9825,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "6ddc91614ebf5da3664e7f510fa3f717727cf4758246afb23739069f906d4475",
+          "tally_sha256": "190d06fd9c87856c284473f59f48ddc23522c5036792cecf53147b612e9371e6",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        }
+      ]
+    },
+    {
+      "record_id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_0",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "6cd643f0b83db17ac375c156c50e2049915e0a695e2f0b4623ad9ee6d5dff1d1",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.985,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "84b9253944e95b9c991fbee0f000b6f14f6d98bf2c8820281e8ec3af1ef5171f",
+          "tally_sha256": "588a30b23c13b7478b48bd765e7389e3ba790a78a9a313b05cf15844d2ed2f8d",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.9825,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "2d14e8f69c6f20803a4247526e18323fbaacf6629304e5e1a9856740fe816c10",
+          "tally_sha256": "bc33623385c246b3bceeb9ab50dda0c18d5815ad175d50c41a348eddbe3e29b5",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.9875,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "6ddc91614ebf5da3664e7f510fa3f717727cf4758246afb23739069f906d4475",
+          "tally_sha256": "190d06fd9c87856c284473f59f48ddc23522c5036792cecf53147b612e9371e6",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        }
+      ]
+    },
+    {
+      "record_id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_four_candidates_l95.shared_rho_0_5",
+      "source_sha": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "measurement_payload_sha256": "eb13b4cb58e26254369dcd81fe6f07f617d71acf252dbe29a44e5a2ea8c84492",
+      "points": [
+        {
+          "point": 0,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.995,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "84b9253944e95b9c991fbee0f000b6f14f6d98bf2c8820281e8ec3af1ef5171f",
+          "tally_sha256": "588a30b23c13b7478b48bd765e7389e3ba790a78a9a313b05cf15844d2ed2f8d",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 1,
+          "planned_attempts": 2000,
+          "computed_indices": [
+            0,
+            2000
+          ],
+          "domain": "legacy",
+          "replicates": 2000,
+          "observed": 0.987,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "2d14e8f69c6f20803a4247526e18323fbaacf6629304e5e1a9856740fe816c10",
+          "tally_sha256": "bc33623385c246b3bceeb9ab50dda0c18d5815ad175d50c41a348eddbe3e29b5",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.recheck.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        },
+        {
+          "point": 2,
+          "planned_attempts": 400,
+          "computed_indices": [
+            0,
+            400
+          ],
+          "domain": "legacy",
+          "replicates": 400,
+          "observed": 0.99,
+          "producer_blob": "e8d894e42bce29925a800619d6b460109fd7c264",
+          "log_sha256": "6ddc91614ebf5da3664e7f510fa3f717727cf4758246afb23739069f906d4475",
+          "tally_sha256": "190d06fd9c87856c284473f59f48ddc23522c5036792cecf53147b612e9371e6",
+          "raw_log": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.log",
+          "raw_tally": "target/calibration-audit/ranking-minimum-prefix-fixed2000/e15c4b0c33daf638d11f64b6a7fff6e3bc216022/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95/decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.tallies.jsonl",
+          "range_evidence": "At point1 this completed sidecar combines original0..400 with appended400..2000; parity/calibration_validation_history.json ranking_minimum_replicate_completion binds both prefixes. Other points are original400."
+        }
+      ]
+    }
+  ]
+}

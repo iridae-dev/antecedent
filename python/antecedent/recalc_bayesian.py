@@ -123,11 +123,19 @@ class BayesianSession(_Session):
         return bytes(artifact)
 
     def plan(
-        self, request: BayesianRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: BayesianRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcPlan:
         from .estimation import _inference_wire
 
-        names, columns = _columns(request.data)
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         return RecalcPlan.from_wire(
             json.loads(
                 self._handle.plan(
@@ -137,16 +145,27 @@ class BayesianSession(_Session):
                     _inference_wire(request.inference),
                     seed=_seed(seed),
                     threads=threads,
+                    memory_limit_bytes=memory_limit_bytes,
+                    cancel=cancel,
                 )
             )
         )
 
     def execute(
-        self, request: BayesianRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: BayesianRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> BayesianResult:
+        """Run the invalidated stages under an optional memory limit and cancellation token."""
         from .estimation import _inference_wire
 
-        names, columns = _columns(request.data)
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         return _result(
             self._handle.execute(
                 names,
@@ -155,6 +174,8 @@ class BayesianSession(_Session):
                 _inference_wire(request.inference),
                 seed=_seed(seed),
                 threads=threads,
+                memory_limit_bytes=memory_limit_bytes,
+                cancel=cancel,
             )
         )
 

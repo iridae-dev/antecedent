@@ -230,9 +230,9 @@ def test_callback_cancellation_bounds_and_replay_mismatch_are_typed():
     assert error.value.attempt["invocations"] == 1
     oversized = replace(request, data={"a": np.zeros(100_001)})
     with pytest.raises(CausalValueError) as error:
-        ExternalCallbackSession().execute(oversized, provider=provider)
-    assert error.value.reason_code == "invalid_argument" and "recalc.limits_exceeded" in str(
-        error.value
+        ExternalCallbackSession().execute(oversized, provider=provider, memory_limit_bytes=800_000)
+    assert error.value.reason_code == "invalid_argument" and (
+        "recalc.memory_budget_exceeded" in str(error.value)
     )
     session = ExternalCallbackSession()
     session.execute(request, provider=provider)

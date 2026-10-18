@@ -19,7 +19,9 @@ use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::pc::{adjacent_vars, edge_key, sorted_edge_pairs};
-use crate::result::{DiscoveryIteration, EdgeEvidence, LaggedLink, PcSepsets, ScoredLink};
+use crate::result::{
+    DiscoveryDiagnostic, DiscoveryIteration, EdgeEvidence, LaggedLink, PcSepsets, ScoredLink,
+};
 
 /// Undirected skeleton as one bit-row per variable.
 ///
@@ -167,6 +169,9 @@ pub(crate) struct StaticSkeleton {
     pub family_p: Vec<f64>,
     /// Edge each entry of `family_p` tested.
     pub family_edge: Vec<(u32, u32)>,
+    /// Edges removed to honour the parent limit, weakest evidence first (see
+    /// [`enforce_parent_limit`]). Empty without a limit or when it never bound.
+    pub parent_limit_removed: Vec<(u32, u32)>,
 }
 
 /// Inputs of [`run_static_skeleton`].
@@ -460,6 +465,7 @@ pub(crate) fn run_static_skeleton(
         iterations: Vec::new(),
         family_p: Vec::new(),
         family_edge: Vec::new(),
+        parent_limit_removed: Vec::new(),
     };
 
     for i in 0..variables.len() {
@@ -541,7 +547,102 @@ pub(crate) fn run_static_skeleton(
             break;
         }
     }
+    enforce_parent_limit(&mut skel, constraints, variables)?;
     Ok(skel)
+}
+
+/// The diagnostic that reports the adjacencies [`enforce_parent_limit`] removed, if any.
+pub(crate) fn parent_limit_diagnostic(
+    removed: &[(u32, u32)],
+    algorithm: &str,
+) -> Option<DiscoveryDiagnostic> {
+    if removed.is_empty() {
+        return None;
+    }
+    let pairs: Vec<String> = removed.iter().map(|(a, b)| format!("{a}-{b}")).collect();
+    Some(DiscoveryDiagnostic {
+        code: Arc::from(format!("{algorithm}.parent_limit_removed_adjacencies")),
+        message: Arc::from(format!(
+            "max_parents removed {} adjacenc{} that no CI test had separated ({}); orientations \
+             around them rest on the limit, not on a separating set",
+            removed.len(),
+            if removed.len() == 1 { "y" } else { "ies" },
+            pairs.join(", ")
+        )),
+    })
+}
+
+/// Restrict the finished skeleton so that no variable keeps more than `max_parents`
+/// adjacencies that could be parents.
+///
+/// An adjacency `v - m` could make `m` a parent of `v` unless background knowledge fixes the
+/// edge `v -> m`. A constraint-based search returns an equivalence class and leaves the
+/// direction of most edges open, so the only bound that holds for every graph in the class is
+/// on these possible parents. While some variable exceeds the limit, the adjacency with the
+/// weakest dependence evidence (largest retained p-value, ties by variable ids) among its
+/// removable ones is dropped; required adjacencies are never dropped.
+///
+/// What this changes: an adjacency removed here was not found independent, so the output no
+/// longer follows from the CI decisions alone. Where the limit binds the skeleton can lose
+/// true edges and the usual soundness of orientation does not extend to the triples around
+/// them; those triples carry no separating set and are treated as undecided by the collider
+/// rule, and the removals are reported. Where the limit never binds nothing changes.
+///
+/// # Errors
+///
+/// A variable whose required adjacencies alone exceed the limit: the statements cannot all hold.
+fn enforce_parent_limit(
+    skel: &mut StaticSkeleton,
+    constraints: &DiscoveryConstraints,
+    variables: &[VariableId],
+) -> Result<(), DiscoveryError> {
+    let Some(limit) = constraints.max_parents else {
+        return Ok(());
+    };
+    let could_parent = |v: VariableId, m: VariableId| {
+        constraints.static_direction(v, m).is_none_or(|fixed| fixed.from != v)
+    };
+    let possible = |adj: &UndirectedAdj, v: VariableId| -> Vec<VariableId> {
+        adjacent_vars(v, adj, variables).into_iter().filter(|&m| could_parent(v, m)).collect()
+    };
+    loop {
+        let mut over: Option<VariableId> = None;
+        for &v in variables {
+            let nbrs = possible(&skel.adj, v);
+            if nbrs.len() > limit {
+                let required = nbrs.iter().filter(|&&m| constraints.static_required(v, m)).count();
+                if required > limit {
+                    return Err(DiscoveryError::Knowledge(
+                        crate::constraints::KnowledgeFault::Contradictory(format!(
+                            "variable {} has {required} required adjacencies that could be its \
+                             parents, more than max_parents = {limit}",
+                            v.raw()
+                        )),
+                    ));
+                }
+                over = Some(v);
+                break;
+            }
+        }
+        let Some(v) = over else {
+            return Ok(());
+        };
+        let weakest = possible(&skel.adj, v)
+            .into_iter()
+            .filter(|&m| !constraints.static_required(v, m))
+            .map(|m| {
+                let key = edge_key(v, m);
+                let p = skel.edge_scores.get(&key).map_or(0.0, |s| s.p_value);
+                (key, p)
+            })
+            .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(&a.0)));
+        let Some((key, _)) = weakest else {
+            return Ok(());
+        };
+        skel.adj.remove(key);
+        skel.edge_scores.remove(&key);
+        skel.parent_limit_removed.push(key);
+    }
 }
 
 /// One [`ScoredLink`] per retained edge in deterministic order.

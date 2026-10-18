@@ -75,6 +75,9 @@ class MechanismWrapper(Protocol):
     Required: ``sample_noise``, ``evaluate``.
     Optional: ``infer_noise``, ``log_prob`` — when omitted, Rust uses an
     additive-noise default (``noise = y - f(pa, 0)``, Gaussian ``N(0,1)`` log-prob).
+    A mechanism whose noise cannot be recovered from an observation declares
+    ``supports_noise_inference = False``: counterfactual abduction is then refused naming the
+    mechanism and the operation, while sampling and likelihood remain available.
     """
 
     def sample_noise(self, n: int) -> NDArray[np.float64]:

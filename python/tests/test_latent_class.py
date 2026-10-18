@@ -63,6 +63,39 @@ def fit(d: dict[str, np.ndarray] | None = None, **kwargs):
     return latent_class_effects(d["y"], d["a"], {"x": d["x"]}, **kwargs)
 
 
+def test_latent_fit_has_no_row_ceiling_and_replays_beyond_the_former_one() -> None:
+    # The oracle dataset repeated 750 times: 30,000 rows with the same fixed point.
+    d = {name: np.tile(column, 750) for name, column in build().items()}
+    result = fit(d)
+    q, p = result.classes
+    assert q.effect == pytest.approx(-2.0, abs=1e-6)
+    assert q.weight == pytest.approx(0.4, abs=1e-9)
+    assert p.effect == pytest.approx(1.0, abs=1e-6)
+    assert result.mixture_effect == pytest.approx(-0.2, abs=1e-6)
+    assert result.responsibilities.shape == (30_000, 2)
+    again = consume_latent_class_artifact(result.export(), expected_identity=result.identity)
+    assert again.identity == result.identity
+
+
+def test_latent_digest_bound_artifact_needs_the_dataset_and_respects_the_memory_limit() -> None:
+    d = build()
+    result = fit(d, data_binding="digest")
+    bound = result.export()
+    columns = {"outcome": d["y"], "treatment": d["a"], "covariates": {"x": d["x"]}}
+    again = consume_latent_class_artifact(bound, expected_identity=result.identity, **columns)
+    assert again.identity == result.identity
+    with pytest.raises(LatentClassRefusal) as refused:
+        consume_latent_class_artifact(bound)
+    assert refused.value.detail == "latent_class.data_required"
+    other = {**columns, "outcome": d["y"] + 1e-9}
+    with pytest.raises(LatentClassRefusal) as refused:
+        consume_latent_class_artifact(bound, **other)
+    assert refused.value.detail == "latent_class.wrong_contract"
+    with pytest.raises(LatentClassRefusal) as refused:
+        consume_latent_class_artifact(fit(d).export(), memory_limit_bytes=1_000)
+    assert refused.value.detail == "latent_class.memory_budget_exceeded"
+
+
 def test_latent_recovers_hand_derived_two_class_fixed_point() -> None:
     result = fit()
     q, p = result.classes

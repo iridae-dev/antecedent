@@ -257,6 +257,58 @@ def test_mediation_records_premises_declared_versus_checked() -> None:
     assert "assumption:cross_world_independence" in result.assumptions
 
 
+def tiled(copies: int) -> dict[str, np.ndarray]:
+    """The exact grid repeated: the fitted coefficients, and so the closed form, are unchanged."""
+    return {name: np.tile(column, copies) for name, column in grid(scm()).items()}
+
+
+def test_mediation_has_no_row_ceiling_and_replays_beyond_the_former_one() -> None:
+    nde, nie, te = truth(scm())
+    result = run(tiled(750))  # 30,000 rows
+    assert result.n_rows == 30_000
+    assert result.natural_direct == pytest.approx(nde, abs=1e-8)
+    assert result.natural_indirect == pytest.approx(nie, abs=1e-8)
+    assert result.total == pytest.approx(te, abs=1e-8)
+    again = consume_mediation_artifact(result.export(), expected_identity=result.identity)
+    assert again.to_dict() == result.to_dict()
+
+
+def test_mediation_estimate_survives_an_export_over_the_byte_budget() -> None:
+    nde, _, _ = truth(scm())
+    # 800,000 rows of four columns exceed the 16 MiB artifact; the estimate does not depend on it.
+    result = run(tiled(20_000))
+    assert result.n_rows == 800_000
+    assert result.natural_direct == pytest.approx(nde, abs=1e-8)
+    with pytest.raises(MediationRefusal) as refused:
+        result.export()
+    assert refused.value.reason_code == "route_not_supported"
+    assert refused.value.detail == "nonlinear_mediation.export_budget_exceeded"
+    assert_registered_refusal(refused.value)
+
+
+def test_mediation_digest_bound_artifact_needs_the_dataset_and_respects_the_memory_limit() -> None:
+    g = grid(scm())
+    result = run(g, data_binding="digest")
+    bound = result.export()
+    columns = {
+        "treatment": g["treatment"],
+        "mediator": g["mediator"],
+        "outcome": g["outcome"],
+        "covariates": {"x": g["x"]},
+    }
+    again = consume_mediation_artifact(bound, expected_identity=result.identity, **columns)
+    assert again.identity == result.identity
+    with pytest.raises(MediationRefusal) as refused:
+        consume_mediation_artifact(bound)
+    assert refused.value.detail == "nonlinear_mediation.data_required"
+    with pytest.raises(MediationRefusal) as refused:
+        consume_mediation_artifact(bound, **{**columns, "outcome": g["outcome"] + 1e-9})
+    assert refused.value.detail == "nonlinear_mediation.wrong_contract"
+    with pytest.raises(MediationRefusal) as refused:
+        consume_mediation_artifact(run(g).export(), memory_limit_bytes=1_000)
+    assert refused.value.detail == "nonlinear_mediation.memory_budget_exceeded"
+
+
 def test_mediation_artifact_round_trips_and_checks_the_retained_identity() -> None:
     result = run(grid(scm()), bootstrap_replicates=8, seed=3)
     again = consume_mediation_artifact(result.export(), expected_identity=result.identity)

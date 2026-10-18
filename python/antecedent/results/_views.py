@@ -59,6 +59,11 @@ __all__ = [
     "PerformanceView",
     "PlanView",
     "PhysicalPlanView",
+    "MissingVariableView",
+    "DropReasonView",
+    "GroupAccountingView",
+    "RowAccountingView",
+    "MissingDataView",
     "AnalysisResult",
 ]
 
@@ -228,6 +233,31 @@ class RefitBootstrapReport(ResultModel):
     influence_se: float
 
 
+class SamplingWeightsView(ResultModel):
+    """What declared sampling weights did to an analysis.
+
+    ``rows_used`` rows with positive weight were analysed; ``zero_weight_rows`` further rows
+    passed every other selection but had weight zero and were excluded (counted here, never
+    silently dropped). ``effective_sample_size`` is the Kish size ``(sum w)^2 / sum w^2`` of
+    the rows used, and ``design_effect`` the factor ``rows_used / effective_sample_size`` by
+    which unequal weights inflate the variance of a mean. ``weight_sum`` is the sum of the
+    declared weights of the rows used, before normalization; it is not read as a population
+    size. Estimates, standard errors and intervals depend on the weights only through their
+    ratios (they are normalized to mean one). The estimate speaks for ``target_population``.
+    """
+
+    rows_used: int
+    zero_weight_rows: int
+    effective_sample_size: float
+    weight_sum: float
+    target_population: str = "the weighted population the declared sampling weights represent"
+
+    @property
+    def design_effect(self) -> float:
+        """Kish design effect: ``rows_used / effective_sample_size``."""
+        return self.rows_used / self.effective_sample_size
+
+
 class EstimateView(ResultModel):
     ate: float | None
     se_analytic: float
@@ -253,6 +283,8 @@ class EstimateView(ResultModel):
     score_table: ScoreTableSection | None = None
     joint_covariance: Sequence[Sequence[float]] | None = None
     score_inference: ScoreInferenceSection | None = None
+    #: What declared sampling weights did to the analysis (``None`` when none were declared).
+    sampling_weights: SamplingWeightsView | None = None
     scenario_effects: Sequence[float] | None = None
     scenario_intervals: Sequence[tuple[float, float]] | None = None
     simultaneous_interval: tuple[float, float, float] | None = None
@@ -601,6 +633,91 @@ class ValidationView(ResultModel):
         return pa.table(self.to_columns()).__arrow_c_stream__(requested_schema)
 
 
+class MissingVariableView(ResultModel):
+    """Rows of the table that are missing one analysed variable."""
+
+    variable: str
+    rows: int
+
+
+class DropReasonView(ResultModel):
+    """Rows dropped for one reason: ``missing_value``, ``analysis_mask`` or ``unit_incomplete``."""
+
+    reason: str
+    rows: int
+
+
+class GroupAccountingView(ResultModel):
+    """One arm or treatment group: rows assigned, rows kept and rows with every value observed."""
+
+    label: str
+    total: int
+    kept: int
+    observed: int
+
+
+class RowAccountingView(ResultModel):
+    """What an execution did with the rows of its table.
+
+    ``rows_total`` rows entered; ``rows_kept`` had every analysed value and entered the
+    estimate. ``rows_in_denominator`` is what the estimate's denominators count: it equals
+    ``rows_kept`` except under inverse-probability weighting, where every assigned participant
+    stays in its arm's denominator. ``dropped_rows`` are zero-based positions in the
+    submitted table (lag-window times for a series), ``dropped_digest`` is a BLAKE3 digest
+    of exactly those positions, and ``dropped_labels`` maps them to the participant labels
+    when ``participant=`` was given.
+    """
+
+    policy: str
+    rows_total: int
+    rows_kept: int
+    rows_dropped: int
+    rows_in_denominator: int
+    missing_by_variable: tuple[MissingVariableView, ...] = ()
+    reasons: tuple[DropReasonView, ...] = ()
+    dropped_rows: tuple[int, ...] = ()
+    dropped_digest: str = ""
+    groups: tuple[GroupAccountingView, ...] = ()
+    units_total: int | None = None
+    units_dropped: int | None = None
+    dropped_labels: tuple[str, ...] | None = None
+    dropped_labels_digest: str | None = None
+
+    @property
+    def dropped_by_variable(self) -> Mapping[str, int]:
+        """Rows missing each analysed variable, by name."""
+        return {entry.variable: entry.rows for entry in self.missing_by_variable}
+
+    @property
+    def dropped_by_reason(self) -> Mapping[str, int]:
+        """Rows dropped, by reason."""
+        return {entry.reason: entry.rows for entry in self.reasons}
+
+    def __repr__(self) -> str:
+        return (
+            f"<RowAccountingView policy={self.policy!r} total={self.rows_total} "
+            f"kept={self.rows_kept} dropped={self.rows_dropped}>"
+        )
+
+
+class MissingDataView(ResultModel):
+    """The missing-data policy of an execution, the assumption it needs, and the accounting."""
+
+    declared: bool
+    assumption: str
+    accounting: RowAccountingView
+    covariates: tuple[str, ...] = ()
+
+    @property
+    def policy(self) -> str:
+        """The policy the accounting was produced under."""
+        return self.accounting.policy
+
+    def __repr__(self) -> str:
+        source = "declared" if self.declared else "default"
+        return f"<MissingDataView {source} policy={self.policy!r} {self.accounting!r}>"
+
+
 class PerformanceView(ResultModel):
     plan_id: str | None = None
     modality: str | None = None
@@ -686,6 +803,9 @@ class AnalysisResult(ResultModel, ResultAPI):
     provenance: Mapping[str, Any]
     mediation: MediationView | None = None
     mediation_grid: TemporalMediationGridView | None = None
+    #: Missing-data policy, the assumption it needs and the row accounting, for routes that
+    #: read rows of a table; ``None`` for routes that account for none.
+    missing_data: MissingDataView | None = None
     plan: PlanView | None = None
     evidence_status: str | None = None
     allowlist_reason: str | None = None
@@ -787,6 +907,18 @@ class AnalysisResult(ResultModel, ResultAPI):
             coerce_fields(
                 self, posterior=self.posterior.model_copy(update={"limitation": limitation})
             )
+
+    @property
+    def estimand_text(self) -> str | None:
+        """The average effect as declared, naming the active and control levels.
+
+        ``E[y | do(t='b')] - E[y | do(t='a')]`` for label-declared levels and
+        ``E[y | do(t=2)] - E[y | do(t=1)]`` for numeric ones; ``None`` for queries that
+        are not an average effect.
+        """
+        from .._treatment_labels import estimand_text
+
+        return estimand_text(self.query)
 
     @property
     def effect(self) -> float | None:

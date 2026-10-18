@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
 from ._native import AnalysisResult as TemporalAnalysisResult
@@ -49,6 +50,7 @@ from .results import (
     EstimateView,
     IdentificationView,
     MediationView,
+    MissingDataView,
     PerformanceView,
     PlanView,
     PosteriorView,
@@ -62,10 +64,15 @@ from .results import (
     ValidationView,
 )
 from .results._views import (
+    DropReasonView,
+    GroupAccountingView,
+    MissingVariableView,
     PenalizedFallback,
     PenalizedFoldSupport,
     RefitBootstrapReport,
     ReplicatePenalties,
+    RowAccountingView,
+    SamplingWeightsView,
 )
 from .survival import (
     CompetingRisksOutcome,
@@ -107,6 +114,19 @@ def _plan_from_raw(raw: Any) -> PlanView:
         estimator=getattr(raw, "plan_estimator", None)
         or (getattr(raw, "estimator_id", None) or None),
         validation_suite=getattr(raw, "validation_suite", None),
+    )
+
+
+def _sampling_weights_view(raw: Any) -> SamplingWeightsView | None:
+    """Native ``(rows_used, zero_weight_rows, effective_sample_size, weight_sum)`` → view."""
+    if raw is None:
+        return None
+    rows_used, zero_weight_rows, effective_sample_size, weight_sum = raw
+    return SamplingWeightsView(
+        rows_used=int(rows_used),
+        zero_weight_rows=int(zero_weight_rows),
+        effective_sample_size=float(effective_sample_size),
+        weight_sum=float(weight_sum),
     )
 
 
@@ -295,6 +315,69 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
             if section.graphless_support_status == "licensed"
             else "unlicensed_point_utility"
         ),
+    )
+
+
+def _label_digest(labels: Sequence[str]) -> str:
+    """BLAKE2b-256 of the labels, each length-prefixed so no two label lists collide."""
+    import hashlib
+
+    digest = hashlib.blake2b(digest_size=32, person=b"antecedent.drops")
+    digest.update(len(labels).to_bytes(8, "little"))
+    for label in labels:
+        encoded = label.encode()
+        digest.update(len(encoded).to_bytes(8, "little"))
+        digest.update(encoded)
+    return digest.hexdigest()
+
+
+def row_accounting_from_dict(
+    raw: Mapping[str, Any], labels: Sequence[str] | None = None
+) -> RowAccountingView:
+    """The :class:`RowAccountingView` of a native accounting mapping.
+
+    ``labels`` are the original participant label of every submitted row; they name the
+    dropped rows and digest the names, so the exclusion can be audited by participant.
+    """
+    dropped = tuple(int(row) for row in raw["dropped_rows"])
+    units = raw.get("units")
+    named = (
+        tuple(labels[row] for row in dropped)
+        if labels is not None and len(labels) == raw["rows_total"]
+        else None
+    )
+    return RowAccountingView(
+        policy=raw["policy"],
+        rows_total=raw["rows_total"],
+        rows_kept=raw["rows_kept"],
+        rows_dropped=raw["rows_dropped"],
+        rows_in_denominator=raw["rows_in_denominator"],
+        missing_by_variable=tuple(
+            MissingVariableView(**entry) for entry in raw["missing_by_variable"]
+        ),
+        reasons=tuple(DropReasonView(**entry) for entry in raw["reasons"]),
+        dropped_rows=dropped,
+        dropped_digest=raw["dropped_digest"],
+        groups=tuple(GroupAccountingView(**entry) for entry in raw["groups"]),
+        units_total=None if units is None else units["total"],
+        units_dropped=None if units is None else units["dropped"],
+        dropped_labels=named,
+        dropped_labels_digest=None if named is None else _label_digest(named),
+    )
+
+
+def _missing_data_from_raw(raw: Any, prepared: Any | None) -> MissingDataView | None:
+    """The missing-data view of a native result, with participant labels when bound."""
+    payload = getattr(raw, "missing_data_json", None)
+    if not payload:
+        return None
+    parsed = json.loads(payload)
+    labels = None if prepared is None else getattr(prepared, "participants", None)
+    return MissingDataView(
+        declared=parsed["declared"],
+        assumption=parsed["assumption"],
+        covariates=tuple(parsed["covariates"]),
+        accounting=row_accounting_from_dict(parsed["accounting"], labels),
     )
 
 
@@ -1227,6 +1310,9 @@ def _wrap_ate(
             score_table=getattr(sec_estimate, "score_table", None),
             joint_covariance=getattr(sec_estimate, "joint_covariance", None),
             score_inference=getattr(sec_estimate, "score_inference", None),
+            sampling_weights=_sampling_weights_view(
+                getattr(sec_estimate, "sampling_weights", None)
+            ),
             scenario_effects=getattr(sec_estimate, "scenario_effects", None),
             scenario_intervals=getattr(sec_estimate, "scenario_intervals", None),
             simultaneous_interval=getattr(sec_estimate, "simultaneous_interval", None),
@@ -1324,6 +1410,7 @@ def _wrap_ate(
         structural_identified_set_interval_truncated=getattr(
             raw, "structural_identified_set_interval_truncated", None
         ),
+        missing_data=_missing_data_from_raw(raw, prepared),
         transport_overlap=_transport_overlap_from_raw(raw),
         interference=_interference_from_raw(raw),
         randomized_effect=_randomized_effect_from_raw(raw),

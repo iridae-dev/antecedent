@@ -19,6 +19,13 @@
 //! re-estimates from the artifact's embedded dataset and, given a retained
 //! [`NonlinearMediationIdentity`], refuses a resealed change.
 //!
+//! The estimator has no row ceiling. [`NonlinearMediation::estimate_with`] and
+//! [`NonlinearMediation::consume_with`] run under an [`ExecutionContext`] memory budget and
+//! cancellation; [`NonlinearMediation::export_within`] embeds the dataset only inside an export
+//! byte budget, and [`NonlinearMediation::export_digest_bound`] exports the record bound to the
+//! dataset by its digest, which [`NonlinearMediation::consume_with`] then needs the caller to
+//! supply.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::nonlinear_mediation::{
@@ -26,14 +33,17 @@ pub use antecedent_estimate::nonlinear_mediation::{
     NONLINEAR_MEDIATION_MAX_DEGREE, NONLINEAR_MEDIATION_MAX_NODES, NonlinearMediationConfig,
     NonlinearMediationEstimand, NonlinearMediationEstimate, NonlinearMediationPremises,
 };
+#[allow(deprecated, reason = "the retained released name stays reachable")]
+pub use antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS;
 pub use antecedent_io::nonlinear_mediation_artifact::{
     MediationBootstrapWire, MediationConfigWire, MediationDataWire, MediationMediatorWire,
     MediationModelSpecs, MediationOverlapWire, MediationPremiseRecord, MediationPremisesWire,
-    MediationResultWire, NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS,
-    NONLINEAR_MEDIATION_ARTIFACT_VERSION, NonlinearMediationArtifact,
+    MediationResultWire, NONLINEAR_MEDIATION_ARTIFACT_VERSION, NonlinearMediationArtifact,
     NonlinearMediationArtifactError, NonlinearMediationIdentity, NonlinearMediationMeta,
     NonlinearMediationRequestWire,
 };
+
+use antecedent_core::ExecutionContext;
 
 use crate::error::CausalError;
 
@@ -57,6 +67,19 @@ impl NonlinearMediation {
         Ok(Self { artifact: NonlinearMediationArtifact::seal(request)? })
     }
 
+    /// Estimate under the computation budget of `ctx`: its hard memory limit bounds the planned
+    /// working set and a cancelled context stops the run. No row ceiling applies.
+    ///
+    /// # Errors
+    /// The refusals of [`Self::estimate`], `nonlinear_mediation.memory_budget_exceeded` and
+    /// `nonlinear_mediation.cancelled`.
+    pub fn estimate_with(
+        request: &NonlinearMediationRequestWire,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, NonlinearMediationArtifactError> {
+        Ok(Self { artifact: NonlinearMediationArtifact::seal_with(request, ctx)? })
+    }
+
     /// Consume an exported artifact by re-estimating from its embedded dataset, premises and
     /// configuration under the stored seed.
     ///
@@ -72,12 +95,55 @@ impl NonlinearMediation {
         Ok(Self { artifact: NonlinearMediationArtifact::from_bytes(bytes, expected)? })
     }
 
+    /// Consume within the replay budget of `ctx`. A digest-bound artifact
+    /// ([`Self::export_digest_bound`]) takes the dataset to re-estimate on in `data`, which must
+    /// match the stored digest; an artifact that embeds its dataset takes `None`.
+    ///
+    /// # Errors
+    /// The refusals of [`Self::consume`], `nonlinear_mediation.data_required`,
+    /// `IdentityMismatch` (`data`), `nonlinear_mediation.memory_budget_exceeded` and
+    /// `nonlinear_mediation.cancelled`.
+    pub fn consume_with(
+        bytes: &[u8],
+        expected: Option<&NonlinearMediationIdentity>,
+        data: Option<&MediationDataWire>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, NonlinearMediationArtifactError> {
+        Ok(Self {
+            artifact: NonlinearMediationArtifact::from_bytes_with(bytes, expected, data, ctx)?,
+        })
+    }
+
     /// Export the checksummed artifact.
     ///
     /// # Errors
     /// An empty id or an oversized payload.
     pub fn export(&self, artifact_id: &str) -> Result<Vec<u8>, NonlinearMediationArtifactError> {
         self.artifact.to_bytes(artifact_id)
+    }
+
+    /// Export, embedding the dataset, within `export_budget` bytes. A refusal
+    /// (`nonlinear_mediation.export_budget_exceeded`) leaves the estimate available.
+    ///
+    /// # Errors
+    /// An empty id or `nonlinear_mediation.export_budget_exceeded`.
+    pub fn export_within(
+        &self,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, NonlinearMediationArtifactError> {
+        self.artifact.to_bytes_within(artifact_id, export_budget)
+    }
+
+    /// Export the record without its dataset, bound to it by the digest `identity().data_id`.
+    ///
+    /// # Errors
+    /// An empty id or an encoding failure.
+    pub fn export_digest_bound(
+        &self,
+        artifact_id: &str,
+    ) -> Result<Vec<u8>, NonlinearMediationArtifactError> {
+        self.artifact.to_bytes_digest_bound(artifact_id)
     }
 
     /// The core estimate.

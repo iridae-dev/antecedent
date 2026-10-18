@@ -257,9 +257,11 @@ impl CheckedTemporalMediationOperation {
                 horizons: &bound.horizons,
                 inference,
                 validation: bound.validation,
+                missing: bound.result_context.missing.as_ref(),
             },
             ctx,
         )?;
+        let missing_data = fit.missing_data.clone();
         let args = fit.finish_args(
             &bound.physical,
             &bound.query,
@@ -267,7 +269,9 @@ impl CheckedTemporalMediationOperation {
             bound.result_context.graph_version,
             elapsed_ns(started),
         );
-        Ok(finish_identified_execute_with_context(&bound.result_context, None, args))
+        let mut result = finish_identified_execute_with_context(&bound.result_context, None, args);
+        result.missing_data = missing_data;
+        Ok(result)
     }
 }
 

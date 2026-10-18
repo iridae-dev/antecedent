@@ -25,6 +25,8 @@ pub(crate) const LINEAR_SENSITIVITY: u64 = 0xA7E0_000A_0000;
 pub(crate) const PARTIAL_LINEAR_SENSITIVITY: u64 = 0xA7E0_000B_0000;
 /// Nonparametric sensitivity confounder.
 pub(crate) const NONPARAMETRIC_SENSITIVITY: u64 = 0xA7E0_000C_0000;
+/// Neighborhood nonparametric sensitivity confounder.
+pub(crate) const NEIGHBORHOOD_SENSITIVITY: u64 = 0xA7E0_000D_0000;
 
 /// Functional-stability 80% subsets. Slot 0 of [`crate::functional`] keeps this base.
 pub(crate) const FUNCTIONAL_SUBSET_80: u64 = 0xF012_0000;

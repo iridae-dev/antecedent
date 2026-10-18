@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use super::advanced::{Gpdc, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCmi};
+use super::advanced::{
+    Gpdc, GpdcNystrom, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCmi,
+};
 use super::bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 use super::gsquared::{GSquared, RegressionCi};
 use super::pairwise_mv::PairwiseMultivariateCi;
@@ -29,9 +31,10 @@ use crate::error::StatsError;
 /// - `mixed_knn_dependence` (rank discrete-looking columns, then `knn_dependence`)
 /// - `symbolic_cmi`
 /// - `gpdc`
+/// - `gpdc_nystrom` (`gpdc` through a declared-rank low-rank kernel; any row count)
 /// - `oracle` (empty dependent set ⇒ all independent)
 ///
-/// `knn_dependence`, `mixed_knn_dependence`, `symbolic_cmi` and `gpdc` report permutation
+/// `knn_dependence`, `mixed_knn_dependence`, `symbolic_cmi`, `gpdc` and `gpdc_nystrom` report permutation
 /// p-values; without an explicit replicate count they draw 49, so their smallest attainable
 /// p-value is 0.02 (see [`ConditionalIndependenceTest::min_attainable_p`](super::types::ConditionalIndependenceTest::min_attainable_p)).
 /// `bayes_factor` and `posterior_dependence` return a posterior probability of independence in
@@ -67,6 +70,7 @@ pub fn ci_from_name(
         "mixed_knn_dependence" => Arc::new(MixedKnnDependence::new(5)),
         "symbolic_cmi" => Arc::new(SymbolicCmi::new()),
         "gpdc" => Arc::new(Gpdc::new()),
+        "gpdc_nystrom" => Arc::new(GpdcNystrom::new()),
         "oracle" => Arc::new(OracleCi::new([])),
         "bayes_factor" | "bayes_factor_ci" => Arc::new(BayesFactorCi::new()),
         "posterior_dependence" | "posterior_dependence_ci" => {
@@ -88,6 +92,7 @@ mod tests {
     fn resolves_parcorr_and_rejects_unknown() {
         assert!(ci_from_name("parcorr").is_ok());
         assert!(ci_from_name("gpdc").is_ok());
+        assert!(ci_from_name("gpdc_nystrom").is_ok());
         assert!(ci_from_name("nope").is_err());
         assert!(ci_from_name("weighted_parcorr").is_err());
         assert!(ci_from_name("knn_dependence").is_ok());

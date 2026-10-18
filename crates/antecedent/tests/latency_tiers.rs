@@ -164,6 +164,7 @@ fn discovered_graph_builds_under_every_latency_tier() {
         ci: resolve_ci("parcorr", None).unwrap(),
         screen_pc: false,
         max_subset: None,
+        knowledge: antecedent_discovery::BackgroundKnowledge::default(),
     };
     let discovered = discover_pc(&data, &vars, &params, &ctx).unwrap();
     let mut review = discovered.review;

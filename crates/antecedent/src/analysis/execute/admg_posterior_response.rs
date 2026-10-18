@@ -18,10 +18,11 @@ use super::{
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, Instant,
     Intervention, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefutationRun,
     RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty,
-    ResponseValue, Strategy, Study, StudyResult, TabularData, VariableId, elapsed_ns,
-    identify_admg_query, identify_cached_diagnostic, mass_fields, provenance_ids,
-    push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
-    resolve_structural_aggregation, select_estimand, support_from_functional_eval,
+    ResponseValue, Strategy, Study, StudyResult, TabularData, VariableId,
+    credible_scalar_uncertainty, elapsed_ns, identify_admg_query, identify_cached_diagnostic,
+    mass_fields, provenance_ids, push_graph_posterior_structural_aggregation_diagnostic,
+    resolve_posterior_status, resolve_structural_aggregation, select_estimand,
+    support_from_functional_eval,
 };
 use crate::analysis::prepared::CachedGraphPosteriorIdentification;
 use crate::result::{
@@ -46,6 +47,9 @@ struct AdmgPosteriorFits {
     evals: Vec<AdmgPosteriorResponseAtom>,
     estimand: IdentifiedEstimand,
     failed_mass: f64,
+    /// The posterior draws of a Bayesian response with exactly one evaluated atom: that atom's
+    /// own posterior. Several atoms publish none (the draws of different graphs do not pool).
+    posterior: Option<antecedent_estimate::CausalPosterior>,
 }
 
 /// The pooled ADMG response with the values its diagnostics and result read.
@@ -138,7 +142,7 @@ impl super::Study {
             unidentified_mass,
             total_mass,
         } = pooled;
-        let AdmgPosteriorFits { atoms, estimand, failed_mass, .. } = fits;
+        let AdmgPosteriorFits { atoms, estimand, failed_mass, posterior, .. } = fits;
         if !scalar.is_finite() {
             diagnostics.push(Diagnostic::new(
                 "estimate.response.no_scalar_summary",
@@ -175,6 +179,10 @@ impl super::Study {
                 )),
                 diagnostics: Some(diagnostics),
                 response: Some(response),
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
                 structural_response: Some(StructuralResponseMixture {
                     weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
                     atoms,
@@ -241,6 +249,7 @@ impl super::Study {
             })
             .collect::<Vec<_>>();
         let mut weighted = Vec::new();
+        let mut posteriors = Vec::new();
         let mut evals = Vec::new();
         let mut primary = None;
         let mut failed_mass = 0.0;
@@ -263,7 +272,7 @@ impl super::Study {
         })?;
         for (atom, response) in fitted {
             let weight = key_weights.get(atom.key);
-            let Ok(response) = response else {
+            let Ok((response, posterior)) = response else {
                 failed_mass += weight;
                 for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {
                     slot.status = atom.identification.status;
@@ -284,12 +293,17 @@ impl super::Study {
                 primary = Some((atom.estimand.clone(), atom.identification.clone()));
             }
             weighted.push((atom.key, weight, response.clone()));
+            posteriors.push(posterior);
             evals.push(AdmgPosteriorResponseAtom { estimand: atom.estimand.clone() });
         }
         let (estimand, identification) = primary.ok_or_else(|| CausalError::Compile {
             message: "ADMG graph-posterior response has no evaluable identified atom".into(),
         })?;
-        Ok((AdmgPosteriorFits { atoms, weighted, evals, estimand, failed_mass }, identification))
+        let posterior = if weighted.len() == 1 { posteriors.pop().flatten() } else { None };
+        Ok((
+            AdmgPosteriorFits { atoms, weighted, evals, estimand, failed_mass, posterior },
+            identification,
+        ))
     }
 
     /// Pools the atom responses into the published response, estimate and mass accounting.
@@ -519,10 +533,13 @@ impl super::Study {
     }
 }
 
-fn mask_for_atom_key(gp: &GraphPosterior, key: u64) -> Result<u64, CausalError> {
+fn mask_for_atom_key(
+    gp: &GraphPosterior,
+    key: u64,
+) -> Result<antecedent_discovery::AdjacencyMask, CausalError> {
     gp.graph_keys
         .iter()
-        .zip(gp.adjacency.iter())
+        .zip(gp.atoms.iter())
         .find(|(candidate, _)| **candidate == key)
         .map(|(_, mask)| *mask)
         .ok_or_else(|| CausalError::Compile {
@@ -533,7 +550,7 @@ fn mask_for_atom_key(gp: &GraphPosterior, key: u64) -> Result<u64, CausalError> 
 /// An ADMG posterior atom's adjacency bitmask and the variable count it indexes.
 #[derive(Clone, Copy)]
 struct AtomAdjacency {
-    mask: u64,
+    mask: antecedent_discovery::AdjacencyMask,
     n_vars: usize,
 }
 
@@ -545,7 +562,7 @@ fn estimate_admg_posterior_atom_response(
     identification: &IdentificationResult,
     estimand: &IdentifiedEstimand,
     ctx: &ExecutionContext,
-) -> Result<CausalResponse, CausalError> {
+) -> Result<(CausalResponse, Option<antecedent_estimate::CausalPosterior>), CausalError> {
     let (treatment, outcome) = response_primary_pair(&query.functional)?;
     let bayesian = study.inference.is_bayesian();
     match &query.functional {
@@ -559,21 +576,27 @@ fn estimate_admg_posterior_atom_response(
                 replicates,
                 ctx,
             )?;
-            if bayesian {
-                let (estimate, _) = study.estimate_functional_effect(
-                    data,
-                    estimand,
-                    identification,
-                    &[treatment, outcome],
-                    ctx,
-                )?;
-                if let ResponseIdentification::PointIdentified(ResponseValue::Scalar(slot)) =
-                    &mut response.estimate
-                {
-                    *slot = estimate.ate;
-                }
+            if !bayesian {
+                return Ok((response, None));
             }
-            Ok(response)
+            let (estimate, posterior) = study.estimate_functional_effect(
+                data,
+                estimand,
+                identification,
+                &[treatment, outcome],
+                ctx,
+            )?;
+            if let ResponseIdentification::PointIdentified(ResponseValue::Scalar(slot)) =
+                &mut response.estimate
+            {
+                *slot = estimate.ate;
+            }
+            // A Bayesian atom publishes its credible interval, never the plug-in's.
+            response.uncertainty = posterior
+                .as_ref()
+                .and_then(credible_scalar_uncertainty)
+                .unwrap_or(ResponseUncertainty::None);
+            Ok((response, posterior))
         }
         ResponseFunctional::MeanCurve { .. } => {
             estimate_admg_mean_curve(study, data, query, adjacency, identification, estimand, ctx)
@@ -586,6 +609,10 @@ fn estimate_admg_posterior_atom_response(
 }
 
 /// A mean-curve ADMG atom response: one general-ID plug-in per grid level.
+#[allow(
+    clippy::too_many_lines,
+    reason = "each grid level runs the same plug-in and keeps its posterior for the band"
+)]
 fn estimate_admg_mean_curve(
     study: &Study,
     data: &TabularData,
@@ -594,7 +621,7 @@ fn estimate_admg_mean_curve(
     identification: &IdentificationResult,
     estimand: &IdentifiedEstimand,
     ctx: &ExecutionContext,
-) -> Result<CausalResponse, CausalError> {
+) -> Result<(CausalResponse, Option<antecedent_estimate::CausalPosterior>), CausalError> {
     let AtomAdjacency { mask, n_vars } = adjacency;
     let bayesian = study.inference.is_bayesian();
     let ResponseFunctional::MeanCurve { outcome, treatment: tx } = &query.functional else {
@@ -603,11 +630,13 @@ fn estimate_admg_mean_curve(
                       ResponseCurve",
         });
     };
-    let admg = antecedent_discovery::admg_from_adjacency_mask(mask, n_vars)?;
+    let admg = antecedent_discovery::adjacency_mask::admg_from_adjacency_mask(mask, n_vars)?;
     let levels = tx.grid.values()?;
     let mut means = Vec::with_capacity(levels.len());
     let mut grid = Vec::with_capacity(levels.len());
     let mut freq_curve_bounds: Vec<(f64, f64)> = Vec::new();
+    let mut credible_bounds: Vec<(f64, f64)> = Vec::new();
+    let mut first_posterior = None;
     let mut support = None;
     let replicates = if bayesian { 0 } else { study.bootstrap_replicates };
     for level in levels {
@@ -624,13 +653,21 @@ fn estimate_admg_mean_curve(
             (level_id, level_est)
         };
         let mean = if bayesian {
-            let (estimate, _) = study.estimate_functional_effect(
+            let (estimate, posterior) = study.estimate_functional_effect(
                 data,
                 &level_est,
                 &level_id,
                 &[tx.variable, *outcome],
                 ctx,
             )?;
+            if let Some(ResponseUncertainty::Scalar { lower, upper, .. }) =
+                posterior.as_ref().and_then(credible_scalar_uncertainty)
+            {
+                credible_bounds.push((lower, upper));
+            }
+            if first_posterior.is_none() {
+                first_posterior = posterior;
+            }
             estimate.ate
         } else {
             let (response, _) = estimate_general_id_response(
@@ -665,7 +702,23 @@ fn estimate_admg_mean_curve(
         maxima: Arc::from(vec![max]),
     };
     let means_len = means.len();
-    Ok(CausalResponse {
+    let (bounds, interpretation) = if bayesian {
+        (&credible_bounds, antecedent_core::IntervalInterpretation::Credible)
+    } else {
+        (&freq_curve_bounds, antecedent_core::IntervalInterpretation::Confidence)
+    };
+    let uncertainty = if !bounds.is_empty() && bounds.len() == means_len {
+        ResponseUncertainty::PointwiseBand {
+            level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+            lower: Arc::from(bounds.iter().map(|(lower, _)| *lower).collect::<Vec<_>>()),
+            upper: Arc::from(bounds.iter().map(|(_, upper)| *upper).collect::<Vec<_>>()),
+            interpretation,
+            draws: None,
+        }
+    } else {
+        ResponseUncertainty::None
+    };
+    let response = CausalResponse {
         estimand: query.functional.clone(),
         identification_status: identification.status,
         estimate: ResponseIdentification::PointIdentified(ResponseValue::Surface {
@@ -673,27 +726,14 @@ fn estimate_admg_mean_curve(
             dimension: 1,
             mean: Arc::from(means),
         }),
-        uncertainty: if !freq_curve_bounds.is_empty() && freq_curve_bounds.len() == means_len {
-            ResponseUncertainty::PointwiseBand {
-                level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
-                lower: Arc::from(
-                    freq_curve_bounds.iter().map(|(lower, _)| *lower).collect::<Vec<_>>(),
-                ),
-                upper: Arc::from(
-                    freq_curve_bounds.iter().map(|(_, upper)| *upper).collect::<Vec<_>>(),
-                ),
-                interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                draws: None,
-            }
-        } else {
-            ResponseUncertainty::None
-        },
+        uncertainty,
         support: response_support,
         assumptions: identification.required_assumptions.clone(),
         provenance_id: Arc::from("estimate.response.admg_graph_posterior"),
         horizon_identification: None,
         interaction_structurally_zero: false,
-    })
+    };
+    Ok((response, first_posterior))
 }
 
 fn admg_response_at_level(

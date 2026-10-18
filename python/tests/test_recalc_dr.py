@@ -364,10 +364,13 @@ def test_dr_bounded_native_input_and_learner_configs():
     spec = json.dumps(_spec(r))
     with pytest.raises(CausalValueError) as caught:
         session._handle.execute(
-            ["z", "w", "t", "y"], [np.zeros(1), np.zeros(100001), np.zeros(1), np.zeros(1)], spec
+            ["z", "w", "t", "y"],
+            [np.zeros(1), np.zeros(100001), np.zeros(1), np.zeros(1)],
+            spec,
+            memory_limit_bytes=800_000,
         )
     assert caught.value.reason_code == "invalid_argument"
-    assert "recalc.limits_exceeded" in str(caught.value)
+    assert "recalc.memory_budget_exceeded" in str(caught.value)
     with pytest.raises(CausalValueError) as caught:
         session.execute(replace(r, estimator=replace(r.estimator, folds=21)))
     assert caught.value.reason_code == "invalid_argument"
@@ -383,9 +386,9 @@ def test_dr_bounded_native_input_and_learner_configs():
     assert error is None
     assert json.loads(report)["model_fits"] == 0
     with pytest.raises(CausalValueError) as caught:
-        session._handle.predict([[0]] * 100001, ["z"])
+        session._handle.predict([[0]] * 100001, ["z"], memory_limit_bytes=800_000)
     assert caught.value.reason_code == "invalid_argument"
-    assert "recalc.limits_exceeded" in str(caught.value)
+    assert "recalc.memory_budget_exceeded" in str(caught.value)
 
 
 def test_dr_artifact_receipt_count_replay():

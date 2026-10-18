@@ -5,11 +5,12 @@
 use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_learn::{LearnerSpec, LogisticSpec, PredictionTask, RidgeSpec, diagnose};
 
 use crate::adjustment::EffectEstimate;
+use crate::cluster_dml_aipw::{ClusterDml, DeclaredUnits};
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
     AipwPredictions, NuisanceDesign, aipw_scores, cached_aipw_nuisances, cross_fit_nuisance,
@@ -18,9 +19,10 @@ use crate::learn_nuisance::{
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
 use crate::propensity::{
-    PreparedPropensityProblem, clip_of, default_propensity_overlap,
-    prepare_propensity_problem_with_registry, trim_of, trim_retained_rows,
+    OtherLevels, PreparedPropensityProblem, clip_of, default_propensity_overlap,
+    prepare_propensity_problem_with_levels, trim_of, trim_retained_rows,
 };
+use crate::sampling_weights::SamplingWeights;
 use crate::scores::{ScoreColumn, ScoreTable};
 use crate::se::AnalyticSeKind;
 
@@ -64,6 +66,18 @@ pub struct DmlAte {
     pub score: DmlScore,
     /// Overlap / positivity policy.
     pub overlap: OverlapPolicy,
+    /// Policy for treatment rows at neither declared level. The default refuses; excluding
+    /// them restricts the target population to the rows at the two declared levels.
+    pub other_levels: OtherLevels,
+    /// Declared independence unit of a whole-cluster cross-fit (AIPW score only): the
+    /// cross-fit plan owns whole units and the standard error is the cluster sandwich of the
+    /// cross-fitted scores.
+    pub units: DeclaredUnits,
+    /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
+    /// Both nuisance learners are fit under them (the learner must carry prior weights), the
+    /// score is averaged under them, and the standard error is that of the weighted score.
+    /// A weighted fit keeps no row-identified score table, so it is not retargetable.
+    pub sampling_weights: Option<SamplingWeights>,
 }
 
 impl Default for DmlAte {
@@ -82,7 +96,59 @@ impl DmlAte {
             treatment: LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 }),
             score: DmlScore::Aipw,
             overlap: default_propensity_overlap(),
+            other_levels: OtherLevels::Refuse,
+            units: DeclaredUnits {
+                spec: None,
+                first: None,
+                first_source: None,
+                second: None,
+                second_source: None,
+            },
+            sampling_weights: None,
         }
+    }
+
+    /// Declare sampling weights for every row of the source table.
+    #[must_use]
+    pub fn with_sampling_weights(mut self, weights: SamplingWeights) -> Self {
+        self.sampling_weights = Some(weights);
+        self
+    }
+
+    /// Declare whole-cluster cross-fitting over the unit labels set with
+    /// [`Self::with_cluster_ids`] or [`Self::with_source_cluster_ids`].
+    #[must_use]
+    pub fn with_cluster_dml(mut self, spec: ClusterDml) -> Self {
+        self.units.spec = Some(spec);
+        self
+    }
+
+    /// Unit label of every analysed row.
+    #[must_use]
+    pub fn with_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.first = Some(labels);
+        self
+    }
+
+    /// Unit label of every row of the source table (length must equal its row count).
+    #[must_use]
+    pub fn with_source_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.first_source = Some(labels);
+        self
+    }
+
+    /// Second-endpoint label of every analysed row of a dyadic unit.
+    #[must_use]
+    pub fn with_second_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.second = Some(labels);
+        self
+    }
+
+    /// Second-endpoint label of every source row of a dyadic unit.
+    #[must_use]
+    pub fn with_source_second_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.second_source = Some(labels);
+        self
     }
 
     /// Adapt one shared spec to each nuisance task at configuration time.
@@ -128,7 +194,15 @@ impl DmlAte {
         self
     }
 
-    /// Prepare `[1|Z]` design, binary treatment, and outcome.
+    /// Declare what to do with rows whose treatment is at neither declared level (see
+    /// [`OtherLevels`]). The default refuses.
+    #[must_use]
+    pub const fn with_other_levels(mut self, other_levels: OtherLevels) -> Self {
+        self.other_levels = other_levels;
+        self
+    }
+
+    /// Prepare `[1|Z]` design, recoded 0/1 arm indicator, and outcome.
     ///
     /// # Errors
     ///
@@ -142,7 +216,28 @@ impl DmlAte {
     ) -> Result<PreparedPropensityProblem, EstimationError> {
         require_adjustment_shaped(estimand, "DML requires an adjustment-shaped estimand")?;
         validate_ate_query_with_targets(query)?;
-        prepare_propensity_problem_with_registry(data, estimand, query, self.overlap, None)
+        self.units.check_source_rows(data.row_count())?;
+        let mut problem = prepare_propensity_problem_with_levels(
+            data,
+            estimand,
+            query,
+            self.overlap,
+            None,
+            self.other_levels,
+            self.sampling_weights.as_ref(),
+        )?;
+        if self.units.spec.is_some() && !matches!(self.score, DmlScore::Aipw) {
+            return Err(EstimationError::unsupported(
+                "a cluster-DML declaration needs the AIPW score, whose per-arm scores the \
+                 cluster sandwich reads",
+            ));
+        }
+        self.units.declare(
+            &mut problem,
+            query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,
+            self.overlap,
+        )?;
+        Ok(problem)
     }
 
     /// Fit OOF nuisances and the orthogonal score.
@@ -165,10 +260,59 @@ impl DmlAte {
         if matches!(self.score, DmlScore::Aipw) {
             require_binary_treatment(problem)?;
         }
-        match self.score {
+        let estimate = match self.score {
             DmlScore::Aipw => self.fit_aipw(problem, ctx, assumptions),
             DmlScore::PartiallyLinear => self.fit_plr(problem, ctx, assumptions),
+        }?;
+        let estimate = if problem.sampling_weights.is_some() && self.units.spec.is_some() {
+            let nuisance =
+                cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+            let fold_ids: Vec<u32> =
+                nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+            self.units.publish_weighted(
+                estimate,
+                problem,
+                &fold_ids,
+                u32::try_from(self.folds).unwrap_or(u32::MAX),
+            )?
+        } else {
+            self.units.publish(estimate, problem)?
+        };
+        Ok(estimate.with_treatment_levels(problem.treatment_levels))
+    }
+
+    /// Form a population ATE interval under independent homoskedastic Gaussian
+    /// arm-linear outcomes, including training-fold fit uncertainty and a declared
+    /// finite-ridge mean correction. The default robust fit remains unchanged.
+    ///
+    /// # Errors
+    /// Nonlinear outcome learners, dependence, unsupported target, failed fit, or invalid level.
+    pub fn population_linear_interval(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        level: f64,
+    ) -> Result<crate::population_aipw::PopulationAipwInterval, EstimationError> {
+        if self.units.spec.is_some() || !matches!(self.score, DmlScore::Aipw) {
+            return Err(EstimationError::unsupported("population linear DML requires IID AIPW"));
         }
+        let ridge = match self.outcome {
+            LearnerSpec::Linear(_) => 0.0,
+            LearnerSpec::Ridge(spec) => spec.lambda,
+            _ => {
+                return Err(EstimationError::unsupported(
+                    "population linear interval requires a linear outcome learner",
+                ));
+            }
+        };
+        let estimate = self.fit(problem, ctx, assumptions)?;
+        let nuisance =
+            cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+        let propensity =
+            guarded_propensity(&nuisance.2, crate::propensity::clip_of(problem.overlap))?;
+        let folds: Vec<u32> = nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+        crate::population_aipw::interval(problem, estimate, &propensity, &folds, ridge, level)
     }
 
     /// Row-identified cross-fitted AIPW score table from this estimator's own out-of-fold
@@ -232,11 +376,13 @@ impl DmlAte {
         ctx: &ExecutionContext,
         mut assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        let row_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
         let m = cross_fit_nuisance(
             self.outcome,
             PredictionTask::Regression,
             NuisanceDesign::of(problem),
             problem.outcome.as_ref(),
+            row_weights,
             self.folds,
             ctx,
         )?;
@@ -245,6 +391,7 @@ impl DmlAte {
             PredictionTask::BinaryProbability,
             NuisanceDesign::of(problem),
             problem.treatment.as_ref(),
+            row_weights,
             self.folds,
             ctx,
         )?;
@@ -266,9 +413,10 @@ impl DmlAte {
             }
             let dt = problem.treatment[i] - e.predictions[i];
             let dy = problem.outcome[i] - m.predictions[i];
+            let weight = row_weights.map_or(1.0, |w| w[i]);
             residual_t[i] = dt;
-            num += dt * dy;
-            den += dt * dt;
+            num += weight * dt * dy;
+            den += weight * dt * dt;
         }
         if !num.is_finite() || !den.is_finite() || den <= 0.0 {
             return Err(EstimationError::stats_msg("DML PLR denominator is zero"));
@@ -278,7 +426,8 @@ impl DmlAte {
             .map(|i| {
                 let dt = residual_t[i];
                 let dy = problem.outcome[i] - m.predictions[i];
-                dt * dy - theta * dt * dt
+                let weight = row_weights.map_or(1.0, |w| w[i]);
+                weight * (dt * dy - theta * dt * dt)
             })
             .collect();
         let nf = n as f64;
@@ -310,6 +459,7 @@ impl DmlAte {
             .with_overlap_report(Some(report))
             .with_n_obs(u64::try_from(keep.iter().filter(|&&v| v).count()).unwrap_or(u64::MAX))
             .with_se_kind(AnalyticSeKind::Homoskedastic)
+            .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))
             .with_influence(Some(Arc::from(psi)));
         effect.crossfit.folds = Some(self.folds);
         effect.crossfit.seed = Some(ctx.rng.master_seed());
@@ -327,8 +477,11 @@ impl DmlAte {
 /// retarget then refuses with `score_table_unavailable` rather than reweighting scores of
 /// another construction).
 pub(crate) fn scores_retargetable(problem: &PreparedPropensityProblem) -> bool {
+    // A weighted fit's scores describe the weighted population; a retarget under another
+    // weight vector would silently drop the sampling weights, so no table is kept.
     matches!(problem.target_population, TargetPopulation::AllObserved)
         && trim_of(problem.overlap).is_none()
+        && problem.sampling_weights.is_none()
 }
 
 /// Per-arm scores `μ_a + 1{T=a}(Y - μ_a)/e_a` from one cross-fitted nuisance bundle. The same
@@ -396,9 +549,18 @@ fn aipw_score_table_clipped(
                 ]),
                 adjustment_set: Arc::clone(&problem.adjustment_set),
                 nuisance_provenance: Arc::from(format!(
-                    "{DML_CROSSFIT_PROVENANCE};route={route};outcome={};treatment={}",
+                    "{DML_CROSSFIT_PROVENANCE};route={route};outcome={};treatment={}{}",
                     learners[0].identity(),
-                    learners[1].identity()
+                    learners[1].identity(),
+                    // Whole-unit folds change the dependence the scores support; the table
+                    // names them, as the AIPW table does.
+                    match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
+                        (None, Some(units)) => crate::cluster_dml_aipw::provenance_suffix(
+                            units,
+                            problem.fold_unit_kind
+                        ),
+                        _ => String::new(),
+                    }
                 )),
                 propensity_clip: clip,
                 treatment: problem.treatment_id,
@@ -483,7 +645,7 @@ pub(crate) fn attach_crossfit_aipw_table(
 fn require_binary_treatment(problem: &PreparedPropensityProblem) -> Result<(), EstimationError> {
     if problem.treatment.iter().any(|&ti| ti.abs() > 1e-12 && (ti - 1.0).abs() > 1e-12) {
         return Err(EstimationError::data_msg(
-            "DML AIPW score requires a binary treatment coded 0/1",
+            "DML AIPW score requires the prepared treatment recoded to a 0/1 arm indicator",
         ));
     }
     Ok(())
@@ -507,11 +669,16 @@ pub(crate) fn finish_dml(
     if kept < 2 {
         return Err(EstimationError::data_msg("DML inference requires two retained rows"));
     }
-    let ate = rows.iter().map(|&i| phi[i]).sum::<f64>() / kept as f64;
+    // Under sampling weights the estimate is the weighted mean of the scores and each row's
+    // influence carries its weight; with none, every weight is one.
+    let row_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
+    let weight_of = |i: usize| row_weights.map_or(1.0, |w| w[i]);
+    let mass: f64 = rows.iter().map(|&i| weight_of(i)).sum();
+    let ate = rows.iter().map(|&i| weight_of(i) * phi[i]).sum::<f64>() / mass;
     // Embed the retained-population ratio influence in the original row universe.
     let mut influence = vec![0.0; n];
     for &i in &rows {
-        influence[i] = (phi[i] - ate) * n as f64 / kept as f64;
+        influence[i] = weight_of(i) * (phi[i] - ate) * n as f64 / mass;
     }
     let se = iid_se(&influence);
     let report = OverlapReport::from_propensities(
@@ -526,6 +693,7 @@ pub(crate) fn finish_dml(
         .with_overlap_report(Some(report))
         .with_n_obs(u64::try_from(kept).unwrap_or(u64::MAX))
         .with_se_kind(AnalyticSeKind::Homoskedastic)
+        .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))
         .with_influence(Some(Arc::from(influence)));
     effect.crossfit.outcome_oof_r2 = outcome_r2;
     effect.crossfit.treatment_oof_logloss = treat_logloss;
@@ -572,6 +740,16 @@ mod tests {
 
     fn build_dataset(t: Vec<f64>, y: Vec<f64>, z: Vec<f64>) -> (TabularData, IdentifiedEstimand) {
         let n = t.len();
+        build_dataset_with_outcome_validity(t, y, z, ValidityBitmap::all_valid(n))
+    }
+
+    fn build_dataset_with_outcome_validity(
+        t: Vec<f64>,
+        y: Vec<f64>,
+        z: Vec<f64>,
+        y_validity: ValidityBitmap,
+    ) -> (TabularData, IdentifiedEstimand) {
+        let n = t.len();
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
             "t",
@@ -611,12 +789,7 @@ mod tests {
                 .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(1),
-                    Arc::from(y),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
+                Float64Column::new(VariableId::from_raw(1), Arc::from(y), y_validity).unwrap(),
             ),
             OwnedColumn::Float64(
                 Float64Column::new(
@@ -689,7 +862,12 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let est = DmlAte::new();
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(err.to_string().contains("binary"));
+        assert!(
+            err.to_string().starts_with(
+                "reason=treatment_level_undeclared: treatment_levels.undeclared_level:"
+            ),
+            "{err}"
+        );
     }
 
     #[test]
@@ -855,6 +1033,79 @@ mod tests {
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         est.prepare(&data, &estimand, &query).unwrap()
+    }
+
+    /// Fit a whole-cluster DML over 300 rows whose outcome is missing on some rows: unit labels
+    /// declared for every source row keep their rows through the complete-case mask.
+    fn cluster_dml_fit(units: impl Fn(&[u32], &[u32]) -> DmlAte) -> EffectEstimate {
+        let n = 300usize;
+        let (t, mut y, z) = confounded_columns(n, 33);
+        let missing: Vec<usize> = (0..n).filter(|i| i % 11 == 3).collect();
+        for &row in &missing {
+            y[row] = 0.0;
+        }
+        let source: Vec<u32> = (0..n).map(|i| u32::try_from(i * 7 % 20).unwrap()).collect();
+        let kept: Vec<u32> = source
+            .iter()
+            .enumerate()
+            .filter(|(row, _)| !missing.contains(row))
+            .map(|(_, &label)| label)
+            .collect();
+        let mut bits = vec![0xFFu8; n.div_ceil(8)];
+        for &row in &missing {
+            bits[row / 8] &= !(1u8 << (row % 8));
+        }
+        let validity = ValidityBitmap::from_bytes(bits, n).unwrap();
+        let (data, estimand) = build_dataset_with_outcome_validity(t, y, z, validity);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = units(&source, &kept);
+        let problem = est.prepare(&data, &estimand, &query).unwrap();
+        assert_eq!(problem.nrows, n - missing.len());
+        est.fit(&problem, &ctx(), AssumptionSet::new()).unwrap()
+    }
+
+    #[test]
+    fn source_unit_labels_follow_their_rows_through_the_complete_case_mask() {
+        let spec = ClusterDml::new(10).unwrap();
+        let by_source = cluster_dml_fit(|source, _| {
+            DmlAte::new().with_cluster_dml(spec).with_source_cluster_ids(source.to_vec())
+        });
+        let by_aligned = cluster_dml_fit(|_, kept| {
+            DmlAte::new().with_cluster_dml(spec).with_cluster_ids(kept.to_vec())
+        });
+        assert!(by_source.se_analytic().is_finite() && by_source.se_analytic() > 0.0);
+        assert_eq!(by_source.ate.to_bits(), by_aligned.ate.to_bits());
+        assert_eq!(by_source.se_analytic().to_bits(), by_aligned.se_analytic().to_bits());
+        let table = by_source.scores.table.as_ref().expect("the cluster fit keeps its scores");
+        assert!(table.nuisance_provenance.contains("cluster_dml=unit=cluster"));
+        // Labels cut to the first rows instead of following their rows are another design.
+        let misaligned = cluster_dml_fit(|_, kept| {
+            let shifted: Vec<u32> = kept.iter().rev().copied().collect();
+            DmlAte::new().with_cluster_dml(spec).with_cluster_ids(shifted)
+        });
+        assert_ne!(by_source.se_analytic().to_bits(), misaligned.se_analytic().to_bits());
+    }
+
+    #[test]
+    fn a_cluster_dml_declaration_needs_the_aipw_score_and_exclusive_label_kinds() {
+        let spec = ClusterDml::new(10).unwrap();
+        let (t, y, z) = confounded_columns(100, 5);
+        let (data, estimand) = build_dataset(t, y, z);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let plr = DmlAte::new()
+            .with_score(DmlScore::PartiallyLinear)
+            .with_cluster_dml(spec)
+            .with_source_cluster_ids(vec![0; 100]);
+        assert!(plr.prepare(&data, &estimand, &query).unwrap_err().to_string().contains("AIPW"));
+        let both = DmlAte::new()
+            .with_cluster_dml(spec)
+            .with_source_cluster_ids(vec![0; 100])
+            .with_cluster_ids(vec![0; 100]);
+        assert!(both.prepare(&data, &estimand, &query).is_err());
+        let short = DmlAte::new().with_cluster_dml(spec).with_source_cluster_ids(vec![0; 99]);
+        assert!(short.prepare(&data, &estimand, &query).is_err());
     }
 
     /// Plug-in iid contrast variance of the table's arm columns, written from raw sums:

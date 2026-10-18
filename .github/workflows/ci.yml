@@ -204,8 +204,8 @@ jobs:
           }
           run_nextest learner -p antecedent-learn --features ml-full,ml-neural
           cargo test -p antecedent-learn --features ml-full,ml-neural --doc
-          run_nextest gaussian-process -p antecedent-model --features gaussian-process
-          cargo test -p antecedent-model --features gaussian-process --doc
+          run_nextest gaussian-process -p antecedent-model --features gaussian-process,ml-full
+          cargo test -p antecedent-model --features gaussian-process,ml-full --doc
 
       # The feature gates no longer re-run these suites; this lists the binaries
       # the steps above built and fails when a filter they relied on selects nothing.
@@ -317,12 +317,12 @@ jobs:
           cargo check -p antecedent-data --no-default-features
           cargo check -p antecedent-learn --features ml-neural
           cargo check -p antecedent-estimate --features ml-neural
-          cargo check -p antecedent-model --features gaussian-process
+          cargo check -p antecedent-model --features gaussian-process,ml-full
 
       - name: Lint the feature-gated code
         run: |
           set -euo pipefail
-          cargo clippy -p antecedent-model --features gaussian-process --all-targets -- -D warnings
+          cargo clippy -p antecedent-model --features gaussian-process,ml-full --all-targets -- -D warnings
           cargo clippy -p antecedent-learn --features ml-neural --all-targets -- -D warnings
           cargo clippy -p antecedent-data --no-default-features --all-targets -- -D warnings
 
@@ -347,8 +347,8 @@ jobs:
           }
           run_nextest learner -p antecedent-learn --features ml-full,ml-neural
           cargo test -p antecedent-learn --features ml-full,ml-neural --doc
-          run_nextest gaussian-process -p antecedent-model --features gaussian-process
-          cargo test -p antecedent-model --features gaussian-process --doc
+          run_nextest gaussian-process -p antecedent-model --features gaussian-process,ml-full
+          cargo test -p antecedent-model --features gaussian-process,ml-full --doc
 
       - name: Upload optional-feature test durations
         if: always()
@@ -539,7 +539,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        section: [inventory, promotion-python, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, feature-core, feature-composition, feature-transport, feature-exits]
+        section: [inventory, promotion-python, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, feature-core, feature-composition, feature-transport, feature-conformance, feature-exits]
     steps: &domain_test_steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -794,6 +794,12 @@ jobs:
             target: x64
             manylinux: ""
     steps:
+      # Replay evidence retains descriptive historical paths beyond MAX_PATH.
+      - name: Enable long paths for Windows checkout
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --global core.longpaths true
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust 1.85

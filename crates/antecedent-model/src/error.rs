@@ -57,6 +57,32 @@ pub enum ModelError {
     /// return it; the unpolled ones never poll.
     #[error("mechanism fit cancelled")]
     Cancelled,
+    /// A planned allocation exceeds the execution context's hard memory limit.
+    #[error("resource limit: {message} needs {required_bytes} bytes, limit {limit_bytes}")]
+    ResourceLimit {
+        /// What was being planned.
+        message: &'static str,
+        /// Bytes the plan needs (`u64::MAX` when the size overflows).
+        required_bytes: u64,
+        /// The hard limit in force.
+        limit_bytes: u64,
+    },
+    /// A candidate set, per-node constraint or validation-split declaration is
+    /// inconsistent with the model or the data (an unknown variable, a family of
+    /// the wrong outcome type, an empty candidate set, clustered splits without
+    /// units). Raised before any family is fit.
+    #[error("invalid mechanism selection: {message}")]
+    InvalidSelection {
+        /// What is inconsistent.
+        message: String,
+    },
+    /// The family a policy or a per-node constraint requires could not be scored
+    /// or fit on its node; the message carries the family's own failure.
+    #[error("required mechanism family unavailable: {message}")]
+    RequiredFamilyUnavailable {
+        /// Node, family and the failure reason.
+        message: String,
+    },
     /// Graph error passthrough.
     #[error(transparent)]
     Graph(#[from] GraphError),

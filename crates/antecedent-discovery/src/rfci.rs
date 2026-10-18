@@ -24,14 +24,17 @@ use antecedent_graph::{DenseNodeId, Endpoint, Pag, PagReview};
 use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
 use crate::combinations::for_each_combination_vars;
-use crate::constraints::DiscoveryConstraints;
+use crate::constraints::{DiscoveryConstraints, KnowledgeScope};
 use crate::discriminating_paths::DiscriminatingPathBudget;
 use crate::discriminating_paths::{
     discriminating_implies_collider, find_discriminating_paths_for_edge,
 };
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::fci::{StaticPagDiscoveryResult, build_pag_circle_skeleton, load_sepsets_into_state};
+use crate::fci::{
+    StaticPagDiscoveryResult, apply_background_marks, build_pag_circle_skeleton,
+    load_sepsets_into_state,
+};
 use crate::orientation::{OrientationState, RuleDelta};
 use crate::pc::{adjacent_vars, edge_key};
 use crate::result::{
@@ -137,6 +140,9 @@ impl Rfci {
         ctx: &ExecutionContext,
     ) -> Result<StaticPagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        self.constraints
+            .check_background_knowledge(KnowledgeScope::EquivalenceClass, variables)
+            .map_err(DiscoveryError::Knowledge)?;
         if self.fdr.is_some() {
             return Err(DiscoveryError::unsupported(
                 "RFCI FDR is refused until adjustment covers adjacency, Lemma 3.1, discriminating-path, and sepset-minimization CI tests",
@@ -170,12 +176,20 @@ impl Rfci {
         };
         let skel = run_static_skeleton(&input, workspace, ctx)?;
         let mut scored = skeleton_scored_links(&skel);
-        let StaticSkeleton { mut adj, mut sepsets, mut ci_tests, mut iterations, .. } = skel;
+        let StaticSkeleton {
+            mut adj,
+            mut sepsets,
+            mut ci_tests,
+            mut iterations,
+            parent_limit_removed,
+            ..
+        } = skel;
         let mut combo_scratch = Vec::new();
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
         let mut ci = StaticCiRun::new(&input, workspace, ctx, alpha);
 
         let mut pag = build_pag_circle_skeleton(variables, &var_index, &adj)?;
+        apply_background_marks(&mut pag, &self.constraints, variables, &dense_of)?;
 
         let mut state = OrientationState {
             discriminating_budget: self.discriminating_path_budget,
@@ -250,6 +264,8 @@ impl Rfci {
         }
 
         let mut diagnostics = Vec::new();
+        diagnostics
+            .extend(crate::static_skeleton::parent_limit_diagnostic(&parent_limit_removed, "rfci"));
         if !state.discriminating_skipped.is_empty() {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("rfci.discriminating_path_budget"),
@@ -288,7 +304,13 @@ impl Rfci {
             review,
             algorithm: crate::pipeline::algorithm_record(
                 "rfci",
-                format!("alpha={},max_cond={},fdr={}", alpha, max_cond, self.fdr.is_some()),
+                format!(
+                    "alpha={},max_cond={},fdr={}{}",
+                    alpha,
+                    max_cond,
+                    self.fdr.is_some(),
+                    self.constraints.knowledge_config()
+                ),
             ),
             assumptions: discovery_assumptions("rfci", false),
             iterations,

@@ -240,6 +240,24 @@ fn request_invalid(message: &str) -> AdaptiveResultError {
     }
 }
 
+/// The posterior routes count one Bernoulli outcome per unit. A unit with
+/// several measurements is a different likelihood (the participant-level
+/// procedure's), so a posterior over it is refused rather than computed from
+/// the unit's mean.
+fn require_single_outcome(contract: &AdaptiveDesignContract) -> Result<(), AdaptiveResultError> {
+    if contract.cell().outcome
+        == antecedent_contract::adaptive_design::OutcomeStructure::SingleOutcome
+    {
+        Ok(())
+    } else {
+        Err(AdaptiveResultError {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            detail: "adaptive_inference.measurements_invalid".to_owned(),
+            message: "a posterior over units with several measurements is the participant-level procedure's, not the one-outcome Beta-Bernoulli posterior; analyse it with the participant procedure".to_owned(),
+        })
+    }
+}
+
 // -- computation ------------------------------------------------------------------------------
 
 struct LookData {
@@ -337,6 +355,7 @@ pub fn compute_adaptive_result(
     let declaration = contract.declaration();
     match spec {
         AdaptiveResultSpec::BayesianPosterior { prior_alpha, prior_beta, .. } => {
+            require_single_outcome(contract)?;
             let counts = arm_counts(contract, &data);
             let posterior = bayesian_posterior(*prior_alpha, *prior_beta, &counts, ctx)?;
             let values = posterior
@@ -354,6 +373,7 @@ pub fn compute_adaptive_result(
             })
         }
         AdaptiveResultSpec::PosteriorStopping { prior_alpha, prior_beta, .. } => {
+            require_single_outcome(contract)?;
             let rule = match declaration.stopping_rule.map(|r| r.spec) {
                 Some(StoppingSpec::PosteriorProbabilityBest { threshold }) => {
                     PosteriorRule::ProbabilityBest { threshold }

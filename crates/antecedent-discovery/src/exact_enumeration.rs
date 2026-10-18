@@ -18,6 +18,7 @@ use antecedent_data::TabularData;
 use antecedent_prob::kish_ess;
 use antecedent_state::GraphScoreFamily;
 
+use crate::adjacency_mask::AdjacencyMask;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
@@ -81,10 +82,6 @@ impl ExactDagPosterior {
                  use order_mcmc, structure_mcmc, or ci_screened_posterior",
             ));
         }
-        crate::graph_posterior::ensure_directed_mask_fits(
-            n,
-            "exact DAG posterior adjacency exceeds 63 directed edges",
-        )?;
 
         let score_data = tabular_score_data(data, variables)?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
@@ -148,7 +145,7 @@ impl ExactDagPosterior {
                  (e.g. a deterministic relation)"
             )));
         }
-        GraphPosterior::new(
+        GraphPosterior::from_atoms(
             n,
             weights,
             kept_masks,
@@ -175,12 +172,14 @@ impl GraphPosteriorEngine for ExactDagPosterior {
 
 /// Every labeled DAG on `n` nodes exactly once, as packed adjacency masks in ascending order.
 ///
+/// At most [`MAX_ENUM_NODES`] nodes, so every mask lives in word 0 of its [`AdjacencyMask`].
+///
 /// Built by adding node `k` to each DAG on nodes `0..k`: choose its children `T`, then its
 /// parents from the nodes that are not `T` or a descendant of `T` (those would close a cycle).
 /// Removing the highest node maps each DAG back to a unique smaller one, so no deduplication
 /// is needed.
-pub(crate) fn enumerate_unique_dags(n: usize) -> Vec<u64> {
-    assert!(n <= MAX_ENUM_NODES, "DAG enumeration packs masks into u64");
+pub(crate) fn enumerate_unique_dags(n: usize) -> Vec<AdjacencyMask> {
+    assert!(n <= MAX_ENUM_NODES, "DAG enumeration packs masks into one word");
     let mut bit = [[0u64; MAX_ENUM_NODES]; MAX_ENUM_NODES];
     for (from, row) in bit.iter_mut().enumerate().take(n) {
         for (to, slot) in row.iter_mut().enumerate().take(n) {
@@ -189,10 +188,10 @@ pub(crate) fn enumerate_unique_dags(n: usize) -> Vec<u64> {
             }
         }
     }
-    let mut out = Vec::new();
-    grow_dags(n, 0, [0u8; MAX_ENUM_NODES], 0, &bit, &mut out);
-    out.sort_unstable();
-    out
+    let mut words = Vec::new();
+    grow_dags(n, 0, [0u8; MAX_ENUM_NODES], 0, &bit, &mut words);
+    words.sort_unstable();
+    words.into_iter().map(AdjacencyMask::from_word).collect()
 }
 
 const MAX_ENUM_NODES: usize = 8;
@@ -257,7 +256,8 @@ mod tests {
     };
     use antecedent_state::GraphScoreFamily;
 
-    use crate::graph_posterior::{GraphPrior, edge_bit, has_edge, set_edge};
+    use crate::adjacency_mask::{has_edge, set_edge};
+    use crate::graph_posterior::{GraphPrior, edge_bit};
 
     fn chain_tabular(n_rows: usize, seed: u64) -> (TabularData, Vec<VariableId>) {
         let mut rng = antecedent_core::CausalRng::from_seed(seed);
@@ -284,11 +284,12 @@ mod tests {
 
     #[test]
     fn enumeration_is_the_sorted_set_of_acyclic_masks() {
-        assert_eq!(enumerate_unique_dags(0), vec![0]);
+        assert_eq!(enumerate_unique_dags(0), vec![AdjacencyMask::EMPTY]);
         for n in 1..=4usize {
             let bits = n * (n - 1);
-            let expected: Vec<u64> = (0..(1u64 << bits))
-                .filter(|&m| crate::graph_posterior::mask_is_dag(m, n))
+            let expected: Vec<AdjacencyMask> = (0..(1u64 << bits))
+                .filter(|&m| crate::adjacency_mask::mask_is_dag(m, n))
+                .map(AdjacencyMask::from_word)
                 .collect();
             assert_eq!(enumerate_unique_dags(n), expected, "n={n}");
         }
@@ -310,7 +311,8 @@ mod tests {
                 n,
                 score_data.n_rows,
             ));
-        for mask in 0..(1u64 << (n * (n - 1))) {
+        for word in 0..(1u64 << (n * (n - 1))) {
+            let mask = AdjacencyMask::from_word(word);
             let direct =
                 crate::graph_score::score_dag_mask(mask, n, &score_data, &mut cache, &prior, &vars);
             assert_eq!(scorer.score(mask).map(f64::to_bits), direct.map(f64::to_bits));
@@ -386,7 +388,7 @@ mod tests {
     #[test]
     fn cycle_mask_excluded_from_enumeration() {
         let n = 3;
-        let mut cyc = 0u64;
+        let mut cyc = AdjacencyMask::EMPTY;
         cyc = set_edge(cyc, n, 0, 1, true);
         cyc = set_edge(cyc, n, 1, 2, true);
         cyc = set_edge(cyc, n, 2, 0, true);
@@ -429,10 +431,10 @@ mod tests {
     #[ignore = "timing harness"]
     fn timing_enumeration_and_scoring() {
         use std::time::Instant;
-        let digest = |masks: &[u64]| {
-            masks
-                .iter()
-                .fold(0xcbf2_9ce4_8422_2325_u64, |h, &m| (h ^ m).wrapping_mul(0x0100_0000_01b3))
+        let digest = |masks: &[AdjacencyMask]| {
+            masks.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, m| {
+                (h ^ m.key()).wrapping_mul(0x0100_0000_01b3)
+            })
         };
         for n in [5usize, 6] {
             let t = Instant::now();

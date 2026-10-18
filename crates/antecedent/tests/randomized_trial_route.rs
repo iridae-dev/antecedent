@@ -947,3 +947,37 @@ fn cluster_randomized_itt_refuses_inconsistent_assignment_or_sparse_arms() {
             .is_err()
     );
 }
+
+#[test]
+fn complete_randomization_keeps_its_own_neyman_construction_at_300_rows() {
+    use antecedent_core::RandomizationDesign;
+
+    let n = 300;
+    let assignment = (0..n).map(|i| i % 2 == 0).collect::<Vec<_>>();
+    let outcomes = (0..n)
+        .map(|i| 1.0 + 0.3 * f64::from(assignment[i]) + 0.8 * (i as f64 * 0.3).sin())
+        .collect::<Vec<_>>();
+    let units = (0..n).map(|i| Arc::<str>::from(format!("unit-{i}"))).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+    let query = RandomizedEffectQuery::with_design(
+        RandomizationDesign::Complete { treated_units: 150 },
+        VariableId::from_raw(0),
+        assignment.clone(),
+        vec![0.5; n],
+        units.clone(),
+        units,
+        ("control", "treated"),
+    );
+    let result = Study::tabular(data)
+        .query(query)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(0x300_C0DE))
+        .unwrap();
+    let fit = result.randomized_effect().unwrap();
+    assert_eq!(fit.assignment_design.as_ref(), "complete");
+    assert_eq!(fit.uncertainty.as_ref(), "complete_neyman_normal_interval");
+    let [lower, upper] = fit.interval_95.expect("complete randomization publishes its interval");
+    assert!(lower < fit.effect && fit.effect < upper);
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+}

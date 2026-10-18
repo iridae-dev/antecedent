@@ -18,18 +18,29 @@
 //! output bit for bit, refusing a resealed change when given a retained
 //! [`LatentClassIdentity`].
 //!
+//! The fit has no row ceiling. [`LatentClassEffects::fit_with`] and
+//! [`LatentClassEffects::consume_with`] run under an [`ExecutionContext`] memory budget and
+//! cancellation; [`LatentClassEffects::export_within`] embeds the dataset only inside an export
+//! byte budget, and [`LatentClassEffects::export_digest_bound`] exports the record bound to the
+//! dataset by its digest, which [`LatentClassEffects::consume_with`] then needs the caller to
+//! supply.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::latent_class_effects::{
     LATENT_CLASS_CAVEAT, LATENT_CLASS_INFERENCE_CLAIM, LATENT_CLASS_MAX_CLASSES, LatentClassConfig,
     LatentClassResult, PremiseStatus,
 };
+#[allow(deprecated, reason = "the retained released name stays reachable")]
+pub use antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_ROWS;
 pub use antecedent_io::latent_class_artifact::{
-    LATENT_CLASS_ARTIFACT_MAX_ROWS, LATENT_CLASS_ARTIFACT_VERSION, LatentClassArtifact,
-    LatentClassArtifactError, LatentClassBootstrapWire, LatentClassConfigWire, LatentClassDataWire,
-    LatentClassIdentity, LatentClassLikelihoodWire, LatentClassMeta, LatentClassPremiseRecord,
-    LatentClassReportWire, LatentClassRequestWire, LatentClassWire, ResponsibilitiesSummaryWire,
+    LATENT_CLASS_ARTIFACT_VERSION, LatentClassArtifact, LatentClassArtifactError,
+    LatentClassBootstrapWire, LatentClassConfigWire, LatentClassDataWire, LatentClassIdentity,
+    LatentClassLikelihoodWire, LatentClassMeta, LatentClassPremiseRecord, LatentClassReportWire,
+    LatentClassRequestWire, LatentClassWire, ResponsibilitiesSummaryWire,
 };
+
+use antecedent_core::ExecutionContext;
 
 use crate::error::CausalError;
 
@@ -51,6 +62,19 @@ impl LatentClassEffects {
         Ok(Self { artifact: LatentClassArtifact::seal(request)? })
     }
 
+    /// Fit under the computation budget of `ctx`: its hard memory limit bounds the planned
+    /// working set and a cancelled context stops the run. No row ceiling applies.
+    ///
+    /// # Errors
+    /// The refusals of [`Self::fit`], `latent_class.memory_budget_exceeded` and
+    /// `latent_class.cancelled`.
+    pub fn fit_with(
+        request: &LatentClassRequestWire,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, LatentClassArtifactError> {
+        Ok(Self { artifact: LatentClassArtifact::seal_with(request, ctx)? })
+    }
+
     /// Consume an exported artifact by refitting under the stored seed and configuration.
     ///
     /// `expected` is an identity the consumer retained independently.
@@ -65,12 +89,52 @@ impl LatentClassEffects {
         Ok(Self { artifact: LatentClassArtifact::from_bytes(bytes, expected)? })
     }
 
+    /// Consume within the replay budget of `ctx`. A digest-bound artifact
+    /// ([`Self::export_digest_bound`]) takes the dataset to refit on in `data`, which must match
+    /// the stored digest; an artifact that embeds its dataset takes `None`.
+    ///
+    /// # Errors
+    /// The refusals of [`Self::consume`], `latent_class.data_required`, `IdentityMismatch`
+    /// (`data`), `latent_class.memory_budget_exceeded` and `latent_class.cancelled`.
+    pub fn consume_with(
+        bytes: &[u8],
+        expected: Option<&LatentClassIdentity>,
+        data: Option<&LatentClassDataWire>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, LatentClassArtifactError> {
+        Ok(Self { artifact: LatentClassArtifact::from_bytes_with(bytes, expected, data, ctx)? })
+    }
+
     /// Export the checksummed artifact.
     ///
     /// # Errors
     /// An empty id or an oversized payload.
     pub fn export(&self, artifact_id: &str) -> Result<Vec<u8>, LatentClassArtifactError> {
         self.artifact.to_bytes(artifact_id)
+    }
+
+    /// Export, embedding the dataset, within `export_budget` bytes. A refusal
+    /// (`latent_class.export_budget_exceeded`) leaves the fit available.
+    ///
+    /// # Errors
+    /// An empty id or `latent_class.export_budget_exceeded`.
+    pub fn export_within(
+        &self,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, LatentClassArtifactError> {
+        self.artifact.to_bytes_within(artifact_id, export_budget)
+    }
+
+    /// Export the record without its dataset, bound to it by the digest `identity().data_id`.
+    ///
+    /// # Errors
+    /// An empty id or an encoding failure.
+    pub fn export_digest_bound(
+        &self,
+        artifact_id: &str,
+    ) -> Result<Vec<u8>, LatentClassArtifactError> {
+        self.artifact.to_bytes_digest_bound(artifact_id)
     }
 
     /// The core result, with the full responsibilities matrix.

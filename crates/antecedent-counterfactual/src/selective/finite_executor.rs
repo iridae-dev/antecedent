@@ -1,4 +1,4 @@
-//! Selective execution of the finite Markovian SCM row.
+//! Selective execution of the fully declared finite SCM rows.
 //!
 //! An [`FiniteScmExecutor`] retains the abduction of each unit under its
 //! canonical dependency identity. A request that only changes the actions
@@ -79,7 +79,7 @@ pub enum ExogenousInference {
     PosteriorSampling,
 }
 
-/// A cross-world request over a finite Markovian SCM.
+/// A cross-world request over a fully declared finite SCM.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FiniteExecutionRequest {
     /// The mechanisms, declared for one population and history.
@@ -170,7 +170,7 @@ pub struct FiniteExecutionResult {
     pub label: &'static str,
 }
 
-/// A selective executor over the finite Markovian SCM row.
+/// A selective executor over the fully declared finite SCM rows.
 #[derive(Debug, Default)]
 pub struct FiniteScmExecutor {
     retained: BTreeMap<String, Arc<RetainedAbduction>>,
@@ -181,9 +181,11 @@ fn digest(tag: &str) -> CanonicalWriter {
     CanonicalWriter::new(&format!("antecedent.counterfactual.selective.{tag}.v1"))
 }
 
-fn abduction_identity(mechanism: &str, evidence: &str) -> String {
+fn abduction_identity(mechanism: &str, evidence: &str, shared_exogenous: bool) -> String {
+    let structure =
+        if shared_exogenous { "shared_exogenous_joint" } else { "independent_exogenous_markov" };
     let mut w = digest("abduction");
-    w.text(mechanism).text(evidence).text("exact_enumeration").text("independent_exogenous_markov");
+    w.text(mechanism).text(evidence).text("exact_enumeration").text(structure);
     w.finish_hex()
 }
 
@@ -384,7 +386,11 @@ impl FiniteScmExecutor {
         };
         let row = decide(&MatrixRequest {
             quantity: classify(request, &involved),
-            model: ModelClass::FiniteMarkovianScm,
+            model: if compiled.shared_exogenous {
+                ModelClass::FiniteSharedExogenousScm
+            } else {
+                ModelClass::FiniteMarkovianScm
+            },
             conditioning,
             interventions: InterventionKind::Hard,
             population: PopulationKind::Single,
@@ -399,7 +405,7 @@ impl FiniteScmExecutor {
             .iter()
             .map(|u| {
                 let evidence = u.digest();
-                (abduction_identity(&mechanism, &evidence), evidence)
+                (abduction_identity(&mechanism, &evidence, compiled.shared_exogenous), evidence)
             })
             .collect();
         let mut set = digest("abduction_set");

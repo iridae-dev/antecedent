@@ -45,25 +45,26 @@ pub use antecedent_io_core::{
     LaggedLinkWire, LinearFitMomentsWire, LocalPolynomialRatioWire, LogicalAnalysisPlanWire,
     LongitudinalRegimeWire, MAGIC, MappedArtifactReader, MappedSection, MarkedEdgeWire,
     MeasurementSpecWire, MechanismSlotWire, MechanismStoreWire, MediationPosteriorSummaryWire,
-    ModelKindWire, NestedCounterfactualFitWire, NetworkXAdjacency, NetworkXNodeLink,
-    ObligationSectionWire, ObservationAssumptionWire, ObservationIdentityWire,
+    MissingPolicyWire, ModelKindWire, NestedCounterfactualFitWire, NetworkXAdjacency,
+    NetworkXNodeLink, ObligationSectionWire, ObservationAssumptionWire, ObservationIdentityWire,
     ObservationOptionsWire, ObservationSpecWire, OutSection, OverlapPolicyWire,
-    PRIOR_SOURCE_META_SECTION, PagJson, PagWire, PanelDidWire, PathSpecificEffectQueryWire,
-    PayloadDigestWire, PhysicalExecutionPlanWire, PolicyValueWire, PosteriorAtomGraphWire,
-    PosteriorAtomIdentityWire, PosteriorQuantityWire, PriorArtifactBody, PriorCatalog,
-    PriorMapping, PriorMappingIdentityWire, PriorSetIdentityWire, PriorSourceMeta, PriorSourceRef,
-    PriorSpecIdentityWire, ProgramIdentityWire, ProvenanceGraphWire, ProvenanceNodeWire,
-    ProvenanceWire, ROW_WEIGHTS_PAYLOAD, RandomizationDesignWire, RandomizedEffectQueryWire,
-    RandomizedEffectWire, RandomizedEstimandWire, RdConfigWire, RdDesignWire, ReasoningSectionWire,
-    RecordedContrastWire, RefutationReportWire, ResponseEnvelopeWire, ResponseFunctionalWire,
-    ResponseIdentificationWire, ResponseOptionsWire, ResponseQueryWire, ResponseUncertaintyWire,
-    ResponseValueWire, STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, SchemaWire, SchemaWireV01,
-    ScoreReuseIdentityWire, ScoreTableKey, SectionAccess, SectionBytes, SectionDescriptor,
-    SectionIndexEntry, SectionLoadStats, SemanticVersion, SetInterventionWire, SlotSectionWire,
-    SplitIdentityWire, StaticResultWire, StructuralResponseAtomWire, StructuralResponseMixtureWire,
-    StructuralWeightBasisWire, SupportDiagnosticWire, SupportRegionWire, SupportReportWire,
-    SupportSlotWire, SupportStatusWire, SurvivalDifferenceBandWire, SurvivalWire,
-    SyntheticControlWire, SyntheticDidWire, TargetDesign, TargetIdentityWire, TargetPopulationWire,
+    PRIOR_SOURCE_META_SECTION, PagJson, PagWire, PanelDidWire, ParticipantBindingWire,
+    PathSpecificEffectQueryWire, PayloadDigestWire, PhysicalExecutionPlanWire, PolicyValueWire,
+    PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PosteriorQuantityWire, PriorArtifactBody,
+    PriorCatalog, PriorMapping, PriorMappingIdentityWire, PriorSetIdentityWire, PriorSourceMeta,
+    PriorSourceRef, PriorSpecIdentityWire, ProgramIdentityWire, ProvenanceGraphWire,
+    ProvenanceNodeWire, ProvenanceWire, ROW_WEIGHTS_PAYLOAD, RandomizationDesignWire,
+    RandomizedEffectQueryWire, RandomizedEffectWire, RandomizedEstimandWire, RdConfigWire,
+    RdDesignWire, ReasoningSectionWire, RecordedContrastWire, RefutationReportWire,
+    ResponseEnvelopeWire, ResponseFunctionalWire, ResponseIdentificationWire, ResponseOptionsWire,
+    ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire, STABLE_FORMAT,
+    SUPPORTED_SOURCE_FORMATS, SchemaWire, SchemaWireV01, ScoreReuseIdentityWire, ScoreTableKey,
+    SectionAccess, SectionBytes, SectionDescriptor, SectionIndexEntry, SectionLoadStats,
+    SemanticVersion, SetInterventionWire, SlotSectionWire, SplitIdentityWire, StaticResultWire,
+    StructuralResponseAtomWire, StructuralResponseMixtureWire, StructuralWeightBasisWire,
+    SupportDiagnosticWire, SupportRegionWire, SupportReportWire, SupportSlotWire,
+    SupportStatusWire, SurvivalDifferenceBandWire, SurvivalWire, SyntheticControlWire,
+    SyntheticDidWire, TargetDesign, TargetIdentityWire, TargetPopulationWire,
     TargetWeightsIdentityWire, TargetWeightsSectionWire, TemporalClassIdentityWire,
     TemporalCoordinates, TemporalGraphWire, TemporalIdentificationWire, TemporalMediationGridWire,
     TemporalMediationSliceWire, TemporalMediationUncertaintyWire, TemporalNodeKeyWire,
@@ -132,6 +133,7 @@ pub use antecedent_io_core::{
     weight_basis_name, wire,
 };
 
+mod artifact_budget;
 mod artifact_kinds;
 mod width;
 
@@ -182,6 +184,7 @@ pub use antecedent_io_core::composition_verification_artifact;
 pub use antecedent_io_core::cross_world_execution_artifact;
 pub use antecedent_io_core::joint_law_propagation_artifact;
 pub use antecedent_io_core::observation_query_artifact;
+pub use antecedent_io_core::policy_program_artifact;
 pub use antecedent_io_core::selective_discovery_artifact;
 pub use antecedent_io_core::transport_handoff_artifact;
 pub use antecedent_io_core::transport_revalidation_artifact;

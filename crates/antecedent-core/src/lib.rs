@@ -35,6 +35,7 @@
 
 pub mod assumption;
 pub mod calibration_basis;
+pub mod callback;
 pub mod diagnostic;
 pub mod error;
 pub mod execution;
@@ -59,12 +60,17 @@ pub mod temporal;
 pub mod text;
 pub mod tolerance;
 pub mod value;
+pub mod value_expr;
 
 pub use assumption::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, ParametricAssumption, PriorAssumption,
 };
 pub use calibration_basis::CalibrationBasis;
+pub use callback::{
+    BatchCallback, CallbackCall, CallbackError, CallbackImplementation, CallbackOutput,
+    CallbackRefusal, CallbackSpec, PinnedDependency, Portability, RecoveryMismatch, RecoveryRecord,
+};
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use execution::{
@@ -136,6 +142,10 @@ pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
 pub use text::is_blank;
 pub use tolerance::ToleranceClass;
 pub use value::{Value, same_intervention_level};
+pub use value_expr::{
+    ArithOp, CompareOp, ExprNumber, ExprType, ExpressionFault, LogicOp, MAX_EXPR_DEPTH,
+    MAX_EXPR_NODES, PolicyReads, ValueExpr, clip_value,
+};
 
 /// Label of a structural (Fréchet-Hoeffding) envelope over every coupling of
 /// the marginals; the single definition the contract and stats crates re-export.

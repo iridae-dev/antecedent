@@ -1,0 +1,1 @@
+{"attempts":2048,"case":"policy","coverage_computed":false,"max_median_width_over_effect":1.5,"median_abs_truth":1.5982917289710794,"median_per_replicate_width_over_abs_truth":0.23398814871678916,"median_width":0.37394577368583315,"median_width_over_median_abs_truth":0.23396590679134996,"reported":2028,"reporting_rate":0.990234375,"required_reported":2000}

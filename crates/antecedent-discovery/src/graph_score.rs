@@ -8,10 +8,10 @@ use antecedent_core::VariableId;
 use antecedent_data::TabularData;
 use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
+use crate::adjacency_mask::AdjacencyMask;
+use crate::adjacency_mask::{fill_parents, parent_bits, set_edge};
 use crate::error::DiscoveryError;
-use crate::graph_posterior::{
-    GraphPrior, GraphPriorTable, edge_required, fill_parents, log_prior_mask, set_edge,
-};
+use crate::graph_posterior::{GraphPrior, GraphPriorTable, edge_required};
 use crate::pc::collect_float_columns;
 
 /// Version stamped on every discovery [`GraphScoreCacheKey`].
@@ -65,7 +65,7 @@ pub(crate) fn tabular_score_data(
 /// Uses [`LocalScoreCache::local_score`] only (does not mutate cached parent sets),
 /// so MCMC proposals can reject without restoring graph state.
 pub(crate) fn score_dag_mask(
-    mask: u64,
+    mask: AdjacencyMask,
     n: usize,
     data: &GraphScoreData,
     cache: &mut LocalScoreCache,
@@ -73,23 +73,25 @@ pub(crate) fn score_dag_mask(
     variables: &[VariableId],
 ) -> Option<f64> {
     let mut parents = Vec::new();
-    score_dag_mask_with_parents(mask, n, data, cache, prior, variables, &mut parents)
+    let table = GraphPriorTable::new(n, prior, variables);
+    score_dag_mask_with_parents(mask, n, data, cache, &table, &mut parents)
 }
 
-/// [`score_dag_mask`] reusing `parents` for every node's parent list.
+/// [`score_dag_mask`] against a prior resolved once, reusing `parents` for every node's
+/// parent list.
 ///
-/// The stored local score is still keyed by a fresh `Arc` of those indexes, in the
-/// same increasing order [`crate::graph_posterior::parents_of`] produces.
+/// A sampler scores one mask per step; resolving the constraints per step would dominate the
+/// run on a dozen variables. The stored local score is still keyed by a fresh `Arc` of those
+/// indexes, in the same increasing order [`crate::graph_posterior::parents_of`] produces.
 pub(crate) fn score_dag_mask_with_parents(
-    mask: u64,
+    mask: AdjacencyMask,
     n: usize,
     data: &GraphScoreData,
     cache: &mut LocalScoreCache,
-    prior: &GraphPrior,
-    variables: &[VariableId],
+    prior: &GraphPriorTable,
     parents: &mut Vec<u32>,
 ) -> Option<f64> {
-    let lp = log_prior_mask(mask, n, prior, variables)?;
+    let lp = prior.log_prior(mask)?;
     let mut total = lp;
     for node in 0..n {
         fill_parents(mask, n, node, parents);
@@ -101,6 +103,90 @@ pub(crate) fn score_dag_mask_with_parents(
         total += s;
     }
     Some(total)
+}
+
+/// The log target of one sampler chain: BIC + log prior of a graph, and of a single node's
+/// parent set.
+///
+/// A sampler asks for the whole graph once per proposal, and for single nodes when it resamples
+/// parent sets exactly. The target is a trait so a test can run the same kernels on a target
+/// with the data removed.
+pub(crate) trait ChainTarget {
+    /// Log target of `mask`; `None` when it is invalid (constraints, cycle, no finite score).
+    fn score(&mut self, mask: AdjacencyMask) -> Option<f64>;
+    /// Log target of `node` having parent set `parents`; `None` when that is invalid. The sum
+    /// over a valid graph's nodes is [`Self::score`].
+    fn node_score(&mut self, node: usize, parents: u16) -> Option<f64>;
+}
+
+/// [`ChainTarget`] scoring Gaussian BIC + prior, with its own local-score cache and parent-list
+/// scratch.
+pub(crate) struct ScoredTarget<'a> {
+    n: usize,
+    data: &'a GraphScoreData,
+    cache: LocalScoreCache,
+    prior: &'a GraphPriorTable,
+    parents: Vec<u32>,
+}
+
+impl<'a> ScoredTarget<'a> {
+    pub(crate) fn new(
+        n: usize,
+        data: &'a GraphScoreData,
+        family: GraphScoreFamily,
+        prior: &'a GraphPriorTable,
+    ) -> Self {
+        Self {
+            n,
+            data,
+            cache: LocalScoreCache::new(graph_score_cache_key(family, n, data.n_rows)),
+            prior,
+            parents: Vec::with_capacity(n),
+        }
+    }
+}
+
+impl ChainTarget for ScoredTarget<'_> {
+    fn score(&mut self, mask: AdjacencyMask) -> Option<f64> {
+        score_dag_mask_with_parents(
+            mask,
+            self.n,
+            self.data,
+            &mut self.cache,
+            self.prior,
+            &mut self.parents,
+        )
+    }
+
+    fn node_score(&mut self, node: usize, parents: u16) -> Option<f64> {
+        let prior = self.prior.node_log_prior(node, parents)?;
+        let set: Arc<[u32]> = (0..self.n)
+            .filter(|&p| (parents >> p) & 1 == 1)
+            .map(crate::indexing::dense_u32)
+            .collect();
+        let local =
+            self.cache.local_score(self.data, crate::indexing::dense_u32(node), &set).ok()?;
+        local.is_finite().then_some(prior + local)
+    }
+}
+
+/// A [`ChainTarget`] several replicas of one chain share, so they share its score cache.
+pub(crate) struct SharedTarget<T>(pub(crate) std::rc::Rc<std::cell::RefCell<T>>);
+
+impl<T> Clone for SharedTarget<T> {
+    fn clone(&self) -> Self {
+        Self(std::rc::Rc::clone(&self.0))
+    }
+}
+
+impl<T: ChainTarget> ChainTarget for SharedTarget<T> {
+    fn score(&mut self, mask: AdjacencyMask) -> Option<f64> {
+        self.0.borrow_mut().score(mask)
+    }
+
+    fn node_score(&mut self, node: usize, parents: u16) -> Option<f64> {
+        self.0.borrow_mut().node_score(node, parents)
+    }
 }
 
 /// Scores every DAG of an exhaustive enumeration from a table of local scores.
@@ -144,16 +230,11 @@ impl DagScorer {
     }
 
     /// BIC + log prior of `mask` (`None` if invalid), bit-identical to [`score_dag_mask`].
-    pub(crate) fn score(&self, mask: u64) -> Option<f64> {
+    pub(crate) fn score(&self, mask: AdjacencyMask) -> Option<f64> {
         let n = self.n;
         let mut total = self.prior.log_prior(mask)?;
         for node in 0..n {
-            let mut parents = 0usize;
-            for p in 0..n {
-                if p != node && mask & self.prior.bit(p, node) != 0 {
-                    parents |= 1 << p;
-                }
-            }
+            let parents = usize::from(parent_bits(mask, n, node));
             total += self.local[(node << n) | parents]?;
         }
         Some(total)
@@ -168,8 +249,8 @@ pub(crate) fn initial_scored_mask(
     family: GraphScoreFamily,
     prior: &GraphPrior,
     variables: &[VariableId],
-) -> Result<(u64, f64), DiscoveryError> {
-    let mut mask = 0u64;
+) -> Result<(AdjacencyMask, f64), DiscoveryError> {
+    let mut mask = AdjacencyMask::EMPTY;
     for i in 0..n {
         for j in 0..n {
             if i != j && edge_required(&prior.constraints, variables, i, j) {

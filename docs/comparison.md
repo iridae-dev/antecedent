@@ -314,6 +314,17 @@ runtime contract. It also carries accepted partial graphs and selected graph
 posteriors into licensed downstream analyses. That does not imply broad feature
 parity with DoWhy.
 
+Where the two share a semantic, the comparison is executed rather than asserted: against
+the version pinned in `parity/baselines/dowhy.toml`, the suite computes DoWhy's interventional
+means (constant and functional interventions), unit counterfactuals, intrinsic causal influence,
+graph permutation falsification and automatic mechanism assignment at test time and checks
+agreement within stated tolerances (`python/tests/test_dowhy_comparison.py`; skipped when DoWhy is
+not installed). The overlap and the differences are stated on the
+[intervention programs](guides/intervention-programs.md#differences-from-dowhy),
+[mechanism selection](guides/mechanism-selection.md#differences-from-dowhy),
+[intrinsic influence](guides/intrinsic-influence.md#differences-from-dowhy) and
+[graph falsification](guides/graph-falsification.md#differences-from-dowhy) guides.
+
 ### EconML
 
 EconML focuses on machine-learning estimators for heterogeneous treatment
@@ -352,7 +363,7 @@ results refuse rather than pretending they are a set. The adapter does not
 wrap EconML learners or absorb an external CATE.
 
 A worked handoff is in
-[`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/econml_cate_handoff.py):
+[`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.1/examples/python/econml_cate_handoff.py):
 Antecedent identifies and estimates ATE, then the caller optionally fits
 EconML `LinearDML` on `spec.columns(data)` when `econml` is installed.
 

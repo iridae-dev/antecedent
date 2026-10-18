@@ -55,6 +55,8 @@ pub mod frontdoor_functional;
 pub mod functional_distribution;
 pub mod gcomp;
 pub mod glm_adjustment;
+pub mod population_aipw;
+pub mod population_atc;
 pub use antecedent_stats::identified_set;
 pub mod interference;
 pub mod interference_observational;
@@ -66,12 +68,15 @@ pub mod latent_class_effects;
 mod learn_nuisance;
 pub mod local_polynomial_ratio;
 pub mod mechanism_discrepancy;
+pub mod missing_policy;
 pub mod mixed_source;
 pub mod multi_arm;
 pub mod nested_markov_binary;
 pub mod nested_markov_uncertainty;
 pub mod nonlinear_mediation;
 pub mod observation;
+pub mod observational_policy;
+pub mod observational_survival;
 pub mod overlap;
 pub mod policy_value;
 pub mod posterior_mean;
@@ -79,6 +84,7 @@ pub mod prediction;
 pub mod prepare;
 pub mod propensity;
 pub mod quantile;
+pub mod randomized_missing;
 pub mod randomized_neyman;
 pub mod randomized_scores;
 pub mod rd;
@@ -87,6 +93,7 @@ pub mod recovery_chain;
 pub mod recovery_sampled;
 pub mod response;
 pub mod retarget;
+pub mod sampling_weights;
 pub mod scenario_covariance;
 pub mod scenario_invariance_report;
 pub mod scores;
@@ -182,10 +189,12 @@ pub use ar_kernel::kernel_bias_factor;
 pub(crate) use bayesian::require_bayesian_n_draws;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
-    CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping, HydrateSource,
-    HydrateTarget, PosteriorFunctionalEvaluator, PreparedBayesianProblem,
-    coefficient_covariance_from_draws, hmc_draw_floor_from_notes, hydrate_prior,
-    hydrate_prior_from_coefficient_moments, nonidentified_with_prior,
+    CausalPosterior, CompiledGCompAte, DRAW_CONTROL_NOTE_PREFIX, EndpointMonteCarloError,
+    GCompAteEvaluator, HydrateMapping, HydrateSource, HydrateTarget,
+    LAPLACE_RANK_INTERVAL_BELOW_DRAWS, MIN_CONTROLLED_DRAWS, PosteriorFunctionalEvaluator,
+    PreparedBayesianProblem, coefficient_covariance_from_draws, endpoint_mcse_from_notes,
+    endpoint_monte_carlo_error, hmc_draw_floor_from_notes, hydrate_prior,
+    hydrate_prior_from_coefficient_moments, nonidentified_with_prior, supported_min_draws,
 };
 pub use causal_forest::CausalForest;
 pub use cell_aipw::{
@@ -195,8 +204,8 @@ pub use cell_aipw::{
 };
 pub use cluster_dml_aipw::{
     ClusterDml, ClusterDmlReceipt, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD,
-    IndependenceUnit, MIN_CLUSTERS_FLOOR, MIN_COMPONENTS_PER_FOLD_FLOOR, cluster_fold_plan,
-    endpoint_components, flexible_learner_dependence_refusal,
+    DeclaredUnits, IndependenceUnit, MIN_CLUSTERS_FLOOR, MIN_COMPONENTS_PER_FOLD_FLOOR,
+    cluster_fold_plan, endpoint_components, flexible_learner_dependence_refusal,
 };
 pub use conditional::{ConditionalArmScores, ConditionalLinearAdjustment};
 pub use counterfactual_transport::{
@@ -283,8 +292,11 @@ pub use observation::{
 pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, PropensityInterval};
 pub use prediction::TemporalLinearPredictor;
 pub use propensity::{
-    CaliperScale, DEFAULT_RIDGE_GRID, DistanceMatching, FailedFit, FallbackRecord, FoldSupport,
-    NuisanceFallback, PROPENSITY_FIT_STAGE, PenalizedReport, PenalizedVarianceReport,
+    BalancedWeightingInterval, CaliperScale, DEFAULT_RIDGE_GRID, DeclaredTreatmentLevels,
+    DistanceMatching, FailedFit, FallbackRecord, FoldSupport, GENERALIZED_PROPENSITY_PROVENANCE,
+    KNN_DISTANCE_MATCHING_CONSTRUCTION, KnnDistanceMatching, LevelMean, LevelRows, MultiLevelAipw,
+    MultiLevelEstimate, MultiLevelPopulation, MultiLevelTarget, NuisanceFallback, OtherLevels,
+    PROPENSITY_FIT_STAGE, PenalizedReport, PenalizedVarianceReport, PopulationLinearVariance,
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
     PropensityNuisance, PropensityPenalty, PropensityStratification, PropensityWeighting,
     REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties, RidgeTuning, crossfit_influence_se,
@@ -312,6 +324,7 @@ pub use retarget::{
     exceedance_cdf_values, retarget, summarize_functional, weighted_overlap_fields,
     weighted_support_fields,
 };
+pub use sampling_weights::{RetainedSamplingWeights, SamplingWeightRecord, SamplingWeights};
 pub use scores::{
     LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreSupport, ScoreTable,
     ScoreTableWire, inference_from_influence_columns,
@@ -320,7 +333,7 @@ pub use se::AnalyticSeKind;
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use serial_dependence::{
     DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_capped_from_notes,
-    tempering_inestimable_from_notes, tempering_kappa_from_notes,
+    tempering_inestimable_from_notes, tempering_kappa_from_notes, window_segments,
 };
 pub use statistical_transport::{
     BayesianStatisticalTransportEstimate, INTERVAL_NUMERICAL_FAILURE, NominalZTransportInterval,
@@ -336,15 +349,17 @@ pub use statistical_transport::{
     mz_transport_bootstrap_law_draws,
 };
 pub use temporal_adjustment::{
-    NestedDirectFitMoments, TemporalDependenceSe, TemporalDesignInputs, TemporalLinearAdjustment,
-    TemporalSlopeSpec, is_temporal_coefficient_name, nested_direct_fit_moments,
-    temporal_coefficient_names, temporal_conditional_marginal_effect, temporal_linear_slopes,
+    GapSelection, NestedDirectFitMoments, TemporalDependenceSe, TemporalDesignInputs,
+    TemporalLinearAdjustment, TemporalSlopeSpec, is_temporal_coefficient_name,
+    nested_direct_fit_moments, temporal_coefficient_names, temporal_conditional_marginal_effect,
+    temporal_conditional_marginal_effect_with_gaps, temporal_linear_slopes,
 };
 pub use temporal_block::{
-    AlignedRows, BlockBootstrap, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap,
-    circular_fixed_b_scale, common_time_window, dependence_block_length, effective_rows,
-    kernel_bias_scale, normal_equation_scores, normal_equation_scores_of_residuals,
-    row_block_bootstrap_vec, score_effective_rows,
+    AlignedRows, BlockBootstrap, CircularBlockFamily, GappedAlignedRows, RowBlockDraws,
+    aligned_block_bootstrap, circular_fixed_b_scale, common_time_window, dependence_block_length,
+    effective_rows, gapped_aligned_block_bootstrap, gapped_row_block_bootstrap, kernel_bias_scale,
+    normal_equation_scores, normal_equation_scores_of_residuals, row_block_bootstrap_vec,
+    score_effective_rows,
 };
 pub use temporal_mediation::{
     MediationPosteriorSummary, PreparedTemporalMediation, SharedMediationBlockSe,
@@ -365,7 +380,8 @@ pub use temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROW
 pub use temporal_sequential::{
     SequenceTarget, SequentialContrastDesign, SequentialInference, SequentialMechanismOverlay,
     SequentialNodeOverlay, SequentialProblem, estimate_sequence_mechanisms,
-    estimate_sequence_overlays, estimate_sustained_window,
+    estimate_sequence_overlays, estimate_sustained_window, estimate_sustained_window_gaps_if,
+    estimate_sustained_window_with_gaps,
 };
 pub use temporal_sequential_tuples::{
     PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,

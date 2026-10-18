@@ -5,20 +5,22 @@
 use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_learn::{LearnerSpec, LinearSpec, LogisticSpec, PredictionTask, RidgeSpec};
 use antecedent_stats::{SandwichKind, coefficient_covariance};
 
 use crate::adjustment::EffectEstimate;
+use crate::cluster_dml_aipw::{ClusterDml, DeclaredUnits};
 use crate::error::EstimationError;
 use crate::learn_nuisance::{cached_aipw_nuisances, design_for_spec, learn_err, resolve_nuisance};
 use crate::overlap::OverlapPolicy;
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
 use crate::propensity::{
     PreparedPropensityProblem, clip_of, default_propensity_overlap,
-    prepare_propensity_problem_with_registry, trim_of, trim_retained_rows,
+    prepare_propensity_problem_with_levels, trim_of, trim_retained_rows,
 };
+use crate::sampling_weights::SamplingWeights;
 
 /// Cross-fitted DR-Learner: CATE from a final-stage regression on the DR score.
 #[derive(Clone, Debug, PartialEq)]
@@ -33,6 +35,16 @@ pub struct DrLearner {
     pub final_learner: LearnerSpec,
     /// Overlap policy.
     pub overlap: OverlapPolicy,
+    /// Declared independence unit of a whole-cluster cross-fit: the nuisances scoring a unit
+    /// are fit on other units, and the marginal ATE's standard error is the cluster sandwich
+    /// of the cross-fitted scores.
+    pub units: DeclaredUnits,
+    /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
+    /// The nuisance learners, the marginal ATE and the final-stage regression are all fit
+    /// under them (each learner must carry prior weights). The linear final stage's pointwise
+    /// standard errors and profile inference are the HC0 sandwich of the weighted least-squares
+    /// fit; a weighted fit keeps no retargetable score table.
+    pub sampling_weights: Option<SamplingWeights>,
 }
 
 /// A prespecified profile in the complete ordered adjustment set.
@@ -83,7 +95,58 @@ impl DrLearner {
             treatment: LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 }),
             final_learner: LearnerSpec::Linear(LinearSpec {}),
             overlap: default_propensity_overlap(),
+            units: DeclaredUnits {
+                spec: None,
+                first: None,
+                first_source: None,
+                second: None,
+                second_source: None,
+            },
+            sampling_weights: None,
         }
+    }
+
+    /// Declare sampling weights for every row of the source table.
+    #[must_use]
+    pub fn with_sampling_weights(mut self, weights: SamplingWeights) -> Self {
+        self.sampling_weights = Some(weights);
+        self
+    }
+
+    /// Declare whole-cluster cross-fitting over the unit labels set with
+    /// [`Self::with_cluster_ids`] or [`Self::with_source_cluster_ids`].
+    #[must_use]
+    pub fn with_cluster_dml(mut self, spec: ClusterDml) -> Self {
+        self.units.spec = Some(spec);
+        self
+    }
+
+    /// Unit label of every analysed row.
+    #[must_use]
+    pub fn with_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.first = Some(labels);
+        self
+    }
+
+    /// Unit label of every row of the source table (length must equal its row count).
+    #[must_use]
+    pub fn with_source_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.first_source = Some(labels);
+        self
+    }
+
+    /// Second-endpoint label of every analysed row of a dyadic unit.
+    #[must_use]
+    pub fn with_second_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.second = Some(labels);
+        self
+    }
+
+    /// Second-endpoint label of every source row of a dyadic unit.
+    #[must_use]
+    pub fn with_source_second_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.second_source = Some(labels);
+        self
     }
 
     /// Adapt one shared spec to each first-stage nuisance task.
@@ -142,7 +205,22 @@ impl DrLearner {
     ) -> Result<PreparedPropensityProblem, EstimationError> {
         require_adjustment_shaped(estimand, "DRLearner requires an adjustment-shaped estimand")?;
         validate_ate_query_with_targets(query)?;
-        prepare_propensity_problem_with_registry(data, estimand, query, self.overlap, None)
+        self.units.check_source_rows(data.row_count())?;
+        let mut problem = prepare_propensity_problem_with_levels(
+            data,
+            estimand,
+            query,
+            self.overlap,
+            None,
+            crate::propensity::OtherLevels::default(),
+            self.sampling_weights.as_ref(),
+        )?;
+        self.units.declare(
+            &mut problem,
+            query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,
+            self.overlap,
+        )?;
+        Ok(problem)
     }
 
     /// Row-identified cross-fitted AIPW score table of the marginal ATE this learner reports
@@ -190,7 +268,69 @@ impl DrLearner {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        self.fit_with_profiles(problem, &[], ctx, assumptions).map(|(effect, _)| effect)
+        let (effect, _) = self.fit_with_profiles(problem, &[], ctx, assumptions)?;
+        self.publish_units(effect, problem, ctx)
+    }
+
+    /// Form a population ATE interval under independent homoskedastic Gaussian
+    /// arm-linear outcomes, including training-fold fit uncertainty and a declared
+    /// finite-ridge mean correction. The default robust fit remains unchanged.
+    ///
+    /// # Errors
+    /// Nonlinear outcome learners, dependence, unsupported target, failed fit, or invalid level.
+    pub fn population_linear_interval(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        level: f64,
+    ) -> Result<crate::population_aipw::PopulationAipwInterval, EstimationError> {
+        if self.units.spec.is_some() {
+            return Err(EstimationError::unsupported(
+                "population linear DR learner requires IID AIPW",
+            ));
+        }
+        let ridge = match self.outcome {
+            LearnerSpec::Linear(_) => 0.0,
+            LearnerSpec::Ridge(spec) => spec.lambda,
+            _ => {
+                return Err(EstimationError::unsupported(
+                    "population linear interval requires a linear outcome learner",
+                ));
+            }
+        };
+        let estimate = self.fit(problem, ctx, assumptions)?;
+        let nuisance =
+            cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+        let propensity = crate::learn_nuisance::guarded_propensity(
+            &nuisance.2,
+            crate::propensity::clip_of(problem.overlap),
+        )?;
+        let folds: Vec<u32> = nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+        crate::population_aipw::interval(problem, estimate, &propensity, &folds, ridge, level)
+    }
+
+    /// Replace the iid standard error by the declared unit's cluster sandwich (the weighted
+    /// influence's, for a sampling-weighted fit that keeps no score table).
+    fn publish_units(
+        &self,
+        effect: EffectEstimate,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if problem.sampling_weights.is_some() && self.units.spec.is_some() {
+            let nuisance =
+                cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+            let fold_ids: Vec<u32> =
+                nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+            return self.units.publish_weighted(
+                effect,
+                problem,
+                &fold_ids,
+                u32::try_from(self.folds).unwrap_or(u32::MAX),
+            );
+        }
+        self.units.publish(effect, problem)
     }
 
     /// Fit and evaluate prespecified profiles with pointwise linear HC0 inference.
@@ -217,6 +357,7 @@ impl DrLearner {
             ));
         }
         let (effect, results) = self.fit_with_profiles(problem, profiles, ctx, assumptions)?;
+        let effect = self.publish_units(effect, problem, ctx)?;
         let results = results.ok_or_else(|| {
             EstimationError::data_msg(
                 "pointwise CATE profiles were requested but the fit returned none",
@@ -285,8 +426,12 @@ impl DrLearner {
             }
             None => view,
         };
+        let final_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
+        if final_weights.is_some() {
+            crate::learn_nuisance::require_weight_capable(factory.as_ref(), self.final_learner)?;
+        }
         let fitted = factory
-            .fit(fit_view, antecedent_learn::TargetView::new(&phi), None, ctx)
+            .fit(fit_view, antecedent_learn::TargetView::new(&phi), final_weights, ctx)
             .map_err(learn_err)?;
         FINAL_EFFECT_FITS.with(|count| count.set(count.get().saturating_add(1)));
         let mut cate = vec![0.0; problem.nrows];
@@ -298,6 +443,7 @@ impl DrLearner {
                 &phi,
                 &cate,
                 retained.as_deref(),
+                final_weights,
             )),
             problem,
             &nuisance,
@@ -350,6 +496,7 @@ impl DrLearner {
                 &cate,
                 raw_e,
                 retained.as_deref(),
+                final_weights,
             )?))
         };
         Ok((effect, pointwise))
@@ -360,6 +507,10 @@ impl DrLearner {
     clippy::float_cmp,
     reason = "exact-support profile match: a retained row qualifies only when its covariate tuple equals the profile values exactly"
 )]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the fitted scores, propensities, retained rows and sampling weights are distinct inputs of one profile pass"
+)]
 fn pointwise_profile_results(
     spec: LearnerSpec,
     problem: &PreparedPropensityProblem,
@@ -368,6 +519,7 @@ fn pointwise_profile_results(
     cate: &[f64],
     propensity: &[f64],
     retained: Option<&[usize]>,
+    weights: Option<&[f64]>,
 ) -> Result<Vec<PointwiseCateEstimate>, EstimationError> {
     if !matches!(spec, LearnerSpec::Linear(_)) {
         return Err(EstimationError::data_msg("pointwise CATE requires a linear final stage"));
@@ -422,7 +574,19 @@ fn pointwise_profile_results(
                     if c == 0 { 1.0 } else { problem.covariates[c - 1][r] };
             }
         }
-        let residuals: Vec<f64> = rows.iter().map(|&r| phi[r] - cate[r]).collect();
+        let mut residuals: Vec<f64> = rows.iter().map(|&r| phi[r] - cate[r]).collect();
+        if let Some(weights) = weights {
+            // Weighted least squares is ordinary least squares on rows scaled by √m, and its
+            // HC0 sandwich is `(X'WX)⁻¹ Σ m² e² x xᵀ (X'WX)⁻¹`.
+            let m = rows.len();
+            for (k, &r) in rows.iter().enumerate() {
+                let root = weights[r].sqrt();
+                residuals[k] *= root;
+                for c in 0..p {
+                    design[c * m + k] *= root;
+                }
+            }
+        }
         let covariance =
             coefficient_covariance(&design, rows.len(), p, &residuals, SandwichKind::Hc0)
                 .map_err(|_| EstimationError::data_msg("CATE HC0 covariance is not estimable"))?;
@@ -464,6 +628,7 @@ fn linear_cate_pointwise_se(
     phi: &[f64],
     cate: &[f64],
     rows: Option<&[usize]>,
+    weights: Option<&[f64]>,
 ) -> Option<Arc<[f64]>> {
     if !matches!(spec, LearnerSpec::Linear(_)) {
         return None;
@@ -493,7 +658,16 @@ fn linear_cate_pointwise_se(
             sub[c * m + k] = design[c * n + r];
         }
     }
-    let residuals: Vec<f64> = used.iter().map(|&r| phi[r] - cate[r]).collect();
+    let mut residuals: Vec<f64> = used.iter().map(|&r| phi[r] - cate[r]).collect();
+    if let Some(weights) = weights {
+        for (k, &r) in used.iter().enumerate() {
+            let root = weights[r].sqrt();
+            residuals[k] *= root;
+            for c in 0..p {
+                sub[c * m + k] *= root;
+            }
+        }
+    }
     let cov = coefficient_covariance(&sub, m, p, &residuals, SandwichKind::Hc0).ok()?;
     let mut se = vec![0.0; n];
     for i in 0..n {
@@ -835,6 +1009,7 @@ mod tests {
             &phi,
             &cate,
             Some(&rows),
+            None,
         )
         .unwrap();
         // XᵀX = [[4, 6], [6, 14]], inverse = 1/20 · [[14, −6], [−6, 4]].

@@ -59,6 +59,8 @@ pub(super) struct TemporalMediationInputs<'a> {
     pub horizons: &'a [MediationHorizonClick],
     pub inference: MediationInference<'a>,
     pub validation: RefuteSuite,
+    /// Declared handling of missing time points, when the caller declared one.
+    pub missing: Option<&'a antecedent_data::MissingDeclaration>,
 }
 
 /// An assembled mediation fit, before the result envelope.
@@ -78,6 +80,8 @@ pub(super) struct TemporalMediationFit {
     bootstrap_replicates_ok: Option<u32>,
     cancelled: bool,
     single: bool,
+    /// Windows dropped for a missing time point, when the fit accounts for them.
+    pub(super) missing_data: Option<crate::result::MissingDataReport>,
 }
 
 impl TemporalMediationFit {
@@ -139,6 +143,10 @@ struct HorizonFit {
 }
 
 /// Fit and assemble the mediation of every requested horizon.
+#[allow(
+    clippy::too_many_lines,
+    reason = "every horizon shares the gap policy, the design and the replicate loop of one mediation fit"
+)]
 pub(super) fn fit_temporal_mediation(
     inputs: &TemporalMediationInputs<'_>,
     ctx: &ExecutionContext,
@@ -164,6 +172,12 @@ pub(super) fn fit_temporal_mediation(
             .map_err(CausalError::from)?;
     }
     let mut diagnostics = mediation_preamble_diagnostics(horizons, bayesian.is_some());
+    let gap_variables = mediation_variables(inputs);
+    let first_gap = antecedent_data::first_missing_cell(inputs.data, &gap_variables)?;
+    let gaps = first_gap.is_some();
+    if let Some(cell) = &first_gap {
+        admit_mediation_gaps(inputs, cell)?;
+    }
 
     let mut slices = Vec::with_capacity(horizons.len());
     let mut refutations = Vec::new();
@@ -173,7 +187,7 @@ pub(super) fn fit_temporal_mediation(
     let mut cancelled = false;
     for click in horizons {
         require_identified(&click.identification)?;
-        let fit = fit_mediation_horizon(inputs, estimator.as_ref(), click, single, ctx)?;
+        let fit = fit_mediation_horizon(inputs, estimator.as_ref(), click, single, gaps, ctx)?;
         let mut reports = fit.refutations;
         if !single {
             for report in &mut reports {
@@ -228,6 +242,38 @@ pub(super) fn fit_temporal_mediation(
         MediationInference::Frequentist { bootstrap_replicates } if bootstrap_replicates > 0
     );
     let bootstrap_replicates_ok = bootstrap_requested.then_some(replicates_ok).flatten();
+    let missing_data = if gaps {
+        // The first horizon's windows; later horizons read other lags of the same gaps.
+        let selection = TemporalMediationEstimator::new()
+            .with_allow_natural_controlled_alias(true)
+            .window_selection(
+                inputs.data,
+                &first.estimand,
+                &{
+                    let mut query = inputs.query.clone();
+                    query.horizons = Arc::from([first.horizon]);
+                    query
+                },
+                &first.adjustment,
+                ctx,
+            )
+            .map_err(CausalError::from)?;
+        let dropped = selection.dropped_times().into_iter().map(|time| time as u64).collect();
+        let accounting = antecedent_data::RowAccounting::from_dropped(
+            antecedent_data::MissingPolicy::CompleteCase,
+            selection.complete.len(),
+            dropped,
+            missing_series_points(inputs.data, &gap_variables)?,
+        );
+        Some(crate::analysis::missing_data::report(
+            crate::analysis::missing_data::MissingRoute::Temporal,
+            true,
+            Arc::from([]),
+            accounting,
+        ))
+    } else {
+        None
+    };
     Ok(TemporalMediationFit {
         estimator_id: inputs.inference.estimator_id(),
         estimate,
@@ -244,7 +290,85 @@ pub(super) fn fit_temporal_mediation(
         bootstrap_replicates_ok,
         cancelled,
         single,
+        missing_data,
     })
+}
+
+/// Series variables a mediation fit reads: treatment, outcome, mediator and every horizon's
+/// adjustment columns.
+fn mediation_variables(inputs: &TemporalMediationInputs<'_>) -> Vec<antecedent_core::VariableId> {
+    let mut variables = vec![inputs.query.treatment, inputs.query.outcome];
+    for click in inputs.horizons {
+        variables.extend(click.estimand.mediators.iter().copied());
+        variables.extend(click.adjustment.iter().map(|column| column.variable));
+    }
+    let mut seen = Vec::new();
+    variables.retain(|variable| {
+        let new = !seen.contains(variable);
+        seen.push(*variable);
+        new
+    });
+    variables
+}
+
+/// Admit a series with gaps only under a declared complete-case policy without refuters (the
+/// mediation refuters refit through contiguous windows). The Bayesian mechanisms are tempered
+/// by the segment-wise long-run variance of the intact windows.
+fn admit_mediation_gaps(
+    inputs: &TemporalMediationInputs<'_>,
+    cell: &antecedent_data::MissingCell,
+) -> Result<(), CausalError> {
+    use crate::analysis::missing_data::MissingRoute;
+    use antecedent_data::MissingPolicy;
+    let route = MissingRoute::Temporal;
+    let supported = route.supported();
+    let Some(declaration) =
+        inputs.missing.filter(|declaration| declaration.policy == MissingPolicy::CompleteCase)
+    else {
+        if inputs.missing.is_none() {
+            return Err(CausalError::Data(antecedent_data::DataError::IncompleteSeries {
+                id: Some(cell.id),
+                message: "missing values in series; lagged temporal analysis requires complete series (declare missing=\"complete_case\" to drop the lag windows that read a gap)",
+            }));
+        }
+        return Err(CausalError::Estimate(antecedent_estimate::missing_policy::policy_required(
+            cell,
+            route.label(),
+            &supported[1..],
+        )));
+    };
+    let refuse = |reason: &str| {
+        CausalError::Estimate(antecedent_estimate::missing_policy::policy_not_applicable(
+            declaration.policy,
+            route.label(),
+            reason,
+            &supported[..1],
+        ))
+    };
+    if inputs.validation != RefuteSuite::None
+        && matches!(inputs.inference, MediationInference::Bayesian(_))
+    {
+        return Err(refuse(
+            "the mediation predictive checks read consecutive rows; request no refuters on a Bayesian fit of a series with gaps",
+        ));
+    }
+    Ok(())
+}
+
+/// Missing time points per variable.
+fn missing_series_points(
+    data: &TimeSeriesData,
+    variables: &[antecedent_core::VariableId],
+) -> Result<Vec<(Arc<str>, usize)>, CausalError> {
+    use antecedent_data::TableView;
+    variables
+        .iter()
+        .map(|&id| {
+            let validity = data.column(id)?.validity();
+            let name = Arc::clone(&data.schema().get(id)?.name);
+            Ok((name, (0..data.row_count()).filter(|&row| !validity.is_valid(row)).count()))
+        })
+        .collect()
 }
 
 /// The horizon-dependent adjustment note and the Bayesian mechanism note that
@@ -303,6 +427,7 @@ fn fit_mediation_horizon(
     estimator: Option<&BayesianGComputationAte>,
     click: &MediationHorizonClick,
     single: bool,
+    gaps: bool,
     ctx: &ExecutionContext,
 ) -> Result<HorizonFit, CausalError> {
     let mut horizon_query = inputs.query.clone();
@@ -314,10 +439,11 @@ fn fit_mediation_horizon(
             &horizon_query,
             *bootstrap_replicates,
             single,
+            gaps,
             ctx,
         ),
         (MediationInference::Bayesian(config), Some(estimator)) => {
-            fit_bayesian_horizon(inputs, click, &horizon_query, config, estimator, ctx)
+            fit_bayesian_horizon(inputs, click, &horizon_query, config, estimator, gaps, ctx)
         }
         (MediationInference::Bayesian(_), None) => Err(CausalError::Compile {
             message: "Bayesian temporal mediation horizon has no estimator".into(),
@@ -331,9 +457,12 @@ fn fit_frequentist_horizon(
     horizon_query: &antecedent_core::MediationQuery,
     bootstrap_replicates: u32,
     single: bool,
+    gaps: bool,
     ctx: &ExecutionContext,
 ) -> Result<HorizonFit, CausalError> {
-    let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
+    let estimator = TemporalMediationEstimator::new()
+        .with_allow_natural_controlled_alias(true)
+        .with_allow_gaps(gaps);
     // The iid analytic SEs stay NaN for every contrast; one shared circular-block
     // bootstrap over lag-aligned rows supplies the Total/Direct/Mediated SEs.
     let (mut mediation, block) = estimator
@@ -376,13 +505,14 @@ fn fit_frequentist_horizon(
     let refutations = if inputs.validation == RefuteSuite::None {
         Vec::new()
     } else {
-        antecedent_validate::mediation::refute_temporal_mediation_adjusted(
+        antecedent_validate::mediation::refute_temporal_mediation_with_gaps(
             inputs.data,
             &click.estimand,
             horizon_query,
             &mediation,
             inputs.validation == RefuteSuite::Full,
             &click.adjustment,
+            gaps,
             ctx,
         )
         .map_err(CausalError::from)?
@@ -443,10 +573,11 @@ fn fit_bayesian_horizon(
     horizon_query: &antecedent_core::MediationQuery,
     config: &BayesianConfig,
     estimator: &BayesianGComputationAte,
+    gaps: bool,
     ctx: &ExecutionContext,
 ) -> Result<HorizonFit, CausalError> {
     use antecedent_estimate::bayesian_mediation::{
-        compose_temporal_mediation, prepare_temporal_mediation_adjusted,
+        compose_temporal_mediation, prepare_temporal_mediation_with_gaps,
     };
     let status = click.identification.status;
     let natural_alias = matches!(
@@ -454,12 +585,13 @@ fn fit_bayesian_horizon(
         antecedent_core::MediationContrast::NaturalDirect
             | antecedent_core::MediationContrast::NaturalIndirect
     );
-    let preparations = prepare_temporal_mediation_adjusted(
+    let preparations = prepare_temporal_mediation_with_gaps(
         inputs.data,
         &click.estimand,
         horizon_query,
         &click.adjustment,
         ctx,
+        gaps,
     )
     .map_err(CausalError::from)?;
     let fit = |scale: f64| {
@@ -483,13 +615,14 @@ fn fit_bayesian_horizon(
     let mut predictive_checks = Vec::new();
     if inputs.validation != RefuteSuite::None {
         refutations.extend(
-            antecedent_validate::mediation::refute_temporal_mediation_adjusted(
+            antecedent_validate::mediation::refute_temporal_mediation_with_gaps(
                 inputs.data,
                 &click.estimand,
                 horizon_query,
                 &point_estimate,
                 inputs.validation == RefuteSuite::Full,
                 &click.adjustment,
+                gaps,
                 ctx,
             )
             .map_err(CausalError::from)?,

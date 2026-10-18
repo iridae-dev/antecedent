@@ -33,6 +33,8 @@ mod decision_contract_eval;
 mod decision_mean_source;
 #[path = "decision_reliability.rs"]
 mod decision_reliability;
+#[path = "decision_reliability_candidate_counts.rs"]
+mod decision_reliability_candidate_counts;
 #[path = "decision_reliability_intervals.rs"]
 mod decision_reliability_intervals;
 #[path = "decision_reliability_producers.rs"]

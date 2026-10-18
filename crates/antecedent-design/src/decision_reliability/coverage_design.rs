@@ -55,8 +55,8 @@ pub struct CoverageCell {
     pub boundary_probes: &'static [&'static str],
 }
 
-const SIZES: &[u64] = &[2, 8, 64, 512];
-const BUDGETS: &[u64] = &[100, 1_000, 10_000];
+const SIZES: &[u64] = &[2, 3, 5, 8, 16, 32, 64, 100];
+const BUDGETS: &[u64] = &[500, 1_000, 2_000, 4_000, 8_000, 16_000, 32_768, 65_536];
 const RULES: &[&str] =
     &["maximize_expected_utility", "maximize_threshold_probability", "maximize_cvar"];
 const RHOS: &[f64] = &[0.0, 0.5, 0.9];
@@ -101,7 +101,7 @@ fn ranking_probability_interval_cell() -> CoverageCell {
             "one dominant candidate (best probability near 1, Wilson boundary)",
             "gap at the Monte Carlo noise scale, delta = sigma / sqrt(n)",
             "effective sample size near the normal-approximation floor (autocorrelated \
-             stream, budget 100)",
+             stream, budget 500)",
             "importance weights with Kish effective sample size 0.2 n",
         ],
     }
@@ -151,9 +151,10 @@ fn selection_corrected_interval_cell() -> CoverageCell {
         min_replicates: 2_000,
         pass_rule: PASS,
         boundary_probes: &[
-            "all true means equal (maximal winner's curse)",
+            "all true means equal (maximal winner's curse; an exact tie)",
+            "second best at 0.1 candidate standard errors below the best (near tie)",
             "one candidate far above the rest (selection nearly deterministic)",
-            "candidate count 512 at budget 100",
+            "candidate count 100 at budget 500",
         ],
     }
 }

@@ -34,11 +34,12 @@ use crate::temporal_block::common_time_window;
 use crate::util::range;
 
 use self::assumptions::with_pointwise_homoskedastic_ols_assumption;
-use self::bootstrap::bootstrap_surface;
+use self::bootstrap::{bootstrap_surface, bootstrap_surface_gapped};
 use self::support::{intervention_support, mean_curve_support};
 use self::surface::{
     CellEval, FittedHorizon, FittedSurface, SeProvenance, checked_surface_cells,
-    flatten_dose_horizon_grid, horizon_identification_of, horizon_rows, horizon_scores,
+    flatten_dose_horizon_grid, gapped_horizon_rows, horizon_identification_of, horizon_rows,
+    horizon_scores,
 };
 
 mod assumptions;
@@ -77,6 +78,9 @@ pub use surface::PreparedTemporalSurface;
 pub struct TemporalResponseEstimator {
     /// Shared OLS machinery (bootstrap off for the surface path by default).
     pub inner: LinearAdjustmentAte,
+    /// Fit each horizon on its intact lag windows when the series has missing time points.
+    /// The joint bootstrap then resamples blocks of the original window axis.
+    pub allow_gaps: bool,
 }
 
 /// A temporal query's per-horizon identification and the aggregate identification status
@@ -116,7 +120,14 @@ impl TemporalResponseEstimator {
         let mut inner = LinearAdjustmentAte::new();
         inner.bootstrap_replicates = 0;
         inner.overlap = OverlapPolicy::ExplicitOverride;
-        Self { inner }
+        Self { inner, allow_gaps: false }
+    }
+
+    /// Admit a series with missing time points: windows that read a gap are dropped.
+    #[must_use]
+    pub const fn with_allow_gaps(mut self, allow_gaps: bool) -> Self {
+        self.allow_gaps = allow_gaps;
+        self
     }
 
     /// Estimate a temporal [`ResponseQuery`] on series data.
@@ -367,13 +378,34 @@ impl TemporalResponseEstimator {
             .unwrap_or(1);
         let series_rows = data.row_count();
         let rows = horizon_rows(&horizons, series_rows);
-        let window = common_time_window(&rows).map_or(0, |(_, len)| len);
+        let gapped = horizons.iter().any(|fitted| fitted.selection.is_some());
+        let window = if gapped {
+            let gapped_rows = gapped_horizon_rows(&horizons, &rows);
+            let start = gapped_rows.iter().map(|d| d.first_time).max().unwrap_or(0);
+            let end =
+                gapped_rows.iter().map(|d| d.first_time + d.complete.len()).min().unwrap_or(0);
+            end.saturating_sub(start)
+        } else {
+            common_time_window(&rows).map_or(0, |(_, len)| len)
+        };
         // The lengthening reads every horizon's scores (a refit and a Politis–White
-        // scan each); without replicates no band is published and the rule suffices.
-        let scores = if replicates > 0 { horizon_scores(&horizons) } else { Vec::new() };
+        // scan each); without replicates no band is published and the rule suffices. The
+        // scores of a gapped fit are not consecutive, so its block length is the
+        // structural rule.
+        let scores = if replicates > 0 && !gapped { horizon_scores(&horizons) } else { Vec::new() };
         let score_refs: Vec<&[f64]> = scores.iter().map(Vec::as_slice).collect();
         let block = ResponseBlockLength::new(span, window, &score_refs);
-        let bootstrap = bootstrap_surface(&horizons, &rows, block.length, replicates, ctx);
+        let bootstrap = if gapped {
+            bootstrap_surface_gapped(
+                &horizons,
+                &gapped_horizon_rows(&horizons, &rows),
+                block.length,
+                replicates,
+                ctx,
+            )
+        } else {
+            bootstrap_surface(&horizons, &rows, block.length, replicates, ctx)
+        };
         let se_provenance = SeProvenance {
             fell_back: replicates > 0 && bootstrap.is_none(),
             cancelled: bootstrap.as_ref().is_some_and(|b| b.cancelled),
@@ -407,6 +439,13 @@ impl TemporalResponseEstimator {
         // For 0.7 licensed Pulse (and single-step Sustained) this passes; multi-step
         // policies fail closed here rather than estimating a one-node proxy.
         let adj = TemporalLinearAdjustment { inner: self.inner.clone() };
+        if self.allow_gaps {
+            let (prepared, selection) =
+                adj.prepare_with_gaps(data, estimand, &pulse_query, indexer, &ctx.kernel_policy)?;
+            let mut fitted = FittedHorizon::fit(prepared, ols_ws)?;
+            fitted.selection = selection.complete.iter().any(|intact| !intact).then_some(selection);
+            return Ok(fitted);
+        }
         let prepared =
             adj.prepare(data, estimand, &pulse_query, indexer, None, &ctx.kernel_policy)?;
         FittedHorizon::fit(prepared, ols_ws)
@@ -481,6 +520,11 @@ impl TemporalResponseEstimator {
                 self.fit_horizon(&problem, estimand, horizon, indexer, ctx, &mut ols_ws)
             })
             .collect::<Result<Vec<_>, _>>()?;
+        if horizons.iter().any(|fitted| fitted.selection.is_some()) {
+            return Err(EstimationError::unsupported(
+                "the tuple-level replicate refits read consecutive lag-aligned rows; a series with gaps is fit by the joint surface bootstrap only",
+            ));
+        }
         Ok(PreparedTemporalSurface { horizons, cells, series_rows: data.row_count() })
     }
 

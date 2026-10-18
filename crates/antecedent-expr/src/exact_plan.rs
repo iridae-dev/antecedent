@@ -15,8 +15,8 @@ use antecedent_core::{ExecutionContext, Value, VariableId};
 /// Explicit exact execution limits. Memory and cancellation also use `ExecutionContext`.
 #[derive(Clone, Copy, Debug)]
 pub struct ExactEvaluationLimits {
-    /// Maximum expanded expression operations and provider row inspections, one budget shared
-    /// by both.
+    /// Maximum executed expression operations and provider row inspections, one budget shared
+    /// by both. Memoized factors are charged when evaluated, not for their uncached expansion.
     pub operations: usize,
     /// Maximum nested expression depth.
     pub depth: usize,
@@ -142,7 +142,7 @@ pub struct ExactEvaluationPlan {
 }
 
 impl ExactEvaluationPlan {
-    /// Bind providers and preflight all expression leaves and expansion costs.
+    /// Bind providers and preflight expression leaves, support, depth and cache memory.
     ///
     /// # Errors
     /// Missing providers/assignments, unsupported scope, or resource exhaustion.
@@ -190,13 +190,14 @@ impl ExactEvaluationPlan {
             intermediate_bytes: Cell::new(0),
             remaining_checks: Cell::new(limits.operations),
         };
-        let atoms = preflight.cardinality(&outcomes)?;
+        preflight.cardinality(&outcomes)?;
         // The depth-bounded preflight walk runs before any unbounded recursion (free-variable
         // analysis, compilation), so a deep expression is refused rather than overflowing the stack.
-        let cost = preflight.visit(root, 0)?;
-        if cost.checked_mul(atoms).is_none_or(|n| n > limits.operations) {
-            return Err(EvalError::ProviderKind("exact operation budget exceeded"));
-        }
+        preflight.visit(root, 0)?;
+        // An uncached expression-tree expansion is not the work of the memoized evaluator:
+        // repeated marginals and shared factors are reused across sums and target atoms.
+        // Charge actual expression operations and provider scans to the single checked
+        // execution budget below, rather than refusing from that pessimistic tree estimate.
         for v in arena.free_variables(root) {
             if !outcomes.contains(&v) && request.get(v).is_none() {
                 return Err(EvalError::MissingBinding(v));
@@ -413,7 +414,7 @@ impl Preflight<'_> {
         }
         Ok(size)
     }
-    fn leaf_cost(&self, leaf: &FactorSpec<'_>) -> Result<usize, EvalError> {
+    fn validate_leaf(&self, leaf: &FactorSpec<'_>) -> Result<(), EvalError> {
         let assignments = leaf.intervention;
         let mut domains = Vec::new();
         let mut world_count = 1usize;
@@ -461,7 +462,6 @@ impl Preflight<'_> {
                 .ok_or(EvalError::ProviderKind("exact intervention coverage budget exceeded"))?;
             domains.push(values);
         }
-        let mut largest = 0;
         let mut world = assignments.to_vec();
         for index in 0..world_count {
             self.charge_check()?;
@@ -478,18 +478,16 @@ impl Preflight<'_> {
                 population: leaf.population,
                 regime: leaf.regime,
             };
-            let law =
-                self.data.require_factor(&spec).map_err(|e| EvalError::ExactLaw(Box::new(e)))?;
-            largest = largest.max(factor_work(law, &spec)?);
+            self.data.require_factor(&spec).map_err(|e| EvalError::ExactLaw(Box::new(e)))?;
         }
-        Ok(largest)
+        Ok(())
     }
-    fn visit(&mut self, id: ExprId, depth: usize) -> Result<usize, EvalError> {
+    fn visit(&mut self, id: ExprId, depth: usize) -> Result<(), EvalError> {
         self.charge_check()?;
         if depth >= self.limits.depth {
             return Err(EvalError::ProviderKind("exact recursion budget exceeded"));
         }
-        let cost = match self.arena.node(id) {
+        match self.arena.node(id) {
             ExprNode::Distribution {
                 variables,
                 conditioned_on,
@@ -497,44 +495,38 @@ impl Preflight<'_> {
                 domain,
                 population,
                 regime,
-            } => Some(self.leaf_cost(&FactorSpec {
+            } => self.validate_leaf(&FactorSpec {
                 variables: self.arena.var_set(*variables),
                 conditioned_on: self.arena.var_set(*conditioned_on),
                 intervention: self.arena.intervention_assignments(*intervention),
                 domain: *domain,
                 population: self.arena.population(*population),
                 regime: *regime,
-            })?),
-            ExprNode::Kernel { body, .. } => Some(self.visit(*body, depth + 1)?),
+            })?,
+            ExprNode::Kernel { body, .. } => self.visit(*body, depth + 1)?,
             ExprNode::Product(list) => {
-                let mut total = 0usize;
                 for child in self.arena.list(*list) {
-                    total = total
-                        .checked_add(self.visit(*child, depth + 1)?)
-                        .ok_or(EvalError::ProviderKind("exact cost overflow"))?;
+                    self.visit(*child, depth + 1)?;
                 }
-                Some(total)
             }
             ExprNode::SumOut { variables, expr } | ExprNode::IntegralOut { variables, expr } => {
-                let count = self.cardinality(self.arena.var_set(*variables))?;
+                self.cardinality(self.arena.var_set(*variables))?;
                 let saved = self.bound.clone();
                 self.bound.extend(self.arena.var_set(*variables));
-                let body = self.visit(*expr, depth + 1)?;
+                self.visit(*expr, depth + 1)?;
                 self.bound = saved;
-                count.checked_mul(body)
             }
             ExprNode::Ratio { numerator, denominator } => {
-                self.visit(*numerator, depth + 1)?.checked_add(self.visit(*denominator, depth + 1)?)
+                self.visit(*numerator, depth + 1)?;
+                self.visit(*denominator, depth + 1)?;
             }
             ExprNode::Expectation { .. } | ExprNode::Contrast { .. } => {
                 return Err(EvalError::ProviderKind(
                     "exact distribution root requires a law; derive functionals after evaluation",
                 ));
             }
-        };
-        cost.and_then(|n| n.checked_add(1))
-            .filter(|n| *n <= self.limits.operations)
-            .ok_or(EvalError::ProviderKind("exact operation budget exceeded"))
+        }
+        Ok(())
     }
 }
 struct BoundedProvider<'a> {
@@ -670,6 +662,39 @@ mod tests {
         assert_eq!(bindings[0].population.as_ref(), "target");
         assert_eq!(bindings[0].regime, Some(RegimeId::from_raw(0)));
     }
+    #[test]
+    fn memoized_marginals_fit_the_real_budget_and_exhaustion_still_refuses() {
+        let (arena, root) = conditional();
+        let ctx = ExecutionContext::for_tests(0);
+        let prepare = |operations| {
+            ExactEvaluationPlan::compile(
+                ExactEvaluationSpec {
+                    arena: &arena,
+                    root,
+                    outcomes: [v(1)].into(),
+                    request: Assignment::from_pairs([(v(0), Value::Int64(1))]),
+                    limits: ExactEvaluationLimits {
+                        operations,
+                        ..ExactEvaluationLimits::default()
+                    },
+                    tolerance: LawTolerance::default(),
+                },
+                law(),
+                &ctx,
+            )
+            .unwrap()
+        };
+        // The old tree expansion charged 106 operations: each of two outcome atoms
+        // separately expanded a numerator and a two-atom denominator (53 each).
+        // The provider-frozen memoized denominator and joint are shared instead.
+        let result = prepare(80).evaluate(&ctx).unwrap();
+        assert_eq!(result.probabilities.as_ref(), &[0.3, 0.7]);
+        assert!(matches!(
+            prepare(20).evaluate(&ctx),
+            Err(EvalError::ProviderKind("exact operation budget exceeded"))
+        ));
+    }
+
     #[test]
     fn numeric_float_requests_resolve_integer_table_domains() {
         let (arena, root) = conditional();

@@ -78,6 +78,7 @@ bash scripts/gate_causal_artifacts.sh
 bash scripts/gate_estimate_reuse.sh
 bash scripts/gate_composition.sh   # composition consuming contract/claim tests must actually run
 bash scripts/gate_transport.sh     # transport stage contracts; every fixture family runs a positive and a counterexample
+bash scripts/gate_gcm_conformance.sh   # policies, mechanism selection, falsification, noise replay, intrinsic influence: every clause runs a cited test; batch benches assert their regression bound
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
@@ -146,6 +147,42 @@ a record that failed at any point is `scope_not_assessed` /
 `boundary_record` over its whole range, reporting the failing point's
 coverage; outside the range it is `scope_not_assessed` /
 `sample_size_outside_measured_range`. Nothing is extrapolated.
+
+A boundary record can recover the passing part of its range, but only from an
+independent confirmation. `ANTECEDENT_CALIBRATION_CONFIRMATION=1` (the gate's
+confirmation mode, run at the grid points that passed, for example with
+`ANTECEDENT_CALIBRATION_GRID_POINTS="1 2"`) measures the same designs again
+with a second fixed seed salt, so no replicate is shared with the first
+measurement, and writes `<group>.p<k>.confirm.log` (and `.confirm.recheck.log`)
+whose lines carry `"confirmation": true`. The collector keeps those tallies
+apart, in the record's `confirmation` (shaped like `grid`). When a contiguous
+run of at least two grid points reaching the top or the bottom of the grid
+passed in the measurement and again in the confirmation, the record states
+`confirmed_passing_range = [n_lo, n_hi]`. The record stays a boundary and keeps
+its failing points; a confirmation point that failed its band leaves that
+point unconfirmed. A named boundary never recovers a range, and a failing point
+in the middle of the grid leaves nothing to recover. The matcher is
+`calibrated` for a row count inside `confirmed_passing_range` (with every other
+axis, the attestation and the scope checks unchanged), governed by the lowest
+coverage over those points in the measurement and the confirmation, and it
+reports that range as the scope. A row count in the failing region, or between
+it and the range, is still `scope_not_assessed` / `boundary_record`.
+`scripts/gate_parity_schema.sh` checks that the stated range is exactly what the
+grid and the confirmation establish.
+
+`antecedent_io_core::calibration::resolve_passing_range(record, rows)` says why a
+row count of a boundary record is, or is not, recovered: `Recovered` (with the
+confirmed region), `FailedPoint` (the grid point whose range or neighbourhood
+governs, with its coverage), `Unconfirmed` (the points passed the measurement and
+reach an end of the grid, but no confirmation passed at every one of them),
+`NotContiguous` (a failed interior point separates the passing points and is
+named), `InteriorRun` (failed points on both sides) and `LonePassingPoint`. The
+slot of the row count stays the matcher's: `calibrated` exactly when this is
+`Recovered`. The collector combines a confirmation with its measurement only when
+every construction field (estimator, interval method, standard-error kind,
+dependence, estimand, identification) and the nominal level agree, and only when
+both were measured at the commit it collects; a confirmation that differs in any
+of them is refused naming the field, and nothing of it is combined.
 
 A named boundary asserts its measured coverage at every grid point with
 `CoverageTally::assert_boundary_at([Some(m0), Some(m1), Some(m2)])`, so a
@@ -224,6 +261,10 @@ mode.
 
 ### Measuring
 
+See [calibration runtime and evidence reuse](calibration-runtime.md) for the
+measured runtime audit, scheduling fixes, prefix-extension limits and shared
+resource budgeting.
+
 One command, from a clean checkout of the commit you are about to push:
 
 ```bash
@@ -232,6 +273,8 @@ bash scripts/measure_calibration.sh --pilot     # 8-replicate smoke timings; no 
 bash scripts/measure_calibration.sh --dry-run   # projection from this commit's pilot
 bash scripts/measure_calibration.sh             # measure what is owed, collect, re-run the gate
 bash scripts/measure_calibration.sh --all       # re-measure every group
+bash scripts/measure_calibration.sh --missing-only # fill missing evidence while waivers are pending
+bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
 bash scripts/measure_calibration.sh --jobs 6    # parallel groups (default: the core count)
 ```
 
@@ -248,7 +291,8 @@ commit. It then works in four steps:
    side by side. The run includes the gate's inline 2000-replicate rechecks, per
    point. It prints each job's start and its result with elapsed time. The gate's logs go to
    `target/calibration-records/`, where the collector reads them, and earlier
-   logs move to `target/calibration-records.previous/`. Each group's console
+   logs and consoles move to durable, SHA-scoped run directories under
+   `target/calibration-archives/`. Each group's console
    output goes to `target/calibration-console/`, and its wall time is appended
    to `target/calibration-timings.tsv` for post-run review.
 3. It runs `scripts/collect_coverage_records.py --keep-attested` (without the
@@ -257,8 +301,13 @@ commit. It then works in four steps:
 4. It runs the attestation gate on the result.
 
 Commit `parity/coverage_records.toml` and the files the collector regenerates,
-then push. A group that fails its calibration band stops the command before
-collection.
+then push. A normal run that fails its calibration band stops before collection.
+Missing-only and explicitly filtered runs harvest complete passing groups with
+`--keep-existing --passing-only` even when other groups fail. A group with any
+failed recheck, incomplete grid, mismatched SHA, or malformed records is skipped
+as a whole, with reasons; its logs stay available. The wrapper still exits with a
+failure after saving the completed evidence. Replacement IDs belonging to skipped
+groups are deferred, leaving their original evidence intact.
 
 Without `--all`, the selection has three parts:
 
@@ -267,6 +316,70 @@ Without `--all`, the selection has three parts:
 - when anything else runs, the pass/fail gates that emit no record (CI Type I,
   discovery FPR, SBC, `gate_response_calibration.sh`). Nothing can attest those
   gates, so they run with every re-measurement.
+
+Formal runner measurements use `suite_coverage_fwer.v1` after the complete source
+family and hypothesis audit are frozen in `scripts/calibration_family_manifest.json`
+and `scripts/calibration_family_labels.json`. Its exact binomial coverage decisions
+allocate total risk 0.05 across every source gate group, three grid slots, 256
+source-possible coverage cells per group/grid, and predetermined 400/2,000/20,000
+attempt looks with weights 1/2, 1/4, 1/4. Selection and sharding never shrink this
+family. The initial `release_2_4_1_validation_v1` seed domain supplies fresh validation
+data; each registered domain's SHA256 first eight bytes, interpreted little-endian,
+are XORed into the existing seed salt. Source SHA, family, grid and domain must agree when extending
+saved tallies. Fresh-seed confirmations are outside this protocol's allocated risk
+and are refused. Smoke pilots and legacy replays retain their original semantics.
+
+Scientific methods, reusable examples and behavioral tests are named for their
+purpose, independently of the package release. A method revision may have its own
+version when its definition changes. Package versions belong in packaging,
+release materials and explicit historical-compatibility fixtures.
+
+New calibration seed domains must describe the statistical procedure and its
+revision, for example `pag_bounded_outcome_confidence_set_validation_v1`.
+Existing domain strings, their derived salts, allocations and collected evidence
+are immutable historical identities, including experiments already reserved before
+outcomes. Do not rename them as a cleanup: an evidence-safe migration needs an
+explicit review of every reference, seed stream and cumulative risk allocation.
+
+A method revision informed by earlier results needs a new independent validation
+domain and an unused cumulative hypothesis slot before new outcomes are observed.
+`parity/calibration_decision_allocations.json` retains the original risk budget and
+spent HC1 slot while reserving a separate HC3 construction under
+`release_2_4_1_weighted_hc3_validation_v1`. The new family manifest binds this receipt's
+hash. HC3 was selected after the older results; it was not present in the initial
+source roster. Its independent validation consumes another slot within the original
+256-cell allowance. Changing the domain never supplies another family alpha or
+recycles an earlier slot. Unknown slot reuse and changed constructions fail closed.
+
+This controls false rejections of coverage compatibility for that frozen validation
+family. It does not establish exact nominal coverage or control every usefulness,
+reporting, width or other scientific check. Record counts and all intermediate raw
+decisions remain durable, including a first look superseded by its registered
+recheck. Earlier collected evidence retains its original decision protocol.
+
+Use `--missing-only` to finish an incomplete collection while existing evidence awaits
+reviewed waivers. It selects groups with neither matching coverage records nor a
+complete passed entry in `parity/calibration_gates.toml`, irrespective of facet drift.
+The collector uses `--keep-existing`: it preserves every old record, its original SHA,
+and earlier gate evidence, and refuses collisions with existing record IDs.
+For incremental evidence-only batches, `--no-cells --defer-generated` also leaves
+licensed support metadata and generated assets for the final combined harvest.
+Raw-log validation and whole-group completeness still apply.
+`--group` restricts the selected set by a quoted full-label glob; repeat it for multiple
+groups. A filter matching nothing fails before measurement. To remeasure a numerically changed construction already in the registry, select its
+groups with `--all --group 'suite: test'` and repeat `--replace-record ID` for every
+existing record those groups emit. Filtered runs preserve unrelated evidence; the
+collector rejects unlisted collisions and any replacement ID lacking both old and
+fresh evidence. For a fixed higher-precision protocol, add `--replicates 20000` before measuring;
+the chosen budget applies only to the selected groups. The default remains 400
+(with the existing 2,000-replicate precision recheck). Runs starting at 2,000 or
+more replicates apply their registered final-look decision directly, without an extra extension.
+The formal family protocol accepts only these three registered replicate budgets.
+Decide the budget before examining results, retain the outcomes, and do not search
+seeds or repeat until a pass. These options do not
+waive drift: the final attestation gate still requires actual replay waivers or new
+evidence. Passing collected records whose numerical outputs changed must be
+explicitly replayed or remeasured separately; `--missing-only` does not select them.
 
 Facets and replay waivers keep the cost proportional to the change:
 
@@ -290,8 +403,8 @@ gate startup are charged once per job. The projection is approximate: convergenc
 does not scale perfectly with replicates, and a changed coverage rate changes the recheck
 count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. An old
 forecast that summed wall times of suites competing on the same CPU substantially
-overstated the full-pass time. The measurement runs longest pilot-timed grid
-jobs first to reduce the final straggler. A change that drifts one suite or
+overstated the full-pass time. The measurement runs the longest previously measured grid
+jobs first (falling back to pilot timings) to reduce the final straggler. A change that drifts one suite or
 facet costs only the groups behind its records.
 
 The collector refuses to stamp HEAD while the surface its records depend on
@@ -385,7 +498,7 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   wheel (outside `python/`, so the source tree cannot shadow it).
 
 Each gate that decides a release has a `--self-test` mode that feeds it
-deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`,
+deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`, `gate_gcm_conformance.sh`,
 `gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
 `gate_release_candidate.sh` and `gate_calibration_attestation.sh`, plus the
 citation, reachability, metadata and support-matrix gates.

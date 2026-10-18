@@ -8,7 +8,7 @@ supported_lines = ["2.4", "2.3", "2.2", "2.1", "2.0"]
 
 # Package version the current security-review scope covers.
 # scripts/set_version.py rewrites this and the generated scope block.
-reviewed_version = "2.4.0"
+reviewed_version = "2.4.1"
 
 [[capabilities]]
 id = "release.parity_closure"
@@ -54,7 +54,7 @@ notes = "docs/hot_paths.md + benches/baselines owners/contracts. Enforced by scr
 id = "release.security_review"
 status = "done"
 evidence_kind = "process_attested"
-notes = "unsafe/license/dependency review + cargo-deny. Enforced by scripts/gate_release_candidate.sh (cargo-deny required for the release candidate) and the CI deny job; docs/security_review.md is a reviewed document, not executable behaviour."
+notes = "Focused 2.4.1 source review covers experimental transport replay budgets, exact evaluator charging, Gaussian pooling, weighted source-proof authority and calibration artifact validation; external Cargo.lock dependency identities are unchanged from v2.4.0. Candidate unsafe/license/dependency policy checks + cargo-deny. Enforced by scripts/gate_release_candidate.sh (cargo-deny required for the release candidate) and the CI deny job; docs/security_review.md is a reviewed document, not executable behaviour."
 
 [[capabilities]]
 id = "release.artifact_mmap_stream_skip"

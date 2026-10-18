@@ -19,6 +19,10 @@ use antecedent::analysis::sample_split_analysis::{
 use antecedent::analysis::sample_split_effect::{
     SplitEffect, estimate_effect_on_split, measure_source,
 };
+use antecedent::analysis::sample_split_parent_set_effect::{
+    Knowledge, ParentSetEffect, ParentSetOptions, Transformation,
+    estimate_parent_set_effect_with_knowledge, measure_source as measure_parent_set_source,
+};
 use antecedent::analysis::selective_discovery::{
     DeclaredCompletion, DiscoveryClaimKeys, DiscoverySnapshot, add_discovery_claims,
     discovered_graph_source, discovery_data_source, discovery_rows_source,
@@ -26,8 +30,10 @@ use antecedent::analysis::selective_discovery::{
 use antecedent_contract::composition_verification::{CompositionGraph, GraphError};
 use antecedent_contract::evidence_ledger::{SourceDeclaration, SourceId, parse_digest_hex};
 use antecedent_core::{Lag, VariableId};
-use antecedent_data::{TableView, TabularData, TimeSeriesData};
-use antecedent_discovery::constraints::{CiMaskType, DiscoveryConstraints};
+use antecedent_data::{
+    OwnedColumnarStorage, TableView, TabularData, TimeSeriesData, ValidityBitmap,
+};
+use antecedent_discovery::constraints::{BackgroundKnowledge, CiMaskType, DiscoveryConstraints};
 use antecedent_discovery::result::LaggedLink;
 use antecedent_discovery::selective::{
     CiTestSpec, DiscoveredStructure, DiscoveredStructureRefusal, DiscoveryOutcome, DiscoveryPlan,
@@ -224,9 +230,6 @@ fn apply_constraints(
     if let Some(n) = opt_usize(map, "max_cond_size")? {
         constraints.max_cond_size = n;
     }
-    if map.contains_key("max_parents") {
-        constraints.max_parents = opt_usize(map, "max_parents")?;
-    }
     if let Some(n) = opt_u32(map, "min_lag")? {
         constraints.temporal.min_lag = Lag::from_raw(n);
     }
@@ -249,26 +252,39 @@ fn apply_constraints(
             other => return Err(input_err(format!("unknown significance kind {other:?}"))),
         };
     }
-    if let Some(required) = links(map.get("required"))? {
-        constraints.required = required;
-    }
-    if let Some(forbidden) = links(map.get("forbidden"))? {
-        constraints.forbidden = forbidden;
-    }
-    if let Some(tiers) = field(map, "tiers") {
-        let tiers = tiers.as_array().ok_or_else(|| input_err("`tiers` must be a list"))?;
-        let mut out: Vec<std::sync::Arc<[VariableId]>> = Vec::with_capacity(tiers.len());
-        for tier in tiers {
-            let members = tier.as_array().ok_or_else(|| input_err("a tier must be a list"))?;
-            let ids = members
-                .iter()
-                .map(|m| id_of(m, "tier member").map(VariableId::from_raw))
-                .collect::<PyResult<Vec<_>>>()?;
-            out.push(std::sync::Arc::from(ids));
-        }
-        constraints.tiers = std::sync::Arc::from(out);
-    }
+    background_knowledge(map)?.apply_to(constraints);
     Ok(())
+}
+
+/// Read the background knowledge of a wire object: `required` and `forbidden` links
+/// `[source, source_lag, target, target_lag]`, `tiers` (lists of variable positions) and
+/// `max_parents`; an absent key states nothing.
+///
+/// The one parser of background knowledge: the selective contracts and the ordinary discovery
+/// entry points both read it here, so the same statement means the same thing on either path.
+pub(crate) fn background_knowledge(map: &Map<String, Json>) -> PyResult<BackgroundKnowledge> {
+    let tiers: std::sync::Arc<[std::sync::Arc<[VariableId]>]> = match field(map, "tiers") {
+        None => std::sync::Arc::from([]),
+        Some(tiers) => {
+            let tiers = tiers.as_array().ok_or_else(|| input_err("`tiers` must be a list"))?;
+            let mut out: Vec<std::sync::Arc<[VariableId]>> = Vec::with_capacity(tiers.len());
+            for tier in tiers {
+                let members = tier.as_array().ok_or_else(|| input_err("a tier must be a list"))?;
+                let ids = members
+                    .iter()
+                    .map(|m| id_of(m, "tier member").map(VariableId::from_raw))
+                    .collect::<PyResult<Vec<_>>>()?;
+                out.push(std::sync::Arc::from(ids));
+            }
+            std::sync::Arc::from(out)
+        }
+    };
+    Ok(BackgroundKnowledge {
+        required: links(map.get("required"))?.unwrap_or_else(|| std::sync::Arc::from([])),
+        forbidden: links(map.get("forbidden"))?.unwrap_or_else(|| std::sync::Arc::from([])),
+        tiers,
+        max_parents: opt_usize(map, "max_parents")?,
+    })
 }
 
 fn fdr_of(
@@ -358,7 +374,10 @@ pub(crate) fn static_contract(
     Ok(contract)
 }
 
-fn temporal_contract(map: &Map<String, Json>, n: usize) -> PyResult<TemporalDiscoveryContract> {
+pub(crate) fn temporal_contract(
+    map: &Map<String, Json>,
+    n: usize,
+) -> PyResult<TemporalDiscoveryContract> {
     let algorithm = match get_text(map, "algorithm")?.as_str() {
         "pcmci" => TemporalAlgorithm::Pcmci,
         "pcmci_plus" => TemporalAlgorithm::PcmciPlus,
@@ -763,6 +782,41 @@ impl SelectiveDiscoveryHandle {
         };
         crate::discovered_transport_api::across_outcome(
             outcome,
+            query_json,
+            &selection_targets,
+            member_bound,
+        )
+    }
+
+    /// The structural transport verdict of a mean-curve query at a declared horizon across the
+    /// retained temporal class.
+    ///
+    /// Returns `(envelope_json, refusal_json)`.
+    #[pyo3(signature = (query_json, selection_targets, horizon_steps, history=None, member_bound=None))]
+    fn transport_across_temporal_class(
+        &self,
+        query_json: &str,
+        selection_targets: Vec<u32>,
+        horizon_steps: u32,
+        history: Option<u32>,
+        member_bound: Option<usize>,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        let Some(outcome) = self.inner.as_ref().and_then(Adapter::outcome) else {
+            return Ok((
+                None,
+                Some(refusal_json(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    STAGE,
+                    "selective_discovery.nothing_retained",
+                    "no discovery has run",
+                    "run discovery before requesting transport across its class",
+                )),
+            ));
+        };
+        crate::discovered_transport_api::across_temporal_outcome(
+            outcome,
+            horizon_steps,
+            history,
             query_json,
             &selection_targets,
             member_bound,
@@ -1267,6 +1321,52 @@ fn columns_of(py: Python<'_>, data: &TabularData) -> PyResult<Vec<Py<PyArray1<f6
         .collect()
 }
 
+/// Rebuild `data` with the observation weights and the analysis mask the caller supplied
+/// (`mask[i]` true keeps row `i`). Either may be absent; a length that differs from the row
+/// count, or weights that are not a finite non-negative measure, are input errors.
+fn table_with_rows(
+    data: TabularData,
+    weights: Option<Vec<f64>>,
+    mask: Option<Vec<bool>>,
+) -> PyResult<TabularData> {
+    if weights.is_none() && mask.is_none() {
+        return Ok(data);
+    }
+    let n = data.row_count();
+    let storage = data.storage();
+    let mask = mask
+        .map(|keep| {
+            if keep.len() != n {
+                return Err(input_err(format!("mask has {} entries for {n} rows", keep.len())));
+            }
+            let mut bytes = vec![0u8; n.div_ceil(8)];
+            for (i, kept) in keep.iter().enumerate() {
+                if *kept {
+                    bytes[i / 8] |= 1 << (i % 8);
+                }
+            }
+            ValidityBitmap::from_bytes(bytes, n).map_err(|e| input_err(e.to_string()))
+        })
+        .transpose()?;
+    let weights = weights
+        .map(|w| {
+            if w.len() == n {
+                Ok(std::sync::Arc::<[f64]>::from(w))
+            } else {
+                Err(input_err(format!("weights has {} entries for {n} rows", w.len())))
+            }
+        })
+        .transpose()?;
+    OwnedColumnarStorage::try_new(
+        storage.schema().clone(),
+        storage.columns().to_vec(),
+        mask.or_else(|| storage.analysis_mask().cloned()),
+        weights.or_else(|| storage.weights().map(std::sync::Arc::from)),
+    )
+    .map(TabularData::new)
+    .map_err(|e| input_err(e.to_string()))
+}
+
 /// A row split, the discovery run on its discovery part and the receipt tying them together.
 #[pyclass(name = "SampleSplitDiscoveryHandle", skip_from_py_object)]
 pub(crate) struct SampleSplitDiscoveryHandle {
@@ -1282,10 +1382,21 @@ impl SampleSplitDiscoveryHandle {
         json!({
             "rule": rule_value(&receipt.rule),
             "n_rows": receipt.n_rows,
+            "masked_out_rows": receipt.masked_out_rows,
+            "incomplete_rows": receipt.incomplete_rows,
             "n_discovery": receipt.n_discovery,
             "n_analysis": receipt.n_analysis,
             "discovery_rows_identity": hex(&receipt.discovery_rows_identity),
             "analysis_rows_identity": hex(&receipt.analysis_rows_identity),
+            "mask_identity": receipt.mask_identity.as_ref().map(hex),
+            "weights": receipt.weights.as_ref().map(|w| json!({
+                "source": hex(&w.source),
+                "discovery": hex(&w.discovery),
+                "analysis": hex(&w.analysis),
+                "discovery_effective_sample_size": w.discovery_effective_sample_size,
+                "analysis_effective_sample_size": w.analysis_effective_sample_size,
+            })),
+            "source_data_identity": hex(&receipt.source_data.digest),
             "discovery_data_identity": hex(&receipt.discovery_data.digest),
             "analysis_data_identity": hex(&receipt.analysis_data.digest),
             "identity": hex(&receipt.identity),
@@ -1293,6 +1404,21 @@ impl SampleSplitDiscoveryHandle {
             "whole_method_calibration": WHOLE_METHOD_CALIBRATION,
         })
         .to_string()
+    }
+
+    /// The original row index of each discovery row, in the part's row order.
+    fn discovery_row_ids(&self) -> Vec<usize> {
+        self.inner.discovery_row_ids().to_vec()
+    }
+
+    /// The original row index of each analysis row, in the part's row order.
+    fn analysis_row_ids(&self) -> Vec<usize> {
+        self.inner.analysis_row_ids().to_vec()
+    }
+
+    /// The analysis rows' weights, unnormalized; `None` for an unweighted source.
+    fn analysis_weights(&self) -> Option<Vec<f64>> {
+        self.inner.analysis_weights().map(<[f64]>::to_vec)
     }
 
     /// The discovery outcome as JSON.
@@ -1336,12 +1462,39 @@ impl SampleSplitDiscoveryHandle {
         self.inner.verify().err().and_then(|e| error_json(&e))
     }
 
-    /// Check that the supplied columns are exactly the analysis part; returns the binding JSON
-    /// or a refusal.
+    /// Replay the split on the supplied source table (columns, weights, mask) and require it to
+    /// be the table the receipt describes; a refusal when it is not.
+    fn verify_source(
+        &self,
+        names: Vec<String>,
+        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        weights: Option<Vec<f64>>,
+        mask: Option<Vec<bool>>,
+    ) -> PyResult<Option<String>> {
+        if names != self.names {
+            return Err(input_err(
+                "the source table must carry the discovery table's columns in the same order",
+            ));
+        }
+        let batch = crate::columns_to_batch(&names, &columns)?;
+        let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
+        let data = table_with_rows(data, weights, mask)?;
+        match self.inner.verify_against_source(&data) {
+            Ok(()) => Ok(None),
+            Err(error) => match error_json(&error) {
+                Some(refusal) => Ok(Some(refusal)),
+                None => Err(discovery_failure(&error)),
+            },
+        }
+    }
+
+    /// Check that the supplied columns (and weights) are exactly the analysis part; returns the
+    /// binding JSON or a refusal.
     fn check_analysis_table(
         &self,
         names: Vec<String>,
         columns: Vec<PyReadonlyArray1<'_, f64>>,
+        weights: Option<Vec<f64>>,
     ) -> PyResult<(Option<String>, Option<String>)> {
         if names != self.names {
             return Err(input_err(
@@ -1350,6 +1503,10 @@ impl SampleSplitDiscoveryHandle {
         }
         let batch = crate::columns_to_batch(&names, &columns)?;
         let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
+        // A split of a masked source gives each part the all-included mask of rows that passed
+        // it, so the table to check carries that mask too.
+        let mask = self.inner.receipt().mask_identity.map(|_| vec![true; data.row_count()]);
+        let data = table_with_rows(data, weights, mask)?;
         match self.inner.check_analysis_table(&data) {
             Ok(binding) => Ok((Some(binding_json(&binding)), None)),
             Err(error) => match error_json(&error) {
@@ -1374,14 +1531,16 @@ type Split = (Option<SampleSplitDiscoveryHandle>, Option<String>, Option<String>
 ///
 /// Returns `(handle, discovery_report_json, refusal)`.
 #[pyfunction]
-#[pyo3(signature = (contract_json, names, columns, rule_json, *, threads=None, cancel=None))]
-#[allow(clippy::too_many_arguments, reason = "one request: contract, data, rule")]
+#[pyo3(signature = (contract_json, names, columns, rule_json, *, weights=None, mask=None, threads=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "one request: contract, data, weights, mask, rule")]
 fn sample_split_discover(
     py: Python<'_>,
     contract_json: &str,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
     rule_json: &str,
+    weights: Option<Vec<f64>>,
+    mask: Option<Vec<bool>>,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Split> {
@@ -1396,6 +1555,7 @@ fn sample_split_discover(
     let result: Result<SplitDiscovery, SelectiveDiscoveryError> =
         crate::detach_catch(py, move || {
             let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
+            let data = table_with_rows(data, weights, mask)?;
             Ok(discover_on_split(&contract, &data, rule, &ctx))
         })?;
     match result {
@@ -1422,8 +1582,24 @@ fn effect_refusal(error: antecedent_io::IoError) -> PyResult<String> {
     }
 }
 
+fn basis_json(basis: &antecedent_core::CalibrationBasis) -> Json {
+    json!({
+        "query": &*basis.query,
+        "graph_class": &*basis.graph_class,
+        "structure": &*basis.structure,
+        "modality": &*basis.modality,
+        "inference": &*basis.inference,
+        "estimator": &*basis.estimator,
+        "interval_method": &*basis.interval_method,
+        "se_kind": &*basis.se_kind,
+        "dependence": &*basis.dependence,
+        "functional": &*basis.functional,
+        "identification": &*basis.identification,
+        "row_count": basis.row_count,
+    })
+}
+
 fn effect_json(estimate: &SplitEffect) -> String {
-    let basis = estimate.keyed_basis();
     let (lower, upper) = estimate.interval();
     json!({
         "effect": estimate.effect(),
@@ -1436,20 +1612,37 @@ fn effect_json(estimate: &SplitEffect) -> String {
         "adjustment_set": estimate.adjustment_set(),
         "receipt_identity": hex(estimate.receipt_identity()),
         "structure_identity": hex(estimate.structure_identity()),
-        "basis": {
-            "query": &*basis.query,
-            "graph_class": &*basis.graph_class,
-            "structure": &*basis.structure,
-            "modality": &*basis.modality,
-            "inference": &*basis.inference,
-            "estimator": &*basis.estimator,
-            "interval_method": &*basis.interval_method,
-            "se_kind": &*basis.se_kind,
-            "dependence": &*basis.dependence,
-            "functional": &*basis.functional,
-            "identification": &*basis.identification,
-            "row_count": basis.row_count,
-        },
+        "basis": basis_json(&estimate.keyed_basis()),
+    })
+    .to_string()
+}
+
+fn parent_set_effect_json(estimate: &ParentSetEffect) -> String {
+    let reported = estimate.reported();
+    let unresolved: Vec<Json> = estimate
+        .unresolved_edges()
+        .iter()
+        .map(|edge| json!({ "a": edge.a, "b": edge.b, "reason": edge.reason }))
+        .collect();
+    json!({
+        "scalar": reported.name,
+        "effect": reported.point,
+        "lower": reported.lower,
+        "upper": reported.upper,
+        "level": estimate.level(),
+        "standard_error": reported.standard_error,
+        "coefficient": estimate.coefficient(),
+        "transformation": estimate.transformation().name(),
+        "analysis_rows": estimate.analysis_rows(),
+        "discovery_rows": estimate.discovery_rows(),
+        "treatment_parents": estimate.treatment_parents(),
+        "treatment_children": estimate.treatment_children(),
+        "unresolved_edges": unresolved,
+        "edge_count": estimate.edge_count(),
+        "acceptance": estimate.acceptance(),
+        "receipt_identity": hex(estimate.receipt_identity()),
+        "structure_identity": hex(estimate.structure_identity()),
+        "basis": basis_json(&estimate.keyed_basis()),
     })
     .to_string()
 }
@@ -1513,6 +1706,90 @@ fn sample_split_effect_measure(
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
     let result = crate::detach_catch(py, move || Ok(measure_source(&source, &ctx)))?;
+    match result {
+        Ok(measured) => Ok((
+            Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
+            None,
+        )),
+        Err(error) => Ok((None, Some(effect_refusal(error)?))),
+    }
+}
+
+/// The effect of a treatment on an outcome after PC discovery on one half of a seeded row split,
+/// accepted on the treatment's parent set, for a declared linear or log-linear study.
+///
+/// The transformation is parsed before any data are read. Returns
+/// `(estimate_json, source_bytes, refusal)`.
+#[pyfunction]
+#[pyo3(signature = (names, columns, treatment, outcome, split_seed, seed, transformation, max_degree, log_shift=None, knowledge=None, *, threads=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "one request: data, roles, declarations and seeds")]
+fn sample_split_parent_set_effect(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    treatment: u32,
+    outcome: u32,
+    split_seed: u64,
+    seed: u64,
+    transformation: &str,
+    max_degree: u32,
+    log_shift: Option<f64>,
+    knowledge: Option<&str>,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Effect> {
+    let knowledge: Option<Knowledge> = knowledge
+        .map(|text| {
+            serde_json::from_str(text)
+                .map_err(|e| input_err(format!("knowledge is not a valid declaration: {e}")))
+        })
+        .transpose()?;
+    let transformation = match Transformation::parse(transformation) {
+        Ok(declared) => declared,
+        Err(error) => return Ok((None, None, Some(effect_refusal(error)?))),
+    };
+    let options = ParentSetOptions { transformation, max_degree, log_shift };
+    let batch = crate::columns_to_batch(&names, &columns)?;
+    let ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    let result = crate::detach_catch(py, move || {
+        let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(&batch)?;
+        Ok(estimate_parent_set_effect_with_knowledge(
+            &data,
+            VariableId::from_raw(treatment),
+            VariableId::from_raw(outcome),
+            options,
+            knowledge,
+            split_seed,
+            &ctx,
+        ))
+    })?;
+    match result {
+        Ok(estimate) => Ok((
+            Some(parent_set_effect_json(&estimate)),
+            Some(estimate.source_artifact().to_vec()),
+            None,
+        )),
+        Err(error) => Ok((None, None, Some(effect_refusal(error)?))),
+    }
+}
+
+/// Replay a parent-set split-effect source and attest its interval from the coverage records.
+///
+/// Returns `(measured, refusal)`; a refusal is `cell_not_licensed` when no current attesting
+/// record covers the construction at this variable count, degree and analysis row count.
+#[pyfunction]
+#[pyo3(signature = (source, seed, *, threads=None, cancel=None))]
+fn sample_split_parent_set_effect_measure(
+    py: Python<'_>,
+    source: Vec<u8>,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Measured> {
+    let ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    let result = crate::detach_catch(py, move || Ok(measure_parent_set_source(&source, &ctx)))?;
     match result {
         Ok(measured) => Ok((
             Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
@@ -1635,5 +1912,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(sample_split_discover, module)?)?;
     module.add_function(wrap_pyfunction!(sample_split_effect, module)?)?;
     module.add_function(wrap_pyfunction!(sample_split_effect_measure, module)?)?;
+    module.add_function(wrap_pyfunction!(sample_split_parent_set_effect, module)?)?;
+    module.add_function(wrap_pyfunction!(sample_split_parent_set_effect_measure, module)?)?;
     Ok(())
 }

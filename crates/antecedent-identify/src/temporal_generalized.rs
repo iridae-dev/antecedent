@@ -188,9 +188,24 @@ impl GeneralizedAdjustmentIdentifier {
         cpdag: &TemporalCpdag,
         query: &TemporalEffectQuery,
     ) -> Result<TemporalClassEnvelope, IdentificationError> {
+        crate::class_envelope_cache::memoized_cpdag(cpdag, query, &self.config, || {
+            self.compute_temporal_cpdag_envelope(cpdag, query)
+        })
+    }
+
+    fn compute_temporal_cpdag_envelope(
+        &self,
+        cpdag: &TemporalCpdag,
+        query: &TemporalEffectQuery,
+    ) -> Result<TemporalClassEnvelope, IdentificationError> {
         refuse_unsupported_class_policy(query)?;
-        let mut sampler =
-            TemporalCpdagCompletionSampler::new(cpdag.clone(), self.config.max_completions)?;
+        let (limits, ctx) = self.config.completion_search();
+        let mut sampler = TemporalCpdagCompletionSampler::with_budget(
+            cpdag.clone(),
+            self.config.max_completions,
+            limits,
+            &ctx,
+        )?;
         let (envelope, indexers) = identify_temporal_completions(&mut sampler, query, self)?;
         let mut envelope = envelope;
         let n = cpdag.undirected_edge_count();
@@ -201,7 +216,7 @@ impl GeneralizedAdjustmentIdentifier {
             }]);
         }
         if sampler.hit_cap() {
-            downgrade_capped(&mut envelope, self.config.max_completions);
+            downgrade_capped(&mut envelope, self.config.max_completions, sampler.search_stop());
         }
         Ok(TemporalClassEnvelope { envelope, indexers })
     }
@@ -216,12 +231,25 @@ impl GeneralizedAdjustmentIdentifier {
         pag: &TemporalPag,
         query: &TemporalEffectQuery,
     ) -> Result<TemporalClassEnvelope, IdentificationError> {
+        crate::class_envelope_cache::memoized_pag(pag, query, &self.config, || {
+            self.compute_temporal_pag_envelope(pag, query)
+        })
+    }
+
+    pub(crate) fn compute_temporal_pag_envelope(
+        &self,
+        pag: &TemporalPag,
+        query: &TemporalEffectQuery,
+    ) -> Result<TemporalClassEnvelope, IdentificationError> {
         refuse_unsupported_class_policy(query)?;
         let indexer = crate::temporal_mag::window(pag, query)?;
-        let mut sampler = TemporalPagCompletionSampler::for_window(
+        let (limits, ctx) = self.config.completion_search();
+        let mut sampler = TemporalPagCompletionSampler::for_window_with_budget(
             pag.clone(),
             self.config.max_completions,
             &indexer,
+            limits,
+            &ctx,
         )?;
         let mut cases = Vec::new();
         let mut unfolded = Vec::new();
@@ -245,16 +273,16 @@ impl GeneralizedAdjustmentIdentifier {
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         let report = sampler.validation_report();
         let finite_audit = antecedent_graph::completion::audit_finite_mag_equivalence(&unfolded);
-        envelope.push_features([GraphFeature { kind:Arc::from("temporal_pag_mixed_completion_audit"),detail:Arc::from(format!("stationary assignments={}, rejected_temporal_constraints={}, represented={}, ambiguous_class={}, window_audit_skipped={}, finite_query_equivalence={finite_audit:?}",report.assignments_examined,report.rejected_constraints,report.represented_completions,report.ambiguous_global_class,report.equivalence_audit_skipped)) }]);
+        envelope.push_features([GraphFeature { kind:Arc::from("temporal_pag_mixed_completion_audit"),detail:Arc::from(format!("stationary assignments={}, rejected_temporal_constraints={}, represented={}, ambiguous_class={}, window_audit_skipped={}, search_stop={}, finite_query_equivalence={finite_audit:?}",report.assignments_examined,report.rejected_constraints,report.represented_completions,report.ambiguous_global_class,report.equivalence_audit_skipped,sampler.search_stop().map_or("none",antecedent_core::SearchStop::code))) }]);
         if finite_audit == Some(false) {
             return Err(IdentificationError::NotCertified {
                 message: "temporal PAG endpoint refinements have different m-separation models in the unfolded query window",
             });
         }
         if sampler.hit_cap() {
-            downgrade_capped(&mut envelope, self.config.max_completions);
+            downgrade_capped(&mut envelope, self.config.max_completions, sampler.search_stop());
         }
-        if report.equivalence_audit_skipped || finite_audit.is_none() {
+        if sampler.class_audit_incomplete() || finite_audit.is_none() {
             envelope.truncated_completions = envelope.truncated_completions.max(1);
             envelope.invariant = None;
             envelope.push_features([GraphFeature { kind:Arc::from("temporal_pag_equivalence_audit_capped"),detail:Arc::from("global m-separation audit exceeded its budget; identification covers only retained, query-window-validated completions") }]);
@@ -314,16 +342,18 @@ where
 fn downgrade_capped(
     envelope: &mut IdentificationEnvelope<TemporalCompletionGraph>,
     max_completions: usize,
+    stop: Option<antecedent_core::SearchStop>,
 ) {
     envelope.truncated_completions = envelope.truncated_completions.max(1);
     envelope.invariant = None;
+    let stopped =
+        stop.map_or_else(String::new, |stop| format!(" (search stopped: {})", stop.code()));
     envelope.push_features([GraphFeature {
         kind: Arc::from("completion_enumeration_capped"),
         detail: Arc::from(format!(
-            "retained {} temporal completion(s) under max_completions={}; \
+            "retained {} temporal completion(s) under max_completions={max_completions}{stopped}; \
              identification is established only over the deterministic retained subset",
             envelope.cases.len(),
-            max_completions
         )),
     }]);
     if envelope.status == IdentificationStatus::NonparametricallyIdentified {

@@ -15,8 +15,8 @@ per family:
 | Classical single-source sID | complete in the paper experimental-information family | `antecedent.transport.advanced.identify_classical` → [arXiv:1312.7485v1](https://arxiv.org/abs/1312.7485v1) |
 | Classical meta-transport | complete in the multi-source experimental family | `antecedent.transport.advanced.identify_meta` → [Bareinboim 2013](https://proceedings.mlr.press/v31/bareinboim13a.pdf) |
 | Finite catalog search | sound and incomplete | closed as `transport.finite_catalog_search` |
-| Limited / z-experiment | sound and incomplete within 12 observed and 4 controllable variables; positives use cited joints; a line-11 obstruction is structural in the declared controllable set; two sources are searched separately, and complementary factors combine under two registered factorizations (disconnected graph components and, on one connected graph, intervention-separated outcome groups); a single connected c-factor that would need one fabricated joint over both sources' interventions is refused with reason code `transport_not_certified` whose message names `z_transport.multi_source_combination_not_searched` | `antecedent.transport.advanced.identify_z_transport` and `antecedent_identify.decide_two_source_z_transport` → Bareinboim and Pearl, *Causal Transportability with Limited Experiments* (AAAI 2013, [R-408](https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf)) and *Transportability from Multiple Environments with Limited Experiments* (mz-transportability, NeurIPS 2014); the c-factor step and the completeness result are Lee and Honavar's [arXiv:1309.6842](https://arxiv.org/abs/1309.6842), which this implementation does not claim |
-| Finite scenario envelope | no new theorem: each scenario of an explicitly supplied list of one to {{bound:transport.finite_scenario_envelope.max_scenarios}} fixed selection ADMGs (at most {{bound:transport.finite_scenario_envelope.max_observed}} observed variables) is decided independently by the classical catalog route; the envelope is a report over those decisions, not an identification claim | `antecedent.transport.advanced.prepare_transport_scenarios` → see [Finite scenario envelopes](#finite-scenario-envelopes) |
+| Limited / z-experiment | sound and incomplete within 4 controllable variables and any number of observed ones; positives use cited joints; a line-11 obstruction is structural in the declared controllable set; two sources are searched separately, and complementary factors combine under two registered factorizations (disconnected graph components and, on one connected graph, intervention-separated outcome groups); a single connected c-factor that would need one fabricated joint over both sources' interventions is refused with reason code `transport_not_certified` whose message names `z_transport.multi_source_combination_not_searched` | `antecedent.transport.advanced.identify_z_transport` and `antecedent_identify.decide_two_source_z_transport` → Bareinboim and Pearl, *Causal Transportability with Limited Experiments* (AAAI 2013, [R-408](https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf)) and *Transportability from Multiple Environments with Limited Experiments* (mz-transportability, NeurIPS 2014); the c-factor step and the completeness result are Lee and Honavar's [arXiv:1309.6842](https://arxiv.org/abs/1309.6842), which this implementation does not claim |
+| Finite scenario envelope | no new theorem: each scenario of an explicitly supplied list of one to {{bound:transport.finite_scenario_envelope.max_scenarios}} fixed selection ADMGs (over any number of observed variables) is decided independently by the classical catalog route; the envelope is a report over those decisions, not an identification claim | `antecedent.transport.advanced.prepare_transport_scenarios` → see [Finite scenario envelopes](#finite-scenario-envelopes) |
 | Two-step temporal sequence | classical sID on the explicit two-slice unrolled selection diagram, deciding `do(A_1=a_1, A_2=a_2)` as one joint intervention; sound and incomplete; exact and point-only | `antecedent.transport.advanced.prepare_temporal_transport_sequence` → see [Two-step temporal sequences](#two-step-temporal-sequences) |
 | ADMG conditional transport | sound and incomplete: rule 2 moves every conditioned variable it can into the intervention set (the IDC reduction), classical sID decides the reduced joint over the complete source family, and the conditional is that joint normalized at the remaining conditioned levels; when sID does not certify the reduced joint, an exactly verified two-model witness makes the query `proven_non_transportable` (every three-node case has one), and otherwise it is `not_certified`, never proven; at most {{bound:transport.admg_conditional.max_observed}} observed variables; exact and point-only | `antecedent.transport.advanced.identify_admg_conditional_transport` → see [ADMG conditional transport](#admg-conditional-transport) |
 
@@ -60,8 +60,9 @@ What the schema check does and does not cover, exactly:
   so a value's unit is never checked.
 
 Graph scope: each scenario is decided by the classical catalog sID row with that
-row's scope inherited unchanged. The scenario code adds one gate, at most {{bound:transport.finite_scenario_envelope.max_observed}}
-observed variables; it admits the same selection ADMGs (directed and bidirected
+row's scope inherited unchanged. The scenario code adds no node-count gate: the number of observed variables is bounded
+only by the search budget (operations, depth, memory, cancellation) the set is decided
+under, and a stop leaves the remaining scenarios unevaluated with a receipt. It admits the same selection ADMGs (directed and bidirected
 edges over static observed variables, any number of outcomes and treatments) as
 that row. The row's limit that multi-outcome and larger general graphs are not
 enumerated against a latent-SCM oracle narrows its conformance coverage, not
@@ -320,7 +321,7 @@ it without refitting the learners.
 
 One cell: a fixed two-step intervention sequence `[a1, a2]` over one discrete
 action alphabet (at most {{bound:transport.two_step_temporal.max_actions}} actions), on an explicit two-slice unrolled selection
-diagram of at most {{bound:transport.two_step_temporal.max_observed}} coordinates and {{bound:transport.two_step_temporal.max_history_states}} complete covariate histories. The
+diagram of any number of coordinates (bounded by the search budget) and at most {{bound:transport.two_step_temporal.max_history_states}} complete covariate histories. The
 estimand is the target distribution and mean of the outcome under
 `do(A_1=a1, A_2=a2)`. The claim is exact and point-only; temporal sampling
 intervals are available through the separate [measured temporal adapter](../population-time-uncertainty.md). This exact-law route still refuses an
@@ -407,7 +408,7 @@ interval request (`temporal_transport.interval_requested`,
 `TR^mz` (Bareinboim, Lee, Honavar and Pearl, NeurIPS 2013): a target effect answered
 from two to {{bound:transport.multi_source_limited_experiment.max_sources}} source populations, each with its own selection targets,
 controllable set and experiment levels. The result is sound and incomplete within the
-bounds ({{bound:transport.multi_source_limited_experiment.max_observed}} observed variables, {{bound:transport.multi_source_limited_experiment.max_controllable_per_source}} controllables per source, {{bound:transport.multi_source_limited_experiment.max_candidate_regimes}} candidate regimes,
+bounds ({{bound:transport.multi_source_limited_experiment.max_controllable_per_source}} controllables per source, {{bound:transport.multi_source_limited_experiment.max_candidate_regimes}} candidate regimes,
 {{bound:transport.multi_source_limited_experiment.max_search_states}} operations, depth {{bound:transport.multi_source_limited_experiment.max_depth}}) and never mixes sources inside one c-factor. The checked
 line-11 obstruction rests on R-443 (Bareinboim and Pearl, NeurIPS 2014; Theorems 4-5
 and Corollary 1, over the power-set information family of Def. 2) and is a strict

@@ -5,11 +5,11 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
-    AdaptiveInferenceError as Error, AssignmentRule, BetaPrior, ContractGap, Estimand,
-    ExposureModel, FinalSelection, MAX_OUTCOME_LAG, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_CELLS,
-    MAX_PROCEDURE_CONTEXTS, MAX_PROCEDURE_LOOKS, MAX_PROCEDURE_UNITS, MAX_SIMULATION_REPLICATIONS,
-    OutcomeModelPrior, OutcomeObservation, ProcedureDeclaration, ProcedureSpec, SimulationRequest,
-    StoppingRule, WeightScheme, simulate_procedure,
+    AdaptiveInferenceError as Error, AssignmentRule, BetaPrior, CapacityError, ContractGap,
+    Estimand, ExposureModel, FinalSelection, MAX_OUTCOME_LAG, MAX_PROCEDURE_ARMS,
+    MAX_PROCEDURE_CELLS, MAX_PROCEDURE_CONTEXTS, MAX_PROCEDURE_LOOKS, MAX_PROCEDURE_UNITS,
+    MAX_SIMULATION_REPLICATIONS, OutcomeModelPrior, OutcomeObservation, ProcedureDeclaration,
+    ProcedureSpec, SimulationRequest, StoppingRule, WeightScheme, simulate_procedure,
 };
 
 fn never() -> bool {
@@ -72,21 +72,43 @@ fn contexts_and_cells_are_bounded() {
 #[test]
 fn looks_and_units_are_bounded() {
     assert_eq!(MAX_PROCEDURE_LOOKS, 24);
-    assert_eq!(MAX_PROCEDURE_UNITS, 400);
-    let invalid = vec![ContractGap::Invalid("adaptive_inference.looks_not_ordered")];
+    assert_eq!(MAX_PROCEDURE_UNITS, 65_535);
     assert!(ProcedureSpec::new(base(2, MAX_PROCEDURE_LOOKS)).is_ok());
-    assert_eq!(gaps(base(2, MAX_PROCEDURE_LOOKS + 1)), invalid);
+    assert_eq!(
+        gaps(base(2, MAX_PROCEDURE_LOOKS + 1)),
+        vec![ContractGap::Capacity(CapacityError::DeclaredLooks { limit: 24, requested: 25 })]
+    );
 
     let mut at_units = base(2, 1);
     at_units.enrolment = Some(vec![MAX_PROCEDURE_UNITS]);
     assert!(ProcedureSpec::new(at_units).is_ok());
-    let mut over_units = base(2, 1);
-    over_units.enrolment = Some(vec![MAX_PROCEDURE_UNITS + 1]);
-    assert_eq!(gaps(over_units), invalid);
+    // The old 400-unit bound is gone: a planned 2,400-participant procedure is declared.
+    let mut planned = base(2, 1);
+    planned.enrolment = Some(vec![2_400]);
+    assert!(ProcedureSpec::new(planned).is_ok());
+    let over = |enrolment: Vec<u32>, requested: u64| {
+        let mut declaration = base(2, 1);
+        declaration.enrolment = Some(enrolment);
+        assert_eq!(
+            gaps(declaration),
+            vec![ContractGap::Capacity(CapacityError::DeclaredUnits {
+                limit: u64::from(MAX_PROCEDURE_UNITS),
+                requested,
+            })]
+        );
+    };
+    over(vec![MAX_PROCEDURE_UNITS + 1], 65_536);
     // The total is bounded, not each look.
-    let mut over_total = base(2, 1);
-    over_total.enrolment = Some(vec![MAX_PROCEDURE_UNITS / 2, MAX_PROCEDURE_UNITS / 2 + 1]);
-    assert_eq!(gaps(over_total), invalid);
+    over(vec![MAX_PROCEDURE_UNITS / 2, MAX_PROCEDURE_UNITS / 2 + 2], 65_536);
+
+    // An empty schedule, an empty first look and a schedule of no units are ordering errors,
+    // not capacity errors.
+    let ordering = vec![ContractGap::Invalid("adaptive_inference.looks_not_ordered")];
+    for schedule in [vec![], vec![0, 5], vec![0]] {
+        let mut declaration = base(2, 1);
+        declaration.enrolment = Some(schedule);
+        assert_eq!(gaps(declaration), ordering);
+    }
 }
 
 #[test]
@@ -117,13 +139,20 @@ fn simulation_replications_are_bounded() {
         outcome_prior: OutcomeModelPrior { mean: 0.5, strength: 2.0 },
         probability_floor: 0.01,
     };
-    // Past the bound and at zero, refused before any replicate runs.
-    for replications in [MAX_SIMULATION_REPLICATIONS + 1, 0] {
-        assert!(matches!(
-            simulate_procedure(&spec, &[0.4, 0.6], &request(replications), &never),
-            Err(Error::Limit(_))
-        ));
-    }
+    // Past the bound, refused before any replicate runs, with the replication class of limit.
+    assert_eq!(
+        simulate_procedure(&spec, &[0.4, 0.6], &request(MAX_SIMULATION_REPLICATIONS + 1), &never)
+            .unwrap_err(),
+        Error::Capacity(CapacityError::SimulationReplications {
+            limit: 1_000_000,
+            requested: 1_000_001,
+        })
+    );
+    // Zero replications are an invalid request, not a capacity.
+    assert!(matches!(
+        simulate_procedure(&spec, &[0.4, 0.6], &request(0), &never),
+        Err(Error::InvalidParameter(_))
+    ));
     // A request inside the bound runs.
     assert!(simulate_procedure(&spec, &[0.4, 0.6], &request(5), &never).is_ok());
 }

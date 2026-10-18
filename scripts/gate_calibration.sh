@@ -34,6 +34,97 @@ RECHECK_NSIM="${ANTECEDENT_CALIBRATION_RECHECK_NSIM:-2000}"
 # Replicate count of a first run: the harness default (DEFAULT_N_SIM) unless
 # overridden. The recheck extends the first run from this index.
 FIRST_NSIM="${ANTECEDENT_CALIBRATION_NSIM:-400}"
+# Replicate count of a design bound to a calibrated acceptance case. The ordinary
+# base-point minimum is retained; an explicit configuration.calibration_grid_point
+# additionally binds a non-base configured size to its required minimum in the first
+# pass: from PRECISION_N_SIM replicates the harness holds the coverage to level ± 2·MCSE itself
+# and no recheck follows. The other two points extend the measured size range and run the
+# ordinary first pass, unless separate acceptance cases freeze all three grid sizes; those
+# points each owe the acceptance replicate minimum. ACCEPTANCE_TESTS lists the bound
+# tests (space separated, from parity/acceptance_manifest.toml); a group whose label is
+# `<file>: <test>` with a listed test runs at this count. Smoke runs keep the smoke count.
+ACCEPTANCE_NSIM="${ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM:-2000}"
+ACCEPTANCE_TESTS=" $(python3 - <<'PY'
+import tomllib
+with open("parity/acceptance_manifest.toml", "rb") as handle:
+    cases = tomllib.load(handle)["case"]
+print(" ".join(sorted({
+    case["evidence"]["test"].rsplit("::", 1)[1]
+    for case in cases
+    if case["expected"]["kind"] in {"calibrated_interval", "calibrated_statistical_test"} and case["evidence"]["status"] == "bound"
+})))
+PY
+) "
+ACCEPTANCE_GRID_TESTS=" $(python3 - <<'PY'
+import collections
+import tomllib
+with open("parity/acceptance_manifest.toml", "rb") as handle:
+    cases = tomllib.load(handle)["case"]
+sizes = collections.defaultdict(set)
+for case in cases:
+    if case["expected"]["kind"] not in {"calibrated_interval", "calibrated_statistical_test"} or case["evidence"]["status"] != "bound":
+        continue
+    participants = case["configuration"].get("participants")
+    if isinstance(participants, int):
+        sizes[case["evidence"]["test"].rsplit("::", 1)[1]].add(participants)
+print(" ".join(sorted(
+    test for test, values in sizes.items()
+    if len(values) == 3 and sorted(values) == [min(values), 2 * min(values), 4 * min(values)]
+)))
+PY
+) "
+
+# Explicit non-base acceptance bindings augment the ordinary base-point minimum.
+ACCEPTANCE_POINT_TESTS=" $(python3 - <<'PYPOINT'
+import tomllib
+with open("parity/acceptance_manifest.toml", "rb") as handle:
+    cases = tomllib.load(handle)["case"]
+values = set()
+for case in cases:
+    point = case["configuration"].get("calibration_grid_point")
+    if point is None:
+        continue
+    if type(point) is not int or point not in (0, 1, 2):
+        raise SystemExit("invalid declared calibration_grid_point")
+    if case["expected"]["kind"] in {"calibrated_interval", "calibrated_statistical_test"} and case["evidence"]["status"] == "bound":
+        values.add(f"{case['evidence']['test'].rsplit('::', 1)[1]}:{point}")
+print(" ".join(sorted(values)))
+PYPOINT
+) "
+
+# First-pass replicate count of the group `shown` (its label, with any grid-point suffix).
+first_pass_nsim() {
+  local test="${1%% \[grid point*}"
+  test="${test#*: }"
+  case "$1" in
+    *"[grid point 0]"*|*"[grid point 2]"*)
+      # Legacy parent records replay the actual version-1 400/2000/400 plan.
+      # New acceptance minima belong to the version-2 three-quarter split.
+      if [ "${ANTECEDENT_PARENT_PROTOCOL_VERSION:-2}" = "1" ]; then
+        case "$1" in
+          sample_split_parent_set_effect_calibration:*) echo "$FIRST_NSIM"; return ;;
+        esac
+      fi
+      case "$ACCEPTANCE_GRID_TESTS" in
+        *" $test "*) ;;
+        *)
+          local point=2
+          case "$1" in *"[grid point 0]"*) point=0 ;; esac
+          case "$ACCEPTANCE_POINT_TESTS" in
+            *" $test:$point "*) ;;
+            *) echo "$FIRST_NSIM"; return ;;
+          esac ;;
+      esac ;;
+  esac
+  if [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] && [ "$test" != "$1" ] \
+    && [ "$ACCEPTANCE_NSIM" -gt "$FIRST_NSIM" ]; then
+    case "$ACCEPTANCE_TESTS" in
+      *" $test "*) echo "$ACCEPTANCE_NSIM"; return ;;
+    esac
+  fi
+  echo "$FIRST_NSIM"
+}
+
 if [ "$RECHECK_NSIM" -le "$FIRST_NSIM" ]; then
   echo "ANTECEDENT_CALIBRATION_RECHECK_NSIM=$RECHECK_NSIM must exceed the first run's $FIRST_NSIM replicates" >&2; exit 2
 fi
@@ -52,6 +143,21 @@ for point in $GRID_POINTS; do
   case "$point" in 0|1|2) ;; *) echo "bad ANTECEDENT_CALIBRATION_GRID_POINTS=$GRID_POINTS (want points from 0 1 2)" >&2; exit 2;; esac
 done
 
+# `ANTECEDENT_CALIBRATION_CONFIRMATION=1` re-measures the grid groups with fresh
+# seeds (the harness salts every generator a second time) and writes
+# `<group>.p<k>.confirm.log` beside the first measurement's logs, which it never
+# overwrites. Use it with `ANTECEDENT_CALIBRATION_GRID_POINTS` set to the points
+# that passed: scripts/collect_coverage_records.py keeps the confirmation apart
+# and recovers a boundary record's passing range only from it. The record-less
+# pass/fail groups have nothing to confirm and are skipped.
+CONFIRM_SUFFIX=""
+if [ "${ANTECEDENT_CALIBRATION_CONFIRMATION:-}" = "1" ]; then
+  CONFIRM_SUFFIX=".confirm"
+  export ANTECEDENT_CALIBRATION_CONFIRMATION
+else
+  unset ANTECEDENT_CALIBRATION_CONFIRMATION
+fi
+
 # Groups measured over the sample-size grid (every other group is a pass/fail
 # gate that emits no record and runs once).
 grid_group() {
@@ -59,13 +165,17 @@ grid_group() {
     "antecedent-estimate: bayesian_"*) return 1 ;;
     antecedent-estimate:*) return 0 ;;
     # The antecedent coverage suites: every label is `<test file>: <test>`.
-    bayesian_temporal:*|calibration_admg:*|calibration_anomaly_bayesian:*|calibration_attribution_bayesian:*|calibration_backlog:*|calibration_bayesian_static:*|calibration_counterfactual:*|calibration_design:*|calibration_design_bayesian:*|calibration_distribution_admg:*|calibration_estimate:*|calibration_response:*|calibration_temporal:*|calibration_temporal_class:*|class_posterior_calibration:*|derivative_calibration:*|mixture_interval_calibration:*|panel_calibration:*|static_calibration:*|static_envelope_calibration:*|static_mixture_calibration:*|temporal_class_calibration:*|temporal_frequentist:*|temporal_response_calibration:*|transport_statistical_calibration:*) return 0 ;;
+    bayesian_temporal:*|calibration_admg:*|calibration_anomaly_bayesian:*|calibration_attribution_bayesian:*|calibration_backlog:*|calibration_bayesian_static:*|calibration_counterfactual:*|calibration_design:*|calibration_design_bayesian:*|calibration_distribution_admg:*|calibration_posterior_draws:*|calibration_estimate:*|calibration_response:*|calibration_temporal:*|calibration_temporal_class:*|class_posterior_calibration:*|derivative_calibration:*|mixture_interval_calibration:*|panel_calibration:*|static_calibration:*|static_envelope_calibration:*|static_mixture_calibration:*|temporal_class_calibration:*|temporal_frequentist:*|temporal_response_calibration:*|transport_statistical_calibration:*|discovered_transport_calibration:*) return 0 ;;
     # Multi-source limited-experiment (both mz suites) and the two learned continuous trial
     # transport coverage records. The learned-transport weak-overlap and misspecified-nuisance tests print measurements, emit no record,
     # and run once at the base point.
     mz_transport_calibration:*) return 0 ;;
     # Whole-method coverage of the effect estimated after discovery on a row split, and its named boundaries.
     sample_split_effect_calibration:*) return 0 ;;
+    # Whole-method coverage after discovery accepted on the treatment's parent set.
+    sample_split_parent_set_effect_calibration:*) return 0 ;;
+    # Whole-method coverage of the survey-weighted effect after discovery on a row split.
+    sample_split_weighted_effect_calibration:*) return 0 ;;
     # Interval of an expected predictive score or score difference under a declared dependence.
     predictive_score_interval_calibration:*) return 0 ;;
     evidence_synthesis_calibration:*|joint_law_composed_interval_calibration:*|cross_world_interval_calibration:*) return 0 ;;
@@ -73,13 +183,17 @@ grid_group() {
     scientific_bridge_interval_calibration:*) return 0 ;;
     # Whole-file groups: one invocation runs every ignored test in the file, once per grid point.
     panel_calibration|temporal_response_calibration) return 0 ;;
-    bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|nested_markov_bayesian_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
+    bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|nested_markov_bayesian_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|knn_matching_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
     learned_continuous_calibration:*_mean_contrast) return 0 ;;
     # Adaptive-procedure coverage records. The group-sequential power comparison is a
     # pass/fail gate against the integrated crossing probability and runs once; the
     # decision-reliability expectation prints diagnostics, emits no record and runs once.
     adaptive_inference_calibration:group_sequential_power_matches_the_numerical_integration) return 1 ;;
     adaptive_inference_calibration:*|adaptive_procedure_prior_predictive_calibration:*) return 0 ;;
+    # Whole-procedure participant-level designs: each prints its measured summary and emits two
+    # coverage records (every arm's mean, and the selected treatment's contrast), measured over
+    # the three-point grid around the case's participants.
+    adaptive_whole_procedure_calibration:*) return 0 ;;
     # Native linear cohort effect: the gated randomized/confounded designs and the named boundaries.
     cohort_linear_effect_calibration:*) return 0 ;;
     count_fitted_posterior_calibration:*) return 0 ;;
@@ -94,6 +208,19 @@ grid_group() {
     batch_retarget_calibration:*) return 0 ;;
     # Clustered DML: the published t_(G-1) Wald interval (wired, unmeasured).
     cluster_dml_calibration:*) return 0 ;;
+    # Randomized outcomes missing at random: the responder-weighted and complete-case
+    # candidate intervals (designs only; nothing is published until a record measures them).
+    missing_outcome_calibration:*) return 0 ;;
+    # Sampling-weighted effects: the candidate intervals of the weighted routes (designs only;
+    # nothing is published until a record measures them).
+    weighted_interval_calibration:*) return 0 ;;
+    # Multi-level observational contrast: the full-population normal interval (wired, unmeasured).
+    multilevel_interval_calibration:*) return 0 ;;
+    # Randomized-trial intervals at 300 participants, including the small-arm Student intervals.
+    randomized_interval_calibration:*) return 0 ;;
+    # Practitioner-scale intervals: 1,000 to 100,000 rows and 320 to 4,160 steps, each record
+    # measured at the three points of its own grid and limited to that span.
+    practitioner_scale_calibration:*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -121,6 +248,11 @@ export ANTECEDENT_CALIBRATION_SHA="$MEASURED_SHA"
 
 stamp_log() {
   printf 'calibration-measured-at %s\n' "$MEASURED_SHA" >>"$1"
+  # Preserve the prospective seed domain even for noncoverage groups that
+  # use common RNG helpers but never emit a CoverageTally decision.
+  if [ -n "${ANTECEDENT_CALIBRATION_DECISION_CONFIG:-}" ]; then
+    printf 'calibration-decision-context %s\n' "$ANTECEDENT_CALIBRATION_DECISION_CONFIG" >>"$1"
+  fi
 }
 
 # A group that matches no test exits 0 ("running 0 tests"), so a renamed test
@@ -171,28 +303,30 @@ per_test_recheck() {
 run_point() {
   local stem="$1" shown="$2"
   shift 2
-  local log="${stem}.log" tallies="${stem}.tallies.jsonl" status tests test
+  local log="${stem}.log" tallies="${stem}.tallies.jsonl" status tests test first
+  first="$(first_pass_nsim "$shown")"
   rm -f "$tallies" "${stem}.recheck.tallies.jsonl"
-  ANTECEDENT_CALIBRATION_TALLY_OUT="$tallies" "$@" 2>&1 | tee "$log"
+  ANTECEDENT_CALIBRATION_NSIM="$first" ANTECEDENT_CALIBRATION_TALLY_OUT="$tallies" "$@" 2>&1 | tee "$log"
   status="${PIPESTATUS[0]}"
   require_ran "$status" "$log" || status=1
   stamp_log "$log"
-  if [ "$status" -eq 0 ] && [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] && grep -q '^calibration-recheck ' "$log"; then
+  if [ "$status" -eq 0 ] && [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] \
+    && [ "$first" -lt "$RECHECK_NSIM" ] && grep -q '^calibration-recheck ' "$log"; then
     tests=""
     if per_test_recheck "$@"; then
       tests="$(grep '^calibration-recheck-test ' "$log" | awk '{ print $2 }' | sort -u | tr '\n' ' ')"
     fi
     if [ -n "$tests" ]; then
-      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${FIRST_NSIM}): ${shown}: ${tests}=="
+      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${first}): ${shown}: ${tests}=="
     else
-      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${FIRST_NSIM}): ${shown} =="
+      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${first}): ${shown} =="
     fi
     RECHECKED="${RECHECKED}  ${shown}"$'\n'
     # The recheck's verdict stands, so its `calibration-record` lines are the
     # ones scripts/collect_coverage_records.py keeps for the rechecked tests.
     # shellcheck disable=SC2086 # $tests is a space-separated list of test names.
     ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
-      ANTECEDENT_CALIBRATION_REPLICATE_START="$FIRST_NSIM" \
+      ANTECEDENT_CALIBRATION_REPLICATE_START="$first" \
       ANTECEDENT_CALIBRATION_PRIOR_TALLIES="$tallies" \
       ANTECEDENT_CALIBRATION_TALLY_OUT="${stem}.recheck.tallies.jsonl" \
       "$@" ${tests:+--exact $tests} 2>&1 | tee "${stem}.recheck.log"
@@ -233,6 +367,17 @@ check() {
     fi
     return 0
   fi
+  if [ -n "${ANTECEDENT_CALIBRATION_DECISION_CONFIG:-}" ]; then
+    python3 - "$label" <<'PYALLOC'
+import json
+import os
+import sys
+sys.path.insert(0, "scripts")
+import calibration_decision as decision
+import calibration_family as family
+family.validate_measurement_selection(json.loads(os.environ[decision.ENV]), [sys.argv[1]])
+PYALLOC
+  fi
   local safe point shown
   mkdir -p "$LOG_DIR"
   safe="$(echo "${label}" | tr ' /:' '___')"
@@ -240,13 +385,16 @@ check() {
     for point in $GRID_POINTS; do
       shown="${label} [grid point ${point}]"
       echo "== grid point ${point}: ${label} =="
-      run_point "$LOG_DIR/${safe}.p${point}" "$shown" \
+      run_point "$LOG_DIR/${safe}.p${point}${CONFIRM_SUFFIX}" "$shown" \
         env ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@"
       if [ "$RUN_STATUS" -ne 0 ]; then
         FAILED="${FAILED}  ${shown}"$'\n'
         FAILED_COUNT=$((FAILED_COUNT + 1))
       fi
     done
+    return 0
+  fi
+  if [ -n "$CONFIRM_SUFFIX" ]; then
     return 0
   fi
   run_point "$LOG_DIR/${safe}" "$label" \
@@ -389,6 +537,23 @@ run_learned_joint learned_degree2_gaussian_two_independent_intercepts_l95
 run_learned_joint learned_degree2_gaussian_two_shared_intercepts_l95
 run_learned_joint learned_degree2_gaussian_two_varying_covariates_l95
 
+run_observational_effects() {
+  local name="$1"
+  check "observational_effects_calibration: ${name}" cargo test --release -p antecedent-estimate --test observational_effects_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== observational survival and policy-value standard errors (wired, unmeasured) =="
+run_observational_effects survival_difference_covariate_censoring_n1000_l95
+run_observational_effects survival_difference_covariate_censoring_n3000_l95
+run_observational_effects rmst_difference_covariate_censoring_n1000_l95
+run_observational_effects rmst_difference_covariate_censoring_n3000_l95
+run_observational_effects survival_difference_independent_censoring_n1000_l95
+run_observational_effects survival_difference_independent_censoring_n3000_l95
+run_observational_effects policy_prespecified_n1000_l95
+run_observational_effects policy_prespecified_n3000_l95
+run_observational_effects policy_held_out_n1000_l95
+run_observational_effects policy_held_out_n3000_l95
+run_observational_effects policy_cross_fitted_learning_n3000_l95
+
 run_adaptive_inference() {
   local name="$1"
   check "adaptive_inference_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test adaptive_inference_calibration "$name" -- --ignored --exact --nocapture
@@ -409,6 +574,27 @@ run_adaptive_inference anytime_valid_sequence_contrast_record_l95
 run_adaptive_inference group_sequential_repeated_interval_null_effect_l95
 run_adaptive_inference group_sequential_repeated_interval_moderate_effect_l95
 run_adaptive_inference group_sequential_repeated_interval_large_effect_l95
+
+run_adaptive_whole_procedure() {
+  local name="$1"
+  check "adaptive_whole_procedure_calibration: ${name}" cargo test --release -p antecedent-estimate --test adaptive_whole_procedure_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== participant-level adaptive procedure: recruitment, assignment, stopping, selection and reporting together =="
+run_adaptive_whole_procedure adaptive_full_procedure_null_effects_600
+run_adaptive_whole_procedure adaptive_full_procedure_null_effects_1200
+run_adaptive_whole_procedure adaptive_full_procedure_null_effects_2400
+run_adaptive_whole_procedure adaptive_full_procedure_near_ties_600
+run_adaptive_whole_procedure adaptive_full_procedure_near_ties_1200
+run_adaptive_whole_procedure adaptive_full_procedure_near_ties_2400
+run_adaptive_whole_procedure adaptive_full_procedure_separated_effects_600
+run_adaptive_whole_procedure adaptive_full_procedure_separated_effects_1200
+run_adaptive_whole_procedure adaptive_full_procedure_separated_effects_2400
+run_adaptive_whole_procedure adaptive_full_procedure_strong_correlation_600
+run_adaptive_whole_procedure adaptive_full_procedure_strong_correlation_1200
+run_adaptive_whole_procedure adaptive_full_procedure_strong_correlation_2400
+run_adaptive_whole_procedure adaptive_full_procedure_misleading_priors_600
+run_adaptive_whole_procedure adaptive_full_procedure_misleading_priors_1200
+run_adaptive_whole_procedure adaptive_full_procedure_misleading_priors_2400
 
 run_adaptive_prior_predictive() {
   local name="$1"
@@ -445,6 +631,61 @@ run_decision_reliability_interval confidence_set_sixty_four_candidates_l95
 run_decision_reliability_interval selection_corrected_two_candidates_l95
 run_decision_reliability_interval selection_corrected_eight_candidates_l95
 run_decision_reliability_interval selection_corrected_sixty_four_candidates_l95
+run_decision_reliability_interval ranking_probability_three_candidates_l95
+run_decision_reliability_interval utility_interval_three_candidates_l95
+run_decision_reliability_interval confidence_set_three_candidates_l95
+run_decision_reliability_interval selection_corrected_three_candidates_l95
+run_decision_reliability_interval ranking_probability_five_candidates_l95
+run_decision_reliability_interval utility_interval_five_candidates_l95
+run_decision_reliability_interval confidence_set_five_candidates_l95
+run_decision_reliability_interval selection_corrected_five_candidates_l95
+run_decision_reliability_interval ranking_probability_sixteen_candidates_l95
+run_decision_reliability_interval utility_interval_sixteen_candidates_l95
+run_decision_reliability_interval confidence_set_sixteen_candidates_l95
+run_decision_reliability_interval selection_corrected_sixteen_candidates_l95
+run_decision_reliability_interval ranking_probability_thirty_two_candidates_l95
+run_decision_reliability_interval utility_interval_thirty_two_candidates_l95
+run_decision_reliability_interval confidence_set_thirty_two_candidates_l95
+run_decision_reliability_interval selection_corrected_thirty_two_candidates_l95
+run_decision_reliability_interval ranking_probability_one_hundred_candidates_l95
+run_decision_reliability_interval utility_interval_one_hundred_candidates_l95
+run_decision_reliability_interval confidence_set_one_hundred_candidates_l95
+run_decision_reliability_interval selection_corrected_one_hundred_candidates_l95
+run_decision_reliability_interval ranking_probability_sixteen_candidates_budget_500_l95
+run_decision_reliability_interval utility_interval_sixteen_candidates_budget_500_l95
+run_decision_reliability_interval confidence_set_sixteen_candidates_budget_500_l95
+run_decision_reliability_interval selection_corrected_sixteen_candidates_budget_500_l95
+run_decision_reliability_interval ranking_probability_sixteen_candidates_budget_8000_l95
+run_decision_reliability_interval utility_interval_sixteen_candidates_budget_8000_l95
+run_decision_reliability_interval confidence_set_sixteen_candidates_budget_8000_l95
+run_decision_reliability_interval selection_corrected_sixteen_candidates_budget_8000_l95
+run_decision_reliability_interval ranking_probability_sixteen_candidates_budget_16000_l95
+run_decision_reliability_interval utility_interval_sixteen_candidates_budget_16000_l95
+run_decision_reliability_interval confidence_set_sixteen_candidates_budget_16000_l95
+run_decision_reliability_interval selection_corrected_sixteen_candidates_budget_16000_l95
+run_decision_reliability_interval ranking_probability_sixteen_candidates_budget_32768_l95
+run_decision_reliability_interval utility_interval_sixteen_candidates_budget_32768_l95
+run_decision_reliability_interval confidence_set_sixteen_candidates_budget_32768_l95
+run_decision_reliability_interval selection_corrected_sixteen_candidates_budget_32768_l95
+run_decision_reliability_interval confidence_set_three_candidates_budget_500_l95
+run_decision_reliability_interval selection_corrected_three_candidates_budget_500_l95
+run_decision_reliability_interval confidence_set_three_candidates_budget_32768_l95
+run_decision_reliability_interval selection_corrected_three_candidates_budget_32768_l95
+run_decision_reliability_interval confidence_set_thirty_two_candidates_budget_500_l95
+run_decision_reliability_interval selection_corrected_thirty_two_candidates_budget_500_l95
+run_decision_reliability_interval confidence_set_one_hundred_candidates_budget_500_l95
+run_decision_reliability_interval selection_corrected_one_hundred_candidates_budget_500_l95
+run_decision_reliability_interval confidence_set_one_hundred_candidates_budget_32768_l95
+run_decision_reliability_interval selection_corrected_one_hundred_candidates_budget_32768_l95
+run_decision_reliability_interval confidence_set_sixteen_equal_candidates_l95
+run_decision_reliability_interval confidence_set_sixteen_near_tie_candidates_l95
+run_decision_reliability_interval selection_corrected_sixteen_equal_candidates_l95
+run_decision_reliability_interval selection_corrected_sixteen_near_tie_candidates_l95
+run_decision_reliability_interval selection_corrected_sixteen_candidates_large_offset_l95
+run_decision_reliability_interval selection_corrected_four_candidates_l95
+run_decision_reliability_interval selection_corrected_seven_candidates_l95
+run_decision_reliability_interval selection_corrected_ten_candidates_l95
+run_decision_reliability_interval selection_corrected_fifty_candidates_l95
 run_decision_reliability_interval selection_corrected_all_equal_sixty_four_candidates_boundary_l95
 
 run_quadratic_dose() {
@@ -473,7 +714,7 @@ run_count_fitted_posterior() {
   check "count_fitted_posterior_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test count_fitted_posterior_calibration "$name" -- --ignored --exact --nocapture
 }
 echo "== count-fitted finite table posterior interval =="
-for name in count_fitted_confounded_signal_l90 count_fitted_confounded_signal_l95 count_fitted_measured_signal_l90 count_fitted_measured_signal_l95 count_fitted_sparse_parent_configuration_boundary_l95 count_fitted_rare_evidence_boundary_l95; do
+for name in count_fitted_confounded_signal_l90 count_fitted_confounded_signal_l95 count_fitted_measured_signal_l90 count_fitted_measured_signal_l95 count_fitted_confounded_signal_l90_draws_8000 count_fitted_confounded_signal_l95_draws_8000 count_fitted_measured_signal_l90_draws_8000 count_fitted_measured_signal_l95_draws_8000 count_fitted_confounded_signal_l95_rows_1000_draws_2000 count_fitted_confounded_signal_l95_rows_1000_draws_3000 count_fitted_confounded_signal_l95_rows_1000_draws_4000 count_fitted_confounded_signal_l95_rows_1000_draws_8000 count_fitted_sparse_parent_configuration_boundary_l95 count_fitted_rare_evidence_boundary_l95; do
   run_count_fitted_posterior "${name}"
 done
 
@@ -500,6 +741,13 @@ run_retained_score_precision retained_cell_weighted_score_precision
 
 run_mechanism_discrepancy_calibration independent_mechanism_full_coefficient_diagnostic
 run_mechanism_discrepancy_calibration independent_mechanism_slope_mdd_diagnostic
+
+# Covariate-distance matching with three nearest donors: coverage of the analytic interval at
+# 10,000, 25,000 and 100,000 rows (pass/fail, no coverage record).
+echo "== antecedent-estimate: knn matching interval coverage =="
+check "knn_matching_calibration: knn_matching_interval_ci_coverage" \
+  cargo test --release -p antecedent-estimate --test knn_matching_calibration \
+  knn_matching_interval_ci_coverage -- --ignored --exact --nocapture
 
 run_bootstrap_effect_precision nonlinear_mediation_whole_method_bootstrap_se
 run_bootstrap_effect_precision latent_class_whole_method_bootstrap_se
@@ -827,6 +1075,14 @@ run_static_envelope conditional_effect_cpdag_frequentist_nominal_90_coverage
 run_static_envelope conditional_effect_cpdag_bayesian_nominal_90_coverage
 run_static_envelope conditional_effect_pag_frequentist_nominal_90_coverage
 run_static_envelope conditional_effect_pag_bayesian_nominal_90_coverage
+run_static_envelope average_effect_cpdag_graph_posterior_frequentist_nominal_coverage
+run_static_envelope average_effect_cpdag_graph_posterior_bayesian_nominal_coverage
+run_static_envelope average_effect_pag_graph_posterior_frequentist_nominal_coverage
+run_static_envelope average_effect_pag_graph_posterior_bayesian_nominal_coverage
+run_static_envelope conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage
+run_static_envelope conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage
+run_static_envelope conditional_effect_pag_graph_posterior_frequentist_nominal_coverage
+run_static_envelope conditional_effect_pag_graph_posterior_bayesian_nominal_coverage
 run_static_envelope codetermined_aipw_closure_nominal_90_coverage
 run_static_envelope unknown_two_scenario_joint_band_nominal_95_coverage
 
@@ -863,6 +1119,8 @@ run_static_remaining mediation_nde_frequentist_nominal_90_coverage
 run_static_remaining mediation_nie_frequentist_nominal_90_coverage
 run_static_remaining mediation_nde_bayesian_nominal_90_coverage
 run_static_remaining mediation_nie_bayesian_nominal_90_coverage
+run_static_remaining mediation_contrasts_frequentist_nominal_95_coverage
+run_static_remaining mediation_contrasts_bayesian_nominal_95_coverage
 run_static_remaining path_specific_frequentist_nominal_90_coverage
 run_static_remaining path_specific_bayesian_nominal_90_coverage
 run_static_remaining path_specific_two_path_frequentist_nominal_90_coverage
@@ -901,6 +1159,14 @@ run_ignored antecedent-stats gsquared_conditional_null_gate
 run_ignored antecedent-stats symbolic_cmi_conditional_null_gate
 run_ignored antecedent-stats knn_conditional_null_gate
 run_ignored antecedent-stats gpdc_conditional_null_gate
+run_ignored antecedent-stats gpdc_nystrom_conditional_null_gate
+run_ignored antecedent-stats gpdc_nystrom_conditional_null_large_n_gate
+run_ignored antecedent-stats gpdc_nystrom_conditional_power_gate
+run_ignored antecedent-stats conditional_gpdc_beyond_4k_8000_rows
+run_ignored antecedent-stats conditional_gpdc_beyond_4k_20000_rows
+run_ignored antecedent-stats scalable_gpdc_replacement_validated_separately
+run_ignored antecedent-validate nonparametric_sensitivity_beyond_20k_100000_rows
+run_ignored antecedent-validate scalable_sensitivity_replacement_validated_separately
 run_ignored antecedent-stats parcorr_block_shuffle_conditional_autocorrelated_type_i_gate
 run_ignored antecedent-stats weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate
 
@@ -908,6 +1174,13 @@ echo "== Discovery null FPR / power (antecedent-discovery) =="
 run_ignored antecedent-discovery pc_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_planted_lag1_power
+# Graph-posterior samplers at ten and twelve variables reproduce the exact posterior: the gate
+# passes and every marginal is within its Monte-Carlo error of exact_dag_marginals
+# (crates/antecedent-discovery/src/graph_posterior_calibration.rs): published conditions only.
+run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_ten_variables
+run_ignored antecedent-discovery structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables
+run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_ten_variables
+run_ignored antecedent-discovery order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables
 
 echo "== coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
 run_suite() {
@@ -928,8 +1201,16 @@ run_suite calibration_response response_curve_pag_bayesian_pointwise_nominal_cov
 run_suite calibration_response intervention_response_codetermined_frequentist_nominal_coverage
 run_suite calibration_response intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage
 run_suite calibration_response response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage
+run_suite calibration_response response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage
+run_suite calibration_response response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage
+run_suite calibration_response response_curve_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage
+run_suite calibration_response response_curve_pag_graph_posterior_bayesian_pointwise_nominal_coverage
+run_suite calibration_response response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage
+run_suite calibration_response intervention_response_pag_graph_posterior_frequentist_nominal_coverage
 run_suite calibration_admg average_effect_admg_frontdoor_frequentist_nominal_coverage
 run_suite calibration_admg average_effect_admg_frontdoor_bayesian_nominal_coverage
+run_suite calibration_admg average_effect_admg_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_admg average_effect_admg_graph_posterior_bayesian_nominal_coverage
 run_suite calibration_admg interventional_distribution_admg_frontdoor_bayesian_nominal_coverage
 run_suite calibration_distribution_admg interventional_distribution_admg_frontdoor_frequentist_nominal_coverage
 run_suite calibration_distribution_admg interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage
@@ -950,6 +1231,8 @@ run_suite calibration_backlog intervention_response_admg_graph_posterior_frequen
 run_suite calibration_backlog response_curve_admg_frequentist_pointwise_nominal_coverage
 run_suite calibration_backlog response_curve_admg_frequentist_accepted_pointwise_nominal_coverage
 run_suite calibration_backlog response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage
+run_suite calibration_backlog intervention_response_admg_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_backlog response_curve_admg_graph_posterior_bayesian_pointwise_nominal_coverage
 run_suite calibration_backlog average_effect_unknown_frequentist_joint_band_nominal_coverage
 run_suite calibration_backlog temporal_cpdag_intervention_response_frequentist_nominal_coverage
 run_suite calibration_backlog temporal_cpdag_intervention_response_bayesian_nominal_coverage
@@ -1026,6 +1309,11 @@ run_suite calibration_bayesian_static elasticity_bayesian_default_nominal_covera
 run_suite calibration_bayesian_static directional_derivative_bayesian_default_nominal_coverage
 # Boundary cell: the Jacobian band's measured coverage is asserted, not nominal.
 run_suite calibration_bayesian_static response_jacobian_bayesian_default_coverage
+# Bayesian linear-adjustment interval at supplied posterior draw counts, under the draw controls.
+run_suite calibration_posterior_draws posterior_draws_2000_rows_1000_l95
+run_suite calibration_posterior_draws posterior_draws_3000_rows_1000_l95
+run_suite calibration_posterior_draws posterior_draws_4000_rows_1000_l95
+run_suite calibration_posterior_draws posterior_draws_8000_rows_1000_l95
 run_suite calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
 run_suite calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
 run_suite class_posterior_calibration class_posterior_frequentist_ate_joint_if_nominal_90_coverage
@@ -1035,11 +1323,61 @@ run_suite sample_split_effect_calibration sample_split_weak_edges_boundary_95
 run_suite sample_split_effect_calibration sample_split_cancelling_edge_boundary_95
 run_suite sample_split_effect_calibration sample_split_misspecified_test_boundary_95
 run_suite sample_split_effect_calibration sample_split_full_row_reuse_boundary_95
+# Sample-split discovery then the survey-weighted effect and its interval at the effective sample size.
+run_suite sample_split_weighted_effect_calibration weighted_split_effect_interval_calibrated
+# Sample-split discovery accepted on the treatment's parent set: sparse linear and log-linear
+# studies of ten, fifteen and twenty variables, one record per topology, the background-knowledge regimes, and the named boundaries.
+run_suite sample_split_parent_set_effect_calibration parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_log_linear_15_variables_confounded_direct_and_mediated_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_forbidden_edges_layered_multi_mediator_nuisance_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_forbidden_edges_confounded_direct_and_mediated_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_tiers_hub_confounded_multi_path_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_tiers_confounded_direct_and_mediated_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_knowledge_parent_limits_layered_multi_mediator_nuisance_nominal_95_coverage
+run_suite sample_split_parent_set_effect_calibration parent_set_weak_signal_boundary_95
+run_suite sample_split_parent_set_effect_calibration parent_set_cancelling_path_boundary_95
+run_suite sample_split_parent_set_effect_calibration parent_set_misspecified_test_boundary_95
 # Pooled evidence interval, composed linear-moment interval and cross-world intervals.
 run_suite evidence_synthesis_calibration pooled_fixed_effect_five_studies
 run_suite evidence_synthesis_calibration pooled_fixed_effect_ten_studies
+run_suite evidence_synthesis_calibration pooled_fixed_effect_fifteen_studies
+run_suite evidence_synthesis_calibration pooled_fixed_effect_twenty_studies
+run_suite evidence_synthesis_calibration pooled_fixed_effect_twenty_five_studies
+run_suite evidence_synthesis_calibration pooled_fixed_effect_thirty_studies
 run_suite evidence_synthesis_calibration pooled_random_effects_five_studies
 run_suite evidence_synthesis_calibration pooled_random_effects_ten_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_fifteen_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_twenty_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_twenty_five_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_thirty_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_strong_heterogeneity_five_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_strong_heterogeneity_fifteen_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_strong_heterogeneity_thirty_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_homogeneous_five_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_homogeneous_fifteen_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_homogeneous_thirty_studies
 run_suite joint_law_composed_interval_calibration composed_contrast_shared_rows_gaussian_positive_correlation_l95
 run_suite joint_law_composed_interval_calibration composed_contrast_shared_rows_gaussian_negative_correlation_l95
 run_suite joint_law_composed_interval_calibration composed_contrast_shared_rows_skewed_pair_l95
@@ -1052,6 +1390,15 @@ run_suite cross_world_interval_calibration cross_world_interval_fixed_units_bala
 run_suite predictive_score_interval_calibration iid_crps_mean_l95
 run_suite predictive_score_interval_calibration iid_log_score_mean_l95
 run_suite predictive_score_interval_calibration iid_crps_difference_l95
+run_suite predictive_score_interval_calibration iid_crps_mean_3200_cases_l95
+run_suite predictive_score_interval_calibration iid_log_score_mean_3200_cases_l95
+run_suite predictive_score_interval_calibration iid_crps_difference_3200_cases_l95
+run_suite predictive_score_interval_calibration iid_crps_mean_12800_cases_l95
+run_suite predictive_score_interval_calibration iid_log_score_mean_12800_cases_l95
+run_suite predictive_score_interval_calibration iid_crps_difference_12800_cases_l95
+run_suite predictive_score_interval_calibration iid_crps_mean_51200_cases_l95
+run_suite predictive_score_interval_calibration iid_log_score_mean_51200_cases_l95
+run_suite predictive_score_interval_calibration iid_crps_difference_51200_cases_l95
 run_suite predictive_score_interval_calibration serial_crps_mean_l95
 run_suite predictive_score_interval_calibration serial_log_score_mean_l95
 run_suite predictive_score_interval_calibration serial_crps_difference_l95
@@ -1076,6 +1423,18 @@ run_transport_statistical shared_factor_target_observational_nominal_coverage
 run_transport_statistical source_target_imbalance_standardize_nominal_coverage
 run_transport_statistical recursive_frontdoor_nominal_coverage
 run_transport_statistical weak_overlap_near_empty_conditioner_boundary
+
+echo "== discovered PAG transport: complete-procedure coverage (antecedent) =="
+run_discovered_transport() {
+  local filter="$1"
+  echo "== antecedent: discovered_transport_calibration ${filter} =="
+  check "discovered_transport_calibration: ${filter}" \
+    cargo test --release -p antecedent --test discovered_transport_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_discovered_transport discovered_pag_transport_contrast_complete_procedure_coverage
+run_discovered_transport discovered_temporal_transport_contrast_complete_procedure_coverage
+run_discovered_transport discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage
 
 echo "== multi-source limited-experiment (TR^mz) joint bootstrap (antecedent) =="
 run_mz() {
@@ -1153,6 +1512,117 @@ run_cd() {
     -- --ignored --exact --nocapture
 }
 run_cd cluster_dml_t_wald_interval
+
+echo "== multi-level treatment full-population interval (antecedent) =="
+# Design for the normal interval of the standardized contrast of a three-level observational
+# treatment; the route publishes no interval until a coverage record measures it.
+run_ml() {
+  local filter="$1"
+  echo "== antecedent: multilevel_interval_calibration ${filter} =="
+  check "multilevel_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent --test multilevel_interval_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_ml multilevel_generalized_propensity_interval
+
+echo "== sampling-weighted candidate intervals (antecedent) =="
+# Designs for the intervals of the weighted linear, inverse-probability, augmented, stratified,
+# matching, randomized-trial and panel difference-in-differences routes, each scored on units
+# drawn from a super-population with known unequal inclusion probabilities. The routes publish
+# no weighted interval until a coverage record measures one.
+run_wi() {
+  local filter="$1"
+  echo "== antecedent: weighted_interval_calibration ${filter} =="
+  check "weighted_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent --test weighted_interval_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_wi weighted_linear_adjustment_hc1_interval
+run_wi weighted_linear_adjustment_cluster_interval
+run_wi weighted_ipw_hajek_interval
+run_wi weighted_ipw_hajek_cluster_interval
+run_wi weighted_aipw_interval
+run_wi weighted_aipw_population_linear_interval
+run_wi weighted_stratification_interval
+run_wi weighted_matching_interval
+run_wi weighted_randomized_itt_interval
+run_wi weighted_panel_did_interval
+run_wi weighted_glm_logit_interval
+run_wi weighted_glm_gaussian_interval
+run_wi weighted_distance_matching_interval
+run_wi weighted_dml_aipw_interval
+run_wi weighted_dml_aipw_population_linear_interval
+run_wi weighted_dml_partially_linear_interval
+run_wi weighted_dr_learner_interval
+run_wi weighted_dr_learner_population_linear_interval
+run_wi weighted_aipw_att_interval
+run_wi weighted_aipw_atc_interval
+run_wi weighted_aipw_trimmed_interval
+run_wi weighted_aipw_cluster_dml_interval
+run_wi weighted_aipw_ridge_propensity_interval
+run_wi weighted_aipw_lasso_propensity_interval
+run_wi weighted_glm_negative_binomial_interval
+run_wi weighted_dml_cluster_interval
+run_wi weighted_dr_learner_cluster_interval
+
+echo "== randomized missing-outcome candidate intervals (antecedent) =="
+# Designs for the responder-weighted and complete-case normal intervals; the routes publish no
+# interval until a coverage record measures one.
+run_mo() {
+  local filter="$1"
+  echo "== antecedent: missing_outcome_calibration ${filter} =="
+  check "missing_outcome_calibration: ${filter}" \
+    cargo test --release -p antecedent --test missing_outcome_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_mo responder_weighted_mar_interval
+run_mo responder_complete_case_mcar_interval
+
+echo "== randomized-trial intervals at 300 participants and the small-arm intervals (antecedent) =="
+# Score and ANCOVA intervals under balanced and 2:1 independent assignment, the complete
+# randomization Neyman interval, and the small-arm Student intervals (20 of 300 treated).
+run_ri() {
+  local filter="$1"
+  echo "== antecedent: randomized_interval_calibration ${filter} =="
+  check "randomized_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent --test randomized_interval_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_ri randomized_score_balanced_interval
+run_ri randomized_score_two_to_one_interval
+run_ri randomized_ancova_balanced_interval
+run_ri randomized_ancova_two_to_one_interval
+run_ri complete_randomization_neyman_interval
+run_ri weak_arm_difference_in_means_hc2_student_interval
+run_ri weak_arm_ancova_hc2_student_interval
+
+echo "== practitioner-scale intervals: 1,000 to 100,000 rows, 320 to 4,160 steps (antecedent) =="
+# Each design draws its row count or series length from its own three-point grid
+# (practitioner_scale_calibration.rs); the record's range is that span and is the published limit.
+run_ps() {
+  local filter="$1"
+  echo "== antecedent: practitioner_scale_calibration ${filter} =="
+  check "practitioner_scale_calibration: ${filter}" \
+    cargo test --release -p antecedent --test practitioner_scale_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_ps practitioner_linear_adjustment_analytic_interval
+run_ps practitioner_linear_adjustment_hc1_interval
+run_ps practitioner_linear_adjustment_cluster_interval
+run_ps practitioner_linear_adjustment_bootstrap_interval
+run_ps practitioner_aipw_analytic_interval
+run_ps practitioner_aipw_hc1_interval
+run_ps practitioner_aipw_cluster_interval
+run_ps practitioner_bayesian_laplace_interval
+run_ps practitioner_bayesian_laplace_64_draw_interval
+run_ps small_sample_bayesian_laplace_64_draw_interval
+run_ps practitioner_class_posterior_interval
+run_ps practitioner_temporal_pulse_h1_interval
+run_ps practitioner_temporal_pulse_h2_interval
+run_ps practitioner_temporal_sustained_interval
+run_ps practitioner_temporal_bayesian_pulse_interval
+run_ps practitioner_temporal_mediation_interval
+run_ps practitioner_temporal_bayesian_mediation_interval
 
 echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh

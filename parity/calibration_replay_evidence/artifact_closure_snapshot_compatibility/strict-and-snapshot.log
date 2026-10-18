@@ -1,0 +1,410 @@
+coverage records: 1656, measured at 5 commit(s)
+  measured at 70a71dd33bc55cbc2398b0f91c4a2c797afad618: 145 record(s)
+    facet core: DRIFTED, 11 path(s) changed; 145 record(s) depend on it
+      Cargo.toml
+      crates/antecedent-identify/src/lib.rs
+      crates/antecedent-identify/src/sid.rs
+      crates/antecedent-io-core/src/cohort_decision.rs
+      crates/antecedent-stats/src/ci/calibration.rs
+      crates/antecedent-validate/src/sensitivity.rs
+      crates/antecedent/src/analysis/contract.rs
+      crates/antecedent/src/analysis/sample_split_analysis.rs
+      crates/antecedent/tests/common/calibration.rs
+      crates/antecedent/tests/common/calibration_decision.rs
+      scripts/gate_calibration.sh
+    facet design: DRIFTED, 1 path(s) changed; 3 record(s) depend on it
+      crates/antecedent-design/src/decision_reliability/artifact.rs
+    facet estimator.aipw: matches; 6 record(s) depend on it
+    facet estimator.bayesian: matches; 42 record(s) depend on it
+    facet estimator.bayesian_mediation: matches; 24 record(s) depend on it
+    facet estimator.discovered_transport: DRIFTED, 2 path(s) changed; 2 record(s) depend on it
+      crates/antecedent/src/analysis/discovered_transport_estimate.rs
+      crates/antecedent/src/analysis/discovered_transport_temporal.rs
+    facet estimator.discrete_ci: matches; 2 record(s) depend on it
+    facet estimator.evidence_synthesis: DRIFTED, 1 path(s) changed; 12 record(s) depend on it
+      crates/antecedent/src/analysis/evidence_ledger.rs
+    facet estimator.exact_transport: matches; 2 record(s) depend on it
+    facet estimator.learner: matches; 6 record(s) depend on it
+    facet estimator.linear_adjustment: matches; 2 record(s) depend on it
+    facet estimator.mediation: matches; 3 record(s) depend on it
+    facet estimator.pcmci_plus: matches; 2 record(s) depend on it
+    facet estimator.population_linear_aipw: matches; 3 record(s) depend on it
+    facet estimator.population_linear_atc: matches; 1 record(s) depend on it
+    facet estimator.propensity_stratification: matches; 1 record(s) depend on it
+    facet estimator.propensity_weighting: matches; 5 record(s) depend on it
+    facet estimator.response: DRIFTED, 1 path(s) changed; 20 record(s) depend on it
+      crates/antecedent-estimate/src/response/plugin.rs
+    facet estimator.response_levels: matches; 20 record(s) depend on it
+    facet estimator.split_parent_set_effect: matches; 9 record(s) depend on it
+    facet estimator.temporal_adjustment: matches; 2 record(s) depend on it
+    facet estimator.temporal_mediation: matches; 9 record(s) depend on it
+    facet estimator.transport: matches; 2 record(s) depend on it
+    facet estimator.transport_empirical: matches; 2 record(s) depend on it
+    facet estimator.transport_trial_compatibility: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/src/analysis/discovered_transport_trial.rs
+    facet identity.backdoor: matches; 11 record(s) depend on it
+    facet identity.catalog_transport: DRIFTED, 1 path(s) changed; 2 record(s) depend on it
+      crates/antecedent-identify/src/sid/catalog.rs
+    facet identity.envelope: matches; 85 record(s) depend on it
+    facet identity.response: matches; 60 record(s) depend on it
+    facet identity.temporal: matches; 4 record(s) depend on it
+    facet identity.temporal_mediation: matches; 33 record(s) depend on it
+    facet identity.transport_selection: DRIFTED, 1 path(s) changed; 2 record(s) depend on it
+      crates/antecedent-identify/src/selection_separation.rs
+    facet suite.bayesian_temporal: matches; 6 record(s) depend on it
+    facet suite.calibration_backlog: matches; 12 record(s) depend on it
+    facet suite.calibration_response: matches; 60 record(s) depend on it
+    facet suite.calibration_temporal_class: matches; 12 record(s) depend on it
+    facet suite.decision_reliability_interval_calibration: DRIFTED, 1 path(s) changed; 3 record(s) depend on it
+      crates/antecedent-design/tests/decision_reliability_interval_calibration.rs
+    facet suite.discovered_transport_calibration: DRIFTED, 1 path(s) changed; 2 record(s) depend on it
+      crates/antecedent/tests/discovered_transport_calibration.rs
+    facet suite.evidence_ledger_facade_oracle: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/evidence_ledger_facade.rs
+    facet suite.evidence_synthesis_calibration: matches; 12 record(s) depend on it
+    facet suite.mixture_interval_calibration: matches; 3 record(s) depend on it
+    facet suite.practitioner_scale_calibration: matches; 6 record(s) depend on it
+    facet suite.sample_split_analysis_facade_oracle: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/sample_split_analysis_facade.rs
+    facet suite.sample_split_parent_set_effect_calibration: DRIFTED, 1 path(s) changed; 9 record(s) depend on it
+      crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs
+    facet suite.sample_split_parent_set_effect_facade_oracle: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/sample_split_parent_set_effect_facade.rs
+    facet suite.sample_split_weighted_effect_calibration: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/sample_split_weighted_effect_calibration.rs
+    facet suite.static_calibration: matches; 3 record(s) depend on it
+    facet suite.weighted_interval_calibration: DRIFTED, 1 path(s) changed; 16 record(s) depend on it
+      crates/antecedent/tests/weighted_interval_calibration.rs
+    attested_by_replay (waiver unchanged-design-artifacts-from-70-c9659b468): 3 record(s)
+    attested_by_replay (waiver unchanged-validated-procedures-from-70): 142 record(s)
+  measured at 70f19b82ccb1d18cf94c1e288e0d802fc447e4c4: 1 record(s)
+    facet core: matches; 1 record(s) depend on it
+    facet design: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-design/src/decision_reliability/artifact.rs
+    facet estimator.discovered_transport: matches; 1 record(s) depend on it
+    facet estimator.discrete_ci: matches; 1 record(s) depend on it
+    facet estimator.exact_transport: matches; 1 record(s) depend on it
+    facet estimator.pcmci_plus: matches; 1 record(s) depend on it
+    facet estimator.transport: matches; 1 record(s) depend on it
+    facet estimator.transport_empirical: matches; 1 record(s) depend on it
+    facet estimator.transport_trial_compatibility: matches; 1 record(s) depend on it
+    facet identity.catalog_transport: matches; 1 record(s) depend on it
+    facet identity.envelope: matches; 1 record(s) depend on it
+    facet identity.transport_selection: matches; 1 record(s) depend on it
+    facet suite.decision_reliability_interval_calibration: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-design/tests/decision_reliability_interval_calibration.rs
+    facet suite.discovered_transport_calibration: DRIFTED, 1 path(s) changed; 1 record(s) depend on it
+      crates/antecedent/tests/discovered_transport_calibration.rs
+    attested_by_replay (waiver unchanged-pag-confidence-set-through-temporal-descriptor-correction): 1 record(s)
+  measured at c30e10304f4bd85a01ad81dd133a360ddc95c2f1: 1397 record(s)
+    facet adaptive_interval: matches; 45 record(s) depend on it
+    facet core: DRIFTED, 20 path(s) changed; 1397 record(s) depend on it
+      Cargo.toml
+      crates/antecedent-discovery/src/selective/contract.rs
+      crates/antecedent-estimate/src/lib.rs
+      crates/antecedent-estimate/src/propensity/mod.rs
+      crates/antecedent-identify/src/lib.rs
+      crates/antecedent-identify/src/sid.rs
+      crates/antecedent-io-core/src/cohort_decision.rs
+      crates/antecedent-stats/src/ci/calibration.rs
+      crates/antecedent-stats/src/lib.rs
+      crates/antecedent-stats/src/response.rs
+      crates/antecedent-validate/src/sensitivity.rs
+      crates/antecedent/src/analysis/contract.rs
+      ... and 8 more
+    facet cross_world_interval: matches; 3 record(s) depend on it
+    facet design: DRIFTED, 1 path(s) changed; 177 record(s) depend on it
+      crates/antecedent-design/src/decision_reliability/artifact.rs
+    facet estimator.aipw: DRIFTED, 1 path(s) changed; 21 record(s) depend on it
+      crates/antecedent-estimate/src/aipw.rs
+    facet estimator.bayesian: matches; 189 record(s) depend on it
+    facet estimator.bayesian_mediation: matches; 78 record(s) depend on it
+    facet estimator.bridge_interval: matches; 4 record(s) depend on it
+    facet estimator.cell_aipw: matches; 3 record(s) depend on it
+    facet estimator.cohort_linear_effect: matches; 8 record(s) depend on it
+    facet estimator.conditional: matches; 14 record(s) depend on it
+    facet estimator.count_fitted_posterior: matches; 14 record(s) depend on it
+    facet estimator.counterfactual_transport: matches; 3 record(s) depend on it
+    facet estimator.dependent_temporal_interval: matches; 5 record(s) depend on it
+    facet estimator.discovered_transport: DRIFTED, 2 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/src/analysis/discovered_transport_estimate.rs
+      crates/antecedent/src/analysis/discovered_transport_temporal.rs
+    facet estimator.discrete_ci: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-stats/src/ci/sparse_discrete.rs
+    facet estimator.distance_matching: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/src/propensity/distance.rs
+    facet estimator.evidence_synthesis: DRIFTED, 3 path(s) changed; 11 record(s) depend on it
+      crates/antecedent-io-core/src/evidence_ledger_artifact.rs
+      crates/antecedent-stats/src/synthesis.rs
+      crates/antecedent/src/analysis/evidence_ledger.rs
+    facet estimator.exact_transport: DRIFTED, 1 path(s) changed; 122 record(s) depend on it
+      crates/antecedent-expr/src/exact_plan.rs
+    facet estimator.frontdoor: matches; 5 record(s) depend on it
+    facet estimator.functional: matches; 58 record(s) depend on it
+    facet estimator.glm: matches; 7 record(s) depend on it
+    facet estimator.interference: matches; 4 record(s) depend on it
+    facet estimator.iv: matches; 3 record(s) depend on it
+    facet estimator.joint_bayesian_transport: matches; 4 record(s) depend on it
+    facet estimator.knn_distance_matching: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/src/propensity/knn.rs
+    facet estimator.learned_joint_transport: matches; 4 record(s) depend on it
+    facet estimator.learner: DRIFTED, 2 path(s) changed; 4 record(s) depend on it
+      crates/antecedent-estimate/src/dml.rs
+      crates/antecedent-estimate/src/dr.rs
+    facet estimator.linear_adjustment: matches; 29 record(s) depend on it
+    facet estimator.mediation: matches; 15 record(s) depend on it
+    facet estimator.multi_level_aipw: matches; 1 record(s) depend on it
+    facet estimator.nested_markov: matches; 12 record(s) depend on it
+    facet estimator.pcmci_plus: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-discovery/src/pcmci_plus.rs
+    facet estimator.population_linear_aipw: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/src/population_aipw.rs
+    facet estimator.population_linear_atc: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/src/population_atc.rs
+    facet estimator.predictive_score_interval: matches; 19 record(s) depend on it
+    facet estimator.propensity_matching: DRIFTED, 1 path(s) changed; 5 record(s) depend on it
+      crates/antecedent-estimate/src/propensity/matching.rs
+    facet estimator.propensity_stratification: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/src/propensity/stratification.rs
+    facet estimator.propensity_weighting: DRIFTED, 1 path(s) changed; 4 record(s) depend on it
+      crates/antecedent-estimate/src/propensity/weighting.rs
+    facet estimator.quadratic_dose: matches; 3 record(s) depend on it
+    facet estimator.rd: matches; 3 record(s) depend on it
+    facet estimator.response: DRIFTED, 2 path(s) changed; 64 record(s) depend on it
+      crates/antecedent-estimate/src/response/mod.rs
+      crates/antecedent-estimate/src/response/plugin.rs
+    facet estimator.response_levels: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/src/response/curve.rs
+    facet estimator.sample_split_effect: matches; 4 record(s) depend on it
+    facet estimator.sampled_recovery: matches; 1 record(s) depend on it
+    facet estimator.split_parent_set_effect: DRIFTED, 2 path(s) changed; 10 record(s) depend on it
+      crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs
+      crates/antecedent/src/analysis/sample_split_parent_set_effect.rs
+    facet estimator.temporal_adjustment: matches; 89 record(s) depend on it
+    facet estimator.temporal_mediation: matches; 66 record(s) depend on it
+    facet estimator.temporal_response: matches; 127 record(s) depend on it
+    facet estimator.temporal_sequential: matches; 57 record(s) depend on it
+    facet estimator.transport: matches; 16 record(s) depend on it
+    facet estimator.transport_empirical: matches; 8 record(s) depend on it
+    facet estimator.transport_joint_sensitivity: matches; 2 record(s) depend on it
+    facet estimator.transport_learned: matches; 2 record(s) depend on it
+    facet estimator.transport_smoothed_dose: matches; 2 record(s) depend on it
+    facet estimator.transport_trial_compatibility: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/src/analysis/discovered_transport_trial.rs
+    facet identity.backdoor: matches; 134 record(s) depend on it
+    facet identity.catalog_transport: DRIFTED, 1 path(s) changed; 32 record(s) depend on it
+      crates/antecedent-identify/src/sid/catalog.rs
+    facet identity.envelope: matches; 198 record(s) depend on it
+    facet identity.frontdoor: matches; 5 record(s) depend on it
+    facet identity.iv: matches; 3 record(s) depend on it
+    facet identity.path: matches; 12 record(s) depend on it
+    facet identity.rd: matches; 3 record(s) depend on it
+    facet identity.response: matches; 285 record(s) depend on it
+    facet identity.temporal: matches; 222 record(s) depend on it
+    facet identity.temporal_mediation: matches; 144 record(s) depend on it
+    facet identity.tiered: matches; 4 record(s) depend on it
+    facet identity.transport_selection: DRIFTED, 1 path(s) changed; 51 record(s) depend on it
+      crates/antecedent-identify/src/selection_separation.rs
+    facet joint_law_composed: matches; 6 record(s) depend on it
+    facet mechanism: matches; 19 record(s) depend on it
+    facet suite.adaptive_procedure_prior_predictive_calibration: matches; 3 record(s) depend on it
+    facet suite.batch_retarget_calibration: matches; 1 record(s) depend on it
+    facet suite.bayesian_temporal: matches; 128 record(s) depend on it
+    facet suite.calibration_admg: matches; 10 record(s) depend on it
+    facet suite.calibration_anomaly_bayesian: matches; 2 record(s) depend on it
+    facet suite.calibration_attribution_bayesian: matches; 2 record(s) depend on it
+    facet suite.calibration_backlog: matches; 64 record(s) depend on it
+    facet suite.calibration_bayesian_static: matches; 66 record(s) depend on it
+    facet suite.calibration_counterfactual: matches; 8 record(s) depend on it
+    facet suite.calibration_coverage: matches; 34 record(s) depend on it
+    facet suite.calibration_design: matches; 4 record(s) depend on it
+    facet suite.calibration_design_bayesian: matches; 4 record(s) depend on it
+    facet suite.calibration_distribution_admg: matches; 4 record(s) depend on it
+    facet suite.calibration_estimate: matches; 6 record(s) depend on it
+    facet suite.calibration_posterior_draws: DRIFTED, 1 path(s) changed; 3 record(s) depend on it
+      crates/antecedent/tests/calibration_posterior_draws.rs
+    facet suite.calibration_response: DRIFTED, 1 path(s) changed; 12 record(s) depend on it
+      crates/antecedent/tests/calibration_response.rs
+    facet suite.calibration_temporal: matches; 16 record(s) depend on it
+    facet suite.calibration_temporal_class: matches; 16 record(s) depend on it
+    facet suite.class_posterior_calibration: matches; 2 record(s) depend on it
+    facet suite.cluster_dml_calibration: matches; 1 record(s) depend on it
+    facet suite.cohort_linear_effect_calibration: matches; 8 record(s) depend on it
+    facet suite.count_fitted_posterior_calibration: matches; 14 record(s) depend on it
+    facet suite.counterfactual_transport_sampled_oracle: matches; 3 record(s) depend on it
+    facet suite.cross_world_interval_calibration: matches; 3 record(s) depend on it
+    facet suite.decision_reliability_interval_calibration: DRIFTED, 1 path(s) changed; 177 record(s) depend on it
+      crates/antecedent-design/tests/decision_reliability_interval_calibration.rs
+    facet suite.derivative_calibration: matches; 42 record(s) depend on it
+    facet suite.discovered_transport_calibration: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/discovered_transport_calibration.rs
+    facet suite.evidence_ledger_facade_oracle: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/evidence_ledger_facade.rs
+    facet suite.evidence_synthesis_calibration: DRIFTED, 1 path(s) changed; 11 record(s) depend on it
+      crates/antecedent/tests/evidence_synthesis_calibration.rs
+    facet suite.joint_bayesian_transport_calibration: matches; 4 record(s) depend on it
+    facet suite.joint_law_composed_interval_calibration: matches; 6 record(s) depend on it
+    facet suite.joint_sensitivity_calibration: matches; 2 record(s) depend on it
+    facet suite.knn_matching_calibration: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/tests/knn_matching_calibration.rs
+    facet suite.learned_continuous_calibration: matches; 2 record(s) depend on it
+    facet suite.learned_joint_calibration: matches; 4 record(s) depend on it
+    facet suite.missing_outcome_calibration: matches; 2 record(s) depend on it
+    facet suite.mixture_interval_calibration: matches; 67 record(s) depend on it
+    facet suite.multilevel_interval_calibration: matches; 1 record(s) depend on it
+    facet suite.mz_transport_calibration: matches; 2 record(s) depend on it
+    facet suite.nested_markov_bayesian_calibration: matches; 6 record(s) depend on it
+    facet suite.nested_markov_fisher_calibration: matches; 6 record(s) depend on it
+    facet suite.panel_calibration: matches; 6 record(s) depend on it
+    facet suite.practitioner_scale_calibration: matches; 36 record(s) depend on it
+    facet suite.predictive_score_interval_calibration: matches; 19 record(s) depend on it
+    facet suite.quadratic_dose_calibration: matches; 3 record(s) depend on it
+    facet suite.randomized_interval_calibration: matches; 7 record(s) depend on it
+    facet suite.recovery_whole_method_calibration: matches; 1 record(s) depend on it
+    facet suite.sample_split_analysis_facade_oracle: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/sample_split_analysis_facade.rs
+    facet suite.sample_split_effect_calibration: matches; 4 record(s) depend on it
+    facet suite.sample_split_parent_set_effect_calibration: DRIFTED, 1 path(s) changed; 10 record(s) depend on it
+      crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs
+    facet suite.sample_split_parent_set_effect_facade_oracle: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/sample_split_parent_set_effect_facade.rs
+    facet suite.sample_split_weighted_effect_calibration: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/sample_split_weighted_effect_calibration.rs
+    facet suite.scientific_bridge_interval_calibration: matches; 4 record(s) depend on it
+    facet suite.smoothed_dose_calibration: matches; 2 record(s) depend on it
+    facet suite.static_calibration: matches; 43 record(s) depend on it
+    facet suite.static_envelope_calibration: matches; 42 record(s) depend on it
+    facet suite.static_mixture_calibration: matches; 8 record(s) depend on it
+    facet suite.temporal_class_calibration: matches; 38 record(s) depend on it
+    facet suite.temporal_frequentist: matches; 84 record(s) depend on it
+    facet suite.temporal_recalc_calibration: matches; 4 record(s) depend on it
+    facet suite.temporal_response_calibration: matches; 108 record(s) depend on it
+    facet suite.temporal_unit_calibration: matches; 1 record(s) depend on it
+    facet suite.transport_statistical_calibration: matches; 4 record(s) depend on it
+    facet suite.weighted_interval_calibration: DRIFTED, 1 path(s) changed; 8 record(s) depend on it
+      crates/antecedent/tests/weighted_interval_calibration.rs
+    attested_by_replay (waiver unchanged-defaults-and-legacy-synthesis-from-c30): 1220 record(s)
+    attested_by_replay (waiver unchanged-design-artifacts-from-c30-c9659b468): 177 record(s)
+  measured at da811c715e4d1961ca0cba7356467e34f2ec25e1: 1 record(s)
+    facet core: DRIFTED, 8 path(s) changed; 1 record(s) depend on it
+      Cargo.toml
+      crates/antecedent-identify/src/lib.rs
+      crates/antecedent-identify/src/sid.rs
+      crates/antecedent-io-core/src/cohort_decision.rs
+      crates/antecedent-stats/src/ci/calibration.rs
+      crates/antecedent-validate/src/sensitivity.rs
+      crates/antecedent/tests/common/calibration_decision.rs
+      scripts/gate_calibration.sh
+    facet design: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-design/src/decision_reliability/artifact.rs
+    facet estimator.discovered_transport: DRIFTED, 2 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/src/analysis/discovered_transport_estimate.rs
+      crates/antecedent/src/analysis/discovered_transport_temporal.rs
+    facet estimator.evidence_synthesis: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/src/analysis/evidence_ledger.rs
+    facet estimator.linear_adjustment: matches; 1 record(s) depend on it
+    facet estimator.response: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/src/response/plugin.rs
+    facet estimator.transport_trial_compatibility: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/src/analysis/discovered_transport_trial.rs
+    facet identity.backdoor: matches; 1 record(s) depend on it
+    facet identity.catalog_transport: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-identify/src/sid/catalog.rs
+    facet identity.envelope: matches; 1 record(s) depend on it
+    facet identity.transport_selection: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-identify/src/selection_separation.rs
+    facet suite.decision_reliability_interval_calibration: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-design/tests/decision_reliability_interval_calibration.rs
+    facet suite.discovered_transport_calibration: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/discovered_transport_calibration.rs
+    facet suite.evidence_ledger_facade_oracle: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/evidence_ledger_facade.rs
+    facet suite.sample_split_weighted_effect_calibration: matches; 1 record(s) depend on it
+    attested_by_replay (waiver unchanged-weighted-hc3-from-da811): 1 record(s)
+  measured at e15c4b0c33daf638d11f64b6a7fff6e3bc216022: 112 record(s)
+    facet core: DRIFTED, 15 path(s) changed; 112 record(s) depend on it
+      Cargo.toml
+      crates/antecedent-discovery/src/selective/contract.rs
+      crates/antecedent-estimate/src/lib.rs
+      crates/antecedent-estimate/src/propensity/mod.rs
+      crates/antecedent-identify/src/lib.rs
+      crates/antecedent-identify/src/sid.rs
+      crates/antecedent-io-core/src/cohort_decision.rs
+      crates/antecedent-stats/src/ci/calibration.rs
+      crates/antecedent-validate/src/sensitivity.rs
+      crates/antecedent/src/analysis/contract.rs
+      crates/antecedent/src/analysis/mod.rs
+      crates/antecedent/src/analysis/sample_split_analysis.rs
+      ... and 3 more
+    facet design: DRIFTED, 1 path(s) changed; 12 record(s) depend on it
+      crates/antecedent-design/src/decision_reliability/artifact.rs
+    facet estimator.aipw: DRIFTED, 1 path(s) changed; 1 record(s) depend on it
+      crates/antecedent-estimate/src/aipw.rs
+    facet estimator.bayesian: matches; 11 record(s) depend on it
+    facet estimator.discovered_transport: DRIFTED, 2 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/src/analysis/discovered_transport_estimate.rs
+      crates/antecedent/src/analysis/discovered_transport_temporal.rs
+    facet estimator.distance_matching: matches; 4 record(s) depend on it
+    facet estimator.evidence_synthesis: DRIFTED, 3 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-io-core/src/evidence_ledger_artifact.rs
+      crates/antecedent-stats/src/synthesis.rs
+      crates/antecedent/src/analysis/evidence_ledger.rs
+    facet estimator.exact_transport: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-expr/src/exact_plan.rs
+    facet estimator.knn_distance_matching: matches; 3 record(s) depend on it
+    facet estimator.learner: DRIFTED, 2 path(s) changed; 2 record(s) depend on it
+      crates/antecedent-estimate/src/dml.rs
+      crates/antecedent-estimate/src/dr.rs
+    facet estimator.linear_adjustment: matches; 1 record(s) depend on it
+    facet estimator.pcmci_plus: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-discovery/src/pcmci_plus.rs
+    facet estimator.population_linear_aipw: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/src/population_aipw.rs
+    facet estimator.population_linear_atc: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/src/population_atc.rs
+    facet estimator.propensity_matching: matches; 5 record(s) depend on it
+    facet estimator.propensity_weighting: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-estimate/src/propensity/weighting.rs
+    facet estimator.response: DRIFTED, 1 path(s) changed; 54 record(s) depend on it
+      crates/antecedent-estimate/src/response/plugin.rs
+    facet estimator.response_levels: matches; 54 record(s) depend on it
+    facet estimator.split_parent_set_effect: matches; 23 record(s) depend on it
+    facet estimator.transport_trial_compatibility: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/src/analysis/discovered_transport_trial.rs
+    facet identity.backdoor: matches; 5 record(s) depend on it
+    facet identity.catalog_transport: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-identify/src/sid/catalog.rs
+    facet identity.envelope: matches; 61 record(s) depend on it
+    facet identity.response: matches; 64 record(s) depend on it
+    facet identity.transport_selection: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent-identify/src/selection_separation.rs
+    facet suite.calibration_backlog: matches; 12 record(s) depend on it
+    facet suite.calibration_posterior_draws: matches; 1 record(s) depend on it
+    facet suite.calibration_response: matches; 26 record(s) depend on it
+    facet suite.decision_reliability_interval_calibration: DRIFTED, 1 path(s) changed; 12 record(s) depend on it
+      crates/antecedent-design/tests/decision_reliability_interval_calibration.rs
+    facet suite.discovered_transport_calibration: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/discovered_transport_calibration.rs
+    facet suite.evidence_ledger_facade_oracle: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/evidence_ledger_facade.rs
+    facet suite.evidence_synthesis_calibration: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/evidence_synthesis_calibration.rs
+    facet suite.knn_matching_calibration: matches; 3 record(s) depend on it
+    facet suite.sample_split_analysis_facade_oracle: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/sample_split_analysis_facade.rs
+    facet suite.sample_split_parent_set_effect_calibration: DRIFTED, 1 path(s) changed; 23 record(s) depend on it
+      crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs
+    facet suite.sample_split_parent_set_effect_facade_oracle: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/sample_split_parent_set_effect_facade.rs
+    facet suite.sample_split_weighted_effect_calibration: DRIFTED, 1 path(s) changed; 0 record(s) depend on it
+      crates/antecedent/tests/sample_split_weighted_effect_calibration.rs
+    facet suite.static_calibration: matches; 26 record(s) depend on it
+    facet suite.weighted_interval_calibration: DRIFTED, 1 path(s) changed; 6 record(s) depend on it
+      crates/antecedent/tests/weighted_interval_calibration.rs
+    attested_by_replay (waiver unchanged-defaults-and-legacy-normal-clusters-from-e15): 100 record(s)
+    attested_by_replay (waiver unchanged-design-artifacts-from-e15-c9659b468): 12 record(s)
+attested and matching: 0 record(s)
+attested_by_replay: 1656 record(s) under waiver(s) unchanged-defaults-and-legacy-normal-clusters-from-e15, unchanged-defaults-and-legacy-synthesis-from-c30, unchanged-design-artifacts-from-70-c9659b468, unchanged-design-artifacts-from-c30-c9659b468, unchanged-design-artifacts-from-e15-c9659b468, unchanged-pag-confidence-set-through-temporal-descriptor-correction, unchanged-validated-procedures-from-70, unchanged-weighted-hc3-from-da811 (their surface changed only in paths a reviewed waiver names, and its replay reproduced the stored records bit for bit)
+ATTESTED: 0 record(s) attested and matching their calibration_sha; attested_by_replay: 1656 record(s) under waiver(s) unchanged-defaults-and-legacy-normal-clusters-from-e15, unchanged-defaults-and-legacy-synthesis-from-c30, unchanged-design-artifacts-from-70-c9659b468, unchanged-design-artifacts-from-c30-c9659b468, unchanged-design-artifacts-from-e15-c9659b468, unchanged-pag-confidence-set-through-temporal-descriptor-correction, unchanged-validated-procedures-from-70, unchanged-weighted-hc3-from-da811; no re-measurement is owed.
+STRICT PASS1472 typed +184 gate rows
+Snapshot refreshed: only attesting_record_ids changed; 1472 attesting

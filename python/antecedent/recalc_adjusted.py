@@ -20,7 +20,7 @@ from typing import Any, Literal
 from numpy.typing import ArrayLike
 
 from . import _native
-from ._recalc_bounds import MAX_COLUMNS, MAX_ROWS, MAX_VALUES, _columns
+from ._recalc_bounds import _admit, _check_resources, _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .recalc import (
@@ -232,7 +232,11 @@ class AdjustedSession:
         return None if columns is None else tuple(columns)
 
     def predict(
-        self, rows: Sequence[Sequence[float]], *, columns: Sequence[str]
+        self,
+        rows: Sequence[Sequence[float]],
+        *,
+        columns: Sequence[str],
+        memory_limit_bytes: int | None = None,
     ) -> AdjustedPrediction:
         """Predict rows in native adjustment-then-treatment design order.
 
@@ -241,20 +245,15 @@ class AdjustedSession:
         incompatible schemas, unsupported actions and absent retained state.
         Values are fitted conditional means, with no prediction intervals.
         """
-        if (
-            len(rows) > MAX_ROWS
-            or len(columns) > MAX_COLUMNS
-            or sum(len(row) for row in rows) > MAX_VALUES
-        ):
-            raise CausalValueError(
-                "recalc.limits_exceeded: adjusted predictions exceed size limits",
-                reason_code="invalid_argument",
-            )
+        _check_resources(memory_limit_bytes, None)
+        _admit(sum(len(row) for row in rows), memory_limit_bytes)
         try:
             features = [[float(value) for value in row] for row in rows]
         except (TypeError, ValueError) as error:
             raise CausalValueError("prediction rows must contain numeric features") from error
-        report, refusal = self._handle.predict(features, list(columns))
+        report, refusal = self._handle.predict(
+            features, list(columns), memory_limit_bytes=memory_limit_bytes
+        )
         raise_refusal(refusal, _refusal_type)
         if report is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("adjusted prediction returned no result")
@@ -262,30 +261,54 @@ class AdjustedSession:
         return AdjustedPrediction(tuple(wire["values"]), wire["model_fits"])
 
     def plan(
-        self, request: AdjustedRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: AdjustedRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcPlan:
         """Inspect the shared stage plan without fitting or predicting."""
-        names, columns = _columns(request.data)
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         wire = self._handle.plan(
             names,
             columns,
             json.dumps(_spec(request)),
             seed=_seed(seed),
             threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
         )
         return RecalcPlan.from_wire(json.loads(wire))
 
     def execute(
-        self, request: AdjustedRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: AdjustedRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcResult:
-        """Run invalidated stages and return the shared law, decision and sealed receipt."""
-        names, columns = _columns(request.data)
+        """Run invalidated stages and return the shared law, decision and sealed receipt.
+
+        ``memory_limit_bytes`` bounds the input copies and the fit's planned working set,
+        and ``cancel`` stops the run; both refuse with ``recalc.*`` details.
+        """
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         result, artifact, refusal = self._handle.execute(
             names,
             columns,
             json.dumps(_spec(request)),
             seed=_seed(seed),
             threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
         )
         raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - native invariant

@@ -398,6 +398,9 @@ pub(super) struct FittedHorizon {
     /// is not positive definite). The Gram depends on the horizon's design only, so it is
     /// factored once here and every cell's influence series solves against this copy.
     pub(super) gram_chol: Option<Vec<f64>>,
+    /// The intact lag windows when the series has missing time points (the design's rows are
+    /// those windows in time order).
+    pub(super) selection: Option<crate::GapSelection>,
 }
 
 impl FittedHorizon {
@@ -419,6 +422,7 @@ impl FittedHorizon {
             column_means,
             residuals: fit.residuals,
             gram_chol,
+            selection: None,
         })
     }
 
@@ -502,6 +506,25 @@ pub(super) fn horizon_rows(horizons: &[FittedHorizon], series_rows: usize) -> Ve
         .map(|fitted| {
             let rows = fitted.prepared.design.nrows;
             AlignedRows { first_time: series_rows.saturating_sub(rows), rows }
+        })
+        .collect()
+}
+
+/// Each horizon's windows on the series time axis with their intactness, for the gap-aware
+/// bootstrap: a horizon without gaps is all intact over its contiguous `rows`.
+pub(super) fn gapped_horizon_rows(
+    horizons: &[FittedHorizon],
+    rows: &[AlignedRows],
+) -> Vec<crate::temporal_block::GappedAlignedRows> {
+    horizons
+        .iter()
+        .zip(rows)
+        .map(|(fitted, contiguous)| match &fitted.selection {
+            Some(selection) => crate::temporal_block::GappedAlignedRows {
+                first_time: selection.first_time,
+                complete: selection.complete.clone(),
+            },
+            None => crate::temporal_block::GappedAlignedRows::contiguous(*contiguous),
         })
         .collect()
 }

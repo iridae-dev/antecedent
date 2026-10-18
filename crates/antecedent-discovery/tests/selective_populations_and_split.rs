@@ -12,8 +12,10 @@
 //! * **Split.** Row sets are recomputed by hand from an explicit rule; the parts' values are
 //!   read back from the original column; forged receipts are refused by name.
 
+use std::sync::Arc;
+
 use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_data::{TableView, TabularData};
+use antecedent_data::{OwnedColumnarStorage, TableView, TabularData, ValidityBitmap};
 use antecedent_discovery::selective::populations::{PerPopulationDiscovery, PopulationRows};
 use antecedent_discovery::selective::reuse::{SplitRule, split_rows};
 use antecedent_discovery::selective::{
@@ -433,5 +435,297 @@ fn split_refuses_rules_that_cannot_assign_both_parts() {
     assert_eq!(
         detail(SplitRule::Explicit { discovery_rows: (0..20).collect() }),
         Some("selective_discovery.split_part_empty")
+    );
+}
+
+// -- masks, incomplete rows and weights --------------------------------------------------------
+
+/// `data` with the given observation weights and analysis mask (`mask[i]` keeps row `i`).
+fn with_rows(data: &TabularData, weights: Option<Vec<f64>>, mask: Option<&[bool]>) -> TabularData {
+    let storage = data.storage();
+    let mask = mask.map(|keep| {
+        let mut bytes = vec![0u8; keep.len().div_ceil(8)];
+        for (i, kept) in keep.iter().enumerate() {
+            if *kept {
+                bytes[i / 8] |= 1 << (i % 8);
+            }
+        }
+        ValidityBitmap::from_bytes(bytes, keep.len()).unwrap()
+    });
+    TabularData::new(
+        OwnedColumnarStorage::try_new(
+            storage.schema().clone(),
+            storage.columns().to_vec(),
+            mask,
+            weights.map(Arc::from),
+        )
+        .unwrap(),
+    )
+}
+
+/// The table with `value` written over cell `(row, column)`.
+fn with_cell(data: &TabularData, column_index: u32, row: usize, value: f64) -> TabularData {
+    let mut columns: Vec<Vec<f64>> = (0..4).map(|i| column(data, i)).collect();
+    columns[column_index as usize][row] = value;
+    TabularData::from_f64_columns([
+        ("a", columns[0].as_slice()),
+        ("b", columns[1].as_slice()),
+        ("c", columns[2].as_slice()),
+        ("d", columns[3].as_slice()),
+    ])
+    .unwrap()
+}
+
+#[test]
+fn masked_and_incomplete_rows_are_excluded_before_the_split_and_recorded() {
+    let base = collider_table(40, 21, 0.9);
+    // Row 10 and 11 miss a value in a searched variable; row 5 does too but is also masked out.
+    let incomplete =
+        with_cell(&with_cell(&with_cell(&base, 1, 10, f64::NAN), 2, 11, f64::NAN), 0, 5, f64::NAN);
+    let mut keep = vec![true; 40];
+    for row in [0, 5, 6] {
+        keep[row] = false;
+    }
+    let data = with_rows(&incomplete, None, Some(&keep));
+    let split = split_rows(
+        &data,
+        &vars(),
+        SplitRule::SeededPermutation { seed: 4, discovery_fraction: 0.4 },
+    )
+    .unwrap();
+    let receipt = &split.receipt;
+
+    // The mask is applied first, so row 5 is a masked-out row, not an incomplete one.
+    assert_eq!(receipt.masked_out_rows, vec![0, 5, 6]);
+    assert_eq!(receipt.incomplete_rows, vec![10, 11]);
+    // 40 - 5 = 35 eligible rows; round(0.4 * 35) = 14.
+    assert_eq!((receipt.n_discovery, receipt.n_analysis), (14, 21));
+    assert!(receipt.mask_identity.is_some());
+    assert!(receipt.weights.is_none());
+
+    // Original row identities: ascending, disjoint, covering exactly the eligible rows.
+    let eligible: Vec<usize> = (0..40).filter(|r| ![0, 5, 6, 10, 11].contains(r)).collect();
+    let mut union: Vec<usize> =
+        split.discovery_row_ids.iter().chain(split.analysis_row_ids.iter()).copied().collect();
+    union.sort_unstable();
+    assert_eq!(union, eligible);
+    assert!(split.discovery_row_ids.windows(2).all(|w| w[0] < w[1]));
+    assert!(split.analysis_row_ids.windows(2).all(|w| w[0] < w[1]));
+    assert_eq!(
+        receipt.assigned_rows().unwrap(),
+        (split.discovery_row_ids.clone(), split.analysis_row_ids.clone())
+    );
+
+    // Values come from the original rows, read back by hand.
+    for index in 0..4 {
+        let whole = column(&incomplete, index);
+        let expected: Vec<f64> = split.analysis_row_ids.iter().map(|&r| whole[r]).collect();
+        assert_eq!(column(&split.analysis, index), expected, "column {index}");
+    }
+    split.verify(&vars()).unwrap();
+    receipt.verify_against_source(&data, &vars()).unwrap();
+}
+
+#[test]
+fn an_explicit_rule_may_not_name_an_excluded_row() {
+    let mut keep = vec![true; 20];
+    keep[3] = false;
+    let data = with_rows(&collider_table(20, 22, 0.9), None, Some(&keep));
+    let refused =
+        split_rows(&data, &vars(), SplitRule::Explicit { discovery_rows: vec![3, 4] }).unwrap_err();
+    assert_eq!(refused.detail(), Some("selective_discovery.split_row_excluded"));
+    let split =
+        split_rows(&data, &vars(), SplitRule::Explicit { discovery_rows: vec![4, 5] }).unwrap();
+    assert_eq!(split.discovery_row_ids, vec![4, 5]);
+    assert_eq!(split.analysis_row_ids.len(), 17);
+    assert!(!split.analysis_row_ids.contains(&3));
+}
+
+#[test]
+fn weights_are_carried_by_gather_unnormalized_with_zero_and_unequal_weights() {
+    // Six rows, weights 1, 2, 3, 4, 0, 2. Discovery takes rows 4 and 5, analysis rows 0..4.
+    let weights = vec![1.0, 2.0, 3.0, 4.0, 0.0, 2.0];
+    let data = with_rows(&collider_table(6, 23, 0.9), Some(weights.clone()), None);
+    let split =
+        split_rows(&data, &vars(), SplitRule::Explicit { discovery_rows: vec![4, 5] }).unwrap();
+
+    // Bit-for-bit gather, no rescaling: neither part sums to one.
+    assert_eq!(split.analysis_weights(), Some(&[1.0, 2.0, 3.0, 4.0][..]));
+    assert_eq!(split.discovery_weights(), Some(&[0.0, 2.0][..]));
+
+    // Kish effective sizes by hand: (1+2+3+4)^2 / (1+4+9+16) = 100/30; (0+2)^2 / (0+4) = 1.
+    let recorded = split.receipt.weights.as_ref().unwrap();
+    assert!((recorded.analysis_effective_sample_size - 100.0 / 30.0).abs() < 1e-12);
+    assert!((recorded.discovery_effective_sample_size - 1.0).abs() < 1e-12);
+    assert!((split.analysis_effective_sample_size().unwrap() - 100.0 / 30.0).abs() < 1e-12);
+    assert_ne!(recorded.source, recorded.analysis);
+    assert_ne!(recorded.analysis, recorded.discovery);
+    split.verify(&vars()).unwrap();
+    split.receipt.verify_against_source(&data, &vars()).unwrap();
+
+    // The receipt of an unweighted split of the same values differs.
+    let plain = split_rows(
+        &collider_table(6, 23, 0.9),
+        &vars(),
+        SplitRule::Explicit { discovery_rows: vec![4, 5] },
+    )
+    .unwrap();
+    assert_ne!(plain.receipt.identity, split.receipt.identity);
+    assert!(plain.receipt.weights.is_none());
+}
+
+#[test]
+fn a_part_without_positive_weight_is_refused() {
+    let weights = vec![1.0, 1.0, 1.0, 1.0, 0.0, 0.0];
+    let data = with_rows(&collider_table(6, 24, 0.9), Some(weights), None);
+    let error =
+        split_rows(&data, &vars(), SplitRule::Explicit { discovery_rows: vec![4, 5] }).unwrap_err();
+    assert_eq!(error.detail(), Some("selective_discovery.split_part_weight_invalid"));
+}
+
+#[test]
+fn replay_and_verify_detect_tampering_with_the_mask_weights_and_row_ids() {
+    let n = 30;
+    let base = collider_table(n, 25, 0.9);
+    let mut keep = vec![true; n];
+    keep[2] = false;
+    let weights: Vec<f64> = (0..n).map(|i| 1.0 + (i % 5) as f64).collect();
+    let data = with_rows(&base, Some(weights.clone()), Some(&keep));
+    let rule = SplitRule::SeededPermutation { seed: 6, discovery_fraction: 0.5 };
+    let split = split_rows(&data, &vars(), rule).unwrap();
+    split.verify(&vars()).unwrap();
+    split.receipt.verify_against_source(&data, &vars()).unwrap();
+
+    // -- the source: a different mask, different weights, a changed value --
+    let mut other_keep = keep.clone();
+    other_keep[7] = false;
+    let other_mask = with_rows(&base, Some(weights.clone()), Some(&other_keep));
+    assert_eq!(
+        split.receipt.verify_against_source(&other_mask, &vars()).unwrap_err().detail(),
+        Some("selective_discovery.split_mask_mismatch")
+    );
+    let no_mask = with_rows(&base, Some(weights.clone()), None);
+    assert_eq!(
+        split.receipt.verify_against_source(&no_mask, &vars()).unwrap_err().detail(),
+        Some("selective_discovery.split_mask_mismatch")
+    );
+    let mut other_weights = weights.clone();
+    other_weights[4] += 0.5;
+    let reweighted = with_rows(&base, Some(other_weights), Some(&keep));
+    assert_eq!(
+        split.receipt.verify_against_source(&reweighted, &vars()).unwrap_err().detail(),
+        Some("selective_discovery.split_weights_mismatch")
+    );
+    let no_weights = with_rows(&base, None, Some(&keep));
+    assert_eq!(
+        split.receipt.verify_against_source(&no_weights, &vars()).unwrap_err().detail(),
+        Some("selective_discovery.split_weights_mismatch")
+    );
+    let edited = with_rows(&with_cell(&base, 2, 9, 123.0), Some(weights.clone()), Some(&keep));
+    assert_eq!(
+        split.receipt.verify_against_source(&edited, &vars()).unwrap_err().detail(),
+        Some("selective_discovery.split_source_mismatch")
+    );
+
+    // -- the parts: row ids and weights --
+    let mismatch = Some("selective_discovery.split_rows_mismatch");
+    let mut moved = split.clone();
+    moved.analysis_row_ids[0] += 1;
+    assert_eq!(moved.verify(&vars()).unwrap_err().detail(), mismatch);
+    let mut swapped = split.clone();
+    swapped.discovery_row_ids.swap(0, 1);
+    assert_eq!(swapped.verify(&vars()).unwrap_err().detail(), mismatch);
+
+    let mut tampered = split.clone();
+    let rows = tampered.analysis.row_count();
+    // The part keeps its all-included mask; only its weights are other than the recorded ones.
+    tampered.analysis = with_rows(&split.analysis, Some(vec![1.0; rows]), Some(&vec![true; rows]));
+    assert_eq!(
+        tampered.verify(&vars()).unwrap_err().detail(),
+        Some("selective_discovery.split_weights_mismatch")
+    );
+
+    // -- the receipt: exclusions, mask identity, weights --
+    let receipt_mismatch = Some("selective_discovery.split_receipt_mismatch");
+    let mut unexcluded = split.receipt.clone();
+    unexcluded.masked_out_rows.clear();
+    assert_eq!(unexcluded.verify().unwrap_err().detail(), receipt_mismatch);
+    let mut forged_mask = split.receipt.clone();
+    forged_mask.mask_identity = None;
+    assert_eq!(forged_mask.verify().unwrap_err().detail(), receipt_mismatch);
+    let mut forged_weights = split.receipt.clone();
+    forged_weights.weights.as_mut().unwrap().analysis_effective_sample_size += 1.0;
+    assert_eq!(forged_weights.verify().unwrap_err().detail(), receipt_mismatch);
+    let mut dropped_weights = split.receipt.clone();
+    dropped_weights.weights = None;
+    assert_eq!(dropped_weights.verify().unwrap_err().detail(), receipt_mismatch);
+    let mut source = split.receipt.clone();
+    source.source_data.digest[0] ^= 1;
+    assert_eq!(source.verify().unwrap_err().detail(), receipt_mismatch);
+
+    // -- an analysis table with the right values but other weights is other rows --
+    let same_values = with_rows(&split.analysis, Some(vec![2.0; rows]), None);
+    assert_eq!(
+        split.receipt.check_analysis_table(&same_values, &vars()).unwrap_err().detail(),
+        Some("selective_discovery.analysis_rows_not_the_split_part")
+    );
+}
+
+/// A weighted, masked, incomplete split with background knowledge, built from exact values
+/// (no transcendental functions), pinned so that a change to the new identity encodings is a
+/// deliberate act. The encodings of tables without these inputs are the pre-existing ones.
+fn pinned_split() -> antecedent_discovery::selective::reuse::SplitRows {
+    let a: Vec<f64> = (0..12).map(|i| f64::from(i) * 0.5).collect();
+    let b: Vec<f64> = (0..12).map(|i| f64::from((i * 7) % 5)).collect();
+    let mut c: Vec<f64> = (0..12).map(|i| f64::from(i * i % 7)).collect();
+    c[3] = f64::NAN;
+    let base = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("c", c.as_slice()),
+    ])
+    .unwrap();
+    let mut keep = vec![true; 12];
+    keep[0] = false;
+    let weights: Vec<f64> = (0..12).map(|i| f64::from(i % 3) + 0.5).collect();
+    let data = with_rows(&base, Some(weights), Some(&keep));
+    split_rows(
+        &data,
+        &[VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)],
+        SplitRule::Explicit { discovery_rows: vec![1, 2, 5, 8, 9] },
+    )
+    .unwrap()
+}
+
+#[test]
+fn the_weighted_masked_split_and_its_knowledge_have_pinned_identities() {
+    use antecedent_discovery::constraints::BackgroundKnowledge;
+    use antecedent_discovery::result::LaggedLink;
+    use antecedent_discovery::selective::digest_hex;
+
+    let split = pinned_split();
+    assert_eq!(split.receipt.masked_out_rows, vec![0]);
+    assert_eq!(split.receipt.incomplete_rows, vec![3]);
+    split
+        .verify(&[VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)])
+        .unwrap();
+    assert_eq!(
+        digest_hex(&split.receipt.identity),
+        "41c49979fad2542bc2c55210ffd340a5c6f954b183a60140d11fca9cb5265423"
+    );
+    let link = LaggedLink {
+        source: VariableId::from_raw(0),
+        source_lag: antecedent_core::Lag::CONTEMPORANEOUS,
+        target: VariableId::from_raw(1),
+        target_lag: antecedent_core::Lag::CONTEMPORANEOUS,
+    };
+    let knowledge = BackgroundKnowledge {
+        required: Arc::from([link]),
+        max_parents: Some(2),
+        ..BackgroundKnowledge::default()
+    };
+    assert_eq!(
+        digest_hex(&knowledge.identity()),
+        "eb4920ff77eead29425d3cbad735f06f690bf219fd84ad8c3afd797e7338c152"
     );
 }

@@ -86,6 +86,78 @@ pub fn coefficient_covariance(
     sandwich_from_multipliers(x_colmajor, nrows, ncols, residuals, None, kind)
 }
 
+/// HC2 variance of one OLS coefficient with its Bell–McCaffrey degrees of freedom.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Hc2Coefficient {
+    /// HC2 sandwich variance of the coefficient.
+    pub variance: f64,
+    /// Satterthwaite degrees of freedom of the variance estimate under homoskedastic errors.
+    pub degrees_of_freedom: f64,
+}
+
+/// HC2 variance of coefficient `coefficient` and its Bell–McCaffrey (2002) degrees of freedom,
+/// the small-sample reference of Imbens and Kolesár (2016).
+///
+/// With `w = X (XᵀX)⁻¹ e_c`, leverages `h_i` and `M = I − H`, the HC2 variance is the quadratic
+/// form `εᵀ A ε` in the errors with `A = M D M`, `D = diag(w_i² / (1 − h_i))`. Its mean under
+/// homoskedastic errors is `σ² Σ w_i²`, so the Satterthwaite degrees of freedom are
+/// `(tr A)² / tr(A²)`, with `tr A = Σ w_i²` and
+/// `tr(A²) = Σ_i d_i² (1 − 2 h_i) + tr((BS)²)` for `B = (XᵀX)⁻¹`, `S = Σ d_i x_i x_iᵀ`, which
+/// costs `O(n p²)` rather than forming `M`. For an intercept and a binary regressor the variance
+/// is `s₁²/n₁ + s₀²/n₀` and the degrees of freedom reduce to Welch's with equal arm variances.
+///
+/// # Errors
+///
+/// Shape mismatch, a singular design, a row of leverage 1 (HC2 is undefined there), or degrees
+/// of freedom that are not finite and positive.
+pub fn hc2_coefficient_bell_mccaffrey(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    residuals: &[f64],
+    coefficient: usize,
+) -> Result<Hc2Coefficient, StatsError> {
+    if coefficient >= ncols {
+        return Err(StatsError::Shape { message: "coefficient index outside the design" });
+    }
+    let covariance =
+        coefficient_covariance(x_colmajor, nrows, ncols, residuals, SandwichKind::Hc2)?;
+    let variance = covariance[coefficient * ncols + coefficient];
+    let mut gram = vec![0.0; ncols * ncols];
+    form_xtx(x_colmajor, nrows, ncols, &mut gram);
+    let bread = invert_square(&gram, ncols)
+        .ok_or_else(|| StatsError::Backend("singular sandwich bread".into()))?;
+    let hat = leverages(x_colmajor, nrows, ncols, &bread, None);
+    let selector = &bread[coefficient * ncols..(coefficient + 1) * ncols];
+    let (mut trace, mut diagonal) = (0.0, 0.0);
+    let mut weighted_gram = vec![0.0; ncols * ncols];
+    for (i, h) in hat.iter().enumerate() {
+        let w: f64 = (0..ncols).map(|a| selector[a] * x_colmajor[a * nrows + i]).sum();
+        let d = w * w / (1.0 - h);
+        trace += w * w;
+        diagonal += d * d * (1.0 - 2.0 * h);
+        accumulate_xx(&mut weighted_gram, x_colmajor, nrows, ncols, i, d);
+    }
+    let mut product_trace = 0.0;
+    for a in 0..ncols {
+        for b in 0..ncols {
+            let bs_ab: f64 =
+                (0..ncols).map(|k| bread[a * ncols + k] * weighted_gram[k * ncols + b]).sum();
+            let bs_ba: f64 =
+                (0..ncols).map(|k| bread[b * ncols + k] * weighted_gram[k * ncols + a]).sum();
+            product_trace += bs_ab * bs_ba;
+        }
+    }
+    let degrees_of_freedom = trace * trace / (diagonal + product_trace);
+    if !(variance.is_finite() && degrees_of_freedom.is_finite() && degrees_of_freedom > 0.0) {
+        return Err(StatsError::Backend(
+            "Bell–McCaffrey degrees of freedom are not finite and positive".into(),
+        ));
+    }
+    Ok(Hc2Coefficient { variance, degrees_of_freedom })
+}
+
 /// Score / GLM sandwich: meat from score multipliers `u_i` (`s_i = u_i x_i`),
 /// bread `(XᵀWX)⁻¹` with diagonal Fisher weights `w`.
 ///
@@ -488,6 +560,34 @@ fn ensure_multiway_meat_psd(
     Ok(())
 }
 
+/// Eigendecomposition of a symmetric row-major `d x d` matrix (lower triangle read).
+///
+/// Returns the eigenvalues in nondecreasing order and the eigenvectors as the columns of a
+/// row-major matrix (`vectors[row * d + k]` is component `row` of eigenvector `k`).
+///
+/// # Errors
+///
+/// A shape mismatch, a non-finite entry, or a backend failure to converge.
+pub fn symmetric_eigen(matrix: &[f64], d: usize) -> Result<(Vec<f64>, Vec<f64>), StatsError> {
+    if matrix.len() != d * d || matrix.iter().any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape {
+            message: "symmetric eigendecomposition needs a finite d x d matrix",
+        });
+    }
+    let mat = faer::Mat::<f64>::from_fn(d, d, |r, c| matrix[r * d + c]);
+    let eig = mat
+        .self_adjoint_eigen(faer::Side::Lower)
+        .map_err(|_| StatsError::Backend("symmetric eigendecomposition failed".into()))?;
+    let values = (0..d).map(|k| eig.S().column_vector()[k]).collect();
+    let mut vectors = vec![0.0; d * d];
+    for r in 0..d {
+        for k in 0..d {
+            vectors[r * d + k] = eig.U()[(r, k)];
+        }
+    }
+    Ok((values, vectors))
+}
+
 fn newey_west_meat(
     x_colmajor: &[f64],
     nrows: usize,
@@ -625,6 +725,54 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    /// Intercept plus a binary regressor (3 treated, 5 control) with its group-mean residuals.
+    fn two_group_design() -> (Vec<f64>, Vec<f64>) {
+        let treated = [1.0, 2.0, 6.0];
+        let control = [0.0, 1.0, 1.0, 2.0, 6.0];
+        let mut x = vec![1.0; 8];
+        x.extend([1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+        let residuals = treated
+            .iter()
+            .map(|y| y - mean(&treated))
+            .chain(control.iter().map(|y| y - mean(&control)))
+            .collect();
+        (x, residuals)
+    }
+
+    #[test]
+    fn hc2_two_group_variance_is_the_per_arm_variance_sum() {
+        // s₁² = 14/2 = 7 on 3 rows, s₀² = 22/4 = 5.5 on 5 rows.
+        let (x, residuals) = two_group_design();
+        let fit = hc2_coefficient_bell_mccaffrey(&x, 8, 2, &residuals, 1).unwrap();
+        assert!((fit.variance - (7.0 / 3.0 + 5.5 / 5.0)).abs() < 1e-12, "{}", fit.variance);
+    }
+
+    #[test]
+    fn bell_mccaffrey_two_group_df_matches_the_hand_computation() {
+        // (1/n₁ + 1/n₀)² / (1/(n₁²(n₁−1)) + 1/(n₀²(n₀−1))) = (8/15)² / (1/18 + 1/100) = 512/118.
+        let (x, residuals) = two_group_design();
+        let fit = hc2_coefficient_bell_mccaffrey(&x, 8, 2, &residuals, 1).unwrap();
+        assert!(
+            (fit.degrees_of_freedom - 512.0 / 118.0).abs() < 1e-10,
+            "{}",
+            fit.degrees_of_freedom
+        );
+        // Two rows per arm: h = 1/2, w = ±1/2, d = 1/2, tr(A) = 1, tr(A²) = 1/2, so df = 2.
+        let x = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0];
+        let residuals = [0.5, -0.5, 1.0, -1.0];
+        let fit = hc2_coefficient_bell_mccaffrey(&x, 4, 2, &residuals, 1).unwrap();
+        assert!((fit.degrees_of_freedom - 2.0).abs() < 1e-12, "{}", fit.degrees_of_freedom);
+    }
+
+    #[test]
+    fn bell_mccaffrey_refuses_a_saturated_row_and_a_bad_coefficient() {
+        // One treated row alone identifies the treatment coefficient: leverage 1.
+        let x = [1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
+        assert!(hc2_coefficient_bell_mccaffrey(&x, 4, 2, &[0.0, 0.5, -0.5, 0.0], 1).is_err());
+        assert!(hc2_coefficient_bell_mccaffrey(&x, 4, 2, &[0.0, 0.5, -0.5, 0.0], 2).is_err());
     }
 
     #[test]

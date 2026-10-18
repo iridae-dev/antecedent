@@ -29,8 +29,9 @@ use super::{
     DataInput, InterferenceSpec, RdConfig, RefuteSuite, TransportTrialSpec,
     custom_validators_apply, data_schema, estimator_setting_conflict, omitted_bootstrap_resamples,
     population_estimable, refuse_estimator_inference_mismatch, refuse_unlicensed_interference,
-    refuse_unlicensed_panel_route, refuse_unlicensed_transport, refuse_unsupported_likelihood,
-    stub_accepted_graph_for, tiered_graph_conflict, validate_schema_binding,
+    refuse_unlicensed_panel_route, refuse_unlicensed_transport, refuse_unsupported_draw_controls,
+    refuse_unsupported_likelihood, stub_accepted_graph_for, tiered_graph_conflict,
+    validate_schema_binding,
 };
 
 /// Builder fields moved into the pipeline, plus the `inspect_only` flag.
@@ -57,12 +58,15 @@ pub(super) struct FinishInput {
     pub(super) estimator_spec: Option<EstimatorSpec>,
     pub(super) response_options: Option<ContinuousResponseOptions>,
     pub(super) observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    pub(super) draw_controls: Option<crate::PosteriorDrawControls>,
     pub(super) observation_delayed_entry: Option<VariableId>,
     pub(super) rd: Option<RdConfig>,
     pub(super) inference: InferenceMode,
     pub(super) n_draws_explicit: bool,
     pub(super) overlap_policy: Option<OverlapPolicy>,
     pub(super) population_registry: Option<PopulationRegistry>,
+    pub(super) participants: Option<antecedent_io::ParticipantBindingWire>,
+    pub(super) missing: Option<antecedent_data::MissingDeclaration>,
     pub(super) custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     pub(super) tiered: Option<TieredBackground>,
     pub(super) caller_graph: bool,
@@ -98,12 +102,15 @@ struct Carry {
     estimator_spec: Option<EstimatorSpec>,
     response_options: Option<ContinuousResponseOptions>,
     observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    draw_controls: Option<crate::PosteriorDrawControls>,
     observation_delayed_entry: Option<VariableId>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
     n_draws_explicit: bool,
     overlap_policy: Option<OverlapPolicy>,
     population_registry: Option<PopulationRegistry>,
+    participants: Option<antecedent_io::ParticipantBindingWire>,
+    missing: Option<antecedent_data::MissingDeclaration>,
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     tiered: Option<TieredBackground>,
     continuous_cell: Option<(VariableId, Arc<[f64]>)>,
@@ -206,12 +213,15 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         estimator_spec,
         response_options,
         observation_options,
+        draw_controls,
         observation_delayed_entry,
         rd,
         inference,
         n_draws_explicit,
         overlap_policy,
         population_registry,
+        participants,
+        missing,
         custom_validators,
         tiered,
         caller_graph: _,
@@ -244,12 +254,15 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
             estimator_spec,
             response_options,
             observation_options,
+            draw_controls,
             observation_delayed_entry,
             rd,
             inference,
             n_draws_explicit,
             overlap_policy,
             population_registry,
+            participants,
+            missing,
             custom_validators,
             tiered,
             continuous_cell,
@@ -268,6 +281,11 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
 
 /// Refuses builder inputs that are mutually exclusive before any field is moved.
 fn refuse_conflicting_inputs(input: &FinishInput) -> Result<(), CausalError> {
+    crate::analysis::missing_data::validate_declaration(
+        input.query.as_ref(),
+        &input.data,
+        input.missing.as_ref(),
+    )?;
     if let Some(spec) = &input.estimator_spec {
         if spec.is_configured() {
             if input.bootstrap_explicit {
@@ -575,6 +593,15 @@ fn admit_executable_route(estimand: RetargetedEstimand) -> Result<ExecutableRout
         &carry.data,
         graph.class(),
         graph_posterior.is_none() && carry.tiered.is_none(),
+        &carry.inference,
+    )?;
+    refuse_unsupported_draw_controls(
+        &query,
+        &carry.data,
+        graph.class(),
+        graph_posterior.is_none() && carry.tiered.is_none(),
+        carry.estimator,
+        carry.draw_controls,
         &carry.inference,
     )?;
     if !population_estimable(&query) {
@@ -1222,6 +1249,7 @@ fn into_study(exposure: BoundExposure) -> Study {
                 .map(super::super::contract_identity::estimator_spec_identity),
             response_options: carry.response_options,
             observation_options: carry.observation_options,
+            draw_controls: carry.draw_controls,
             observation_delayed_entry: carry.observation_delayed_entry,
             rd: carry.rd,
             stage_sink: carry.stage_sink,
@@ -1247,6 +1275,8 @@ fn into_study(exposure: BoundExposure) -> Study {
         inference: carry.inference,
         overlap_policy: carry.overlap_policy,
         population_registry: carry.population_registry,
+        participants: carry.participants,
+        missing: carry.missing,
         custom_validators: carry.custom_validators,
         latency_mode: carry.latency_mode,
         identification_cache,

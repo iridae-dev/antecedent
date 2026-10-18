@@ -21,6 +21,8 @@ exact = [
   "mkdocs.yml",
   "scripts/generate_example_catalog.py",
   "scripts/run_optional_doc_example.py",
+  # Names the acceptance area `dowhy_comparison`, which freezes the pinned-comparison cases.
+  "scripts/check_acceptance_manifest.py",
 ]
 
 prefix = [

@@ -451,6 +451,11 @@ fn same_learner_preparation(
         && a.fold_seed == b.fold_seed
         && a.shared_design == b.shared_design
         && a.propensity == b.propensity
+        && match (&a.sampling_weights, &b.sampling_weights) {
+            (None, None) => true,
+            (Some(a), Some(b)) => floats(&a.weights, &b.weights),
+            _ => false,
+        }
 }
 
 fn learner_preparation_cost(problem: &crate::propensity::PreparedPropensityProblem) -> usize {
@@ -470,6 +475,14 @@ mod learned_preparation_tests {
             design_ncols: 2,
             nrows: 2,
             treatment: Arc::from([0., 1.]),
+            treatment_levels: crate::propensity::DeclaredTreatmentLevels {
+                active: 1.0,
+                control: 0.0,
+                other_levels: crate::propensity::OtherLevels::Refuse,
+                rows_at_active: 1,
+                rows_at_control: 1,
+                excluded_rows: 0,
+            },
             outcome: Arc::from([1., 2.]),
             covariates: Arc::from([Arc::from([-1., 1.])]),
             method: Arc::from("backdoor"),
@@ -485,6 +498,7 @@ mod learned_preparation_tests {
             fold_seed: 0,
             shared_design: false,
             propensity: PropensityNuisance::default(),
+            sampling_weights: None,
         }
     }
     #[test]

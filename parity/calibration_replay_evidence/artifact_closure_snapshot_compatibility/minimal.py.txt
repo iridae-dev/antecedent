@@ -1,0 +1,11 @@
+import sys,json
+from pathlib import Path
+sys.path.insert(0,'scripts');import calibration_facets as f
+surface=f.load_surface();repo=f.Repo();records=f.load_records();ws,_=f.load_waivers();artifact='crates/antecedent-design/src/decision_reliability/artifact.rs'
+affected=[r for r in records if 'design' in r.get('facets',[])];result={}
+for source in sorted({r['calibration_sha'] for r in affected}):
+ rows=[r for r in affected if r['calibration_sha']==source];drift=repo.changed(surface,source,'c9659b468b86366886facff69a73eeee5fc1f0f8');facets=set().union(*(set(r['facets']) for r in rows));paths=[p for p in drift if (surface.facet_of(p) or f.CORE) in facets];w=next(w for w in ws if repo.resolve(w.from_)==source and w.replay)
+ proofs=[p for p in w.reviewed_equivalence if p.path in paths];need=set(paths)-{p.path for p in proofs};replays=[r for r in w.replay if set(r.exercises)&need]
+ result[source]={'rows':len(rows),'facets':sorted(facets),'paths':paths,'proofs':[p.path for p in proofs],'needs_actual_exercise':sorted(need),'existing_replay_candidates':[{ 'id':r.record,'exercises':sorted(set(r.exercises)&need)} for r in replays]}
+Path('target/calibration-audit/verifier-refresh-c9659b468/minimal-design-scope.json').write_text(json.dumps(result,indent=2)+'\n')
+for source,entry in result.items():print(source[:9],entry['rows'],len(entry['paths']),len(entry['proofs']),entry['needs_actual_exercise'],len(entry['existing_replay_candidates']))

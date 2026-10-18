@@ -26,7 +26,8 @@ use antecedent_core::{
     TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_prob::InferenceDiagnostics;
 
 use common::calibration::{
@@ -34,7 +35,8 @@ use common::calibration::{
 };
 use common::calibration_bind::bind_all;
 use common::reported::{
-    GATE_LEVEL, REPORTED_LEVEL, gate_at, posterior_pair, record_pair, scalar_normal_pair,
+    GATE_LEVEL, IntervalPair, REPORTED_LEVEL, gate_at, posterior_pair, record_pair,
+    scalar_normal_pair,
 };
 
 /// Base series length; `grid_n` measures it at `n/2, n, 2n`.
@@ -134,6 +136,10 @@ const PULSE_TRUTH: f64 = 2.0;
 const SUSTAINED_TRUTH: f64 = 3.0;
 /// Truth of the mediated contrast: the `t -> m -> y` path product (see `mediation_series`).
 const MEDIATION_TRUTH: f64 = 0.8 * 0.55;
+/// Truth of the direct contrast: the `t -> y` coefficient (see `mediation_series`).
+const MEDIATION_DIRECT_TRUTH: f64 = 0.25;
+/// Truth of the total contrast: the direct effect plus the path product.
+const MEDIATION_TOTAL_TRUTH: f64 = MEDIATION_DIRECT_TRUTH + MEDIATION_TRUTH;
 
 // ---------------------------------------------------------------------------
 // Single-atom class posteriors and queries.
@@ -144,11 +150,11 @@ const MEDIATION_TRUTH: f64 = 0.8 * 0.55;
 fn temporal_atom(
     kind: GraphPosteriorAtomKind,
     n: usize,
-    adjacency: u64,
+    adjacency: antecedent_discovery::AdjacencyMask,
     max_lag: u32,
     lag_mask: u64,
 ) -> GraphPosterior {
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![adjacency],
@@ -215,12 +221,12 @@ fn multi_sustained() -> TemporalEffectQuery {
         .with_max_history_lag(Some(2))
 }
 
-fn mediated_query() -> MediationQuery {
+fn mediation_query(contrast: MediationContrast) -> MediationQuery {
     MediationQuery::binary(
         VariableId::from_raw(0),
         VariableId::from_raw(2),
         [VariableId::from_raw(1)],
-        MediationContrast::Mediated,
+        contrast,
     )
     .with_horizons(vec![1])
     .unwrap()
@@ -252,6 +258,7 @@ fn run_temporal(
 
 fn run_mediation(
     data: TimeSeriesData,
+    contrast: MediationContrast,
     gp: GraphPosterior,
     inference: InferenceMode,
     boot: u32,
@@ -259,7 +266,7 @@ fn run_mediation(
 ) -> (Study, StudyResult) {
     let study = Study::series(data)
         .graph_posterior(gp)
-        .query(CausalQuery::Mediation(mediated_query()))
+        .query(CausalQuery::Mediation(mediation_query(contrast)))
         .inference(inference)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(boot)
@@ -332,6 +339,105 @@ fn coverage(
         record_pair(&mut tallies, *intervals, truth);
     }
     gate_at(&tallies, &measured);
+}
+
+/// [`coverage`] for the Total, Direct and Mediated contrasts of one single-atom
+/// class graph-posterior mediation construction: each contrast is its own query
+/// executed on the replicate's series and bound to its own record (the Mediated
+/// record keeps its unlabelled id; the others carry their contrast as the
+/// label). Sharing the series is valid because each tally scores one functional
+/// of that draw against its own truth and is judged on its own marginal
+/// coverage; the tallies are never combined into a joint claim. `measured` names
+/// the Mediated record's boundary grid points; Total and Direct gate at nominal.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one calibration cell per call: interval, estimator, seed family, inference, bootstrap and pair callbacks and the measured coverage are its coordinates"
+)]
+fn mediation_contrasts_coverage(
+    test: &'static str,
+    interval: &'static str,
+    estimator: &'static str,
+    family: u64,
+    inference: fn() -> InferenceMode,
+    boot: u32,
+    pair: fn(&StudyResult) -> IntervalPair,
+    measured: [[Option<f64>; 3]; 2],
+) {
+    let contrasts = [
+        (Some("total"), MediationContrast::Total, MEDIATION_TOTAL_TRUTH),
+        (Some("direct"), MediationContrast::Direct, MEDIATION_DIRECT_TRUTH),
+        (None, MediationContrast::Mediated, MEDIATION_TRUTH),
+    ];
+    let key = RecordKey { test, dgp: "mediation_series", interval };
+    let mut tallies: Vec<[CoverageTally; 2]> = contrasts
+        .iter()
+        .map(|(label, _, _)| {
+            [REPORTED_LEVEL, GATE_LEVEL].map(|level| {
+                let tally = CoverageTally::for_record(key, level);
+                match label {
+                    Some(label) => tally.labelled(*label),
+                    None => tally,
+                }
+            })
+        })
+        .collect();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(family, rep);
+        let data = mediation_series(grid_n(N), seed);
+        let scored: Vec<_> = contrasts
+            .iter()
+            .map(|(_, contrast, _)| {
+                let (study, result) = run_mediation(
+                    data.clone(),
+                    *contrast,
+                    mediation_atom(),
+                    inference(),
+                    boot,
+                    seed,
+                );
+                let intervals = pair(&result);
+                (study, result, intervals)
+            })
+            .collect();
+        if rep == 0 {
+            for ((_, contrast, _), (_, result, intervals)) in contrasts.iter().zip(&scored) {
+                assert_eq!(
+                    result.logical_plan.estimator.as_deref(),
+                    Some(estimator),
+                    "{test}: estimator target of {contrast:?}"
+                );
+                assert_ne!(
+                    result.identification.status,
+                    IdentificationStatus::NotIdentified,
+                    "{test}: the single class-posterior atom must identify"
+                );
+                assert!(
+                    intervals[0].is_some(),
+                    "{test}: a single identified atom must publish the {contrast:?} interval"
+                );
+            }
+        }
+        scored
+    });
+    for replicate in &runs {
+        for (i, (_, _, truth)) in contrasts.iter().enumerate() {
+            let (study, result, intervals) = &replicate[i];
+            let [reported, gate_level] = &mut tallies[i];
+            bind_all(&mut [reported, gate_level], study, result);
+            record_pair(&mut tallies[i], *intervals, *truth);
+        }
+    }
+    let failures: Vec<String> = tallies
+        .iter()
+        .zip(contrasts)
+        .filter_map(|(pair, (label, _, _))| {
+            let measured = if label.is_none() { measured } else { [[None; 3]; 2] };
+            std::panic::catch_unwind(|| gate_at(pair, &measured)).err().map(|e| {
+                e.downcast_ref::<String>().cloned().unwrap_or_else(|| "coverage failure".into())
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("; "));
 }
 
 // ---------------------------------------------------------------------------
@@ -563,22 +669,13 @@ fn sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
-    coverage(
+    mediation_contrasts_coverage(
         "temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
-        "mediation_series",
         "circular_block_se",
         "temporal.mediation",
-        MEDIATION_TRUTH,
-        |rep| {
-            let seed = stream_seed(0x11C_0009, rep);
-            run_mediation(
-                mediation_series(grid_n(N), seed),
-                mediation_atom(),
-                InferenceMode::Frequentist,
-                BOOT,
-                seed,
-            )
-        },
+        0x11C_0009,
+        || InferenceMode::Frequentist,
+        BOOT,
         scalar_normal_pair,
         // Grid point 0, 0.90 level measures 0.916 at 2000 replicates against the
         // precision ceiling 0.913 (1833/2000): a named boundary over-covering,
@@ -590,16 +687,13 @@ fn temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
-    coverage(
+    mediation_contrasts_coverage(
         "temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
-        "mediation_series",
         "posterior_quantile",
         "temporal.mediation.bayesian",
-        MEDIATION_TRUTH,
-        |rep| {
-            let seed = stream_seed(0x11C_000A, rep);
-            run_mediation(mediation_series(grid_n(N), seed), mediation_atom(), bayes(), 0, seed)
-        },
+        0x11C_000A,
+        bayes,
+        0,
         |result| posterior_pair(result, effect_col(result)),
         [[None, None, None], [None, None, None]],
     );

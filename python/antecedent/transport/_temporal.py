@@ -47,7 +47,7 @@ class TemporalSequenceSpec:
     ``selections`` names the coordinates whose mechanism may differ between source
     and target, each at its own time slice; an action cannot be one. ``coordinates``
     declares every coordinate's name, finite domain and unit. Both actions share
-    one alphabet of at most eight actions, at most twelve coordinates and 4096
+    one alphabet of at most eight actions and at most 4096
     complete covariate histories are admitted, and the horizon is two.
     """
 

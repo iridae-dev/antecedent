@@ -21,8 +21,12 @@
 //!   successful resampling replicates and posterior draws, and no more
 //!   non-identified mass. A record is a boundary when any of its grid points
 //!   is: a construction that failed at one measured sample size is not
-//!   calibrated anywhere in the range. A matching but stale (non-attesting)
-//!   record is never `calibrated`.
+//!   calibrated anywhere in the range, except inside a
+//!   [`confirmed_passing_region`]: a contiguous run of grid points that passed
+//!   in the measurement and again in an independent re-measurement with fresh
+//!   seeds. There the slot is `calibrated`, governed by the worst of those
+//!   points; a row count in the failing region still refuses. A matching but
+//!   stale (non-attesting) record is never `calibrated`.
 //! - `scope_not_assessed`: a record measured the construction but the
 //!   execution is outside its scope (the reason names which bound), the
 //!   covering record is a named boundary / under-coverage measurement
@@ -379,7 +383,8 @@ pub fn calibration_slot_with(
             lo <= scope.row_count && scope.row_count <= hi
         })
         .collect();
-    let Some(governing) = worst(&covering) else {
+    let rows = scope.row_count;
+    let Some(governing) = worst(&covering, rows) else {
         let nearest = measured
             .iter()
             .copied()
@@ -392,9 +397,12 @@ pub fn calibration_slot_with(
             .with_reason(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE)
             .with_basis(basis);
     };
-    let boundaries: Vec<&CoverageRecord> =
-        covering.iter().copied().filter(|record| is_boundary(record)).collect();
-    if let Some(boundary) = worst(&boundaries) {
+    let boundaries: Vec<&CoverageRecord> = covering
+        .iter()
+        .copied()
+        .filter(|record| is_boundary(record) && confirmed_passing_region(record, rows).is_none())
+        .collect();
+    if let Some(boundary) = worst(&boundaries, rows) {
         let mut slot =
             CalibrationSlotWire::from_record(boundary, CalibrationStatus::ScopeNotAssessed)
                 .with_reason(BOUNDARY_RECORD)
@@ -429,15 +437,19 @@ pub fn calibration_slot_with(
     } else {
         None
     };
-    match outside {
-        Some(reason) => {
-            CalibrationSlotWire::from_record(governing, CalibrationStatus::ScopeNotAssessed)
-                .with_reason(reason)
-                .with_basis(basis)
-        }
-        None => CalibrationSlotWire::from_record(governing, CalibrationStatus::Calibrated)
-            .with_basis(basis),
+    if let Some(reason) = outside {
+        return CalibrationSlotWire::from_record(governing, CalibrationStatus::ScopeNotAssessed)
+            .with_reason(reason)
+            .with_basis(basis);
     }
+    let mut slot = CalibrationSlotWire::from_record(governing, CalibrationStatus::Calibrated)
+        .with_basis(basis);
+    if let Some(region) = confirmed_passing_region(governing, rows) {
+        slot.scope_n = Some(region.n_min);
+        slot.scope_n_max = Some(region.n_max);
+        slot.observed = Some(region.observed);
+    }
+    slot
 }
 
 /// Row-count range a record measured: the span of its sample-size grid points
@@ -460,10 +472,183 @@ pub fn is_boundary(record: &CoverageRecord) -> bool {
     record.boundary || record.grid.iter().any(|point| point.boundary)
 }
 
-/// Lowest observed coverage among `records` (ties broken by id): the record
-/// that governs a slot when several measurements cover one execution.
-fn worst<'a>(records: &[&'a CoverageRecord]) -> Option<&'a CoverageRecord> {
-    records.iter().copied().min_by(|a, b| a.observed.total_cmp(&b.observed).then(a.id.cmp(b.id)))
+/// The independently confirmed passing region of a boundary record.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ConfirmedRegion {
+    /// Smallest row count of the region.
+    pub n_min: u64,
+    /// Largest row count of the region.
+    pub n_max: u64,
+    /// Lowest coverage over the region's points, in the measurement and in the
+    /// confirmation.
+    pub observed: f64,
+}
+
+/// The confirmed passing region of a boundary `record` that covers `rows`.
+///
+/// `Some` only when the record states a `confirmed_passing_range` holding
+/// `rows` and the evidence agrees with it: at least two grid points lie inside
+/// the range, none of them failed, and each has a confirmation point of the
+/// same index and sample sizes that did not fail either. The failing points
+/// stay on the record, so a row count outside the range (in the failing
+/// region, or between it and the range) is still governed by the boundary. A
+/// record that is not a boundary has nothing to recover and returns `None`.
+#[must_use]
+pub fn confirmed_passing_region(record: &CoverageRecord, rows: u64) -> Option<ConfirmedRegion> {
+    let (lo, hi) = record.confirmed_passing_range?;
+    if !is_boundary(record) || rows < lo || hi < rows {
+        return None;
+    }
+    let inside = |point: &&CoverageGridPoint| lo <= point.n_min && point.n_max <= hi;
+    let measured: Vec<&CoverageGridPoint> = record.grid.iter().filter(inside).collect();
+    let confirmed = |point: &CoverageGridPoint| {
+        record.confirmation.iter().find(|other| {
+            other.point == point.point
+                && (other.n_min, other.n_max) == (point.n_min, point.n_max)
+                && !other.boundary
+        })
+    };
+    let all_pass = measured.iter().all(|point| !point.boundary && confirmed(point).is_some());
+    if measured.len() < 2 || !all_pass {
+        return None;
+    }
+    let observed = measured
+        .iter()
+        .flat_map(|point| [Some(point.observed), confirmed(point).map(|other| other.observed)])
+        .flatten()
+        .fold(f64::INFINITY, f64::min);
+    Some(ConfirmedRegion { n_min: lo, n_max: hi, observed })
+}
+
+/// Why a row count inside a boundary record is, or is not, recovered by a
+/// passing subrange: the typed explanation behind the slot's
+/// [`BOUNDARY_RECORD`] refusal.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RangeResolution {
+    /// The record is not a boundary: there is nothing to recover.
+    NotABoundary,
+    /// The row count lies outside every sample size the record measured.
+    OutsideMeasuredRange,
+    /// The row count lies in an independently confirmed passing region.
+    Recovered(ConfirmedRegion),
+    /// The row count lies at, or nearest to, a grid point that failed: the
+    /// boundary governs with that point's coverage.
+    FailedPoint {
+        /// Grid point index.
+        point: u8,
+        /// Smallest row count the point measured.
+        n_min: u64,
+        /// Largest row count the point measured.
+        n_max: u64,
+        /// Coverage the point observed.
+        observed: f64,
+    },
+    /// The row count lies among grid points that passed the measurement and
+    /// reach an end of the grid, but no independent confirmation passed at
+    /// every one of them: the missing confirmation keeps the record a boundary.
+    Unconfirmed {
+        /// Smallest row count of the passing points.
+        n_min: u64,
+        /// Largest row count of the passing points.
+        n_max: u64,
+    },
+    /// The row count lies between passing grid points that a failed interior
+    /// point separates: the passing region is not contiguous and is not merged.
+    NotContiguous {
+        /// Grid point index of the failed interior point.
+        failed_point: u8,
+        /// Smallest row count the failed point measured.
+        n_min: u64,
+        /// Largest row count the failed point measured.
+        n_max: u64,
+    },
+    /// The row count lies among passing grid points with failed points on both
+    /// sides: a subrange must reach the top or the bottom of the grid.
+    InteriorRun {
+        /// Smallest row count of the passing points.
+        n_min: u64,
+        /// Largest row count of the passing points.
+        n_max: u64,
+    },
+    /// Only one grid point passed: two points are the least a subrange rests on.
+    LonePassingPoint {
+        /// Smallest row count of the point.
+        n_min: u64,
+        /// Largest row count of the point.
+        n_max: u64,
+    },
+}
+
+/// Resolve a row count against the grid of a boundary `record`: recovered by
+/// a confirmed passing subrange, or the reason it is not.
+///
+/// The slot of such a row count is [`calibration_slot_with`]'s: `calibrated`
+/// exactly when this is [`RangeResolution::Recovered`], and otherwise a
+/// [`BOUNDARY_RECORD`] refusal that this names.
+#[must_use]
+pub fn resolve_passing_range(record: &CoverageRecord, rows: u64) -> RangeResolution {
+    if !is_boundary(record) {
+        return RangeResolution::NotABoundary;
+    }
+    let (lo, hi) = measured_range(record);
+    if rows < lo || hi < rows {
+        return RangeResolution::OutsideMeasuredRange;
+    }
+    if let Some(region) = confirmed_passing_region(record, rows) {
+        return RangeResolution::Recovered(region);
+    }
+    let passing: Vec<&CoverageGridPoint> = record.grid.iter().filter(|p| !p.boundary).collect();
+    if let (Some(first), Some(last)) = (passing.first(), passing.last()) {
+        if first.n_min <= rows && rows <= last.n_max {
+            let interior = record
+                .grid
+                .iter()
+                .find(|p| p.boundary && first.n_max < p.n_min && p.n_max < last.n_min);
+            if let Some(failed) = interior {
+                return RangeResolution::NotContiguous {
+                    failed_point: failed.point,
+                    n_min: failed.n_min,
+                    n_max: failed.n_max,
+                };
+            }
+            let (n_min, n_max) = (first.n_min, last.n_max);
+            let below = record.grid.iter().any(|p| p.boundary && p.n_max < first.n_min);
+            let above = record.grid.iter().any(|p| p.boundary && last.n_max < p.n_min);
+            return if passing.len() < 2 {
+                RangeResolution::LonePassingPoint { n_min, n_max }
+            } else if below && above {
+                RangeResolution::InteriorRun { n_min, n_max }
+            } else {
+                RangeResolution::Unconfirmed { n_min, n_max }
+            };
+        }
+    }
+    let distance = |p: &CoverageGridPoint| {
+        if rows < p.n_min { p.n_min - rows } else { rows.saturating_sub(p.n_max) }
+    };
+    record.grid.iter().filter(|p| p.boundary).min_by_key(|&p| distance(p)).map_or(
+        RangeResolution::OutsideMeasuredRange,
+        |p| RangeResolution::FailedPoint {
+            point: p.point,
+            n_min: p.n_min,
+            n_max: p.n_max,
+            observed: p.observed,
+        },
+    )
+}
+
+/// Coverage that governs `record` at `rows`: the worst confirmed point inside
+/// a confirmed passing region, otherwise the record's own (worst) coverage.
+fn governing_observed(record: &CoverageRecord, rows: u64) -> f64 {
+    confirmed_passing_region(record, rows).map_or(record.observed, |region| region.observed)
+}
+
+/// Lowest governing coverage among `records` at `rows` (ties broken by id): the
+/// record that governs a slot when several measurements cover one execution.
+fn worst<'a>(records: &[&'a CoverageRecord], rows: u64) -> Option<&'a CoverageRecord> {
+    records.iter().copied().min_by(|a, b| {
+        governing_observed(a, rows).total_cmp(&governing_observed(b, rows)).then(a.id.cmp(b.id))
+    })
 }
 
 /// Re-derive a claim's slot (primary and secondary) from the bases it carries.
@@ -600,6 +785,8 @@ mod tests {
             replicates: 400,
             boundary: false,
             grid: &[],
+            confirmation: &[],
+            confirmed_passing_range: None,
             dgp: "crates/antecedent/tests/x.rs::dgp",
             test: "crates/antecedent/tests/x.rs::test",
             calibration_sha: "0123456789abcdef0123456789abcdef01234567",
@@ -831,6 +1018,120 @@ mod tests {
         }
     }
 
+    const CONFIRMED_UPPER: [CoverageGridPoint; 2] = {
+        let mut second = GRID[1];
+        second.observed = 0.944;
+        let mut third = GRID[2];
+        third.observed = 0.957;
+        [second, third]
+    };
+
+    fn recovered(confirmation: &'static [CoverageGridPoint]) -> CoverageRecord {
+        let mut out = gridded("cov.recovered", &FAILING_SMALL);
+        out.observed = 0.90;
+        out.boundary = true;
+        out.confirmation = confirmation;
+        out.confirmed_passing_range = Some((500, 1000));
+        out
+    }
+
+    #[test]
+    fn a_confirmed_upper_range_is_calibrated_by_its_worst_passing_point() {
+        for n in [500, 777, 1000] {
+            let mut b = basis();
+            b.scope.row_count = n;
+            let slot = calibration_slot_in(&b, &[recovered(&CONFIRMED_UPPER)]);
+            assert_eq!(slot.status, "calibrated", "n = {n}: {slot:?}");
+            assert_eq!(slot.reason, None);
+            assert_eq!((slot.scope_n, slot.scope_n_max), (Some(500), Some(1000)));
+            // The measurement's 0.948 and 0.951 and the confirmation's 0.944 and
+            // 0.957: the lowest of them, never the failing point's 0.90.
+            assert_eq!(slot.observed, Some(0.944));
+        }
+    }
+
+    #[test]
+    fn a_confirmed_range_leaves_the_failing_region_refused() {
+        for n in [250, 251, 499] {
+            let mut b = basis();
+            b.scope.row_count = n;
+            let slot = calibration_slot_in(&b, &[recovered(&CONFIRMED_UPPER)]);
+            assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:?}");
+            assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
+            assert_eq!(slot.observed, Some(0.90), "the failing point stays on the record");
+        }
+        let mut b = basis();
+        b.scope.row_count = 1001;
+        assert_eq!(
+            calibration_slot_in(&b, &[recovered(&CONFIRMED_UPPER)]).reason.as_deref(),
+            Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE)
+        );
+    }
+
+    #[test]
+    fn a_range_without_a_passing_confirmation_of_every_point_is_not_recovered() {
+        static ONE_POINT: [CoverageGridPoint; 1] = [CONFIRMED_UPPER[0]];
+        static FAILED_CONFIRMATION: [CoverageGridPoint; 2] = {
+            let mut points = CONFIRMED_UPPER;
+            points[1].boundary = true;
+            points[1].observed = 0.91;
+            points
+        };
+        static SHIFTED_CONFIRMATION: [CoverageGridPoint; 2] = {
+            let mut points = CONFIRMED_UPPER;
+            points[1].n_min = 900;
+            points[1].n_max = 900;
+            points
+        };
+        let cases: [&'static [CoverageGridPoint]; 4] =
+            [&[], &ONE_POINT, &FAILED_CONFIRMATION, &SHIFTED_CONFIRMATION];
+        for confirmation in cases {
+            let mut b = basis();
+            b.scope.row_count = 800;
+            let slot = calibration_slot_in(&b, &[recovered(confirmation)]);
+            assert_eq!(slot.status, "scope_not_assessed", "{confirmation:?}");
+            assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
+        }
+    }
+
+    #[test]
+    fn a_confirmed_range_never_covers_a_failing_grid_point() {
+        // A range that reaches back over the failing point is not a passing
+        // region, whatever the record states.
+        let mut forged = recovered(&CONFIRMED_UPPER);
+        forged.confirmed_passing_range = Some((250, 1000));
+        let mut b = basis();
+        b.scope.row_count = 800;
+        assert_eq!(calibration_slot_in(&b, &[forged]).reason.as_deref(), Some(BOUNDARY_RECORD));
+    }
+
+    #[test]
+    fn a_confirmed_range_still_requires_attestation_and_every_other_axis() {
+        let record = recovered(&CONFIRMED_UPPER);
+        let mut b = basis();
+        b.scope.row_count = 800;
+        let stale = calibration_slot_with(&b, &[record], |_| false);
+        assert_eq!(stale.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
+        let mut other_level = b.clone();
+        other_level.key.level = 0.9;
+        assert_eq!(
+            calibration_slot_in(&other_level, &[record]).reason.as_deref(),
+            Some(LEVEL_NOT_MEASURED)
+        );
+        let mut other_dependence = b.clone();
+        other_dependence.key.dependence = "panel_cluster".into();
+        assert_eq!(
+            calibration_slot_in(&other_dependence, &[record]).reason.as_deref(),
+            Some(CONSTRUCTION_NOT_MEASURED)
+        );
+        let mut other_identification = b;
+        other_identification.key.identification = "partial".into();
+        assert_eq!(
+            calibration_slot_in(&other_identification, &[record]).reason.as_deref(),
+            Some(IDENTIFICATION_NOT_MEASURED)
+        );
+    }
+
     #[test]
     fn a_covering_boundary_record_is_reported_with_its_coverage() {
         let mut boundary = record("cov.boundary");
@@ -904,5 +1205,259 @@ mod tests {
             rederive_calibration(&CalibrationSlotWire::unavailable("forged")).reason.as_deref(),
             Some(BASIS_MISSING)
         );
+    }
+
+    // -- recovery of passing subranges on a four-point grid ------------------------------------
+
+    const fn grid_point(point: u8, n: u64, observed: f64, boundary: bool) -> CoverageGridPoint {
+        CoverageGridPoint {
+            point,
+            n_min: n,
+            n_max: n,
+            observed,
+            mcse: 0.011,
+            replicates: 2000,
+            boundary,
+        }
+    }
+
+    /// Four sample sizes, the smallest failing.
+    const LOWER_FAILS: [CoverageGridPoint; 4] = [
+        grid_point(0, 400, 0.902, true),
+        grid_point(1, 800, 0.951, false),
+        grid_point(2, 1600, 0.949, false),
+        grid_point(3, 3200, 0.955, false),
+    ];
+    /// The same upper three sizes measured again with fresh seeds, all passing.
+    const UPPER_CONFIRMED: [CoverageGridPoint; 3] = [
+        grid_point(1, 800, 0.944, false),
+        grid_point(2, 1600, 0.957, false),
+        grid_point(3, 3200, 0.953, false),
+    ];
+
+    fn boundary_over(
+        grid: &'static [CoverageGridPoint],
+        confirmation: &'static [CoverageGridPoint],
+        range: Option<(u64, u64)>,
+    ) -> CoverageRecord {
+        let mut out = record("cov.subrange");
+        out.n_min = grid[0].n_min;
+        out.n_max = grid[grid.len() - 1].n_max;
+        out.observed = grid.iter().map(|p| p.observed).fold(f64::INFINITY, f64::min);
+        out.boundary = true;
+        out.grid = grid;
+        out.confirmation = confirmation;
+        out.confirmed_passing_range = range;
+        out
+    }
+
+    fn at(rows: u64) -> CalibrationBasisWire {
+        let mut b = basis();
+        b.scope.row_count = rows;
+        b
+    }
+
+    #[test]
+    fn independently_confirmed_upper_subrange_recovered() {
+        let subrange = boundary_over(&LOWER_FAILS, &UPPER_CONFIRMED, Some((800, 3200)));
+        for n in [800, 1200, 1600, 2400, 3200] {
+            let slot = calibration_slot_in(&at(n), &[subrange]);
+            assert_eq!(slot.status, "calibrated", "n = {n}: {slot:?}");
+            assert_eq!(slot.reason, None);
+            assert_eq!((slot.scope_n, slot.scope_n_max), (Some(800), Some(3200)));
+            // The lowest of the measurement's 0.951, 0.949, 0.955 and the confirmation's 0.944,
+            // 0.957, 0.953; never the failed point's 0.902.
+            assert_eq!(slot.observed, Some(0.944));
+            assert!(matches!(
+                resolve_passing_range(&subrange, n),
+                RangeResolution::Recovered(region) if (region.n_min, region.n_max) == (800, 3200)
+            ));
+        }
+        // The failed lower point and its evidence stay on the record, and govern its own region.
+        assert!(subrange.boundary && subrange.grid[0].boundary);
+        assert!((subrange.grid[0].observed - 0.902).abs() < 1e-12);
+        assert!(
+            subrange.confirmation.iter().all(|p| p.point != 0),
+            "the failed point was not confirmed"
+        );
+        for n in [400, 500, 799] {
+            let slot = calibration_slot_in(&at(n), &[subrange]);
+            assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:?}");
+            assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
+            assert_eq!(slot.observed, Some(0.902), "the failing point's coverage is reported");
+            assert_eq!(
+                resolve_passing_range(&subrange, n),
+                RangeResolution::FailedPoint { point: 0, n_min: 400, n_max: 400, observed: 0.902 }
+            );
+        }
+        // Outside every measured size nothing is recovered.
+        for n in [399, 3201] {
+            let slot = calibration_slot_in(&at(n), &[subrange]);
+            assert_eq!(slot.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
+            assert_eq!(resolve_passing_range(&subrange, n), RangeResolution::OutsideMeasuredRange);
+        }
+        assert_eq!(resolve_passing_range(&record("cov.plain"), 500), RangeResolution::NotABoundary);
+    }
+
+    #[test]
+    fn unconfirmed_subrange_not_recovered() {
+        static PARTIAL: [CoverageGridPoint; 2] = [UPPER_CONFIRMED[0], UPPER_CONFIRMED[1]];
+        static FAILED_CONFIRMATION: [CoverageGridPoint; 3] = {
+            let mut points = UPPER_CONFIRMED;
+            points[1].boundary = true;
+            points[1].observed = 0.912;
+            points
+        };
+        static OTHER_SIZES: [CoverageGridPoint; 3] = {
+            let mut points = UPPER_CONFIRMED;
+            points[0].n_min = 801;
+            points[0].n_max = 801;
+            points
+        };
+        // The upper three points passed the measurement, but nothing independent confirms them:
+        // the record is still a boundary, and the reason is the missing confirmation.
+        let unconfirmed: [CoverageRecord; 5] = [
+            boundary_over(&LOWER_FAILS, &[], None),
+            boundary_over(&LOWER_FAILS, &PARTIAL, None),
+            boundary_over(&LOWER_FAILS, &FAILED_CONFIRMATION, None),
+            boundary_over(&LOWER_FAILS, &OTHER_SIZES, None),
+            // A range stated without evidence for every point in it is not honoured.
+            boundary_over(&LOWER_FAILS, &PARTIAL, Some((800, 3200))),
+        ];
+        for (index, record) in unconfirmed.iter().enumerate() {
+            for n in [800, 1600, 3200] {
+                let slot = calibration_slot_in(&at(n), &[*record]);
+                assert_eq!(slot.status, "scope_not_assessed", "record {index} n = {n}: {slot:?}");
+                assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
+                assert_eq!(
+                    resolve_passing_range(record, n),
+                    RangeResolution::Unconfirmed { n_min: 800, n_max: 3200 },
+                    "record {index} n = {n}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn non_contiguous_passing_points_not_merged() {
+        // 400 and 1600 passed, 800 between them failed. Even with both passing points
+        // re-measured and a range stated across them, the failed interior point is not merged.
+        static MIDDLE_FAILS: [CoverageGridPoint; 3] = [
+            grid_point(0, 400, 0.951, false),
+            grid_point(1, 800, 0.905, true),
+            grid_point(2, 1600, 0.949, false),
+        ];
+        static ENDS_CONFIRMED: [CoverageGridPoint; 2] =
+            [grid_point(0, 400, 0.953, false), grid_point(2, 1600, 0.955, false)];
+        for range in [None, Some((400, 1600))] {
+            let record = boundary_over(&MIDDLE_FAILS, &ENDS_CONFIRMED, range);
+            for n in [400, 600, 800, 1000, 1600] {
+                let slot = calibration_slot_in(&at(n), &[record]);
+                assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:?}");
+                assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
+                assert_eq!(slot.observed, Some(0.905), "the failed interior point is reported");
+                assert_eq!(
+                    resolve_passing_range(&record, n),
+                    RangeResolution::NotContiguous { failed_point: 1, n_min: 800, n_max: 800 },
+                    "n = {n}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[allow(
+        clippy::items_after_statements,
+        reason = "each fixture grid is declared next to its case"
+    )]
+    fn a_passing_run_must_reach_an_end_of_the_grid_and_hold_two_points() {
+        static ONE_PASSES: [CoverageGridPoint; 3] = [
+            grid_point(0, 400, 0.902, true),
+            grid_point(1, 800, 0.951, false),
+            grid_point(2, 1600, 0.903, true),
+        ];
+        static MIDDLE_RUN: [CoverageGridPoint; 4] = [
+            grid_point(0, 400, 0.902, true),
+            grid_point(1, 800, 0.951, false),
+            grid_point(2, 1600, 0.949, false),
+            grid_point(3, 3200, 0.903, true),
+        ];
+        let lone = boundary_over(&ONE_PASSES, &[], None);
+        assert_eq!(
+            resolve_passing_range(&lone, 800),
+            RangeResolution::LonePassingPoint { n_min: 800, n_max: 800 }
+        );
+        let middle = boundary_over(&MIDDLE_RUN, &[], None);
+        assert_eq!(
+            resolve_passing_range(&middle, 1200),
+            RangeResolution::InteriorRun { n_min: 800, n_max: 1600 }
+        );
+        // The lower run of the mirror image is recovered like the upper one.
+        static UPPER_FAILS: [CoverageGridPoint; 4] = [
+            grid_point(0, 400, 0.951, false),
+            grid_point(1, 800, 0.949, false),
+            grid_point(2, 1600, 0.955, false),
+            grid_point(3, 3200, 0.902, true),
+        ];
+        static LOWER_CONFIRMED: [CoverageGridPoint; 3] = [
+            grid_point(0, 400, 0.952, false),
+            grid_point(1, 800, 0.946, false),
+            grid_point(2, 1600, 0.956, false),
+        ];
+        let lower = boundary_over(&UPPER_FAILS, &LOWER_CONFIRMED, Some((400, 1600)));
+        let slot = calibration_slot_in(&at(1000), &[lower]);
+        assert_eq!(slot.status, "calibrated", "{slot:?}");
+        assert_eq!(
+            (slot.scope_n, slot.scope_n_max, slot.observed),
+            (Some(400), Some(1600), Some(0.946))
+        );
+        assert_eq!(
+            calibration_slot_in(&at(3200), &[lower]).reason.as_deref(),
+            Some(BOUNDARY_RECORD)
+        );
+    }
+
+    /// A named change to one field of a calibration key.
+    type KeyMutation = fn(&mut CalibrationKeyWire);
+
+    #[test]
+    fn a_confirmed_range_binds_only_to_the_exact_construction_estimand_level_dependence_identification_and_attestation()
+     {
+        let record = boundary_over(&LOWER_FAILS, &UPPER_CONFIRMED, Some((800, 3200)));
+        let positive = calibration_slot_in(&at(1600), &[record]);
+        assert_eq!(positive.status, "calibrated");
+        // Construction (estimator, interval method), estimand (functional) and dependence differ:
+        // no record measured this construction, so nothing is combined.
+        let variants: [(&str, KeyMutation); 5] = [
+            ("estimator", |k| k.estimator = "foreign".into()),
+            ("interval method", |k| k.interval_method = "foreign".into()),
+            ("estimand", |k| k.functional = "foreign.contrast".into()),
+            ("dependence", |k| k.dependence = "panel_cluster".into()),
+            ("graph class", |k| k.graph_class = "foreign".into()),
+        ];
+        for (what, edit) in variants {
+            let mut b = at(1600);
+            edit(&mut b.key);
+            let slot = calibration_slot_in(&b, &[record]);
+            assert_eq!(slot.status, "unavailable", "{what}: {slot:?}");
+            assert_eq!(slot.reason.as_deref(), Some(CONSTRUCTION_NOT_MEASURED), "{what}");
+        }
+        // The nominal level and the identification are exact too.
+        let mut level = at(1600);
+        level.key.level = 0.9;
+        assert_eq!(
+            calibration_slot_in(&level, &[record]).reason.as_deref(),
+            Some(LEVEL_NOT_MEASURED)
+        );
+        let mut identification = at(1600);
+        identification.key.identification = "partial".into();
+        assert_eq!(
+            calibration_slot_in(&identification, &[record]).reason.as_deref(),
+            Some(IDENTIFICATION_NOT_MEASURED)
+        );
+        // And the record must still attest the current code.
+        let stale = calibration_slot_with(&at(1600), &[record], |_| false);
+        assert_eq!(stale.status, "scope_not_assessed");
+        assert_eq!(stale.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
     }
 }

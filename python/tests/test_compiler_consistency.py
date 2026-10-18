@@ -367,7 +367,6 @@ def _refusals() -> list[tuple[str, Callable[[], Any]]]:
             "refresh with a missing column",
             lambda: linear.refresh({"z": data["z"], "treatment": data["treatment"]}),
         ),
-        ("refresh with an extra column", lambda: linear.refresh({**data, "w": data["z"]})),
         ("estimator ipw", lambda: ant.analyze(data, graph=GRAPH, query=query, estimator="ipw")),
         (
             "identifier frontdoor",

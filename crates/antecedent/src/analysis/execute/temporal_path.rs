@@ -48,7 +48,9 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
+        let estimator = TemporalMediationEstimator::new()
+            .with_allow_natural_controlled_alias(true)
+            .with_allow_gaps(self.declares_complete_case());
         let inputs = CpdagMediationInputs { data, query, estimator: &estimator, ctx };
         let mut run = CpdagMediationRun::new(query.horizons.len());
         let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
@@ -719,10 +721,12 @@ impl super::Study {
                 split: self.split.as_ref(),
                 latency_mode: self.latency_mode,
                 completed_to_dag: super::temporal_effect_core::plan_completed_to_dag(physical),
+                missing: self.missing.as_ref(),
             },
             ctx,
         )?;
         let point_only = fit.point_only;
+        let missing_data = fit.missing_data.clone();
         let args = fit.finish_args(
             physical,
             identification,
@@ -735,10 +739,12 @@ impl super::Study {
                 wall_time_ns: elapsed_ns(started),
             },
         );
-        Ok(super::temporal_effect_core::seal_point_only(
+        let mut result = super::temporal_effect_core::seal_point_only(
             point_only,
             self.finish_identified_execute(args),
-        ))
+        );
+        result.missing_data = missing_data;
+        Ok(result)
     }
 
     /// Temporal natural mediation on a resolved `TemporalDag`: identify per horizon, then fit
@@ -790,9 +796,11 @@ impl super::Study {
                 horizons: &clicks,
                 inference,
                 validation: self.refute,
+                missing: self.missing.as_ref(),
             },
             ctx,
         )?;
+        let missing_data = fit.missing_data.clone();
         let args = fit.finish_args(
             physical,
             query,
@@ -800,7 +808,9 @@ impl super::Study {
             self.graph.version(),
             elapsed_ns(started),
         );
-        Ok(self.finish_identified_execute(args))
+        let mut result = self.finish_identified_execute(args);
+        result.missing_data = missing_data;
+        Ok(result)
     }
 
     pub(super) fn execute_temporal_response(
@@ -1132,7 +1142,8 @@ impl super::Study {
         // Surface SEs follow the Study bootstrap / replicate contract so Pulse,
         // single-step Sustained, and the dose × horizon surface report comparable
         // uncertainty. Replicates = 0 keeps the analytic OLS linear-functional SE.
-        let mut estimator = TemporalResponseEstimator::new();
+        let mut estimator =
+            TemporalResponseEstimator::new().with_allow_gaps(self.declares_complete_case());
         estimator.inner.bootstrap_replicates =
             if observation_adjusted.is_some() { 0 } else { self.bootstrap_replicates };
         let mut conflict_summary = None;
@@ -2388,10 +2399,12 @@ impl super::Study {
                 refute: self.refute,
                 custom_validators: &self.custom_validators,
                 latency_mode: self.latency_mode,
+                gaps: self.declares_complete_case(),
             },
             ctx,
         )?;
         let point_only = fit.point_only;
+        let missing_data = fit.missing_data.clone();
         let mut identification = envelope_to_identification_result_for(
             &bundle.envelope.envelope,
             CausalQuery::TemporalEffect(query.clone()),
@@ -2409,10 +2422,12 @@ impl super::Study {
                 wall_time_ns: elapsed_ns(started),
             },
         );
-        Ok(super::temporal_effect_core::seal_point_only(
+        let mut result = super::temporal_effect_core::seal_point_only(
             point_only,
             self.finish_identified_execute(args),
-        ))
+        );
+        result.missing_data = missing_data;
+        Ok(result)
     }
 
     /// The identifier and class proof of a one-shot class effect: the prepared
@@ -2752,6 +2767,7 @@ impl super::Study {
                     query,
                     split: self.split.as_ref(),
                     time_index: data.time_index(),
+                    gaps: false,
                 }),
             }
             .run(std::slice::from_ref(&refute_atom), &mut refute_ws, ctx)?;

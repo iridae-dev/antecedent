@@ -6,7 +6,18 @@
 //! a directed cycle (or, on temporal graphs, a future→past edge — refused by
 //! `orient_undirected`) or creates an unshielded collider the CPDAG does not carry.
 //!
+//! The search is bounded by a [`SearchBudget`] (operations, depth, memory, cancellation), not by
+//! a count of undirected edges: a CPDAG of any size completes when pruning keeps the visited
+//! states within the budget. Every partial orientation popped is one charged operation. A budget
+//! stop is sticky and typed ([`MecSearch::search_stop`]); it is a resource outcome, never a claim
+//! that the remainder holds no member.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::panic::{RefUnwindSafe, UnwindSafe};
+use std::sync::Arc;
+
+use antecedent_core::{ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop};
 
 use crate::cpdag::{Cpdag, TemporalCpdag};
 use crate::dag::Dag;
@@ -194,6 +205,17 @@ fn has_forbidden_collider_at<G: MecCpdag>(
     false
 }
 
+/// The execution context a search keeps for its budget checks.
+///
+/// It is read after construction only (its progress sink is notified, never mutated), so a
+/// panic cannot leave it in a state a later observer sees broken. The progress sink is not
+/// itself `RefUnwindSafe`, which would otherwise strip that auto trait from every sampler.
+#[derive(Clone, Debug)]
+struct ReadOnlyContext(Arc<ExecutionContext>);
+
+impl UnwindSafe for ReadOnlyContext {}
+impl RefUnwindSafe for ReadOnlyContext {}
+
 /// Depth-first orientation search over the undirected edges of a CPDAG.
 #[derive(Clone, Debug)]
 pub(crate) struct MecSearch<G: MecCpdag> {
@@ -206,25 +228,34 @@ pub(crate) struct MecSearch<G: MecCpdag> {
     pub(crate) next_index: usize,
     /// Partial orientation and index of the next edge to orient.
     stack: Vec<(G, usize)>,
+    limits: SearchLimits,
+    ctx: ReadOnlyContext,
+    memory_limit_bytes: u64,
+    /// Estimated live bytes of one stacked partial orientation.
+    state_bytes: u64,
+    operations: usize,
+    depth_reached: usize,
+    stop: Option<SearchStop>,
 }
 
 impl<G: MecCpdag> MecSearch<G> {
     /// # Errors
     ///
-    /// `conflict_message` when the CPDAG carries conflict (`x-x`) edges; `ceiling_message`
-    /// when it has more than `ceiling` undirected edges.
+    /// `conflict_message` when the CPDAG carries conflict (`x-x`) edges.
     pub(crate) fn new(
         cpdag: G,
         max_completions: usize,
-        ceiling: usize,
+        limits: SearchLimits,
+        ctx: &ExecutionContext,
         conflict_message: &'static str,
-        ceiling_message: &'static str,
     ) -> Result<Self, GraphError> {
         if cpdag.conflict_edge_count() > 0 {
             return Err(GraphError::InvalidEndpoints { message: conflict_message });
         }
         let mut undirected = Vec::new();
+        let mut edge_count = 0usize;
         for e in cpdag.edges() {
+            edge_count += 1;
             if e.is_undirected() {
                 let (a, b) = if e.a.raw() <= e.b.raw() { (e.a, e.b) } else { (e.b, e.a) };
                 undirected.push((a, b));
@@ -232,10 +263,14 @@ impl<G: MecCpdag> MecSearch<G> {
         }
         undirected.sort_by_key(|(a, b)| (a.raw(), b.raw()));
         undirected.dedup();
-        if undirected.len() > ceiling {
-            return Err(GraphError::InvalidEndpoints { message: ceiling_message });
-        }
         let allowed_colliders = unshielded_colliders_cpdag(&cpdag);
+        let state_bytes = u64::try_from(
+            cpdag
+                .node_count()
+                .saturating_add(edge_count.saturating_mul(2))
+                .saturating_mul(std::mem::size_of::<MarkedEdge>()),
+        )
+        .unwrap_or(u64::MAX);
         let start = cpdag.clone();
         Ok(Self {
             base: cpdag,
@@ -244,6 +279,18 @@ impl<G: MecCpdag> MecSearch<G> {
             max_completions,
             next_index: 0,
             stack: vec![(start, 0)],
+            limits,
+            ctx: ReadOnlyContext(Arc::new(ctx.clone())),
+            memory_limit_bytes: ctx
+                .memory
+                .hard_limit_bytes
+                .map_or(antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES, |hard| {
+                    hard.min(antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES)
+                }),
+            state_bytes,
+            operations: 0,
+            depth_reached: 0,
+            stop: None,
         })
     }
 
@@ -251,17 +298,71 @@ impl<G: MecCpdag> MecSearch<G> {
         self.undirected.len()
     }
 
-    /// Whether the retention cap stopped the stream before the search finished.
+    /// Whether the stream ended before the search finished: the retention cap was reached
+    /// with orientations still pending, or the search budget stopped it.
     pub(crate) fn hit_cap(&self) -> bool {
-        self.next_index >= self.max_completions && !self.stack.is_empty()
+        (self.next_index >= self.max_completions && !self.stack.is_empty()) || self.stop.is_some()
+    }
+
+    /// The bound that stopped the search, if a budget (not the retention cap) did.
+    pub(crate) fn search_stop(&self) -> Option<SearchStop> {
+        self.stop
+    }
+
+    /// Receipt of a budget stop: the limits in force, the states visited and the orientations
+    /// left pending. `None` while no budget has stopped the search.
+    pub(crate) fn search_receipt(&self) -> Option<SearchReceipt> {
+        let stop = self.stop?;
+        Some(SearchReceipt {
+            stop,
+            operations_limit: self.limits.operations,
+            depth_limit: self.limits.depth,
+            memory_limit_bytes: Some(self.memory_limit_bytes),
+            operations_consumed: (self.operations > 0).then_some(self.operations),
+            depth_reached: (self.operations > 0).then_some(self.depth_reached),
+            explored: vec![format!(
+                "{} orientation states visited, {} completion(s) yielded",
+                self.operations, self.next_index
+            )],
+            unevaluated: vec![format!(
+                "{} partial orientation(s) of {} undirected edge(s) left unexpanded",
+                self.stack.len(),
+                self.undirected.len()
+            )],
+        })
     }
 
     /// The next fully oriented CPDAG (every undirected edge oriented, no forbidden collider).
     pub(crate) fn next_oriented(&mut self) -> Option<G> {
-        if self.next_index >= self.max_completions {
+        if self.next_index >= self.max_completions || self.stop.is_some() || self.stack.is_empty() {
             return None;
         }
+        let remaining = SearchLimits {
+            operations: self.limits.operations.saturating_sub(self.operations),
+            depth: self.limits.depth,
+        };
+        let ctx = Arc::clone(&self.ctx.0);
+        let mut budget = match SearchBudget::with_memory(remaining, self.memory_limit_bytes, &ctx) {
+            Ok(budget) => budget,
+            Err(receipt) => {
+                self.stop = Some(receipt.stop);
+                return None;
+            }
+        };
+        let found = self.expand(&mut budget);
+        self.operations = self.operations.saturating_add(budget.operations());
+        self.depth_reached = self.depth_reached.max(budget.depth_reached());
+        found
+    }
+
+    fn expand(&mut self, budget: &mut SearchBudget<'_>) -> Option<G> {
         while let Some((g, edge_i)) = self.stack.pop() {
+            let live = u64::try_from(self.stack.len().saturating_add(1)).unwrap_or(u64::MAX);
+            if let Err(stop) = budget.charge(edge_i, live.saturating_mul(self.state_bytes)) {
+                self.stop = Some(stop);
+                self.stack.push((g, edge_i));
+                return None;
+            }
             if edge_i == self.undirected.len() {
                 return Some(g);
             }

@@ -81,7 +81,7 @@ def test_missingness_after_complete_case_uses_remaining_sample():
 
 
 def test_propensity_weighting_refuses_continuous_treatment():
-    with pytest.raises(ac.errors.CausalEstimateError, match="binary treatment"):
+    with pytest.raises(ac.errors.CausalError, match="treatment_level_undeclared"):
         ac.analyze(
             _frame(np.linspace(0.0, 1.0, 80, endpoint=False)),
             graph=GRAPH,

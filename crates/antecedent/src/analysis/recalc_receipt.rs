@@ -702,6 +702,20 @@ fn estimator_identity_bytes(estimator: &AipwAte) -> Vec<u8> {
             }
         }
     }
+    // Labels per source row are appended only when declared, so a configuration without
+    // them keeps its earlier encoding.
+    if let Some(labels) = estimator.source_cluster_ids.as_deref() {
+        out.push(2);
+        push_u32s(&mut out, labels);
+    }
+    if let Some(labels) = estimator.source_cluster_ids_second.as_deref() {
+        out.push(3);
+        push_u32s(&mut out, labels);
+    }
+    if let Some(weights) = estimator.sampling_weights.as_ref() {
+        out.push(4);
+        push_f64s(&mut out, weights.source());
+    }
     out
 }
 
@@ -1154,6 +1168,10 @@ pub fn execute_with_receipt(
     ctx: &ExecutionContext,
 ) -> Result<RecalcOutcome, RecalcRunError> {
     request.validate()?;
+    // A cancelled run stops before any stage runs and leaves the session as it was.
+    if ctx.cancellation.is_cancelled() {
+        return Err(RecalcRunError::Request("recalc.cancelled"));
+    }
     let plan = session.plan(request, ctx);
     if !plan.is_executable() {
         return Err(RecalcRunError::Refused(Box::new(plan)));

@@ -124,6 +124,7 @@ pub struct StudyConfig {
     pub(crate) estimator_spec_identity: Option<antecedent_io::EstimatorSpecWire>,
     pub(crate) response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
     pub(crate) observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    pub(crate) draw_controls: Option<crate::PosteriorDrawControls>,
     pub(crate) observation_delayed_entry: Option<antecedent_core::VariableId>,
     pub(crate) rd: Option<RdConfig>,
     pub(crate) stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
@@ -176,6 +177,10 @@ pub struct Study {
     pub(crate) inference: InferenceMode,
     pub(crate) overlap_policy: Option<OverlapPolicy>,
     pub(crate) population_registry: Option<PopulationRegistry>,
+    /// Digests of the participant labels bound to the rows of the data.
+    pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
+    /// Declared handling of missing values, when the caller declared one.
+    pub(crate) missing: Option<antecedent_data::MissingDeclaration>,
     pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
     /// Prepare-time identification for the static ATE path (including the
@@ -336,6 +341,7 @@ mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
 mod checked_transport_trial;
 mod sequential_validation;
+mod static_missing;
 mod static_path;
 #[cfg(test)]
 mod study_clone_tests;

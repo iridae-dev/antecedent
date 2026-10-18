@@ -1,0 +1,65 @@
+{
+  "schema": "original_recordless_count_recovery.v1",
+  "source": "767659966d856f0bb882196b5ff9e1aeb47e0a04",
+  "original_source": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+  "purpose": "Recover actual conditional N and scientific summaries on exactly the existing original seed prefixes; no new calibration, relabeling or attempts inferred from reported counts.",
+  "guard_test_log_sha256": "3b89b8fc565c7f111c756bf1d0b5e6975fac26720103d323475f7d4a9ac673c7",
+  "worktree": "/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent",
+  "target_dir": "/private/tmp/antecedent-attestation-target",
+  "cases": [
+    {
+      "package": "antecedent-stats",
+      "filter": "scalable_gpdc_replacement_validated_separately",
+      "group": "antecedent-stats__scalable_gpdc_replacement_validated_separately",
+      "source_path": "crates/antecedent-stats/src/ci/calibration.rs",
+      "attempted": 2000,
+      "rows": 8000,
+      "context_workers": 1,
+      "seed": 6101623,
+      "family": 49170,
+      "resampling": "block_shuffle_99_block_1",
+      "profile": "gpdc_nystrom_conditional_null.v1",
+      "from_blob": "22ea819edffb27452b03812a25b4f3a8279764b1",
+      "to_blob": "8f1c61e92bf08ba4867e980a04fd8653ab72b3c0",
+      "binary": "/private/tmp/antecedent-attestation-target/release/deps/antecedent_stats-a4c8af3658a56b62",
+      "binary_sha256": "4f14973f74bd4f5ad16ff1eaafcf8e3189243d22ced36525cd9d1db00e1e0829",
+      "command": [
+        "/private/tmp/antecedent-attestation-target/release/deps/antecedent_stats-a4c8af3658a56b62",
+        "ci::calibration::tests::scalable_gpdc_replacement_validated_separately",
+        "--exact",
+        "--ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "test": "ci::calibration::tests::scalable_gpdc_replacement_validated_separately"
+    },
+    {
+      "package": "antecedent-validate",
+      "filter": "scalable_sensitivity_replacement_validated_separately",
+      "group": "antecedent-validate__scalable_sensitivity_replacement_validated_separately",
+      "source_path": "crates/antecedent-validate/src/sensitivity.rs",
+      "attempted": 2000,
+      "rows": 50000,
+      "context_workers": 4,
+      "seed_start": 5211204,
+      "context_seed": 73,
+      "effect": 0.5,
+      "profile": "neighborhood_tipping_bracket.v1",
+      "from_blob": "7bdc6fb09265648bbb7406d88c7eb435acb63d0c",
+      "to_blob": "e6905474654dcde6f9ae44d8629ff90c9665652f",
+      "binary": "/private/tmp/antecedent-attestation-target/release/deps/antecedent_validate-052e4a569c0b5c43",
+      "binary_sha256": "aa841fb6939d1a5904b3a808198e7bcc18720d157cbf10947709a98084d3b27c",
+      "command": [
+        "/private/tmp/antecedent-attestation-target/release/deps/antecedent_validate-052e4a569c0b5c43",
+        "sensitivity::scalable_cases::scalable_sensitivity_replacement_validated_separately",
+        "--exact",
+        "--ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "test": "sensitivity::scalable_cases::scalable_sensitivity_replacement_validated_separately"
+    }
+  ],
+  "prebuild_log_sha256": "e3d490d2af1c4830b4ccb7e67918f8a724b0d5d7b8b96aece9c86da2fa7b833f",
+  "environment_rule": "All ANTECEDENT_CALIBRATION_* overrides removed; original hardcoded data, counts, seeds and execution contexts retained; one test per harness."
+}

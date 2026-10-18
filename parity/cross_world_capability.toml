@@ -100,10 +100,10 @@ population = "single"
 coupling = "shared_abduced_exogenous"
 status = "closed"
 route = "none"
-theorem = "An exogenous term shared by two endogenous variables is latent confounding; the identification and coupling theorem is stated for independent exogenous terms."
+theorem = "Latent confounding whose mechanisms and exogenous law are not declared, or are to be fitted from observational data, does not identify a cross-world joint law; the same shared exogenous term is executed when every mechanism and law is declared."
 refusal_code = "cross_world_not_identified"
-refusal_detail = "cross_world_execution.non_markovian"
-remedy = "declare one independent exogenous term per mechanism (a Markovian model), or use an identification route that accepts the latent structure"
+refusal_detail = "cross_world_execution.latent_confounding_not_identified"
+remedy = "declare every mechanism and the finite law of every exogenous term (a fully declared finite SCM may share an exogenous term between mechanisms), or use an identification route that accepts the latent structure"
 
 [[row]]
 id = "model.nonparametric_admg"
@@ -119,7 +119,7 @@ route = "none"
 theorem = "A cross-world joint law is not identified by a graph alone; mechanisms and a noise law must be declared."
 refusal_code = "cross_world_not_identified"
 refusal_detail = "cross_world_execution.mechanisms_not_declared"
-remedy = "declare the mechanisms and the exogenous law (a finite Markovian SCM or the two-slice additive linear model), or ask an interventional rather than a cross-world question"
+remedy = "declare the mechanisms and the exogenous law (a fully declared finite SCM or the two-slice additive linear model), or ask an interventional rather than a cross-world question"
 
 [[row]]
 id = "history.incompatible"
@@ -168,3 +168,45 @@ theorem = "A finite SCM's exogenous law is not identified from observational dat
 refusal_code = "route_not_supported"
 refusal_detail = "cross_world_execution.finite_fitting_not_executed"
 remedy = "declare the mechanisms and the exogenous law, or use the partial-identification route that returns bounds on the counterfactual"
+
+[[row]]
+id = "counterfactual.finite_shared_exogenous_scm.marginal"
+quantity = "counterfactual_marginal"
+model = "finite_shared_exogenous_scm"
+conditioning = ["no_evidence", "factual_evidence"]
+history = ["no_history"]
+evidence = ["declared_mechanisms"]
+population = "single"
+coupling = "not_required"
+status = "executed"
+route = "antecedent_counterfactual::selective::FiniteScmExecutor"
+theorem = "Fully declared SCM over finite variables in which an exogenous term may feed several mechanisms, with every mechanism and every finite exogenous law declared: the unit-level counterfactual joint law over worlds is the push-forward of the joint exogenous posterior given the factual evidence (abduction-action-prediction; Pearl 2009 ch. 7; Balke and Pearl 1994), enumerated exactly over the joint exogenous states. A shared term takes one value that every mechanism reading it sees in every world, so latent confounding raises no identification question when the model is declared. Model adequacy is a premise, not a check."
+remedy = ""
+
+[[row]]
+id = "counterfactual.finite_shared_exogenous_scm.joint"
+quantity = "counterfactual_joint"
+model = "finite_shared_exogenous_scm"
+conditioning = ["no_evidence", "factual_evidence"]
+history = ["no_history"]
+evidence = ["declared_mechanisms"]
+population = "single"
+coupling = "shared_abduced_exogenous"
+status = "executed"
+route = "antecedent_counterfactual::selective::FiniteScmExecutor"
+theorem = "Fully declared SCM over finite variables in which an exogenous term may feed several mechanisms, with every mechanism and every finite exogenous law declared: the unit-level counterfactual joint law over worlds is the push-forward of the joint exogenous posterior given the factual evidence (abduction-action-prediction; Pearl 2009 ch. 7; Balke and Pearl 1994), enumerated exactly over the joint exogenous states. A shared term takes one value that every mechanism reading it sees in every world, so latent confounding raises no identification question when the model is declared. Model adequacy is a premise, not a check."
+remedy = ""
+
+[[row]]
+id = "natural_path_specific.finite_shared_exogenous_scm"
+quantity = "natural_path_specific"
+model = "finite_shared_exogenous_scm"
+conditioning = ["no_evidence", "factual_evidence"]
+history = ["no_history"]
+evidence = ["declared_mechanisms"]
+population = "single"
+coupling = "shared_abduced_exogenous"
+status = "executed"
+route = "antecedent_counterfactual::selective::FiniteScmExecutor"
+theorem = "As the shared-exogenous finite row; a world reads a parent from another world (nested counterfactual, Pearl 2001 natural effects) and every world reads one joint exogenous posterior state, so the contrast is computed from coupled worlds only."
+remedy = ""

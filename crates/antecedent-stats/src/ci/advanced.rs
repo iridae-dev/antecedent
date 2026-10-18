@@ -118,10 +118,11 @@ impl ConditionalIndependenceTest for KnnDependence {
         // Null-loop scratch, reused across replicates and queries: the permuted
         // feature matrix differs from the primary index's only in the Y column,
         // so each replicate rewrites that column and computes k-th self-distances
-        // directly — no per-replicate index construction or feature copies.
+        // directly — no per-replicate index copy and no `n`-length distance buffer.
+        // The joint distance changes with every permuted column, so nothing but the
+        // feature matrix carries over between replicates.
         let mut null_feats: Vec<f64> = Vec::new();
         let mut null_dists: Vec<f64> = Vec::new();
-        let mut null_dist_scratch: Vec<f64> = Vec::new();
         let mut results = Vec::with_capacity(request.queries.len());
         for q in request.queries {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
@@ -135,9 +136,9 @@ impl ConditionalIndependenceTest for KnnDependence {
                 reject_unsupported_block_size(request.significance, "KnnDependence")?;
             }
             let dim = 2 + z.len();
-            ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn)?;
+            ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn, ctx)?;
             let builds_before = workspace.knn.index_builds;
-            let stat = knn_stat_from_index(&mut workspace.knn, self.k)?;
+            let stat = knn_stat_from_index(&mut workspace.knn, self.k, ctx)?;
             // Null: permute Y within local Z neighbourhoods (or exact Z-level strata when
             // Z is discrete) so the Y–Z link is preserved under H0. A full unconditional
             // shuffle — or coarse tercile bins on continuous Z — inflates type-I error
@@ -172,14 +173,14 @@ impl ConditionalIndependenceTest for KnnDependence {
                 for (r, &value) in y_perm.iter().enumerate() {
                     null_feats[r * dim + 1] = value;
                 }
-                MatchingIndex::kth_self_distances(
+                MatchingIndex::kth_self_distances_within(
                     &null_feats[..n * dim],
                     n,
                     dim,
                     MatchingDistance::Euclidean,
                     self.k,
                     &mut null_dists,
-                    &mut null_dist_scratch,
+                    ctx,
                 )?;
                 let null = -null_dists[..n].iter().sum::<f64>() / n as f64;
                 if null >= stat {
@@ -225,6 +226,10 @@ fn knn_input_fingerprint(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n:
     h.finish()
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the index key (columns, query, n, dim), the cache it fills and the execution context are all distinct inputs"
+)]
 fn ensure_knn_index(
     columns: &[&[f64]],
     x: usize,
@@ -233,6 +238,7 @@ fn ensure_knn_index(
     n: usize,
     dim: usize,
     knn: &mut KnnDependenceWorkspace,
+    ctx: &ExecutionContext,
 ) -> Result<(), StatsError> {
     let fingerprint = knn_input_fingerprint(columns, x, y, z, n);
     let need_rebuild = knn.index.is_none()
@@ -251,8 +257,7 @@ fn ensure_knn_index(
         }
     }
     let donors: Vec<usize> = (0..n).collect();
-    let idx = MatchingIndex::exact(&feats, dim, &donors, MatchingDistance::Euclidean)
-        .map_err(|e| StatsError::Backend(e.to_string()))?;
+    let idx = MatchingIndex::exact_within(&feats, dim, &donors, MatchingDistance::Euclidean, ctx)?;
     knn.features = feats;
     knn.index = Some(idx);
     knn.last_dim = dim;
@@ -263,7 +268,11 @@ fn ensure_knn_index(
     Ok(())
 }
 
-fn knn_stat_from_index(knn: &mut KnnDependenceWorkspace, k: usize) -> Result<f64, StatsError> {
+fn knn_stat_from_index(
+    knn: &mut KnnDependenceWorkspace,
+    k: usize,
+    ctx: &ExecutionContext,
+) -> Result<f64, StatsError> {
     let n = knn.last_n;
     if knn.distances.len() < n {
         knn.distances.resize(n, 0.0);
@@ -271,7 +280,7 @@ fn knn_stat_from_index(knn: &mut KnnDependenceWorkspace, k: usize) -> Result<f64
         knn.distances.truncate(n);
     }
     let idx = knn.index.as_ref().ok_or(StatsError::Shape { message: "missing kNN index" })?;
-    idx.kth_self_distances_of_donors(k, &mut knn.distances)?;
+    idx.kth_self_distances_of_donors_within(k, &mut knn.distances, ctx)?;
     let mean = knn.distances.iter().sum::<f64>() / n as f64;
     Ok(-mean)
 }
@@ -597,7 +606,8 @@ const GPDC_FACTOR_CACHE: usize = 2;
 /// batch sharing a Z set reuse it). The GP mean prediction is `Kα` with `(K+λI)α = y_c`, so the
 /// residual is exactly `y_c − Kα = λα` (MM-008). The earlier Jacobi-on-raw-`y` path rejected
 /// conditional nulls and missed two-conditioner alternatives against the pinned advanced-CI
-/// oracle. Conditional inputs above [`GPDC_ROW_LIMIT`] rows are refused.
+/// oracle. Conditional inputs above [`GPDC_ROW_LIMIT`] rows are refused; [`GpdcNystrom`] is the
+/// separately identified construction for them.
 #[derive(Clone, Debug)]
 pub struct Gpdc {
     /// RBF length scale.
@@ -661,7 +671,8 @@ impl ConditionalIndependenceTest for Gpdc {
                     return Err(StatsError::Unsupported {
                         message: "GPDC conditions through a dense n x n kernel (O(n^2) memory, \
                                   O(n^3) factorization) and refuses more than 4000 rows with a \
-                                  non-empty conditioning set; subsample or use another CI test",
+                                  non-empty conditioning set; use GpdcNystrom (`gpdc_nystrom`), \
+                                  which conditions through a declared-rank low-rank kernel",
                     });
                 }
                 let at = if let Some(at) = factors.iter().position(|(key, _)| key.as_slice() == z) {
@@ -683,32 +694,16 @@ impl ConditionalIndependenceTest for Gpdc {
             // independence verdict manufactured by the absence of information.
             ensure_residual_information(request.columns[q.x], &rx)?;
             ensure_residual_information(request.columns[q.y], &ry)?;
-            // Distance correlation in O(n log n) time and O(n) memory (sorting / Fenwick
-            // identities): neither the statistic nor any permutation replicate builds an
-            // n x n distance matrix.
-            let dcor = distance_correlation(&rx, &ry);
-            // Permutation null: permute the Y residuals (Z influence already removed) and
-            // recompute dCor; add-one p-value keeps it in (0, 1]. `block_size > 1` permutes
-            // contiguous blocks so the residual's serial dependence survives into the null;
-            // otherwise it is an ordinary exchangeable shuffle.
-            let mut ry_perm = ry.clone();
-            let mut rng = ctx.rng.stream_for(
-                StreamDomain::StatsCi,
-                0x69DC_u64 ^ query_stream_salt(&[q.x], &[q.y], z),
-            );
-            let mut null_ge = 0u32;
-            for _ in 0..n_perm {
-                if block_size > 1 {
-                    block_permute_contiguous(&mut ry_perm, block_size, &mut rng);
-                } else {
-                    shuffle(&mut rng, &mut ry_perm);
-                }
-                if distance_correlation(&rx, &ry_perm) >= dcor {
-                    null_ge = null_ge.saturating_add(1);
-                }
-            }
-            let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
-            results.push(CiResult { statistic: dcor, p_value: p, df: 0.0, ci: None });
+            results.push(residual_dcor_permutation_result(
+                &rx,
+                &ry,
+                ResidualNull {
+                    salt: 0x69DC_u64 ^ query_stream_salt(&[q.x], &[q.y], z),
+                    n_perm,
+                    block_size,
+                },
+                ctx,
+            ));
         }
         Ok(CiBatchResult { results })
     }
@@ -716,6 +711,49 @@ impl ConditionalIndependenceTest for Gpdc {
     fn attainable_p(&self) -> super::types::AttainableP {
         super::types::AttainableP::NonparametricPermutation
     }
+}
+
+/// How a GPDC-family test permutes its residuals.
+#[derive(Clone, Copy)]
+struct ResidualNull {
+    /// Stream salt of the query (distinguishes the test family and the query).
+    salt: u64,
+    /// Permutation replicates.
+    n_perm: usize,
+    /// Contiguous block length (1: exchangeable shuffle).
+    block_size: usize,
+}
+
+/// Distance correlation of two Z-free residual series with its permutation p-value.
+///
+/// The distance correlation is `O(n log n)` time and `O(n)` memory (sorting / Fenwick
+/// identities): neither the statistic nor any permutation replicate builds an `n x n`
+/// distance matrix. The null permutes the Y residuals (Z influence already removed) and
+/// recomputes dCor; the add-one p-value keeps it in `(0, 1]`. `block_size > 1` permutes
+/// contiguous blocks so the residual's serial dependence survives into the null; otherwise
+/// it is an ordinary exchangeable shuffle.
+fn residual_dcor_permutation_result(
+    rx: &[f64],
+    ry: &[f64],
+    null: ResidualNull,
+    ctx: &ExecutionContext,
+) -> CiResult {
+    let dcor = distance_correlation(rx, ry);
+    let mut ry_perm = ry.to_vec();
+    let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, null.salt);
+    let mut null_ge = 0u32;
+    for _ in 0..null.n_perm {
+        if null.block_size > 1 {
+            block_permute_contiguous(&mut ry_perm, null.block_size, &mut rng);
+        } else {
+            shuffle(&mut rng, &mut ry_perm);
+        }
+        if distance_correlation(rx, &ry_perm) >= dcor {
+            null_ge = null_ge.saturating_add(1);
+        }
+    }
+    let p = (1.0 + f64::from(null_ge)) / (1.0 + null.n_perm as f64);
+    CiResult { statistic: dcor, p_value: p, df: 0.0, ci: None }
 }
 
 /// Refuse a residual carrying no information about its column.
@@ -729,8 +767,9 @@ fn ensure_residual_information(raw: &[f64], resid: &[f64]) -> Result<(), StatsEr
     Ok(())
 }
 
-/// Cholesky factor of `K + λI` on the standardised Z columns (row-major `n × n`).
-fn gp_factor(columns: &[&[f64]], z: &[usize], n: usize, gp: &Gpdc) -> Result<Vec<f64>, StatsError> {
+/// Z columns standardised to zero mean and unit SD (row-major `n × |Z|`; a constant column
+/// becomes zeros), so the fixed RBF length scale means the same thing at any scale of Z.
+fn standardized_z(columns: &[&[f64]], z: &[usize], n: usize) -> Result<Vec<f64>, StatsError> {
     // Standardise each Z column before the fixed RBF length scale so conditioning
     // does not silently fail when Z is far from unit scale (stats-ci-4).
     let zdim = z.len();
@@ -759,6 +798,13 @@ fn gp_factor(columns: &[&[f64]], z: &[usize], n: usize, gp: &Gpdc) -> Result<Vec
             }
         }
     }
+    Ok(z_std)
+}
+
+/// Cholesky factor of `K + λI` on the standardised Z columns (row-major `n × n`).
+fn gp_factor(columns: &[&[f64]], z: &[usize], n: usize, gp: &Gpdc) -> Result<Vec<f64>, StatsError> {
+    let zdim = z.len();
+    let z_std = standardized_z(columns, z, n)?;
     // Gram on standardised Z (sum of RBF over Z dims) plus the ridge.
     let mut k = vec![0.0; n * n];
     let ls2 = gp.length_scale * gp.length_scale;
@@ -796,6 +842,358 @@ fn gp_residual(y: &[f64], factor: Option<&[f64]>, ridge: f64) -> Result<Vec<f64>
     let alpha = crate::gram::chol_solve(chol, n, &centered)
         .ok_or_else(|| StatsError::Backend("GPDC kernel solve failed".into()))?;
     Ok(alpha.into_iter().map(|a| ridge * a).collect())
+}
+
+/// Largest Nyström rank [`GpdcNystrom`] accepts: the `m × m` normal equations are accumulated
+/// per row block, so memory grows as `m²` times the block count.
+pub const GPDC_NYSTROM_MAX_INDUCING_POINTS: usize = 1_024;
+
+/// Row blocks the Nyström accumulations are split into at most. The split depends only on
+/// the row count, so the sums (and every result) are identical at any thread count.
+const NYSTROM_MAX_ROW_BLOCKS: usize = 32;
+
+/// Rows per Nyström row block, at least this many.
+const NYSTROM_MIN_BLOCK_ROWS: usize = 2_048;
+
+/// Relative diagonal jitter of the Nyström normal equations: the RBF kernel matrix of
+/// inducing points is numerically rank deficient, and without it the factorization of
+/// `K_mn K_nm + λ K_mm` would fail on exactly the smooth conditioning sets GPDC is for.
+const NYSTROM_JITTER: f64 = 1e-10;
+
+/// Scalable GPDC: Nyström (subset-of-regressors) RBF-GP residualization of X and Y on Z
+/// followed by the same distance correlation and permutation null as [`Gpdc`].
+///
+/// This is a separate construction from [`Gpdc`], not an approximation switch: it matches
+/// `Gpdc` in kernel, standardisation and ridge, but replaces the full-rank predictor
+/// `K (K + λI)⁻¹ y` by the rank-`m` one `K_nm (K_mn K_nm + λ K_mm + εI)⁻¹ K_mn y`, where the
+/// `m = inducing_points` inducing rows are a seeded draw without replacement from the
+/// sample (`inducing_seed`, independent of the execution seed, so the residual series is a
+/// function of the data and these two fields alone) and `ε` is [`NYSTROM_JITTER`] times the
+/// mean diagonal. Normal equations are accumulated in row blocks and X and Y are two
+/// right-hand sides of one factorization, so time is `O(n m²)` for the fit and `O(n m)` per
+/// series, and memory is `O(n + m²)` — never `n × n` — which makes 100 000 rows with
+/// `m = 256` a matter of seconds, where [`Gpdc`] refuses more than 4000 rows. With
+/// `inducing_points >= n` every row is an inducing point.
+///
+/// The rank limits what Z structure is removed, not which null is used: a Z effect that the
+/// `m`-point kernel cannot represent leaves Z-dependence in both residuals and inflates the
+/// rejection rate, which is why the construction has its own Type I / power calibration.
+/// Factory id: `gpdc_nystrom`.
+#[derive(Clone, Debug)]
+pub struct GpdcNystrom {
+    /// RBF length scale (on standardised Z).
+    pub length_scale: f64,
+    /// Ridge.
+    pub ridge: f64,
+    /// Nyström rank `m`: inducing rows drawn from the sample (at most
+    /// [`GPDC_NYSTROM_MAX_INDUCING_POINTS`]).
+    pub inducing_points: usize,
+    /// Seed of the inducing-row draw.
+    pub inducing_seed: u64,
+}
+
+impl Default for GpdcNystrom {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl GpdcNystrom {
+    /// Construct with defaults: `Gpdc`'s length scale and ridge, 256 inducing points.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            length_scale: 1.0,
+            ridge: 1e-3,
+            inducing_points: 256,
+            inducing_seed: 0x4E59_5354_0001,
+        }
+    }
+}
+
+impl ConditionalIndependenceTest for GpdcNystrom {
+    fn test_batch(
+        &self,
+        prepared: &PreparedCiTest,
+        request: &CiBatchRequest<'_>,
+        _workspace: &mut CiWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<CiBatchResult, StatsError> {
+        prepared.ensure_compatible(request)?;
+        if !self.length_scale.is_finite() || self.length_scale <= 0.0 {
+            return Err(StatsError::Shape {
+                message: "GPDC length scale must be finite and positive",
+            });
+        }
+        if !self.ridge.is_finite() || self.ridge <= 0.0 {
+            return Err(StatsError::Shape { message: "GPDC ridge must be finite and positive" });
+        }
+        if self.inducing_points == 0 || self.inducing_points > GPDC_NYSTROM_MAX_INDUCING_POINTS {
+            return Err(StatsError::Shape {
+                message: "GPDC Nystrom inducing_points must be between 1 and 1024",
+            });
+        }
+        let request = &prepared.bind_request(request);
+        let n = request.columns.first().map_or(0, |c| c.len());
+        if n == 0 {
+            return Err(StatsError::Shape { message: "no columns" });
+        }
+        // As for `Gpdc`, both series are residualized on Z before permuting, so a
+        // contiguous-block permutation of the Y residual is a valid null.
+        let block_size = requested_block_size(request.significance);
+        let n_perm = nonparametric_permutation_count(request.significance);
+        let mut fits: Vec<(Vec<usize>, NystromFit)> = Vec::new();
+        let mut results = Vec::with_capacity(request.queries.len());
+        for q in request.queries {
+            let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
+            let fit: Option<&NystromFit> = if z.is_empty() {
+                None
+            } else {
+                let at = if let Some(at) = fits.iter().position(|(key, _)| key.as_slice() == z) {
+                    at
+                } else {
+                    let fit = nystrom_fit(request.columns, z, n, self, ctx)?;
+                    if fits.len() >= GPDC_FACTOR_CACHE {
+                        fits.remove(0);
+                    }
+                    fits.push((z.to_vec(), fit));
+                    fits.len() - 1
+                };
+                Some(&fits[at].1)
+            };
+            let [rx, ry] =
+                nystrom_residuals(fit, [request.columns[q.x], request.columns[q.y]], ctx)?;
+            ensure_residual_information(request.columns[q.x], &rx)?;
+            ensure_residual_information(request.columns[q.y], &ry)?;
+            results.push(residual_dcor_permutation_result(
+                &rx,
+                &ry,
+                ResidualNull {
+                    salt: 0x69DD_u64 ^ query_stream_salt(&[q.x], &[q.y], z),
+                    n_perm,
+                    block_size,
+                },
+                ctx,
+            ));
+        }
+        Ok(CiBatchResult { results })
+    }
+
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::NonparametricPermutation
+    }
+}
+
+/// The Nyström fit for one conditioning set: standardised Z, inducing rows and the Cholesky
+/// factor of `K_mn K_nm + λ K_mm + εI`.
+#[derive(Debug)]
+struct NystromFit {
+    z_std: Vec<f64>,
+    zdim: usize,
+    inducing: Vec<f64>,
+    rank: usize,
+    ls2: f64,
+    chol: Vec<f64>,
+}
+
+impl NystromFit {
+    /// Kernel row of one standardised Z row against the inducing rows.
+    fn kernel_row(&self, row: usize, out: &mut [f64]) {
+        rbf_row(
+            &self.z_std[row * self.zdim..(row + 1) * self.zdim],
+            &self.inducing,
+            self.zdim,
+            self.ls2,
+            out,
+        );
+    }
+}
+
+/// `exp(-d² / (2 ℓ²))` between `point` and each row of row-major `centres`.
+fn rbf_row(point: &[f64], centres: &[f64], zdim: usize, ls2: f64, out: &mut [f64]) {
+    for (slot, centre) in out.iter_mut().zip(centres.chunks_exact(zdim)) {
+        let mut d2 = 0.0;
+        for (a, b) in point.iter().zip(centre) {
+            let diff = a - b;
+            d2 += diff * diff;
+        }
+        *slot = (-0.5 * d2 / ls2).exp();
+    }
+}
+
+/// `(rows per block, block count)` for the Nyström accumulations over `n` rows.
+fn nystrom_blocks(n: usize) -> (usize, usize) {
+    let block_rows = n.div_ceil(NYSTROM_MAX_ROW_BLOCKS).max(NYSTROM_MIN_BLOCK_ROWS);
+    (block_rows, n.div_ceil(block_rows))
+}
+
+/// Bytes a Nyström fit over `n` rows, `zdim` conditioning columns and rank `m` plans to hold.
+fn nystrom_bytes(n: usize, zdim: usize, m: usize) -> Option<u64> {
+    let (_, blocks) = nystrom_blocks(n);
+    let per_row = zdim.checked_add(9)?;
+    let words = n
+        .checked_mul(per_row)?
+        .checked_add(blocks.checked_add(3)?.checked_mul(m.checked_mul(m)?)?)?
+        .checked_add(m.checked_mul(zdim)?)?;
+    u64::try_from(words.checked_mul(core::mem::size_of::<f64>())?).ok()
+}
+
+/// The `m` inducing rows (ascending): a seeded draw without replacement from `n` rows,
+/// keyed by the conditioning set so different sets draw independent rows.
+fn nystrom_inducing_rows(n: usize, m: usize, seed: u64, z: &[usize]) -> Vec<usize> {
+    let mut rng = antecedent_core::RngFactory::from_seed(seed)
+        .stream_for(StreamDomain::StatsCi, query_stream_salt(&[], &[], z));
+    let mut rows: Vec<usize> = (0..n).collect();
+    for i in 0..m {
+        let j = i + unbiased_index(&mut rng, n - i);
+        rows.swap(i, j);
+    }
+    rows.truncate(m);
+    rows.sort_unstable();
+    rows
+}
+
+/// Fit the Nyström predictor for conditioning set `z`.
+fn nystrom_fit(
+    columns: &[&[f64]],
+    z: &[usize],
+    n: usize,
+    gp: &GpdcNystrom,
+    ctx: &ExecutionContext,
+) -> Result<NystromFit, StatsError> {
+    let m = gp.inducing_points.min(n);
+    let zdim = z.len();
+    crate::matching::check_budget(ctx, "GPDC Nystrom fit", nystrom_bytes(n, zdim, m))?;
+    let z_std = standardized_z(columns, z, n)?;
+    let rows = nystrom_inducing_rows(n, m, gp.inducing_seed, z);
+    let mut inducing = Vec::with_capacity(m * zdim);
+    for &r in &rows {
+        inducing.extend_from_slice(&z_std[r * zdim..(r + 1) * zdim]);
+    }
+    let ls2 = gp.length_scale * gp.length_scale;
+    let mut fit = NystromFit { z_std, zdim, inducing, rank: m, ls2, chol: Vec::new() };
+
+    // K_mn K_nm, lower triangle, summed over row blocks in block order.
+    let (block_rows, blocks) = nystrom_blocks(n);
+    let partials = ctx.map_indexed(blocks, |block, inner| {
+        if inner.cancellation.is_cancelled() {
+            return Err(StatsError::Cancelled);
+        }
+        let mut acc = vec![0.0; m * m];
+        let mut k = vec![0.0; m];
+        for row in block * block_rows..((block + 1) * block_rows).min(n) {
+            fit.kernel_row(row, &mut k);
+            for (j, &kj) in k.iter().enumerate() {
+                for (slot, kl) in acc[j * m..=j * m + j].iter_mut().zip(&k) {
+                    *slot += kj * kl;
+                }
+            }
+        }
+        Ok(acc)
+    })?;
+    let mut normal = vec![0.0; m * m];
+    for partial in &partials {
+        for (slot, v) in normal.iter_mut().zip(partial) {
+            *slot += v;
+        }
+    }
+    drop(partials);
+    // + λ K_mm, mirrored to the full symmetric matrix, + jitter on the diagonal.
+    let mut k_row = vec![0.0; m];
+    for j in 0..m {
+        rbf_row(&fit.inducing[j * zdim..(j + 1) * zdim], &fit.inducing, zdim, ls2, &mut k_row);
+        for l in 0..=j {
+            normal[j * m + l] += gp.ridge * k_row[l];
+        }
+    }
+    let mean_diagonal = (0..m).map(|j| normal[j * m + j]).sum::<f64>() / m as f64;
+    for j in 0..m {
+        normal[j * m + j] += NYSTROM_JITTER * mean_diagonal;
+        for l in 0..j {
+            normal[l * m + j] = normal[j * m + l];
+        }
+    }
+    fit.chol = crate::gram::cholesky_spd(&normal, m).ok_or_else(|| {
+        StatsError::Backend("GPDC Nystrom normal equations not positive definite".into())
+    })?;
+    Ok(fit)
+}
+
+/// Nyström residuals of two series given the fit (`None`: empty Z, only centred).
+fn nystrom_residuals(
+    fit: Option<&NystromFit>,
+    targets: [&[f64]; 2],
+    ctx: &ExecutionContext,
+) -> Result<[Vec<f64>; 2], StatsError> {
+    let n = targets[0].len();
+    let mut centered: [Vec<f64>; 2] = [Vec::new(), Vec::new()];
+    for (slot, y) in centered.iter_mut().zip(targets) {
+        if y.len() != n || y.iter().any(|v| !v.is_finite()) {
+            return Err(StatsError::Shape {
+                message: "non-finite response in GPDC residualization",
+            });
+        }
+        let mean = y.iter().sum::<f64>() / n as f64;
+        *slot = y.iter().map(|value| value - mean).collect();
+    }
+    let Some(fit) = fit else {
+        return Ok(centered);
+    };
+    let m = fit.rank;
+    let (block_rows, blocks) = nystrom_blocks(n);
+    // K_mn y for both series.
+    let moments = ctx.map_indexed(blocks, |block, inner| {
+        if inner.cancellation.is_cancelled() {
+            return Err(StatsError::Cancelled);
+        }
+        let mut sums = [vec![0.0; m], vec![0.0; m]];
+        let mut k = vec![0.0; m];
+        for row in block * block_rows..((block + 1) * block_rows).min(n) {
+            fit.kernel_row(row, &mut k);
+            for (sum, y) in sums.iter_mut().zip(&centered) {
+                for (slot, kl) in sum.iter_mut().zip(&k) {
+                    *slot += kl * y[row];
+                }
+            }
+        }
+        Ok(sums)
+    })?;
+    let mut coefficients: [Vec<f64>; 2] = [vec![0.0; m], vec![0.0; m]];
+    for sums in &moments {
+        for (total, sum) in coefficients.iter_mut().zip(sums) {
+            for (slot, v) in total.iter_mut().zip(sum) {
+                *slot += v;
+            }
+        }
+    }
+    for coefficient in &mut coefficients {
+        *coefficient = crate::gram::chol_solve(&fit.chol, m, coefficient)
+            .ok_or_else(|| StatsError::Backend("GPDC Nystrom solve failed".into()))?;
+    }
+    // Residual = centred y - K_nm c.
+    let parts = ctx.map_indexed(blocks, |block, inner| {
+        if inner.cancellation.is_cancelled() {
+            return Err(StatsError::Cancelled);
+        }
+        let range = block * block_rows..((block + 1) * block_rows).min(n);
+        let mut out = [Vec::with_capacity(range.len()), Vec::with_capacity(range.len())];
+        let mut k = vec![0.0; m];
+        for row in range {
+            fit.kernel_row(row, &mut k);
+            for ((part, y), c) in out.iter_mut().zip(&centered).zip(&coefficients) {
+                let fitted: f64 = k.iter().zip(c).map(|(kl, cl)| kl * cl).sum();
+                part.push(y[row] - fitted);
+            }
+        }
+        Ok(out)
+    })?;
+    let mut residuals: [Vec<f64>; 2] = [Vec::with_capacity(n), Vec::with_capacity(n)];
+    for part in parts {
+        for (total, piece) in residuals.iter_mut().zip(part) {
+            total.extend(piece);
+        }
+    }
+    Ok(residuals)
 }
 
 #[cfg(test)]
@@ -1570,5 +1968,331 @@ mod tests {
             let want = yc[i] - pred;
             assert!((got[i] - want).abs() < 1e-8, "{i}: {} vs {want}", got[i]);
         }
+    }
+
+    /// Columns `[x, y, z1, z2]` with a smooth nonlinear confounder `(z1, z2)` and independent
+    /// unit noises `e1`, `e2`: `x = 1.5 sin(1.5 z1) + 0.8 z2 + e1`,
+    /// `y = 1.5 tanh(1.5 z1) - 0.8 z2 + e2 + y_on_x * x`. With `y_on_x = 0`, `X ⊥ Y | Z`.
+    fn nystrom_sample(n: usize, seed: u64, y_on_x: f64) -> (Vec<Vec<f64>>, Vec<f64>, Vec<f64>) {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x6E59);
+        let z1: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+        let z2: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+        let e1: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+        let e2: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+        let x: Vec<f64> = (0..n).map(|i| 1.5 * (1.5 * z1[i]).sin() + 0.8 * z2[i] + e1[i]).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| 1.5 * (1.5 * z1[i]).tanh() - 0.8 * z2[i] + e2[i] + y_on_x * x[i])
+            .collect();
+        (vec![x, y, z1, z2], e1, e2)
+    }
+
+    fn pearson(a: &[f64], b: &[f64]) -> f64 {
+        let n = a.len() as f64;
+        let (ma, mb) = (a.iter().sum::<f64>() / n, b.iter().sum::<f64>() / n);
+        let (mut sab, mut saa, mut sbb) = (0.0, 0.0, 0.0);
+        for (x, y) in a.iter().zip(b) {
+            sab += (x - ma) * (y - mb);
+            saa += (x - ma) * (x - ma);
+            sbb += (y - mb) * (y - mb);
+        }
+        sab / (saa * sbb).sqrt()
+    }
+
+    /// Independent dense computation of the rank-`m` predictor on the same inducing rows: an
+    /// explicit `n x m` kernel matrix, naive normal equations and a dense solve, with none of
+    /// the row-block accumulation of the implementation.
+    fn dense_nystrom_residual(
+        columns: &[&[f64]],
+        z: &[usize],
+        y: &[f64],
+        gp: &GpdcNystrom,
+    ) -> Vec<f64> {
+        let n = y.len();
+        let m = gp.inducing_points.min(n);
+        let z_std = standardized_z(columns, z, n).unwrap();
+        let zdim = z.len();
+        let rows = nystrom_inducing_rows(n, m, gp.inducing_seed, z);
+        let ls2 = gp.length_scale * gp.length_scale;
+        let kernel = |a: usize, b: usize| {
+            let d2: f64 = (0..zdim)
+                .map(|d| {
+                    let diff = z_std[a * zdim + d] - z_std[b * zdim + d];
+                    diff * diff
+                })
+                .sum();
+            (-0.5 * d2 / ls2).exp()
+        };
+        let knm: Vec<Vec<f64>> =
+            (0..n).map(|i| rows.iter().map(|&r| kernel(i, r)).collect()).collect();
+        let mut normal = vec![0.0; m * m];
+        for j in 0..m {
+            for l in 0..m {
+                let mut acc: f64 = knm.iter().map(|row| row[j] * row[l]).sum();
+                acc += gp.ridge * kernel(rows[j], rows[l]);
+                normal[j * m + l] = acc;
+            }
+        }
+        let mean_diagonal = (0..m).map(|j| normal[j * m + j]).sum::<f64>() / m as f64;
+        for j in 0..m {
+            normal[j * m + j] += NYSTROM_JITTER * mean_diagonal;
+        }
+        let mean = y.iter().sum::<f64>() / n as f64;
+        let centered: Vec<f64> = y.iter().map(|v| v - mean).collect();
+        let rhs: Vec<f64> =
+            (0..m).map(|j| knm.iter().zip(&centered).map(|(row, yc)| row[j] * yc).sum()).collect();
+        let chol = crate::gram::cholesky_spd(&normal, m).unwrap();
+        let c = crate::gram::chol_solve(&chol, m, &rhs).unwrap();
+        (0..n)
+            .map(|i| centered[i] - knm[i].iter().zip(&c).map(|(k, ci)| k * ci).sum::<f64>())
+            .collect()
+    }
+
+    #[test]
+    fn gpdc_nystrom_residuals_match_a_dense_reference_beyond_the_exact_limit() {
+        let n = 6_000usize;
+        assert!(n > GPDC_ROW_LIMIT);
+        let (data, _, _) = nystrom_sample(n, 21, 0.0);
+        let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+        let gp = GpdcNystrom { inducing_points: 24, ..GpdcNystrom::new() };
+        let ctx = ExecutionContext::for_tests(5);
+        let fit = nystrom_fit(&cols, &[2, 3], n, &gp, &ctx).unwrap();
+        let [rx, ry] = nystrom_residuals(Some(&fit), [cols[0], cols[1]], &ctx).unwrap();
+        for (got, target) in [(&rx, cols[0]), (&ry, cols[1])] {
+            let want = dense_nystrom_residual(&cols, &[2, 3], target, &gp);
+            let worst = got.iter().zip(&want).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max);
+            assert!(worst < 1e-5, "worst residual gap {worst}");
+        }
+    }
+
+    #[test]
+    fn gpdc_nystrom_residual_recovers_the_noise_of_a_nonlinear_confounder() {
+        let n = 6_000usize;
+        let (data, e1, e2) = nystrom_sample(n, 22, 0.0);
+        let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+        let ctx = ExecutionContext::for_tests(6);
+        let fit = nystrom_fit(&cols, &[2, 3], n, &GpdcNystrom::new(), &ctx).unwrap();
+        let [rx, ry] = nystrom_residuals(Some(&fit), [cols[0], cols[1]], &ctx).unwrap();
+        // The truth is known: what is left after removing the smooth Z effect is the noise.
+        assert!(pearson(&rx, &e1) > 0.99, "x residual vs noise {}", pearson(&rx, &e1));
+        assert!(pearson(&ry, &e2) > 0.99, "y residual vs noise {}", pearson(&ry, &e2));
+        // Removing Z must remove the dependence it induced between X and Y.
+        let raw = crate::dcor::distance_correlation(cols[0], cols[1]);
+        let cleaned = crate::dcor::distance_correlation(&rx, &ry);
+        assert!(raw > 0.08 && cleaned < 0.05, "dCor before {raw}, after {cleaned}");
+    }
+
+    #[test]
+    fn gpdc_nystrom_agrees_with_the_exact_gp_where_both_run() {
+        let n = 1_200usize;
+        let (data, _, _) = nystrom_sample(n, 23, 0.0);
+        let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+        let ctx = ExecutionContext::for_tests(7);
+        let exact_factor = gp_factor(&cols, &[2, 3], n, &Gpdc::new()).unwrap();
+        let exact = gp_residual(cols[0], Some(&exact_factor), Gpdc::new().ridge).unwrap();
+        let fit = nystrom_fit(&cols, &[2, 3], n, &GpdcNystrom::new(), &ctx).unwrap();
+        let [low_rank, _] = nystrom_residuals(Some(&fit), [cols[0], cols[1]], &ctx).unwrap();
+        assert!(pearson(&exact, &low_rank) > 0.95, "{}", pearson(&exact, &low_rank));
+    }
+
+    #[test]
+    fn gpdc_nystrom_is_identical_at_any_thread_count() {
+        let n = 5_000usize;
+        let (data, _, _) = nystrom_sample(n, 24, 0.0);
+        let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+        let serial = ExecutionContext::for_tests(8);
+        let mut threaded = ExecutionContext::for_tests(8);
+        threaded.parallelism = antecedent_core::Parallelism::bounded(
+            antecedent_core::NonZeroThreadCount::new(4).unwrap(),
+        );
+        let run = |ctx: &ExecutionContext| {
+            let fit = nystrom_fit(&cols, &[2, 3], n, &GpdcNystrom::new(), ctx).unwrap();
+            nystrom_residuals(Some(&fit), [cols[0], cols[1]], ctx).unwrap()
+        };
+        let (a, b) = (run(&serial), run(&threaded));
+        for (u, v) in a.iter().zip(&b) {
+            assert!(u.iter().zip(v).all(|(p, q)| p.to_bits() == q.to_bits()));
+        }
+    }
+
+    #[test]
+    fn gpdc_nystrom_separates_dependence_given_the_confounder_beyond_the_exact_limit() {
+        let n = 6_000usize;
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 2 }];
+        let z_flat = [2usize, 3];
+        let ctx = ExecutionContext::for_tests(9);
+        let run = |y_on_x: f64| {
+            let (data, _, _) = nystrom_sample(n, 25, y_on_x);
+            let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
+                confidence: ConfidenceMethod::None,
+            };
+            let mut ws = CiWorkspace::default();
+            GpdcNystrom::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
+        };
+        let dependent = run(0.4);
+        assert!(dependent.p_value <= 0.02 + 1e-12, "dependent p={}", dependent.p_value);
+        assert!(dependent.statistic > 0.15, "dCor {}", dependent.statistic);
+        let independent = run(0.0);
+        assert!(independent.statistic < 0.05, "dCor {}", independent.statistic);
+        assert!(independent.statistic + 0.1 < dependent.statistic);
+    }
+
+    #[test]
+    fn gpdc_nystrom_refuses_invalid_rank_and_budget_instead_of_degrading() {
+        let n = 300usize;
+        let (data, _, _) = nystrom_sample(n, 26, 0.0);
+        let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[2],
+            significance: SignificanceMethod::BlockShuffle { replicates: 9, block_size: 1 },
+            confidence: ConfidenceMethod::None,
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(10);
+        for inducing_points in [0, GPDC_NYSTROM_MAX_INDUCING_POINTS + 1] {
+            let gp = GpdcNystrom { inducing_points, ..GpdcNystrom::new() };
+            assert!(matches!(
+                gp.test_batch_adhoc(&req, &mut ws, &ctx),
+                Err(StatsError::Shape { .. })
+            ));
+        }
+        let mut limited = ExecutionContext::for_tests(10);
+        limited.memory =
+            antecedent_core::MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1_024) };
+        assert!(matches!(
+            GpdcNystrom::new().test_batch_adhoc(&req, &mut ws, &limited),
+            Err(StatsError::ResourceLimit { .. })
+        ));
+        let cancelled = ExecutionContext::for_tests(10);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            GpdcNystrom::new().test_batch_adhoc(&req, &mut ws, &cancelled),
+            Err(StatsError::Cancelled)
+        ));
+        // More inducing points than rows: every row is one.
+        let all = GpdcNystrom { inducing_points: 1_024, ..GpdcNystrom::new() };
+        assert!(all.test_batch_adhoc(&req, &mut ws, &ctx).is_ok());
+    }
+
+    #[test]
+    #[ignore = "acceptance workload: 100k rows; run with --ignored in a release build"]
+    fn gpdc_nystrom_one_hundred_thousand_row_acceptance() {
+        let n = 100_000usize;
+        let (data, e1, _) = nystrom_sample(n, 27, 0.4);
+        let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 2 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[2, 3],
+            significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
+            confidence: ConfidenceMethod::None,
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::production(11, 4);
+        let started = std::time::Instant::now();
+        let out = GpdcNystrom::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        eprintln!("100k-row GPDC Nystrom took {:?}", started.elapsed());
+        assert!(out.results[0].p_value <= 0.02 + 1e-12, "p={}", out.results[0].p_value);
+        let fit = nystrom_fit(&cols, &[2, 3], n, &GpdcNystrom::new(), &ctx).unwrap();
+        let [rx, _] = nystrom_residuals(Some(&fit), [cols[0], cols[1]], &ctx).unwrap();
+        assert!(pearson(&rx, &e1) > 0.99);
+    }
+
+    /// At 2000 rows the exact GPDC test keeps its construction: the statistic and p-value are,
+    /// bit for bit, those of the dense kernel factorization, GP residuals and residual
+    /// permutation null it has always run, and the low-rank test is a different construction.
+    #[test]
+    fn exact_conditional_gpdc_retained_at_small_sizes() {
+        let n = 2_000usize;
+        assert!(n <= GPDC_ROW_LIMIT);
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 2 }];
+        let z_flat = [2usize, 3];
+        let significance = SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 };
+        for (y_on_x, label) in [(0.0, "independent"), (0.3, "dependent")] {
+            let (data, _, _) = nystrom_sample(n, 6_075_547, y_on_x);
+            let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance,
+                confidence: ConfidenceMethod::None,
+            };
+            let ctx = ExecutionContext::for_tests(12);
+            let mut ws = CiWorkspace::default();
+            let got = Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0];
+
+            let gp = Gpdc::new();
+            let factor = gp_factor(&cols, &z_flat, n, &gp).unwrap();
+            let rx = gp_residual(cols[0], Some(&factor), gp.ridge).unwrap();
+            let ry = gp_residual(cols[1], Some(&factor), gp.ridge).unwrap();
+            let want = residual_dcor_permutation_result(
+                &rx,
+                &ry,
+                ResidualNull {
+                    salt: 0x69DC_u64 ^ query_stream_salt(&[0], &[1], &z_flat),
+                    n_perm: nonparametric_permutation_count(significance),
+                    block_size: 1,
+                },
+                &ctx,
+            );
+            assert_eq!(got.statistic.to_bits(), want.statistic.to_bits(), "{label} statistic");
+            assert_eq!(got.p_value.to_bits(), want.p_value.to_bits(), "{label} p-value");
+
+            let low_rank =
+                GpdcNystrom::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0];
+            assert_ne!(low_rank.statistic.to_bits(), got.statistic.to_bits(), "{label}");
+        }
+        // The exact test's boundary is unchanged and names the low-rank construction.
+        let (data, _, _) = nystrom_sample(GPDC_ROW_LIMIT + 1, 6_075_547, 0.0);
+        let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance,
+            confidence: ConfidenceMethod::None,
+        };
+        let refused = Gpdc::new()
+            .test_batch_adhoc(&req, &mut CiWorkspace::default(), &ExecutionContext::for_tests(12))
+            .unwrap_err();
+        assert!(refused.to_string().contains("gpdc_nystrom"), "{refused}");
+    }
+
+    #[test]
+    fn knn_dependence_runs_beyond_the_former_ten_thousand_row_limit() {
+        let n = 12_000usize;
+        let mut rng = ExecutionContext::for_tests(31).rng.stream_for(StreamDomain::Test, 0x4B4E);
+        let x: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+        let y_dep: Vec<f64> =
+            x.iter().map(|v| v + 0.3 * antecedent_kernels::standard_normal(&mut rng)).collect();
+        let y_ind: Vec<f64> =
+            (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+        let cols: [&[f64]; 3] = [&x, &y_dep, &y_ind];
+        let queries = [
+            CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 },
+            CiQuery { x: 0, y: 2, z_start: 0, z_len: 0 },
+        ];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::BlockShuffle { replicates: 9, block_size: 1 },
+            confidence: ConfidenceMethod::None,
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(32);
+        let out = KnnDependence::new(5).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        // Every null replicate is less dependent than the observed pair: the add-one floor.
+        assert!((out.results[0].p_value - 0.1).abs() < 1e-12, "{}", out.results[0].p_value);
+        assert!(out.results[0].statistic > out.results[1].statistic);
     }
 }

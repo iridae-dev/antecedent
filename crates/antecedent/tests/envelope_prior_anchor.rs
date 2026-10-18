@@ -14,7 +14,7 @@ use antecedent_core::{
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
-use antecedent_discovery::set_edge;
+use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_estimate::{BayesianBackendKind, BayesianGComputationAte};
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_prob::{
@@ -88,25 +88,25 @@ fn toy_table(n: usize) -> TabularData {
 fn z_confounder_mask() -> u64 {
     // T=0, Y=1, Z=2: Z→T, Z→Y, T→Y
     let mut m = 0u64;
-    m = set_edge(m, 4, 2, 0, true);
-    m = set_edge(m, 4, 2, 1, true);
-    m = set_edge(m, 4, 0, 1, true);
+    m = set_edge(m, 4, 2, 0, true).to_word().expect("a four-variable graph fits one word");
+    m = set_edge(m, 4, 2, 1, true).to_word().expect("a four-variable graph fits one word");
+    m = set_edge(m, 4, 0, 1, true).to_word().expect("a four-variable graph fits one word");
     m
 }
 
 fn w_confounder_mask() -> u64 {
     // T=0, Y=1, W=3: W→T, W→Y, T→Y
     let mut m = 0u64;
-    m = set_edge(m, 4, 3, 0, true);
-    m = set_edge(m, 4, 3, 1, true);
-    m = set_edge(m, 4, 0, 1, true);
+    m = set_edge(m, 4, 3, 0, true).to_word().expect("a four-variable graph fits one word");
+    m = set_edge(m, 4, 3, 1, true).to_word().expect("a four-variable graph fits one word");
+    m = set_edge(m, 4, 0, 1, true).to_word().expect("a four-variable graph fits one word");
     m
 }
 
 fn graph_posterior(masks: Vec<u64>) -> GraphPosterior {
     let n = masks.len();
     let w = 1.0 / n as f64;
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         4,
         vec![w; n],
         masks,

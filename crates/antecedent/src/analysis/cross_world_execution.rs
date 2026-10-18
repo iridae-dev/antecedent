@@ -1,9 +1,10 @@
 //! General cross-world selective execution through the analysis facade.
 //!
 //! One staged pipeline (mechanism fitting, factual abduction, exogenous draws,
-//! action-specific prediction, summary) executes a static Markovian SCM over
-//! finite variables and, as its fixed-population temporal row, the two-slice
-//! additive linear SCM. Which quantities are executed, which keep their own
+//! action-specific prediction, summary) executes a fully declared static SCM
+//! over finite variables (an exogenous term may feed several mechanisms) and,
+//! as its fixed-population temporal row, the two-slice additive linear SCM.
+//! Which quantities are executed, which keep their own
 //! theorem-scoped route and which are closed is the checked capability matrix
 //! ([`capability_matrix`], [`decide_capability`]); a request outside it is a
 //! scientific refusal that names the unmet prerequisite, never a cache miss.

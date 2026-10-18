@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 
 use antecedent::analysis::recalc_dr::{DrEstimator, DrRequest, DrSession, execute_dr_with_receipt};
 use antecedent::analysis::recalc_receipt::{RecalcRunError, TargetWeights, UtilitySpec};
-use antecedent_core::VariableId;
 use antecedent_core::recalc::{RecalcCapabilities, ResumeContext, RetargetSupport};
+use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::overlap::OverlapPolicy;
 use antecedent_estimate::{DmlAte, DmlScore, DrLearner, LearnerSpec};
 use antecedent_io::recalc_receipt_artifact::{
@@ -19,8 +19,8 @@ use pyo3::prelude::*;
 use serde::Deserialize;
 
 use crate::recalc_api::{
-    RunPayload, artifact_invalid, context, counts_wire, invalid, parse_json, plan_refusal_json,
-    refusal_json,
+    RunPayload, artifact_invalid, bounded_context, context, counts_wire, invalid, parse_json,
+    plan_refusal_json, refusal_json,
 };
 use crate::recalc_bounds::{bounded_prediction_rows, check_columns};
 use crate::{detach_catch, py_msg};
@@ -148,8 +148,9 @@ fn build_request(
     names: Vec<String>,
     columns: &[PyReadonlyArray1<'_, f64>],
     specification: &str,
+    ctx: &ExecutionContext,
 ) -> PyResult<DrRequest> {
-    check_columns(&names, columns)?;
+    check_columns(columns, ctx)?;
     let wire: RequestWire = parse_json(specification, "DR request")?;
     if names.is_empty() || names.len() != columns.len() {
         return Err(invalid("recalc.invalid_data", "one column per name required"));
@@ -390,7 +391,8 @@ impl PyDrSession {
         let a = t.columns.iter().position(|c| c.arm == 1 && c.threshold.is_none())?;
         Some(t.column(a).ok()?.iter().zip(t.column(c).ok()?).map(|(a, c)| a - c).collect())
     }
-    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn plan(
         &self,
         names: Vec<String>,
@@ -398,12 +400,15 @@ impl PyDrSession {
         specification: &str,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let request = build_request(names, &columns, specification)?;
-        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &context(seed, threads))))
-            .map_err(py_msg)
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = build_request(names, &columns, specification, &ctx)?;
+        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &ctx))).map_err(py_msg)
     }
-    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn execute(
         &mut self,
         py: Python<'_>,
@@ -412,10 +417,12 @@ impl PyDrSession {
         specification: &str,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<RunPayload> {
-        let request = build_request(names, &columns, specification)?;
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = build_request(names, &columns, specification, &ctx)?;
         drop(columns);
-        let ctx = context(seed, threads);
         let previous = self.inner.identities().clone();
         let caps = self.capabilities();
         let mut session = std::mem::take(&mut self.inner);
@@ -449,7 +456,7 @@ impl PyDrSession {
             Err(error) => Ok((None, None, Some(dr_error_refusal(&error)))),
         }
     }
-    #[pyo3(signature=(rows,columns,*,seed=1,threads=None))]
+    #[pyo3(signature=(rows,columns,*,seed=1,threads=None,memory_limit_bytes=None))]
     fn predict(
         &self,
         py: Python<'_>,
@@ -457,8 +464,10 @@ impl PyDrSession {
         columns: Vec<String>,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
     ) -> PyResult<(Option<String>, Option<String>)> {
-        let rows = bounded_prediction_rows(rows, "recalc.dr_prediction_schema_mismatch")?;
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, None);
+        let rows = bounded_prediction_rows(rows, "recalc.dr_prediction_schema_mismatch", &ctx)?;
         if !self.inner.is_live() {
             return Ok((
                 None,
@@ -494,7 +503,6 @@ impl PyDrSession {
             .fitted_effect()
             .map(|m| m.features.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>())
             .unwrap_or_default();
-        let ctx = context(seed, threads);
         let (result, n) = detach_catch(py, move || {
             let result = count_resolved_fits(|| {
                 if rows

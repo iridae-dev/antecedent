@@ -132,18 +132,49 @@ class DesignSession(_Session):
         return _native.DesignSessionHandle
 
     def plan(
-        self, request: DesignRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: DesignRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcPlan:
-        names, columns = _columns(request.data)
-        wire = self._handle.plan(names, columns, _spec(request), seed=_seed(seed), threads=threads)
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
+        wire = self._handle.plan(
+            names,
+            columns,
+            _spec(request),
+            seed=_seed(seed),
+            threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
+        )
         return RecalcPlan.from_wire(json.loads(wire))
 
     def execute(
-        self, request: DesignRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: DesignRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcResult:
-        names, columns = _columns(request.data)
+        """Run the invalidated stages under an optional memory limit and cancellation token."""
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         result, artifact, error = self._handle.execute(
-            names, columns, _spec(request), seed=_seed(seed), threads=threads
+            names,
+            columns,
+            _spec(request),
+            seed=_seed(seed),
+            threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
         )
         _raise_design(error)
         if result is None or artifact is None:  # pragma: no cover - native invariant
@@ -186,6 +217,8 @@ def consume_design_result(
     *,
     seed: int = 1,
     threads: int | None = None,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
 ) -> DesignReplay:
     """Verify an original artifact and rerun its checked design from actual data.
 
@@ -196,10 +229,21 @@ def consume_design_result(
     """
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes", reason_code="invalid_argument")
-    names, columns = (None, None) if request is None else _columns(request.data)
+    names, columns = (
+        (None, None)
+        if request is None
+        else _columns(request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
+    )
     specification = None if request is None else _spec(request)
     native, result, receipt_bytes, digest, error = _native.DesignSessionHandle.consume(
-        artifact, names, columns, specification, seed=_seed(seed), threads=threads
+        artifact,
+        names,
+        columns,
+        specification,
+        seed=_seed(seed),
+        threads=threads,
+        memory_limit_bytes=memory_limit_bytes,
+        cancel=cancel,
     )
     _raise_design(error)
     if native is None or result is None or receipt_bytes is None or digest is None:

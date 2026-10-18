@@ -239,6 +239,11 @@ const BAYES_AND_SEQUENCE: &[InferenceParadigm] =
     &[InferenceParadigm::BayesianPosterior, InferenceParadigm::AnytimeValidFrequentist];
 const BAYES_AND_DECISION: &[InferenceParadigm] =
     &[InferenceParadigm::BayesianPosterior, InferenceParadigm::DecisionTheoreticStopping];
+const BAYES_DECISION_AND_SEQUENCE: &[InferenceParadigm] = &[
+    InferenceParadigm::BayesianPosterior,
+    InferenceParadigm::DecisionTheoreticStopping,
+    InferenceParadigm::AnytimeValidFrequentist,
+];
 const WEIGHTING_AND_SEQUENCE: &[InferenceParadigm] =
     &[InferenceParadigm::FrequentistAdaptiveWeighting, InferenceParadigm::AnytimeValidFrequentist];
 const WEIGHTING_ONLY: &[InferenceParadigm] = &[InferenceParadigm::FrequentistAdaptiveWeighting];
@@ -281,6 +286,17 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
             M::FixedInterimLooks,
             S::DecisionTheoretic,
         ) => Some(BAYES_AND_DECISION),
+        // Participant-level binary responses (a beta-binomial count per
+        // participant), Thompson allocation with a minimum exploration
+        // probability, and decisions at completed-participant batch
+        // boundaries: expected loss, futility and a recruitment cap, with a
+        // posterior claim and an anytime-valid claim read at every look.
+        (
+            A::ThompsonBetaBernoulli,
+            O::RepeatedMeasures,
+            M::FixedInterimLooks,
+            S::DecisionTheoretic,
+        ) => Some(BAYES_DECISION_AND_SEQUENCE),
         (A::EpsilonGreedy, O::SingleOutcome, M::FixedInterimLooks, S::Efficacy) => {
             Some(WEIGHTING_AND_SEQUENCE)
         }

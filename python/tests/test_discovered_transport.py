@@ -16,6 +16,8 @@ the true one. No test asserts that a discovered graph is the true graph in gener
 
 from __future__ import annotations
 
+from unittest.mock import sentinel
+
 import numpy as np
 import pytest
 from antecedent import selective_discovery as sd
@@ -152,21 +154,18 @@ def test_a_member_bound_that_stops_the_enumeration_makes_no_every_member_stateme
     assert bounded.identity != full.identity
 
 
-def test_a_pag_is_refused_with_its_unresolved_pairs_and_the_discovery_is_kept() -> None:
+def test_a_pag_chain_is_enumerated_as_its_five_markov_equivalent_mags() -> None:
     fci = contract(algorithm="fci")
-    with pytest.raises(discovered.DiscoveredTransportRefusal) as info:
-        discovered.discover_and_transport(fci, chain(1), **QUERY)  # type: ignore[arg-type]
-    refusal = info.value
-    assert_registered_refusal(refusal)
-    assert refusal.reason_code == "discovered_structure_unresolved"
-    assert refusal.detail == "discovered_transport.pag_members_not_causal_graphs"
-    assert refusal.exhausted_search_bounds == 0
-    assert refusal.remedy
-    assert refusal.outcome is not None and refusal.outcome.structure_class == "pag"
-    assert refusal.report is not None
+    result = discovered.discover_and_transport(fci, chain(1), **QUERY)  # type: ignore[arg-type]
+    envelope = result.envelope
+    assert result.outcome.structure_class == "pag"
+    assert envelope.enumeration_complete
+    assert len(envelope.members) == 5
+    assert sum(1 for m in envelope.members if m.bidirected_edges) == 2
+    assert all(reason == "circle_endpoint" for _, _, reason in envelope.unresolved)
 
 
-def test_a_temporal_structure_is_refused() -> None:
+def test_a_temporal_structure_without_a_horizon_is_refused() -> None:
     rng = np.random.default_rng(11)
     n = 300
     a = np.zeros(n)
@@ -201,3 +200,133 @@ def test_an_adapter_that_has_not_run_and_undeclared_names_are_refused() -> None:
             chain(1),
             **dict(QUERY, selection_targets=["nope"]),  # type: ignore[arg-type]
         )
+
+
+def test_an_estimate_over_columns_that_are_not_integer_codes_is_refused_precisely() -> None:
+    data = chain(2)
+    with pytest.raises(discovered.DiscoveredTransportRefusal) as info:
+        discovered.estimate_discovered_transport(
+            contract(),
+            data,
+            data,
+            outcome="z",
+            treatment="x",
+            grid=[0.0, 1.0],
+            selection_targets=["y"],
+            source_population="trial",
+            target_population="clinic",
+        )
+    assert_registered_refusal(info.value)
+    assert info.value.detail == "discovered_transport.evidence_invalid"
+
+
+def test_a_forged_estimate_artifact_does_not_replay() -> None:
+    with pytest.raises(CausalValueError):
+        discovered.verify_discovered_transport_estimate(b"not an artifact")
+
+
+def test_estimate_factory_preserves_the_native_artifact_and_retained_context() -> None:
+    """Wire adaptation retains opaque bytes; it does not certify or reconstruct execution."""
+    wire = {
+        "levels": [0, 1],
+        "members": [],
+        "answer": {"kind": "point", "levels": [], "expressions_agree": True},
+        "report_identity": "original-report",
+        "identity": "original-result",
+    }
+    artifact = b"opaque native artifact"
+    result = discovered._estimate_of(wire, artifact, sentinel.outcome, sentinel.report)
+    assert result.export() is artifact
+    assert result.outcome is sentinel.outcome
+    assert result.report is sentinel.report
+    assert result.identity == "original-result"
+    assert result.report_identity == "original-report"
+
+
+TEMPORAL_QUERY = {
+    "outcome": "y",
+    "treatment": "x",
+    "grid": [0.0, 1.0],
+    "selection_targets": ["z"],
+    "source_population": "trial",
+    "target_population": "clinic",
+    "source_experiments": ["x"],
+    "horizon_steps": 1,
+}
+
+
+def test_a_lagged_dag_is_identified_at_horizon_one_with_autoregressive_history() -> None:
+    from antecedent.graph import TemporalDag
+
+    template = TemporalDag.from_lagged_edges(
+        ["x", "y", "z"],
+        [("x", 1, "y", 0), ("z", 1, "y", 0), ("z", 1, "z", 0)],
+    )
+    envelope = discovered.transport_temporal_graph(
+        template,
+        ["x", "y", "z"],
+        **TEMPORAL_QUERY,  # type: ignore[arg-type]
+    )
+    assert envelope.kind == "structural_envelope"
+    assert envelope.status == "identified_in_every_member"
+    assert envelope.horizon_steps == 1
+    assert envelope.max_lag == 1
+    assert envelope.members[0].formula == "standardize"
+    assert ("x", "y", 1) in envelope.members[0].directed_edges
+
+
+def test_a_temporal_pag_enumerates_circles_and_its_members_disagree() -> None:
+    from antecedent.graph import TemporalPag
+
+    pag = TemporalPag.from_marked_lagged_edges(
+        ["x", "y", "z"],
+        [("x", 1, "y", 0, "circle", "arrow"), ("z", 1, "y", 0, "circle", "arrow")],
+    )
+    envelope = discovered.transport_temporal_graph(
+        pag,
+        ["x", "y", "z"],
+        **TEMPORAL_QUERY,  # type: ignore[arg-type]
+    )
+    assert envelope.status == "members_disagree"
+    assert len(envelope.members) == 4
+    assert any(m.bidirected_edges for m in envelope.members)
+    assert all(reason == "circle_endpoint" for _, _, reason in envelope.unresolved)
+
+
+def test_a_temporal_query_outside_the_structure_is_refused() -> None:
+    from antecedent.graph import TemporalDag
+
+    # Every declared target is in the structure, so the unknown outcome is the refusal's cause.
+    template = TemporalDag.from_lagged_edges(["x", "y", "z"], [("x", 1, "y", 0), ("z", 1, "z", 0)])
+    with pytest.raises(discovered.DiscoveredTransportRefusal) as info:
+        discovered.transport_temporal_graph(
+            template,
+            ["x", "y", "z", "w"],
+            **dict(TEMPORAL_QUERY, outcome="w"),  # type: ignore[arg-type]
+        )
+    assert_registered_refusal(info.value)
+    assert info.value.detail == "discovered_transport.temporal_query_invalid"
+
+
+def test_a_temporal_estimate_over_columns_that_are_not_integer_codes_is_refused() -> None:
+    # Strong lagged links put all three variables in the discovered structure.
+    rng = np.random.default_rng(5)
+    x, z = rng.normal(size=600), rng.normal(size=600)
+    y = 0.3 * rng.normal(size=600)
+    y[1:] += 0.9 * x[:-1] + 0.9 * z[:-1]
+    series = {"x": x, "y": y, "z": z}
+    with pytest.raises(discovered.DiscoveredTransportRefusal) as info:
+        discovered.estimate_discovered_temporal_transport(
+            sd.TemporalContract(variables=("x", "y", "z"), seed=1),
+            series,
+            series,
+            outcome="y",
+            treatment="x",
+            grid=[0.0, 1.0],
+            selection_targets=["z"],
+            horizon_steps=1,
+            source_population="trial",
+            target_population="clinic",
+        )
+    assert_registered_refusal(info.value)
+    assert info.value.detail == "discovered_transport.evidence_invalid"

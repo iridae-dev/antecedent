@@ -14,10 +14,27 @@
 //!   * `summary` (model-based covariance): `X'X`, `X'y` and the residual sum of squares of the
 //!     dummy-coded design `[intercept, adjustment..., level:<non-reference>...]`, with the level
 //!     counts in the metadata (they must agree with the Gram diagonal);
-//!   * `rows` (robust covariance): the outcome and adjustment columns, with the row level labels
-//!     in the metadata, replayed through the core fit. Replay above
-//!     [`CATEGORICAL_HC_ROW_CAP`] rows is refused when sealing
-//!     (`categorical_treatment.hc_replay_row_cap_exceeded`).
+//!   * `robust_summary` (HC0 to HC3): the same numbers followed by the `p x p` meat
+//!     `sum_i w_i e_i^2 x_i x_i'` of the declared estimator. HC0 and HC1 need only `X'X` and the
+//!     residuals; HC2 and HC3 need each leverage `h_i = x_i' (X'X)^-1 x_i`, which one pass over
+//!     the rows computes once `X'X` is known, so the meat is fixed when sealing and the consumer
+//!     recomputes the sandwich from these numbers alone, bit-identically;
+//!   * `rows` (legacy robust artifacts): the outcome and adjustment columns, with the row level
+//!     labels in the metadata, replayed through the core fit. It is read but no longer written;
+//!     replay above [`CATEGORICAL_HC_ROW_CAP`] rows is refused.
+//!
+//! The summaries carry no row, so they are bound to the rows they came from by a digest
+//! (`data_digest`, part of the design identity): [`CategoricalTreatmentArtifact::verify_data`]
+//! checks rows a caller still holds against it.
+//!
+//! # Budgets
+//!
+//! The fit has no row ceiling. The **computation** budget is the [`ExecutionContext`] given to
+//! [`CategoricalTreatmentArtifact::seal_with`] (its hard memory limit and cancellation); the
+//! **export** budget is the artifact byte cap ([`CategoricalTreatmentArtifact::to_bytes_within`]),
+//! which a summary artifact never approaches because its size does not grow with the rows; the
+//! **replay** budget of a summary is the same context, as its cost does not grow with the rows
+//! either.
 //!
 //! A consumer trusts none of the stored results: it rebuilds the design from the stored numbers,
 //! reruns the core fit and refuses unless every stored value is bit-identical, then recomputes
@@ -31,16 +48,22 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::CanonicalWriter;
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::categorical_treatment::{
-    CATEGORICAL_INFERENCE_CLAIM, CATEGORICAL_OMNIBUS_NULL, CategoricalSummary,
-    CategoricalTreatmentFit, CategoricalTreatmentInput, CategoricalTreatmentSpec, LevelCount,
-    LevelScale, MonotonicityDirection, fit_categorical_from_summary, fit_categorical_treatment,
-    summarize_categorical_design,
+    CATEGORICAL_INFERENCE_CLAIM, CATEGORICAL_OMNIBUS_NULL, CategoricalRobustSummary,
+    CategoricalSummary, CategoricalTreatmentFit, CategoricalTreatmentInput,
+    CategoricalTreatmentSpec, LevelCount, LevelScale, MonotonicityDirection,
+    fit_categorical_from_robust_summary, fit_categorical_from_summary, fit_categorical_treatment,
+    summarize_categorical_design, summarize_categorical_design_robust,
 };
-use antecedent_estimate::vector_treatment::{DesignSummary, NamedColumn, VectorCovariance};
+use antecedent_estimate::vector_treatment::{
+    DesignSummary, NamedColumn, RobustDesignSummary, VectorCovariance,
+};
 use serde::{Deserialize, Serialize};
 
+use crate::artifact_budget::{
+    BudgetDetails, BudgetRefusal, admit_export, admit_regression, unbounded_context,
+};
 use crate::artifact_codec::CanonicalSize;
 use crate::convert::to_cbor;
 use crate::vector_treatment_artifact::{
@@ -54,9 +77,10 @@ pub const CATEGORICAL_TREATMENT_ARTIFACT_VERSION: u16 = 1;
 pub const CATEGORICAL_TREATMENT_ARTIFACT_FEATURE: &str = "categorical_treatment_v1";
 /// Calibration coordinate: Type I error, coverage and power were not measured.
 pub const CATEGORICAL_TREATMENT_CALIBRATION: &str = "unmeasured";
-/// Most bytes an artifact may occupy, enforced on export and on consumption.
+/// Most bytes an artifact may occupy: the largest export budget, enforced on consumption.
 pub const MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
-/// Most rows a robust-covariance (`rows` replay) artifact may embed.
+/// Most rows a legacy robust-covariance `rows` replay artifact may carry. Sealing no longer
+/// embeds rows, so this bounds only the consumption of artifacts that already do.
 pub const CATEGORICAL_HC_ROW_CAP: usize = 4096;
 /// Most declared levels an artifact may carry.
 pub const CATEGORICAL_MAX_LEVELS: usize = 256;
@@ -69,7 +93,16 @@ const ARTIFACT_KIND: &str = crate::artifact_kinds::CATEGORICAL_TREATMENT;
 const META_SECTION: &str = "categorical_treatment_meta";
 const NUMBERS_SECTION: &str = "categorical_treatment_numbers";
 const REPLAY_SUMMARY: &str = "summary";
+const REPLAY_ROBUST_SUMMARY: &str = "robust_summary";
 const REPLAY_ROWS: &str = "rows";
+const BUDGET: BudgetDetails = BudgetDetails {
+    cancelled: (
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        "categorical_treatment.cancelled",
+    ),
+    memory: "categorical_treatment.memory_budget_exceeded",
+    export: "categorical_treatment.export_budget_exceeded",
+};
 
 crate::sectioned_artifact_error!(
     /// Why a categorical-treatment artifact was refused or could not be produced.
@@ -79,6 +112,10 @@ crate::sectioned_artifact_error!(
     "result",
     false
 );
+
+fn budget_refusal((code, message): BudgetRefusal) -> CategoricalTreatmentArtifactError {
+    CategoricalTreatmentArtifactError::Refused { code, message }
+}
 
 fn invalid_request(message: &str) -> CategoricalTreatmentArtifactError {
     CategoricalTreatmentArtifactError::Refused {
@@ -382,12 +419,16 @@ pub struct CategoricalTreatmentMeta {
     pub inference_claim: String,
     /// Always `unmeasured`.
     pub calibration: String,
-    /// `summary` or `rows`.
+    /// `summary`, `robust_summary` or (legacy) `rows`.
     pub replay: String,
     /// Identity of the row snapshot.
     pub row_snapshot: String,
     /// Rows of the snapshot.
     pub n_rows: u64,
+    /// Digest of the rows a summary was computed from; absent for a `rows` replay, which embeds
+    /// them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_digest: Option<String>,
     /// Shared adjustment column names, in design order.
     pub adjustment: Vec<String>,
     /// The declared design.
@@ -424,6 +465,9 @@ pub struct CategoricalTreatmentReportWire {
     pub replay: String,
     /// Row snapshot.
     pub row_snapshot: String,
+    /// Digest of the rows a summary replay was computed from, when it records one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_digest: Option<String>,
     /// Shared adjustment column names.
     pub adjustment: Vec<String>,
     /// The declared design.
@@ -505,6 +549,7 @@ impl Decl {
 /// The embedded compact design.
 enum Replay {
     Summary(CategoricalSummary),
+    RobustSummary(CategoricalRobustSummary),
     Rows { outcome: Vec<f64>, adjustment: Vec<Vec<f64>>, levels: Vec<String> },
 }
 
@@ -512,6 +557,7 @@ impl Replay {
     const fn tag(&self) -> &'static str {
         match self {
             Self::Summary(_) => REPLAY_SUMMARY,
+            Self::RobustSummary(_) => REPLAY_ROBUST_SUMMARY,
             Self::Rows { .. } => REPLAY_ROWS,
         }
     }
@@ -526,6 +572,16 @@ impl Replay {
                 .copied()
                 .chain(std::iter::once(s.design.rss))
                 .collect(),
+            Self::RobustSummary(s) => s
+                .design
+                .design
+                .gram
+                .iter()
+                .chain(&s.design.design.xty)
+                .copied()
+                .chain(std::iter::once(s.design.design.rss))
+                .chain(s.design.meat.iter().copied())
+                .collect(),
             Self::Rows { outcome, adjustment, .. } => {
                 outcome.iter().chain(adjustment.iter().flatten()).copied().collect()
             }
@@ -533,19 +589,20 @@ impl Replay {
     }
 
     fn counts(&self) -> Vec<LevelCountWire> {
-        match self {
-            Self::Summary(s) => s
-                .counts
-                .iter()
-                .map(|c| LevelCountWire { level: c.level.clone(), rows: size(c.rows) })
-                .collect(),
-            Self::Rows { .. } => Vec::new(),
-        }
+        let counts = match self {
+            Self::Summary(s) => &s.counts,
+            Self::RobustSummary(s) => &s.counts,
+            Self::Rows { .. } => return Vec::new(),
+        };
+        counts
+            .iter()
+            .map(|c| LevelCountWire { level: c.level.clone(), rows: size(c.rows) })
+            .collect()
     }
 
     fn row_levels(&self) -> Vec<String> {
         match self {
-            Self::Summary(_) => Vec::new(),
+            Self::Summary(_) | Self::RobustSummary(_) => Vec::new(),
             Self::Rows { levels, .. } => levels.clone(),
         }
     }
@@ -558,11 +615,13 @@ impl Replay {
         let malformed = |what: &str| CategoricalTreatmentArtifactError::Malformed(what.to_owned());
         let p = decl.columns();
         match meta.replay.as_str() {
-            REPLAY_SUMMARY => {
+            REPLAY_SUMMARY | REPLAY_ROBUST_SUMMARY => {
+                let robust = meta.replay == REPLAY_ROBUST_SUMMARY;
                 if !meta.row_levels.is_empty() {
                     return Err(malformed("a summary replay carries no row labels"));
                 }
-                if numbers.len() != p * p + p + 1 {
+                let expected_len = if robust { 2 * p * p + p + 1 } else { p * p + p + 1 };
+                if numbers.len() != expected_len {
                     return Err(malformed("numbers section length"));
                 }
                 let counts = meta
@@ -575,16 +634,22 @@ impl Replay {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let mut rest = numbers;
-                Ok(Self::Summary(CategoricalSummary {
-                    counts,
-                    design: DesignSummary {
-                        n_rows: decl.n_rows,
-                        first_treatment: 1 + decl.adjustment.len(),
-                        gram: crate::width::split_reals(&mut rest, p * p).to_vec(),
-                        xty: crate::width::split_reals(&mut rest, p).to_vec(),
-                        rss: crate::width::split_reals(&mut rest, 1)[0],
-                    },
-                }))
+                let design = DesignSummary {
+                    n_rows: decl.n_rows,
+                    first_treatment: 1 + decl.adjustment.len(),
+                    gram: crate::width::split_reals(&mut rest, p * p).to_vec(),
+                    xty: crate::width::split_reals(&mut rest, p).to_vec(),
+                    rss: crate::width::split_reals(&mut rest, 1)[0],
+                };
+                if robust {
+                    let meat = crate::width::split_reals(&mut rest, p * p).to_vec();
+                    Ok(Self::RobustSummary(CategoricalRobustSummary {
+                        counts,
+                        design: RobustDesignSummary { design, meat },
+                    }))
+                } else {
+                    Ok(Self::Summary(CategoricalSummary { counts, design }))
+                }
             }
             REPLAY_ROWS => {
                 if decl.n_rows > CATEGORICAL_HC_ROW_CAP {
@@ -668,6 +733,7 @@ fn identity_of(
     decl: &Decl,
     replay: &Replay,
     numbers: &[f64],
+    data_digest: Option<&str>,
     result: &CategoricalResultWire,
 ) -> CategoricalTreatmentIdentity {
     let spec = &decl.spec;
@@ -712,6 +778,9 @@ fn identity_of(
     design.size(numbers.len());
     for value in numbers {
         design.real(*value);
+    }
+    if let Some(digest) = data_digest {
+        design.text(digest);
     }
 
     let mut covariance = CanonicalWriter::new("categorical_treatment_v1.covariance");
@@ -815,7 +884,11 @@ fn check_decl(decl: &Decl) -> Result<(), CategoricalTreatmentArtifactError> {
     Ok(())
 }
 
-fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, CategoricalTreatmentArtifactError> {
+fn compute(
+    decl: &Decl,
+    replay: &Replay,
+    data_digest: Option<&str>,
+) -> Result<Computed, CategoricalTreatmentArtifactError> {
     check_decl(decl)?;
     let spec = spec_of(&decl.spec)?;
     let fit = match replay {
@@ -824,6 +897,12 @@ fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, CategoricalTreatmen
                 return Err(CategoricalTreatmentArtifactError::Malformed("row count".into()));
             }
             fit_categorical_from_summary(&spec, summary)?
+        }
+        Replay::RobustSummary(summary) => {
+            if summary.design.design.n_rows != decl.n_rows {
+                return Err(CategoricalTreatmentArtifactError::Malformed("row count".into()));
+            }
+            fit_categorical_from_robust_summary(&spec, summary)?
         }
         Replay::Rows { outcome, adjustment, levels } => {
             let input = CategoricalTreatmentInput {
@@ -845,7 +924,7 @@ fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, CategoricalTreatmen
     };
     let result = CategoricalResultWire::from_fit(&fit)?;
     let numbers = replay.numbers();
-    let identity = identity_of(decl, replay, &numbers, &result);
+    let identity = identity_of(decl, replay, &numbers, data_digest, &result);
     Ok(Computed { fit, result, identity, numbers })
 }
 
@@ -863,20 +942,29 @@ pub fn encode_parts(
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
-    encode_parts_impl(meta, numbers, artifact_id)
+    encode_parts_impl(meta, numbers, artifact_id, MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES)
 }
 
 fn encode_parts_impl(
     meta: &CategoricalTreatmentMeta,
     numbers: &[u8],
     artifact_id: &str,
+    export_budget: usize,
 ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
     if artifact_id.trim().is_empty() {
         return Err(CategoricalTreatmentArtifactError::Encode("missing artifact id".into()));
     }
     let meta_bytes = to_cbor(meta)
         .map_err(|error| CategoricalTreatmentArtifactError::Encode(error.to_string()))?;
-    crate::encode_container(
+    // A consumer reads at most the byte cap of uncompressed sections, whatever the container
+    // compresses to; the caller's budget bounds the container itself.
+    admit_export(
+        BUDGET,
+        meta_bytes.len().saturating_add(numbers.len()),
+        MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES,
+    )
+    .map_err(budget_refusal)?;
+    let bytes = crate::encode_container(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "categorical_treatment_wald_unmeasured",
@@ -897,7 +985,10 @@ fn encode_parts_impl(
             },
         ],
     )
-    .map_err(|error| crate::map_artifact_check!(error, CategoricalTreatmentArtifactError))
+    .map_err(|error| crate::map_artifact_check!(error, CategoricalTreatmentArtifactError))?;
+    admit_export(BUDGET, bytes.len(), export_budget.min(MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES))
+        .map_err(budget_refusal)?;
+    Ok(bytes)
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -957,19 +1048,56 @@ pub struct CategoricalTreatmentArtifact {
     fit: CategoricalTreatmentFit,
 }
 
+/// Digest of the rows a request fits: the outcome, every adjustment column with its name and the
+/// level label of each row. A summary replay holds this instead of the rows.
+fn data_digest(request: &CategoricalTreatmentRequest) -> String {
+    let mut writer = CanonicalWriter::new("categorical_treatment_v1.data");
+    writer.reals(&request.outcome);
+    writer.size(request.adjustment.len());
+    for column in &request.adjustment {
+        writer.text(&column.name);
+        writer.reals(&column.values);
+    }
+    writer.texts(&request.levels);
+    writer.finish_hex()
+}
+
 impl CategoricalTreatmentArtifact {
     /// Fit the declared categorical regime and seal the answer with its embedded design and
-    /// identity.
+    /// identity, with no memory limit; see [`Self::seal_with`].
     ///
     /// # Errors
     /// The core refusals (`categorical_treatment.absent_level`, `.sparse_level`,
-    /// `.undeclared_level`, `.unknown_reference`, `.monotonicity_requires_ordered`, ...), the
-    /// `categorical_treatment.hc_replay_row_cap_exceeded` refusal for a robust covariance above
-    /// [`CATEGORICAL_HC_ROW_CAP`] rows, and the format's bounds.
+    /// `.undeclared_level`, `.unknown_reference`, `.monotonicity_requires_ordered`, ...) and the
+    /// format's bounds.
     pub fn seal(
         request: &CategoricalTreatmentRequest,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Self::seal_with(request, &unbounded_context())
+    }
+
+    /// Fit the declared categorical regime under the computation budget of `ctx`.
+    ///
+    /// The row count is not limited here: the planned working set must fit the context's hard
+    /// memory limit and the context must not be cancelled. Every covariance kind seals a
+    /// summary, so the artifact stays small however many rows were fitted.
+    ///
+    /// # Errors
+    /// The refusals of [`Self::seal`], `categorical_treatment.memory_budget_exceeded` and
+    /// `categorical_treatment.cancelled`.
+    pub fn seal_with(
+        request: &CategoricalTreatmentRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
         let spec = spec_of(&request.spec)?;
+        let decl = Decl {
+            row_snapshot: request.row_snapshot.clone(),
+            n_rows: request.outcome.len(),
+            adjustment: request.adjustment.iter().map(|c| c.name.clone()).collect(),
+            spec: request.spec.clone(),
+        };
+        check_decl(&decl)?;
+        admit_regression(BUDGET, decl.n_rows, decl.columns(), ctx).map_err(budget_refusal)?;
         let input = CategoricalTreatmentInput {
             outcome: request.outcome.clone(),
             row_snapshot: request.row_snapshot.clone(),
@@ -980,33 +1108,13 @@ impl CategoricalTreatmentArtifact {
                 .collect(),
             levels: request.levels.clone(),
         };
-        let decl = Decl {
-            row_snapshot: request.row_snapshot.clone(),
-            n_rows: request.outcome.len(),
-            adjustment: request.adjustment.iter().map(|c| c.name.clone()).collect(),
-            spec: request.spec.clone(),
-        };
-        check_decl(&decl)?;
         let replay = if spec.covariance == VectorCovariance::ModelBased {
             Replay::Summary(summarize_categorical_design(&input, &spec)?)
         } else {
-            if request.outcome.len() > CATEGORICAL_HC_ROW_CAP {
-                return Err(CategoricalTreatmentArtifactError::Refused {
-                    code: antecedent_core::reason_code!("route_not_supported"),
-                    message: format!(
-                        "categorical_treatment.hc_replay_row_cap_exceeded: a robust covariance \
-                         replays from the rows and an artifact embeds at most \
-                         {CATEGORICAL_HC_ROW_CAP}"
-                    ),
-                });
-            }
-            Replay::Rows {
-                outcome: request.outcome.clone(),
-                adjustment: request.adjustment.iter().map(|c| c.values.clone()).collect(),
-                levels: request.levels.clone(),
-            }
+            Replay::RobustSummary(summarize_categorical_design_robust(&input, &spec)?)
         };
-        let computed = compute(&decl, &replay)?;
+        let digest = data_digest(request);
+        let computed = compute(&decl, &replay, Some(&digest))?;
         let meta = CategoricalTreatmentMeta {
             version: CATEGORICAL_TREATMENT_ARTIFACT_VERSION,
             feature: CATEGORICAL_TREATMENT_ARTIFACT_FEATURE.to_owned(),
@@ -1017,6 +1125,7 @@ impl CategoricalTreatmentArtifact {
             replay: replay.tag().to_owned(),
             row_snapshot: decl.row_snapshot.clone(),
             n_rows: size(decl.n_rows),
+            data_digest: Some(digest),
             adjustment: decl.adjustment.clone(),
             spec: decl.spec.clone(),
             counts: replay.counts(),
@@ -1058,6 +1167,7 @@ impl CategoricalTreatmentArtifact {
             calibration: self.meta.calibration.clone(),
             replay: self.meta.replay.clone(),
             row_snapshot: self.meta.row_snapshot.clone(),
+            data_digest: self.meta.data_digest.clone(),
             adjustment: self.meta.adjustment.clone(),
             spec: self.meta.spec.clone(),
             result: self.meta.result.clone(),
@@ -1066,18 +1176,57 @@ impl CategoricalTreatmentArtifact {
         }
     }
 
+    /// Check rows a caller still holds against the digest this artifact's summary was computed
+    /// from.
+    ///
+    /// # Errors
+    /// [`CategoricalTreatmentArtifactError::IdentityMismatch`] (`data`) when the rows differ, and
+    /// `categorical_treatment.data_not_bound` for an artifact that records no digest (a legacy
+    /// `rows` replay, which embeds its rows instead).
+    pub fn verify_data(
+        &self,
+        request: &CategoricalTreatmentRequest,
+    ) -> Result<(), CategoricalTreatmentArtifactError> {
+        match &self.meta.data_digest {
+            Some(stored) if *stored == data_digest(request) => Ok(()),
+            Some(_) => Err(CategoricalTreatmentArtifactError::IdentityMismatch { field: "data" }),
+            None => Err(CategoricalTreatmentArtifactError::Refused {
+                code: antecedent_core::reason_code!("route_not_supported"),
+                message: "categorical_treatment.data_not_bound: this artifact embeds its rows \
+                          and records no data digest"
+                    .to_owned(),
+            }),
+        }
+    }
+
     /// Serialize through the checksummed sectioned container.
     ///
     /// # Errors
-    /// An empty id, an encoding failure or an oversized payload.
+    /// An empty id, an encoding failure or `categorical_treatment.export_budget_exceeded` when
+    /// the artifact would exceed [`MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES`].
     pub fn to_bytes(
         &self,
         artifact_id: &str,
     ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
-        encode_parts_impl(&self.meta, &reals_to_bytes(&self.numbers), artifact_id)
+        self.to_bytes_within(artifact_id, MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES)
     }
 
-    /// Consume an artifact by recomputation.
+    /// Serialize when the whole artifact fits `export_budget` bytes (at most
+    /// [`MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES`]).
+    ///
+    /// # Errors
+    /// An empty id, an encoding failure or `categorical_treatment.export_budget_exceeded`, which
+    /// names the bytes needed and the budget. The fit is untouched by the refusal.
+    pub fn to_bytes_within(
+        &self,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
+        encode_parts_impl(&self.meta, &reals_to_bytes(&self.numbers), artifact_id, export_budget)
+    }
+
+    /// Consume an artifact by recomputation, with no memory limit; see
+    /// [`Self::from_bytes_with`].
     ///
     /// `expected` is an identity the consumer retained independently; when given, every identity
     /// field must match it, so a resealed change of level order, reference, scale, family,
@@ -1090,6 +1239,19 @@ impl CategoricalTreatmentArtifact {
     pub fn from_bytes(
         bytes: &[u8],
         expected: Option<&CategoricalTreatmentIdentity>,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        Self::from_bytes_with(bytes, expected, &unbounded_context())
+    }
+
+    /// Consume an artifact by recomputation within the replay budget of `ctx`.
+    ///
+    /// # Errors
+    /// The refusals of [`Self::from_bytes`], `categorical_treatment.memory_budget_exceeded` and
+    /// `categorical_treatment.cancelled`.
+    pub fn from_bytes_with(
+        bytes: &[u8],
+        expected: Option<&CategoricalTreatmentIdentity>,
+        ctx: &ExecutionContext,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
         let (meta, raw) = decode_parts_impl(bytes)?;
         if meta.feature != CATEGORICAL_TREATMENT_ARTIFACT_FEATURE {
@@ -1115,7 +1277,9 @@ impl CategoricalTreatmentArtifact {
             ));
         }
         let replay = Replay::from_parts(&decl, &meta, &bytes_to_reals(&raw))?;
-        let computed = compute(&decl, &replay)?;
+        let replayed_rows = if matches!(replay, Replay::Rows { .. }) { decl.n_rows } else { 0 };
+        admit_regression(BUDGET, replayed_rows, decl.columns(), ctx).map_err(budget_refusal)?;
+        let computed = compute(&decl, &replay, meta.data_digest.as_deref())?;
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {
             return Err(CategoricalTreatmentArtifactError::IdentityMismatch { field });
         }
@@ -1142,8 +1306,11 @@ impl CategoricalTreatmentArtifact {
 #[cfg(test)]
 mod number_section_tests {
     use super::{
-        CategoricalResultWire, CategoricalSpecWire, CategoricalTreatmentIdentity,
-        CategoricalTreatmentMeta, Decl, REPLAY_ROWS, Replay,
+        AdjustmentColumnRequest, CATEGORICAL_HC_ROW_CAP, CategoricalResultWire,
+        CategoricalSpecWire, CategoricalTreatmentArtifact, CategoricalTreatmentArtifactError,
+        CategoricalTreatmentIdentity, CategoricalTreatmentMeta, CategoricalTreatmentRequest, Decl,
+        MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES, REPLAY_ROWS, Replay, compute, encode_parts_impl,
+        reals_to_bytes,
     };
     use crate::vector_treatment_artifact::WaldWire;
 
@@ -1174,6 +1341,7 @@ mod number_section_tests {
             replay: REPLAY_ROWS.into(),
             row_snapshot: String::new(),
             n_rows,
+            data_digest: None,
             adjustment: vec!["z".into()],
             spec: spec(),
             counts: Vec::new(),
@@ -1240,5 +1408,75 @@ mod number_section_tests {
         };
         assert!(outcome.is_empty());
         assert!(adjustment.is_empty());
+    }
+
+    /// Deterministic pseudo-random column in `[-1, 1)` (a 64-bit LCG).
+    fn column(n: usize, seed: u64) -> Vec<f64> {
+        let mut state = seed;
+        (0..n)
+            .map(|_| {
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                (state >> 11) as f64 / (1_u64 << 52) as f64 - 1.0
+            })
+            .collect()
+    }
+
+    fn robust_request(n: usize, covariance: &str) -> CategoricalTreatmentRequest {
+        CategoricalTreatmentRequest {
+            outcome: column(n, 1),
+            row_snapshot: "snap".into(),
+            adjustment: vec![AdjustmentColumnRequest { name: "z".into(), values: column(n, 2) }],
+            levels: (0..n).map(|i| ["a", "b"][i % 2].to_owned()).collect(),
+            spec: CategoricalSpecWire { covariance: covariance.into(), ..spec() },
+        }
+    }
+
+    /// An artifact sealed before summaries existed embedded the rows of a robust fit. Its
+    /// consumer is kept, and it reaches exactly the fit the summary artifact does.
+    #[test]
+    fn a_legacy_rows_artifact_replays_to_the_summary_fit_and_records_no_digest() {
+        for covariance in ["hc0", "hc1", "hc2", "hc3"] {
+            let request = robust_request(60, covariance);
+            let summary = CategoricalTreatmentArtifact::seal(&request).unwrap();
+            assert_eq!(summary.meta().replay, "robust_summary");
+            let decl = Decl::from_meta(summary.meta()).unwrap();
+            let rows = Replay::Rows {
+                outcome: request.outcome.clone(),
+                adjustment: request.adjustment.iter().map(|c| c.values.clone()).collect(),
+                levels: request.levels.clone(),
+            };
+            let computed = compute(&decl, &rows, None).unwrap();
+            let mut meta = summary.meta().clone();
+            meta.replay = REPLAY_ROWS.into();
+            meta.data_digest = None;
+            meta.counts = rows.counts();
+            meta.row_levels = rows.row_levels();
+            meta.identity = computed.identity;
+            let bytes = encode_parts_impl(
+                &meta,
+                &reals_to_bytes(&computed.numbers),
+                "legacy",
+                MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES,
+            )
+            .unwrap();
+            let legacy =
+                CategoricalTreatmentArtifact::from_bytes(&bytes, Some(&meta.identity)).unwrap();
+            assert_eq!(legacy.meta().replay, REPLAY_ROWS);
+            assert_eq!(legacy.fit(), summary.fit(), "{covariance}");
+            // Embedded rows need no digest; asking to verify against one says so.
+            let error = legacy.verify_data(&request).unwrap_err();
+            assert_eq!(error.refusal().unwrap().1, "categorical_treatment.data_not_bound");
+        }
+    }
+
+    #[test]
+    fn a_legacy_rows_replay_above_its_cap_is_refused_on_consumption() {
+        let decl = decl(CATEGORICAL_HC_ROW_CAP + 1);
+        assert!(matches!(
+            Replay::from_parts(&decl, &meta(CATEGORICAL_HC_ROW_CAP as u64 + 1, Vec::new()), &[]),
+            Err(CategoricalTreatmentArtifactError::LimitsExceeded("replay rows"))
+        ));
     }
 }

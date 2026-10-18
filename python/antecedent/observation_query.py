@@ -811,6 +811,7 @@ def count_fitted_observation(
     target_level: str,
     evidence: Mapping[str, str] | None = None,
     seed: int | None = None,
+    draws: int | None = None,
 ) -> CountFittedObservation:
     """Retain tables fitted to counts and ask ``P(target = target_level | evidence)``.
 
@@ -819,6 +820,9 @@ def count_fitted_observation(
     first parent varying slowest, columns its levels); ``declared[v]`` is a fixed conditional
     (for example a measured signal with known sensitivity and specificity), flattened the same
     way. Every fitted variable must have been counted from the same ``rows`` complete rows.
+    ``draws`` is the number of posterior draws (default and minimum 2000, at most 100000); the
+    interval reports the Monte Carlo error of its endpoints and is refused when it is large
+    against the interval width, in which case use more draws.
     """
     parents = parents or {}
     counts = counts or {}
@@ -845,6 +849,7 @@ def count_fitted_observation(
         _name(target_level, "target_level"),
         _dumps([[k, v] for k, v in (evidence or {}).items()]),
         seed,
+        None if draws is None else _count(draws, "draws"),
     )
     raise_refusal(refusal, ObservationQueryRefusal)
     if source is None:  # pragma: no cover - the native contract

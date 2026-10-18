@@ -9,6 +9,7 @@ use antecedent_data::TimeSeriesData;
 use antecedent_graph::TemporalGraphReview;
 use antecedent_stats::FdrAdjustment;
 
+use crate::constraints::KnowledgeScope;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::evidence::{
@@ -57,6 +58,7 @@ impl Pcmci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        self.check_background_knowledge(variables)?;
         self.run_with(workspace, |engine, workspace| {
             engine.run_pc_mci(data, variables, workspace, ctx)
         })
@@ -75,9 +77,17 @@ impl Pcmci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        self.check_background_knowledge(variables)?;
         self.run_with(workspace, |engine, workspace| {
             engine.run_pc_mci_panel(units, variables, workspace, ctx)
         })
+    }
+
+    fn check_background_knowledge(&self, variables: &[VariableId]) -> Result<(), DiscoveryError> {
+        self.engine
+            .constraints
+            .check_background_knowledge(KnowledgeScope::Lagged, variables)
+            .map_err(DiscoveryError::Knowledge)
     }
 
     fn run_with(
@@ -111,17 +121,21 @@ impl Pcmci {
             alpha,
             fdr_family_size(&links, self.fdr),
         );
-        let scored = threshold_scored_links(links, self.fdr, alpha);
+        let scored = self
+            .engine
+            .constraints
+            .with_required_links(threshold_scored_links(links.clone(), self.fdr, alpha), &links);
         result.diagnostics.extend(fdr_diagnostic);
 
         result.evidence = graph_evidence_from_scored_with_sepsets(scored, &result.sepsets)?;
         result.algorithm = AlgorithmRecord {
             id: Arc::from("pcmci"),
             config: Arc::from(format!(
-                "alpha={},max_lag={},fdr={:?}",
+                "alpha={},max_lag={},fdr={:?}{}",
                 alpha,
                 self.engine.constraints.temporal.max_lag.raw(),
-                self.fdr
+                self.fdr,
+                self.engine.constraints.knowledge_config()
             )),
         };
         result.review = TemporalGraphReview::from_graph(

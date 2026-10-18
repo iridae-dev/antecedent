@@ -26,7 +26,7 @@
 
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError as Error, AnalysisEstimator, ContractGap, DERIVED_UNMEASURED,
-    FinalAnalysis, GaussianMixtureLaw, OutcomeModelPrior, OutcomeStructure,
+    FinalAnalysis, GaussianMixtureLaw, MAX_UNIT_LAG, OutcomeModelPrior, OutcomeStructure,
     RepeatedMeasuresDeclaration, RepeatedMeasuresRequest, RepeatedMeasuresSpec, Sidedness,
     StoppingRule, UncertaintyParadigm, UnitAssignment, UnitSummary, WeightScheme,
     WithinUnitCorrelation, admit_repeated_measures, derive_repeated_measures,
@@ -676,6 +676,22 @@ fn inconsistent_elements_are_refused_with_their_own_detail() {
         gaps_of(stopped),
         vec![ContractGap::Invalid("adaptive_inference.repeated_measures_stopping_not_derived")]
     );
+    // The follow-up delay is bounded in batches.
+    let lagged = |lag_looks: usize| {
+        let mut d = declaration(
+            even(),
+            vec![10],
+            repeated(4, 1.0, Some(compound(0.2))),
+            cluster_robust(UnitSummary::Mean),
+        );
+        d.lag_looks = lag_looks;
+        d
+    };
+    assert!(RepeatedMeasuresSpec::new(lagged(MAX_UNIT_LAG)).is_ok());
+    assert_eq!(
+        gaps_of(lagged(MAX_UNIT_LAG + 1)),
+        vec![ContractGap::Invalid("adaptive_inference.outcome_availability_invalid")]
+    );
     // A contrast of an arm with itself.
     let mut same = declaration(
         even(),
@@ -889,7 +905,11 @@ fn a_request_outside_bounds_is_refused() {
     let spec = fixed_spec(10, 3, 0.3, UnitSummary::Mean);
     assert!(matches!(
         simulate_repeated_measures(&spec, &[0.0, 0.0], &request(0, 1), &never),
-        Err(Error::Limit(_))
+        Err(Error::InvalidParameter(_))
+    ));
+    assert!(matches!(
+        simulate_repeated_measures(&spec, &[0.0, 0.0], &request(1_000_001, 1), &never),
+        Err(Error::Capacity(_))
     ));
     assert!(matches!(
         simulate_repeated_measures(&spec, &[0.0, f64::NAN], &request(10, 1), &never),

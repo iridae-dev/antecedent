@@ -54,6 +54,9 @@ pub struct GraphlessAssignmentSupport {
     pub min_action_rows: usize,
     /// Smallest declared probability across every action and row.
     pub min_probability: f64,
+    /// Smaller of the expected treated and expected control rows: the arm's summed known
+    /// assignment probabilities. Zero when the design declares no per-row probabilities.
+    pub min_expected_arm_units: f64,
     /// Number of distinct published pointwise intervals.
     pub reported_intervals: usize,
     /// Number of fitted pre-assignment ANCOVA covariates.
@@ -159,6 +162,7 @@ impl GraphlessLicenseRow {
             && observed.min_factorial_cell >= row.min_factorial_cell
             && observed.min_action_rows >= row.min_action_rows
             && observed.min_probability + 1e-12 >= row.min_probability
+            && observed.min_expected_arm_units + 1e-9 >= row.min_expected_arm_units
             && observed.reported_intervals >= row.min_reported_intervals
             && (row.max_covariates == 0 || observed.covariates <= row.max_covariates)
             && (!row.all_reported_intervals || observed.all_reported_intervals)

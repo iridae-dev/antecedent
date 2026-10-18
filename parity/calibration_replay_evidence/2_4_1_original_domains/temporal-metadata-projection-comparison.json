@@ -1,0 +1,22 @@
+{
+  "original_source": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4",
+  "corrected_source": "2f7d56662e4e86014f907e577b7c854c74c831d4",
+  "raw_differences": [
+    "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1: se_kind stored 'percentile' replayed 'percentile_or_logical_support'"
+  ],
+  "projected_differences": [],
+  "raw_payloads_rewritten": false,
+  "scientific_draws_repeated": 0,
+  "source_transfer": {
+    "original_source": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4",
+    "destination_source": "2f7d56662e4e86014f907e577b7c854c74c831d4",
+    "changed_inputs": [
+      "crates/antecedent/tests/discovered_transport_calibration.rs"
+    ],
+    "original_file_sha256": "26e26a01b86687749ce8113dcfc32762cb892befffd703c1e584d9600d330aa9",
+    "destination_file_sha256": "716542608283fc6e0719671f52eb97c5af54a8cf61a2d5b15e4babc7bf10b6a8",
+    "compiled_input_entries": 2176,
+    "original_input_manifest_sha256": "ef2a6cfac985aba0b08b7682e9d4644b9cb1705b99c1d034915e385369ee6094",
+    "destination_input_manifest_sha256": "cbaa26cbc383b1068697a47bf80e1b818b5f25d1504ff57283a14ee26646c6f6"
+  }
+}

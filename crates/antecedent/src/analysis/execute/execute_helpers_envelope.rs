@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-
 impl super::Study {
     pub(super) fn estimate_functional_effect(
         &self,
@@ -230,18 +229,20 @@ fn sequential_atom_block(
     atoms: &[sequential_validation::SequentialValidationAtom],
     bootstrap_replicates: u32,
     truncated: bool,
+    gaps: bool,
     ctx: &ExecutionContext,
 ) -> Result<SequentialAtomBlock, CausalError> {
     let designs = atoms
         .iter()
         .map(|atom| {
-            TemporalAtomDesign::sequential(
+            TemporalAtomDesign::sequential_with_gaps(
                 data,
                 &atom.graph,
                 &atom.indexer,
                 &atom.estimand,
                 query,
                 atom.status,
+                gaps,
                 ctx,
             )
         })
@@ -286,7 +287,7 @@ pub(super) fn fit_class_linear_atoms<'a>(
     query: &TemporalEffectQuery,
     envelope: &antecedent_identify::TemporalClassEnvelope,
     indexers: &'a [TemporalIndexer],
-    split: Option<&antecedent_data::DiscoveryEstimationSplit>,
+    (split, gaps): (Option<&antecedent_data::DiscoveryEstimationSplit>, bool),
     ctx: &ExecutionContext,
 ) -> Result<ClassLinearAtoms<'a>, CausalError> {
     let mut fit = ClassLinearAtoms {
@@ -303,12 +304,15 @@ pub(super) fn fit_class_linear_atoms<'a>(
         total_weight: 0.0,
     };
     for (index, (case, indexer)) in envelope.envelope.cases.iter().zip(indexers).enumerate() {
-        if !identification_status_ok_for_case(case.result.status) || case.result.estimands.is_empty()
+        if !identification_status_ok_for_case(case.result.status)
+            || case.result.estimands.is_empty()
         {
             continue;
         }
         let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-        let design = TemporalAtomDesign::linear(data, &estimand, query, indexer, split, ctx)?;
+        let design = TemporalAtomDesign::linear_with_gaps(
+            data, &estimand, query, indexer, split, gaps, ctx,
+        )?;
         let estimate = design.effect_estimate(case.result.required_assumptions.clone());
         let weight = case.weight.0;
         fit.weighted_point += weight * estimate.ate;
@@ -368,7 +372,10 @@ pub(super) fn static_aligned_influence(
 /// Per threshold, each atom is estimated on the same indicator transform, IFs
 /// are aligned to the original row universe, and `F_a(c)` / scores are mixed
 /// by frozen completion weight — the same rule as class-aware mean CATEs.
-#[allow(clippy::too_many_lines, reason = "for each threshold, refits every identified completion on the exceedance outcome and mixes arm CDFs, influences and supports by frozen completion weight into the same output vectors")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "for each threshold, refits every identified completion on the exceedance outcome and mixes arm CDFs, influences and supports by frozen completion weight into the same output vectors"
+)]
 pub(super) fn attach_class_conditional_functional_grid(
     estimate: EffectEstimate,
     data: &TabularData,
@@ -1199,6 +1206,8 @@ pub(super) struct TemporalRefutation<'a> {
     pub(super) query: &'a TemporalEffectQuery,
     pub(super) split: Option<&'a DiscoveryEstimationSplit>,
     pub(super) time_index: &'a TimeIndex,
+    /// The series has missing time points: refits fit the intact lag windows.
+    pub(super) gaps: bool,
 }
 
 /// What an envelope refuter run checks and how: the data and query every atom is validated
@@ -1213,93 +1222,94 @@ pub(super) struct EnvelopeRefutation<'a> {
 }
 
 impl EnvelopeRefutation<'_> {
-/// Run cheap/full effect refuters on every contributing envelope atom and mix.
-///
-/// Each atom is validated on its own estimand (and lag indexer, for DBN atoms)
-/// against that atom's own estimate ([`EnvelopeRefuteAtom::original`]), so a
-/// stable atom whose effect differs from the pooled mixture is not reported as
-/// a refutation. Reports of the same refuter id are mixed by posterior mass;
-/// the mixed `original_ate` is therefore the mass-weighted mean of the per-atom
-/// estimates that were actually compared (over the atoms that produced that
-/// report), and the mixed check passes only if every contributing atom passes.
-/// Validators that are `NotApplicable` on every contributing atom surface once;
-/// a check that applies to only a subset mixes that subset.
-pub(super) fn run(
-    self,
-    atoms: &[EnvelopeRefuteAtom],
-    workspace: &mut EstimationWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
-    let Self { data, query, suite, estimator, custom, temporal: temporal_frame } = self;
-    if matches!(suite, RefuteSuite::None) && custom.is_empty() {
-        return Ok((Vec::new(), Vec::new()));
-    }
-    let mut per_atom: Vec<(f64, Vec<antecedent_validate::RefutationReport>)> = Vec::new();
-    let mut na_weight: std::collections::HashMap<
-        antecedent_validate::ValidatorId,
-        (f64, Arc<str>),
-    > = std::collections::HashMap::new();
-    let mut contributing = 0.0;
-    let mut diagnostics = Vec::new();
-    for atom in atoms {
-        if atom.weight <= 0.0 {
-            continue;
+    /// Run cheap/full effect refuters on every contributing envelope atom and mix.
+    ///
+    /// Each atom is validated on its own estimand (and lag indexer, for DBN atoms)
+    /// against that atom's own estimate ([`EnvelopeRefuteAtom::original`]), so a
+    /// stable atom whose effect differs from the pooled mixture is not reported as
+    /// a refutation. Reports of the same refuter id are mixed by posterior mass;
+    /// the mixed `original_ate` is therefore the mass-weighted mean of the per-atom
+    /// estimates that were actually compared (over the atoms that produced that
+    /// report), and the mixed check passes only if every contributing atom passes.
+    /// Validators that are `NotApplicable` on every contributing atom surface once;
+    /// a check that applies to only a subset mixes that subset.
+    pub(super) fn run(
+        self,
+        atoms: &[EnvelopeRefuteAtom],
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        let Self { data, query, suite, estimator, custom, temporal: temporal_frame } = self;
+        if matches!(suite, RefuteSuite::None) && custom.is_empty() {
+            return Ok((Vec::new(), Vec::new()));
         }
-        contributing += atom.weight;
-        let temporal = match (atom.indexer.as_ref(), temporal_frame.as_ref()) {
-            (Some(indexer), Some(frame)) => Some(TemporalRefitContext {
-                indexer,
-                temporal_query: frame.query,
-                split: frame.split,
-                kernel_policy: &ctx.kernel_policy,
-                time_index: Some(frame.time_index),
-                panel: None,
-            }),
-            _ => None,
-        };
-        let outcomes = RefutationRun {
-            data,
-            estimand: &atom.estimand,
-            query,
-            estimate: &atom.original,
-            suite,
-            estimator,
-            custom,
-            temporal,
-        }
-        .outcomes(workspace, None, ctx)?;
-        per_atom.push((atom.weight, ValidationSuite::reports_only(&outcomes)));
-        for (validator, reason) in ValidationSuite::not_applicable_only(&outcomes) {
-            na_weight
-                .entry(validator)
-                .and_modify(|(w, _)| *w += atom.weight)
-                .or_insert((atom.weight, reason));
-        }
-    }
-    let (reports, coverage) = mix_atom_refutation_reports(&per_atom);
-    diagnostics.extend(coverage);
-    if contributing > 0.0 {
-        for (validator, (weight, reason)) in na_weight {
-            if weight / contributing >= 1.0 - 1e-12 {
-                diagnostics.push(validator_not_applicable_diagnostic(validator, &reason));
+        let mut per_atom: Vec<(f64, Vec<antecedent_validate::RefutationReport>)> = Vec::new();
+        let mut na_weight: std::collections::HashMap<
+            antecedent_validate::ValidatorId,
+            (f64, Arc<str>),
+        > = std::collections::HashMap::new();
+        let mut contributing = 0.0;
+        let mut diagnostics = Vec::new();
+        for atom in atoms {
+            if atom.weight <= 0.0 {
+                continue;
+            }
+            contributing += atom.weight;
+            let temporal = match (atom.indexer.as_ref(), temporal_frame.as_ref()) {
+                (Some(indexer), Some(frame)) => Some(TemporalRefitContext {
+                    indexer,
+                    temporal_query: frame.query,
+                    split: frame.split,
+                    kernel_policy: &ctx.kernel_policy,
+                    time_index: Some(frame.time_index),
+                    panel: None,
+                    gaps: frame.gaps,
+                }),
+                _ => None,
+            };
+            let outcomes = RefutationRun {
+                data,
+                estimand: &atom.estimand,
+                query,
+                estimate: &atom.original,
+                suite,
+                estimator,
+                custom,
+                temporal,
+            }
+            .outcomes(workspace, None, ctx)?;
+            per_atom.push((atom.weight, ValidationSuite::reports_only(&outcomes)));
+            for (validator, reason) in ValidationSuite::not_applicable_only(&outcomes) {
+                na_weight
+                    .entry(validator)
+                    .and_modify(|(w, _)| *w += atom.weight)
+                    .or_insert((atom.weight, reason));
             }
         }
-    }
-    let atom_keys: String =
-        atoms.iter().map(|atom| format!("{:x}", atom.key)).collect::<Vec<_>>().join(",");
-    diagnostics.push(Diagnostic::new(
-        "refute.envelope.effect_mixture",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        format!(
-            "effect refuters evaluated each contributing graph atom [{atom_keys}] against that \
+        let (reports, coverage) = mix_atom_refutation_reports(&per_atom);
+        diagnostics.extend(coverage);
+        if contributing > 0.0 {
+            for (validator, (weight, reason)) in na_weight {
+                if weight / contributing >= 1.0 - 1e-12 {
+                    diagnostics.push(validator_not_applicable_diagnostic(validator, &reason));
+                }
+            }
+        }
+        let atom_keys: String =
+            atoms.iter().map(|atom| format!("{:x}", atom.key)).collect::<Vec<_>>().join(",");
+        diagnostics.push(Diagnostic::new(
+            "refute.envelope.effect_mixture",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "effect refuters evaluated each contributing graph atom [{atom_keys}] against that \
              atom's own estimate, not the pooled mixture; reports mix by envelope mass (the \
              mixed original_ate is the mass-weighted mean of the per-atom estimates compared) \
              and pass only if every contributing atom passes"
-        ),
-    ));
-    Ok((reports, diagnostics))
-}
+            ),
+        ));
+        Ok((reports, diagnostics))
+    }
 }
 
 /// Mix per-atom refutation reports by refuter id (weights are envelope / graph-posterior mass).

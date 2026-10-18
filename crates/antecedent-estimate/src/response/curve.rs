@@ -8,8 +8,8 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_stats::{
-    LocalQuadraticWorkspace, StatsError, gaussian_local_quadratic_influence_prechecked, normal_ppf,
-    silverman_bandwidth,
+    LocalQuadraticWorkspace, StatsError, gaussian_local_quadratic_adjusted_influence_prechecked,
+    normal_ppf, silverman_bandwidth, student_t_ppf,
 };
 
 use crate::EstimationError;
@@ -53,7 +53,8 @@ impl ContinuousResponseEstimator {
         // extra term the same at every `a` is disclosed below (SUS-002).
         let mut influences = vec![0.0; g * n];
         let mut robust_se = Vec::with_capacity(g);
-        let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
+        let mut variance_df = Vec::with_capacity(g);
+        let mut pointwise_critical = 0.0_f64;
         if sample.treatments.iter().chain(&pseudo).any(|v| !v.is_finite()) {
             return Err(
                 StatsError::Shape { message: "local quadratic inputs must be finite" }.into()
@@ -70,7 +71,7 @@ impl ContinuousResponseEstimator {
         };
         let mut local = LocalQuadraticWorkspace::default();
         for (g_idx, &at) in grid.iter().enumerate() {
-            let fit = gaussian_local_quadratic_influence_prechecked(
+            let fit = gaussian_local_quadratic_adjusted_influence_prechecked(
                 &mut local,
                 &sample.treatments,
                 &pseudo,
@@ -99,8 +100,14 @@ impl ContinuousResponseEstimator {
             // simultaneous band standardizes by, so the two are nested by
             // construction rather than being two different variance estimates at
             // the same nominal level.
-            lower.push(point.value - z * standard_error);
-            upper.push(point.value + z * standard_error);
+            let df = fit
+                .variance_degrees_of_freedom
+                .expect("adjusted local fit supplies variance degrees of freedom");
+            let critical = student_t_ppf(0.5 + self.options.confidence_level / 2.0, df);
+            pointwise_critical = pointwise_critical.max(critical);
+            lower.push(point.value - critical * standard_error);
+            upper.push(point.value + critical * standard_error);
+            variance_df.push(df);
             ess.push(point.local_ess);
             density.push(
                 point.weight_sum / (n as f64 * bandwidth * (2.0 * std::f64::consts::PI).sqrt()),
@@ -133,6 +140,12 @@ impl ContinuousResponseEstimator {
              additive outcome restriction; it is not re-derived for treatment–covariate \
              interactions in μ̂",
         ));
+        support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from("response.local_variance_degrees_of_freedom"),
+                values: Arc::from(variance_df),
+                detail: Arc::from("pointwise Student intervals with Satterthwaite df=tr(A)^2/tr(A^2) for the leverage-corrected local residual variance quadratic form; Gaussian working approximation conditional on the local design"),
+                scope: DiagnosticScope::Global,
+            });
         if self.options.export_row_diagnostics {
             let flat_influences = influences.clone();
             // Downstream result layers require finite diagnostic values; refuse
@@ -167,7 +180,7 @@ impl ContinuousResponseEstimator {
             });
         }
         let uncertainty = if let Some(replicates) = self.options.simultaneous_replicates {
-            simultaneous_multiplier_band(
+            let mut band = simultaneous_multiplier_band(
                 &mean,
                 &influences,
                 n,
@@ -175,7 +188,24 @@ impl ContinuousResponseEstimator {
                 self.options.confidence_level,
                 replicates,
                 self.options.multiplier_seed,
-            )?
+            )?;
+            // Keep the unchanged multiplier construction, with a caller-owned
+            // floor covering every marginal Student interval.
+            if let ResponseUncertainty::SimultaneousBand { lower, upper, .. } = &mut band {
+                *lower = mean
+                    .iter()
+                    .zip(&robust_se)
+                    .zip(lower.iter())
+                    .map(|((value, se), bound)| bound.min(value - pointwise_critical * se))
+                    .collect();
+                *upper = mean
+                    .iter()
+                    .zip(&robust_se)
+                    .zip(upper.iter())
+                    .map(|((value, se), bound)| bound.max(value + pointwise_critical * se))
+                    .collect();
+            }
+            band
         } else {
             ResponseUncertainty::PointwiseBand {
                 level: self.options.confidence_level,

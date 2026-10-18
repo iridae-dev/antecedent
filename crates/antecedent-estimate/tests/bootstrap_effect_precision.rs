@@ -7,7 +7,7 @@
 //! 20-2A+0.3X. Six (A,X) design points support d=3,K=2 under the existing
 //! d+K-1 distinct-design guard. Canonical effects[-2,1], weights[0.4,0.6], mean-0.2.
 //! Fits use original quadrature+whole-row bootstrap and EM+aligned bootstrap;
-//! class labels are never supplied. n250/500/1000 mediation and200/400/800 mixture,
+//! class labels are never supplied. n250/500/750 mediation and200/400/600 mixture,
 //! R>=1000,B300. Every outer/inner failure fails. Reported bootstrap variances
 //! must match independent full-fit empirical variance within20%, bias<=5MCSE.
 //! No intervals or general latent-class identification guarantees are created.
@@ -25,7 +25,7 @@ use antecedent_estimate::nonlinear_mediation::{
     NonlinearMediationConfig, NonlinearMediationInput, NonlinearMediationPremises,
     estimate_nonlinear_mediation,
 };
-use calibration::{grid_n, grid_seed, n_sim};
+use calibration::{SampleGrid, grid_seed, map_replicates, n_sim};
 use metrics::Fit;
 fn mediation(n: usize, seed: u64) -> Option<Fit> {
     let mut rng = candidate::Generator::new(seed);
@@ -141,10 +141,9 @@ fn mixture(n: usize, seed: u64) -> Option<Fit> {
 #[test]
 #[ignore = "calibration final only"]
 fn nonlinear_mediation_whole_method_bootstrap_se() {
-    let n = grid_n(500);
+    let n = SampleGrid::HEAVY.n(500);
     let seed = grid_seed(0xB44D_0001);
-    let results: Vec<_> =
-        (0..n_sim().max(1000)).map(|r| mediation(n, seed.wrapping_add(u64::from(r)))).collect();
+    let results = map_replicates(n_sim().max(1000), |r| mediation(n, seed.wrapping_add(r)));
     metrics::assess(
         "nonlinear_mediation_whole_method_bootstrap_se",
         n,
@@ -156,10 +155,9 @@ fn nonlinear_mediation_whole_method_bootstrap_se() {
 #[test]
 #[ignore = "calibration final only"]
 fn latent_class_whole_method_bootstrap_se() {
-    let n = grid_n(400);
+    let n = SampleGrid::HEAVY.n(400);
     let seed = grid_seed(0xB44C_0001);
-    let results: Vec<_> =
-        (0..n_sim().max(1000)).map(|r| mixture(n, seed.wrapping_add(u64::from(r)))).collect();
+    let results = map_replicates(n_sim().max(1000), |r| mixture(n, seed.wrapping_add(r)));
     metrics::assess(
         "latent_class_whole_method_bootstrap_se",
         n,

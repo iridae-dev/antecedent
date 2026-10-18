@@ -1,5 +1,62 @@
 # Changelog
 
+## 2.4.1
+
+Changes since 2.4.0. Released identities, artifact encodings and goldens are unchanged; new fields enter an identity or encoding only when a request sets them.
+
+### Added
+
+- **Programmable interventions.** Typed value expressions (arithmetic, comparisons, conditional branches, clipping, variable and lag reads) as a transform of a node's generated value or an assignment that replaces its mechanism, compiled into overlays and batch kernels. Policies are validated for circular, unavailable or conflicting dependencies and output types, and simulation, counterfactual execution and observational identification are licensed separately. One executor serves intervention sampling, counterfactual prediction and temporal rollouts with history reads, from Rust and Python. Portable policy programs have a versioned encoding; batch Python callbacks are runtime bindings unless declared from source with verifiable recovery records. `antecedent.prepare` reruns a policy question without recompiling it. See [intervention programs](docs/guides/intervention-programs.md).
+- **Mechanism selection.** Boosted and forest tree families for continuous and categorical nodes with complete sampling, likelihood, noise inference and attribution semantics; candidate sets and per-node constraints; shuffled, time-ordered and clustered validation splits; per-node selection provenance. See [mechanism selection](docs/guides/mechanism-selection.md).
+- **Graph falsification.** A graph-and-data test of local Markov implications against node relabellings with configurable independence tests, reporting rejected, not rejected, uninformative or incomplete with its evidence and budgets. See [graph falsification](docs/guides/graph-falsification.md).
+- **Noise replay and intrinsic causal influence.** Sample, fix, randomize and replay exogenous noise through one compiled model; intrinsic causal influence as the variance game Var(E[Y | U_S]) over independent noise, with permutation, simulation and mechanism-fit uncertainty reported separately. See [noise replay](docs/guides/noise-replay.md) and [intrinsic influence](docs/guides/intrinsic-influence.md).
+- **Missing data and sampling weights.** Declared missing-data policies across RCT, DiD, temporal and discovery routes, temporal estimators and refuters on series with missing time points, and sampling weights in the estimators that previously ignored or refused them. See [missing data](docs/guides/missing-data.md).
+- **Scale.** Graph posteriors above eight variables (exact edge marginals to 12, samplers to 16), budgeted graph searches in place of fixed ceilings, matching, k-nearest-neighbour, GPDC and nonparametric sensitivity beyond their former row limits, adaptive participant trials at practitioner scale, and recalculation bridges bounded by memory budgets.
+- **Transport, survival and policy value.** Transport across discovered PAG and temporal structures with block-bootstrap intervals, target-native utilities for transported policies, observational survival effects and policy values, effects after discovery on an unambiguous treatment parent set, and finite SCMs whose mechanisms share exogenous terms.
+- **Gaussian study pooling.** `pool_gaussian_studies` pools independent Gaussian study estimates with an equal-study mean and empirical study-level variance. Its Student interval has a separate conservative coverage declaration and calibration identity; inverse-variance and HKSJ pooling remain separate constructions.
+- **Treatment levels and identifiers.** Declared active and control levels across estimators, label-declared levels in Python, and named identifiers through refresh.
+- **Bayesian draw controls.** An opt-in supported minimum draw count, endpoint Monte Carlo error with a refusal above tolerance, and draws and seed in the replay identity.
+- **Graph posterior samplers above eight variables.** An eight-replica tempering ladder, covered-edge reversals that walk each Markov equivalence class, and an order-relocate move for order MCMC; published samplers match the exact posterior marginals of their score within Monte Carlo error. At eight or fewer variables the draws are unchanged.
+- **Adaptive participant trials.** The anytime-valid confidence sequence is the predictable plug-in empirical-Bernstein sequence (Waudby-Smith and Ramdas) at alpha/K per arm; released contracts keep and replay their mixture-Hoeffding sequence.
+- Rust and Python examples for each capability, pinned DoWhy 0.14 comparisons computed at test time, a feature-conformance gate and benches for program execution and noise replay.
+
+### Fixed
+
+- The responder-weighted variance accounts for estimating the response probabilities in cluster, stratified, factorial, multi-arm and switchback designs; point estimates are unchanged.
+- Discovered transport binds only the source treatment experiment and target observations actually supplied. Checked minimal pretreatment standardization avoids unnecessary target-joint conditionals; temporal bootstrap draws reuse the causal derivation while rebuilding empirical laws. An opt-in binary randomized-trial compatibility test records the trial rows, level and every class-member decision for replay.
+- Opt-in PCMCI+ multiplicity adjustment including contemporaneous links uses the complete allowed directed-link family, with a p-value of one for missing tests, rather than correcting only surviving links. The protocol identity records this choice; it does not assert unconditional error control for adaptively selected CI queries.
+- Weighted and custom-target matching standard errors use the n − 1 divisor, and the ATC donor credit is counted on the correct arm.
+- A Laplace posterior with fewer than 1,000 declared draws publishes the exchangeable-rank interval of its own draws, so a loaded posterior passes its integrity check.
+- GES no longer refuses a node with more undirected neighbours than the parent limit, and background knowledge on an edge GES has already directed no longer raises a graph error.
+- An unchanged participant column no longer refuses an identifier refresh.
+- Bayesian CPDAG and PAG graph-posterior effects publish their credible interval when every completion returns the same estimand; ADMG graph-posterior responses keep the atom's credible interval or band, and a lone covering ADMG atom keeps its bootstrap standard error.
+- The default completion budget is restored to the audit allowance the fixed ceiling had, so temporal PAG class audits complete and publish their bands.
+- A parent-set effect after discovery is refused for an orientation conflict only when some resolution of the conflict changes the treatment's parents (`parent_set_effect.treatment_orientation_depends_on_conflict`, `parent_set_effect.conflict_resolution_budget`); conflicts elsewhere in the graph are listed as unresolved.
+- The graph-posterior publication gate also requires every chain's edge marginals to agree with the pooled ones (with the excursion error for edges a chain rarely flips) and the rank-normalized split R-hat of the log target to stay at most 1.1, so a posterior whose chains settled on different marginals is withheld instead of published.
+
+### Changed
+
+- The versioned treatment-parent-set effect procedure allocates three quarters of rows to discovery and one quarter to independent analysis. Earlier half-split sources replay under their original version; their records do not attest the new allocation.
+- The weighted discovery-to-effect calibration procedure uses a distinct three-quarter discovery allocation and accepts orientation conflicts only when the treatment parent set is invariant across compatible resolutions. Its legacy half-split replay remains separate.
+- Sampling-weighted interval constructions distinguish calibrated IPW scores, model-assisted outcome noise and target-population variation, regression-adjusted propensity strata, and the finite-cluster reference returned by cluster DML. Measurement scores the actual published interval and keeps each method identity distinct.
+- Formal coverage-compatibility decisions use a frozen complete source family, exact binomial tails and predeclared replicate looks in a fresh validation seed domain. Existing collected records retain their original semantics. Reporting, width, scientific coverage floors and replicate minima remain separate requirements; non-rejection is not proof of nominal coverage.
+- Model and attribution refusals that name a registered reason code raise the unsupported-route exception in Python, with `reason_code` set.
+- The refusal of an undeclared treatment level lists every observed level with its row count.
+- A batch in an adaptive procedure whose follow-up delay has elapsed but holds incomplete responses is refused as `adaptive_inference.batch_incomplete`.
+- The documented predictive-score measured ranges in the 2.4.0 release notes are corrected to the ranges actually measured.
+
+### Compatibility
+
+The public Rust surface of 2.4.0 still resolves by its released paths and signatures; a compile-level test pins it.
+
+- Public structs gain fields for the new capabilities: the estimators (`AipwAte`, `DmlAte`, `DrLearner`, `CausalForest`, the propensity, matching, GLM and linear adjustment estimators and their prepared problems) gain sampling-weight, cluster and treatment-level fields; graph posteriors, the structure samplers and discovery parameters gain wide-graph, tempering and knowledge fields; and several artifact wire, receipt and report structs gain fields that enter their encoding only when set. A struct literal that names every field no longer compiles; build these with their constructors and builders or end the literal with `..Default::default()`.
+- `antecedent_data::MissingPolicy` is `#[non_exhaustive]` and gains the declared missing-data policies. An exhaustive `match` on it needs a wildcard arm.
+- The lifted ceilings keep their released constants (`EXACT_MATCHING_ROW_LIMIT`, `TEMPORAL_MAX_OBSERVED`, `SCENARIO_MAX_OBSERVED`, `MZ_TRANSPORT_MAX_OBSERVED`, `CPDAG_MAX_NODES`, `LATENT_CLASS_ARTIFACT_MAX_ROWS`, `NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS`), deprecated because they are no longer enforced.
+- Graph posteriors keep the single-word `u64` adjacency API (`GraphPosterior::new`, `adjacency`, `mark_masks`, `with_mark_masks` and the mask functions) for graphs of up to eight variables; wider posteriors are built with `GraphPosterior::from_atoms` and read through `atoms` and `mark_atoms`, and the single-word fields are empty for them.
+- Context-taking forms of released functions are new names (`MatchingIndex::exact_within`, `match_all_within`, `kth_self_distances_within`, `discover_notears_with`, `banded_record_functional`); the released forms delegate to them.
+- `refuse_pag_transport` is deprecated; it fills the new `DiscoveredTransportRefusal::member_reasons` empty.
+- The adaptive-weighting procedure report keeps its released fields; its resource receipt is on `ProcedureReport::receipt`.
+
 ## 2.4.0
 
 Changes since 2.3.0. The [release notes](docs/release-notes/v2.4.0.md) describe the new workflows, each cell's inference status, the refused adjacent requests and their remedies; this section records the software delta.

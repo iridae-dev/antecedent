@@ -25,7 +25,8 @@
 
 use antecedent_core::{Lag, VariableId};
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::{GraphPosterior, SamplingSummary};
 use antecedent_graph::{Endpoint, MarkedEdge, MiddleMark, TemporalCpdag, TemporalDag, TemporalPag};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -142,7 +143,7 @@ fn lag_bit(lag: u32, from: usize, to: usize) -> u64 {
 /// Contemporaneous `z -> x` shared by every DBN atom.
 #[must_use]
 pub fn dbn_contemporaneous_mask() -> u64 {
-    set_edge(0, P, 2, 0, true)
+    set_edge(0, P, 2, 0, true).to_word().expect("a three-variable graph fits one word")
 }
 
 /// Atom A (the DGP): `x@1 -> y`, `x@2 -> y`, `z@1 -> y`. Adjusts `z[t-1]`.
@@ -178,7 +179,7 @@ fn dbn_posterior(weights: &[f64], lag_masks: &[u64]) -> GraphPosterior {
     }
     let mut edges = vec![0.0; P * P];
     edges[2 * P] = 1.0;
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         P,
         weights.to_vec(),
         vec![cmask; weights.len()],
@@ -748,7 +749,7 @@ pub fn mixture_graph_posterior() -> GraphPosterior {
     marginals[3] = weights[2];
     marginals[6] = weights[1];
     marginals[7] = weights[1];
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         weights.to_vec(),
         vec![direct, adjusted, unidentified],

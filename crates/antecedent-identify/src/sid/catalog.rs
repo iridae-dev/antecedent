@@ -7,7 +7,7 @@ use super::{
     ClassicalTransportQuery, DenseNodeId, Engine, ExecutionContext, ExprId, ExprNode,
     GraphWorkspace, IdentificationError, MutilatedSelection, ProofStep, RefCell, Rule,
     SelectionDiagram, SidLimits, SidMeter, State, SubsetSearchEnd, VariableId, difference,
-    for_each_admissible_subset, graph_signature, standardization_binds, stop_error,
+    for_each_admissible_subset_preferring, graph_signature, standardization_binds, stop_error,
 };
 
 /// Result of explicitly bounded catalog-aware alternative search.
@@ -120,6 +120,62 @@ pub fn identify_catalog_transport(
     identify_catalog_transport_metered(diagram, query, catalog, SidMeter::Limits(limits), ctx)
 }
 
+/// Prefer a certified minimal pretreatment standardization to a bindable target-first joint.
+///
+/// This structural search order avoids unnecessary high-dimensional target conditionals when
+/// a supplied source experiment and target covariate marginal already identify the response.
+/// It examines catalog availability and graph separation, never observed outcomes or empty
+/// sample cells. If no standardization binds, the usual target-first/source-first strategies
+/// remain available. Every returned derivation uses the existing independent proof checker.
+///
+/// # Errors
+/// As [`identify_catalog_transport`].
+pub fn identify_catalog_transport_standardization_first(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    catalog: &antecedent_core::EvidenceCatalog,
+    limits: SidLimits,
+    ctx: &ExecutionContext,
+) -> Result<CatalogTransportResult, IdentificationError> {
+    identify_catalog_transport_ordered(
+        diagram,
+        query,
+        catalog,
+        SidMeter::Limits(limits),
+        ctx,
+        true,
+        false,
+    )
+}
+
+/// Prefer the declared population-shift covariates jointly when they are pretreatment
+/// and S-admissible, before trying the ordinary minimal standardization.
+///
+/// The preference depends only on the declared selection targets, graph and catalog.
+/// Every preferred joint set passes the same separation test, catalog binding and
+/// independent derivation checker. A post-treatment target, failed joint separation,
+/// unavailable law or exhausted bound never supplies an unchecked standardization.
+///
+/// # Errors
+/// As [`identify_catalog_transport`].
+pub fn identify_catalog_transport_selection_standardization_first(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    catalog: &antecedent_core::EvidenceCatalog,
+    limits: SidLimits,
+    ctx: &ExecutionContext,
+) -> Result<CatalogTransportResult, IdentificationError> {
+    identify_catalog_transport_ordered(
+        diagram,
+        query,
+        catalog,
+        SidMeter::Limits(limits),
+        ctx,
+        true,
+        true,
+    )
+}
+
 /// [`identify_catalog_transport`] charging `meter`: its own [`SidLimits`], or a
 /// shared budget that the recursive searches and every verification replay
 /// charge. The pretreatment-standardization subset search keeps its own count
@@ -140,12 +196,30 @@ pub(crate) fn identify_catalog_transport_metered(
     meter: SidMeter<'_>,
     ctx: &ExecutionContext,
 ) -> Result<CatalogTransportResult, IdentificationError> {
+    identify_catalog_transport_ordered(diagram, query, catalog, meter, ctx, false, false)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    reason = "one checked search pipeline with a declared structural preference and unchanged legacy fallback"
+)]
+fn identify_catalog_transport_ordered(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    catalog: &antecedent_core::EvidenceCatalog,
+    meter: SidMeter<'_>,
+    ctx: &ExecutionContext,
+    standardization_first: bool,
+    selection_first: bool,
+) -> Result<CatalogTransportResult, IdentificationError> {
     catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
     let limits = meter.limits();
     let mut engine = Engine::new_metered(diagram, query, meter, ctx)?;
     let state = engine.initial()?;
     let mut obligations = Vec::<Arc<str>>::new();
     let mut had_derivation = false;
+    let mut deferred_target = None;
     let mut result = engine.solve(state.clone(), false, 0)?;
     if result.is_none() {
         result = engine.solve(state.clone(), true, 0)?;
@@ -157,7 +231,11 @@ pub(crate) fn identify_catalog_transport_metered(
             match derivation.bind_catalog_validated(catalog) {
                 Ok(mut bound) => {
                     bound.searched = searched_stages(if strategy == 0 { 1 } else { 3 });
-                    return Ok(CatalogTransportResult::Identified(Box::new(bound)));
+                    if strategy == 0 && standardization_first {
+                        deferred_target = Some(bound);
+                    } else {
+                        return Ok(CatalogTransportResult::Identified(Box::new(bound)));
+                    }
                 }
                 Err(error) => obligations.push(Arc::from(error.to_string())),
             }
@@ -178,6 +256,12 @@ pub(crate) fn identify_catalog_transport_metered(
             let targets = engine.dense_all(diagram.selection_targets())?;
             let selection =
                 MutilatedSelection::build(diagram.causal_graph(), &state.v, &state.x, &targets)?;
+            // Do not condition on a subset of the declared shifts merely because another
+            // shift was post-treatment. The preferred JOINT set must be entirely eligible.
+            let preferred = (selection_first
+                && !targets.is_empty()
+                && targets.iter().all(|z| candidates.contains(z)))
+            .then_some(targets.as_slice());
             let mut found = None;
             // A shared budget is charged by every separation test (`tick`) and by
             // the engine while it standardizes and verifies a subset (`visit`);
@@ -185,11 +269,12 @@ pub(crate) fn identify_catalog_transport_metered(
             let (tick_depth, tick_bytes) =
                 (engine.depth_offset.saturating_add(1), engine.live_bytes());
             let shared = RefCell::new(engine.shared.take());
-            let end = for_each_admissible_subset(
+            let end = for_each_admissible_subset_preferring(
                 &selection,
                 &state.y.to_dense_ids(),
                 &x_nodes,
                 &candidates,
+                preferred,
                 limits.steps,
                 || match shared.borrow_mut().as_deref_mut() {
                     Some(budget) => budget.charge(tick_depth, tick_bytes).map_err(stop_error),
@@ -229,7 +314,14 @@ pub(crate) fn identify_catalog_transport_metered(
                         );
                         let mut bound = derivation.bind_catalog_validated(catalog)?;
                         engine.verify(&derivation)?;
-                        bound.searched = searched_stages(2);
+                        bound.searched = if selection_first {
+                            Arc::from([
+                                Arc::from("target_first_sid"),
+                                Arc::from("declared_selection_pretreatment_standardization"),
+                            ])
+                        } else {
+                            searched_stages(2)
+                        };
                         found = Some(bound);
                         Ok(true)
                     })();
@@ -240,6 +332,10 @@ pub(crate) fn identify_catalog_transport_metered(
             engine.shared = shared.into_inner();
             let end = end?;
             if let Some(bound) = found {
+                return Ok(CatalogTransportResult::Identified(Box::new(bound)));
+            }
+            if let Some(mut bound) = deferred_target.take() {
+                bound.searched = searched_stages(2);
                 return Ok(CatalogTransportResult::Identified(Box::new(bound)));
             }
             obligations.push(Arc::from(pretreatment_obligation(

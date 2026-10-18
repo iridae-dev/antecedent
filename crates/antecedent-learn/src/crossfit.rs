@@ -166,6 +166,29 @@ pub fn cross_fit_with_folds(
     ctx: &ExecutionContext,
     transformer: Option<&dyn TransformerFactory>,
 ) -> Result<CrossFittedPrediction, LearnError> {
+    cross_fit_with_folds_weighted(factory, x, y, None, fold_assignment, ctx, transformer)
+}
+
+/// [`cross_fit_with_folds`] fitting every fold model with nonnegative prior (case) weights,
+/// one per physical row. Predictions are out-of-fold as before; the diagnostics are the
+/// unweighted ones. A learner that does not accept sample weights refuses at its fit.
+///
+/// # Errors
+///
+/// As [`cross_fit_with_folds`], or a weights length different from the row count.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fold ids are u16 and at most max + 1 <= 2^16 of them exist, so the fold index fits u16"
+)]
+pub fn cross_fit_with_folds_weighted(
+    factory: &dyn LearnerFactory,
+    x: DesignView<'_>,
+    y: TargetView<'_>,
+    weights: Option<&[f64]>,
+    fold_assignment: Vec<u16>,
+    ctx: &ExecutionContext,
+    transformer: Option<&dyn TransformerFactory>,
+) -> Result<CrossFittedPrediction, LearnError> {
     if x.row_selection().is_some() {
         return Err(LearnError::Unsupported {
             message: "cross_fit expects a physical design without a row selection",
@@ -175,13 +198,16 @@ pub fn cross_fit_with_folds(
     if y.len() != n {
         return Err(LearnError::Shape { message: "target length != physical rows" });
     }
+    if weights.is_some_and(|w| w.len() != n) {
+        return Err(LearnError::Shape { message: "weights length != physical rows" });
+    }
     if fold_assignment.len() != n || n == 0 || n > u32::MAX as usize {
         return Err(LearnError::Shape { message: "fold plan length != physical rows" });
     }
     let folds =
         complete_fold_count(&fold_assignment, "cross-fitting needs at least two non-empty folds")?;
     let fold_results = ctx.map_indexed(folds, |fold, inner| {
-        fit_one_fold(factory, x, y, &fold_assignment, fold as u16, inner, transformer)
+        fit_one_fold(factory, x, y, weights, (&fold_assignment, fold as u16), inner, transformer)
     })?;
 
     let (predictions, model_provenance) = scatter_fold_predictions(n, fold_results);
@@ -203,8 +229,8 @@ fn fit_one_fold(
     factory: &dyn LearnerFactory,
     x: DesignView<'_>,
     y: TargetView<'_>,
-    folds: &[u16],
-    fold: u16,
+    weights: Option<&[f64]>,
+    (folds, fold): (&[u16], u16),
     ctx: &ExecutionContext,
     transformer: Option<&dyn TransformerFactory>,
 ) -> Result<FoldFit, LearnError> {
@@ -230,12 +256,14 @@ fn fit_one_fold(
         let train_x = DesignView::from_column_major(&train_buf, tr, tc)?;
         let valid_x = DesignView::from_column_major(&valid_buf, vr, vc)?;
         let train_y = gather_logical_target(y, &train)?;
-        let model = factory.fit(train_x, TargetView::new(&train_y), None, ctx)?;
+        let train_w =
+            weights.map(|w| gather_logical_target(TargetView::new(w), &train)).transpose()?;
+        let model = factory.fit(train_x, TargetView::new(&train_y), train_w.as_deref(), ctx)?;
         let mut out = vec![0.0; vr];
         model.predict(valid_x, &mut out, ctx)?;
         (model, out)
     } else {
-        let model = factory.fit(train_view, y, None, ctx)?;
+        let model = factory.fit(train_view, y, weights, ctx)?;
         let mut out = vec![0.0; valid_view.nrows()];
         model.predict(valid_view, &mut out, ctx)?;
         (model, out)

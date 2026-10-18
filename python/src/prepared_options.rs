@@ -29,6 +29,9 @@ const KEYS: &[&str] = &[
     "on_progress",
     "inference",
     "discovery_algorithm",
+    "participants",
+    "missing",
+    "sampling_weights",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -46,6 +49,8 @@ pub(crate) struct InferenceSpec {
     pub composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
     /// Outcome likelihood; `None` keeps the Gaussian identity-link default.
     pub likelihood: Option<antecedent_prob::BayesLikelihood>,
+    /// Numerical draw controls; `None` leaves the draw count unconstrained.
+    pub draw_controls: Option<antecedent::PosteriorDrawControls>,
 }
 
 impl InferenceSpec {
@@ -71,6 +76,9 @@ impl InferenceSpec {
                 .transpose()?,
             likelihood: item("likelihood")?
                 .map(|value| parse_likelihood(&value.extract::<String>()?))
+                .transpose()?,
+            draw_controls: item("draw_controls")?
+                .map(|value| parse_draw_controls(&value.extract::<String>()?))
                 .transpose()?,
         })
     }
@@ -98,6 +106,17 @@ fn parse_likelihood(name: &str) -> PyResult<antecedent_prob::BayesLikelihood> {
     })
 }
 
+/// Rust draw controls of a Python `Bayesian(draw_controls=...)` name.
+fn parse_draw_controls(name: &str) -> PyResult<antecedent::PosteriorDrawControls> {
+    match name {
+        "measured" => Ok(antecedent::PosteriorDrawControls::Measured),
+        other => Err(crate::refusal(
+            antecedent_core::reason_code!("invalid_argument"),
+            format!("unknown Bayesian draw controls {other:?}; use measured"),
+        )),
+    }
+}
+
 /// Parsed shared prepare options.
 #[derive(Default)]
 pub(crate) struct PrepareOptions {
@@ -112,6 +131,13 @@ pub(crate) struct PrepareOptions {
     pub inference: InferenceSpec,
     /// Discovery algorithm of an accepted structure (provenance only).
     pub discovery_algorithm: Option<String>,
+    /// Participant labels bound to the data rows (digests only).
+    pub participants: Option<antecedent_io::ParticipantBindingWire>,
+    /// Declared handling of missing values.
+    pub missing: Option<antecedent_data::MissingDeclaration>,
+    /// One sampling weight per row of the table, read by the routes that estimate in the
+    /// weighted population (randomized ITT, balanced panel DiD); every other route refuses it.
+    pub sampling_weights: Option<Arc<[f64]>>,
 }
 
 impl PrepareOptions {
@@ -170,6 +196,27 @@ impl PrepareOptions {
         };
         let discovery_algorithm =
             item("discovery_algorithm")?.map(|value| value.extract()).transpose()?;
+        let participants = item("participants")?
+            .map(|value| -> PyResult<_> {
+                let dict = value.cast::<PyDict>()?;
+                let field = |key: &str| -> PyResult<Bound<'_, PyAny>> {
+                    dict.get_item(key)?.ok_or_else(|| {
+                        crate::value_err(format!("participants option is missing {key:?}"))
+                    })
+                };
+                Ok(antecedent_io::ParticipantBindingWire {
+                    rows: field("rows")?.extract()?,
+                    labels: field("labels")?.extract()?,
+                    codes: field("codes")?.extract()?,
+                })
+            })
+            .transpose()?;
+        let missing = item("missing")?
+            .map(|value| crate::missing_report::parse_declaration(&value))
+            .transpose()?;
+        let sampling_weights = item("sampling_weights")?
+            .map(|value| value.extract::<Vec<f64>>().map(Arc::from))
+            .transpose()?;
         Ok(Self {
             refute,
             bootstrap,
@@ -181,6 +228,9 @@ impl PrepareOptions {
             progress,
             inference,
             discovery_algorithm,
+            participants,
+            missing,
+            sampling_weights,
         })
     }
 
@@ -192,6 +242,10 @@ impl PrepareOptions {
     /// Apply the declared inference, moving any prior transfer onto the builder.
     pub(crate) fn apply_inference(&mut self, builder: StudyBuilder) -> PyResult<StudyBuilder> {
         let spec = &mut self.inference;
+        let builder = match spec.draw_controls {
+            Some(controls) => builder.draw_controls(controls),
+            None => builder,
+        };
         let artifact = spec.prior_artifact.take();
         crate::temporal_api::apply_temporal_inference_transfer(
             builder,
@@ -246,6 +300,12 @@ impl PrepareOptions {
         if let Some(registry) = &self.registry {
             builder = builder.population_registry(registry.clone());
         }
+        if let Some(participants) = &self.participants {
+            builder = builder.participants(participants.clone());
+        }
+        if let Some(missing) = &self.missing {
+            builder = builder.missing(missing.clone());
+        }
         builder
     }
 
@@ -266,6 +326,9 @@ impl PrepareOptions {
             progress: None,
             inference: InferenceSpec::default(),
             discovery_algorithm: None,
+            participants: self.participants.clone(),
+            missing: self.missing.clone(),
+            sampling_weights: self.sampling_weights.clone(),
         };
         without_bootstrap.apply(builder)
     }

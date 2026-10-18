@@ -17,10 +17,12 @@
 //!   mean (Hadad, Hirshberg, Zhan, Wager and Athey 2021). Each score is a
 //!   martingale difference under the assignment history, so the weighted sum
 //!   is a martingale however the policy adapts.
-//! * [`confidence_sequence`]: a time-uniform normal-mixture Hoeffding
-//!   confidence sequence for the mean of a `[0, 1]`-bounded arm (Robbins 1970;
-//!   Howard, Ramdas, `McAuliffe` and Sekhon 2021), valid at every sample size
-//!   at once and so under data-dependent stopping.
+//! * [`confidence_sequence`]: time-uniform confidence sequences for the mean
+//!   of a `[0, 1]`-bounded arm, valid at every sample size at once and so
+//!   under data-dependent stopping: a normal-mixture Hoeffding sequence
+//!   (Robbins 1970; Howard, Ramdas, `McAuliffe` and Sekhon 2021) and the
+//!   variance-adaptive predictable plug-in empirical Bernstein betting
+//!   sequence (Waudby-Smith and Ramdas 2024).
 //! * [`group_sequential`]: alpha-spending boundaries (Lan and `DeMets`) for a
 //!   pre-specified set of interim looks, by recursive numerical integration of
 //!   the canonical joint distribution of the interim statistics (Armitage,
@@ -38,12 +40,26 @@
 //! several correlated measurements (repeated measures, or members of a
 //! cluster with a unit-level random effect), under a declared within-unit
 //! dependence, by simulation with an exact closed-form oracle.
+//! [`participant_procedure`] is the participant-level family: several binary
+//! responses per participant (a beta-binomial count with a declared or
+//! jointly estimated correlation, and its exact posterior in
+//! [`participant_posterior`]), arm priors that borrow declared historical sources
+//! ([`historical_prior`]), Thompson allocation with a minimum exploration
+//! probability, and expected-loss, futility and recruitment-cap decisions at
+//! completed-participant batch boundaries, with a posterior claim and a
+//! time-uniform confidence-sequence claim read at every look.
+//! [`capacity`] holds the resource bounds of all of these routes, one class of
+//! limit per refusal, and the receipt a simulation returns.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod beta_bernoulli;
+pub mod capacity;
 pub mod confidence_sequence;
 pub mod group_sequential;
+pub mod historical_prior;
+pub mod participant_posterior;
+pub mod participant_procedure;
 pub mod procedure_contract;
 pub mod procedure_law;
 pub mod procedure_repeated_measures;
@@ -55,16 +71,39 @@ use thiserror::Error;
 
 pub use beta_bernoulli::{
     BetaPosterior, MAX_ARM_TRIALS, MAX_BANDIT_ARMS, best_arm_probabilities, expected_losses,
-    probability_superior, regularized_incomplete_beta,
+    probability_exceeds, probability_superior, regularized_incomplete_beta,
+};
+pub use capacity::{
+    CapacityError, MAX_RETAINED_LOOKS, MAX_SIMULATION_MEMORY_BYTES, MAX_SIMULATION_WORK,
+    ResourceBudget, ResourceReceipt,
 };
 pub use confidence_sequence::{
-    ArmSequence, MAX_SEQUENCE_OBSERVATIONS, bounded_mean_confidence_sequence, contrast_bounds,
-    mixture_hoeffding_radius,
+    ArmSequence, MAX_SEQUENCE_OBSERVATIONS, PLUG_IN_LAMBDA_CAP, SequenceKind, SequenceState,
+    bounded_mean_confidence_sequence, contrast_bounds, mixture_hoeffding_radius,
+    plug_in_confidence_sequence,
 };
 pub use group_sequential::{
     Boundaries, MAX_LOOKS, Sidedness, SpendingFunction, StagewiseInference, StagewiseLook,
     boundaries, crossing_probabilities, first_crossing, stagewise_inference,
     stagewise_upper_p_value,
+};
+pub use historical_prior::{
+    ArmPrior, BorrowingPlan, HistoricalPrior, MAX_HISTORICAL_SOURCES, MAX_HISTORICAL_TRIALS,
+    MAX_SOURCE_LABEL_BYTES, ResolvedArmPrior,
+};
+pub use participant_posterior::{
+    ArmEvidence, CorrelationModel, CorrelationPrior, ExactPosterior, PosteriorRequest,
+    exact_posterior,
+};
+pub use participant_procedure::{
+    AnytimeSettings, ArmBorrowing, ArmReading, ComparisonReading, DecisionRules, FrequentistClaim,
+    FutilityRule, LookDecision, LookReading, MAX_PARTICIPANT_LOOKS, MAX_PARTICIPANT_RESPONSES,
+    PARTICIPANT_PROCEDURE_VERSION, ParticipantDeclaration, ParticipantHistory,
+    ParticipantReplicate, ParticipantRun, ParticipantSimulation, ParticipantSimulationRequest,
+    ParticipantSimulationSummary, ParticipantSpec, PosteriorClaim, PriorDataConflict,
+    REPLAY_TOLERANCE, StopFractions, StopReason, beta_binomial_pmf, design_effect,
+    run_participant_procedure_within, simulate_participant_history, simulate_participant_procedure,
+    simulate_participant_procedure_within,
 };
 pub use procedure_contract::{
     AssignmentRule, Attribution, BetaPrior, ContractGap, DelayMechanism, ExposureModel,
@@ -73,7 +112,8 @@ pub use procedure_contract::{
     ProcedureContractError, ProcedureDeclaration, ProcedureSpec, StoppingRule,
 };
 pub use procedure_law::{
-    MAX_LAW_STATES, MAX_LAW_WORK, OutcomeKernel, ProcedureLaw, TerminalAtom, enumerate_law,
+    MAX_LAW_STATES, MAX_LAW_WORK, OutcomeKernel, ProcedureLaw, TerminalAtom,
+    apply_exploration_floor, enumerate_law,
 };
 pub use procedure_repeated_measures::{
     AnalysisEstimator, CellLabel, FinalAnalysis, GaussianMixtureLaw, MAX_MEASUREMENTS_PER_UNIT,
@@ -81,12 +121,12 @@ pub use procedure_repeated_measures::{
     RepeatedMeasuresDeclaration, RepeatedMeasuresDerivation, RepeatedMeasuresLaw,
     RepeatedMeasuresReplicate, RepeatedMeasuresRequest, RepeatedMeasuresSpec,
     RepeatedMeasuresSummary, UnitAssignment, UnitSummary, WithinUnitCorrelation,
-    admit_repeated_measures, derive_repeated_measures, exact_fixed_contrast_law,
-    simulate_repeated_measures,
+    admit_repeated_measures, derive_repeated_measures, derive_repeated_measures_within,
+    exact_fixed_contrast_law, simulate_repeated_measures, simulate_repeated_measures_within,
 };
 pub use procedure_simulation::{
     MAX_SIMULATION_REPLICATIONS, SimulatedLaw, SimulatedReplicate, SimulationRequest,
-    SimulationSummary, simulate_procedure,
+    SimulationSummary, simulate_procedure, simulate_procedure_within,
 };
 pub use procedure_uncertainty::{
     AnytimeCellBound, AnytimeReport, BayesianReport, DERIVED_UNMEASURED, DecisionReport,
@@ -137,6 +177,10 @@ pub enum AdaptiveInferenceError {
     /// A size or work bound was exceeded.
     #[error("adaptive inference limit exceeded: {0}")]
     Limit(&'static str),
+    /// A resource bound of a procedure route was exceeded; the class of bound
+    /// carries its own detail and remedy.
+    #[error("adaptive inference capacity exceeded: {0}")]
+    Capacity(#[from] CapacityError),
     /// An iteration or root search did not converge or left its bracket.
     #[error("adaptive inference numerical failure: {0}")]
     Numerical(&'static str),

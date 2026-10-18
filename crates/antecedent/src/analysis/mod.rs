@@ -21,6 +21,7 @@ pub(crate) use checked_ref;
 pub mod api;
 
 pub mod adaptive_inference;
+pub mod adaptive_participant_procedure;
 pub mod adaptive_procedure_declaration;
 pub mod adaptive_procedure_report;
 mod admg_conditional_transport;
@@ -65,6 +66,9 @@ mod derived_treatment;
 mod design_exports;
 pub mod design_ranking;
 pub mod discovered_transport;
+pub mod discovered_transport_estimate;
+pub mod discovered_transport_temporal;
+pub mod discovered_transport_trial;
 pub mod discretized_composition;
 pub mod dose_grid_functional;
 pub mod effect_constancy;
@@ -88,14 +92,18 @@ pub mod measurement_model;
 pub mod mechanism_composition;
 pub mod mechanism_discrepancy;
 pub(crate) mod mechanism_exports;
+mod missing_data;
 mod mixed_source;
 pub mod msm_sensitivity;
+pub mod multi_level_treatment;
 mod mz_transport;
 pub mod native_claims;
 pub mod nonlinear_mediation;
 pub mod observation_evidence;
 pub mod observation_posterior;
 pub mod observation_query;
+pub mod observational_policy;
+pub mod observational_survival;
 pub mod per_population_discovery;
 pub mod predictive_assessment;
 mod preflight;
@@ -115,6 +123,7 @@ pub mod recovery_chain;
 pub mod repair;
 pub mod sample_split_analysis;
 pub mod sample_split_effect;
+pub mod sample_split_parent_set_effect;
 pub mod scientific_bridge;
 pub mod selective_discovery;
 pub mod sensitivity_decision;
@@ -144,6 +153,10 @@ pub use adaptive_inference::{
     AdaptiveInferenceOutcome, AdaptiveInferenceRefusal, AdaptiveInferenceSession,
     ConsumedAdaptiveResult, ConsumedMonitoringContract, consume_adaptive_inference_result_artifact,
     consume_adaptive_monitoring_contract_artifact,
+};
+pub use adaptive_participant_procedure::{
+    ParticipantHistoryReport, ParticipantProcedure, ParticipantRunReport,
+    ParticipantSimulationReport,
 };
 pub use adaptive_procedure_declaration::{AdaptiveProcedure, ProcedureElements, Retention};
 pub use adaptive_procedure_report::{

@@ -249,13 +249,20 @@ def _coordinate_values(
 
 @dataclass(frozen=True, slots=True)
 class AverageEffect:
-    """Average treatment effect (static tabular)."""
+    """Average treatment effect (static tabular).
+
+    ``control_level`` and ``active_level`` name the two arms of the treatment column: numbers
+    for a numerically coded column, or both labels (``str``) for a string- or category-coded
+    one (``control_level="a", active_level="b"``). Labels are mapped to the arm codes and run
+    the declared-level contrast of the numeric path; a row at any other label is refused
+    (``treatment_level_undeclared``).
+    """
 
     treatment: str
     outcome: str
     _: KW_ONLY
-    control_level: float = 0.0
-    active_level: float = 1.0
+    control_level: float | str = 0.0
+    active_level: float | str = 1.0
     target_population: object | None = None
     outcome_functional: object | None = None
     kind: Literal["average"] = field(default="average", init=False, repr=False)
@@ -271,6 +278,14 @@ class PulseEffect:
     needs them refuses and names this field. ``None`` (default) lets the
     unfolding grow until the adjustment set is certified or the graph's own
     chain bound is reached.
+
+    ``weights="w"`` names a column of sampling weights, one per time step. Each lag window is
+    weighted by the weight of the observation it ends at: the effect is the weighted-least-squares
+    coefficient, windows keep their consecutive times (a window of weight zero stays, contributes
+    nothing and is counted), weights are normalized to mean one, and the uncertainty is the
+    dependence-honest circular-block bootstrap of the weighted windows. It is read by the
+    frequentist single-window fit with ``refute=False``; sustained windows, conditional effects,
+    Bayesian fits, refuters and series with gaps refuse (``option_not_applicable``).
     """
 
     treatment: str
@@ -282,10 +297,17 @@ class PulseEffect:
     horizon_steps: int = 1
     max_history_lag: int | None = None
     target_population: object | None = None
+    weights: str | None = None
     kind: Literal["pulse"] = field(default="pulse", init=False, repr=False)
 
     def __post_init__(self) -> None:
         _validate_max_history_lag(self.max_history_lag)
+        if self.weights is not None and (
+            not isinstance(self.weights, str)
+            or not self.weights.strip()
+            or self.weights in (self.treatment, self.outcome)
+        ):
+            raise CausalValueError("weights must name a data column distinct from the variables")
 
 
 @dataclass(frozen=True, slots=True)

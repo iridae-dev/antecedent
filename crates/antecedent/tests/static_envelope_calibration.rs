@@ -20,12 +20,18 @@
 
 mod common;
 
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag, TieredBackground, WithinTier};
+use antecedent_discovery::GraphPosteriorAtomKind;
+use antecedent_discovery::adjacency_mask::{adjacency_mask_from_cpdag, adjacency_masks_from_pag};
+use antecedent_graph::{
+    Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TieredBackground, WithinTier,
+};
+use antecedent_prob::InferenceDiagnostics;
 
 use common::calibration::{
     CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, map_replicates, n_sim,
@@ -112,6 +118,49 @@ enum Structure {
     Dag(Dag),
     Cpdag(Cpdag),
     Pag(Pag),
+    /// A graph posterior, so the study reports structure `graph_posterior`.
+    GraphPosterior(Box<GraphPosterior>),
+}
+
+/// A one-atom graph posterior whose atom is the whole equivalence class
+/// `graph`: the class completions mix with the class weights as in the
+/// explicit-structure study, and the study reports structure
+/// `graph_posterior` instead of `fixed`, so the record it backs is the
+/// graph-posterior coordinate.
+fn class_posterior(graph: &Structure) -> Box<GraphPosterior> {
+    let (n, kind, adjacency, marks) = match graph {
+        Structure::Cpdag(g) => (
+            g.node_count(),
+            GraphPosteriorAtomKind::Cpdag,
+            adjacency_mask_from_cpdag(g).unwrap(),
+            None,
+        ),
+        Structure::Pag(g) => {
+            let (adjacency, marks) = adjacency_masks_from_pag(g).unwrap();
+            (g.node_count(), GraphPosteriorAtomKind::Pag, adjacency, Some(vec![marks]))
+        }
+        Structure::Dag(_) | Structure::GraphPosterior(_) => {
+            panic!("a class graph posterior wraps a CPDAG or a PAG")
+        }
+    };
+    let posterior = GraphPosterior::from_atoms(
+        n,
+        vec![1.0],
+        vec![adjacency],
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("static_envelope_class_posterior"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+    .with_atom_kind(kind);
+    Box::new(match marks {
+        Some(marks) => posterior.with_mark_atoms(marks).unwrap(),
+        None => posterior,
+    })
 }
 
 fn run(
@@ -126,6 +175,7 @@ fn run(
         Structure::Dag(g) => builder.graph(g.clone()),
         Structure::Cpdag(g) => builder.graph(g.clone()),
         Structure::Pag(g) => builder.graph(g.clone()),
+        Structure::GraphPosterior(gp) => builder.graph_posterior(GraphPosterior::clone(gp)),
     };
     let study = builder
         .query(query)
@@ -610,6 +660,281 @@ fn conditional_effect_pag_bayesian_nominal_90_coverage() {
         true,
         CONDITIONAL_PAG_TRUTH,
         20_100,
+        [None, None, None],
+    );
+}
+
+// ------------------------------------------- class graph-posterior coordinates
+
+// The class-aware ATE and CATE intervals under a graph posterior whose single
+// atom is an equivalence class whose completions all return one estimand: every
+// orientation of the undirected (or circle-marked) edges adjusts the same set,
+// so the reported functional is that estimand and carries the joint
+// influence-function SE (Frequentist) or the shared posterior (Bayesian). The
+// disagreeing classes above are scored against their frozen-weight mixture
+// under explicit structure; a graph posterior over them is a different
+// object (its atoms disagree), which these designs do not claim. The gate level
+// is 90% and the runtime's 95% interval is scored on the same replicates.
+
+/// Truth of the agreeing-class ATE designs below: `y = B t + ...` with the
+/// back-door set `{z}` in every completion.
+const AGREEING_CPDAG_TRUTH: f64 = B;
+/// `y = 1 + 2 t + ...` in the agreeing PAG law.
+const AGREEING_PAG_TRUTH: f64 = 2.0;
+/// `E[x]` of the modifier in the agreeing conditional laws.
+const MODIFIER_MEAN: f64 = 0.5;
+
+/// `z -> t`, `z -> y`, `t -> y`, `w — z` (columns `t, y, z, w`): both
+/// orientations of `w — z` adjust `{z}`.
+fn agreeing_cpdag() -> Cpdag {
+    let mut g = Cpdag::with_variables(4);
+    g.insert_directed(d(2), d(0)).unwrap();
+    g.insert_directed(d(2), d(1)).unwrap();
+    g.insert_directed(d(0), d(1)).unwrap();
+    g.insert_undirected(d(3), d(2)).unwrap();
+    g
+}
+
+/// `agreeing_cpdag` plus the modifier `x -> y` (columns `t, y, z, x, w`).
+fn agreeing_conditional_cpdag() -> Cpdag {
+    let mut g = Cpdag::with_variables(5);
+    g.insert_directed(d(2), d(0)).unwrap();
+    g.insert_directed(d(2), d(1)).unwrap();
+    g.insert_directed(d(0), d(1)).unwrap();
+    g.insert_directed(d(3), d(1)).unwrap();
+    g.insert_undirected(d(4), d(2)).unwrap();
+    g
+}
+
+/// Law of `agreeing_cpdag`: `z, w ~ N(0,1)`, `t = 0.8 z + e`, `y = t + z + e`;
+/// with `modifier`, `x ~ Bern(1/2)` and `y += 0.8 t x + 0.3 x`.
+fn agreeing_cpdag_data(n: usize, seed: u64, modifier: bool) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed ^ 0xC0FF_EE00);
+    let cols: [Vec<f64>; 5] = std::array::from_fn(|_| vec![0.0; n]);
+    let [mut t, mut y, mut z, mut x, mut w] = cols;
+    for i in 0..n {
+        z[i] = g();
+        w[i] = g();
+        x[i] = f64::from(u() < MODIFIER_MEAN);
+        t[i] = ALPHA * z[i] + g();
+        y[i] = B * t[i] + z[i] + g();
+        if modifier {
+            y[i] += G * t[i] * x[i] + 0.3 * x[i];
+        }
+    }
+    if modifier {
+        TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+            ("x", x.as_slice()),
+            ("w", w.as_slice()),
+        ])
+    } else {
+        TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+            ("w", w.as_slice()),
+        ])
+    }
+    .unwrap()
+}
+
+/// `r o-> t`, `z o-> t`, `z -> y`, `t -> y` (columns `t, y, z, r`), plus the
+/// modifier `x -> y` as column 4 when `modifier`: every completion adjusts `{z}`.
+fn agreeing_pag(modifier: bool) -> Pag {
+    let mut pag = Pag::with_variables(if modifier { 5 } else { 4 });
+    let mut edges = vec![
+        (3, 0, Endpoint::Circle, Endpoint::Arrow),
+        (2, 0, Endpoint::Circle, Endpoint::Arrow),
+        (2, 1, Endpoint::Tail, Endpoint::Arrow),
+        (0, 1, Endpoint::Tail, Endpoint::Arrow),
+    ];
+    if modifier {
+        edges.push((4, 1, Endpoint::Tail, Endpoint::Arrow));
+    }
+    for (a, b, at_a, at_b) in edges {
+        pag.insert_marked(MarkedEdge { a: d(a), b: d(b), at_a, at_b, middle: MiddleMark::Empty })
+            .unwrap();
+    }
+    pag
+}
+
+/// Law of `agreeing_pag`: `z, r ~ N(0,1)`, `t = 0.5 z + 0.4 r + e`,
+/// `y = 1 + 2 t + 0.8 z + e`; with `modifier`, `x ~ Bern(1/2)` is column 4 and
+/// `y += 0.8 t x + 0.3 x`.
+fn agreeing_pag_data(n: usize, seed: u64, modifier: bool) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed ^ 0xC0FF_EE00);
+    let cols: [Vec<f64>; 5] = std::array::from_fn(|_| vec![0.0; n]);
+    let [mut t, mut y, mut z, mut r, mut x] = cols;
+    for i in 0..n {
+        z[i] = g();
+        r[i] = g();
+        x[i] = f64::from(u() < MODIFIER_MEAN);
+        t[i] = 0.5 * z[i] + 0.4 * r[i] + g();
+        y[i] = 1.0 + 2.0 * t[i] + 0.8 * z[i] + g();
+        if modifier {
+            y[i] += G * t[i] * x[i] + 0.3 * x[i];
+        }
+    }
+    if modifier {
+        TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+            ("r", r.as_slice()),
+            ("x", x.as_slice()),
+        ])
+    } else {
+        TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+            ("r", r.as_slice()),
+        ])
+    }
+    .unwrap()
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_cpdag_graph_posterior_frequentist_nominal_coverage() {
+    run_ate_coverage(
+        "average_effect_cpdag_graph_posterior_frequentist_nominal_coverage",
+        "agreeing_cpdag_data",
+        &Structure::GraphPosterior(class_posterior(&Structure::Cpdag(agreeing_cpdag()))),
+        |n, s| agreeing_cpdag_data(n, s, false),
+        400,
+        || InferenceMode::Frequentist,
+        false,
+        AGREEING_CPDAG_TRUTH,
+        20_500,
+        [None, None, None],
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_cpdag_graph_posterior_bayesian_nominal_coverage() {
+    run_ate_coverage(
+        "average_effect_cpdag_graph_posterior_bayesian_nominal_coverage",
+        "agreeing_cpdag_data",
+        &Structure::GraphPosterior(class_posterior(&Structure::Cpdag(agreeing_cpdag()))),
+        |n, s| agreeing_cpdag_data(n, s, false),
+        400,
+        bayes,
+        true,
+        AGREEING_CPDAG_TRUTH,
+        20_600,
+        [None, None, None],
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_pag_graph_posterior_frequentist_nominal_coverage() {
+    run_ate_coverage(
+        "average_effect_pag_graph_posterior_frequentist_nominal_coverage",
+        "agreeing_pag_data",
+        &Structure::GraphPosterior(class_posterior(&Structure::Pag(agreeing_pag(false)))),
+        |n, s| agreeing_pag_data(n, s, false),
+        400,
+        || InferenceMode::Frequentist,
+        false,
+        AGREEING_PAG_TRUTH,
+        20_700,
+        [None, None, None],
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_pag_graph_posterior_bayesian_nominal_coverage() {
+    run_ate_coverage(
+        "average_effect_pag_graph_posterior_bayesian_nominal_coverage",
+        "agreeing_pag_data",
+        &Structure::GraphPosterior(class_posterior(&Structure::Pag(agreeing_pag(false)))),
+        |n, s| agreeing_pag_data(n, s, false),
+        400,
+        bayes,
+        true,
+        AGREEING_PAG_TRUTH,
+        20_800,
+        [None, None, None],
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage() {
+    run_conditional_coverage(
+        "conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage",
+        "agreeing_cpdag_data",
+        &Structure::GraphPosterior(class_posterior(
+            &Structure::Cpdag(agreeing_conditional_cpdag()),
+        )),
+        |n, s| agreeing_cpdag_data(n, s, true),
+        3,
+        400,
+        false,
+        B + G * MODIFIER_MEAN,
+        20_900,
+        [None, None, None],
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage() {
+    run_conditional_coverage(
+        "conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage",
+        "agreeing_cpdag_data",
+        &Structure::GraphPosterior(class_posterior(
+            &Structure::Cpdag(agreeing_conditional_cpdag()),
+        )),
+        |n, s| agreeing_cpdag_data(n, s, true),
+        3,
+        400,
+        true,
+        B + G * MODIFIER_MEAN,
+        21_000,
+        [None, None, None],
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn conditional_effect_pag_graph_posterior_frequentist_nominal_coverage() {
+    run_conditional_coverage(
+        "conditional_effect_pag_graph_posterior_frequentist_nominal_coverage",
+        "agreeing_pag_data",
+        &Structure::GraphPosterior(class_posterior(&Structure::Pag(agreeing_pag(true)))),
+        |n, s| agreeing_pag_data(n, s, true),
+        4,
+        400,
+        false,
+        AGREEING_PAG_TRUTH + G * MODIFIER_MEAN,
+        21_100,
+        [None, None, None],
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn conditional_effect_pag_graph_posterior_bayesian_nominal_coverage() {
+    run_conditional_coverage(
+        "conditional_effect_pag_graph_posterior_bayesian_nominal_coverage",
+        "agreeing_pag_data",
+        &Structure::GraphPosterior(class_posterior(&Structure::Pag(agreeing_pag(true)))),
+        |n, s| agreeing_pag_data(n, s, true),
+        4,
+        400,
+        true,
+        AGREEING_PAG_TRUTH + G * MODIFIER_MEAN,
+        21_200,
         [None, None, None],
     );
 }

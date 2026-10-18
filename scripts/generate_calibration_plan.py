@@ -13,6 +13,7 @@ from collections import Counter
 from copy import deepcopy
 
 from _repo import REPO_ROOT as ROOT
+from generate_calibration_backlog import READY_COORDINATES, ready_coordinate_problems
 
 SOURCE = ROOT / "parity/support_licensed.toml"
 OUTPUT = ROOT / "parity/calibration_plan.md"
@@ -21,6 +22,43 @@ LEDGER = ROOT / "parity/evidence_ledger.toml"
 # Hand-maintained tail of the plan: the generator carries it over unchanged.
 CAPACITY_HEADING = "## Capacity plan for the uncertainty, transport and decision coordinates"
 AXES = ("query", "graph_class", "structure", "inference")
+HISTORY_HEADING = "## Historical inherited backlog plan"
+INFERENCE_HEADING = "## Current registered inference contracts"
+
+
+def reviewed_backlog(cells: list[dict], records: list[dict]) -> list[dict]:
+    """Accept the original reviewed allocation or its evidenced completion."""
+    missing = [
+        row for row in cells if row.get("calibration_reason") == "estimator_grid_not_measured"
+    ]
+    count = len({tuple(row[a] for a in AXES) for row in missing})
+    if not missing:
+        problems = ready_coordinate_problems(cells, records)
+        if problems:
+            raise ValueError("empty backlog lacks measured bindings: " + "; ".join(problems))
+    elif len(missing) != 39 or count != 17:
+        raise ValueError(
+            f"backlog changed to {len(missing)} cells / {count} coordinates; review plan"
+        )
+    return missing
+
+
+def inherited_history(existing: str) -> str:
+    """Retain the original plan verbatim, clearly separated from current standing."""
+    start = existing.find(HISTORY_HEADING)
+    if start >= 0:
+        end = existing.index(INFERENCE_HEADING, start)
+        return existing[start:end].rstrip()
+    if "These are 39 cells across 17 distinct coordinates." not in existing:
+        raise ValueError("completed backlog requires the preserved original 39-cell plan")
+    end = existing.index(INFERENCE_HEADING)
+    original = existing[:end].replace("# Calibration backlog plan\n\n", "", 1).rstrip()
+    return (
+        HISTORY_HEADING + "\n\n"
+        "The following is the original 39-cell / 17-coordinate allocation, retained unchanged "
+        "as historical planning evidence. Its pending descriptions are not current status; "
+        "the current bindings and measured records above govern.\n\n" + original
+    )
 
 
 def table_text(value: str) -> str:
@@ -63,8 +101,8 @@ def registered_inference() -> list[str]:
             f"{len(expected)} registered routes, including closed producers and independent "
             "consumers. It is generated from the promotion registry and evidence ledger. "
             "A point-only status can still carry unmeasured standard errors, p-values, "
-            "posterior summaries or Monte Carlo diagnostics. The inherited 40-cell backlog "
-            "above does not allocate designs for those outputs. Neither this table nor an "
+            "posterior summaries or Monte Carlo diagnostics. The historical inherited backlog "
+            "does not allocate designs for those outputs. Neither this table nor an "
             "allocated coverage ID establishes that a measurement suite exists or has run."
         ),
         "",
@@ -116,21 +154,6 @@ def registered_inference() -> list[str]:
 
 
 def disposition(row: dict) -> tuple[str, str]:
-    if row["structure"] == "explicit":
-        if (row["query"], row["graph_class"], row["inference"]) != (
-            "NestedCounterfactualEffect",
-            "Dag",
-            "Frequentist",
-        ):
-            raise ValueError("unreviewed fixed-graph backlog coordinate")
-        return (
-            "point_only_no_interval",
-            (
-                "The fixed Markovian natural-direct-effect route publishes a point only. "
-                "Build a separate whole-estimator interval and repeated-row known-SCM grid "
-                "before claiming sampling coverage; retain its current point truth fixture."
-            ),
-        )
     if row["structure"] != "graph_posterior":
         raise ValueError("unreviewed backlog structure")
     quantity = row["query"]
@@ -345,16 +368,12 @@ def per_output_inference(records: list[dict]) -> list[str]:
 
 
 def render() -> str:
-    cells = [
-        row
-        for row in tomllib.loads(SOURCE.read_text(encoding="utf-8"))["cell"]
-        if row.get("calibration_reason") == "estimator_grid_not_measured"
+    all_cells = tomllib.loads(SOURCE.read_text(encoding="utf-8"))["cell"]
+    records = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))[
+        "record"
     ]
+    cells = reviewed_backlog(all_cells, records)
     counts = Counter(tuple(row[a] for a in AXES) for row in cells)
-    if len(cells) != 40 or len(counts) != 18:
-        raise ValueError(
-            f"backlog changed to {len(cells)} cells / {len(counts)} coordinates; review plan"
-        )
     cells.sort(
         key=lambda row: (
             row["structure"] != "explicit",
@@ -365,7 +384,7 @@ def render() -> str:
     lines = [
         "# Calibration backlog plan",
         "",
-        "Generated from `support_licensed.toml` without changing its `estimator_grid_not_measured` markers. These are 40 cells across 18 distinct coordinates. The fixed-DAG point route is reviewed first; graph-posterior rows remain pending. A typed reason below explains why the missing calibration does not license an inferential claim. It is not a waiver or a coverage record.",
+        f"Generated from `support_licensed.toml` without changing its `estimator_grid_not_measured` markers. These are {len(cells)} cells across {len(counts)} distinct coordinates. The fixed-DAG point route is reviewed first; graph-posterior rows remain pending. A typed reason below explains why the missing calibration does not license an inferential claim. It is not a waiver or a coverage record.",
         "",
         "| Priority | Query | Graph | Structure | Inference | Validation | Estimator | Typed reason | Required next evidence |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
@@ -396,15 +415,46 @@ def render() -> str:
         "No row above is relabeled in `support_licensed.toml`. The graph-posterior work starts only after a whole-method oracle and calibration design are frozen at each graph/query/provider coordinate; completion counts are never posterior probabilities, and unidentified or unevaluated mass cannot be renormalized away.",
         "",
     ]
+    existing = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
+    if not cells:
+        lines = [
+            "# Calibration backlog plan",
+            "",
+            (
+                "Generated from `support_licensed.toml`: 0 cells across 0 coordinates remain "
+                "marked `estimator_grid_not_measured`. All seventeen reviewed coordinates now "
+                "cite existing measured records without unresolved boundary points. These bindings "
+                "retain their exact method and source scopes; current attestation and execution "
+                "binding are still required. Historical planning alone grants no calibration."
+            ),
+            "",
+            "## Completed reviewed coordinate bindings",
+            "",
+            "| Query | Graph | Structure | Inference | Validation | Exact coverage records |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+        for row in all_cells:
+            if tuple(row[a] for a in AXES) in READY_COORDINATES:
+                lines.append(
+                    "| "
+                    + " | ".join(
+                        table_text(str(value))
+                        for value in (
+                            *(row[a] for a in AXES),
+                            row.get("validation", "none"),
+                            ", ".join(row["calibration"]),
+                        )
+                    )
+                    + " |"
+                )
+        lines += ["", inherited_history(existing), ""]
     lines += registered_inference()
     lines += per_output_inference(ledger_scope()[0])
     text = "\n".join(lines)
-    existing = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
     start = existing.find(CAPACITY_HEADING)
     if start >= 0:
         text = text.rstrip("\n") + "\n\n" + existing[start:]
     return text
-
 
 
 def self_test() -> None:
@@ -420,7 +470,9 @@ def self_test() -> None:
     historical_output = deepcopy(source["inference_outputs"][0])
     historical_output["id"] = "synthetic.historical"
     historical_output["allocation_status"] = "historical_measurement_failed_route_closed"
-    historical_output["allocated_coverage_records"] = [e["id"] for e in source["historical_coverage_records"]]
+    historical_output["allocated_coverage_records"] = [
+        e["id"] for e in source["historical_coverage_records"]
+    ]
     source["inference_outputs"].append(historical_output)
     historical_id = source["historical_coverage_records"][0]["id"]
     overlap = deepcopy(source)
@@ -441,7 +493,40 @@ def self_test() -> None:
                 raise AssertionError(f"{label}: wrong refusal {error}") from error
         else:
             raise AssertionError(f"{label}: invalid allocation accepted")
-    print("calibration plan historical allocation self-test: ok")
+    measured_cells = [
+        dict(zip(AXES, coordinate, strict=True), validation="none", calibration=["measured"])
+        for coordinate in READY_COORDINATES
+    ]
+    original_cells = [
+        {
+            **measured_cells[index % len(measured_cells)],
+            "calibration_reason": "estimator_grid_not_measured",
+        }
+        for index in range(39)
+    ]
+    assert len(reviewed_backlog(original_cells, [])) == 39
+    try:
+        reviewed_backlog(original_cells[:-1], [])
+    except ValueError as error:
+        assert "review plan" in str(error)
+    else:
+        raise AssertionError("unreviewed partial backlog accepted")
+    assert reviewed_backlog(measured_cells, [{"id": "measured", "boundary": False}]) == []
+    for invalid in ([], [{"id": "measured", "boundary": True}]):
+        try:
+            reviewed_backlog(measured_cells, invalid)
+        except ValueError as error:
+            assert "empty backlog lacks measured bindings" in str(error)
+        else:
+            raise AssertionError("empty backlog accepted missing or failed evidence")
+    original = (
+        "# Calibration backlog plan\n\nThese are 39 cells across 17 distinct coordinates.\n| original row |\n\n"
+        + INFERENCE_HEADING
+    )
+    history = inherited_history(original)
+    assert "| original row |" in history
+    assert inherited_history(history + "\n\n" + INFERENCE_HEADING) == history
+    print("calibration plan historical allocation and completed-backlog self-test: ok")
 
 
 def main() -> None:
@@ -459,7 +544,7 @@ def main() -> None:
     else:
         OUTPUT.write_text(content, encoding="utf-8", newline="\n")
     print(
-        "calibration plan: inherited 40 cells / 18 coordinates retained; "
+        "calibration plan: current backlog and historical allocation retained; "
         "current promotion routes and inference boundaries inventoried"
     )
 

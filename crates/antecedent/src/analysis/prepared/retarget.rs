@@ -134,13 +134,18 @@ impl PreparedStudy {
 
     /// Declared independence units of a cluster-DML plan (labels aligned with the rows of its
     /// score table), or `None` for any other plan.
-    pub(crate) fn cluster_units(&self) -> Option<ClusterUnits> {
+    pub(crate) fn cluster_units(&self, table: &ScoreTable) -> Option<ClusterUnits> {
         match self.analysis.estimator_spec.as_deref() {
-            Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => Some(ClusterUnits {
-                spec: config.cluster_dml?,
-                first: config.cluster_ids.clone()?,
-                second: config.cluster_ids_second.clone(),
-            }),
+            Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => {
+                let (first, second) = config.unit_labels(&table.row_index).ok()?;
+                Some(ClusterUnits { spec: config.cluster_dml?, first: first?, second })
+            }
+            Some(crate::estimator_spec::EstimatorSpec::Dml(config)) => {
+                declared_units(&config.units, table)
+            }
+            Some(crate::estimator_spec::EstimatorSpec::DrLearner(config)) => {
+                declared_units(&config.units, table)
+            }
             _ => None,
         }
     }
@@ -161,7 +166,7 @@ impl PreparedStudy {
         {
             return Ok(());
         }
-        let Some(units) = self.cluster_units() else {
+        let Some(units) = self.cluster_units(table) else {
             return Ok(());
         };
         if units.first.len() != table.n_rows {
@@ -336,15 +341,22 @@ impl PreparedStudy {
 
     /// Publish the cluster-summed standard error with its few-cluster t reference.
     fn publish_cluster_reference(&self, estimate: &mut EffectEstimate, se: f64, df: usize) {
+        let dyadic = match self.analysis.estimator_spec.as_deref() {
+            Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => config.has_second_units(),
+            Some(crate::estimator_spec::EstimatorSpec::Dml(config)) => config.units.has_second(),
+            Some(crate::estimator_spec::EstimatorSpec::DrLearner(config)) => {
+                config.units.has_second()
+            }
+            _ => false,
+        };
         estimate.uncertainty.analytic.se = se;
         estimate.uncertainty.analytic.reference_df =
             Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
-        estimate.uncertainty.analytic.kind =
-            Some(if self.cluster_units().is_some_and(|units| units.second.is_some()) {
-                antecedent_estimate::AnalyticSeKind::Multiway
-            } else {
-                antecedent_estimate::AnalyticSeKind::Cluster
-            });
+        estimate.uncertainty.analytic.kind = Some(if dyadic {
+            antecedent_estimate::AnalyticSeKind::Multiway
+        } else {
+            antecedent_estimate::AnalyticSeKind::Cluster
+        });
     }
 
     /// Treatment and outcome the retargeted query reports on.
@@ -528,4 +540,13 @@ fn retarget_diagnostics(
         "identification reused from the prepare-time cache",
     ));
     diagnostics
+}
+
+/// The declared independence units of a whole-cluster cross-fit, on the rows of `table`.
+fn declared_units(
+    units: &antecedent_estimate::DeclaredUnits,
+    table: &ScoreTable,
+) -> Option<ClusterUnits> {
+    let (first, second) = units.labels(&table.row_index).ok()?;
+    Some(ClusterUnits { spec: units.spec?, first: first?, second })
 }

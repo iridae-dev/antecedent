@@ -5,7 +5,7 @@
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{
     FaerBackend, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, LeastSquaresWorkspace, fit_glm,
-    fit_glm_ridge,
+    fit_glm_ridge, fit_glm_ridge_weighted, fit_logistic_weighted,
 };
 
 use crate::dense::{gather_physical, materialize_dense_colmajor, require_binary_labels};
@@ -58,9 +58,10 @@ impl LogisticLearner {
     }
 }
 
-fn capabilities() -> LearnerCapabilities {
+fn capabilities(sample_weights: bool) -> LearnerCapabilities {
     LearnerCapabilities {
         binary_probability: true,
+        sample_weights,
         deterministic_seed: true,
         ..LearnerCapabilities::none()
     }
@@ -72,11 +73,6 @@ fn fit_logistic(
     weights: Option<&[f64]>,
     ridge: Option<f64>,
 ) -> Result<GlmFit, LearnError> {
-    if weights.is_some() {
-        return Err(LearnError::Unsupported {
-            message: "logistic learner does not accept sample weights",
-        });
-    }
     let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
     if y.len() != x.physical_nrows() {
         return Err(LearnError::Shape { message: "target length != physical rows" });
@@ -86,6 +82,20 @@ fn fit_logistic(
     let mut ws = LeastSquaresWorkspace::default();
     let design_ref = GlmDesignRef { x_colmajor: &design, nrows, ncols, y: &gathered_y };
     let fit = match ridge {
+        None if weights.is_some() => {
+            let w = weights.unwrap_or(&[]);
+            if w.len() != x.physical_nrows() {
+                return Err(LearnError::Shape { message: "weights length != physical rows" });
+            }
+            let gathered_w = gather_physical(w, x, nrows)?;
+            fit_logistic_weighted(
+                design_ref,
+                &gathered_w,
+                &FaerBackend,
+                &mut ws,
+                &GlmOptions::default().without_separation_ridge(),
+            )?
+        }
         None => fit_glm(
             GlmFamily::BinomialLogit,
             design_ref,
@@ -93,6 +103,22 @@ fn fit_logistic(
             &mut ws,
             &GlmOptions::default().without_separation_ridge(),
         )?,
+        Some(lambda) if weights.is_some() => {
+            let w = weights.unwrap_or(&[]);
+            if w.len() != x.physical_nrows() {
+                return Err(LearnError::Shape { message: "weights length != physical rows" });
+            }
+            let gathered_w = gather_physical(w, x, nrows)?;
+            fit_glm_ridge_weighted(
+                GlmFamily::BinomialLogit,
+                design_ref,
+                &gathered_w,
+                &FaerBackend,
+                &mut ws,
+                &GlmOptions::default(),
+                lambda,
+            )?
+        }
         Some(lambda) => fit_glm_ridge(
             GlmFamily::BinomialLogit,
             design_ref,
@@ -112,7 +138,7 @@ impl LearnerFactory for LogisticLearner {
     }
 
     fn capabilities(&self) -> LearnerCapabilities {
-        capabilities()
+        capabilities(true)
     }
 
     fn fit(
@@ -139,7 +165,7 @@ impl LearnerFactory for RidgeLogisticLearner {
     }
 
     fn capabilities(&self) -> LearnerCapabilities {
-        capabilities()
+        capabilities(true)
     }
 
     fn fit(

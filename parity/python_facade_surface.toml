@@ -606,6 +606,36 @@ status = "bound"
 python = "native:python/src/discovered_transport_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::discovered_transport_estimate::estimate_discovered_transport"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.discovered.estimate_discovered_transport"
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_estimate::verify_discovered_transport_estimate"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.discovered.verify_discovered_transport_estimate"
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_temporal::estimate_discovered_temporal_transport"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.discovered.estimate_discovered_temporal_transport"
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_temporal::transport_discovered_temporal_structure"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.discovered.transport_across_temporal_class"
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_temporal::transport_temporal_class"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.discovered.transport_temporal_graph"
+
+[[entry]]
 rust = "antecedent::analysis::discretized_composition::consume_discretized_composition"
 kind = "fn"
 status = "bound"
@@ -885,6 +915,20 @@ rust = "antecedent::analysis::msm_sensitivity::msm_sensitivity_artifact_bytes"
 kind = "fn"
 status = "bound"
 python = "native:python/src/msm_sensitivity_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::multi_level_treatment::multi_level_interval_basis"
+kind = "fn"
+status = "bound"
+python = "antecedent.multi_level_treatment.multi_level_effect"
+reason = "the calibration basis behind the interval; tested in python/tests/test_multi_level_treatment.py"
+
+[[entry]]
+rust = "antecedent::analysis::multi_level_treatment::multi_level_normal_interval"
+kind = "fn"
+status = "bound"
+python = "antecedent.multi_level_treatment.multi_level_effect"
+reason = "the candidate normal interval the report publishes once a record covers it; tested in python/tests/test_multi_level_treatment.py"
 
 [[entry]]
 rust = "antecedent::analysis::native_claims::native_response_coordinates"
@@ -1172,6 +1216,24 @@ python = "native:python/src/selective_discovery_api.rs"
 
 [[entry]]
 rust = "antecedent::analysis::sample_split_effect::measure_source"
+kind = "fn"
+status = "bound"
+python = "native:python/src/selective_discovery_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::sample_split_parent_set_effect::estimate_parent_set_effect"
+kind = "fn"
+status = "bound"
+python = "native:python/src/selective_discovery_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::sample_split_parent_set_effect::estimate_parent_set_effect_with_knowledge"
+kind = "fn"
+status = "bound"
+python = "native:python/src/selective_discovery_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::sample_split_parent_set_effect::measure_source"
 kind = "fn"
 status = "bound"
 python = "native:python/src/selective_discovery_api.rs"
@@ -1548,6 +1610,12 @@ status = "bound"
 python = "native:python/src/bayesian.rs"
 
 [[entry]]
+rust = "antecedent::discovery::discover_exact_dag_marginals"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_exact_dag_marginals"
+
+[[entry]]
 rust = "antecedent::discovery::discover_exact_dag_posterior"
 kind = "fn"
 status = "bound"
@@ -1591,6 +1659,12 @@ python = "native:python/src/lib.rs"
 
 [[entry]]
 rust = "antecedent::discovery::discover_notears"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_notears"
+
+[[entry]]
+rust = "antecedent::discovery::discover_notears_with"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.discover_notears"
@@ -1818,6 +1892,12 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
+rust = "antecedent::gcm::attribute_intrinsic_influence"
+kind = "fn"
+status = "bound"
+python = "antecedent.intrinsic_influence.intrinsic_influence"
+
+[[entry]]
 rust = "antecedent::gcm::attribute_path_specific"
 kind = "fn"
 status = "bound"
@@ -1842,10 +1922,40 @@ status = "bound"
 python = "antecedent._native.attribute_unit_change"
 
 [[entry]]
+rust = "antecedent::gcm::candidate_families"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.fit_gcm"
+
+[[entry]]
 rust = "antecedent::gcm::counterfactual_ite"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.counterfactual_ite"
+
+[[entry]]
+rust = "antecedent::gcm::counterfactual_policy"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_programs.counterfactual_policy"
+
+[[entry]]
+rust = "antecedent::gcm::policy_value"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_programs.policy_value"
+
+[[entry]]
+rust = "antecedent::gcm::counterfactual_temporal_policy"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_programs.counterfactual_temporal_policy"
+
+[[entry]]
+rust = "antecedent::gcm::evaluate_graph"
+kind = "fn"
+status = "bound"
+python = "antecedent.graph_falsification.evaluate_graph"
 
 [[entry]]
 rust = "antecedent::gcm::fit_gcm"
@@ -1860,10 +1970,22 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
+rust = "antecedent::gcm::fit_gcm_with"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.fit_gcm"
+
+[[entry]]
 rust = "antecedent::gcm::mechanism_change_detection"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.mechanism_change_detection"
+
+[[entry]]
+rust = "antecedent::gcm::noise_table_from_columns"
+kind = "fn"
+status = "bound"
+python = "native:python/src/gcm_api.rs"
 
 [[entry]]
 rust = "antecedent::gcm::rank_root_causes"
@@ -1872,10 +1994,34 @@ status = "bound"
 python = "antecedent._native.rank_root_causes"
 
 [[entry]]
+rust = "antecedent::gcm::registry_from_candidates"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.fit_gcm"
+
+[[entry]]
+rust = "antecedent::gcm::replay_noise"
+kind = "fn"
+status = "bound"
+python = "native:python/src/gcm_api.rs"
+
+[[entry]]
 rust = "antecedent::gcm::sample_do"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.sample_do"
+
+[[entry]]
+rust = "antecedent::gcm::sample_temporal_policy"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_programs.sample_temporal_policy"
+
+[[entry]]
+rust = "antecedent::gcm::sample_with_noise"
+kind = "fn"
+status = "bound"
+python = "native:python/src/gcm_api.rs"
 
 [[entry]]
 rust = "antecedent::gcm::sample_interventional_distribution"
@@ -2168,6 +2314,12 @@ status = "bound"
 python = "antecedent.evidence_ledger.EvidenceLedger"
 
 [[entry]]
+rust = "antecedent::gcm::PreparedPolicy"
+kind = "type"
+status = "bound"
+python = "antecedent.intervention_programs.PreparedPolicy"
+
+[[entry]]
 rust = "antecedent::PreparedAdmgConditionalTransport"
 kind = "type"
 status = "bound"
@@ -2388,3 +2540,27 @@ kind = "fn"
 status = "bound"
 python = "native:python/src/forward_source_api.rs"
 
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_trial::estimate_trial_compatible_discovered_transport"
+kind = "fn"
+status = "missing"
+reason = "Rust-only opt-in experimental compatibility and durable proof replay; no Python wrapper or native binding currently exposes this distinct trial refinement. Existing Python discovered transport functions retain the ordinary class route."
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_estimate"
+kind = "fn"
+status = "missing"
+reason = "Rust-only opt-in experimental compatibility and durable proof replay; no Python wrapper or native binding currently exposes this distinct trial refinement. Existing Python discovered transport functions retain the ordinary class route."
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_trial::estimate_trial_compatible_transport_confidence_set"
+kind = "fn"
+status = "missing"
+reason = "Rust-only opt-in bounded-outcome whole-procedure set with an explicit scientific support assertion and a distinct logical-bound status. No Python wrapper or native binding exposes this construction; ordinary Python discovered transport retains its existing point/range/refusal behavior."
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_confidence_set_against"
+kind = "fn"
+status = "missing"
+reason = "Rust-only receipt replay against the original structural report, query, datasets, support and execution seed. No Python wrapper or native binding exposes this verifier, and it must not be represented as a self-contained artifact consumer."

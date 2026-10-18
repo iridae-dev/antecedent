@@ -24,18 +24,23 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::Dag;
-use antecedent_model::ValueBatch;
+use antecedent_model::{
+    InterventionOverlay, ModelView, NoiseFix, NoiseReplayer, NoiseSource, ValueBatch,
+};
 
 use crate::error::CausalError;
 
 pub use antecedent_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
-    DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
-    MechanismChangeMethod, PopulationDoContrast, RobustChangeOptions, RootCauseRank,
-    StructureChangeOptions, UnitChangeResult, arrow_strengths, detect_mechanism_changes,
+    ComponentStatus, ComponentUncertainty, DifferenceMeasure, DistributionChangeOptions,
+    FeatureRelevance, INTRINSIC_MAX_EXACT_PLAYERS, IntrinsicAllocation, IntrinsicBudget,
+    IntrinsicInfluenceQuery, IntrinsicInfluenceResult, IntrinsicMethod, MechanismChangeDetection,
+    MechanismChangeMethod, NoiseIndependence, PartialStderr, PopulationDoContrast,
+    RobustChangeOptions, RootCauseRank, ShapleyMethod, SourceInfluence, StructureChangeOptions,
+    UncertaintyComponent, UnitChangeResult, arrow_strengths, detect_mechanism_changes,
     distribution_change, distribution_change_robust, distribution_change_with_row_weights,
-    feature_relevance, path_decompose, population_do_contrast, root_cause_rank, score_anomalies,
-    score_anomalies_with, structure_change, unit_change,
+    feature_relevance, intrinsic_influence, path_decompose, population_do_contrast,
+    root_cause_rank, score_anomalies, score_anomalies_with, structure_change, unit_change,
 };
 pub use antecedent_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
@@ -45,10 +50,14 @@ pub use antecedent_counterfactual::{
 };
 pub use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, DoSampleResult, DynamicMechanism,
-    InvertibleStructuralCausalModel, KdeDoSampler, McmcDoSampler, MechanismAssignment,
-    MechanismFamily, MechanismRegistry, MechanismSlot, MechanismTyping, MechanismWorkspace,
-    ModelCollection, ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy,
-    StructuralCausalModel, WeightingDoSampler, interventional_mean, sample_interventional,
+    GraphFalsificationConfig, GraphFalsificationOutcome, GraphFalsificationReport,
+    GraphUninformativeReason, InvertibleStructuralCausalModel, KdeDoSampler, MarkovImplicationTest,
+    McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismSlot,
+    MechanismTyping, MechanismWorkspace, ModelCollection, ModelError, ModelEvaluator,
+    NodeFamilyConstraint, NoiseTable, PolicyRoute, PolicySupport, ProbabilisticCausalModel,
+    RouteDecision, SelectionOptions, SelectionPolicy, SelectionProvenance, SelectionRule,
+    StructuralCausalModel, TemporalNoise, TemporalPath, TemporalPlan, ValidationSplits,
+    WeightingDoSampler, interventional_mean, policy_support, sample_interventional,
     sample_observational,
 };
 
@@ -59,6 +68,28 @@ pub struct FittedGcm {
     pub model: CompiledCausalModel,
     /// Auto-assignment provenance (no silent defaults).
     pub assignments: Vec<MechanismAssignment>,
+}
+
+/// Falsify `graph` against `data` by graph-node permutation, with no fitted mechanisms.
+///
+/// Tests the graph's local Markov implications with the configured conditional-independence test
+/// and compares the violation count with that of random node relabellings of the same graph.
+/// The result is `Rejected`, `NotRejected`, `Uninformative` or `Incomplete`, carrying every
+/// implication's test evidence, the seeds, the test budget consumed and the stated limitations.
+/// This is not the shuffled-outcome likelihood diagnostic of a fitted model.
+///
+/// # Errors
+///
+/// Invalid configuration, a graph that is not a static DAG over numeric observed columns, an
+/// unknown or non-frequentist CI test, or a CI-test failure. A budget or cancellation stop is an
+/// `Incomplete` report, not an error.
+pub fn evaluate_graph(
+    graph: &Dag,
+    data: &TabularData,
+    config: &GraphFalsificationConfig,
+    ctx: &ExecutionContext,
+) -> Result<GraphFalsificationReport, CausalError> {
+    antecedent_model::falsify_graph(graph, data, config, ctx).map_err(CausalError::from)
 }
 
 /// Fit a standard mechanism registry to `data` on `graph`.
@@ -103,6 +134,143 @@ pub fn fit_gcm_counterfactual(graph: Dag, data: &TabularData) -> Result<FittedGc
         data,
         map_mechanism_fit,
     )
+}
+
+/// Fit a caller-chosen candidate set to `data` on `graph`, with per-node family
+/// constraints and a declared validation-split scheme.
+///
+/// `registry` fixes the candidate families per outcome type (see
+/// [`registry_from_candidates`]); `options` narrows or overrides them per node and
+/// declares how held-out scores are cut when rows are dependent. With
+/// [`SelectionOptions::default`] and [`MechanismRegistry::standard`] this is
+/// [`fit_gcm`]. Every node's assignment keeps each candidate's held-out score on
+/// the shared folds, the failed candidates with their reasons, and the selection
+/// provenance.
+///
+/// # Errors
+///
+/// Fit failures; a constraint or split declaration the model or data cannot honour
+/// is refused with reason `mechanism_candidates_invalid`, and a required family
+/// that could not be scored with reason `mechanism_family_unavailable`.
+pub fn fit_gcm_with(
+    graph: Dag,
+    data: &TabularData,
+    registry: &MechanismRegistry,
+    options: &SelectionOptions,
+) -> Result<FittedGcm, CausalError> {
+    let compiled = CompiledCausalModel::compile(graph)?;
+    let (store, assignments) = registry
+        .assign_and_fit_with(&compiled, data, SelectionPolicy::BestScore, options)
+        .map_err(map_mechanism_fit)?;
+    Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
+}
+
+/// Every family a candidate token may name exactly, by its registry id.
+const ALL_FAMILIES: [MechanismFamily; 16] = [
+    MechanismFamily::LinearGaussian,
+    MechanismFamily::Constant,
+    MechanismFamily::Discrete,
+    MechanismFamily::LinearInteractions,
+    MechanismFamily::LinearSpline,
+    MechanismFamily::DiscreteInteractions,
+    MechanismFamily::DiscreteSpline,
+    MechanismFamily::HierarchicalLinear,
+    MechanismFamily::HierarchicalGlm,
+    MechanismFamily::Bvar,
+    MechanismFamily::LinearGaussianStateSpace,
+    MechanismFamily::GaussianProcess,
+    MechanismFamily::TreeBoostedAdditive,
+    MechanismFamily::TreeForestAdditive,
+    MechanismFamily::TreeBoostedCategorical,
+    MechanismFamily::TreeForestCategorical,
+];
+
+/// Families a candidate token names. Exact family ids name one family; the
+/// outcome-agnostic aliases name the member of the family for each outcome type
+/// (a continuous node uses the regression member, a categorical node the
+/// classification member).
+///
+/// | token | families |
+/// | --- | --- |
+/// | `linear` | `linear_gaussian`, `discrete` |
+/// | `logistic` | `discrete` |
+/// | `additive_spline` | `linear_spline`, `discrete_spline` |
+/// | `interactions` | `linear_interactions`, `discrete_interactions` |
+/// | `random_forest` | `tree_forest_additive`, `tree_forest_categorical` |
+/// | `gradient_boosted_trees` | `tree_boosted_additive`, `tree_boosted_categorical` |
+/// | `tree_ensembles` | all four tree families |
+/// | `tree_ensemble_classifier` | `tree_boosted_categorical`, `tree_forest_categorical` |
+///
+/// # Errors
+///
+/// An unknown token, refused with reason `mechanism_candidates_invalid`.
+pub fn candidate_families(token: &str) -> Result<Vec<MechanismFamily>, CausalError> {
+    use MechanismFamily as F;
+    let families: &[F] = match token {
+        "linear" => &[F::LinearGaussian, F::Discrete],
+        "logistic" => &[F::Discrete],
+        "additive_spline" => &[F::LinearSpline, F::DiscreteSpline],
+        "interactions" => &[F::LinearInteractions, F::DiscreteInteractions],
+        "random_forest" => &[F::TreeForestAdditive, F::TreeForestCategorical],
+        "gradient_boosted_trees" => &[F::TreeBoostedAdditive, F::TreeBoostedCategorical],
+        "tree_ensembles" => &[
+            F::TreeBoostedAdditive,
+            F::TreeForestAdditive,
+            F::TreeBoostedCategorical,
+            F::TreeForestCategorical,
+        ],
+        "tree_ensemble_classifier" => &[F::TreeBoostedCategorical, F::TreeForestCategorical],
+        exact => {
+            return ALL_FAMILIES.iter().copied().find(|f| f.id() == exact).map_or_else(
+                || {
+                    Err(crate::compile_reason!(
+                        "mechanism_candidates_invalid",
+                        "unknown mechanism candidate `{exact}`"
+                    ))
+                },
+                |family| Ok(vec![family]),
+            );
+        }
+    };
+    Ok(families.to_vec())
+}
+
+/// A registry whose candidate lists are exactly the families `tokens` name (see
+/// [`candidate_families`]), split by outcome type, in the order given, followed by
+/// [`MechanismFamily::Constant`] (admissible only for a degenerate column). An outcome
+/// type no token names keeps its standard family (`linear_gaussian`, `discrete`).
+///
+/// # Errors
+///
+/// An unknown token or an empty list, refused with reason `mechanism_candidates_invalid`.
+pub fn registry_from_candidates(tokens: &[&str]) -> Result<MechanismRegistry, CausalError> {
+    if tokens.is_empty() {
+        return Err(crate::compile_reason!(
+            "mechanism_candidates_invalid",
+            "the candidate list is empty"
+        ));
+    }
+    let mut continuous = Vec::new();
+    let mut discrete = Vec::new();
+    for token in tokens {
+        for family in candidate_families(token)? {
+            let list = if family.is_categorical() { &mut discrete } else { &mut continuous };
+            if family != MechanismFamily::Constant && !list.contains(&family) {
+                list.push(family);
+            }
+        }
+    }
+    // An outcome type no token names keeps its standard family, so a list of
+    // categorical-only candidates does not leave every continuous root without one.
+    if continuous.is_empty() {
+        continuous.push(MechanismFamily::LinearGaussian);
+    }
+    if discrete.is_empty() {
+        discrete.push(MechanismFamily::Discrete);
+    }
+    continuous.push(MechanismFamily::Constant);
+    discrete.push(MechanismFamily::Constant);
+    Ok(MechanismRegistry { continuous: Arc::from(continuous), discrete: Arc::from(discrete) })
 }
 
 /// Frozen single-intervention ITE target and mechanism-fitting procedure.
@@ -500,6 +668,12 @@ fn fit_non_separable_nested_outcome_polled(
 /// can resolve.
 pub(crate) fn map_mechanism_fit(e: ModelError) -> CausalError {
     match e {
+        ModelError::InvalidSelection { message } => {
+            crate::compile_reason!("mechanism_candidates_invalid", "{message}")
+        }
+        ModelError::RequiredFamilyUnavailable { message } => {
+            crate::compile_reason!("mechanism_family_unavailable", "{message}")
+        }
         ModelError::NotConverged { .. } => crate::unsupported_reason!(
             "mechanism_fit_not_converged",
             "a parent-conditional categorical mechanism did not converge even on standardized \
@@ -524,6 +698,353 @@ pub fn sample_do(
 ) -> Result<ValueBatch, CausalError> {
     let mut ws = MechanismWorkspace::default();
     sample_interventional(model, interventions, n, rng, &mut ws, ctx).map_err(CausalError::from)
+}
+
+/// Abduction once, then the factual units replayed under `interventions`, which may carry
+/// value programs (`Intervention::transform` / `Intervention::assign`). The retained noise
+/// goes through the same per-node precedence and program executor as [`sample_do`], so a
+/// policy gives the same values on the factual rows of an invertible model on both routes.
+///
+/// # Errors
+///
+/// Abduction / prediction failures, or a refused policy.
+pub fn counterfactual_policy(
+    model: CompiledCausalModel,
+    data: &TabularData,
+    interventions: &[Intervention],
+    outcomes: &[VariableId],
+    ctx: &ExecutionContext,
+) -> Result<CounterfactualResult, CausalError> {
+    let engine = CounterfactualEngine::new(model);
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
+    let mut ws = MechanismWorkspace::default();
+    let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(interventions) };
+    Ok(engine.predict(&exo, &[world], outcomes, false, &mut ws, ctx)?)
+}
+
+/// Abduction at every step of a factual panel, then the retained per-step noise replayed through
+/// the model under the plan's scheduled interventions. `steps[t]` holds the factual units at
+/// step `t` (every unit present at every step, in the same order); `plan.n_steps` must equal
+/// `steps.len()` and `plan.n_rows` each table's row count.
+///
+/// The noise goes through the executor [`counterfactual_policy`] and [`sample_temporal_policy`]
+/// use, so a policy (including a lagged read of earlier realised steps) means the same thing on
+/// all three routes.
+///
+/// # Errors
+///
+/// Abduction failures at any step, noise that does not match the model, rows or steps, a policy
+/// reading history that does not exist yet, or a refused program.
+pub fn counterfactual_temporal_policy(
+    model: CompiledCausalModel,
+    steps: &[TabularData],
+    plan: &TemporalPlan<'_>,
+    ctx: &ExecutionContext,
+) -> Result<TemporalPath, CausalError> {
+    let engine = CounterfactualEngine::new(model);
+    let exo = steps
+        .iter()
+        .map(|data| engine.abduct(data, AbductionMissingPolicy::Error, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut ws = MechanismWorkspace::default();
+    Ok(engine.predict_temporal(&exo, plan, &mut ws, ctx)?)
+}
+
+/// Draw `n` rows under `interventions` together with the exogenous noise that produced them.
+/// Replaying the returned table with [`replay_noise`] under the same interventions and salt `0`
+/// reproduces the draws bit for bit.
+///
+/// # Errors
+///
+/// An invalid intervention set, an unfitted mechanism that is not hard-set, a table over the
+/// context's memory limit, or cancellation.
+pub fn sample_with_noise(
+    model: &CompiledCausalModel,
+    interventions: &[Intervention],
+    n: usize,
+    ctx: &ExecutionContext,
+) -> Result<(ValueBatch, NoiseTable), CausalError> {
+    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+    Ok(NoiseReplayer::new().sample(&ModelView::with_overlay(model, overlay), n, ctx)?)
+}
+
+/// A noise table of `n_rows` rows holding the caller's own noise: one column per model node in
+/// dense node order (`values[node * n_rows + row]`). Noise must be finite, and strictly inside
+/// `(0, 1)` for a categorical node.
+///
+/// # Errors
+///
+/// A shape mismatch, an invalid noise value, or a table over the context's memory limit.
+pub fn noise_table_from_columns(
+    model: &CompiledCausalModel,
+    n_rows: usize,
+    values: &[f64],
+    ctx: &ExecutionContext,
+) -> Result<NoiseTable, CausalError> {
+    let n_nodes = model.n_nodes();
+    if n_rows.checked_mul(n_nodes) != Some(values.len()) {
+        return Err(CausalError::from(ModelError::Shape {
+            message: "noise must hold n_rows values for each of the model's nodes".into(),
+        }));
+    }
+    let mut table = NoiseTable::sample(&ModelView::observational(model), n_rows, ctx)?;
+    let nodes: Vec<_> = (0..n_nodes)
+        .map(|node| {
+            u32::try_from(node).map(antecedent_graph::DenseNodeId::from_raw).map_err(|_| {
+                CausalError::from(ModelError::Shape { message: "node index exceeds u32".into() })
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    table.fix(model, &nodes, NoiseFix::Columns(values))?;
+    Ok(table)
+}
+
+/// Replay retained noise through the model under `interventions`, with the per-node precedence
+/// of forward sampling (a stochastic policy draws from the stream keyed by `policy_salt`).
+///
+/// # Errors
+///
+/// An invalid intervention set, a table of another model's width, a mechanism that refuses its
+/// noise, a table over the context's memory limit, or cancellation.
+pub fn replay_noise(
+    model: &CompiledCausalModel,
+    interventions: &[Intervention],
+    noise: &NoiseTable,
+    policy_salt: u64,
+    ctx: &ExecutionContext,
+) -> Result<ValueBatch, CausalError> {
+    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+    Ok(NoiseReplayer::new().replay(
+        &ModelView::with_overlay(model, overlay),
+        NoiseSource::Table(noise),
+        policy_salt,
+        ctx,
+    )?)
+}
+
+/// Model-based value of a policy on one outcome, with the unintervened outcome on the same
+/// noise, and the per-route licence the policy was run under.
+///
+/// The means are properties of the fitted model, not of the population: they are as good as the
+/// structure and the mechanisms are. Only the simulation error is quantified here
+/// ([`Self::policy_simulation_stderr`], [`Self::difference_simulation_stderr`]); the model-fit
+/// uncertainty is not, and no interval is claimed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PolicyValue {
+    /// The outcome variable.
+    pub outcome: VariableId,
+    /// Draws of the policy run and of the baseline replayed on its noise.
+    pub n_draws: usize,
+    /// Mean outcome under the policy.
+    pub policy_mean: f64,
+    /// Mean outcome with no intervention, on the same noise.
+    pub baseline_mean: f64,
+    /// `policy_mean - baseline_mean`, from the paired draws.
+    pub mean_difference: f64,
+    /// Monte Carlo standard error of `policy_mean`.
+    pub policy_simulation_stderr: f64,
+    /// Monte Carlo standard error of `mean_difference` (paired, so common noise cancels).
+    pub difference_simulation_stderr: f64,
+    /// The licence of each route for this policy.
+    pub support: PolicySupport,
+}
+
+/// Value of `interventions` on `outcome` under the fitted model: draw `n` rows with their noise
+/// under the policy, replay the same noise with no intervention, and report both means and their
+/// paired difference with the simulation error.
+///
+/// This is [`sample_with_noise`] and [`replay_noise`], the executor every policy route shares;
+/// a policy the simulation route refuses is refused here with the same registered reason code.
+///
+/// # Errors
+///
+/// A refused policy, an outcome absent from the model, fewer than two draws, a table over the
+/// context's memory limit, or cancellation.
+pub fn policy_value(
+    model: &CompiledCausalModel,
+    interventions: &[Intervention],
+    outcome: VariableId,
+    n: usize,
+    ctx: &ExecutionContext,
+) -> Result<PolicyValue, CausalError> {
+    let node = policy_value_request(model, outcome, n)?;
+    let support = policy_support(model, interventions);
+    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+    policy_value_on(model, &overlay, support, (outcome, node), n, ctx)
+}
+
+/// The outcome's dense node, after checking the request can report a simulation error.
+fn policy_value_request(
+    model: &CompiledCausalModel,
+    outcome: VariableId,
+    n: usize,
+) -> Result<antecedent_graph::DenseNodeId, CausalError> {
+    if n < 2 {
+        return Err(CausalError::Compile {
+            message: "a policy value needs at least two draws to report its simulation error"
+                .into(),
+        });
+    }
+    model.dense_of(outcome).ok_or_else(|| CausalError::Compile {
+        message: format!("outcome {outcome} is absent from the fitted model"),
+    })
+}
+
+/// The executor of [`policy_value`] on an already compiled overlay and resolved licence, shared
+/// by the one-shot call and [`PreparedPolicy`].
+fn policy_value_on(
+    model: &CompiledCausalModel,
+    overlay: &InterventionOverlay,
+    support: PolicySupport,
+    (outcome, node): (VariableId, antecedent_graph::DenseNodeId),
+    n: usize,
+    ctx: &ExecutionContext,
+) -> Result<PolicyValue, CausalError> {
+    let (policy, noise) =
+        NoiseReplayer::new().sample(&ModelView::with_overlay(model, overlay.clone()), n, ctx)?;
+    let baseline = replay_noise(model, &[], &noise, 0, ctx)?;
+    let treated = policy.column(node.as_usize()).map_err(CausalError::from)?;
+    let untreated = baseline.column(node.as_usize()).map_err(CausalError::from)?;
+    let count = n as f64;
+    let mean = |column: &[f64]| column.iter().sum::<f64>() / count;
+    let stderr = |values: &mut dyn Iterator<Item = f64>, centre: f64| {
+        let ss: f64 = values.map(|v| (v - centre) * (v - centre)).sum();
+        (ss / (count - 1.0) / count).sqrt()
+    };
+    let (policy_mean, baseline_mean) = (mean(treated), mean(untreated));
+    let mean_difference = policy_mean - baseline_mean;
+    Ok(PolicyValue {
+        outcome,
+        n_draws: n,
+        policy_mean,
+        baseline_mean,
+        mean_difference,
+        policy_simulation_stderr: stderr(&mut treated.iter().copied(), policy_mean),
+        difference_simulation_stderr: stderr(
+            &mut treated.iter().zip(untreated).map(|(t, u)| t - u),
+            mean_difference,
+        ),
+        support,
+    })
+}
+
+/// A policy program compiled and licensed once against one fitted model, rerun without being
+/// compiled again: the retained form of [`policy_value`].
+///
+/// [`Self::prepare`] validates the program against the model (a refused program is refused
+/// there, with the registered reason code), compiles its overlay and resolves the licence of
+/// every route. [`Self::value`] then runs the executor [`policy_value`] runs, on the retained
+/// overlay, so it equals the one-shot value bit for bit at the same context.
+/// [`Self::rebind`] carries the program to a refitted model: the overlay and licence are
+/// resolved against that model, and the program itself is not compiled again.
+#[derive(Clone, Debug)]
+pub struct PreparedPolicy {
+    interventions: Arc<[Intervention]>,
+    overlay: InterventionOverlay,
+    support: PolicySupport,
+    program_compilations: u64,
+    model_bindings: u64,
+}
+
+impl PreparedPolicy {
+    /// Compile `interventions` against `model` and resolve the licence of each route.
+    ///
+    /// # Errors
+    ///
+    /// A program the model refuses (an unknown variable, a mistyped or circular expression, a
+    /// node both set and shifted), with its registered reason code.
+    pub fn prepare(
+        model: &CompiledCausalModel,
+        interventions: Vec<Intervention>,
+    ) -> Result<Self, CausalError> {
+        let overlay = InterventionOverlay::from_interventions(model, &interventions)?;
+        let support = policy_support(model, &interventions);
+        Ok(Self {
+            interventions: Arc::from(interventions),
+            overlay,
+            support,
+            program_compilations: 1,
+            model_bindings: 1,
+        })
+    }
+
+    /// The same program bound to `model` (for example the model refitted on refreshed data):
+    /// the overlay and licence are resolved against it; [`Self::program_compilations`] is
+    /// unchanged and [`Self::model_bindings`] grows by one.
+    ///
+    /// # Errors
+    ///
+    /// A model that refuses the program.
+    pub fn rebind(&self, model: &CompiledCausalModel) -> Result<Self, CausalError> {
+        let overlay = InterventionOverlay::from_interventions(model, &self.interventions)?;
+        Ok(Self {
+            interventions: Arc::clone(&self.interventions),
+            overlay,
+            support: policy_support(model, &self.interventions),
+            program_compilations: self.program_compilations,
+            model_bindings: self.model_bindings.saturating_add(1),
+        })
+    }
+
+    /// The program.
+    #[must_use]
+    pub fn interventions(&self) -> &[Intervention] {
+        &self.interventions
+    }
+
+    /// The licence of each route, fixed at preparation.
+    #[must_use]
+    pub fn support(&self) -> &PolicySupport {
+        &self.support
+    }
+
+    /// How many times the program was compiled: one, however often it is rerun or rebound.
+    #[must_use]
+    pub fn program_compilations(&self) -> u64 {
+        self.program_compilations
+    }
+
+    /// How many models the program's overlay and licence were resolved against.
+    #[must_use]
+    pub fn model_bindings(&self) -> u64 {
+        self.model_bindings
+    }
+
+    /// Value of the retained program on `outcome`; equals [`policy_value`] on the same model,
+    /// program and context. `model` must be the model the policy was prepared or rebound on.
+    ///
+    /// # Errors
+    ///
+    /// An outcome absent from the model, fewer than two draws, a table over the context's
+    /// memory limit, or cancellation.
+    pub fn value(
+        &self,
+        model: &CompiledCausalModel,
+        outcome: VariableId,
+        n: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<PolicyValue, CausalError> {
+        let node = policy_value_request(model, outcome, n)?;
+        policy_value_on(model, &self.overlay, self.support.clone(), (outcome, node), n, ctx)
+    }
+}
+
+/// Roll the model out over time under a scheduled intervention sequence, drawing fresh noise.
+/// A value program may read earlier realised steps through `plan.window` (see
+/// [`antecedent_model::rollout_temporal`]).
+///
+/// # Errors
+///
+/// Rollout failures: shape, a policy reading history that does not exist yet, or a refused
+/// program.
+pub fn sample_temporal_policy(
+    model: &CompiledCausalModel,
+    plan: &TemporalPlan<'_>,
+    rng: &mut CausalRng,
+    ctx: &ExecutionContext,
+) -> Result<TemporalPath, CausalError> {
+    let mut ws = MechanismWorkspace::default();
+    Ok(antecedent_model::rollout_temporal(model, plan, TemporalNoise::Draw(rng), &mut ws, ctx)?)
 }
 
 /// Abduction once, then unit-level ITE for binary hard interventions on `treatment`.
@@ -661,6 +1182,28 @@ pub fn anomaly_attribution_query_with(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Vec<AnomalyScores>, CausalError> {
     score_anomalies_with(model, data, query, ctx).map_err(CausalError::from)
+}
+
+/// Intrinsic causal influence: the Shapley split of `query.target`'s variance among the
+/// exogenous noise terms of its ancestors and itself, with permutation-sampling, simulation and
+/// mechanism-fit uncertainty reported as separate components.
+///
+/// `noise` must declare the noise terms independent (or pass a structure without bidirected
+/// edges); `data`, when supplied with a requested bootstrap, is resampled to quantify
+/// mechanism-fitting uncertainty, which is otherwise marked unquantified.
+///
+/// # Errors
+///
+/// Coded refusals for undeclared or correlated noise, unsupported mechanisms, oversized plans
+/// and invalid settings; model or replay failures; cancellation.
+pub fn attribute_intrinsic_influence(
+    model: &CompiledCausalModel,
+    noise: NoiseIndependence<'_>,
+    data: Option<&TabularData>,
+    query: &IntrinsicInfluenceQuery,
+    ctx: &ExecutionContext,
+) -> Result<IntrinsicInfluenceResult, CausalError> {
+    intrinsic_influence(model, noise, data, query, ctx).map_err(CausalError::from)
 }
 
 /// Distribution-change attribution (pinned baseline-GCM parity).

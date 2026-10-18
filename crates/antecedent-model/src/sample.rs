@@ -8,10 +8,11 @@ use antecedent_core::{
 use antecedent_kernels::{kish_ess, normalize_log_weights, standard_normal};
 
 use crate::batch::{MechanismWorkspace, ParentBatch, ValueBatch, ValueBatchMut};
-use crate::compile::{CompiledCausalModel, MechanismSlot};
+use crate::compile::{CompiledCausalModel, MechanismSlot, ParentGatherPlan};
 use crate::error::ModelError;
-use crate::mechanism::sample_column;
+use crate::mechanism::{evaluate_column, sample_column};
 use crate::overlay::{InterventionOverlay, ModelView};
+use crate::program::{ProgramKind, apply_node_program};
 
 /// Sample `n_rows` observational draws from a fitted model.
 ///
@@ -43,10 +44,10 @@ pub fn sample_observational_into(
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
     values: &mut [f64],
-    _ctx: &ExecutionContext,
+    ctx: &ExecutionContext,
 ) -> Result<(), ModelError> {
     let view = ModelView::observational(model);
-    sample_with_overlay_into(&view, n_rows, rng, ws, values)
+    sample_with_overlay_polled(&view, n_rows, rng, ws, values, Some(ctx))
 }
 
 /// Sample under interventions (compiled to an overlay; model is not cloned).
@@ -60,11 +61,11 @@ pub fn sample_interventional(
     n_rows: usize,
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
-    _ctx: &ExecutionContext,
+    ctx: &ExecutionContext,
 ) -> Result<ValueBatch, ModelError> {
     let overlay = InterventionOverlay::from_interventions(model, interventions)?;
     let view = ModelView::with_overlay(model, overlay);
-    sample_with_overlay(&view, n_rows, rng, ws)
+    sample_with_overlay_ctx(&view, n_rows, rng, ws, Some(ctx))
 }
 
 /// Core ancestral sampler with overlay.
@@ -79,9 +80,21 @@ pub fn sample_with_overlay(
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
 ) -> Result<ValueBatch, ModelError> {
+    sample_with_overlay_ctx(view, n_rows, rng, ws, None)
+}
+
+/// [`sample_with_overlay`] under an execution context, so a value program polls the
+/// context's cancellation token and honours its memory limit.
+fn sample_with_overlay_ctx(
+    view: &ModelView<'_>,
+    n_rows: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+    ctx: Option<&ExecutionContext>,
+) -> Result<ValueBatch, ModelError> {
     let n_nodes = view.model.n_nodes();
     let mut values_buf = vec![0.0; n_rows.saturating_mul(n_nodes)];
-    sample_with_overlay_into(view, n_rows, rng, ws, &mut values_buf)?;
+    sample_with_overlay_polled(view, n_rows, rng, ws, &mut values_buf, ctx)?;
     Ok(ValueBatch { n_rows, n_nodes, values: std::sync::Arc::from(values_buf) })
 }
 
@@ -96,6 +109,17 @@ pub fn sample_with_overlay_into(
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
     values: &mut [f64],
+) -> Result<(), ModelError> {
+    sample_with_overlay_polled(view, n_rows, rng, ws, values, None)
+}
+
+fn sample_with_overlay_polled(
+    view: &ModelView<'_>,
+    n_rows: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+    values: &mut [f64],
+    ctx: Option<&ExecutionContext>,
 ) -> Result<(), ModelError> {
     if n_rows == 0 {
         return Err(ModelError::Shape { message: "n_rows must be > 0".into() });
@@ -114,9 +138,8 @@ pub fn sample_with_overlay_into(
     // `&mut ws` while parents stay alive, which previously forced a fresh
     // `to_vec` per node.
     let mut parent_buf: Vec<f64> = Vec::new();
-    for gather in model.parent_gathers.iter() {
-        let node = gather.child;
-        let idx = node.as_usize();
+    let eval = NodeEvaluation { model, overlay, ctx };
+    for gather in overlay.gathers(model) {
         let need = gather.n_parents().max(1).saturating_mul(n_rows);
         if parent_buf.len() < need {
             parent_buf.resize(need, 0.0);
@@ -127,32 +150,103 @@ pub fn sample_with_overlay_into(
             n_parents: gather.n_parents(),
             values: &parent_buf[..gather.n_parents().saturating_mul(n_rows)],
         };
-
-        let out = values.column_mut(idx)?;
-
-        if let Some(v) = overlay.hard_set[idx] {
-            out.fill(v);
-            continue;
-        }
-        if let Some(policy) = &overlay.stochastic[idx] {
-            sample_stochastic(policy, n_rows, rng, out)?;
-            apply_shift(out, overlay.shifts[idx]);
-            continue;
-        }
-        if let Some(soft) = &overlay.soft[idx] {
-            let existing = model.mechanisms.get(node);
-            refuse_cross_family_soft(existing, soft)?;
-            let slot = soft_to_slot(soft, gather.n_parents())?;
-            sample_column(&slot, parents, rng, out, ws)?;
-            apply_shift(out, overlay.shifts[idx]);
-            continue;
-        }
-
-        let slot = model.mechanisms.get(node);
-        sample_column(slot, parents, rng, out, ws)?;
-        apply_shift(out, overlay.shifts[idx]);
+        evaluate_node(eval, gather, parents, NodeNoise::Draw(rng), &mut values, ws)?;
     }
 
+    Ok(())
+}
+
+/// Where a node's exogenous noise comes from when [`evaluate_node`] fills its column.
+pub enum NodeNoise<'a> {
+    /// Draw the noise inline from the sampler's single sequential stream.
+    Draw(&'a mut CausalRng),
+    /// Read the noise from a retained column. Stochastic policies, which have no
+    /// retained noise, draw from `policy_rng`.
+    Column {
+        /// Retained noise for this node, one value per row.
+        noise: &'a [f64],
+        /// Stream driving a stochastic-policy node.
+        policy_rng: &'a mut CausalRng,
+    },
+}
+
+/// What [`evaluate_node`] evaluates a node against: the compiled model, the overlay, and
+/// the optional execution context a value program polls for cancellation and memory.
+#[derive(Clone, Copy)]
+pub struct NodeEvaluation<'a> {
+    /// Compiled plan.
+    pub model: &'a CompiledCausalModel,
+    /// Intervention overlay.
+    pub overlay: &'a InterventionOverlay,
+    /// Context for cancellation and the hard memory limit (`None`: unpolled).
+    pub ctx: Option<&'a ExecutionContext>,
+}
+
+/// Fill one node's column under an overlay: the single statement of the per-node
+/// precedence shared by forward sampling, conditional sampling, noise replay and
+/// counterfactual world evaluation, so they cannot diverge.
+///
+/// Precedence: a hard set wins outright; then an assignment program (the mechanism is
+/// not evaluated); then a stochastic policy (plus shift); then a soft mechanism override
+/// (which must share the fitted noise semantics) or the fitted mechanism, evaluated on
+/// drawn or retained noise, plus the additive shift; last a transform program, which
+/// replaces the generated value and so keeps the node's noise and incoming edges.
+/// `values` holds the batch built so far: a program reads other nodes' columns from it,
+/// and the dependency order ([`InterventionOverlay::gathers`]) guarantees they are final.
+///
+/// # Errors
+///
+/// Cross-family soft override, mechanism failures, program failures or shape errors.
+pub fn evaluate_node(
+    eval: NodeEvaluation<'_>,
+    gather: &ParentGatherPlan,
+    parents: ParentBatch<'_>,
+    noise: NodeNoise<'_>,
+    values: &mut ValueBatchMut<'_>,
+    ws: &mut MechanismWorkspace,
+) -> Result<(), ModelError> {
+    let NodeEvaluation { model, overlay, ctx } = eval;
+    let node = gather.child;
+    let idx = node.as_usize();
+    let n_rows = parents.n_rows;
+    if let Some(v) = overlay.hard_set[idx] {
+        values.column_mut(idx)?.fill(v);
+        return Ok(());
+    }
+    let program = overlay.program_at(idx);
+    if let Some(assign) = program.filter(|p| p.kind() == ProgramKind::Assign) {
+        return apply_node_program(assign, values, idx, &mut ws.program_scratch, ctx);
+    }
+    {
+        let out = values.column_mut(idx)?;
+        if let Some(policy) = &overlay.stochastic[idx] {
+            let rng = match noise {
+                NodeNoise::Draw(rng) => rng,
+                NodeNoise::Column { policy_rng, .. } => policy_rng,
+            };
+            sample_stochastic(policy, n_rows, rng, out)?;
+        } else {
+            let existing = model.mechanisms.get(node);
+            let owned;
+            let slot = if let Some(soft) = &overlay.soft[idx] {
+                refuse_cross_family_soft(existing, soft)?;
+                owned = soft_to_slot(soft, gather.n_parents())?;
+                &owned
+            } else {
+                existing
+            };
+            match noise {
+                NodeNoise::Draw(rng) => sample_column(slot, parents, rng, out, ws)?,
+                NodeNoise::Column { noise, .. } => {
+                    evaluate_column(slot, parents, noise, out, ws)?;
+                }
+            }
+        }
+        apply_shift(out, overlay.shifts[idx]);
+    }
+    if let Some(transform) = program {
+        apply_node_program(transform, values, idx, &mut ws.program_scratch, ctx)?;
+    }
     Ok(())
 }
 
@@ -188,8 +282,11 @@ fn noise_kind_slot(slot: &MechanismSlot) -> &'static str {
         MechanismSlot::LinearGaussian { .. }
         | MechanismSlot::HierarchicalLinear { .. }
         | MechanismSlot::LinearBasis { .. }
+        | MechanismSlot::TreeAdditive { .. }
         | MechanismSlot::Bvar { .. } => "additive_gaussian",
-        MechanismSlot::Discrete { .. } | MechanismSlot::DiscreteBasis { .. } => "discrete",
+        MechanismSlot::Discrete { .. }
+        | MechanismSlot::DiscreteBasis { .. }
+        | MechanismSlot::TreeCategorical { .. } => "discrete",
         MechanismSlot::Constant { .. } => "constant",
         MechanismSlot::LinearGaussianStateSpace { .. }
         | MechanismSlot::ConditionalLinearGaussianStateSpace { .. } => "lgssm",
@@ -279,6 +376,13 @@ pub fn sample_conditional_interventional(
                 message: "cannot condition on a soft- or stochastic-intervened node".into(),
             });
         }
+        // A program rewrites the node's value after (or instead of) its mechanism, so the
+        // density the weight is computed from would no longer describe the clamped node.
+        if overlay.program_at(idx).is_some() {
+            return Err(ModelError::Unsupported {
+                message: "cannot condition on a node carrying a value program".into(),
+            });
+        }
     }
 
     let n_nodes = model.n_nodes();
@@ -291,6 +395,7 @@ pub fn sample_conditional_interventional(
             model.mechanisms.get(node),
             MechanismSlot::Discrete { .. }
                 | MechanismSlot::DiscreteBasis { .. }
+                | MechanismSlot::TreeCategorical { .. }
                 | MechanismSlot::Constant { .. }
         )
     });
@@ -306,7 +411,7 @@ pub fn sample_conditional_interventional(
         let mut drawn = 0usize;
         while got < n_rows && drawn < max_attempts {
             let rows = batch_rows.min(max_attempts - drawn);
-            let batch = sample_with_overlay(&view, rows, rng, ws)?;
+            let batch = sample_with_overlay_ctx(&view, rows, rng, ws, Some(ctx))?;
             drawn += rows;
             let cond_cols: Vec<&[f64]> = condition_nodes
                 .iter()
@@ -372,10 +477,8 @@ fn sample_conditional_interventional_lw(
     let mut n_particles = base_particles;
     let (particle_buf, weights) = loop {
         let (particle_buf, log_w) = weighted_particles(
-            model,
-            &overlay,
-            &is_condition,
-            &condition_at,
+            NodeEvaluation { model, overlay: &overlay, ctx: Some(ctx) },
+            ClampedEvidence { is_condition: &is_condition, at: &condition_at },
             n_particles,
             rng,
             ws,
@@ -425,6 +528,13 @@ fn sample_conditional_interventional_lw(
 /// (by doubling) before it refuses degenerate weights.
 const LW_MAX_PARTICLE_GROWTH: usize = 64;
 
+/// Evidence a likelihood-weighted pass clamps: which nodes, and to what value.
+#[derive(Clone, Copy)]
+struct ClampedEvidence<'a> {
+    is_condition: &'a [bool],
+    at: &'a [f64],
+}
+
 /// One likelihood-weighted particle set: column-major particles and their log-weights.
 ///
 /// Forward likelihood weighting: clamp evidence in topo order and sample every other node
@@ -432,15 +542,16 @@ const LW_MAX_PARTICLE_GROWTH: usize = 64;
 /// overwrite evidence leaves descendants drawn under the unconditioned proposal parents — not
 /// a conditional draw.
 fn weighted_particles(
-    model: &CompiledCausalModel,
-    overlay: &InterventionOverlay,
-    is_condition: &[bool],
-    condition_at: &[f64],
+    eval: NodeEvaluation<'_>,
+    evidence: ClampedEvidence<'_>,
     n_particles: usize,
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
 ) -> Result<(Vec<f64>, Vec<f64>), ModelError> {
     use crate::mechanism::log_prob_column;
+
+    let NodeEvaluation { model, overlay, .. } = eval;
+    let ClampedEvidence { is_condition, at: condition_at } = evidence;
 
     let n_nodes = model.n_nodes();
     let mut particle_buf = vec![0.0; n_particles.saturating_mul(n_nodes)];
@@ -450,7 +561,7 @@ fn weighted_particles(
 
     {
         let mut values = ValueBatchMut::new(n_particles, n_nodes, &mut particle_buf)?;
-        for gather in model.parent_gathers.iter() {
+        for gather in overlay.gathers(model) {
             let node = gather.child;
             let idx = node.as_usize();
             let need = gather.n_parents().max(1).saturating_mul(n_particles);
@@ -483,28 +594,7 @@ fn weighted_particles(
                 continue;
             }
 
-            let out = values.column_mut(idx)?;
-            if let Some(v) = overlay.hard_set[idx] {
-                out.fill(v);
-                continue;
-            }
-            if let Some(policy) = &overlay.stochastic[idx] {
-                sample_stochastic(policy, n_particles, rng, out)?;
-                apply_shift(out, overlay.shifts[idx]);
-                continue;
-            }
-            if let Some(soft) = &overlay.soft[idx] {
-                let existing = model.mechanisms.get(node);
-                refuse_cross_family_soft(existing, soft)?;
-                let slot = soft_to_slot(soft, gather.n_parents())?;
-                sample_column(&slot, parents, rng, out, ws)?;
-                apply_shift(out, overlay.shifts[idx]);
-                continue;
-            }
-
-            let slot = model.mechanisms.get(node);
-            sample_column(slot, parents, rng, out, ws)?;
-            apply_shift(out, overlay.shifts[idx]);
+            evaluate_node(eval, gather, parents, NodeNoise::Draw(rng), &mut values, ws)?;
         }
     }
 

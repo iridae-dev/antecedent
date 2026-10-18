@@ -1,0 +1,9 @@
+{
+  "captured_at_utc": "2026-10-18T14:47:50.815606+00:00",
+  "checkout": "/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent",
+  "head": "da811c715e4d1961ca0cba7356467e34f2ec25e1",
+  "git_status_porcelain": "",
+  "build_log": "target/calibration-audit/weighted-hc3-prospective-da811c715.log",
+  "build_log_sha256": "bd5ca1bedb155b2d32418a320041ad8705436c52128c1f1812e3c6d473712fee",
+  "claim": "Controlled clean-checkout Cargo build provenance and exact artifact/fingerprint checksums. No embedded cryptographic source-SHA attestation is claimed."
+}

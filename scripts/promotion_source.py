@@ -520,6 +520,7 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         "count_fitted_interval",
         "sampled_counterfactual_transport",
         "split_effect",
+        "split_parent_set_effect",
     }
     _, native_items = rust_items(root / "python/src/measured_inference_api.rs")
     _, io_items = rust_items(root / "crates/antecedent-io/src/measured_inference.rs")
@@ -862,38 +863,142 @@ def ignored_test_literals(path: Path) -> dict[str, list[str]]:
 
 
 def _macro_generated_ignored_tests(masked, items) -> dict[str, list[str]]:
-    """Ignored tests a test-generating `macro_rules!` of the file defines at its invocations.
+    """Resolve ignored test generators, including single-arm forwarding macros.
 
-    A macro whose body carries `#[ignore` and declares `fn $name` expands, at each
-    invocation `m!(name, ...)`, to an `#[ignore]`d test called `name`. The generated test's
-    emitted literals are its own name (the first identifier argument), every string literal
-    among the arguments and the string literals of every file-level `const`/`static` the
-    arguments name (a harness passes its label table that way). Nothing outside the
-    invocation counts, so a macro that is defined and never invoked emits nothing.
+    Only actual invocations outside macro definitions count. Forwarders must be
+    one macro call, with fixed, named parameters; arguments are substituted as
+    Rust tokens before following the call. The generated test gets literals and
+    named constant tables from the arguments actually reaching its generator.
+    Unused wrapper arguments and unrelated label tables cannot provide evidence.
     """
+    from _rust_source import lex
+
     skel, code = masked.skeleton, masked.code
     constants = {it.name: it for it in items if it.kind == "const"}
-    out: dict[str, list[str]] = {}
-    for macro in (it for it in items if it.kind == "macro"):
-        body = code[macro.body[0] : macro.body[1]]
-        if "#[ignore" not in re.sub(r"\s+", "", body) or not re.search(r"\bfn\s+\$\w+", body):
+    macros = {it.name: it for it in items if it.kind == "macro"}
+    definitions = {}
+
+    def arguments(text: str) -> list[str]:
+        skeleton = lex(text).skeleton
+        result, start, index = [], 0, 0
+        while index < len(skeleton):
+            char = skeleton[index]
+            if char in "([{":
+                index = _match_bracket(skeleton, index) + 1
+                continue
+            if char == ",":
+                result.append(text[start:index].strip())
+                start = index + 1
+            index += 1
+        tail = text[start:].strip()
+        if tail:
+            result.append(tail)
+        return result
+
+    for name, macro in macros.items():
+        text = code[macro.body[0] : macro.body[1]]
+        skeleton = lex(text).skeleton
+        opening = skeleton.find("(")
+        if opening < 0:
             continue
-        call = re.compile(r"(?<![\w$])" + re.escape(macro.name) + r"\s*!\s*[(\[{]")
-        for m in call.finditer(skel):
-            if macro.body[0] <= m.start() < macro.body[1]:
+        closing = _match_bracket(skeleton, opening)
+        params = arguments(text[opening + 1 : closing])
+        names = []
+        for param in params:
+            match = re.fullmatch(r"\$(\w+)\s*:\s*(?:ident|expr|literal|path|ty|tt)", param)
+            if match is None:
+                break
+            names.append(match[1])
+        if len(names) != len(params) or not names or len(set(names)) != len(names):
+            continue
+        arm = re.match(r"\s*=>\s*\{", skeleton[closing + 1 :])
+        if arm is None:
+            continue
+        body_start = closing + 1 + arm.end() - 1
+        body_end = _match_bracket(skeleton, body_start)
+        if not re.fullmatch(r"\s*;?\s*\}\s*", skeleton[body_end + 1 :]):
+            continue  # Multiple arms/repetition need a separate explicit parser.
+        body = text[body_start + 1 : body_end]
+        body_skeleton = skeleton[body_start + 1 : body_end]
+        generated_names = re.findall(r"\bfn\s+\$(\w+)\s*\(", body_skeleton)
+        if (
+            "#[ignore" in re.sub(r"\s+", "", body_skeleton)
+            and len(generated_names) == 1
+            and generated_names[0] in names
+        ):
+            definitions[name] = (names, generated_names[0], None)
+            continue
+        call = re.match(r"\s*(\w+)\s*!\s*[(\[{]", body_skeleton)
+        if call is None:
+            continue
+        end = _match_bracket(body_skeleton, call.end() - 1)
+        if re.fullmatch(r"\s*;?\s*", body_skeleton[end + 1 :]):
+            definitions[name] = (names, None, (call[1], body[call.end() : end]))
+
+    def resolve(name: str, text: str, seen: frozenset[str]):
+        if name in seen or name not in definitions:
+            return None
+        params, generated, forwarded = definitions[name]
+        supplied = arguments(text)
+        if len(supplied) != len(params):
+            return None
+        bindings = dict(zip(params, supplied, strict=True))
+        if generated is not None:
+            test = bindings[generated]
+            return (test, text) if re.fullmatch(r"[A-Za-z_]\w*", test) else None
+        target, forwarded_text = forwarded
+        tokens = list(re.finditer(r"\$(\w+)", lex(forwarded_text).skeleton))
+        for token in reversed(tokens):
+            if token[1] not in bindings:
+                return None
+            forwarded_text = (
+                forwarded_text[: token.start()] + bindings[token[1]] + forwarded_text[token.end() :]
+            )
+        return resolve(target, forwarded_text, seen | {name})
+
+    # Preserve the existing direct-generator literal audit for repetition and
+    # multi-arm definitions. These do not gain forwarding semantics implicitly.
+    legacy_generators = {
+        name
+        for name, macro in macros.items()
+        if name not in definitions
+        and "#[ignore" in re.sub(r"\s+", "", code[macro.body[0] : macro.body[1]])
+        and re.search(r"\bfn\s+\$\w+", code[macro.body[0] : macro.body[1]])
+    }
+    out: dict[str, list[str]] = {}
+    for name in definitions:
+        call = re.compile(r"(?<![\w$])" + re.escape(name) + r"\s*!\s*[(\[{]")
+        for match in call.finditer(skel):
+            if any(m.body[0] <= match.start() < m.body[1] for m in macros.values()):
                 continue
-            end = _match_bracket(skel, m.end() - 1)
-            args = code[m.end() : end]
-            first = re.match(r"\s*([A-Za-z_]\w*)", args)
-            if not first:
+            end = _match_bracket(skel, match.end() - 1)
+            resolved = resolve(name, code[match.end() : end], frozenset())
+            if resolved is None:
                 continue
-            values = [first.group(1)]
-            values += [v for _, v in _scan_literals(code, m.end(), end)]
-            for ident in set(re.findall(r"[A-Za-z_]\w*", skel[m.end() : end])):
+            test, actual = resolved
+            actual_source = lex(actual)
+            values = [test] + [v for _, v in _scan_literals(actual_source.kept)]
+            for ident in set(re.findall(r"[A-Za-z_]\w*", actual_source.skeleton)):
                 const = constants.get(ident)
                 if const is not None:
                     values += [v for _, v in _scan_literals(code, const.body[0], const.body[1])]
-            out.setdefault(first.group(1), []).extend(values)
+            out.setdefault(test, []).extend(values)
+    for name in legacy_generators:
+        call = re.compile(r"(?<![\w$])" + re.escape(name) + r"\s*!\s*[(\[{]")
+        for match in call.finditer(skel):
+            if any(m.body[0] <= match.start() < m.body[1] for m in macros.values()):
+                continue
+            end = _match_bracket(skel, match.end() - 1)
+            actual = code[match.end() : end]
+            first = re.match(r"\s*([A-Za-z_]\w*)", actual)
+            if first is None:
+                continue
+            values = [first[1]] + [v for _, v in _scan_literals(actual)]
+            for ident in set(re.findall(r"[A-Za-z_]\w*", lex(actual).skeleton)):
+                const = constants.get(ident)
+                if const is not None:
+                    values += [v for _, v in _scan_literals(code, const.body[0], const.body[1])]
+            out.setdefault(first[1], []).extend(values)
     return out
 
 
@@ -904,7 +1009,11 @@ def ignored_test_emits_record(path: Path, name: str) -> bool:
     for it in items:
         if it.kind == "fn" and it.name == name:
             body = masked.code[it.body[0] : it.body[1]]
-            if "CoverageTally::new(" in body and "for_record" not in body and "RecordKey" not in body:
+            if (
+                "CoverageTally::new(" in body
+                and "for_record" not in body
+                and "RecordKey" not in body
+            ):
                 return False
     return True
 

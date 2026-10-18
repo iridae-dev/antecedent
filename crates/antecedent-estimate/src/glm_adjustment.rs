@@ -30,13 +30,14 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
     CompiledDesign, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    fit_glm, score_coefficient_covariance,
+    fit_glm, fit_glm_weighted, score_coefficient_covariance,
 };
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::gcomp::{GcompContrast, linear_predictors};
 use crate::overlap::OverlapPolicy;
+use crate::sampling_weights::{RetainedSamplingWeights, SamplingWeights};
 use crate::se::{AnalyticSeKind, SeSpec};
 use crate::util::{BootstrapSeResult, stats_err};
 
@@ -61,6 +62,10 @@ pub struct PreparedGlmProblem {
     pub target_population: TargetPopulation,
     /// Complete-case treatment values.
     pub treatment: Arc<[f64]>,
+    /// Sampling weights of the retained rows (mean one) and what they did to this problem.
+    /// The design stays unscaled; the weighted fit, g-computation average and sandwich read
+    /// these per-row weights directly.
+    pub sampling: Option<RetainedSamplingWeights>,
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -90,12 +95,22 @@ pub struct GlmAdjustmentAte {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids for cluster / panel sandwich SE.
     pub cluster_ids: Option<Vec<u32>>,
+    /// Optional cluster labels of every row of the source table (length = source rows),
+    /// subset to the retained rows by the design's row selection. Exclusive with
+    /// [`Self::cluster_ids`].
+    pub source_cluster_ids: Option<Vec<u32>>,
     /// Optional multiway cluster ids.
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels for panel HAC sandwich SE.
     pub panel_times: Option<Vec<i64>>,
     /// Registry for named [`TargetPopulation::Predicate`] selections.
     pub population_registry: Option<antecedent_core::PopulationRegistry>,
+    /// Sampling weights of every row of the source table (see [`crate::sampling_weights`]).
+    /// The family is fit by prior-weighted IRLS, the g-computation contrast is averaged under
+    /// the weights, and the standard error is the weighted score sandwich (the classical
+    /// Fisher delta method treats weights as precision and is refused). Logit, probit,
+    /// Poisson, negative-binomial (weighted dispersion update) and Gaussian families.
+    pub sampling_weights: Option<SamplingWeights>,
 }
 
 impl Default for GlmAdjustmentAte {
@@ -116,10 +131,19 @@ impl GlmAdjustmentAte {
             family: GlmFamily::BinomialLogit,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            source_cluster_ids: None,
             multiway_ids: None,
             panel_times: None,
             population_registry: None,
+            sampling_weights: None,
         }
+    }
+
+    /// Declare sampling weights for every row of the source table.
+    #[must_use]
+    pub fn with_sampling_weights(mut self, weights: SamplingWeights) -> Self {
+        self.sampling_weights = Some(weights);
+        self
     }
 
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
@@ -168,6 +192,15 @@ impl GlmAdjustmentAte {
         self
     }
 
+    /// Set cluster labels for every row of the source table (length must equal its row
+    /// count). Rows dropped as incomplete or outside the target population drop their
+    /// labels with them, so the labels stay with their rows.
+    #[must_use]
+    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.source_cluster_ids = Some(cluster_ids);
+        self
+    }
+
     /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension).
     #[must_use]
     pub fn with_multiway_ids(mut self, multiway_ids: Vec<Vec<u32>>) -> Self {
@@ -193,6 +226,10 @@ impl GlmAdjustmentAte {
     #[allow(
         clippy::float_cmp,
         reason = "the two arms are user-supplied intervention levels, and identical levels are the degenerate contrast this exact-equality check rejects; the binomial outcome is coded exactly 0.0 or 1.0, so exact comparison is the intended test"
+    )]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one linear preparation: validate the request, resolve columns, then assemble the design"
     )]
     pub fn prepare(
         &self,
@@ -226,6 +263,13 @@ impl GlmAdjustmentAte {
                 "GLM adjustment supports AllObserved, Treated, Untreated, or Predicate",
             ));
         }
+        if let Some(source) = self.source_cluster_ids.as_deref() {
+            crate::se::require_source_labels(
+                source,
+                self.cluster_ids.as_deref(),
+                data.row_count(),
+            )?;
+        }
         let treatment = query.treatment;
         let outcome = query.outcome;
         let active = intervention_f64(&query.active)?;
@@ -247,6 +291,19 @@ impl GlmAdjustmentAte {
             data.row_count(),
             self.population_registry.as_ref(),
         )?;
+        if self.sampling_weights.is_some() && matches!(self.se_kind, AnalyticSeKind::Homoskedastic)
+        {
+            return Err(crate::sampling_weights::unsupported_route(
+                "the Fisher delta-method standard error treats weights as precision and is \
+                 invalid for sampling weights; request a heteroskedasticity-robust kind \
+                 (hc0..hc3) or the cluster sandwich",
+            ));
+        }
+        let sampling = self
+            .sampling_weights
+            .as_ref()
+            .map(|weights| weights.restrict(&mut row_mask))
+            .transpose()?;
         let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
         match self.family {
@@ -290,6 +347,7 @@ impl GlmAdjustmentAte {
             family: self.family,
             target_population: query.target_population.clone(),
             treatment: Arc::from(t),
+            sampling,
         })
     }
 
@@ -344,18 +402,36 @@ impl GlmAdjustmentAte {
             .design
             .treatment_column()
             .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
-        let glm_fit = solve_adjustment_glm(
-            problem.family,
-            GlmDesignRef {
-                x_colmajor: &problem.design.matrix,
-                nrows: problem.design.nrows,
-                ncols: problem.design.ncols,
-                y: &problem.design.outcome,
-            },
-            self.backend,
-            &mut workspace.ols,
-            &self.glm_options,
-        )?;
+        let row_weights = problem.sampling.as_ref().map(|s| &*s.weights);
+        let design_ref = GlmDesignRef {
+            x_colmajor: &problem.design.matrix,
+            nrows: problem.design.nrows,
+            ncols: problem.design.ncols,
+            y: &problem.design.outcome,
+        };
+        let glm_fit = match row_weights {
+            Some(weights) => {
+                let fit = fit_glm_weighted(
+                    problem.family,
+                    design_ref,
+                    weights,
+                    &self.backend,
+                    &mut workspace.ols,
+                    &self.glm_options.without_separation_ridge(),
+                )
+                .map_err(stats_err)?;
+                fit.require_ok().map_err(stats_err)?;
+                crate::adjustment_resume::record_model_fit();
+                fit
+            }
+            None => solve_adjustment_glm(
+                problem.family,
+                design_ref,
+                self.backend,
+                &mut workspace.ols,
+                &self.glm_options,
+            )?,
+        };
 
         let contrast = GcompContrast {
             family: problem.family,
@@ -367,9 +443,17 @@ impl GlmAdjustmentAte {
             control: problem.control,
         };
         let diffs = contrast.diffs(&glm_fit.coefficients);
-        let target =
-            GcompTarget { treatment: &problem.treatment, population: &problem.target_population };
-        let ate = average_gcomp_for_target(&diffs, &problem.treatment, &problem.target_population)?;
+        let target = GcompTarget {
+            treatment: &problem.treatment,
+            population: &problem.target_population,
+            weights: row_weights,
+        };
+        let ate = average_gcomp_for_target(
+            &diffs,
+            &problem.treatment,
+            &problem.target_population,
+            row_weights,
+        )?;
         let nb_alpha = resolve_nb_alpha(
             problem.family,
             glm_fit.nb_alpha,
@@ -379,6 +463,12 @@ impl GlmAdjustmentAte {
             &glm_fit.coefficients,
             &problem.design.outcome,
         );
+        let retained_clusters = self
+            .source_cluster_ids
+            .as_deref()
+            .map(|source| crate::se::retained_row_labels(source, &problem.design.row_selection))
+            .transpose()?;
+        let cluster_ids = retained_clusters.as_deref().or(self.cluster_ids.as_deref());
         let se_analytic = match self.se_kind {
             AnalyticSeKind::Homoskedastic => gcomp_delta_method_se(
                 &contrast,
@@ -390,7 +480,7 @@ impl GlmAdjustmentAte {
             other => gcomp_sandwich_se(
                 SeSpec {
                     kind: other,
-                    cluster_ids: self.cluster_ids.as_deref(),
+                    cluster_ids,
                     multiway_ids: self.multiway_ids.as_deref(),
                     panel_times: self.panel_times.as_deref(),
                 },
@@ -403,7 +493,8 @@ impl GlmAdjustmentAte {
         };
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
-            .with_se_kind(self.se_kind))
+            .with_se_kind(self.se_kind)
+            .with_sampling_weights(problem.sampling.as_ref().map(|s| s.record)))
     }
 
     fn bootstrap_se(
@@ -421,18 +512,39 @@ impl GlmAdjustmentAte {
             ctx,
             0xC17A_u64,
             n,
-            || (GlmAdjustmentWorkspace::default(), vec![0.0; n * p], vec![0.0; n], vec![0.0; n]),
-            |(ws, x_boot, y_boot, t_boot), idx| {
+            || {
+                (
+                    GlmAdjustmentWorkspace::default(),
+                    vec![0.0; n * p],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                )
+            },
+            |(ws, x_boot, y_boot, t_boot, w_boot), idx| {
                 crate::util::gather_bootstrap_vector(y_boot, &problem.design.outcome, idx);
                 crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
                 crate::util::gather_bootstrap_design(x_boot, &problem.design.matrix, n, p, idx);
-                let Ok(fit) = fit_glm(
-                    problem.family,
-                    GlmDesignRef { x_colmajor: x_boot, nrows: n, ncols: p, y: y_boot },
-                    &self.backend,
-                    &mut ws.ols,
-                    &self.glm_options.without_separation_ridge(),
-                ) else {
+                let boot_design =
+                    GlmDesignRef { x_colmajor: x_boot, nrows: n, ncols: p, y: y_boot };
+                let options = self.glm_options.without_separation_ridge();
+                let fitted = match problem.sampling.as_ref() {
+                    Some(sampling) => {
+                        crate::util::gather_bootstrap_vector(w_boot, &sampling.weights, idx);
+                        fit_glm_weighted(
+                            problem.family,
+                            boot_design,
+                            w_boot,
+                            &self.backend,
+                            &mut ws.ols,
+                            &options,
+                        )
+                    }
+                    None => {
+                        fit_glm(problem.family, boot_design, &self.backend, &mut ws.ols, &options)
+                    }
+                };
+                let Ok(fit) = fitted else {
                     return Ok(None);
                 };
                 if fit.require_ok().is_err() {
@@ -448,7 +560,13 @@ impl GlmAdjustmentAte {
                     control: problem.control,
                 }
                 .diffs(&fit.coefficients);
-                match average_gcomp_for_target(&diffs, t_boot, &problem.target_population) {
+                let boot_weights = problem.sampling.as_ref().map(|_| &w_boot[..]);
+                match average_gcomp_for_target(
+                    &diffs,
+                    t_boot,
+                    &problem.target_population,
+                    boot_weights,
+                ) {
                     Ok(ate) => Ok(Some(ate)),
                     Err(_) => Ok(None),
                 }
@@ -461,13 +579,17 @@ fn average_gcomp_for_target(
     diffs: &[f64],
     treatment: &[f64],
     target: &TargetPopulation,
+    weights: Option<&[f64]>,
 ) -> Result<f64, EstimationError> {
     let mut sum = 0.0;
+    let mut mass = 0.0;
     let mut count = 0usize;
     for (i, &d) in diffs.iter().enumerate() {
         let include = include_gcomp_row(target, treatment.get(i).copied().unwrap_or(0.0));
         if include {
-            sum += d;
+            let weight = weights.map_or(1.0, |w| w[i]);
+            sum += weight * d;
+            mass += weight;
             count += 1;
         }
     }
@@ -476,7 +598,7 @@ fn average_gcomp_for_target(
             "target population left no rows for GLM g-computation",
         ));
     }
-    Ok(sum / count as f64)
+    Ok(if weights.is_some() { sum / mass } else { sum / count as f64 })
 }
 
 fn include_gcomp_row(target: &TargetPopulation, t: f64) -> bool {
@@ -760,8 +882,15 @@ fn gcomp_sandwich_se(
     target: &GcompTarget<'_>,
 ) -> Result<f64, EstimationError> {
     let GcompContrast { family, x_colmajor, nrows, ncols, .. } = *contrast;
-    let (score_u, fisher_w) =
+    let (mut score_u, mut fisher_w) =
         glm_score_components(family, x_colmajor, nrows, ncols, coefficients, y, nb_alpha);
+    if let Some(weights) = target.weights {
+        // Weighted-population score `m_i u_i x_i` and information `m_i w_i x_i x_iᵀ`.
+        for ((u, w), &m) in score_u.iter_mut().zip(fisher_w.iter_mut()).zip(weights) {
+            *u *= m;
+            *w *= m;
+        }
+    }
     let cov = sandwich_cov_matrix(spec, x_colmajor, nrows, ncols, &score_u, &fisher_w)?;
     let Some(cov) = cov else {
         return Ok(gcomp_delta_method_se(contrast, coefficients, 0.0, nb_alpha, target));
@@ -822,6 +951,8 @@ fn glm_score_components(
 struct GcompTarget<'a> {
     treatment: &'a [f64],
     population: &'a TargetPopulation,
+    /// Sampling weight of every row (mean one); `None` for equal weights.
+    weights: Option<&'a [f64]>,
 }
 
 fn gcomp_gradient(
@@ -830,14 +961,15 @@ fn gcomp_gradient(
     target: &GcompTarget<'_>,
 ) -> Vec<f64> {
     let GcompContrast { family, x_colmajor, nrows, ncols, t_col, active, control } = *contrast;
-    let GcompTarget { treatment, population } = *target;
+    let GcompTarget { treatment, population, weights } = *target;
     let mut grad = vec![0.0; ncols];
-    let mut count = 0usize;
+    let mut mass = 0.0;
     for r in 0..nrows {
         if !include_gcomp_row(population, treatment.get(r).copied().unwrap_or(0.0)) {
             continue;
         }
-        count += 1;
+        let weight = weights.map_or(1.0, |w| w[r]);
+        mass += weight;
         let (eta_active, eta_control) = contrast.contrast_row_etas(coefficients, r);
         let d1 = mean_derivative(family, eta_active);
         let d0 = mean_derivative(family, eta_control);
@@ -848,10 +980,10 @@ fn gcomp_gradient(
                 let val = x_colmajor[c * nrows + r];
                 (val, val)
             };
-            grad[c] += d1 * x1 - d0 * x0;
+            grad[c] += weight * (d1 * x1 - d0 * x0);
         }
     }
-    let n = count.max(1) as f64;
+    let n = if mass > 0.0 { mass } else { 1.0 };
     for g in &mut grad {
         *g /= n;
     }
@@ -1428,7 +1560,7 @@ mod tests {
         let coefficients = [mu.ln(), 0.0];
         let treatment = [0.0, 0.0, 1.0, 1.0];
         let population = TargetPopulation::AllObserved;
-        let target = GcompTarget { treatment: &treatment, population: &population };
+        let target = GcompTarget { treatment: &treatment, population: &population, weights: None };
         let contrast = |family| GcompContrast {
             family,
             x_colmajor: &x,
@@ -1589,7 +1721,7 @@ mod tests {
             control: 0.0,
         };
         let population = TargetPopulation::AllObserved;
-        let target = GcompTarget { treatment: &treatment, population: &population };
+        let target = GcompTarget { treatment: &treatment, population: &population, weights: None };
         let grad = gcomp_gradient(&contrast, &beta, &target);
         let mut reference = vec![0.0; ncols];
         let mut count = 0usize;
@@ -1743,7 +1875,7 @@ mod tests {
                 control: 0.0,
             };
             let population = TargetPopulation::AllObserved;
-            let target = GcompTarget { treatment, population: &population };
+            let target = GcompTarget { treatment, population: &population, weights: None };
             time(
                 "gcomp_gradient",
                 5,

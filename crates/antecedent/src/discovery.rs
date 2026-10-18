@@ -18,17 +18,17 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
 pub use antecedent_discovery::{
-    CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult, DagDiscoveryResult,
-    DbnPosterior, DirectLingam, DiscoveryPerformanceRecord, EXACT_ENUM_MAX_NODES,
-    ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine,
-    GraphPrior, JpcmciNodeRole, JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears,
-    NotearsDiscoveryResult, OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment,
-    RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult, SamplingSummary, ScoredLink,
-    SpaceDummyCiMode, StaticCpdagDiscoveryResult, StaticDagDiscoveryResult,
-    StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode, adjacency_mask_from_cpdag,
-    adjacency_masks_from_pag, two_regime_half_split,
+    BackgroundKnowledge, CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult,
+    DagDiscoveryResult, DbnPosterior, DirectLingam, DiscoveryPerformanceRecord,
+    EXACT_ENUM_MAX_NODES, EXACT_MARGINAL_MAX_NODES, ExactDagMarginals, ExactDagPosterior, Fci, Ges,
+    GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine, GraphPrior, JpcmciNodeRole,
+    JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears, NotearsDiscoveryResult,
+    OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment, RegimeGraphCollection, Rfci,
+    Rpcmci, RpcmciDiscoveryResult, SamplingSummary, ScoredLink, SpaceDummyCiMode,
+    StaticCpdagDiscoveryResult, StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc,
+    TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag, two_regime_half_split,
 };
-use antecedent_discovery::{DiscoveryWorkspace, Pcmci, PcmciPlus};
+use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus};
 use antecedent_graph::{DenseNodeId, Endpoint, TemporalPag};
 pub use antecedent_prob::InferenceDiagnostics;
 use antecedent_state::GraphScoreFamily;
@@ -93,6 +93,10 @@ pub struct DiscoverParams {
     /// Max conditioning-set size in the PC1 / skeleton phase (same cap `PC`/`GES`/`FCI`/
     /// `RFCI`/`LiNGAM`/`NOTEARS` expose via `StaticDiscoverParams::max_cond_size`).
     pub max_cond_size: usize,
+    /// Background knowledge: required and forbidden links, tiers and a parent limit. PCMCI and
+    /// PCMCI+ honour it and refuse what they cannot; LPCMCI, J-PCMCI+ and RPCMCI take none and
+    /// are never handed any by the bindings.
+    pub knowledge: BackgroundKnowledge,
 }
 
 impl std::fmt::Debug for DiscoverParams {
@@ -104,6 +108,7 @@ impl std::fmt::Debug for DiscoverParams {
             .field("ci", &DYN_CI_DEBUG)
             .field("multi_dataset", &self.multi_dataset)
             .field("max_cond_size", &self.max_cond_size)
+            .field("knowledge", &self.knowledge)
             .finish()
     }
 }
@@ -123,6 +128,10 @@ pub struct StaticDiscoverParams {
     pub screen_pc: bool,
     /// GES only: T/H subset enumeration cap (`None` → default 12).
     pub max_subset: Option<usize>,
+    /// Background knowledge: required and forbidden links, tiers and a parent limit. PC, FCI,
+    /// RFCI and GES honour it and refuse what they cannot (see the discovery guide for each
+    /// algorithm's semantics); `LiNGAM` and NOTEARS pass it to their own constraint handling.
+    pub knowledge: BackgroundKnowledge,
 }
 
 impl std::fmt::Debug for StaticDiscoverParams {
@@ -134,15 +143,25 @@ impl std::fmt::Debug for StaticDiscoverParams {
             .field("ci", &DYN_CI_DEBUG)
             .field("screen_pc", &self.screen_pc)
             .field("max_subset", &self.max_subset)
+            .field("knowledge", &self.knowledge)
             .finish()
     }
+}
+
+/// `constraints` with `knowledge` set on them.
+fn constrained(
+    mut constraints: DiscoveryConstraints,
+    knowledge: &BackgroundKnowledge,
+) -> DiscoveryConstraints {
+    knowledge.apply_to(&mut constraints);
+    constraints
 }
 
 /// Run lagged PCMCI.
 ///
 /// # Errors
 ///
-/// Discovery failures.
+/// Discovery failures, or background knowledge the search cannot honour.
 pub fn discover_pcmci(
     data: &TimeSeriesData,
     variables: &[VariableId],
@@ -156,7 +175,10 @@ pub fn discover_pcmci(
 fn pcmci_for(params: &DiscoverParams) -> Pcmci {
     Pcmci::new()
         .with_fdr_adjustment(params.fdr)
-        .with_constraints(pcmci_constraints(params.max_lag, params.alpha, params.max_cond_size))
+        .with_constraints(constrained(
+            pcmci_constraints(params.max_lag, params.alpha, params.max_cond_size),
+            &params.knowledge,
+        ))
         .with_ci(Arc::clone(&params.ci))
 }
 
@@ -197,10 +219,9 @@ pub fn discover_pcmci_plus(
 fn pcmci_plus_for(params: &DiscoverParams) -> PcmciPlus {
     PcmciPlus::new()
         .with_fdr_adjustment(params.fdr)
-        .with_constraints(contemporaneous_constraints(
-            params.max_lag,
-            params.alpha,
-            params.max_cond_size,
+        .with_constraints(constrained(
+            contemporaneous_constraints(params.max_lag, params.alpha, params.max_cond_size),
+            &params.knowledge,
         ))
         .with_ci(Arc::clone(&params.ci))
 }
@@ -313,6 +334,11 @@ pub fn discover_rpcmci(
     Ok(alg.run(data, variables, assignment, &mut ws, ctx)?)
 }
 
+/// The constraints of a static run: the defaults for `params` with its background knowledge.
+fn static_constraints(params: &StaticDiscoverParams) -> DiscoveryConstraints {
+    constrained(static_pc_constraints(params.alpha, params.max_cond_size), &params.knowledge)
+}
+
 /// Static discovery tests every pair, so the contemporaneous exclusion is always off.
 fn static_fdr(params: &StaticDiscoverParams) -> Option<FdrAdjustment> {
     params.fdr.map(|f| f.with_exclude_contemporaneous(false))
@@ -332,7 +358,7 @@ pub fn discover_pc(
     let fdr = static_fdr(params);
     let alg = Pc::new()
         .with_fdr_adjustment(fdr)
-        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
+        .with_constraints(static_constraints(params))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
     Ok(alg.run(data, variables, &mut ws, ctx)?)
@@ -352,7 +378,7 @@ pub fn discover_fci(
     let fdr = static_fdr(params);
     let alg = Fci::new()
         .with_fdr_adjustment(fdr)
-        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
+        .with_constraints(static_constraints(params))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
     Ok(alg.run(data, variables, &mut ws, ctx)?)
@@ -372,7 +398,7 @@ pub fn discover_rfci(
     let fdr = static_fdr(params);
     let alg = Rfci::new()
         .with_fdr_adjustment(fdr)
-        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
+        .with_constraints(static_constraints(params))
         .with_ci(Arc::clone(&params.ci));
     let mut ws = DiscoveryWorkspace::default();
     Ok(alg.run(data, variables, &mut ws, ctx)?)
@@ -392,7 +418,7 @@ pub fn discover_ges(
     let fdr = static_fdr(params);
     let alg = Ges::new()
         .with_fdr_adjustment(fdr)
-        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
+        .with_constraints(static_constraints(params))
         .with_ci(Arc::clone(&params.ci))
         .with_pc_screening(params.screen_pc)
         .with_max_subset(params.max_subset);
@@ -413,7 +439,7 @@ pub fn discover_lingam(
     ctx: &ExecutionContext,
 ) -> Result<StaticDagDiscoveryResult, CausalError> {
     let alg = DirectLingam::new()
-        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
+        .with_constraints(static_constraints(params))
         .with_prune_threshold(prune_threshold);
     let mut ws = DiscoveryWorkspace::default();
     Ok(alg.run(data, variables, &mut ws, ctx)?)
@@ -421,11 +447,45 @@ pub fn discover_lingam(
 
 /// Discover a static DAG with NOTEARS (continuous SEM).
 ///
-/// Returns the hard DAG review plus the soft weight matrix for mechanism seeding.
+/// Returns the hard DAG review plus the soft weight matrix for mechanism seeding and the row
+/// accounting of the run. `missing` declares how missing values are handled: `None` refuses a
+/// table with a missing value, `Some(CompleteCase)` drops the incomplete rows and reports them.
 ///
 /// # Errors
 ///
-/// Discovery / solver failures.
+/// Discovery / solver failures, and `missing_policy_required` for a missing value without a
+/// declared policy.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "public entry point whose parameters mirror the binding-level keyword list"
+)]
+pub fn discover_notears_with(
+    data: &TabularData,
+    variables: &[VariableId],
+    params: &StaticDiscoverParams,
+    lambda: f64,
+    threshold: f64,
+    standardize: bool,
+    missing: Option<antecedent_data::MissingPolicy>,
+    ctx: &ExecutionContext,
+) -> Result<NotearsDiscoveryResult, CausalError> {
+    let mut alg = Notears::new()
+        .with_constraints(static_constraints(params))
+        .with_lambda(lambda)
+        .with_threshold(threshold)
+        .with_standardize(standardize);
+    alg.missing = missing;
+    let mut ws = DiscoveryWorkspace::default();
+    Ok(alg.run(data, variables, &mut ws, ctx)?)
+}
+
+/// Discover a static DAG with NOTEARS (continuous SEM), refusing a table with a missing value.
+///
+/// [`discover_notears_with`] with no declared missing-data policy.
+///
+/// # Errors
+///
+/// Discovery / solver failures, and `missing_policy_required` for a missing value.
 pub fn discover_notears(
     data: &TabularData,
     variables: &[VariableId],
@@ -435,13 +495,7 @@ pub fn discover_notears(
     standardize: bool,
     ctx: &ExecutionContext,
 ) -> Result<NotearsDiscoveryResult, CausalError> {
-    let alg = Notears::new()
-        .with_constraints(static_pc_constraints(params.alpha, params.max_cond_size))
-        .with_lambda(lambda)
-        .with_threshold(threshold)
-        .with_standardize(standardize);
-    let mut ws = DiscoveryWorkspace::default();
-    Ok(alg.run(data, variables, &mut ws, ctx)?)
+    discover_notears_with(data, variables, params, lambda, threshold, standardize, None, ctx)
 }
 
 /// Exact DAG posterior enumeration (`n ≤ 6`, Gaussian BIC).
@@ -460,6 +514,31 @@ pub fn discover_exact_dag_posterior(
     Ok(eng
         .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
         .with_algorithm("exact_dag_posterior"))
+}
+
+/// Exact edge marginals of the DAG posterior for `7 ≤ n ≤ 12` variables (Gaussian BIC).
+///
+/// Above [`EXACT_ENUM_MAX_NODES`] the enumerating engine cannot list the graphs, but the
+/// marginal `P(i → j)` of every ordered pair and the normalizing constant are still exact
+/// (sink recursion over node subsets). Graph atoms, a MAP graph and any quantity that needs the
+/// list of graphs are not computed and are not approximated.
+///
+/// # Errors
+///
+/// More than [`EXACT_MARGINAL_MAX_NODES`] variables, invalid constraints, score/data errors.
+pub fn discover_exact_dag_marginals(
+    data: &TabularData,
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<ExactDagMarginals, CausalError> {
+    Ok(antecedent_discovery::exact_dag_marginals(
+        data,
+        variables,
+        &params.prior,
+        params.score_family,
+        ctx,
+    )?)
 }
 
 /// Order MCMC DAG posterior (Gaussian BIC).

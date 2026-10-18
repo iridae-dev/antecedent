@@ -83,10 +83,33 @@ source are refused before any number; the numbers are then computed with
 both succeed. `revise_source` applies add, update, replace, supersede and
 withdraw and returns the downstream classification. `synthesis` refuses a
 result that is no longer valid, so stale numbers are never served, and
-`pooled_interval` reports a 95% interval only for a measured construction
-(fixed-effect Wald z, or random-effects Hartung-Knapp t) bound to a currently
-attesting coverage record, and otherwise refuses `cell_not_licensed`. A result
-with no numbers, a borrowing posterior and an assumption range refuse.
+`pooled_interval` reports a 95% interval only when a current attesting record
+covers its exact construction and scope. Fixed-effect Wald and legacy HKSJ
+intervals retain separate keys. Current HKSJ publication is restricted to the
+baseline-family measured counts 20, 25 and 30; a passing strong-heterogeneity
+five- or fifteen-study record cannot license an unknown study family.
+The legacy candidate calculations and artifacts remain replayable.
+
+For independent Gaussian study estimates sharing one marginal mean, use the
+improved explicit workflow: Rust `pool_gaussian_studies(...)`, followed by
+`pooled_interval(result)`. In Python, select
+`random_effects(..., method="equal_study_gaussian")`, then
+`pooled_interval(outcome.result)`. Study variances may be unequal and unknown;
+independent Gaussian random effects satisfy the common marginal mean model.
+Unequal fixed means and dependent study sources do not. Equal study weights,
+empirical study-level variance and a Student reference form the distinct
+`independent_gaussian_study_t` construction. Its twelve records cover the
+original declared moderate-heterogeneity designs at 5/10/15/20/25/30 studies and
+homogeneous/strong designs at 5/15/30, at the recorded per-study sizes 75/100/200.
+They do not relabel HKSJ records or change the DL/REML numerical recipes.
+
+This explicitly earns the five-, ten- and fifteen-study moderate-heterogeneity
+Gaussian workflows. Calling DL/REML `random_effects` without the Gaussian option
+still selects the historical construction; there is no automatic fallback.
+Fewer than 5 or more than 30 studies, a result with no numbers, a borrowing posterior,
+an assumption range, or a construction without a current matching record
+refuses `cell_not_licensed`.
+
 
 `refresh` with added or retired evidence:
 

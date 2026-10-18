@@ -114,6 +114,7 @@ pub fn run() -> Result<(), CausalError> {
         ci: resolve_ci("parcorr", None)?,
         screen_pc: false,
         max_subset: None,
+        knowledge: antecedent_discovery::BackgroundKnowledge::default(),
     };
     let discovery = discover_pc(&data, &vars, &params, &ctx)?;
     let discovery_calls = 1u32;

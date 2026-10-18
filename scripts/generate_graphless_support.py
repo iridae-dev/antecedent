@@ -19,7 +19,7 @@ INTEGER_LIMITS = (
     "min_policy_matches", "min_reference_matches", "min_bin_rows",
     "min_bin_arm_rows", "min_group_rows", "min_group_arm_rows", "min_local_rows",
 )
-FLOAT_LOWER_LIMITS = ("min_effective_sample_size", "min_dose_density")
+FLOAT_LOWER_LIMITS = ("min_effective_sample_size", "min_dose_density", "min_expected_arm_units")
 FLOAT_UPPER_LIMITS = ("max_normalized_weight",)
 BOOLEAN_REQUIREMENTS = (
     "requires_uncoupled_constraints", "requires_disjoint_nuisance_training",

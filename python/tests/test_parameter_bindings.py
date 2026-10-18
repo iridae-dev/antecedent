@@ -262,6 +262,32 @@ def test_max_completions_reaches_plan():
     assert _bound(capped, "max_completions") != _bound(full, "max_completions")
 
 
+def test_participant_reaches_plan():
+    """Participant labels bind to the data snapshot by label text and by row assignment."""
+    data = _data(n=120)
+    first = {**data, "pid": [f"p{i // 2}" for i in range(120)]}
+    renamed = {**data, "pid": [f"q{i // 2}" for i in range(120)]}
+    regrouped = {**data, "pid": [f"p{i // 3}" for i in range(120)]}
+    bound = _bound(_analyze(data=first, participant="pid"), "participant")
+    assert bound["rows"] == 120
+    assert bound != _bound(_analyze(data=renamed, participant="pid"), "participant")
+    assert bound != _bound(_analyze(data=regrouped, participant="pid"), "participant")
+    assert bound == _bound(_analyze(data=first, participant="pid"), "participant")
+    # Without participants the snapshot carries none: earlier identities are unchanged.
+    plain = _contract(_analyze(data=first))
+    assert _resolve(plain, "data_snapshot.participants") is _ABSENT
+
+
+def test_missing_reaches_plan():
+    """A policy that differs from the route's default binds to the data snapshot."""
+    explicit = _bound(_analyze(missing="error"), "missing")
+    assert explicit == {"policy": "error", "covariates": []}
+    # The adjustment route's own default is complete case: declaring it changes nothing, so
+    # the snapshot carries none and earlier identities are unchanged.
+    for plain in (_analyze(), _analyze(missing="complete_case")):
+        assert _resolve(_contract(plain), "data_snapshot.missing") is _ABSENT
+
+
 def test_latency_reaches_plan():
     """A tier sets the omitted budgets; the bound inference differs between tiers."""
     interactive = _analyze(bootstrap=None, refute=None, latency="interactive")

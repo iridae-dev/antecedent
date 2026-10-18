@@ -257,6 +257,7 @@ impl core::cmp::PartialOrd for antecedent_counterfactual::transported_gate::Popu
 impl core::cmp::PartialOrd for antecedent_counterfactual::transported_gate::RegimeFactorKey
 impl core::cmp::PartialOrd for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
 impl core::convert::From<antecedent_model::error::ModelError> for antecedent_counterfactual::CounterfactualError
+impl core::convert::From<antecedent_model::mechanism::NoiseInferenceMode> for antecedent_counterfactual::NoiseInferenceKind
 impl core::convert::From<bool> for antecedent_counterfactual::AbductionMissingPolicy
 impl core::default::Default for antecedent_counterfactual::selective::FiniteScmExecutor
 impl core::default::Default for antecedent_counterfactual::selective::TemporalExecutor
@@ -1214,6 +1215,7 @@ pub field antecedent_counterfactual::selective::WorldRoute::child: usize
 pub field antecedent_counterfactual::selective::WorldRoute::parent: usize
 pub field antecedent_counterfactual::selective::WorldRoute::source: usize
 pub field antecedent_counterfactual::selective::finite_scm::CompiledScm::joint_states: usize
+pub field antecedent_counterfactual::selective::finite_scm::CompiledScm::shared_exogenous: bool
 pub field antecedent_counterfactual::selective::finite_scm::Posterior::evidence_probability: f64
 pub field antecedent_counterfactual::selective::finite_scm::Posterior::states: alloc::vec::Vec<(u32, f64)>
 pub field antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount::source: antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
@@ -1356,6 +1358,7 @@ pub fn <antecedent_counterfactual::CounterfactualEngine>::fn individual_treatmen
 pub fn <antecedent_counterfactual::CounterfactualEngine>::fn new(model: antecedent_model::compile::CompiledCausalModel) -> Self
 pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict(&self, exo: &antecedent_counterfactual::ExogenousPosterior, worlds: &[antecedent_counterfactual::CounterfactualWorld], outcomes: &[antecedent_core::ids::VariableId], allow_nested: bool, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::CounterfactualResult, antecedent_counterfactual::CounterfactualError>
 pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict_retaining_outcomes(&self, exo: &antecedent_counterfactual::ExogenousPosterior, worlds: &[antecedent_counterfactual::CounterfactualWorld], outcomes: &[antecedent_core::ids::VariableId], allow_nested: bool, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::CounterfactualResult, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict_temporal(&self, exo_steps: &[antecedent_counterfactual::ExogenousPosterior], plan: &antecedent_model::temporal_rollout::TemporalPlan<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::temporal_rollout::TemporalPath, antecedent_counterfactual::CounterfactualError>
 pub fn <antecedent_counterfactual::CounterfactualEngine>::fn shared(model: alloc::sync::Arc<antecedent_model::compile::CompiledCausalModel>) -> Self
 pub fn <antecedent_counterfactual::CounterfactualError>::fn model_msg(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_counterfactual::CounterfactualResult>::fn finite_outcome_count(&self, world: usize, outcome: antecedent_graph::types::DenseNodeId) -> usize
@@ -1628,6 +1631,7 @@ pub variant antecedent_counterfactual::selective::InterventionKind::Soft
 pub variant antecedent_counterfactual::selective::ModelClass::AdditiveLinearStaticTransported
 pub variant antecedent_counterfactual::selective::ModelClass::AdditiveLinearTwoSlice
 pub variant antecedent_counterfactual::selective::ModelClass::FiniteMarkovianScm
+pub variant antecedent_counterfactual::selective::ModelClass::FiniteSharedExogenousScm
 pub variant antecedent_counterfactual::selective::ModelClass::NonparametricAdmg
 pub variant antecedent_counterfactual::selective::ModelClass::SemiMarkovian
 pub variant antecedent_counterfactual::selective::NoiseCoupling::IndependentWorldNoise

@@ -26,7 +26,7 @@ allocation/memory contracts, and owning crates.
 | Post-ID column projection | `antecedent-data` / `antecedent` | (conformance) `projection_wide` | — | Wide sheet → gather T/Y/Z only; ATE matches; `exec.project.columns` diagnostic |
 | Batch multi-query | `antecedent` / Python | (conformance) `batch_analysis`, `test_analyze_many`; (integration) `batch_analyze_many` | — | One table ingest, N AverageEffect queries; identical cross-fitted propensity/outcome fits shared across queries; bit-identical to solo |
 | Refute second click | `antecedent` / Python | (conformance) `refute_second_click`, `test_prepared_refute_second_click` | — | Prepared estimate then `refute(suite)`; ATE frozen; validation replaced |
-| Matching index | `antecedent-stats` | `matching` | [matching.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/matching.md) | Exact path ≤ 10k; retain index on compatible fits |
+| Matching index | `antecedent-stats` | `matching` | [matching.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/matching.md) | Exact at any size: sorted search for 1-d absolute distance, k-d tree for Euclidean (bounded by the `ExecutionContext` memory limit and cancellation); `O(n)` index memory and `O(k)` per-query candidates; retain index on compatible fits |
 | m-separation / PAG orient | `antecedent-graph` / `antecedent-discovery` | `mseparation`, `pag_orientation` | [pag.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/pag.md) | Sparse + stress fixtures |
 | RPCMCI / temporal mediation | `antecedent-discovery` / `antecedent-estimate` | `rpcmci`, `temporal_mediation` | [regime_mediation.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/regime_mediation.md) | Multi-env plans must not clone sibling series |
 | Shapley attribution | `antecedent-attribution` | `shapley` | [shapley.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/shapley.md) | Coalition cache; exact size gates |
@@ -36,6 +36,9 @@ allocation/memory contracts, and owning crates.
 | MCMC diagnostics | `antecedent-prob` | `mcmc_stats` | [mcmc_stats.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/mcmc_stats.md) | Per-statistic Geyer / rank-normalized R̂ (no FFT) |
 | GCM interventional sample | `antecedent-model` | `sample_overlay` | [sample_overlay.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/sample_overlay.md) | `MechanismWorkspace` grow-only reuse (asserted in bench) |
 | Linear-Gaussian counterfactual | `antecedent-counterfactual` | `counterfactual_batch` | [counterfactual_batch.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/counterfactual_batch.md) | Full-column and `unit_rows` predict; streaming ≡ retained |
+| Program-executed interventional sample | `antecedent-model` | `policy_sampling` | [policy_sampling.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/policy_sampling.md) | One `ExecutionContext` and `MechanismWorkspace` across draws (asserted in bench); a value-program policy costs at most 1.1x a plain draw (asserted in bench) |
+| Program-executed counterfactual | `antecedent-counterfactual` | `counterfactual_batch` | [counterfactual_batch.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/counterfactual_batch.md) | Outcomes-only streaming ≡ retained bit for bit; the time a value program adds is at most 6x the same expression as a direct loop (both asserted in bench) |
+| Batch coalition noise replay | `antecedent-model` | `noise_replay` | [noise_replay.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/noise_replay.md) | Model borrowed, never cloned; one replayer scratch footprint across coalitions; at most 1.1x the per-draw model-cloning baseline (asserted in bench) |
 | Posterior functional eval | `antecedent-estimate` | `posterior_functional` | [posterior_functional.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/posterior_functional.md) | Eval workspace grow-only reuse (asserted in bench) |
 | Kennedy response curve | `antecedent-estimate` | `response_interference` | [response_interference.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/response_interference.md) | O(n)/fold GAM predictions (additive offset hoist); allocation-free `predict_row`. Same fixture with opt-in simultaneous band (`kennedy_curve_n4k_grid5_simultaneous`: explicit bandwidth + 100 wild-multiplier replicates) |
 | Temporal dose × horizon response | `antecedent-estimate` / `antecedent` | `temporal_response` | [temporal_response.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/temporal_response.md) | Prepare-once identification/indexer; multi-horizon estimate reuses fitted lag design across doses |
@@ -68,6 +71,8 @@ cargo bench -p antecedent-prob --bench hmc -- --test
 cargo bench -p antecedent-prob --bench mcmc_stats -- --test
 cargo bench -p antecedent-model --bench sample_overlay -- --test
 cargo bench -p antecedent-counterfactual --bench counterfactual_batch -- --test
+cargo bench -p antecedent-model --bench policy_sampling -- --test
+cargo bench -p antecedent-model --bench noise_replay -- --test
 cargo bench -p antecedent --bench staged_handle -- --test
 cargo bench -p antecedent --bench temporal_zero_replicates -- --test
 cargo bench -p antecedent --bench transport -- --test
