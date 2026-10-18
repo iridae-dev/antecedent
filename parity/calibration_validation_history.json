@@ -2063,5 +2063,885 @@
         "execution_receipt_sha256": "4506eab832662461115a434e25edb711bca8143ca6ff8352459f8f0a38e09935"
       }
     ]
+  },
+  "source70_minimum_replicate_completion": {
+    "source_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+    "validation_domain": "release_2_4_1_validation_v1",
+    "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+    "prefix_attempts": 400,
+    "final_attempts": 2000,
+    "new_draws": 4800,
+    "plan_sha256": "7d2f7707b147e6c8f1c55bd97bfd2e929b96cca254c4bb0b170c4fdf6956a1a8",
+    "binary_provenance": [
+      {
+        "binary": "target/calibration-audit/source70-missing-prefix-fixed2000/bin/static",
+        "original_path": "target/release/deps/static_calibration-7ae9e7b42fcd026d",
+        "sha256": "1c5126b256bdebb0e48c56f01e0b4e198577ebc9c51578d36f87316f08a1a16e",
+        "size": 18725648,
+        "mtime_ns": 1792328123234836092,
+        "measured_source_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "source_proof": "Exact executable paths in clean source70 coalesced prebuild log; binary modification times precede first frozen run and no later integration-target link occurred. Source SHA is runtime-stamped, not embedded. Copies captured before any new PAG integration build.",
+        "prebuild_log": "target/calibration-audit/fresh-validation-execution.log"
+      },
+      {
+        "binary": "target/calibration-audit/source70-missing-prefix-fixed2000/bin/weighted",
+        "original_path": "target/release/deps/weighted_interval_calibration-04331c5f33288110",
+        "sha256": "a15c6f9fec3c357ee77be728d4c4b4535fe099a6e4d3750d242fde008ab455b2",
+        "size": 18231792,
+        "mtime_ns": 1792328387839438506,
+        "measured_source_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "source_proof": "Exact executable paths in clean source70 coalesced prebuild log; binary modification times precede first frozen run and no later integration-target link occurred. Source SHA is runtime-stamped, not embedded. Copies captured before any new PAG integration build.",
+        "prebuild_log": "target/calibration-audit/fresh-validation-execution.log"
+      }
+    ],
+    "jobs": [
+      {
+        "group": "weighted_interval_calibration__weighted_aipw_interval",
+        "test": "weighted_aipw_interval",
+        "point": 0,
+        "binary": "weighted",
+        "original_prior_sha256": "4520e9973e38a2d58940b13d041b8e58e688148beac44ca22f25c1f47cbe63a6",
+        "n": 600,
+        "first": 400,
+        "planned": 2000,
+        "new_draws": 1600,
+        "threads": 1,
+        "status": 0,
+        "seconds": 2.1939604999497533,
+        "log_sha256": "e5870d2f7d243ef50dd318b0deefd741316fae0cbf15d059af375970c89aba53",
+        "tally_sha256": "e8d5e5f6ca4f717233908f04528e996b99afa7083356b9783ca8e6a7e9b66ba1"
+      },
+      {
+        "group": "weighted_interval_calibration__weighted_aipw_interval",
+        "test": "weighted_aipw_interval",
+        "point": 2,
+        "binary": "weighted",
+        "original_prior_sha256": "420d039178f7caa29944e143976c4d9523c0dc5dee8af034407adca7e3747a35",
+        "n": 2400,
+        "first": 400,
+        "planned": 2000,
+        "new_draws": 1600,
+        "threads": 1,
+        "status": 0,
+        "seconds": 5.564721416914836,
+        "log_sha256": "ea7703c1f128c2056fdd8c8e5685223aa77d12b002bc515ecd068cdad7506b53",
+        "tally_sha256": "ae2c7812d05b2dea30afbe85e420856e2f10e09a91e29f42d972c5bd78825bb7"
+      },
+      {
+        "group": "static_calibration__mediation_contrasts_frequentist_nominal_95_coverage",
+        "test": "mediation_contrasts_frequentist_nominal_95_coverage",
+        "point": 2,
+        "binary": "static",
+        "original_prior_sha256": "e2fee68f1b103ee05f6325e2fe88b02ac08c180a8c88114a01fccae08a3dfc65",
+        "n": 2000,
+        "first": 400,
+        "planned": 2000,
+        "new_draws": 1600,
+        "threads": 1,
+        "status": 0,
+        "seconds": 87.97101083304733,
+        "log_sha256": "d43710352f6d7d581eb546adf58ed2b2e0aad5a87d33f2e45b4afa242cc86da9",
+        "tally_sha256": "3ed39290cf54fcca05d1d821dbf6596e48f904a88812425f36c6e2c2446275c7"
+      }
+    ],
+    "original_records": [
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval",
+        "query": "AverageEffect",
+        "graph_class": "Dag",
+        "structure": "fixed",
+        "modality": "tabular",
+        "inference": "Frequentist",
+        "estimator": "aipw",
+        "interval_method": "analytic_se",
+        "se_kind": "homoskedastic",
+        "dependence": "iid",
+        "posterior": "",
+        "functional": "all_observed.mean+weights=sampling",
+        "identification": "point",
+        "nominal": 0.95,
+        "n_min": 600,
+        "n_max": 2400,
+        "replicates_min": 0,
+        "posterior_draws_min": 0,
+        "unidentified_mass_max": 0.0,
+        "observed": 0.945,
+        "mcse": 0.011399013115178002,
+        "replicates": 400,
+        "boundary": false,
+        "role": "gated",
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 378,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.5,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.708171849973396,
+          "planned_replicates": 400,
+          "scored": 400,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "grid": [
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 378,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.5,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.708171849973396,
+              "planned_replicates": 400,
+              "scored": 400,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 0,
+            "n_min": 600,
+            "n_max": 600,
+            "observed": 0.945,
+            "mcse": 0.011399013115178002,
+            "replicates": 400,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1899,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.946858122915899,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 1,
+            "n_min": 1200,
+            "n_max": 1200,
+            "observed": 0.9495,
+            "mcse": 0.0048964145045124596,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 381,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.5,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.9359398985824383,
+              "planned_replicates": 400,
+              "scored": 400,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 2,
+            "n_min": 2400,
+            "n_max": 2400,
+            "observed": 0.9525,
+            "mcse": 0.010635289135702893,
+            "replicates": 400,
+            "boundary": false,
+            "role": "gated"
+          }
+        ],
+        "dgp": "crates/antecedent/tests/weighted_interval_calibration.rs::informative_sampling_heterogeneous_effect",
+        "test": "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_aipw_interval",
+        "facets": [
+          "core",
+          "estimator.aipw",
+          "identity.backdoor",
+          "suite.weighted_interval_calibration"
+        ],
+        "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "surface_list_blob": "c55f3821bc80c38cedfb7f8a8b139420823496fe"
+      },
+      {
+        "id": "cov.mediation_effect.dag.frequentist.bootstrap_se.l95.mediation_contrasts_frequentist_nominal_95_coverage.direct",
+        "query": "MediationEffect",
+        "graph_class": "Dag",
+        "structure": "fixed",
+        "modality": "tabular",
+        "inference": "Frequentist",
+        "estimator": "mediation.linear",
+        "interval_method": "bootstrap_se",
+        "se_kind": "",
+        "dependence": "iid",
+        "posterior": "",
+        "functional": "direct.all_observed",
+        "identification": "point",
+        "nominal": 0.95,
+        "n_min": 500,
+        "n_max": 2000,
+        "replicates_min": 199,
+        "posterior_draws_min": 0,
+        "unidentified_mass_max": 0.0,
+        "observed": 0.945,
+        "mcse": 0.005097793640389931,
+        "replicates": 2000,
+        "boundary": false,
+        "role": "gated",
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1890,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.32918215026527176,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "grid": [
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1890,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.32918215026527176,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 0,
+            "n_min": 500,
+            "n_max": 500,
+            "observed": 0.945,
+            "mcse": 0.005097793640389931,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1894,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.5654590004075586,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.947,
+            "mcse": 0.005009540897128201,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 379,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.5,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.8817758750677922,
+              "planned_replicates": 400,
+              "scored": 400,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 2,
+            "n_min": 2000,
+            "n_max": 2000,
+            "observed": 0.9475,
+            "mcse": 0.01115165346484547,
+            "replicates": 400,
+            "boundary": false,
+            "role": "gated"
+          }
+        ],
+        "dgp": "crates/antecedent/tests/static_calibration.rs::mediation_data",
+        "test": "crates/antecedent/tests/static_calibration.rs::mediation_contrasts_frequentist_nominal_95_coverage",
+        "facets": [
+          "core",
+          "estimator.mediation",
+          "suite.static_calibration"
+        ],
+        "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "surface_list_blob": "c55f3821bc80c38cedfb7f8a8b139420823496fe"
+      },
+      {
+        "id": "cov.mediation_effect.dag.frequentist.bootstrap_se.l95.mediation_contrasts_frequentist_nominal_95_coverage.mediated",
+        "query": "MediationEffect",
+        "graph_class": "Dag",
+        "structure": "fixed",
+        "modality": "tabular",
+        "inference": "Frequentist",
+        "estimator": "mediation.linear",
+        "interval_method": "bootstrap_se",
+        "se_kind": "",
+        "dependence": "iid",
+        "posterior": "",
+        "functional": "mediated.all_observed",
+        "identification": "point",
+        "nominal": 0.95,
+        "n_min": 500,
+        "n_max": 2000,
+        "replicates_min": 199,
+        "posterior_draws_min": 0,
+        "unidentified_mass_max": 0.0,
+        "observed": 0.9425,
+        "mcse": 0.005205465877325487,
+        "replicates": 2000,
+        "boundary": false,
+        "role": "gated",
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 1885,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.25,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.14141095280974658,
+          "planned_replicates": 2000,
+          "scored": 2000,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "grid": [
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1885,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.14141095280974658,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 0,
+            "n_min": 500,
+            "n_max": 500,
+            "observed": 0.9425,
+            "mcse": 0.005205465877325487,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1891,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.38105654646084697,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9455,
+            "mcse": 0.005075911248239078,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 380,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.5,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 1.0,
+              "planned_replicates": 400,
+              "scored": 400,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 2,
+            "n_min": 2000,
+            "n_max": 2000,
+            "observed": 0.95,
+            "mcse": 0.010897247358851688,
+            "replicates": 400,
+            "boundary": false,
+            "role": "gated"
+          }
+        ],
+        "dgp": "crates/antecedent/tests/static_calibration.rs::mediation_data",
+        "test": "crates/antecedent/tests/static_calibration.rs::mediation_contrasts_frequentist_nominal_95_coverage",
+        "facets": [
+          "core",
+          "estimator.mediation",
+          "suite.static_calibration"
+        ],
+        "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "surface_list_blob": "c55f3821bc80c38cedfb7f8a8b139420823496fe"
+      },
+      {
+        "id": "cov.mediation_effect.dag.frequentist.bootstrap_se.l95.mediation_contrasts_frequentist_nominal_95_coverage.total",
+        "query": "MediationEffect",
+        "graph_class": "Dag",
+        "structure": "fixed",
+        "modality": "tabular",
+        "inference": "Frequentist",
+        "estimator": "mediation.linear",
+        "interval_method": "bootstrap_se",
+        "se_kind": "",
+        "dependence": "iid",
+        "posterior": "",
+        "functional": "total.all_observed",
+        "identification": "point",
+        "nominal": 0.95,
+        "n_min": 500,
+        "n_max": 2000,
+        "replicates_min": 199,
+        "posterior_draws_min": 0,
+        "unidentified_mass_max": 0.0,
+        "observed": 0.94,
+        "mcse": 0.011874342087037922,
+        "replicates": 400,
+        "boundary": false,
+        "role": "gated",
+        "decision_protocol": {
+          "cell_cap_per_group": 256,
+          "compatible": true,
+          "covered": 376,
+          "family_alpha": 0.05,
+          "family_cells": 581376,
+          "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+          "family_grid_points": 3,
+          "family_groups": 757,
+          "id": "suite_coverage_fwer.v1",
+          "look_weight": 0.5,
+          "looks": [
+            {
+              "planned_replicates": 400,
+              "weight": 0.5
+            },
+            {
+              "planned_replicates": 2000,
+              "weight": 0.25
+            },
+            {
+              "planned_replicates": 20000,
+              "weight": 0.25
+            }
+          ],
+          "lower_only": false,
+          "p_value": 0.41461049048963466,
+          "planned_replicates": 400,
+          "scored": 400,
+          "validation_domain": "release_2_4_1_validation_v1"
+        },
+        "grid": [
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1890,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.32918215026527176,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 0,
+            "n_min": 500,
+            "n_max": 500,
+            "observed": 0.945,
+            "mcse": 0.005097793640389931,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 1907,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.25,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.5103300659238398,
+              "planned_replicates": 2000,
+              "scored": 2000,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 1,
+            "n_min": 1000,
+            "n_max": 1000,
+            "observed": 0.9535,
+            "mcse": 0.004708383480558906,
+            "replicates": 2000,
+            "boundary": false,
+            "role": "gated"
+          },
+          {
+            "decision_protocol": {
+              "cell_cap_per_group": 256,
+              "compatible": true,
+              "covered": 376,
+              "family_alpha": 0.05,
+              "family_cells": 581376,
+              "family_digest": "4be54bccb31e597327f46b6f16afff2e897984fca35e8bb63de5494797f62541",
+              "family_grid_points": 3,
+              "family_groups": 757,
+              "id": "suite_coverage_fwer.v1",
+              "look_weight": 0.5,
+              "looks": [
+                {
+                  "planned_replicates": 400,
+                  "weight": 0.5
+                },
+                {
+                  "planned_replicates": 2000,
+                  "weight": 0.25
+                },
+                {
+                  "planned_replicates": 20000,
+                  "weight": 0.25
+                }
+              ],
+              "lower_only": false,
+              "p_value": 0.41461049048963466,
+              "planned_replicates": 400,
+              "scored": 400,
+              "validation_domain": "release_2_4_1_validation_v1"
+            },
+            "point": 2,
+            "n_min": 2000,
+            "n_max": 2000,
+            "observed": 0.94,
+            "mcse": 0.011874342087037922,
+            "replicates": 400,
+            "boundary": false,
+            "role": "gated"
+          }
+        ],
+        "dgp": "crates/antecedent/tests/static_calibration.rs::mediation_data",
+        "test": "crates/antecedent/tests/static_calibration.rs::mediation_contrasts_frequentist_nominal_95_coverage",
+        "facets": [
+          "core",
+          "estimator.mediation",
+          "suite.static_calibration"
+        ],
+        "calibration_sha": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+        "surface_list_blob": "c55f3821bc80c38cedfb7f8a8b139420823496fe"
+      }
+    ],
+    "raw_sha256": {
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/weighted_interval_calibration__weighted_aipw_interval/weighted_interval_calibration__weighted_aipw_interval.p2.log": "f06d7a0764b22ba048251655d9725d517b8ab0ff40c36b98bb80c27ee64b996a",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/weighted_interval_calibration__weighted_aipw_interval/weighted_interval_calibration__weighted_aipw_interval.p0.recheck.log": "e5870d2f7d243ef50dd318b0deefd741316fae0cbf15d059af375970c89aba53",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/weighted_interval_calibration__weighted_aipw_interval/weighted_interval_calibration__weighted_aipw_interval.p0.tallies.jsonl": "4520e9973e38a2d58940b13d041b8e58e688148beac44ca22f25c1f47cbe63a6",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/weighted_interval_calibration__weighted_aipw_interval/weighted_interval_calibration__weighted_aipw_interval.p0.log": "7444e4666ee7c79a2b86426ffa0f8f8e2a3166288a917ba2a3978619194c2596",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/weighted_interval_calibration__weighted_aipw_interval/weighted_interval_calibration__weighted_aipw_interval.p1.log": "be694990b60d7241d77738c4f66b5ff4b75e792e2382ff2bc3a1421a79fc0e2e",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/weighted_interval_calibration__weighted_aipw_interval/weighted_interval_calibration__weighted_aipw_interval.p0.recheck.tallies.jsonl": "e8d5e5f6ca4f717233908f04528e996b99afa7083356b9783ca8e6a7e9b66ba1",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/weighted_interval_calibration__weighted_aipw_interval/weighted_interval_calibration__weighted_aipw_interval.p2.recheck.tallies.jsonl": "ae2c7812d05b2dea30afbe85e420856e2f10e09a91e29f42d972c5bd78825bb7",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/weighted_interval_calibration__weighted_aipw_interval/weighted_interval_calibration__weighted_aipw_interval.p1.tallies.jsonl": "879aa5267277a6f5b2855a3f91a2491020809568552beaf2d65950d242fa97ad",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/weighted_interval_calibration__weighted_aipw_interval/weighted_interval_calibration__weighted_aipw_interval.p2.tallies.jsonl": "420d039178f7caa29944e143976c4d9523c0dc5dee8af034407adca7e3747a35",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/weighted_interval_calibration__weighted_aipw_interval/weighted_interval_calibration__weighted_aipw_interval.p2.recheck.log": "ea7703c1f128c2056fdd8c8e5685223aa77d12b002bc515ecd068cdad7506b53",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p0.recheck.log": "80ba0f2cdf168d651ac3075fcdd61ebee4ce4379d5aae1f91aebe7dd6ac60cc8",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p2.log": "8bf17ec949a11543b6259112a448a9c1534b32acf4bfd5982453c3b739354e2f",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p0.log": "2a92c58e656fb533f0da45d99e79f0cd36952ec3ef51611e707039077ebc0f28",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p1.log": "9ac6a5158d11a69975f2a9f1137f86cfeb486602bbe4e8421903587367f4e058",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p2.recheck.original-console.txt": "d43710352f6d7d581eb546adf58ed2b2e0aad5a87d33f2e45b4afa242cc86da9",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p0.tallies.jsonl": "25d708dda96a549253af0823b10d0e49c218f50cd387b28bab9467b69d801f49",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p0.recheck.tallies.jsonl": "300ec01231457ff9347fdca6547b95b8d91986ebb638ae00ce339893cda1f5ef",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p2.tallies.jsonl": "e2fee68f1b103ee05f6325e2fe88b02ac08c180a8c88114a01fccae08a3dfc65",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p2.recheck.tallies.jsonl": "3ed39290cf54fcca05d1d821dbf6596e48f904a88812425f36c6e2c2446275c7",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p1.tallies.jsonl": "b52f4476ebce2c076eca6c7c283b062373478994b2bdad191b5eb5b79a30e94b",
+      "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p2.recheck.log": "28798c36376b09496c91d3ee54711796be441e36d4eff27cc5ff6312ca10d7b5"
+    },
+    "claim": "Original source70registered2000look completed by appending1600unusedreplicateindices per job; no original400redraw. Original400look and source/domain/config retained. Width-length sufficient statistics combine exactly; suffix-only diagnostics are not claimed as combined medians.",
+    "console_normalization": {
+      "raw_console": "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p2.recheck.original-console.txt",
+      "raw_sha256": "d43710352f6d7d581eb546adf58ed2b2e0aad5a87d33f2e45b4afa242cc86da9",
+      "canonical_log": "target/calibration-audit/source70-missing-prefix-fixed2000/groups/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage/static_calibration__mediation_contrasts_frequentist_nominal_95_coverage.p2.recheck.log",
+      "canonical_sha256": "28798c36376b09496c91d3ee54711796be441e36d4eff27cc5ff6312ca10d7b5",
+      "transformation": "Remove the one exact libtest test-name prefix before its first calibration-decision JSON line. All JSON bytes/counts/source/domain and subsequent output unchanged. Original console preserved verbatim.",
+      "occurrences": 1
+    }
   }
 }
