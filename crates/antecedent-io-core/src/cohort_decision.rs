@@ -1763,8 +1763,8 @@ fn rebuild_model(body: &SourceBody) -> Result<RetainedEffectModel, CohortRefusal
                 parent.clone(),
             )?
         }
-        ModelWire::Compact { export, identity } => {
-            let export = CompactExport::consume(export, &ExportLimits::default(), identity)
+        ModelWire::Compact { export: original_bytes, identity } => {
+            let export = CompactExport::consume(original_bytes, &ExportLimits::default(), identity)
                 .map_err(|refusal| {
                     invalid(
                         "cohort_decision.fitted_model_invalid",
@@ -1772,7 +1772,12 @@ fn rebuild_model(body: &SourceBody) -> Result<RetainedEffectModel, CohortRefusal
                         "re-export the model from the producer",
                     )
                 })?;
-            RetainedEffectModel::from_compact_export(&export)?
+            let mut model = RetainedEffectModel::from_compact_export(&export)?;
+            // Replaying a verified model must retain its original container. Re-exporting
+            // it with this reader's producer version changes nested bytes even though the
+            // scientific model identity, predictions and support are identical.
+            model.kind = ModelKind::Compact { export, bytes: original_bytes.clone() };
+            model
         }
     };
     if model.identity != body.model_identity {
