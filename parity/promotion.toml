@@ -16096,7 +16096,7 @@ provider = "antecedent_identify::discovered_transport::{transport_across_class, 
 estimand = "The structural transport verdict and expression of the query in each member of the class, summarized as a structural envelope; and the target mean response at each treatment level estimated in each member, summarized as a point or a labelled structural range."
 inference_claim = "structural_envelope"
 inference_notes = "The structural envelope remains a non-probabilistic list of member verdicts, with no averaged graph or graph-recovery guarantee. Optional contrast intervals require unanimous estimability and a point answer: iid row bootstrap for independent static rows, or an explicitly declared moving-block bootstrap for temporal evidence. Neither inherits a complete-procedure license from the structural envelope. The new binary completely randomized source-trial refinement records its predeclared Fisher test, every original graph and retention decision, exact source rows and nested estimate replay. Complete-procedure static and temporal calibration under these new identities is pending; development probes are not coverage evidence."
-owners = ["antecedent-identify"]
+owners = ["antecedent-identify", "antecedent"]
 identity_inputs = ["CPDAG or PAG edges and marks", "temporal template, horizon and window", "selection targets", "transport query", "member bound and exhausted search bound count", "member expressions, means and retained grid artifacts", "for trial refinement: randomization policy, alpha, source identity and exact binary source rows, original report and complete member decisions", "for temporal inference: declared block length and bootstrap replicate count"]
 wire_changes = ["The estimate artifact antecedent.discovered_transport_estimate.v1 wraps one existing transport grid artifact per member; no existing artifact or identity changes. A PAG member adds bidirected and confounded edge sets to the report identity only when present.", "New trial-compatible wrapper carries a replayable experimental compatibility proof and the retained-member estimate; it does not reinterpret legacy artifacts."]
 compatibility = "Additive. The discovery-side refusal of a selection diagram over a discovered structure is unchanged."
@@ -18420,6 +18420,7 @@ fixtures = [
 ]
 
 [[record.inference_outputs]]
+id = "gcm.model.graph_falsification.diagnostic.1"
 fields = ["outcome", "p_value", "n_violations", "evidence", "permutation_violations"]
 method = "Local Markov implications tested with a named conditional-independence test and compared with the violation counts of node relabellings of the same graph on the same data."
 implementation_status = "implemented_unmeasured"
@@ -18487,6 +18488,7 @@ fixtures = [
 ]
 
 [[record.inference_outputs]]
+id = "gcm.attribution.intrinsic_influence.allocation.1"
 fields = ["sources", "total_variance", "allocation_residual", "method", "budget"]
 method = "Shapley values of the variance game v(S) = Var(E[Y | U_S]) with coalition values from nested Monte Carlo over batch noise replay, and the per-component standard errors of permutation sampling, replicate-batch simulation and the mechanism-fit bootstrap."
 implementation_status = "implemented_unmeasured"
