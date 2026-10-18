@@ -2057,7 +2057,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_admg.rs::average_effect_admg_frontdoor_bayesian_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -2093,7 +2093,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_admg.rs::average_effect_admg_graph_posterior_bayesian_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -2129,7 +2129,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_admg.rs::average_effect_admg_frontdoor_bayesian_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -2165,7 +2165,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_admg.rs::average_effect_admg_graph_posterior_bayesian_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -2273,7 +2273,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_admg.rs::average_effect_admg_frontdoor_frequentist_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -2309,7 +2309,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_admg.rs::average_effect_admg_graph_posterior_frequentist_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -2345,7 +2345,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_admg.rs::average_effect_admg_frontdoor_frequentist_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -2381,7 +2381,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_admg.rs::average_effect_admg_graph_posterior_frequentist_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -7515,7 +7515,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/weighted_interval_calibration.rs::informative_sampling_heterogeneous_effect"
 test = "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_distance_matching_interval"
-facets = ["core", "suite.weighted_interval_calibration"]
+facets = ["core", "estimator.distance_matching", "estimator.propensity_matching", "identity.backdoor", "suite.weighted_interval_calibration"]
 calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
 surface_list_blob = "2e7975a325b91c884e5f29726c04e69522289aa4"
 
@@ -9663,7 +9663,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_continuous_independent_samples_good_overlap"
 test = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_trial_aipw_independent_samples_continuous_mean_contrast"
-facets = ["core", "estimator.transport", "estimator.transport_learned", "suite.learned_continuous_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_learned", "identity.catalog_transport", "identity.transport_selection", "suite.learned_continuous_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -9699,7 +9699,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_continuous_nested_cohort_good_overlap"
 test = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_trial_aipw_nested_cohort_continuous_mean_contrast"
-facets = ["core", "estimator.transport", "estimator.transport_learned", "suite.learned_continuous_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_learned", "identity.catalog_transport", "identity.transport_selection", "suite.learned_continuous_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -9735,7 +9735,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/mz_transport_calibration.rs::mz_figure_1_independent_studies"
 test = "crates/antecedent/tests/mz_transport_calibration.rs::multi_source_mz_independent_studies"
-facets = ["core", "estimator.transport", "estimator.transport_empirical", "suite.mz_transport_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_empirical", "identity.catalog_transport", "identity.transport_selection", "suite.mz_transport_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -9771,7 +9771,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/mz_transport_calibration.rs::mz_figure_1_shared_units"
 test = "crates/antecedent/tests/mz_transport_calibration.rs::multi_source_mz_shared_units"
-facets = ["core", "estimator.transport", "estimator.transport_empirical", "suite.mz_transport_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_empirical", "identity.catalog_transport", "identity.transport_selection", "suite.mz_transport_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -9807,7 +9807,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/transport_statistical_calibration.rs::frontdoor_binary_scm"
 test = "crates/antecedent/tests/transport_statistical_calibration.rs::recursive_frontdoor_nominal_coverage"
-facets = ["core", "estimator.transport", "estimator.transport_empirical", "suite.transport_statistical_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_empirical", "identity.catalog_transport", "identity.transport_selection", "suite.transport_statistical_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -9843,7 +9843,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/transport_statistical_calibration.rs::xy_shared_joint"
 test = "crates/antecedent/tests/transport_statistical_calibration.rs::shared_factor_target_observational_nominal_coverage"
-facets = ["core", "estimator.transport", "estimator.transport_empirical", "suite.transport_statistical_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_empirical", "identity.catalog_transport", "identity.transport_selection", "suite.transport_statistical_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -9879,7 +9879,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/smoothed_dose_calibration.rs::smoothed_dose_independent_samples_quadratic_curve"
 test = "crates/antecedent/tests/smoothed_dose_calibration.rs::smoothed_dose_transport_independent_samples_psi_h"
-facets = ["core", "estimator.transport", "estimator.transport_smoothed_dose", "suite.smoothed_dose_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_smoothed_dose", "identity.catalog_transport", "identity.transport_selection", "suite.smoothed_dose_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -9915,7 +9915,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/smoothed_dose_calibration.rs::smoothed_dose_nested_cohort_quadratic_curve"
 test = "crates/antecedent/tests/smoothed_dose_calibration.rs::smoothed_dose_transport_nested_cohort_psi_h"
-facets = ["core", "estimator.transport", "estimator.transport_smoothed_dose", "suite.smoothed_dose_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_smoothed_dose", "identity.catalog_transport", "identity.transport_selection", "suite.smoothed_dose_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -9951,7 +9951,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/transport_statistical_calibration.rs::standardize_imbalance"
 test = "crates/antecedent/tests/transport_statistical_calibration.rs::source_target_imbalance_standardize_nominal_coverage"
-facets = ["core", "estimator.transport", "estimator.transport_empirical", "suite.transport_statistical_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_empirical", "identity.catalog_transport", "identity.transport_selection", "suite.transport_statistical_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -9987,7 +9987,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/transport_statistical_calibration.rs::xy_rare_treatment"
 test = "crates/antecedent/tests/transport_statistical_calibration.rs::weak_overlap_near_empty_conditioner_boundary"
-facets = ["core", "estimator.transport", "estimator.transport_empirical", "suite.transport_statistical_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_empirical", "identity.catalog_transport", "identity.transport_selection", "suite.transport_statistical_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -10024,7 +10024,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/joint_sensitivity_calibration.rs::z_joint_surrogate_counts"
 test = "crates/antecedent/tests/joint_sensitivity_calibration.rs::z_joint_sensitivity_positive_box"
-facets = ["core", "estimator.transport", "estimator.transport_empirical", "estimator.transport_joint_sensitivity", "suite.joint_sensitivity_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_empirical", "estimator.transport_joint_sensitivity", "identity.catalog_transport", "identity.transport_selection", "suite.joint_sensitivity_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -10060,7 +10060,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/joint_sensitivity_calibration.rs::z_joint_surrogate_counts"
 test = "crates/antecedent/tests/joint_sensitivity_calibration.rs::z_joint_sensitivity_zero_box"
-facets = ["core", "estimator.transport", "estimator.transport_empirical", "estimator.transport_joint_sensitivity", "suite.joint_sensitivity_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "estimator.transport_empirical", "estimator.transport_joint_sensitivity", "identity.catalog_transport", "identity.transport_selection", "suite.joint_sensitivity_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -10096,7 +10096,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/joint_bayesian_transport_calibration.rs::known_gaussian_invariant_effect_fixed_target"
 test = "crates/antecedent-estimate/tests/joint_bayesian_transport_calibration.rs::joint_gaussian_one_source_intercept_l95"
-facets = ["core", "estimator.joint_bayesian_transport", "suite.joint_bayesian_transport_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.joint_bayesian_transport", "identity.catalog_transport", "identity.transport_selection", "suite.joint_bayesian_transport_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -10132,7 +10132,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/joint_bayesian_transport_calibration.rs::known_gaussian_invariant_effect_fixed_target"
 test = "crates/antecedent-estimate/tests/joint_bayesian_transport_calibration.rs::joint_gaussian_two_independent_intercepts_l95"
-facets = ["core", "estimator.joint_bayesian_transport", "suite.joint_bayesian_transport_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.joint_bayesian_transport", "identity.catalog_transport", "identity.transport_selection", "suite.joint_bayesian_transport_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -10168,7 +10168,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/joint_bayesian_transport_calibration.rs::known_gaussian_invariant_effect_fixed_target"
 test = "crates/antecedent-estimate/tests/joint_bayesian_transport_calibration.rs::joint_gaussian_two_shared_intercepts_l95"
-facets = ["core", "estimator.joint_bayesian_transport", "suite.joint_bayesian_transport_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.joint_bayesian_transport", "identity.catalog_transport", "identity.transport_selection", "suite.joint_bayesian_transport_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -10204,7 +10204,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/joint_bayesian_transport_calibration.rs::known_gaussian_invariant_effect_fixed_target"
 test = "crates/antecedent-estimate/tests/joint_bayesian_transport_calibration.rs::joint_gaussian_two_varying_covariates_l95"
-facets = ["core", "estimator.joint_bayesian_transport", "suite.joint_bayesian_transport_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.joint_bayesian_transport", "identity.catalog_transport", "identity.transport_selection", "suite.joint_bayesian_transport_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -10240,7 +10240,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/learned_joint_calibration.rs::known_quadratic_gaussian_invariant_effect_fixed_target"
 test = "crates/antecedent-estimate/tests/learned_joint_calibration.rs::learned_degree2_gaussian_one_source_intercept_l95"
-facets = ["core", "estimator.learned_joint_transport", "suite.learned_joint_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.learned_joint_transport", "identity.catalog_transport", "identity.transport_selection", "suite.learned_joint_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -10276,7 +10276,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/learned_joint_calibration.rs::known_quadratic_gaussian_invariant_effect_fixed_target"
 test = "crates/antecedent-estimate/tests/learned_joint_calibration.rs::learned_degree2_gaussian_two_independent_intercepts_l95"
-facets = ["core", "estimator.learned_joint_transport", "suite.learned_joint_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.learned_joint_transport", "identity.catalog_transport", "identity.transport_selection", "suite.learned_joint_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -10312,7 +10312,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/learned_joint_calibration.rs::known_quadratic_gaussian_invariant_effect_fixed_target"
 test = "crates/antecedent-estimate/tests/learned_joint_calibration.rs::learned_degree2_gaussian_two_shared_intercepts_l95"
-facets = ["core", "estimator.learned_joint_transport", "suite.learned_joint_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.learned_joint_transport", "identity.catalog_transport", "identity.transport_selection", "suite.learned_joint_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -10348,7 +10348,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/learned_joint_calibration.rs::known_quadratic_gaussian_invariant_effect_fixed_target"
 test = "crates/antecedent-estimate/tests/learned_joint_calibration.rs::learned_degree2_gaussian_two_varying_covariates_l95"
-facets = ["core", "estimator.learned_joint_transport", "suite.learned_joint_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.learned_joint_transport", "identity.catalog_transport", "identity.transport_selection", "suite.learned_joint_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12040,7 +12040,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::counterfactual_data"
 test = "crates/antecedent/tests/static_calibration.rs::counterfactual_bayesian_mean_ite_boundary_within_band"
-facets = ["core", "mechanism", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12076,7 +12076,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_bayesian_static.rs::counterfactual_data"
 test = "crates/antecedent/tests/calibration_bayesian_static.rs::counterfactual_bayesian_mean_ite_default_coverage"
-facets = ["core", "mechanism", "suite.calibration_bayesian_static"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.calibration_bayesian_static"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12112,7 +12112,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_counterfactual.rs::exp_modifier_data"
 test = "crates/antecedent/tests/calibration_counterfactual.rs::counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage"
-facets = ["core", "mechanism", "suite.calibration_counterfactual"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.calibration_counterfactual"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12148,7 +12148,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_counterfactual.rs::interaction_data"
 test = "crates/antecedent/tests/calibration_counterfactual.rs::counterfactual_interaction_bayesian_unit_and_mean_ite_coverage"
-facets = ["core", "mechanism", "suite.calibration_counterfactual"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.calibration_counterfactual"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12184,7 +12184,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::counterfactual_data"
 test = "crates/antecedent/tests/static_calibration.rs::counterfactual_bayesian_mean_ite_boundary_within_band"
-facets = ["core", "mechanism", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12220,7 +12220,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_bayesian_static.rs::counterfactual_data"
 test = "crates/antecedent/tests/calibration_bayesian_static.rs::counterfactual_bayesian_mean_ite_default_coverage"
-facets = ["core", "mechanism", "suite.calibration_bayesian_static"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.calibration_bayesian_static"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12256,7 +12256,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_counterfactual.rs::exp_modifier_data"
 test = "crates/antecedent/tests/calibration_counterfactual.rs::counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage"
-facets = ["core", "mechanism", "suite.calibration_counterfactual"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.calibration_counterfactual"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12292,7 +12292,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_counterfactual.rs::interaction_data"
 test = "crates/antecedent/tests/calibration_counterfactual.rs::counterfactual_interaction_bayesian_unit_and_mean_ite_coverage"
-facets = ["core", "mechanism", "suite.calibration_counterfactual"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.calibration_counterfactual"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12328,7 +12328,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_counterfactual.rs::exp_modifier_data"
 test = "crates/antecedent/tests/calibration_counterfactual.rs::counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage"
-facets = ["core", "mechanism", "suite.calibration_counterfactual"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.calibration_counterfactual"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12364,7 +12364,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_counterfactual.rs::exp_modifier_data"
 test = "crates/antecedent/tests/calibration_counterfactual.rs::counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage"
-facets = ["core", "mechanism", "suite.calibration_counterfactual"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.calibration_counterfactual"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12400,7 +12400,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_counterfactual.rs::interaction_data"
 test = "crates/antecedent/tests/calibration_counterfactual.rs::counterfactual_interaction_bayesian_unit_and_mean_ite_coverage"
-facets = ["core", "mechanism", "suite.calibration_counterfactual"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.calibration_counterfactual"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12436,7 +12436,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_counterfactual.rs::interaction_data"
 test = "crates/antecedent/tests/calibration_counterfactual.rs::counterfactual_interaction_bayesian_unit_and_mean_ite_coverage"
-facets = ["core", "mechanism", "suite.calibration_counterfactual"]
+facets = ["core", "estimator.exact_transport", "mechanism", "suite.calibration_counterfactual"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12472,7 +12472,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/cross_world_interval_calibration.rs::response_type_scm_x_0.4_types_0.2_0.5_0.1_0.2_fixed_units_realized_outcomes"
 test = "crates/antecedent/tests/cross_world_interval_calibration.rs::cross_world_interval_fixed_units_balanced_types_l95"
-facets = ["core", "cross_world_interval", "mechanism", "suite.cross_world_interval_calibration"]
+facets = ["core", "cross_world_interval", "estimator.exact_transport", "mechanism", "suite.cross_world_interval_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12508,7 +12508,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/cross_world_interval_calibration.rs::response_type_scm_x_0.4_types_0.2_0.5_0.1_0.2_independent_sample_exact_abduction"
 test = "crates/antecedent/tests/cross_world_interval_calibration.rs::cross_world_interval_independent_sample_balanced_types_l95"
-facets = ["core", "cross_world_interval", "mechanism", "suite.cross_world_interval_calibration"]
+facets = ["core", "cross_world_interval", "estimator.exact_transport", "mechanism", "suite.cross_world_interval_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12544,7 +12544,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/cross_world_interval_calibration.rs::response_type_scm_x_0.4_types_0.05_0.45_0.05_0.45_independent_sample_exact_abduction"
 test = "crates/antecedent/tests/cross_world_interval_calibration.rs::cross_world_interval_independent_sample_rare_types_l95"
-facets = ["core", "cross_world_interval", "mechanism", "suite.cross_world_interval_calibration"]
+facets = ["core", "cross_world_interval", "estimator.exact_transport", "mechanism", "suite.cross_world_interval_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12580,7 +12580,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_frontdoor_latent_district"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_latent_district"
-facets = ["core", "estimator.counterfactual_transport", "suite.counterfactual_transport_sampled_oracle"]
+facets = ["core", "estimator.counterfactual_transport", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.counterfactual_transport_sampled_oracle"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12616,7 +12616,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_mediation_covariate_shift"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_mediation_covariate_shift"
-facets = ["core", "estimator.counterfactual_transport", "suite.counterfactual_transport_sampled_oracle"]
+facets = ["core", "estimator.counterfactual_transport", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.counterfactual_transport_sampled_oracle"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -12652,7 +12652,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::finite_scm_two_source_joint_counterfactual_transport"
 test = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs::sampled_two_source_joint"
-facets = ["core", "estimator.counterfactual_transport", "suite.counterfactual_transport_sampled_oracle"]
+facets = ["core", "estimator.counterfactual_transport", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.counterfactual_transport_sampled_oracle"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -20157,7 +20157,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/discovered_transport_calibration.rs::lagged_selection_on_autoregressive_z"
 test = "crates/antecedent/tests/discovered_transport_calibration.rs::discovered_temporal_transport_contrast_complete_procedure_coverage"
-facets = ["core", "estimator.discrete_ci", "estimator.transport", "estimator.transport_empirical", "identity.envelope", "suite.discovered_transport_calibration"]
+facets = ["core", "estimator.discovered_transport", "estimator.discrete_ci", "estimator.exact_transport", "estimator.pcmci_plus", "estimator.transport", "estimator.transport_empirical", "identity.catalog_transport", "identity.envelope", "identity.transport_selection", "suite.discovered_transport_calibration"]
 calibration_sha = "70a71dd33bc55cbc2398b0f91c4a2c797afad618"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 
@@ -20210,7 +20210,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/discovered_transport_calibration.rs::lag_two_selection_on_autoregressive_z_six_variables"
 test = "crates/antecedent/tests/discovered_transport_calibration.rs::discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage"
-facets = ["core", "estimator.discrete_ci", "estimator.transport", "estimator.transport_empirical", "identity.envelope", "suite.discovered_transport_calibration"]
+facets = ["core", "estimator.discovered_transport", "estimator.discrete_ci", "estimator.exact_transport", "estimator.pcmci_plus", "estimator.transport", "estimator.transport_empirical", "identity.catalog_transport", "identity.envelope", "identity.transport_selection", "suite.discovered_transport_calibration"]
 calibration_sha = "70a71dd33bc55cbc2398b0f91c4a2c797afad618"
 surface_list_blob = "c55f3821bc80c38cedfb7f8a8b139420823496fe"
 
@@ -20246,7 +20246,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/quadratic_dose_calibration.rs::randomized_uniform_quadratic_mean_gaussian_errors"
 test = "crates/antecedent-estimate/tests/quadratic_dose_calibration.rs::randomized_exact_quadratic_contrast_l95"
-facets = ["core", "estimator.quadratic_dose", "suite.quadratic_dose_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.quadratic_dose", "suite.quadratic_dose_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -20282,7 +20282,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/quadratic_dose_calibration.rs::randomized_uniform_quadratic_mean_gaussian_errors"
 test = "crates/antecedent-estimate/tests/quadratic_dose_calibration.rs::randomized_exact_quadratic_derivative_l95"
-facets = ["core", "estimator.quadratic_dose", "suite.quadratic_dose_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.quadratic_dose", "suite.quadratic_dose_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -20318,7 +20318,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/quadratic_dose_calibration.rs::randomized_uniform_quadratic_mean_gaussian_errors"
 test = "crates/antecedent-estimate/tests/quadratic_dose_calibration.rs::randomized_exact_quadratic_level_l95"
-facets = ["core", "estimator.quadratic_dose", "suite.quadratic_dose_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.quadratic_dose", "suite.quadratic_dose_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -20930,7 +20930,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::intervention_response_admg_bayesian_accepted_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -20966,7 +20966,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::intervention_response_admg_bayesian_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -21002,7 +21002,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::intervention_response_admg_graph_posterior_bayesian_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -21038,7 +21038,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::intervention_response_admg_bayesian_accepted_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -21074,7 +21074,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::intervention_response_admg_bayesian_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -21110,7 +21110,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::intervention_response_admg_graph_posterior_bayesian_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -21290,7 +21290,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::intervention_response_admg_frequentist_accepted_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -21326,7 +21326,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::intervention_response_admg_frequentist_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -21362,7 +21362,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::intervention_response_admg_graph_posterior_frequentist_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24134,7 +24134,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_admg.rs::interventional_distribution_admg_frontdoor_bayesian_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24170,7 +24170,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_admg.rs::interventional_distribution_admg_frontdoor_bayesian_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24206,7 +24206,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_distribution_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_distribution_admg.rs::interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_distribution_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_distribution_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24242,7 +24242,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_distribution_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_distribution_admg.rs::interventional_distribution_admg_frontdoor_frequentist_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_distribution_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_distribution_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24278,7 +24278,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_distribution_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_distribution_admg.rs::interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_distribution_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_distribution_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24314,7 +24314,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_distribution_admg.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_distribution_admg.rs::interventional_distribution_admg_frontdoor_frequentist_nominal_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_distribution_admg"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_distribution_admg"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24350,7 +24350,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::distribution_data"
 test = "crates/antecedent/tests/static_calibration.rs::interventional_distribution_bayesian_near_one_nominal_90_coverage"
-facets = ["core", "estimator.functional", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24386,7 +24386,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::distribution_data"
 test = "crates/antecedent/tests/static_calibration.rs::interventional_distribution_bayesian_near_zero_boundary_within_band"
-facets = ["core", "estimator.functional", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24422,7 +24422,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_bayesian_static.rs::distribution_data"
 test = "crates/antecedent/tests/calibration_bayesian_static.rs::interventional_distribution_dag_bayesian_near_one_default_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_bayesian_static"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_bayesian_static"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24458,7 +24458,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_bayesian_static.rs::distribution_data"
 test = "crates/antecedent/tests/calibration_bayesian_static.rs::interventional_distribution_dag_bayesian_near_zero_default_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_bayesian_static"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_bayesian_static"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24494,7 +24494,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::distribution_data"
 test = "crates/antecedent/tests/static_calibration.rs::interventional_distribution_bayesian_near_one_nominal_90_coverage"
-facets = ["core", "estimator.functional", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24530,7 +24530,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::distribution_data"
 test = "crates/antecedent/tests/static_calibration.rs::interventional_distribution_bayesian_near_zero_boundary_within_band"
-facets = ["core", "estimator.functional", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24566,7 +24566,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_bayesian_static.rs::distribution_data"
 test = "crates/antecedent/tests/calibration_bayesian_static.rs::interventional_distribution_dag_bayesian_near_one_default_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_bayesian_static"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_bayesian_static"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24602,7 +24602,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_bayesian_static.rs::distribution_data"
 test = "crates/antecedent/tests/calibration_bayesian_static.rs::interventional_distribution_dag_bayesian_near_zero_default_coverage"
-facets = ["core", "estimator.functional", "suite.calibration_bayesian_static"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.calibration_bayesian_static"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24638,7 +24638,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::distribution_data"
 test = "crates/antecedent/tests/static_calibration.rs::interventional_distribution_frequentist_interior_nominal_95_coverage"
-facets = ["core", "estimator.functional", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24674,7 +24674,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::distribution_data"
 test = "crates/antecedent/tests/static_calibration.rs::interventional_distribution_frequentist_near_one_nominal_95_coverage"
-facets = ["core", "estimator.functional", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -24710,7 +24710,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::distribution_data"
 test = "crates/antecedent/tests/static_calibration.rs::interventional_distribution_frequentist_near_zero_nominal_95_coverage"
-facets = ["core", "estimator.functional", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25481,7 +25481,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l90"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25517,7 +25517,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l90_draws_8000"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25553,7 +25553,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_measured_signal_l90"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25589,7 +25589,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_measured_signal_l90_draws_8000"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25625,7 +25625,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25661,7 +25661,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95_draws_8000"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25697,7 +25697,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95_rows_1000_draws_2000"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25733,7 +25733,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95_rows_1000_draws_3000"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25769,7 +25769,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95_rows_1000_draws_4000"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25805,7 +25805,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_confounded_signal_l95_rows_1000_draws_8000"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25841,7 +25841,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_measured_signal_l95"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25877,7 +25877,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::common_cause_z_of_s_and_y_with_declared_measured_signal_se_090_sp_085_evidence_m1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_measured_signal_l95_draws_8000"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25913,7 +25913,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::rare_conditioning_event_ps1_about_003_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_rare_evidence_boundary_l95"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -25949,7 +25949,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::rare_parent_configuration_pz1_004_counts_fitted_dirichlet_posterior_evidence_s1"
 test = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs::count_fitted_sparse_parent_configuration_boundary_l95"
-facets = ["core", "estimator.count_fitted_posterior", "suite.count_fitted_posterior_calibration"]
+facets = ["core", "estimator.count_fitted_posterior", "estimator.exact_transport", "identity.transport_selection", "suite.count_fitted_posterior_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26038,7 +26038,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::path_data"
 test = "crates/antecedent/tests/static_calibration.rs::path_specific_bayesian_nominal_90_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26074,7 +26074,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_bayesian_static.rs::path_data"
 test = "crates/antecedent/tests/calibration_bayesian_static.rs::path_specific_chain_bayesian_default_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.calibration_bayesian_static"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.calibration_bayesian_static"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26110,7 +26110,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_bayesian_static.rs::two_path_data"
 test = "crates/antecedent/tests/calibration_bayesian_static.rs::path_specific_two_path_bayesian_default_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.calibration_bayesian_static"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.calibration_bayesian_static"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26146,7 +26146,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::two_path_data"
 test = "crates/antecedent/tests/static_calibration.rs::path_specific_two_path_bayesian_nominal_90_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26182,7 +26182,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::path_data"
 test = "crates/antecedent/tests/static_calibration.rs::path_specific_bayesian_nominal_90_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26218,7 +26218,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_bayesian_static.rs::path_data"
 test = "crates/antecedent/tests/calibration_bayesian_static.rs::path_specific_chain_bayesian_default_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.calibration_bayesian_static"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.calibration_bayesian_static"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26254,7 +26254,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_bayesian_static.rs::two_path_data"
 test = "crates/antecedent/tests/calibration_bayesian_static.rs::path_specific_two_path_bayesian_default_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.calibration_bayesian_static"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.calibration_bayesian_static"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26290,7 +26290,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::two_path_data"
 test = "crates/antecedent/tests/static_calibration.rs::path_specific_two_path_bayesian_nominal_90_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26326,7 +26326,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::path_data"
 test = "crates/antecedent/tests/static_calibration.rs::path_specific_frequentist_nominal_90_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26362,7 +26362,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::two_path_data"
 test = "crates/antecedent/tests/static_calibration.rs::path_specific_two_path_frequentist_nominal_90_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26398,7 +26398,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::path_data"
 test = "crates/antecedent/tests/static_calibration.rs::path_specific_frequentist_nominal_90_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -26434,7 +26434,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/static_calibration.rs::two_path_data"
 test = "crates/antecedent/tests/static_calibration.rs::path_specific_two_path_frequentist_nominal_90_coverage"
-facets = ["core", "estimator.functional", "identity.path", "suite.static_calibration"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.path", "suite.static_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33162,7 +33162,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_confounded_missingness_scm"
 test = "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_missingness_whole_row_recovery_bca_l95"
-facets = ["core", "estimator.sampled_recovery", "suite.recovery_whole_method_calibration"]
+facets = ["core", "estimator.sampled_recovery", "identity.transport_selection", "suite.recovery_whole_method_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33198,7 +33198,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_bayesian_accepted_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33234,7 +33234,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_bayesian_accepted_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33270,7 +33270,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_bayesian_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33306,7 +33306,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_bayesian_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33342,7 +33342,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_graph_posterior_bayesian_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33378,7 +33378,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_graph_posterior_bayesian_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33414,7 +33414,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_frequentist_accepted_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33450,7 +33450,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_frequentist_accepted_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33486,7 +33486,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_frequentist_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33522,7 +33522,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_frequentist_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33558,7 +33558,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -33594,7 +33594,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/calibration_backlog.rs::response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage"
-facets = ["core", "estimator.functional", "identity.response", "suite.calibration_backlog"]
+facets = ["core", "estimator.exact_transport", "estimator.functional", "identity.response", "suite.calibration_backlog"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -55196,7 +55196,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_basic_l95"
-facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
+facets = ["core", "estimator.dependent_temporal_interval", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.temporal_recalc_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -55232,7 +55232,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_percentile_l95"
-facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
+facets = ["core", "estimator.dependent_temporal_interval", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.temporal_recalc_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -55268,7 +55268,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_effect_studentized_l95"
-facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
+facets = ["core", "estimator.dependent_temporal_interval", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.temporal_recalc_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -55304,7 +55304,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/temporal_recalc_calibration.rs::independent_units_binary_shared_shock_checked_adapter"
 test = "crates/antecedent/tests/temporal_recalc_calibration.rs::temporal_checked_response_studentized_l95"
-facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_recalc_calibration"]
+facets = ["core", "estimator.dependent_temporal_interval", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.temporal_recalc_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -55340,7 +55340,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/tests/temporal_unit_calibration.rs::independent_units_shared_shock_fixed_target"
 test = "crates/antecedent-estimate/tests/temporal_unit_calibration.rs::temporal_two_step_units_studentized_l95"
-facets = ["core", "estimator.dependent_temporal_interval", "suite.temporal_unit_calibration"]
+facets = ["core", "estimator.dependent_temporal_interval", "estimator.exact_transport", "identity.catalog_transport", "identity.transport_selection", "suite.temporal_unit_calibration"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -55376,7 +55376,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_design_bayesian.rs::transport_data_frozen_target"
 test = "crates/antecedent/tests/calibration_design_bayesian.rs::transport_query_admg_bayesian_bootstrap_nominal_coverage"
-facets = ["core", "estimator.transport", "suite.calibration_design_bayesian"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "identity.catalog_transport", "identity.transport_selection", "suite.calibration_design_bayesian"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -55412,7 +55412,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_design_bayesian.rs::transport_data_frozen_target"
 test = "crates/antecedent/tests/calibration_design_bayesian.rs::transport_query_admg_bayesian_bootstrap_nominal_coverage"
-facets = ["core", "estimator.transport", "suite.calibration_design_bayesian"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "identity.catalog_transport", "identity.transport_selection", "suite.calibration_design_bayesian"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -55448,7 +55448,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_design.rs::transport_data"
 test = "crates/antecedent/tests/calibration_design.rs::transport_admg_trial_ipw_frequentist_nominal_coverage"
-facets = ["core", "estimator.transport", "suite.calibration_design"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "identity.catalog_transport", "identity.transport_selection", "suite.calibration_design"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
@@ -55484,7 +55484,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/calibration_design.rs::transport_data"
 test = "crates/antecedent/tests/calibration_design.rs::transport_admg_trial_ipw_frequentist_nominal_coverage"
-facets = ["core", "estimator.transport", "suite.calibration_design"]
+facets = ["core", "estimator.exact_transport", "estimator.transport", "identity.catalog_transport", "identity.transport_selection", "suite.calibration_design"]
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 surface_list_blob = "47de97e600d2550fde773d150015045105d81be5"
 
