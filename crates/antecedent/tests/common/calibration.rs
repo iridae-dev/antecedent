@@ -271,15 +271,15 @@ pub fn grid_salt() -> u64 {
 }
 
 /// Fresh validation seed for generators outside this module. Historical runs
-/// retain their exact seeds; registered validation uses one source-fixed domain.
+/// retain their exact seeds; registered validation uses its source-fixed domain.
 #[must_use]
 pub fn validation_seed(seed: u64) -> u64 {
-    let salt = if decision::from_environment().is_some() {
+    let salt = if let Some(config) = decision::from_environment() {
         assert!(
             !confirmation(),
             "independent confirmation is not a registered family-wise coverage look"
         );
-        decision::VALIDATION_SALT
+        config.validation_salt().expect("validated registered domain")
     } else {
         0
     };

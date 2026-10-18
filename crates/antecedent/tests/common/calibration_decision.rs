@@ -15,6 +15,9 @@ pub const ID: &str = "suite_coverage_fwer.v1";
 pub const VALIDATION_DOMAIN: &str = "release_2_4_1_validation_v1";
 /// SHA256 of the UTF-8 validation domain, first eight bytes interpreted little-endian.
 pub const VALIDATION_SALT: u64 = 0xE1FC_1261_2A1E_C540;
+pub const HC3_VALIDATION_DOMAIN: &str = "release_2_4_1_weighted_hc3_validation_v1";
+/// SHA256 of the HC3 validation domain, first eight bytes interpreted little-endian.
+pub const HC3_VALIDATION_SALT: u64 = 0xDD5E_E217_1F1D_846C;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -52,9 +55,18 @@ pub struct Decision {
 }
 
 impl Config {
+    /// A registered domain fixes its random stream before any validation outcomes.
+    pub fn validation_salt(&self) -> Option<u64> {
+        match self.validation_domain.as_str() {
+            VALIDATION_DOMAIN => Some(VALIDATION_SALT),
+            HC3_VALIDATION_DOMAIN => Some(HC3_VALIDATION_SALT),
+            _ => None,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.id != ID
-            || self.validation_domain != VALIDATION_DOMAIN
+            || self.validation_salt().is_none()
             || self.family_alpha.to_bits() != 0.05_f64.to_bits()
         {
             return Err("unknown coverage decision protocol or family risk");
@@ -189,6 +201,22 @@ mod tests {
                 Look { planned_replicates: 2000, weight: 0.25 },
                 Look { planned_replicates: 20000, weight: 0.25 },
             ],
+        }
+    }
+
+    #[test]
+    fn registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_closed() {
+        let mut c = config();
+        assert_eq!(c.validation_salt(), Some(0xE1FC_1261_2A1E_C540));
+        assert!(c.validate().is_ok());
+        c.validation_domain = HC3_VALIDATION_DOMAIN.into();
+        assert_eq!(c.validation_salt(), Some(0xDD5E_E217_1F1D_846C));
+        assert!(c.validate().is_ok());
+        assert_ne!(VALIDATION_SALT, HC3_VALIDATION_SALT);
+        for unknown in ["", "release_2_4_1_weighted_hc3_validation_v2", "arbitrary_retry"] {
+            c.validation_domain = unknown.into();
+            assert_eq!(c.validation_salt(), None);
+            assert!(c.validate().is_err());
         }
     }
 
