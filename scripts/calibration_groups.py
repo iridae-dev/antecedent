@@ -187,7 +187,28 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
         return False
     if group.head == "sample_split_parent_set_effect_calibration":
         return ".discovery_fraction_0_75" in str(record.get("functional", ""))
+    protocol = current_group_protocol(group)
+    if protocol:
+        if protocol not in str(record.get("functional", "")):
+            return False
+        if protocol == "weighting=balanced_linear_hc3":
+            return record.get("interval_method") == "balanced_population_score"
     return True
+
+
+def current_group_protocol(group: Group) -> str | None:
+    """Construction identity required before old test names count as measured."""
+    if group.head == "weighted_interval_calibration":
+        return {
+            "weighted_matching_interval": "matching=population_linear",
+            "weighted_distance_matching_interval": "matching=population_linear",
+            "weighted_stratification_interval": "stratification=regression_linear_hc3",
+            "weighted_ipw_hajek_interval": "weighting=balanced_linear_hc3",
+            "weighted_ipw_hajek_cluster_interval": "weighting=balanced_linear_hc3",
+        }.get(group.test_filter)
+    if group.head == "knn_matching_calibration" and group.test_filter == "knn_matching_interval_ci_coverage":
+        return "population_linear"
+    return None
 
 
 @cache
@@ -262,16 +283,24 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
     records = facets.load_records()
     if missing_only:
         ledger = tomllib.loads(GATE_REGISTRY.read_text(encoding="utf-8")) if GATE_REGISTRY.is_file() else {}
-        passed = {str(row["group"]) for row in ledger.get("gate", []) if int(row.get("passed", 0)) > 0}
+        passed = {str(row["group"]): row for row in ledger.get("gate", []) if int(row.get("passed", 0)) > 0}
         chosen = []
         reasons = {}
         for group in groups:
             if any(measures_current_protocol(group, rec) for rec in records):
                 continue
             names = [group.safe + ("" if point is None else f".p{point}") for point in group.points]
-            # Legacy recordless rows do not prove the new parent's explicit
-            # version-2 construction. Every parent group must emit its v2 record.
-            if group.head != "sample_split_parent_set_effect_calibration" and all(name in passed for name in names):
+            # A repeated test name does not prove a revised construction. Parent
+            # and weighted record emitters must carry their current identity;
+            # recordless KNN must have emitted its explicit protocol marker.
+            protocol = current_group_protocol(group)
+            record_required = group.head == "sample_split_parent_set_effect_calibration" or (
+                group.head == "weighted_interval_calibration" and protocol is not None
+            )
+            if not record_required and all(
+                name in passed and (protocol is None or passed[name].get("protocol") == protocol)
+                for name in names
+            ):
                 continue
             chosen.append(group)
             reasons[group.index] = "no coverage record or complete passed gate ledger"

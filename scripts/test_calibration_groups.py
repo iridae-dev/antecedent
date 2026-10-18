@@ -98,6 +98,42 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             with patch.dict(sys.modules, {"calibration_facets": facets}), patch.object(groups, "GATE_REGISTRY", ledger):
                 self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
 
+    def test_upgraded_weighted_protocols_require_new_records_despite_old_gate_success(self) -> None:
+        for name, marker in (
+            ("weighted_matching_interval", "matching=population_linear"),
+            ("weighted_distance_matching_interval", "matching=population_linear"),
+            ("weighted_stratification_interval", "stratification=regression_linear_hc3"),
+            ("weighted_ipw_hajek_interval", "weighting=balanced_linear_hc3"),
+            ("weighted_ipw_hajek_cluster_interval", "weighting=balanced_linear_hc3"),
+        ):
+            group = groups.Group(1, f"weighted_interval_calibration: {name}", False, True)
+            old = {"id": "old", "test": f"crates/antecedent/tests/weighted_interval_calibration.rs::{name}",
+                   "functional": "all_observed.mean", "interval_method": "analytic_se"}
+            new = {**old, "id": "new", "functional": old["functional"] + "+" + marker,
+                   "interval_method": "balanced_population_score" if "weighting=" in marker else "analytic_se"}
+            ledger = self.root / "weighted-gates.toml"
+            ledger.write_text("".join(f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\n'
+                                      for point in range(3)))
+            self.assertTrue(groups.measures(group.head, group.test_filter, old))
+            for records, expected in (([old], [group]), ([old, new], [])):
+                with self.subTest(name=name, current=len(records) == 2), patch.dict(
+                    sys.modules, {"calibration_facets": SimpleNamespace(load_records=lambda: records)}
+                ), patch.object(groups, "GATE_REGISTRY", ledger):
+                    self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
+            if "weighting=" in marker:
+                self.assertFalse(groups.measures_current_protocol(group, {**new, "interval_method": "analytic_se"}))
+
+    def test_recordless_knn_requires_protocol_marker_at_every_grid_point(self) -> None:
+        group = groups.Group(1, "knn_matching_calibration: knn_matching_interval_ci_coverage", False, True)
+        ledger = self.root / "knn-gates.toml"
+        for markers, expected in ((0, [group]), (2, [group]), (3, [])):
+            ledger.write_text("".join(f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\n' +
+                                      ('protocol="population_linear"\n' if point < markers else '')
+                                      for point in range(3)))
+            with patch.dict(sys.modules, {"calibration_facets": SimpleNamespace(load_records=lambda: [])}), \
+                 patch.object(groups, "GATE_REGISTRY", ledger):
+                self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
+
     def test_prebuild_groups_actual_package_targets_and_retains_lib_commands(self) -> None:
         candidates = self.candidates() + [groups.Group(8, "nested_bayesian: another", False, True)]
         with patch.object(groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:

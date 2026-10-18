@@ -568,6 +568,12 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
             "passed": passed,
             "calibration_sha": sha,
         }
+        protocols = {line.removeprefix("CALIBRATION_GATE_PROTOCOL ").strip()
+                     for line in text.splitlines() if line.startswith("CALIBRATION_GATE_PROTOCOL ")}
+        if protocols:
+            if len(protocols) != 1 or not re.fullmatch(r"[a-z][a-z0-9_]*", next(iter(protocols))):
+                raise SystemExit(f"{log.name}: invalid or conflicting calibration protocol markers")
+            rows[log.name.removesuffix(".log")]["protocol"] = next(iter(protocols))
     return rows
 
 
@@ -581,8 +587,10 @@ def write_gate_ledger(rows: dict[str, dict], keep: dict[str, dict] | None = None
             f"group = {toml_value('group', group)}",
             f"passed = {int(row['passed'])}",
             f"calibration_sha = {toml_value('calibration_sha', row['calibration_sha'])}",
-            "",
         ]
+        if "protocol" in row:
+            lines.append(f"protocol = {toml_value('protocol', row['protocol'])}")
+        lines.append("")
     write_text(GATES, "\n".join(lines))
 
 

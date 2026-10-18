@@ -752,5 +752,26 @@ class FourPointRangeTest(unittest.TestCase):
         self.assertIsNone(collector.confirmed_passing_range(three, self.confirmed((0, 2))))
 
 
+class GateProtocolTest(unittest.TestCase):
+    def test_marker_is_observed_in_log_never_inferred_and_survives_ledger_merge(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old, new = root / "old.log", root / "new.log"
+            passed = "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n"
+            old.write_text(passed)
+            new.write_text("CALIBRATION_GATE_PROTOCOL population_linear\n" + passed)
+            rows = collector.gate_ledger([old, new], "a" * 40)
+            self.assertNotIn("protocol", rows["old"])
+            self.assertEqual(rows["new"]["protocol"], "population_linear")
+            ledger = root / "gates.toml"
+            with patch.object(collector, "GATES", ledger):
+                collector.write_gate_ledger({"old": rows["old"]}, {"new": rows["new"]})
+            parsed = {row["group"]: row for row in collector.tomllib.loads(ledger.read_text())["gate"]}
+            self.assertEqual(parsed, rows)
+            new.write_text("CALIBRATION_GATE_PROTOCOL population_linear\nCALIBRATION_GATE_PROTOCOL other\n" + passed)
+            with self.assertRaisesRegex(SystemExit, "conflicting"):
+                collector.gate_ledger([new], "a" * 40)
+
+
 if __name__ == "__main__":
     unittest.main()
