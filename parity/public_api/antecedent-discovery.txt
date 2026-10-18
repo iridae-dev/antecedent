@@ -122,6 +122,8 @@ impl core::clone::Clone for antecedent_discovery::SpaceDummyCiMode
 impl core::clone::Clone for antecedent_discovery::StructureMcmc
 impl core::clone::Clone for antecedent_discovery::TemporalConstraints
 impl core::clone::Clone for antecedent_discovery::TimeDummyCiMode
+impl core::clone::Clone for antecedent_discovery::conflict_resolution::ConflictResolution
+impl core::clone::Clone for antecedent_discovery::conflict_resolution::IncidentOrientation
 impl core::clone::Clone for antecedent_discovery::graph_posterior::GraphMcmcRun
 impl core::clone::Clone for antecedent_discovery::selective::CiTestSpec
 impl core::clone::Clone for antecedent_discovery::selective::DataIdentity
@@ -177,6 +179,8 @@ impl core::cmp::Eq for antecedent_discovery::PossibleDSepBudget
 impl core::cmp::Eq for antecedent_discovery::RegimeAssignment
 impl core::cmp::Eq for antecedent_discovery::SpaceDummyCiMode
 impl core::cmp::Eq for antecedent_discovery::TimeDummyCiMode
+impl core::cmp::Eq for antecedent_discovery::conflict_resolution::ConflictResolution
+impl core::cmp::Eq for antecedent_discovery::conflict_resolution::IncidentOrientation
 impl core::cmp::Eq for antecedent_discovery::selective::DataIdentity
 impl core::cmp::Eq for antecedent_discovery::selective::DiscoveredStructure
 impl core::cmp::Eq for antecedent_discovery::selective::DiscoveredStructureRefusal
@@ -227,6 +231,8 @@ impl core::cmp::PartialEq for antecedent_discovery::RegimeAssignment
 impl core::cmp::PartialEq for antecedent_discovery::ScoredLink
 impl core::cmp::PartialEq for antecedent_discovery::SpaceDummyCiMode
 impl core::cmp::PartialEq for antecedent_discovery::TimeDummyCiMode
+impl core::cmp::PartialEq for antecedent_discovery::conflict_resolution::ConflictResolution
+impl core::cmp::PartialEq for antecedent_discovery::conflict_resolution::IncidentOrientation
 impl core::cmp::PartialEq for antecedent_discovery::selective::DataIdentity
 impl core::cmp::PartialEq for antecedent_discovery::selective::DiscoveredStructure
 impl core::cmp::PartialEq for antecedent_discovery::selective::DiscoveredStructureRefusal
@@ -314,6 +320,7 @@ impl core::default::Default for antecedent_discovery::SpaceDummyCiMode
 impl core::default::Default for antecedent_discovery::StructureMcmc
 impl core::default::Default for antecedent_discovery::TemporalConstraints
 impl core::default::Default for antecedent_discovery::TimeDummyCiMode
+impl core::default::Default for antecedent_discovery::conflict_resolution::IncidentOrientation
 impl core::default::Default for antecedent_discovery::selective::OrientationWork
 impl core::default::Default for antecedent_discovery::selective::StaticSelectiveDiscovery
 impl core::default::Default for antecedent_discovery::selective::StatisticStore
@@ -390,6 +397,8 @@ impl core::fmt::Debug for antecedent_discovery::SpaceDummyCiMode
 impl core::fmt::Debug for antecedent_discovery::StructureMcmc
 impl core::fmt::Debug for antecedent_discovery::TemporalConstraints
 impl core::fmt::Debug for antecedent_discovery::TimeDummyCiMode
+impl core::fmt::Debug for antecedent_discovery::conflict_resolution::ConflictResolution
+impl core::fmt::Debug for antecedent_discovery::conflict_resolution::IncidentOrientation
 impl core::fmt::Debug for antecedent_discovery::graph_posterior::GraphMcmcRun
 impl core::fmt::Debug for antecedent_discovery::selective::CiTestSpec
 impl core::fmt::Debug for antecedent_discovery::selective::DataIdentity
@@ -554,6 +563,8 @@ impl core::marker::Freeze for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Freeze for antecedent_discovery::StructureMcmc [auto]
 impl core::marker::Freeze for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Freeze for antecedent_discovery::TimeDummyCiMode [auto]
+impl core::marker::Freeze for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
+impl core::marker::Freeze for antecedent_discovery::conflict_resolution::IncidentOrientation [auto]
 impl core::marker::Freeze for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::CiTestSpec [auto]
 impl core::marker::Freeze for antecedent_discovery::selective::DataIdentity [auto]
@@ -656,6 +667,8 @@ impl core::marker::Send for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Send for antecedent_discovery::StructureMcmc [auto]
 impl core::marker::Send for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Send for antecedent_discovery::TimeDummyCiMode [auto]
+impl core::marker::Send for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
+impl core::marker::Send for antecedent_discovery::conflict_resolution::IncidentOrientation [auto]
 impl core::marker::Send for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::marker::Send for antecedent_discovery::selective::CiTestSpec [auto]
 impl core::marker::Send for antecedent_discovery::selective::DataIdentity [auto]
@@ -719,6 +732,8 @@ impl core::marker::StructuralPartialEq for antecedent_discovery::RegimeAssignmen
 impl core::marker::StructuralPartialEq for antecedent_discovery::ScoredLink
 impl core::marker::StructuralPartialEq for antecedent_discovery::SpaceDummyCiMode
 impl core::marker::StructuralPartialEq for antecedent_discovery::TimeDummyCiMode
+impl core::marker::StructuralPartialEq for antecedent_discovery::conflict_resolution::ConflictResolution
+impl core::marker::StructuralPartialEq for antecedent_discovery::conflict_resolution::IncidentOrientation
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::DataIdentity
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::DiscoveredStructure
 impl core::marker::StructuralPartialEq for antecedent_discovery::selective::DiscoveredStructureRefusal
@@ -810,6 +825,8 @@ impl core::marker::Sync for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Sync for antecedent_discovery::StructureMcmc [auto]
 impl core::marker::Sync for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Sync for antecedent_discovery::TimeDummyCiMode [auto]
+impl core::marker::Sync for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
+impl core::marker::Sync for antecedent_discovery::conflict_resolution::IncidentOrientation [auto]
 impl core::marker::Sync for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::marker::Sync for antecedent_discovery::selective::CiTestSpec [auto]
 impl core::marker::Sync for antecedent_discovery::selective::DataIdentity [auto]
@@ -917,6 +934,8 @@ impl core::marker::Unpin for antecedent_discovery::SpaceDummyCiMode [auto]
 impl core::marker::Unpin for antecedent_discovery::StructureMcmc [auto]
 impl core::marker::Unpin for antecedent_discovery::TemporalConstraints [auto]
 impl core::marker::Unpin for antecedent_discovery::TimeDummyCiMode [auto]
+impl core::marker::Unpin for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
+impl core::marker::Unpin for antecedent_discovery::conflict_resolution::IncidentOrientation [auto]
 impl core::marker::Unpin for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::CiTestSpec [auto]
 impl core::marker::Unpin for antecedent_discovery::selective::DataIdentity [auto]
@@ -1013,6 +1032,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::SpaceDumm
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::StructureMcmc [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::TemporalConstraints [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::TimeDummyCiMode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::conflict_resolution::IncidentOrientation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::DataIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::selective::DiscoveredStructure [auto]
@@ -1104,6 +1125,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::SpaceDummyCi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::StructureMcmc [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::TemporalConstraints [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::TimeDummyCiMode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::conflict_resolution::ConflictResolution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::conflict_resolution::IncidentOrientation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::graph_posterior::GraphMcmcRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::DataIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::selective::DiscoveredStructure [auto]
@@ -1175,6 +1198,7 @@ pub const <antecedent_discovery::selective::DiscoveryStage>::ALL: [Self; 4]
 pub const antecedent_discovery::EXACT_ENUM_MAX_NODES: usize
 pub const antecedent_discovery::EXACT_MARGINAL_MAX_NODES: usize
 pub const antecedent_discovery::MAX_POSTERIOR_NODES: usize
+pub const antecedent_discovery::conflict_resolution::MAX_IMPLICATED_COLLIDERS: usize
 pub const antecedent_discovery::graph_mcmc::DEFAULT_TEMPERATURES: [f64; 4]
 pub const antecedent_discovery::selective::DEFAULT_STORE_CAPACITY: usize
 pub const antecedent_discovery::selective::MAX_PORTABLE_RECEIPTS: usize
@@ -1193,6 +1217,7 @@ pub enum antecedent_discovery::KnowledgeFault
 pub enum antecedent_discovery::KnowledgeScope
 pub enum antecedent_discovery::SpaceDummyCiMode
 pub enum antecedent_discovery::TimeDummyCiMode
+pub enum antecedent_discovery::conflict_resolution::ConflictResolution
 pub enum antecedent_discovery::selective::CiTestSpec
 pub enum antecedent_discovery::selective::DiscoveryStage
 pub enum antecedent_discovery::selective::Mark
@@ -1406,6 +1431,9 @@ pub field antecedent_discovery::StructureMcmc::temperatures: alloc::vec::Vec<f64
 pub field antecedent_discovery::StructureMcmc::thin: u32
 pub field antecedent_discovery::TemporalConstraints::max_lag: antecedent_core::ids::Lag
 pub field antecedent_discovery::TemporalConstraints::min_lag: antecedent_core::ids::Lag
+pub field antecedent_discovery::conflict_resolution::IncidentOrientation::children: alloc::vec::Vec<u32>
+pub field antecedent_discovery::conflict_resolution::IncidentOrientation::parents: alloc::vec::Vec<u32>
+pub field antecedent_discovery::conflict_resolution::IncidentOrientation::undirected: alloc::vec::Vec<u32>
 pub field antecedent_discovery::graph_posterior::GraphMcmcRun::chains_moved: bool
 pub field antecedent_discovery::graph_posterior::GraphMcmcRun::converged: bool
 pub field antecedent_discovery::graph_posterior::GraphMcmcRun::ess_bulk_min: f64
@@ -1870,6 +1898,7 @@ pub fn antecedent_discovery::adjacency_mask_from_cpdag(cpdag: &antecedent_graph:
 pub fn antecedent_discovery::adjacency_masks_from_pag(pag: &antecedent_graph::pag::Pag) -> core::result::Result<(u64, u64), antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::admg_from_adjacency_mask(mask: u64, n_vars: usize) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::combinations::combinations(items: &[(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)], k: usize) -> alloc::vec::Vec<alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::Lag)>>
+pub fn antecedent_discovery::conflict_resolution::resolve_incident_orientation(graph: &antecedent_graph::cpdag::Cpdag, sepsets: &antecedent_discovery::PcSepsets, constraints: &antecedent_discovery::DiscoveryConstraints, variables: &[antecedent_core::ids::VariableId], node: antecedent_core::ids::VariableId, max_implicated: usize) -> core::result::Result<antecedent_discovery::conflict_resolution::ConflictResolution, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::cpdag_from_adjacency_mask(mask: u64, n_vars: usize) -> core::result::Result<antecedent_graph::cpdag::Cpdag, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::dag_from_adjacency_mask(mask: u64, n_vars: usize) -> core::result::Result<antecedent_graph::dag::Dag, antecedent_discovery::DiscoveryError>
 pub fn antecedent_discovery::dbn_posterior::temporal_cpdag_from_dbn_atoms(cmask: impl core::convert::Into<antecedent_discovery::AdjacencyMask>, lmask: u64, n_vars: usize, max_lag: u32, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::cpdag::TemporalCpdag, antecedent_discovery::DiscoveryError>
@@ -1913,6 +1942,7 @@ pub mod antecedent_discovery::adjacency_mask
 pub mod antecedent_discovery::ci
 pub mod antecedent_discovery::ci_screened_posterior
 pub mod antecedent_discovery::combinations
+pub mod antecedent_discovery::conflict_resolution
 pub mod antecedent_discovery::constraints
 pub mod antecedent_discovery::dbn_posterior
 pub mod antecedent_discovery::discriminating_paths
@@ -2024,6 +2054,7 @@ pub struct antecedent_discovery::SamplingSummary
 pub struct antecedent_discovery::ScoredLink
 pub struct antecedent_discovery::StructureMcmc
 pub struct antecedent_discovery::TemporalConstraints
+pub struct antecedent_discovery::conflict_resolution::IncidentOrientation
 pub struct antecedent_discovery::graph_posterior::GraphMcmcRun
 pub struct antecedent_discovery::selective::DataIdentity
 pub struct antecedent_discovery::selective::DiscoveredStructure
@@ -2334,6 +2365,10 @@ pub variant antecedent_discovery::SpaceDummyCiMode::MultivariateBlock
 pub variant antecedent_discovery::SpaceDummyCiMode::ScalarOneHot
 pub variant antecedent_discovery::TimeDummyCiMode::MultivariateBlock
 pub variant antecedent_discovery::TimeDummyCiMode::ScalarOneHot
+pub variant antecedent_discovery::conflict_resolution::ConflictResolution::BudgetExceeded { implicated: usize, budget: usize }
+pub variant antecedent_discovery::conflict_resolution::ConflictResolution::Invariant(antecedent_discovery::conflict_resolution::IncidentOrientation)
+pub variant antecedent_discovery::conflict_resolution::ConflictResolution::Unresolvable
+pub variant antecedent_discovery::conflict_resolution::ConflictResolution::Varies
 pub variant antecedent_discovery::selective::CiTestSpec::Declared { identity: alloc::string::String, test: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync> }
 pub variant antecedent_discovery::selective::CiTestSpec::Named(alloc::string::String)
 pub variant antecedent_discovery::selective::DiscoveryStage::GraphOutput

@@ -3713,13 +3713,17 @@ impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_do
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
 impl<'a> core::clone::Clone for antecedent_io::ModelBundleEncode<'a>
+impl<'a> core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
 impl<'a> core::clone::Clone for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
 impl<'a> core::fmt::Debug for antecedent_io::ModelBundleEncode<'a>
+impl<'a> core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
 impl<'a> core::fmt::Debug for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
+impl<'a> core::marker::Copy for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
 impl<'a> core::marker::Copy for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
 impl<'a> core::marker::Freeze for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3729,6 +3733,7 @@ impl<'a> core::marker::Freeze for antecedent_io::temporal_refresh_artifact::Refr
 impl<'a> core::marker::Send for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3738,6 +3743,7 @@ impl<'a> core::marker::Send for antecedent_io::temporal_refresh_artifact::Refres
 impl<'a> core::marker::Sync for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3747,6 +3753,7 @@ impl<'a> core::marker::Sync for antecedent_io::temporal_refresh_artifact::Refres
 impl<'a> core::marker::Unpin for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3755,6 +3762,7 @@ impl<'a> core::marker::Unpin for antecedent_io::smoothed_dose_artifact::Smoothed
 impl<'a> core::marker::Unpin for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -3762,6 +3770,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_reco
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_artifact::MixedSourceArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
@@ -4087,8 +4096,10 @@ pub const antecedent_io::measured_inference::split_effect::SPLIT_DEPENDENCE: &st
 pub const antecedent_io::measured_inference::split_effect::SPLIT_EFFECT_ROUTE: &str
 pub const antecedent_io::measured_inference::split_effect::SPLIT_STRUCTURE: &str
 pub const antecedent_io::measured_inference::split_parent_set_effect::ACCEPTANCE: &str
+pub const antecedent_io::measured_inference::split_parent_set_effect::DISCOVERY_FRACTION: f64
 pub const antecedent_io::measured_inference::split_parent_set_effect::LINEAR_ESTIMATOR: &str
 pub const antecedent_io::measured_inference::split_parent_set_effect::LOG_LINEAR_ESTIMATOR: &str
+pub const antecedent_io::measured_inference::split_parent_set_effect::MAX_CONFLICTING_COLLIDERS: usize
 pub const antecedent_io::measured_inference::split_parent_set_effect::MAX_VARIABLES: usize
 pub const antecedent_io::measured_inference::split_parent_set_effect::MEAN_RATIO: &str
 pub const antecedent_io::measured_inference::split_parent_set_effect::MIN_VARIABLES: usize
@@ -5060,11 +5071,16 @@ pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::ou
 pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::split_seed: u64
 pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::treatment: u32
 pub field antecedent_io::measured_inference::split_effect::SplitEffectSource::version: u32
+pub field antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence::constraints: &'a antecedent_discovery::constraints::DiscoveryConstraints
+pub field antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence::graph: &'a antecedent_graph::cpdag::Cpdag
+pub field antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence::sepsets: &'a antecedent_discovery::result::PcSepsets
+pub field antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence::variables: &'a [antecedent_core::ids::VariableId]
 pub field antecedent_io::measured_inference::split_parent_set_effect::Knowledge::forbidden: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io::measured_inference::split_parent_set_effect::Knowledge::required: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io::measured_inference::split_parent_set_effect::Knowledge::tiers: alloc::vec::Vec<alloc::vec::Vec<u32>>
 pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::analysis_rows: u64
 pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::coefficient: antecedent_io::measured_inference::split_effect::AdjustedEffect
+pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::discovery_fraction: f64
 pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::discovery_rows: u64
 pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::knowledge: alloc::string::String
 pub field antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun::log_shift: core::option::Option<f64>
@@ -6747,6 +6763,7 @@ pub fn antecedent_io::measured_inference::split_parent_set_effect::governing_top
 pub fn antecedent_io::measured_inference::split_parent_set_effect::measure(source_bytes: &[u8], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_parent_set_effect::run(source: &antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, names: &[alloc::string::String], treatment: u32, outcome: u32) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set_under_conflicts(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, evidence: &antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'_>, names: &[alloc::string::String], treatment: u32, outcome: u32, max_colliders: usize) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
 pub fn antecedent_io::msm_sensitivity_adapter::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
@@ -6935,6 +6952,7 @@ pub struct antecedent_io::measured_inference::count_fitted_interval::CountFitted
 pub struct antecedent_io::measured_inference::split_effect::AdjustedEffect
 pub struct antecedent_io::measured_inference::split_effect::SplitEffectRun
 pub struct antecedent_io::measured_inference::split_effect::SplitEffectSource
+pub struct antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
 pub struct antecedent_io::measured_inference::split_parent_set_effect::Knowledge
 pub struct antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectRun
 pub struct antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource

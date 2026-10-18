@@ -68,6 +68,7 @@ impl core::clone::Clone for antecedent_estimate::AnalyticSe
 impl core::clone::Clone for antecedent_estimate::AnalyticSeKind
 impl core::clone::Clone for antecedent_estimate::ArmSummary
 impl core::clone::Clone for antecedent_estimate::AtomUncertainty
+impl core::clone::Clone for antecedent_estimate::BalancedWeightingInterval
 impl core::clone::Clone for antecedent_estimate::BayesianBackendKind
 impl core::clone::Clone for antecedent_estimate::BayesianGCompWorkspace
 impl core::clone::Clone for antecedent_estimate::BayesianGComputationAte
@@ -213,6 +214,7 @@ impl core::clone::Clone for antecedent_estimate::OverlapReport
 impl core::clone::Clone for antecedent_estimate::PenalizedReport
 impl core::clone::Clone for antecedent_estimate::PenalizedVarianceReport
 impl core::clone::Clone for antecedent_estimate::PointwiseCateEstimate
+impl core::clone::Clone for antecedent_estimate::PopulationLinearVariance
 impl core::clone::Clone for antecedent_estimate::PreparedBayesianProblem
 impl core::clone::Clone for antecedent_estimate::PreparedEstimationProblem
 impl core::clone::Clone for antecedent_estimate::PreparedFrontDoorProblem
@@ -521,6 +523,8 @@ impl core::clone::Clone for antecedent_estimate::policy_value::PolicyValueInterv
 impl core::clone::Clone for antecedent_estimate::policy_value::PolicyValueScores
 impl core::clone::Clone for antecedent_estimate::policy_value::ScoreBinUplift
 impl core::clone::Clone for antecedent_estimate::policy_value::UpliftBinScore
+impl core::clone::Clone for antecedent_estimate::population_aipw::PopulationAipwInterval
+impl core::clone::Clone for antecedent_estimate::population_atc::PopulationAtcInterval
 impl core::clone::Clone for antecedent_estimate::posterior_mean::DirichletNamespace
 impl core::clone::Clone for antecedent_estimate::posterior_mean::LocalQuadraticNamespace
 impl core::clone::Clone for antecedent_estimate::posterior_mean::PosteriorRequest
@@ -1339,6 +1343,7 @@ impl core::fmt::Debug for antecedent_estimate::AnalyticSe
 impl core::fmt::Debug for antecedent_estimate::AnalyticSeKind
 impl core::fmt::Debug for antecedent_estimate::ArmSummary
 impl core::fmt::Debug for antecedent_estimate::AtomUncertainty
+impl core::fmt::Debug for antecedent_estimate::BalancedWeightingInterval
 impl core::fmt::Debug for antecedent_estimate::BayesianBackendKind
 impl core::fmt::Debug for antecedent_estimate::BayesianGCompWorkspace
 impl core::fmt::Debug for antecedent_estimate::BayesianGComputationAte
@@ -1485,6 +1490,7 @@ impl core::fmt::Debug for antecedent_estimate::OverlapReport
 impl core::fmt::Debug for antecedent_estimate::PenalizedReport
 impl core::fmt::Debug for antecedent_estimate::PenalizedVarianceReport
 impl core::fmt::Debug for antecedent_estimate::PointwiseCateEstimate
+impl core::fmt::Debug for antecedent_estimate::PopulationLinearVariance
 impl core::fmt::Debug for antecedent_estimate::PreparedBayesianProblem
 impl core::fmt::Debug for antecedent_estimate::PreparedEstimationProblem
 impl core::fmt::Debug for antecedent_estimate::PreparedFrontDoorProblem
@@ -1795,6 +1801,8 @@ impl core::fmt::Debug for antecedent_estimate::policy_value::PolicyValueInterval
 impl core::fmt::Debug for antecedent_estimate::policy_value::PolicyValueScores
 impl core::fmt::Debug for antecedent_estimate::policy_value::ScoreBinUplift
 impl core::fmt::Debug for antecedent_estimate::policy_value::UpliftBinScore
+impl core::fmt::Debug for antecedent_estimate::population_aipw::PopulationAipwInterval
+impl core::fmt::Debug for antecedent_estimate::population_atc::PopulationAtcInterval
 impl core::fmt::Debug for antecedent_estimate::posterior_mean::DirichletNamespace
 impl core::fmt::Debug for antecedent_estimate::posterior_mean::LocalQuadraticNamespace
 impl core::fmt::Debug for antecedent_estimate::posterior_mean::PosteriorRequest
@@ -2121,6 +2129,7 @@ impl core::marker::Freeze for antecedent_estimate::AnalyticSe [auto]
 impl core::marker::Freeze for antecedent_estimate::AnalyticSeKind [auto]
 impl core::marker::Freeze for antecedent_estimate::ArmSummary [auto]
 impl core::marker::Freeze for antecedent_estimate::AtomUncertainty [auto]
+impl core::marker::Freeze for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::BayesianBackendKind [auto]
 impl core::marker::Freeze for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::marker::Freeze for antecedent_estimate::BayesianGComputationAte [auto]
@@ -2266,6 +2275,7 @@ impl core::marker::Freeze for antecedent_estimate::OverlapReport [auto]
 impl core::marker::Freeze for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Freeze for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Freeze for antecedent_estimate::PointwiseCateEstimate [auto]
+impl core::marker::Freeze for antecedent_estimate::PopulationLinearVariance [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -2575,6 +2585,8 @@ impl core::marker::Freeze for antecedent_estimate::policy_value::PolicyValueInte
 impl core::marker::Freeze for antecedent_estimate::policy_value::PolicyValueScores [auto]
 impl core::marker::Freeze for antecedent_estimate::policy_value::ScoreBinUplift [auto]
 impl core::marker::Freeze for antecedent_estimate::policy_value::UpliftBinScore [auto]
+impl core::marker::Freeze for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
+impl core::marker::Freeze for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
 impl core::marker::Freeze for antecedent_estimate::posterior_mean::LocalQuadraticNamespace [auto]
 impl core::marker::Freeze for antecedent_estimate::posterior_mean::PosteriorRequest [auto]
@@ -2688,6 +2700,7 @@ impl core::marker::Send for antecedent_estimate::AnalyticSe [auto]
 impl core::marker::Send for antecedent_estimate::AnalyticSeKind [auto]
 impl core::marker::Send for antecedent_estimate::ArmSummary [auto]
 impl core::marker::Send for antecedent_estimate::AtomUncertainty [auto]
+impl core::marker::Send for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::marker::Send for antecedent_estimate::BayesianBackendKind [auto]
 impl core::marker::Send for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::marker::Send for antecedent_estimate::BayesianGComputationAte [auto]
@@ -2834,6 +2847,7 @@ impl core::marker::Send for antecedent_estimate::OverlapReport [auto]
 impl core::marker::Send for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Send for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Send for antecedent_estimate::PointwiseCateEstimate [auto]
+impl core::marker::Send for antecedent_estimate::PopulationLinearVariance [auto]
 impl core::marker::Send for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Send for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Send for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -3146,6 +3160,8 @@ impl core::marker::Send for antecedent_estimate::policy_value::PolicyValueInterv
 impl core::marker::Send for antecedent_estimate::policy_value::PolicyValueScores [auto]
 impl core::marker::Send for antecedent_estimate::policy_value::ScoreBinUplift [auto]
 impl core::marker::Send for antecedent_estimate::policy_value::UpliftBinScore [auto]
+impl core::marker::Send for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
+impl core::marker::Send for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::marker::Send for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
 impl core::marker::Send for antecedent_estimate::posterior_mean::LocalQuadraticNamespace [auto]
 impl core::marker::Send for antecedent_estimate::posterior_mean::PosteriorRequest [auto]
@@ -3717,6 +3733,7 @@ impl core::marker::Sync for antecedent_estimate::AnalyticSe [auto]
 impl core::marker::Sync for antecedent_estimate::AnalyticSeKind [auto]
 impl core::marker::Sync for antecedent_estimate::ArmSummary [auto]
 impl core::marker::Sync for antecedent_estimate::AtomUncertainty [auto]
+impl core::marker::Sync for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::marker::Sync for antecedent_estimate::BayesianBackendKind [auto]
 impl core::marker::Sync for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::marker::Sync for antecedent_estimate::BayesianGComputationAte [auto]
@@ -3863,6 +3880,7 @@ impl core::marker::Sync for antecedent_estimate::OverlapReport [auto]
 impl core::marker::Sync for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Sync for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Sync for antecedent_estimate::PointwiseCateEstimate [auto]
+impl core::marker::Sync for antecedent_estimate::PopulationLinearVariance [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -4175,6 +4193,8 @@ impl core::marker::Sync for antecedent_estimate::policy_value::PolicyValueInterv
 impl core::marker::Sync for antecedent_estimate::policy_value::PolicyValueScores [auto]
 impl core::marker::Sync for antecedent_estimate::policy_value::ScoreBinUplift [auto]
 impl core::marker::Sync for antecedent_estimate::policy_value::UpliftBinScore [auto]
+impl core::marker::Sync for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
+impl core::marker::Sync for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::marker::Sync for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
 impl core::marker::Sync for antecedent_estimate::posterior_mean::LocalQuadraticNamespace [auto]
 impl core::marker::Sync for antecedent_estimate::posterior_mean::PosteriorRequest [auto]
@@ -4288,6 +4308,7 @@ impl core::marker::Unpin for antecedent_estimate::AnalyticSe [auto]
 impl core::marker::Unpin for antecedent_estimate::AnalyticSeKind [auto]
 impl core::marker::Unpin for antecedent_estimate::ArmSummary [auto]
 impl core::marker::Unpin for antecedent_estimate::AtomUncertainty [auto]
+impl core::marker::Unpin for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::BayesianBackendKind [auto]
 impl core::marker::Unpin for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::marker::Unpin for antecedent_estimate::BayesianGComputationAte [auto]
@@ -4434,6 +4455,7 @@ impl core::marker::Unpin for antecedent_estimate::OverlapReport [auto]
 impl core::marker::Unpin for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Unpin for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Unpin for antecedent_estimate::PointwiseCateEstimate [auto]
+impl core::marker::Unpin for antecedent_estimate::PopulationLinearVariance [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -4746,6 +4768,8 @@ impl core::marker::Unpin for antecedent_estimate::policy_value::PolicyValueInter
 impl core::marker::Unpin for antecedent_estimate::policy_value::PolicyValueScores [auto]
 impl core::marker::Unpin for antecedent_estimate::policy_value::ScoreBinUplift [auto]
 impl core::marker::Unpin for antecedent_estimate::policy_value::UpliftBinScore [auto]
+impl core::marker::Unpin for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
+impl core::marker::Unpin for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
 impl core::marker::Unpin for antecedent_estimate::posterior_mean::LocalQuadraticNamespace [auto]
 impl core::marker::Unpin for antecedent_estimate::posterior_mean::PosteriorRequest [auto]
@@ -4859,6 +4883,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AnalyticSe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AnalyticSeKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ArmSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::AtomUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianBackendKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::BayesianGComputationAte [auto]
@@ -5005,6 +5030,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::OverlapRep
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PenalizedReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PointwiseCateEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PopulationLinearVariance [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -5317,6 +5343,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_val
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value::PolicyValueScores [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value::ScoreBinUplift [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value::UpliftBinScore [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::posterior_mean::LocalQuadraticNamespace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::posterior_mean::PosteriorRequest [auto]
@@ -5429,6 +5457,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AnalyticSe [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AnalyticSeKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ArmSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::AtomUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BalancedWeightingInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianBackendKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianGCompWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::BayesianGComputationAte [auto]
@@ -5575,6 +5604,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::OverlapReport
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PenalizedReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PointwiseCateEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PopulationLinearVariance [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -5887,6 +5917,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value::PolicyValueScores [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value::ScoreBinUplift [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value::UpliftBinScore [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::population_aipw::PopulationAipwInterval [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::population_atc::PopulationAtcInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::posterior_mean::DirichletNamespace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::posterior_mean::LocalQuadraticNamespace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::posterior_mean::PosteriorRequest [auto]
@@ -6791,6 +6823,14 @@ pub field antecedent_estimate::ArmSummary::n: usize
 pub field antecedent_estimate::AtomUncertainty::interval: antecedent_estimate::ProbabilityInterval
 pub field antecedent_estimate::AtomUncertainty::replicates_ok: u32
 pub field antecedent_estimate::AtomUncertainty::se_bootstrap: core::option::Option<f64>
+pub field antecedent_estimate::BalancedWeightingInterval::effect_mass_covariance: f64
+pub field antecedent_estimate::BalancedWeightingInterval::estimate: antecedent_estimate::EffectEstimate
+pub field antecedent_estimate::BalancedWeightingInterval::level: f64
+pub field antecedent_estimate::BalancedWeightingInterval::linear_variance: core::option::Option<antecedent_estimate::PopulationLinearVariance>
+pub field antecedent_estimate::BalancedWeightingInterval::lower: f64
+pub field antecedent_estimate::BalancedWeightingInterval::mass_variance: f64
+pub field antecedent_estimate::BalancedWeightingInterval::reference_df: core::option::Option<f64>
+pub field antecedent_estimate::BalancedWeightingInterval::upper: f64
 pub field antecedent_estimate::BayesianGCompWorkspace::eval: antecedent_prob::posterior::PosteriorEvalWorkspace
 pub field antecedent_estimate::BayesianGCompWorkspace::laplace: antecedent_prob::backend::LaplaceWorkspace
 pub field antecedent_estimate::BayesianGComputationAte::backend: antecedent_estimate::BayesianBackendKind
@@ -7009,6 +7049,7 @@ pub field antecedent_estimate::DistanceMatching::multiway_ids: core::option::Opt
 pub field antecedent_estimate::DistanceMatching::overlap: antecedent_estimate::OverlapPolicy
 pub field antecedent_estimate::DistanceMatching::panel_times: core::option::Option<alloc::vec::Vec<i64>>
 pub field antecedent_estimate::DistanceMatching::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
+pub field antecedent_estimate::DistanceMatching::population_variance: bool
 pub field antecedent_estimate::DistanceMatching::sampling_weights: core::option::Option<antecedent_estimate::SamplingWeights>
 pub field antecedent_estimate::DistanceMatching::se_kind: antecedent_estimate::AnalyticSeKind
 pub field antecedent_estimate::DistributionAtom::conditioning: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_core::value::Value)]>
@@ -7377,6 +7418,11 @@ pub field antecedent_estimate::PointwiseCateEstimate::profile: antecedent_estima
 pub field antecedent_estimate::PointwiseCateEstimate::standard_error: f64
 pub field antecedent_estimate::PointwiseCateEstimate::treated_count: usize
 pub field antecedent_estimate::PointwiseCateEstimate::upper_95: f64
+pub field antecedent_estimate::PopulationLinearVariance::noise: f64
+pub field antecedent_estimate::PopulationLinearVariance::noise_degrees_of_freedom: usize
+pub field antecedent_estimate::PopulationLinearVariance::noise_scale: f64
+pub field antecedent_estimate::PopulationLinearVariance::outcome_model: &'static str
+pub field antecedent_estimate::PopulationLinearVariance::target: f64
 pub field antecedent_estimate::PreparedBayesianProblem::active: f64
 pub field antecedent_estimate::PreparedBayesianProblem::adjustment_set: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent_estimate::PreparedBayesianProblem::coef_names: core::option::Option<alloc::sync::Arc<[alloc::sync::Arc<str>]>>
@@ -7491,6 +7537,7 @@ pub field antecedent_estimate::PropensityMatching::other_levels: antecedent_esti
 pub field antecedent_estimate::PropensityMatching::overlap: antecedent_estimate::OverlapPolicy
 pub field antecedent_estimate::PropensityMatching::panel_times: core::option::Option<alloc::vec::Vec<i64>>
 pub field antecedent_estimate::PropensityMatching::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
+pub field antecedent_estimate::PropensityMatching::population_variance: bool
 pub field antecedent_estimate::PropensityMatching::sampling_weights: core::option::Option<antecedent_estimate::SamplingWeights>
 pub field antecedent_estimate::PropensityMatching::se_kind: antecedent_estimate::AnalyticSeKind
 pub field antecedent_estimate::PropensityStratification::backend: antecedent_stats::faer_backend::FaerBackend
@@ -7501,11 +7548,13 @@ pub field antecedent_estimate::PropensityStratification::n_strata: u32
 pub field antecedent_estimate::PropensityStratification::other_levels: antecedent_estimate::OtherLevels
 pub field antecedent_estimate::PropensityStratification::overlap: antecedent_estimate::OverlapPolicy
 pub field antecedent_estimate::PropensityStratification::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
+pub field antecedent_estimate::PropensityStratification::regression_adjustment: bool
 pub field antecedent_estimate::PropensityStratification::sampling_weights: core::option::Option<antecedent_estimate::SamplingWeights>
 pub field antecedent_estimate::PropensityStratification::source_cluster_ids: core::option::Option<alloc::vec::Vec<u32>>
 pub field antecedent_estimate::PropensityWeighting::backend: antecedent_stats::faer_backend::FaerBackend
 pub field antecedent_estimate::PropensityWeighting::bootstrap_replicates: u32
 pub field antecedent_estimate::PropensityWeighting::cluster_ids: core::option::Option<alloc::vec::Vec<u32>>
+pub field antecedent_estimate::PropensityWeighting::covariate_balance: bool
 pub field antecedent_estimate::PropensityWeighting::glm_options: antecedent_stats::glm::GlmOptions
 pub field antecedent_estimate::PropensityWeighting::other_levels: antecedent_estimate::OtherLevels
 pub field antecedent_estimate::PropensityWeighting::overlap: antecedent_estimate::OverlapPolicy
@@ -8895,6 +8944,20 @@ pub field antecedent_estimate::policy_value::UpliftBinScore::evaluation_rows: us
 pub field antecedent_estimate::policy_value::UpliftBinScore::interval_95: core::option::Option<[f64; 2]>
 pub field antecedent_estimate::policy_value::UpliftBinScore::rank: usize
 pub field antecedent_estimate::policy_value::UpliftBinScore::standard_error: f64
+pub field antecedent_estimate::population_aipw::PopulationAipwInterval::estimate: antecedent_estimate::EffectEstimate
+pub field antecedent_estimate::population_aipw::PopulationAipwInterval::level: f64
+pub field antecedent_estimate::population_aipw::PopulationAipwInterval::lower: f64
+pub field antecedent_estimate::population_aipw::PopulationAipwInterval::noise_degrees_of_freedom: usize
+pub field antecedent_estimate::population_aipw::PopulationAipwInterval::noise_variance: f64
+pub field antecedent_estimate::population_aipw::PopulationAipwInterval::point_correction: f64
+pub field antecedent_estimate::population_aipw::PopulationAipwInterval::target_variance: f64
+pub field antecedent_estimate::population_aipw::PopulationAipwInterval::upper: f64
+pub field antecedent_estimate::population_atc::PopulationAtcInterval::estimate: antecedent_estimate::EffectEstimate
+pub field antecedent_estimate::population_atc::PopulationAtcInterval::level: f64
+pub field antecedent_estimate::population_atc::PopulationAtcInterval::lower: f64
+pub field antecedent_estimate::population_atc::PopulationAtcInterval::noise_variance: f64
+pub field antecedent_estimate::population_atc::PopulationAtcInterval::target_variance: f64
+pub field antecedent_estimate::population_atc::PopulationAtcInterval::upper: f64
 pub field antecedent_estimate::quantile::QuantileArm::density: f64
 pub field antecedent_estimate::quantile::QuantileArm::influence: alloc::vec::Vec<f64>
 pub field antecedent_estimate::quantile::QuantileArm::value: f64
@@ -9304,6 +9367,8 @@ pub fn <antecedent_estimate::AipwAte>::fn fit(&self, problem: &antecedent_estima
 pub fn <antecedent_estimate::AipwAte>::fn fit_checked(&self, checked: &antecedent_estimate::CheckedAipwPreparation, workspace: &mut antecedent_estimate::AipwWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn has_second_units(&self) -> bool
 pub fn <antecedent_estimate::AipwAte>::fn new() -> Self
+pub fn <antecedent_estimate::AipwAte>::fn population_linear_atc_interval(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::AipwWorkspace, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, level: f64) -> core::result::Result<antecedent_estimate::population_atc::PopulationAtcInterval, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::AipwAte>::fn population_linear_interval(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::AipwWorkspace, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, level: f64) -> core::result::Result<antecedent_estimate::population_aipw::PopulationAipwInterval, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn prepare(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_estimate::PreparedPropensityProblem, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn prepare_checked(&self, data: &antecedent_data::dataset::TabularData, identification: &antecedent_identify::result::IdentificationResult, estimand_index: usize) -> core::result::Result<antecedent_estimate::CheckedAipwPreparation, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn rebind_checked(&self, checked: &antecedent_estimate::CheckedAipwPreparation, data: &antecedent_data::dataset::TabularData) -> core::result::Result<antecedent_estimate::CheckedAipwPreparation, antecedent_estimate::EstimationError>
@@ -9456,6 +9521,7 @@ pub fn <antecedent_estimate::DistanceMatching>::const fn with_bootstrap_replicat
 pub fn <antecedent_estimate::DistanceMatching>::const fn with_caliper(self, caliper: f64) -> Self
 pub fn <antecedent_estimate::DistanceMatching>::const fn with_glm_options(self, glm_options: antecedent_stats::glm::GlmOptions) -> Self
 pub fn <antecedent_estimate::DistanceMatching>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
+pub fn <antecedent_estimate::DistanceMatching>::const fn with_population_variance(self, enabled: bool) -> Self
 pub fn <antecedent_estimate::DistanceMatching>::const fn with_se_kind(self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self
 pub fn <antecedent_estimate::DistanceMatching>::fn fit(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::DistanceMatching>::fn new() -> Self
@@ -9473,6 +9539,7 @@ pub fn <antecedent_estimate::DmlAte>::const fn with_overlap(self, overlap: antec
 pub fn <antecedent_estimate::DmlAte>::const fn with_score(self, score: antecedent_estimate::DmlScore) -> Self
 pub fn <antecedent_estimate::DmlAte>::const fn with_treatment(self, spec: antecedent_learn::spec::LearnerSpec) -> Self
 pub fn <antecedent_estimate::DmlAte>::fn fit(&self, problem: &antecedent_estimate::PreparedPropensityProblem, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::DmlAte>::fn population_linear_interval(&self, problem: &antecedent_estimate::PreparedPropensityProblem, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, level: f64) -> core::result::Result<antecedent_estimate::population_aipw::PopulationAipwInterval, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::DmlAte>::fn prepare(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_estimate::PreparedPropensityProblem, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::DmlAte>::fn score_table(&self, problem: &antecedent_estimate::PreparedPropensityProblem, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<core::option::Option<antecedent_estimate::ScoreTable>, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::DmlAte>::fn with_cluster_dml(self, spec: antecedent_estimate::ClusterDml) -> Self
@@ -9493,6 +9560,7 @@ pub fn <antecedent_estimate::DrLearner>::const fn with_overlap(self, overlap: an
 pub fn <antecedent_estimate::DrLearner>::const fn with_treatment(self, spec: antecedent_learn::spec::LearnerSpec) -> Self
 pub fn <antecedent_estimate::DrLearner>::fn fit(&self, problem: &antecedent_estimate::PreparedPropensityProblem, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::DrLearner>::fn fit_pointwise_profiles(&self, problem: &antecedent_estimate::PreparedPropensityProblem, profiles: &[antecedent_estimate::CateProfile], ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<(antecedent_estimate::EffectEstimate, alloc::sync::Arc<[antecedent_estimate::PointwiseCateEstimate]>), antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::DrLearner>::fn population_linear_interval(&self, problem: &antecedent_estimate::PreparedPropensityProblem, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, level: f64) -> core::result::Result<antecedent_estimate::population_aipw::PopulationAipwInterval, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::DrLearner>::fn prepare(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_estimate::PreparedPropensityProblem, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::DrLearner>::fn score_table(&self, problem: &antecedent_estimate::PreparedPropensityProblem, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<core::option::Option<antecedent_estimate::ScoreTable>, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::DrLearner>::fn with_cluster_dml(self, spec: antecedent_estimate::ClusterDml) -> Self
@@ -9684,6 +9752,7 @@ pub fn <antecedent_estimate::PropensityMatching>::const fn with_caliper_scale(se
 pub fn <antecedent_estimate::PropensityMatching>::const fn with_glm_options(self, glm_options: antecedent_stats::glm::GlmOptions) -> Self
 pub fn <antecedent_estimate::PropensityMatching>::const fn with_other_levels(self, other_levels: antecedent_estimate::OtherLevels) -> Self
 pub fn <antecedent_estimate::PropensityMatching>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
+pub fn <antecedent_estimate::PropensityMatching>::const fn with_population_variance(self, enabled: bool) -> Self
 pub fn <antecedent_estimate::PropensityMatching>::const fn with_se_kind(self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self
 pub fn <antecedent_estimate::PropensityMatching>::fn fit(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PropensityMatching>::fn new() -> Self
@@ -9714,6 +9783,7 @@ pub fn <antecedent_estimate::PropensityStratification>::const fn with_glm_option
 pub fn <antecedent_estimate::PropensityStratification>::const fn with_n_strata(self, n_strata: u32) -> Self
 pub fn <antecedent_estimate::PropensityStratification>::const fn with_other_levels(self, other_levels: antecedent_estimate::OtherLevels) -> Self
 pub fn <antecedent_estimate::PropensityStratification>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
+pub fn <antecedent_estimate::PropensityStratification>::const fn with_regression_adjustment(self, enabled: bool) -> Self
 pub fn <antecedent_estimate::PropensityStratification>::fn attach_bootstrap(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext, point: antecedent_estimate::EffectEstimate) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PropensityStratification>::fn fit(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PropensityStratification>::fn new() -> Self
@@ -9722,12 +9792,15 @@ pub fn <antecedent_estimate::PropensityStratification>::fn with_cluster_ids(self
 pub fn <antecedent_estimate::PropensityStratification>::fn with_sampling_weights(self, weights: antecedent_estimate::SamplingWeights) -> Self
 pub fn <antecedent_estimate::PropensityStratification>::fn with_source_cluster_ids(self, cluster_ids: alloc::vec::Vec<u32>) -> Self
 pub fn <antecedent_estimate::PropensityWeighting>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
+pub fn <antecedent_estimate::PropensityWeighting>::const fn with_covariate_balance(self, enabled: bool) -> Self
 pub fn <antecedent_estimate::PropensityWeighting>::const fn with_glm_options(self, glm_options: antecedent_stats::glm::GlmOptions) -> Self
 pub fn <antecedent_estimate::PropensityWeighting>::const fn with_other_levels(self, other_levels: antecedent_estimate::OtherLevels) -> Self
 pub fn <antecedent_estimate::PropensityWeighting>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
 pub fn <antecedent_estimate::PropensityWeighting>::fn attach_bootstrap(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext, point: antecedent_estimate::EffectEstimate) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PropensityWeighting>::fn fit(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PropensityWeighting>::fn new() -> Self
+pub fn <antecedent_estimate::PropensityWeighting>::fn population_linear_score_interval(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, level: f64) -> core::result::Result<antecedent_estimate::BalancedWeightingInterval, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::PropensityWeighting>::fn population_score_interval(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, level: f64) -> core::result::Result<antecedent_estimate::BalancedWeightingInterval, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PropensityWeighting>::fn prepare(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_estimate::PreparedPropensityProblem, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PropensityWeighting>::fn with_cluster_ids(self, cluster_ids: alloc::vec::Vec<u32>) -> Self
 pub fn <antecedent_estimate::PropensityWeighting>::fn with_sampling_weights(self, weights: antecedent_estimate::SamplingWeights) -> Self
@@ -10475,6 +10548,8 @@ pub mod antecedent_estimate::observational_policy
 pub mod antecedent_estimate::observational_survival
 pub mod antecedent_estimate::overlap
 pub mod antecedent_estimate::policy_value
+pub mod antecedent_estimate::population_aipw
+pub mod antecedent_estimate::population_atc
 pub mod antecedent_estimate::posterior_mean
 pub mod antecedent_estimate::prediction
 pub mod antecedent_estimate::prepare
@@ -10527,6 +10602,7 @@ pub struct antecedent_estimate::AipwWorkspace has private fields
 pub struct antecedent_estimate::AlignedRows
 pub struct antecedent_estimate::ArmSummary
 pub struct antecedent_estimate::AtomUncertainty
+pub struct antecedent_estimate::BalancedWeightingInterval
 pub struct antecedent_estimate::BayesianGCompWorkspace
 pub struct antecedent_estimate::BayesianGComputationAte
 pub struct antecedent_estimate::BayesianInterferenceEstimate
@@ -10652,6 +10728,7 @@ pub struct antecedent_estimate::ObservationalExposureSpec<'a>
 pub struct antecedent_estimate::OrderingSensitivity
 pub struct antecedent_estimate::OverlapReport
 pub struct antecedent_estimate::PointwiseCateEstimate
+pub struct antecedent_estimate::PopulationLinearVariance
 pub struct antecedent_estimate::PreparedBayesianProblem
 pub struct antecedent_estimate::PreparedEstimationProblem
 pub struct antecedent_estimate::PreparedFrontDoorProblem
@@ -10960,6 +11037,8 @@ pub struct antecedent_estimate::policy_value::PolicyValueIntervals95
 pub struct antecedent_estimate::policy_value::PolicyValueScores
 pub struct antecedent_estimate::policy_value::ScoreBinUplift
 pub struct antecedent_estimate::policy_value::UpliftBinScore
+pub struct antecedent_estimate::population_aipw::PopulationAipwInterval
+pub struct antecedent_estimate::population_atc::PopulationAtcInterval
 pub struct antecedent_estimate::quantile::QuantileArm
 pub struct antecedent_estimate::quantile::QuantileContrast
 pub struct antecedent_estimate::randomized_missing::ResponderWeightedArm
@@ -11074,6 +11153,7 @@ pub trait fn fn antecedent_estimate::temporal_dependent_interval::TemporalEstima
 pub trait type antecedent_estimate::Estimator::Fit
 pub trait type antecedent_estimate::PosteriorFunctionalEvaluator::Compiled
 pub type antecedent_estimate::cluster_dml_aipw::UnitLabels = (core::option::Option<alloc::vec::Vec<u32>>, core::option::Option<alloc::vec::Vec<u32>>)
+pub type antecedent_estimate::population_aipw::PopulationLinearInterval = antecedent_estimate::population_aipw::PopulationAipwInterval
 pub use antecedent_estimate::DEFAULT_RIDGE_ON_SEPARATION = se::DEFAULT_RIDGE_ON_SEPARATION
 pub use antecedent_estimate::EstimandMethod = antecedent_expr::EstimandMethod
 pub use antecedent_estimate::FirstStageDiagnostics = antecedent_stats::FirstStageDiagnostics
@@ -11366,6 +11446,7 @@ pub use antecedent_estimate::parse_matched_sampling = antecedent_estimate::match
 pub use antecedent_estimate::prediction::TemporalLinearPredictor = antecedent_estimate::TemporalLinearPredictor
 pub use antecedent_estimate::prepare_exact_admg_conditional_transport = antecedent_estimate::admg_conditional_transport::prepare_exact_admg_conditional_transport
 pub use antecedent_estimate::prepare_exact_mixed_source = antecedent_estimate::mixed_source::prepare_exact_mixed_source
+pub use antecedent_estimate::propensity::BalancedWeightingInterval = antecedent_estimate::BalancedWeightingInterval
 pub use antecedent_estimate::propensity::CaliperScale = antecedent_estimate::CaliperScale
 pub use antecedent_estimate::propensity::DEFAULT_RIDGE_GRID = antecedent_estimate::DEFAULT_RIDGE_GRID
 pub use antecedent_estimate::propensity::DeclaredTreatmentLevels = antecedent_estimate::DeclaredTreatmentLevels
@@ -11387,6 +11468,7 @@ pub use antecedent_estimate::propensity::OtherLevels = antecedent_estimate::Othe
 pub use antecedent_estimate::propensity::PROPENSITY_FIT_STAGE = antecedent_estimate::PROPENSITY_FIT_STAGE
 pub use antecedent_estimate::propensity::PenalizedReport = antecedent_estimate::PenalizedReport
 pub use antecedent_estimate::propensity::PenalizedVarianceReport = antecedent_estimate::PenalizedVarianceReport
+pub use antecedent_estimate::propensity::PopulationLinearVariance = antecedent_estimate::PopulationLinearVariance
 pub use antecedent_estimate::propensity::PreparedPropensityProblem = antecedent_estimate::PreparedPropensityProblem
 pub use antecedent_estimate::propensity::PropensityEstimationWorkspace = antecedent_estimate::PropensityEstimationWorkspace
 pub use antecedent_estimate::propensity::PropensityMatching = antecedent_estimate::PropensityMatching

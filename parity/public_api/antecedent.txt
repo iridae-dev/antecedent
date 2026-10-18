@@ -464,6 +464,12 @@ impl core::clone::Clone for antecedent::analysis::discovered_transport_estimate:
 impl core::clone::Clone for antecedent::analysis::discovered_transport_estimate::VerifiedEstimate
 impl core::clone::Clone for antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport
 impl core::clone::Clone for antecedent::analysis::discovered_transport_temporal::TemporalHorizon
+impl core::clone::Clone for antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions
+impl core::clone::Clone for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof
+impl core::clone::Clone for antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate
+impl core::clone::Clone for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility
+impl core::clone::Clone for antecedent::analysis::discovered_transport_trial::TrialRandomization
+impl core::clone::Clone for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 impl core::clone::Clone for antecedent::analysis::discretized_composition::DiscretizationRefusal
 impl core::clone::Clone for antecedent::analysis::discretized_composition::DiscretizedCompositionInspection
 impl core::clone::Clone for antecedent::analysis::discretized_composition::PreparedDiscretizedComposition
@@ -707,6 +713,7 @@ impl core::cmp::Eq for antecedent::analysis::decision_claims::IntervalReading
 impl core::cmp::Eq for antecedent::analysis::decision_claims::ScenarioDigest
 impl core::cmp::Eq for antecedent::analysis::discovered_transport_estimate::AnswerKind
 impl core::cmp::Eq for antecedent::analysis::discovered_transport_temporal::TemporalHorizon
+impl core::cmp::Eq for antecedent::analysis::discovered_transport_trial::TrialRandomization
 impl core::cmp::Eq for antecedent::analysis::effect_constancy_consumers::ConstancyConsumerError
 impl core::cmp::Eq for antecedent::analysis::effect_constancy_consumers::ConstancyEvidence
 impl core::cmp::Eq for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding
@@ -983,6 +990,10 @@ impl core::cmp::PartialEq for antecedent::analysis::discovered_transport_estimat
 impl core::cmp::PartialEq for antecedent::analysis::discovered_transport_estimate::VerifiedEstimate
 impl core::cmp::PartialEq for antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport
 impl core::cmp::PartialEq for antecedent::analysis::discovered_transport_temporal::TemporalHorizon
+impl core::cmp::PartialEq for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof
+impl core::cmp::PartialEq for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility
+impl core::cmp::PartialEq for antecedent::analysis::discovered_transport_trial::TrialRandomization
+impl core::cmp::PartialEq for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 impl core::cmp::PartialEq for antecedent::analysis::discretized_composition::DiscretizationRefusal
 impl core::cmp::PartialEq for antecedent::analysis::discretized_composition::DiscretizedCompositionInspection
 impl core::cmp::PartialEq for antecedent::analysis::dose_grid_functional::DoseGridFunctional
@@ -1627,6 +1638,12 @@ impl core::fmt::Debug for antecedent::analysis::discovered_transport_estimate::T
 impl core::fmt::Debug for antecedent::analysis::discovered_transport_estimate::VerifiedEstimate
 impl core::fmt::Debug for antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport
 impl core::fmt::Debug for antecedent::analysis::discovered_transport_temporal::TemporalHorizon
+impl core::fmt::Debug for antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions
+impl core::fmt::Debug for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof
+impl core::fmt::Debug for antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate
+impl core::fmt::Debug for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility
+impl core::fmt::Debug for antecedent::analysis::discovered_transport_trial::TrialRandomization
+impl core::fmt::Debug for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 impl core::fmt::Debug for antecedent::analysis::discretized_composition::DiscretizationRefusal
 impl core::fmt::Debug for antecedent::analysis::discretized_composition::DiscretizedCompositionInspection
 impl core::fmt::Debug for antecedent::analysis::discretized_composition::PreparedDiscretizedComposition
@@ -1914,6 +1931,8 @@ impl core::marker::Copy for antecedent::analysis::discovered_transport_estimate:
 impl core::marker::Copy for antecedent::analysis::discovered_transport_estimate::ContrastInterval
 impl core::marker::Copy for antecedent::analysis::discovered_transport_estimate::LevelAnswer
 impl core::marker::Copy for antecedent::analysis::discovered_transport_temporal::TemporalHorizon
+impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions
+impl core::marker::Copy for antecedent::analysis::discovered_transport_trial::TrialRandomization
 impl core::marker::Copy for antecedent::analysis::multi_level_treatment::LevelMeanWire
 impl core::marker::Copy for antecedent::analysis::multi_level_treatment::LevelRowsWire
 impl core::marker::Copy for antecedent::analysis::multi_level_treatment::MultiLevelTargetWire
@@ -2313,6 +2332,12 @@ impl core::marker::Freeze for antecedent::analysis::discovered_transport_estimat
 impl core::marker::Freeze for antecedent::analysis::discovered_transport_estimate::VerifiedEstimate [auto]
 impl core::marker::Freeze for antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport [auto]
 impl core::marker::Freeze for antecedent::analysis::discovered_transport_temporal::TemporalHorizon [auto]
+impl core::marker::Freeze for antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions [auto]
+impl core::marker::Freeze for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof [auto]
+impl core::marker::Freeze for antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate [auto]
+impl core::marker::Freeze for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility [auto]
+impl core::marker::Freeze for antecedent::analysis::discovered_transport_trial::TrialRandomization [auto]
+impl core::marker::Freeze for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict [auto]
 impl core::marker::Freeze for antecedent::analysis::discretized_composition::DiscretizationRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::discretized_composition::DiscretizedCompositionInspection [auto]
 impl core::marker::Freeze for antecedent::analysis::discretized_composition::PreparedDiscretizedComposition [auto]
@@ -2873,6 +2898,12 @@ impl core::marker::Send for antecedent::analysis::discovered_transport_estimate:
 impl core::marker::Send for antecedent::analysis::discovered_transport_estimate::VerifiedEstimate [auto]
 impl core::marker::Send for antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport [auto]
 impl core::marker::Send for antecedent::analysis::discovered_transport_temporal::TemporalHorizon [auto]
+impl core::marker::Send for antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions [auto]
+impl core::marker::Send for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof [auto]
+impl core::marker::Send for antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate [auto]
+impl core::marker::Send for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility [auto]
+impl core::marker::Send for antecedent::analysis::discovered_transport_trial::TrialRandomization [auto]
+impl core::marker::Send for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict [auto]
 impl core::marker::Send for antecedent::analysis::discretized_composition::DiscretizationRefusal [auto]
 impl core::marker::Send for antecedent::analysis::discretized_composition::DiscretizedCompositionInspection [auto]
 impl core::marker::Send for antecedent::analysis::discretized_composition::PreparedDiscretizedComposition [auto]
@@ -3298,6 +3329,10 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::discovered_tran
 impl core::marker::StructuralPartialEq for antecedent::analysis::discovered_transport_estimate::VerifiedEstimate
 impl core::marker::StructuralPartialEq for antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport
 impl core::marker::StructuralPartialEq for antecedent::analysis::discovered_transport_temporal::TemporalHorizon
+impl core::marker::StructuralPartialEq for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof
+impl core::marker::StructuralPartialEq for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility
+impl core::marker::StructuralPartialEq for antecedent::analysis::discovered_transport_trial::TrialRandomization
+impl core::marker::StructuralPartialEq for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 impl core::marker::StructuralPartialEq for antecedent::analysis::discretized_composition::DiscretizationRefusal
 impl core::marker::StructuralPartialEq for antecedent::analysis::discretized_composition::DiscretizedCompositionInspection
 impl core::marker::StructuralPartialEq for antecedent::analysis::dose_grid_functional::DoseGridFunctional
@@ -3777,6 +3812,12 @@ impl core::marker::Sync for antecedent::analysis::discovered_transport_estimate:
 impl core::marker::Sync for antecedent::analysis::discovered_transport_estimate::VerifiedEstimate [auto]
 impl core::marker::Sync for antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport [auto]
 impl core::marker::Sync for antecedent::analysis::discovered_transport_temporal::TemporalHorizon [auto]
+impl core::marker::Sync for antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions [auto]
+impl core::marker::Sync for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof [auto]
+impl core::marker::Sync for antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate [auto]
+impl core::marker::Sync for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility [auto]
+impl core::marker::Sync for antecedent::analysis::discovered_transport_trial::TrialRandomization [auto]
+impl core::marker::Sync for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict [auto]
 impl core::marker::Sync for antecedent::analysis::discretized_composition::DiscretizationRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::discretized_composition::DiscretizedCompositionInspection [auto]
 impl core::marker::Sync for antecedent::analysis::discretized_composition::PreparedDiscretizedComposition [auto]
@@ -4339,6 +4380,12 @@ impl core::marker::Unpin for antecedent::analysis::discovered_transport_estimate
 impl core::marker::Unpin for antecedent::analysis::discovered_transport_estimate::VerifiedEstimate [auto]
 impl core::marker::Unpin for antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport [auto]
 impl core::marker::Unpin for antecedent::analysis::discovered_transport_temporal::TemporalHorizon [auto]
+impl core::marker::Unpin for antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions [auto]
+impl core::marker::Unpin for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof [auto]
+impl core::marker::Unpin for antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate [auto]
+impl core::marker::Unpin for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility [auto]
+impl core::marker::Unpin for antecedent::analysis::discovered_transport_trial::TrialRandomization [auto]
+impl core::marker::Unpin for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict [auto]
 impl core::marker::Unpin for antecedent::analysis::discretized_composition::DiscretizationRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::discretized_composition::DiscretizedCompositionInspection [auto]
 impl core::marker::Unpin for antecedent::analysis::discretized_composition::PreparedDiscretizedComposition [auto]
@@ -4899,6 +4946,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovere
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_estimate::VerifiedEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_temporal::TemporalHorizon [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_trial::TrialRandomization [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discretized_composition::DiscretizationRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discretized_composition::DiscretizedCompositionInspection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::discretized_composition::PreparedDiscretizedComposition [auto]
@@ -5444,6 +5497,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_t
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport_estimate::VerifiedEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport_temporal::TemporalHorizon [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport_trial::TrialRandomization [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discretized_composition::DiscretizationRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discretized_composition::DiscretizedCompositionInspection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::discretized_composition::PreparedDiscretizedComposition [auto]
@@ -5673,6 +5732,10 @@ impl serde_core::ser::Serialize for antecedent::analysis::conditional_study_rank
 impl serde_core::ser::Serialize for antecedent::analysis::conditional_study_ranking::ConditionalCandidate
 impl serde_core::ser::Serialize for antecedent::analysis::conditional_study_ranking::ConditionalRankingEntry
 impl serde_core::ser::Serialize for antecedent::analysis::conditional_study_ranking::ConditionalStudyPolicy
+impl serde_core::ser::Serialize for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof
+impl serde_core::ser::Serialize for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility
+impl serde_core::ser::Serialize for antecedent::analysis::discovered_transport_trial::TrialRandomization
+impl serde_core::ser::Serialize for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 impl serde_core::ser::Serialize for antecedent::analysis::effect_constancy_consumers::ConstancyEvidence
 impl serde_core::ser::Serialize for antecedent::analysis::effect_constancy_consumers::ConstancyPriorRanking
 impl serde_core::ser::Serialize for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding
@@ -5825,6 +5888,10 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::design_rank
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::design_ranking::ProviderDeclWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::design_ranking::SignalDeclWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::design_ranking::StructuralCandidateDeclWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::discovered_transport_trial::TrialRandomization
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::effect_constancy_consumers::PriorPartitionBinding
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::multi_level_treatment::LevelMeanWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::analysis::multi_level_treatment::LevelRowsWire
@@ -6020,6 +6087,8 @@ pub enum antecedent::analysis::design_ranking::PriorDeclWire
 pub enum antecedent::analysis::design_ranking::ProviderDeclWire
 pub enum antecedent::analysis::discovered_transport_estimate::AnswerKind
 pub enum antecedent::analysis::discovered_transport_estimate::MemberOutcome
+pub enum antecedent::analysis::discovered_transport_trial::TrialRandomization
+pub enum antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 pub enum antecedent::analysis::joint_law_composed_basis::Resolution
 pub enum antecedent::analysis::multi_level_treatment::MultiLevelTargetWire
 pub enum antecedent::analysis::native_claims::NativeDecisionSource
@@ -7384,6 +7453,30 @@ pub field antecedent::analysis::discovered_transport_estimate::VerifiedEstimate:
 pub field antecedent::analysis::discovered_transport_estimate::VerifiedEstimate::report_identity: [u8; 32]
 pub field antecedent::analysis::discovered_transport_temporal::TemporalHorizon::history: core::option::Option<u32>
 pub field antecedent::analysis::discovered_transport_temporal::TemporalHorizon::horizon_steps: u32
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions::alpha: f64
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions::randomization: antecedent::analysis::discovered_transport_trial::TrialRandomization
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::alpha: f64
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::counts: [u64; 4]
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::members: alloc::vec::Vec<antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility>
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::original_enumeration_complete: bool
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::original_member_bound: u64
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::original_report_identity: alloc::vec::Vec<u8>
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::original_result_identity: [u8; 32]
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::original_selection_targets: alloc::vec::Vec<u32>
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::original_structure_identity: [u8; 32]
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::outcome: u32
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::p_value: f64
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::randomization: antecedent::analysis::discovered_transport_trial::TrialRandomization
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::source_trial_identity: [u8; 32]
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::source_trial_rows: alloc::vec::Vec<[u8; 2]>
+pub field antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof::treatment: u32
+pub field antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility::bidirected_edges: alloc::vec::Vec<(u32, u32)>
+pub field antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility::confounded_edges: alloc::vec::Vec<(u32, u32)>
+pub field antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility::directed_edges: alloc::vec::Vec<(u32, u32)>
+pub field antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility::has_directed_path: bool
+pub field antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility::index: u32
+pub field antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility::retained: bool
+pub field antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility::structural_verdict: antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict
 pub field antecedent::analysis::discretized_composition::DiscretizedCompositionInspection::calibration: &'static str
 pub field antecedent::analysis::discretized_composition::DiscretizedCompositionInspection::error_scope: &'static str
 pub field antecedent::analysis::discretized_composition::DiscretizedCompositionInspection::identity: alloc::string::String
@@ -8226,9 +8319,11 @@ pub fn <antecedent::EstimatorSpec>::fn bootstrap_replicates(&self) -> core::opti
 pub fn <antecedent::EstimatorSpec>::fn excludes_undeclared_levels(&self) -> bool
 pub fn <antecedent::EstimatorSpec>::fn id(&self) -> antecedent::EstimatorId
 pub fn <antecedent::EstimatorSpec>::fn is_configured(&self) -> bool
+pub fn <antecedent::EstimatorSpec>::fn matching_calibration_label(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::EstimatorSpec>::fn propensity_calibration_label(&self) -> core::option::Option<alloc::string::String>
 pub fn <antecedent::EstimatorSpec>::fn propensity_overlap(&self) -> core::option::Option<antecedent_estimate::overlap::OverlapPolicy>
 pub fn <antecedent::EstimatorSpec>::fn sampling_weights_calibration_label(&self) -> core::option::Option<&'static str>
+pub fn <antecedent::EstimatorSpec>::fn stratification_calibration_label(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::EvidenceLedgerSession>::const fn ledger(&self) -> &antecedent_contract::evidence_ledger::ledger::EvidenceLedger
 pub fn <antecedent::EvidenceLedgerSession>::fn account_observations(&self, sources: &[antecedent_contract::evidence_ledger::ids::SourceId]) -> core::result::Result<antecedent::ObservationAccount, antecedent::EvidenceLedgerRefusal>
 pub fn <antecedent::EvidenceLedgerSession>::fn add_source(&mut self, source: antecedent_contract::evidence_ledger::source::SourceDeclaration) -> core::result::Result<antecedent_contract::evidence_ledger::ids::SourceId, antecedent::EvidenceLedgerRefusal>
@@ -8237,6 +8332,7 @@ pub fn <antecedent::EvidenceLedgerSession>::fn dependence_range(&mut self, reque
 pub fn <antecedent::EvidenceLedgerSession>::fn export(&self, artifact_id: &str) -> core::result::Result<antecedent::LedgerExport, antecedent::EvidenceLedgerRefusal>
 pub fn <antecedent::EvidenceLedgerSession>::fn head_hex(&self) -> alloc::string::String
 pub fn <antecedent::EvidenceLedgerSession>::fn hierarchical_borrowing(&mut self, request: antecedent::BorrowingRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SynthesisOutcome, antecedent::EvidenceLedgerRefusal>
+pub fn <antecedent::EvidenceLedgerSession>::fn pool_gaussian_studies(&mut self, request: antecedent::PoolingRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SynthesisOutcome, antecedent::EvidenceLedgerRefusal>
 pub fn <antecedent::EvidenceLedgerSession>::fn pool_summaries(&mut self, request: antecedent::PoolingRequest, dependence: antecedent::PoolingDeclaration, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SynthesisOutcome, antecedent::EvidenceLedgerRefusal>
 pub fn <antecedent::EvidenceLedgerSession>::fn pooled_interval(&self, result: antecedent_contract::evidence_ledger::ids::ResultId) -> core::result::Result<antecedent::analysis::PooledInterval, antecedent::EvidenceLedgerRefusal>
 pub fn <antecedent::EvidenceLedgerSession>::fn random_effects(&mut self, request: antecedent::PoolingRequest, method: antecedent::BetweenStudy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SynthesisOutcome, antecedent::EvidenceLedgerRefusal>
@@ -9095,6 +9191,12 @@ pub fn <antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalT
 pub fn <antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport>::const fn result_identity(&self) -> core::option::Option<&[u8; 32]>
 pub fn <antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport>::const fn structure_identity(&self) -> &[u8; 32]
 pub fn <antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport>::fn selection_targets(&self) -> &[antecedent_core::ids::VariableId]
+pub fn <antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof>::fn identity(&self) -> [u8; 32]
+pub fn <antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof>::fn retained_members(&self) -> alloc::vec::Vec<usize>
+pub fn <antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate>::const fn answer(&self) -> &antecedent::analysis::discovered_transport_estimate::TransportAnswer
+pub fn <antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate>::const fn compatibility(&self) -> &antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof
+pub fn <antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate>::const fn estimate(&self) -> &antecedent::analysis::discovered_transport_estimate::DiscoveredTransportEstimate
+pub fn <antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::discretized_composition::DiscretizationRefusal>::fn code(&self) -> &'static str
 pub fn <antecedent::analysis::discretized_composition::DiscretizationRefusal>::fn detail(&self) -> alloc::string::String
 pub fn <antecedent::analysis::discretized_composition::DiscretizationRefusal>::fn remedy(&self) -> core::option::Option<&'static str>
@@ -9651,6 +9753,8 @@ pub fn antecedent::analysis::discovered_transport_estimate::verify_discovered_tr
 pub fn antecedent::analysis::discovered_transport_temporal::estimate_discovered_temporal_transport(report: &antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport, query: &antecedent_core::query::transport::TransportQuery, evidence: &antecedent::analysis::discovered_transport_estimate::TransportEvidence<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_estimate::DiscoveredTransportEstimate, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent::analysis::discovered_transport_temporal::transport_discovered_temporal_structure(outcome: &antecedent_discovery::selective::outcome::DiscoveryOutcome, horizon: antecedent::analysis::discovered_transport_temporal::TemporalHorizon, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery, member_bound: usize) -> core::result::Result<antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent::analysis::discovered_transport_temporal::transport_temporal_class(class: antecedent_identify::discovered_transport_temporal::TemporalClass<'_>, exhausted_search_bounds: usize, horizon: antecedent::analysis::discovered_transport_temporal::TemporalHorizon, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery, member_bound: usize) -> core::result::Result<antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport, antecedent_identify::discovered_transport::DiscoveredTransportError>
+pub fn antecedent::analysis::discovered_transport_trial::estimate_trial_compatible_discovered_transport(report: &antecedent::analysis::discovered_transport::DiscoveredTransportReport, query: &antecedent_core::query::transport::TransportQuery, evidence: &antecedent::analysis::discovered_transport_estimate::TransportEvidence<'_>, options: antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate, antecedent_identify::discovered_transport::DiscoveredTransportError>
+pub fn antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_estimate(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof, antecedent::analysis::discovered_transport_estimate::VerifiedEstimate), antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::discretized_composition::consume_discretized_composition(bytes: &[u8], expected_identity: core::option::Option<[u8; 32]>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_model::discretized_scm::DiscretizedLinearGaussian, antecedent::analysis::discretized_composition::DiscretizationRefusal>
 pub fn antecedent::analysis::export_callback_result(record: &antecedent_io_core::callback_result_artifact::CallbackResultRecord, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::callback_result_artifact::CallbackResultArtifactError>
 pub fn antecedent::analysis::export_interface_contract(contract: &antecedent_contract::interface_contract::declaration::InterfaceContract, artifact_id: &str) -> core::result::Result<antecedent::analysis::InterfaceContractExport, antecedent::analysis::InterfaceContractRefusal>
@@ -9943,6 +10047,7 @@ pub mod antecedent::analysis::design_ranking
 pub mod antecedent::analysis::discovered_transport
 pub mod antecedent::analysis::discovered_transport_estimate
 pub mod antecedent::analysis::discovered_transport_temporal
+pub mod antecedent::analysis::discovered_transport_trial
 pub mod antecedent::analysis::discretized_composition
 pub mod antecedent::analysis::dose_grid_functional
 pub mod antecedent::analysis::effect_constancy
@@ -10404,6 +10509,12 @@ pub struct antecedent::analysis::discovered_transport_estimate::VerifiedEstimate
 pub struct antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport
 pub struct antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport has private fields
 pub struct antecedent::analysis::discovered_transport_temporal::TemporalHorizon
+pub struct antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions
+pub struct antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof
+pub struct antecedent::analysis::discovered_transport_trial::TrialCompatibilityProof has private fields
+pub struct antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate
+pub struct antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate has private fields
+pub struct antecedent::analysis::discovered_transport_trial::TrialMemberCompatibility
 pub struct antecedent::analysis::discretized_composition::DiscretizedCompositionInspection
 pub struct antecedent::analysis::discretized_composition::PreparedDiscretizedComposition
 pub struct antecedent::analysis::discretized_composition::PreparedDiscretizedComposition has private fields
@@ -12208,6 +12319,7 @@ pub use antecedent::analysis::sample_split_effect::MAX_VARIABLES = antecedent_io
 pub use antecedent::analysis::sample_split_effect::MIN_VARIABLES = antecedent_io::measured_inference::split_effect::MIN_VARIABLES
 pub use antecedent::analysis::sample_split_effect::SPLIT_STRUCTURE = antecedent_io::measured_inference::split_effect::SPLIT_STRUCTURE
 pub use antecedent::analysis::sample_split_parent_set_effect::ACCEPTANCE = antecedent_io::measured_inference::split_parent_set_effect::ACCEPTANCE
+pub use antecedent::analysis::sample_split_parent_set_effect::DISCOVERY_FRACTION = antecedent_io::measured_inference::split_parent_set_effect::DISCOVERY_FRACTION
 pub use antecedent::analysis::sample_split_parent_set_effect::Knowledge = antecedent_io::measured_inference::split_parent_set_effect::Knowledge
 pub use antecedent::analysis::sample_split_parent_set_effect::LINEAR_ESTIMATOR = antecedent_io::measured_inference::split_parent_set_effect::LINEAR_ESTIMATOR
 pub use antecedent::analysis::sample_split_parent_set_effect::LOG_LINEAR_ESTIMATOR = antecedent_io::measured_inference::split_parent_set_effect::LOG_LINEAR_ESTIMATOR
@@ -13583,6 +13695,7 @@ pub variant antecedent::SupportValidation::Cheap
 pub variant antecedent::SupportValidation::Full
 pub variant antecedent::SupportValidation::None
 pub variant antecedent::SynthesisValue::DependenceEnvelope(antecedent_stats::synthesis::DependenceEnvelope)
+pub variant antecedent::SynthesisValue::EqualStudyGaussian(antecedent_stats::synthesis::GaussianStudyEstimate)
 pub variant antecedent::SynthesisValue::FixedEffect(antecedent_stats::synthesis::PooledEstimate)
 pub variant antecedent::SynthesisValue::Hierarchical(antecedent_stats::synthesis::HierarchicalPosterior)
 pub variant antecedent::SynthesisValue::RandomEffects(antecedent_stats::synthesis::RandomEffectsEstimate)
@@ -13662,6 +13775,10 @@ pub variant antecedent::analysis::discovered_transport_estimate::AnswerKind::Str
 pub variant antecedent::analysis::discovered_transport_estimate::MemberOutcome::Estimated(antecedent::analysis::discovered_transport_estimate::MemberEstimate)
 pub variant antecedent::analysis::discovered_transport_estimate::MemberOutcome::Unestimable { detail: alloc::string::String }
 pub variant antecedent::analysis::discovered_transport_estimate::MemberOutcome::Unidentified { verdict: &'static str }
+pub variant antecedent::analysis::discovered_transport_trial::TrialRandomization::CompletelyRandomized
+pub variant antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict::Identified { rule: alloc::string::String }
+pub variant antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict::MissingEvidence { reason: alloc::string::String }
+pub variant antecedent::analysis::discovered_transport_trial::TrialStructuralVerdict::NotCertified { reason: alloc::string::String }
 pub variant antecedent::analysis::discretized_composition::DiscretizationRefusal::Artifact(antecedent_model::discretized_scm_artifact::ArtifactRefusal)
 pub variant antecedent::analysis::discretized_composition::DiscretizationRefusal::Bridge(antecedent_model::discretized_scm::BridgeRefusal)
 pub variant antecedent::analysis::discretized_composition::DiscretizationRefusal::Composition(antecedent::MechanismCompositionRefusal)

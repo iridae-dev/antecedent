@@ -40,6 +40,7 @@ impl antecedent_stats::ConditionalIndependence for antecedent_stats::PosteriorDe
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::PosteriorPredictiveCi
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::RegressionCi
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::RobustPartialCorrelation
+impl antecedent_stats::ConditionalIndependence for antecedent_stats::SparseDiscreteCi
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::SymbolicCmi
 impl antecedent_stats::ConditionalIndependence for antecedent_stats::WeightedPartialCorrelation
 impl antecedent_stats::DenseLinearAlgebra for antecedent_stats::FaerBackend
@@ -139,6 +140,7 @@ impl core::clone::Clone for antecedent_stats::RegressionCi
 impl core::clone::Clone for antecedent_stats::RobustPartialCorrelation
 impl core::clone::Clone for antecedent_stats::SignificanceMethod
 impl core::clone::Clone for antecedent_stats::SmoothSpec
+impl core::clone::Clone for antecedent_stats::SparseDiscreteCi
 impl core::clone::Clone for antecedent_stats::StandardizationRecord
 impl core::clone::Clone for antecedent_stats::StandardizedColumn
 impl core::clone::Clone for antecedent_stats::StatsError
@@ -258,6 +260,7 @@ impl core::clone::Clone for antecedent_stats::measurement_error::ObservedClassSu
 impl core::clone::Clone for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::clone::Clone for antecedent_stats::measurement_error::ValidationSummary
 impl core::clone::Clone for antecedent_stats::measurement_error::VarianceComponents
+impl core::clone::Clone for antecedent_stats::synthesis::GaussianStudyEstimate
 impl core::clone::Clone for antecedent_stats::synthesis_transport::SummaryOrigin
 impl core::clone::Clone for antecedent_stats::synthesis_transport::TransportAwareSummary
 impl core::clone::Clone for antecedent_stats::synthesis_transport::TransportedBorrowing
@@ -482,6 +485,7 @@ impl core::cmp::PartialEq for antecedent_stats::measurement_error::ObservedClass
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::ValidationSummary
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::VarianceComponents
+impl core::cmp::PartialEq for antecedent_stats::synthesis::GaussianStudyEstimate
 impl core::cmp::PartialEq for antecedent_stats::synthesis_transport::SummaryOrigin
 impl core::cmp::PartialEq for antecedent_stats::synthesis_transport::TransportAwareSummary
 impl core::cmp::PartialEq for antecedent_stats::synthesis_transport::TransportedBorrowing
@@ -633,6 +637,7 @@ impl core::fmt::Debug for antecedent_stats::RegressionCi
 impl core::fmt::Debug for antecedent_stats::RobustPartialCorrelation
 impl core::fmt::Debug for antecedent_stats::SignificanceMethod
 impl core::fmt::Debug for antecedent_stats::SmoothSpec
+impl core::fmt::Debug for antecedent_stats::SparseDiscreteCi
 impl core::fmt::Debug for antecedent_stats::StandardizationRecord
 impl core::fmt::Debug for antecedent_stats::StandardizedColumn
 impl core::fmt::Debug for antecedent_stats::StatsError
@@ -752,6 +757,7 @@ impl core::fmt::Debug for antecedent_stats::measurement_error::ObservedClassSumm
 impl core::fmt::Debug for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::fmt::Debug for antecedent_stats::measurement_error::ValidationSummary
 impl core::fmt::Debug for antecedent_stats::measurement_error::VarianceComponents
+impl core::fmt::Debug for antecedent_stats::synthesis::GaussianStudyEstimate
 impl core::fmt::Debug for antecedent_stats::synthesis_transport::SummaryOrigin
 impl core::fmt::Debug for antecedent_stats::synthesis_transport::TransportAwareSummary
 impl core::fmt::Debug for antecedent_stats::synthesis_transport::TransportedBorrowing
@@ -983,6 +989,7 @@ impl core::marker::Freeze for antecedent_stats::RegressionCi [auto]
 impl core::marker::Freeze for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Freeze for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Freeze for antecedent_stats::SmoothSpec [auto]
+impl core::marker::Freeze for antecedent_stats::SparseDiscreteCi [auto]
 impl core::marker::Freeze for antecedent_stats::StandardizationRecord [auto]
 impl core::marker::Freeze for antecedent_stats::StandardizedColumn [auto]
 impl core::marker::Freeze for antecedent_stats::StatsError [auto]
@@ -1102,6 +1109,7 @@ impl core::marker::Freeze for antecedent_stats::measurement_error::ObservedClass
 impl core::marker::Freeze for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Freeze for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::marker::Freeze for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::marker::Freeze for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
 impl core::marker::Freeze for antecedent_stats::synthesis_transport::TransportedBorrowing [auto]
@@ -1204,6 +1212,7 @@ impl core::marker::Send for antecedent_stats::RegressionCi [auto]
 impl core::marker::Send for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Send for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Send for antecedent_stats::SmoothSpec [auto]
+impl core::marker::Send for antecedent_stats::SparseDiscreteCi [auto]
 impl core::marker::Send for antecedent_stats::StandardizationRecord [auto]
 impl core::marker::Send for antecedent_stats::StandardizedColumn [auto]
 impl core::marker::Send for antecedent_stats::StatsError [auto]
@@ -1323,6 +1332,7 @@ impl core::marker::Send for antecedent_stats::measurement_error::ObservedClassSu
 impl core::marker::Send for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Send for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::marker::Send for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::marker::Send for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
 impl core::marker::Send for antecedent_stats::synthesis_transport::TransportedBorrowing [auto]
@@ -1506,6 +1516,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::ValidationSummary
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::VarianceComponents
+impl core::marker::StructuralPartialEq for antecedent_stats::synthesis::GaussianStudyEstimate
 impl core::marker::StructuralPartialEq for antecedent_stats::synthesis_transport::SummaryOrigin
 impl core::marker::StructuralPartialEq for antecedent_stats::synthesis_transport::TransportAwareSummary
 impl core::marker::StructuralPartialEq for antecedent_stats::synthesis_transport::TransportedBorrowing
@@ -1608,6 +1619,7 @@ impl core::marker::Sync for antecedent_stats::RegressionCi [auto]
 impl core::marker::Sync for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Sync for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Sync for antecedent_stats::SmoothSpec [auto]
+impl core::marker::Sync for antecedent_stats::SparseDiscreteCi [auto]
 impl core::marker::Sync for antecedent_stats::StandardizationRecord [auto]
 impl core::marker::Sync for antecedent_stats::StandardizedColumn [auto]
 impl core::marker::Sync for antecedent_stats::StatsError [auto]
@@ -1727,6 +1739,7 @@ impl core::marker::Sync for antecedent_stats::measurement_error::ObservedClassSu
 impl core::marker::Sync for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Sync for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::marker::Sync for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::marker::Sync for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
 impl core::marker::Sync for antecedent_stats::synthesis_transport::TransportedBorrowing [auto]
@@ -1829,6 +1842,7 @@ impl core::marker::Unpin for antecedent_stats::RegressionCi [auto]
 impl core::marker::Unpin for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Unpin for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Unpin for antecedent_stats::SmoothSpec [auto]
+impl core::marker::Unpin for antecedent_stats::SparseDiscreteCi [auto]
 impl core::marker::Unpin for antecedent_stats::StandardizationRecord [auto]
 impl core::marker::Unpin for antecedent_stats::StandardizedColumn [auto]
 impl core::marker::Unpin for antecedent_stats::StatsError [auto]
@@ -1948,6 +1962,7 @@ impl core::marker::Unpin for antecedent_stats::measurement_error::ObservedClassS
 impl core::marker::Unpin for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Unpin for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::marker::Unpin for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::marker::Unpin for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
 impl core::marker::Unpin for antecedent_stats::synthesis_transport::TransportedBorrowing [auto]
@@ -2050,6 +2065,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RegressionCi 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SignificanceMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SmoothSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SparseDiscreteCi [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::StandardizationRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::StandardizedColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::StatsError [auto]
@@ -2169,6 +2185,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_e
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::synthesis_transport::TransportedBorrowing [auto]
@@ -2271,6 +2288,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RegressionCi [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SignificanceMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SmoothSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SparseDiscreteCi [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::StandardizationRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::StandardizedColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::StatsError [auto]
@@ -2390,6 +2408,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_erro
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::synthesis_transport::TransportedBorrowing [auto]
@@ -2813,6 +2832,7 @@ pub field antecedent_stats::LocalPolynomialInfluence::point: antecedent_stats::L
 pub field antecedent_stats::LocalPolynomialInfluence::robust_first_derivative_standard_error: f64
 pub field antecedent_stats::LocalPolynomialInfluence::robust_second_derivative_standard_error: f64
 pub field antecedent_stats::LocalPolynomialInfluence::robust_standard_error: f64
+pub field antecedent_stats::LocalPolynomialInfluence::variance_degrees_of_freedom: core::option::Option<f64>
 pub field antecedent_stats::LocalPolynomialPoint::first_derivative: f64
 pub field antecedent_stats::LocalPolynomialPoint::first_derivative_standard_error: f64
 pub field antecedent_stats::LocalPolynomialPoint::local_ess: f64
@@ -3330,6 +3350,10 @@ pub field antecedent_stats::measurement_error::VarianceComponents::units: usize
 pub field antecedent_stats::measurement_error::VarianceComponents::within_df: f64
 pub field antecedent_stats::measurement_error::VarianceComponents::within_variance: f64
 pub field antecedent_stats::measurement_error::VarianceComponents::within_variance_estimate_variance: f64
+pub field antecedent_stats::synthesis::GaussianStudyEstimate::degrees_of_freedom: usize
+pub field antecedent_stats::synthesis::GaussianStudyEstimate::estimate: f64
+pub field antecedent_stats::synthesis::GaussianStudyEstimate::variance: f64
+pub field antecedent_stats::synthesis::GaussianStudyEstimate::weights: alloc::vec::Vec<f64>
 pub field antecedent_stats::synthesis_transport::TransportAwareSummary::estimate: f64
 pub field antecedent_stats::synthesis_transport::TransportAwareSummary::origin: antecedent_stats::synthesis_transport::SummaryOrigin
 pub field antecedent_stats::synthesis_transport::TransportAwareSummary::sampling_variance: f64
@@ -3446,6 +3470,7 @@ pub fn <antecedent_stats::RobustPartialCorrelation>::fn new() -> Self
 pub fn <antecedent_stats::SmoothSpec>::fn auto(raw_col: usize, n_basis: usize) -> Self
 pub fn <antecedent_stats::SmoothSpec>::fn new(raw_col: usize, n_basis: usize, lambda: f64) -> Self
 pub fn <antecedent_stats::SmoothSpec>::fn with_knots(self, knots: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> Self
+pub fn <antecedent_stats::SparseDiscreteCi>::fn new(permutations: u32) -> core::result::Result<Self, antecedent_stats::StatsError>
 pub fn <antecedent_stats::StatsError>::fn glm_boundary_margin(&self) -> core::option::Option<f64>
 pub fn <antecedent_stats::SymbolicCmi>::fn new() -> Self
 pub fn <antecedent_stats::ValueBounds>::fn is_degenerate(&self) -> bool
@@ -3697,6 +3722,7 @@ pub fn antecedent_stats::dcor::distance_correlation(x: &[f64], y: &[f64]) -> f64
 pub fn antecedent_stats::describe::iid_se(values: &[f64]) -> f64
 pub fn antecedent_stats::describe::mean_and_se(values: &[f64]) -> core::option::Option<(f64, f64)>
 pub fn antecedent_stats::design::standardize_columns(matrix: &mut [f64], nrows: usize, ncols: usize, col_idxs: &[usize], eps: f64, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_stats::StandardizationRecord, antecedent_stats::StatsError>
+pub fn antecedent_stats::diagonal_low_rank_quadratic_traces(diagonal: &[f64], basis: &[f64], core: &[f64], rank: usize) -> core::result::Result<(f64, f64), antecedent_stats::StatsError>
 pub fn antecedent_stats::difference_cdf_envelope(x: &antecedent_stats::Marginal, y: &antecedent_stats::Marginal, threshold: f64) -> core::result::Result<antecedent_stats::ValueBounds, antecedent_stats::JointLawError>
 pub fn antecedent_stats::divergence::gaussian_kl(mu0: f64, var0: f64, mu1: f64, var1: f64) -> core::result::Result<f64, antecedent_stats::StatsError>
 pub fn antecedent_stats::divergence::kernel_two_sample(a: &[f64], b: &[f64], rng_seed: u64) -> core::result::Result<(f64, f64), antecedent_stats::StatsError>
@@ -3749,6 +3775,7 @@ pub fn antecedent_stats::gam::predict_gam(fit: &antecedent_stats::GamFit, x_colm
 pub fn antecedent_stats::gamma_q(a: f64, x: f64) -> f64
 pub fn antecedent_stats::gauss_hermite_standard_normal(n: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
 pub fn antecedent_stats::gaussian_density(value: f64, mean: f64, standard_deviation: f64) -> f64
+pub fn antecedent_stats::gaussian_local_quadratic_adjusted_influence_prechecked(workspace: &mut antecedent_stats::LocalQuadraticWorkspace, x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_bias_corrected(x: &[f64], y: &[f64], at: f64, bandwidth: f64, observation_weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_stats::LocalPolynomialBiasCorrected, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_influence(x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_influence_prechecked(workspace: &mut antecedent_stats::LocalQuadraticWorkspace, x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
@@ -3805,6 +3832,7 @@ pub fn antecedent_stats::response::silverman_normal_reference_factor(n: usize, d
 pub fn antecedent_stats::special::gauss_legendre(n: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
 pub fn antecedent_stats::special::student_t_ppf(p: f64, df: f64) -> f64
 pub fn antecedent_stats::special::student_t_sf(t: f64, df: f64) -> f64
+pub fn antecedent_stats::synthesis::equal_study_gaussian(estimates: &[f64]) -> core::result::Result<antecedent_stats::synthesis::GaussianStudyEstimate, antecedent_stats::SynthesisError>
 pub fn antecedent_stats::synthesis_transport::borrow_transported(summaries: &[antecedent_stats::synthesis_transport::TransportAwareSummary], mean_prior: antecedent_stats::MeanPrior, tau_prior: &antecedent_stats::TauPrior) -> core::result::Result<antecedent_stats::synthesis_transport::TransportedBorrowing, antecedent_stats::synthesis_transport::TransportedSynthesisError>
 pub fn antecedent_stats::synthesis_transport::pool_transported(summaries: &[antecedent_stats::synthesis_transport::TransportAwareSummary], sampling_covariance: core::option::Option<&[f64]>) -> core::result::Result<antecedent_stats::synthesis_transport::TransportedPooled, antecedent_stats::synthesis_transport::TransportedSynthesisError>
 pub fn antecedent_stats::synthesis_transport::transport_aware_covariance(summaries: &[antecedent_stats::synthesis_transport::TransportAwareSummary], sampling_covariance: core::option::Option<&[f64]>) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::synthesis_transport::TransportedSynthesisError>
@@ -3949,6 +3977,8 @@ pub struct antecedent_stats::RegressionCi has private fields
 pub struct antecedent_stats::RobustPartialCorrelation
 pub struct antecedent_stats::RobustPartialCorrelation has private fields
 pub struct antecedent_stats::SmoothSpec
+pub struct antecedent_stats::SparseDiscreteCi
+pub struct antecedent_stats::SparseDiscreteCi has private fields
 pub struct antecedent_stats::StandardizationRecord
 pub struct antecedent_stats::StandardizedColumn
 pub struct antecedent_stats::SymbolicCmi
@@ -4051,6 +4081,7 @@ pub struct antecedent_stats::measurement_error::ObservedClassSummary
 pub struct antecedent_stats::measurement_error::TwoByTwoCounts
 pub struct antecedent_stats::measurement_error::ValidationSummary
 pub struct antecedent_stats::measurement_error::VarianceComponents
+pub struct antecedent_stats::synthesis::GaussianStudyEstimate
 pub struct antecedent_stats::synthesis_transport::TransportAwareSummary
 pub struct antecedent_stats::synthesis_transport::TransportedBorrowing
 pub struct antecedent_stats::synthesis_transport::TransportedPooled
@@ -4454,7 +4485,9 @@ pub use antecedent_stats::response::LocalPolynomialBiasCorrected = antecedent_st
 pub use antecedent_stats::response::LocalPolynomialInfluence = antecedent_stats::LocalPolynomialInfluence
 pub use antecedent_stats::response::LocalPolynomialPoint = antecedent_stats::LocalPolynomialPoint
 pub use antecedent_stats::response::LocalQuadraticWorkspace = antecedent_stats::LocalQuadraticWorkspace
+pub use antecedent_stats::response::diagonal_low_rank_quadratic_traces = antecedent_stats::diagonal_low_rank_quadratic_traces
 pub use antecedent_stats::response::gaussian_density = antecedent_stats::gaussian_density
+pub use antecedent_stats::response::gaussian_local_quadratic_adjusted_influence_prechecked = antecedent_stats::gaussian_local_quadratic_adjusted_influence_prechecked
 pub use antecedent_stats::response::gaussian_local_quadratic_bias_corrected = antecedent_stats::gaussian_local_quadratic_bias_corrected
 pub use antecedent_stats::response::gaussian_local_quadratic_influence = antecedent_stats::gaussian_local_quadratic_influence
 pub use antecedent_stats::response::gaussian_local_quadratic_influence_prechecked = antecedent_stats::gaussian_local_quadratic_influence_prechecked

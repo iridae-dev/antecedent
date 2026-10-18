@@ -13904,6 +13904,7 @@ pub variant antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifact
 pub variant antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifactError::UnsupportedSemantics(&'static str)
 pub variant antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifactError::UnsupportedVersion { version: u16 }
 pub variant antecedent_io_core::evidence_ledger_artifact::SynthesisMethod::DependenceEnvelope { estimates: alloc::vec::Vec<f64>, standard_errors: alloc::vec::Vec<f64>, rho_lo: f64, rho_hi: f64 }
+pub variant antecedent_io_core::evidence_ledger_artifact::SynthesisMethod::EqualStudyGaussian { estimates: alloc::vec::Vec<f64> }
 pub variant antecedent_io_core::evidence_ledger_artifact::SynthesisMethod::FixedEffectGls { estimates: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64> }
 pub variant antecedent_io_core::evidence_ledger_artifact::SynthesisMethod::FixedEffectInverseVariance { estimates: alloc::vec::Vec<f64>, variances: alloc::vec::Vec<f64> }
 pub variant antecedent_io_core::evidence_ledger_artifact::SynthesisMethod::HierarchicalBorrowing { estimates: alloc::vec::Vec<f64>, variances: alloc::vec::Vec<f64>, mean_prior: antecedent_stats::synthesis::MeanPrior, tau_prior: antecedent_stats::synthesis::TauPrior }
