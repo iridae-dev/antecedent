@@ -1091,10 +1091,15 @@ impl EvidenceLedgerSession {
     /// uses study-level Student inference and does not treat estimated within-
     /// study variances as known precisions.
     ///
-    /// The measured family is 5 to 30 independent studies, keyed by that range
-    /// and by the observations of the smallest study (the sample size its
-    /// variance estimate rests on). The interval uses the actual study count:
-    /// `k - 1` degrees of freedom for the random-effects `t`.
+    /// Fixed-effect and Gaussian study pooling have measured constructions at
+    /// the declared study counts from 5 to 30. The legacy random-effects HKSJ
+    /// interval is published only at 20, 25 and 30 studies. At 5, 10 or 15
+    /// studies, use [`Self::pool_gaussian_studies`] for the measured Gaussian
+    /// construction. A legacy record for a strong-heterogeneity design does
+    /// not identify that generating family from the observed summaries.
+    /// Records also bound the observations of the smallest study (the sample
+    /// size its variance estimate rests on). The random-effects interval uses
+    /// the actual study count, with `k - 1` degrees of freedom.
     ///
     /// # Errors
     /// `cell_not_licensed` for a result with no numbers (accounting only), a
@@ -1106,6 +1111,22 @@ impl EvidenceLedgerSession {
         result: ResultId,
     ) -> Result<PooledInterval, EvidenceLedgerRefusal> {
         let candidate = self.pooled_interval_candidate(result)?;
+        // Legacy HKSJ records share a broad `studies=5-30` key. Only the
+        // baseline designs at these three counts passed; strong-heterogeneity
+        // records at 5 and 15 cannot license other generating families there.
+        // Keep the historical numerical candidate and its replay key intact.
+        let unmeasured_hksj_count = matches!(
+            self.values.get(&result),
+            Some(SynthesisValue::RandomEffects(fit))
+                if ![20, 25, 30].contains(&(fit.degrees_of_freedom + 1))
+        );
+        if unmeasured_hksj_count {
+            return Err(EvidenceLedgerRefusal::new(
+                antecedent_core::reason_code!("cell_not_licensed"),
+                "evidence_ledger.hksj_study_count_not_measured",
+                "legacy HKSJ intervals are measured at 20, 25 and 30 studies; use pool_gaussian_studies for the measured Gaussian construction at 5, 10 or 15 studies",
+            ));
+        }
         let observations = self
             .ledger
             .result(result)

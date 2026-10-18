@@ -619,7 +619,7 @@ fn repeated_observation_use_is_flagged_and_stays_flagged_when_cited() {
 #[test]
 fn a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record() {
     // Five studies of 100 observations each: inside the measured fixed-effect
-    // and random-effects constructions.
+    // and Gaussian study constructions.
     let mut session = StudyBuilder::evidence_ledger();
     let sources: Vec<SourceId> = (0..5)
         .map(|i| session.add_source(data(&format!("study_{i}"), i * 100..(i + 1) * 100)).unwrap())
@@ -636,11 +636,26 @@ fn a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record() {
         .pool_summaries(pooling("fixed", summaries(0.01)), PoolingDeclaration::Independent, &c)
         .unwrap()
         .result;
+    let gaussian =
+        session.pool_gaussian_studies(pooling("gaussian", summaries(0.05)), &c).unwrap().result;
+    let random_summaries = (5..25)
+        .map(|i| {
+            let source =
+                session.add_source(data(&format!("study_{i}"), i * 100..(i + 1) * 100)).unwrap();
+            summary(source, 0.5 + 0.01 * (f64::from(i) - 15.0), 0.02)
+        })
+        .collect();
     let random = session
-        .random_effects(pooling("random", summaries(0.05)), BetweenStudy::DerSimonianLaird, &c)
+        .random_effects(
+            pooling("random twenty studies", random_summaries),
+            BetweenStudy::DerSimonianLaird,
+            &c,
+        )
         .unwrap()
         .result;
-    for (result, method) in [(fixed, "wald_z"), (random, "hksj_t")] {
+    for (result, method) in
+        [(fixed, "wald_z"), (gaussian, "independent_gaussian_study_t"), (random, "hksj_t")]
+    {
         let interval = session.pooled_interval(result).unwrap();
         assert_eq!(interval.method, method);
         assert!(interval.lower < interval.estimate && interval.estimate < interval.upper);
@@ -769,6 +784,24 @@ fn pooled_intervals_refuse_study_counts_outside_the_measured_family() {
             let refusal = session.pooled_interval_candidate(result).unwrap_err();
             expect(&refusal, "cell_not_licensed", "evidence_ledger.interval_not_measured");
             assert!(refusal.message.contains(&format!("{k} studies")), "{refusal}");
+        }
+    }
+}
+
+#[test]
+fn legacy_hksj_records_cannot_license_unmeasured_study_counts() {
+    for k in [5_usize, 10, 15] {
+        for method in [BetweenStudy::DerSimonianLaird, BetweenStudy::RestrictedMaximumLikelihood] {
+            let (mut session, summaries) = study_family(k);
+            let result = session
+                .random_effects(pooling("historical candidate", summaries.clone()), method, &ctx())
+                .unwrap()
+                .result;
+            // The original numerical construction remains available to replay.
+            assert_eq!(session.pooled_interval_candidate(result).unwrap().method, "hksj_t");
+            let refusal = session.pooled_interval(result).unwrap_err();
+            expect(&refusal, "cell_not_licensed", "evidence_ledger.hksj_study_count_not_measured");
+            assert!(refusal.message.contains("pool_gaussian_studies"));
         }
     }
 }
