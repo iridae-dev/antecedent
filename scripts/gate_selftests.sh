@@ -41,6 +41,7 @@ python3 scripts/test_publish_crates.py
 python3 scripts/test_release_support_delta.py
 python3 scripts/test_rust_source.py
 python3 scripts/test_rust_equivalence.py
+python3 scripts/test_calibration_replay_recipes.py
 python3 scripts/test_calibration_dependency_facets.py
 python3 scripts/test_transport_replay_contract.py
 python3 scripts/verify_release_selftest.py

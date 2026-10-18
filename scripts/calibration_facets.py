@@ -2271,6 +2271,8 @@ def replay_thread_environment(value: str | None) -> dict[str, str]:
 def replay(
     waiver_id: str, dry_run: bool, reuse_capture: bool = False, waiver_file: Path = WAIVERS
 ) -> int:
+    from _calibration_replay_recipes import from_registry
+
     surface = load_surface()
     if surface.errors:
         for problem in surface.errors:
@@ -2329,6 +2331,7 @@ def replay(
             group_invocations[g.index] = (
                 coverage_family_replay_environments(selected)
                 or legacy_prefix_replay_environments(selected)
+                or from_registry(selected, ROOT)
                 or [{}]
             )
             group_protocols[g.index] = {
