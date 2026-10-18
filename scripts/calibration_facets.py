@@ -179,10 +179,36 @@ def declares_out_of_line_test_module(rel: str, root: Path | None = None) -> bool
     return False
 
 
+# These two literal-preserving streams are the reviewed historical/private unit
+# module and its added identity-shift oracle. Unknown changes remain numerical
+# source, including new exports, macros, includes or measurement producers.
+# The source/parent blobs are recorded in calibration_unit_scaffolding_proofs.json.
+_BOUNDED_PRIVATE_UNIT_TOKENS = {
+    "crates/antecedent-estimate/src/response/tests.rs": frozenset(
+        {
+            "10c231f132aaea734a90149eded4ad328178cf118be95ae15bc35175f484fe42",
+            "18456a524077fa1a1e18d33d557244314c44ccae5cc49d76d8b4db9f23da310d",
+        }
+    ),
+}
+
+
 def scaffolding_view(rel: str, text: str) -> str:
     """`text` as the calibration surface sees a testmod file: without its inline test
     modules, or empty when the whole file is an out-of-line `#[cfg(test)]` module."""
-    return "" if declares_out_of_line_test_module(rel) else strip_test_modules(text)
+    if declares_out_of_line_test_module(rel):
+        reviewed = _BOUNDED_PRIVATE_UNIT_TOKENS.get(rel)
+        if reviewed is not None:
+            try:
+                digest = hashlib.sha256(
+                    "\0".join(_rust_equivalence.tokens(text)).encode()
+                ).hexdigest()
+            except ValueError:
+                return text
+            if digest not in reviewed:
+                return text
+        return ""
+    return strip_test_modules(text)
 
 
 _PUB_USE = re.compile(r"^[ \t]*pub(?:\([^)]*\))?[ \t]+use\b([^;]*);", re.M)
@@ -2048,7 +2074,10 @@ def weighted_split_replay_environment(records: list[dict]) -> dict[str, str]:
         functional = record.get("functional")
         if record.get("interval_method") != "student_t_sandwich_effective_n":
             raise ValueError("unknown stored weighted split interval construction")
-        if functional == marker + ".variance_hc3" and record.get("se_kind") == "hc3_sampling_weighted":
+        if (
+            functional == marker + ".variance_hc3"
+            and record.get("se_kind") == "hc3_sampling_weighted"
+        ):
             versions.add(3)
         elif record.get("se_kind") != "hc1_sampling_weighted":
             raise ValueError("stored weighted split variance differs from its protocol")
@@ -2081,7 +2110,10 @@ def weighted_cluster_replay_environment(records: list[dict]) -> dict[str, str]:
         identity = record.get("interval_method"), record.get("functional")
         if identity == ("analytic_se", "all_observed.mean+weights=sampling"):
             versions.add(1)
-        elif identity == ("student_analytic", "all_observed.mean+reference=cluster_df+weights=sampling"):
+        elif identity == (
+            "student_analytic",
+            "all_observed.mean+reference=cluster_df+weights=sampling",
+        ):
             versions.add(2)
         else:
             raise ValueError(f"unknown stored weighted cluster protocol {identity!r}")
@@ -3436,12 +3468,15 @@ def self_test() -> int:
         }
         # Shared exact evaluation is an additional real numerical dependency,
         # not a replacement for the route's estimator owner.
-        exact_routes = (
-            est.startswith(("transport.", "functional.", "cross_world.", "observation.count_fitted_tables."))
-            or est in {"joint_bayesian_transport", "learned_joint_transport",
-                       "sampled_counterfactual_transport", "dose_grid_quadratic",
-                       "dependent_temporal_interval"}
-        )
+        exact_routes = est.startswith(
+            ("transport.", "functional.", "cross_world.", "observation.count_fitted_tables.")
+        ) or est in {
+            "joint_bayesian_transport",
+            "learned_joint_transport",
+            "sampled_counterfactual_transport",
+            "dose_grid_quadratic",
+            "dependent_temporal_interval",
+        }
         if exact_routes and "estimator.exact_transport" not in got:
             split.append((est, got))
         route_got = set(got) - ({"estimator.exact_transport"} if exact_routes else set())
@@ -3460,8 +3495,11 @@ def self_test() -> int:
                 if "pcmci_plus" in str(rec.get("functional", "")):
                     expected.add("estimator.pcmci_plus")
         if rec.get("interval_method") == "population_linear_aipw_score":
-            expected = {"estimator.aipw" if est == "aipw" else "estimator.learner",
-                        "estimator.population_linear_aipw", "estimator.propensity_weighting"}
+            expected = {
+                "estimator.aipw" if est == "aipw" else "estimator.learner",
+                "estimator.population_linear_aipw",
+                "estimator.propensity_weighting",
+            }
         if rec.get("interval_method") == "population_linear_atc_hc3":
             expected = {"estimator.aipw", "estimator.population_linear_atc"}
         if est == "distance.matching":
@@ -3478,7 +3516,12 @@ def self_test() -> int:
             and rec.get("inference") == "Frequentist"
         ):
             expected = {"estimator.response", "estimator.response_levels"}
-        if expected is not None and route_got != expected or expected is None and len(route_got) != 1:
+        if (
+            expected is not None
+            and route_got != expected
+            or expected is None
+            and len(route_got) != 1
+        ):
             split.append((est, got))
     expect(
         split == [],

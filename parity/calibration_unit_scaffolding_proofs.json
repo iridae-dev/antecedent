@@ -1,0 +1,33 @@
+{
+  "schema": "calibration_private_unit_scaffolding.v1",
+  "path": "crates/antecedent-estimate/src/response/tests.rs",
+  "parent": "crates/antecedent-estimate/src/response/mod.rs",
+  "parent_declaration": "#[cfg(test)] mod tests;",
+  "scope": "Only these exact reviewed literal-preserving token streams may be ignored as private unit scaffolding. Any executable/literal edit, public export, macro/include/initializer or measurement producer addition falls back to full numerical source. No claim any typed replay executed this unit oracle.",
+  "sources": [
+    {
+      "source": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
+      "unit_file_blob": "aef6ef895f8376f27540fc7395616e500ec6da04",
+      "parent_blob": "4192ee067ff891b32e1bfd6e6298994234ebfa5f",
+      "literal_preserving_token_sha256": "10c231f132aaea734a90149eded4ad328178cf118be95ae15bc35175f484fe42"
+    },
+    {
+      "source": "e15c4b0c33daf638d11f64b6a7fff6e3bc216022",
+      "unit_file_blob": "aef6ef895f8376f27540fc7395616e500ec6da04",
+      "parent_blob": "b96be5d4dea91fb1cfbc09bbb48cee766491550a",
+      "literal_preserving_token_sha256": "10c231f132aaea734a90149eded4ad328178cf118be95ae15bc35175f484fe42"
+    },
+    {
+      "source": "70a71dd33bc55cbc2398b0f91c4a2c797afad618",
+      "unit_file_blob": "aef6ef895f8376f27540fc7395616e500ec6da04",
+      "parent_blob": "b96be5d4dea91fb1cfbc09bbb48cee766491550a",
+      "literal_preserving_token_sha256": "10c231f132aaea734a90149eded4ad328178cf118be95ae15bc35175f484fe42"
+    },
+    {
+      "source": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4",
+      "unit_file_blob": "67f37536c3912f325fb61123db531055de9383f3",
+      "parent_blob": "b96be5d4dea91fb1cfbc09bbb48cee766491550a",
+      "literal_preserving_token_sha256": "18456a524077fa1a1e18d33d557244314c44ccae5cc49d76d8b4db9f23da310d"
+    }
+  ]
+}

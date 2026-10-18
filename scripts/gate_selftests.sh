@@ -44,6 +44,7 @@ python3 scripts/test_rust_equivalence.py
 python3 scripts/test_calibration_replay_recipes.py
 python3 scripts/test_calibration_build_cache.py
 python3 scripts/test_calibration_dependency_facets.py
+python3 scripts/test_calibration_private_unit_scaffolding.py
 python3 scripts/test_transport_replay_contract.py
 python3 scripts/verify_release_selftest.py
 python3 scripts/verify_wheel_matrix_selftest.py

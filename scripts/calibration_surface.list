@@ -177,9 +177,12 @@ key estimator.transport_empirical estimator transport.z_joint_sensitivity_endpoi
 estimator.transport_trial_compatibility crates/antecedent/src/analysis/discovered_transport_trial.rs
 key estimator.transport_trial_compatibility functional *trial_compatibility*
 # The trial test uses core ln_gamma, generic CBOR and CanonicalWriter; invalid is a local error closure.
-allow adaptive_interval crates/antecedent/src/analysis/discovered_transport_trial.rs antecedent_stats
-allow design crates/antecedent/src/analysis/discovered_transport_trial.rs antecedent_io export finish invalid
+allow adaptive_interval crates/antecedent/src/analysis/discovered_transport_trial.rs antecedent_stats cancelled refusal
+allow design crates/antecedent/src/analysis/discovered_transport_trial.rs antecedent_io export finish invalid refusal
 allow mechanism crates/antecedent/src/analysis/discovered_transport_trial.rs invalid
+# Local confidence-set refusal/cancellation names and the private unit fixture's table closure
+# do not invoke the adaptive interval, design or registry implementations of those names.
+allow registry_mirror crates/antecedent/src/analysis/discovered_transport_trial.rs table
 
 # Learned continuous-outcome trial transport: the cross-fitted augmented inverse-odds
 # score, its overlap gate and the whole-estimator joint outer bootstrap.
@@ -496,6 +499,7 @@ testmod crates/antecedent-prob/src/hmc.rs
 testmod crates/antecedent-discovery/src/ci_screened_posterior.rs
 testmod crates/antecedent-validate/src/tests.rs
 testmod crates/antecedent-core/src/query/tests.rs
+testmod crates/antecedent-estimate/src/response/tests.rs
 # Inline history fitting checks require both test and calibration-internal;
 # no coverage record's measurement test or DGP is hosted in this file.
 testmod crates/antecedent-estimate/src/temporal_history_fit.rs
