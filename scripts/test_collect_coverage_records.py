@@ -292,7 +292,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
 
     def test_keep_existing_cli_preserves_stale_rows_and_previous_gate_evidence(self) -> None:
         old = {"id": "old", "calibration_sha": "old-sha", "facets": ["core"]}
-        new = {"id": "new", "calibration_sha": "new-sha", "facets": ["core"]}
+        new = {"id": "new", "calibration_sha": "new-sha"}
         with tempfile.TemporaryDirectory() as directory:
             ledger = Path(directory) / "gates.toml"
             ledger.write_text('[[gate]]\ngroup="old-gate"\npassed=1\ncalibration_sha="old-sha"\n', encoding="utf-8")
@@ -303,6 +303,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                 patch.object(collector, "OUT", Path(directory) / "records.toml"),
                 patch.object(collector, "GATES", ledger),
                 patch.object(collector, "load_records", return_value={"new": new}),
+                patch.object(collector, "tag_facets", side_effect=lambda rows: rows["new"].update(facets=["core"])) as tag,
                 patch.object(collector.facets, "load_records", return_value=[old]),
                 patch.object(collector, "write_registry") as write,
                 patch.object(collector, "write_gate_ledger") as gates,
@@ -312,6 +313,9 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                 self.assertEqual(collector.main(), 0)
                 self.assertEqual(write.call_args.args[0], {"old": old, "new": new})
                 self.assertEqual(write.call_args.kwargs, {"retag": False})
+                tag.assert_called_once_with({"new": new})
+                self.assertEqual(new["facets"], ["core"])
+                self.assertEqual(old["calibration_sha"], "old-sha")
                 self.assertEqual(gates.call_args.args[1]["old-gate"]["calibration_sha"], "old-sha")
 
     def test_selected_cell_sync_leaves_other_cells_byte_identical(self) -> None:

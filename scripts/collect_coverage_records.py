@@ -1207,6 +1207,8 @@ def main() -> int:
         existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
         records = append_attested_records(existing, records)
     elif args.keep_existing:
+        if args.sha:
+            tag_facets(records)
         existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
         replacements = args.replace_record
         if args.passing_only:
