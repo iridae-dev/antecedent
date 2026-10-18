@@ -169,6 +169,11 @@ codegen-units = 1
 [profile.release.package.antecedent-io]
 codegen-units = 256
 
+# The generated coverage registry is owned by io-core after the crate split.
+# Keep its const-data codegen parallel too; numerical crate profiles are unchanged.
+[profile.release.package.antecedent-io-core]
+codegen-units = 256
+
 [profile.release.package.antecedent]
 codegen-units = 16
 
