@@ -3533,5 +3533,197 @@
       "all_local_artifacts_recompiled": 18,
       "actual_e15_test_names_verified": true
     }
+  },
+  "pag_bounded_outcome_confidence_set_validation": {
+    "status": "all_three_fixed_points_passed_before_whole_group_collection",
+    "record_id": "cov.discovered_transport.pag.frequentist.percentile_bootstrap_or_logical_support.l95.discovered_pag_transport_contrast_complete_procedure_coverage.fci_cutoff_0_05_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set",
+    "measurement_source_sha": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4",
+    "validation_domain": "release_2_4_1_pag_confidence_set_validation_v1",
+    "allocation_slot": 3,
+    "decision_protocol": {
+      "validation_domain": "release_2_4_1_pag_confidence_set_validation_v1",
+      "id": "suite_coverage_fwer.v1",
+      "family_digest": "ad4c51b35d5e5960d05066c8f6f8adcc738b38f095ce42b29cb7ad90d4e0ab94",
+      "family_alpha": 0.05,
+      "family_groups": 757,
+      "family_grid_points": 3,
+      "family_cells": 581376,
+      "cell_cap_per_group": 256,
+      "looks": [
+        {
+          "planned_replicates": 400,
+          "weight": 0.5
+        },
+        {
+          "planned_replicates": 2000,
+          "weight": 0.25
+        },
+        {
+          "planned_replicates": 20000,
+          "weight": 0.25
+        }
+      ]
+    },
+    "allocation_receipt_sha256": "412b20c792155532f0a0bdef3363d4503a9321b5e5a320f51ac6d8cba584bad5",
+    "plan_sha256": "e084b4d36772b9e7138debba4355e17fcf7a45c621bd3662964a8d817fa58ff6",
+    "controller_sha256": "c02a883a4bcebf5a2c5621dc2367f8015662298dcde50c6574c03e80a2875a66",
+    "preserved_executable": {
+      "measurement_source_sha": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4",
+      "original_executable": "/Users/charleshinshaw/Desktop/antecedent/target/release/deps/discovered_transport_calibration-397c96eab9b36b60",
+      "preserved_executable": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-frozen-runs/70f19b82ccb1d18cf94c1e288e0d802fc447e4c4/20261018T174549Z/bin/discovered_transport_calibration",
+      "sha256": "d36deb0fd70b34e1f3de59592bea525f3d236ece132eaf901f59713db1a787bb",
+      "source_input_context_sha256": "431c46c5eac9ec846be9376e73009875c988a0e9e2b197ae8ed7ca9a6c4aad34",
+      "command": [
+        "cargo",
+        "test",
+        "--release",
+        "-p",
+        "antecedent",
+        "--test",
+        "discovered_transport_calibration",
+        "--no-run",
+        "--timings",
+        "--message-format=json"
+      ]
+    },
+    "prebuild": {
+      "source_sha": "70f19b82ccb1d18cf94c1e288e0d802fc447e4c4",
+      "start_utc": "2026-10-18T17:35:37Z",
+      "seconds": 611.387062249938,
+      "command": [
+        "cargo",
+        "test",
+        "--release",
+        "-p",
+        "antecedent",
+        "--test",
+        "discovered_transport_calibration",
+        "--no-run",
+        "--timings",
+        "--message-format=json"
+      ],
+      "cargo_timing_sha256": "f67868547e9a23e310d5d1bba08a6332babec68ce62b55fc41a0e3050754470b",
+      "profile_manifest_sha256": "f64a660e40e456062f431f2378dd36e16808a9467edb89ff4ba01d20b79c4ec8",
+      "claim": "Actual source/profile compile timing, separate from numerical timings; no inferred historical io-core speedup."
+    },
+    "points": [
+      {
+        "point": 0,
+        "status": 0,
+        "attempts": 2000,
+        "covered": 1882,
+        "whole_procedure_coverage": 0.941,
+        "identified_points": 1931,
+        "identified_reporting_rate": 0.9655,
+        "printed_reporting_rate": 0.9655,
+        "printed_median_width": 0.077249,
+        "printed_median_width_over_effect": 0.201958,
+        "fwer_compatible": true,
+        "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-frozen-runs/70f19b82ccb1d18cf94c1e288e0d802fc447e4c4/20261018T174549Z/groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p0.log",
+        "log_sha256": "6a1ea8bd625141ce553abc314486bef1b41d93789b29ed59ee668bb758901bb9",
+        "seconds": 1778.8000823748298,
+        "passes": true
+      },
+      {
+        "point": 1,
+        "status": 0,
+        "attempts": 2000,
+        "covered": 1863,
+        "whole_procedure_coverage": 0.9315,
+        "identified_points": 1943,
+        "identified_reporting_rate": 0.9715,
+        "printed_reporting_rate": 0.9715,
+        "printed_median_width": 0.054435,
+        "printed_median_width_over_effect": 0.142314,
+        "fwer_compatible": true,
+        "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-frozen-runs/70f19b82ccb1d18cf94c1e288e0d802fc447e4c4/20261018T174549Z/groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p1.log",
+        "log_sha256": "77dd2c7b721d1aa43c545d7f5fd7b25ab5453928dd40f6182f2bdb92d4f376c5",
+        "seconds": 1234.3266363330185,
+        "passes": true
+      },
+      {
+        "point": 2,
+        "status": 0,
+        "attempts": 2000,
+        "covered": 1884,
+        "whole_procedure_coverage": 0.942,
+        "identified_points": 1941,
+        "identified_reporting_rate": 0.9705,
+        "printed_reporting_rate": 0.9705,
+        "printed_median_width": 0.038483,
+        "printed_median_width_over_effect": 0.100608,
+        "fwer_compatible": true,
+        "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-frozen-runs/70f19b82ccb1d18cf94c1e288e0d802fc447e4c4/20261018T174549Z/groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p2.log",
+        "log_sha256": "b6eabf08e7a75e1ba3e0f790031daacda41f5fbb32b192d8f2164182d2026a74",
+        "seconds": 1575.2969529998954,
+        "passes": true
+      }
+    ],
+    "width_evidence": "Printed medians have six decimal places. Successful frozen harness assertions check the actual unrounded all-confidence-set width/effect <= 1.5 and identified-point reporting >= .9; smoke is absent from formal dispatch.",
+    "coverage_evidence": "Whole-procedure coverage includes operational errors as misses.",
+    "raw_sha256": {
+      "groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p0.console.txt": "29fc662e417159d7eef96ddb136d9710c8a47626dbb4dfb746cd277348fd9082",
+      "groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p2.tallies.jsonl": "ba7a9d97557b13e82c8e86509d68f71c6a0cc233836e090834b54c86ee33374d",
+      "groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p1.tallies.jsonl": "422b21d647017671c1f75f3b1c26d6fd37e26a6dea952a8845e5f5f94077c3c8",
+      "groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p1.console.txt": "d95638a5bf5389cc52c6090c834b93c4e1de0125eb85abcc9fc712e4d5bb54b8",
+      "groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p0.tallies.jsonl": "c996ebf6336ac9390965568b5f307c153c63a8655ca8dda7d53f3643726785ac",
+      "groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p2.log": "b6eabf08e7a75e1ba3e0f790031daacda41f5fbb32b192d8f2164182d2026a74",
+      "groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p0.log": "6a1ea8bd625141ce553abc314486bef1b41d93789b29ed59ee668bb758901bb9",
+      "groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p1.log": "77dd2c7b721d1aa43c545d7f5fd7b25ab5453928dd40f6182f2bdb92d4f376c5",
+      "groups/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage/discovered_transport_calibration__discovered_pag_transport_contrast_complete_procedure_coverage.p2.console.txt": "fbd535881cffa274e5781c3aacf2b5feff1cb9dd02bf8e495226f11437fa1f5a"
+    },
+    "prior_failed_slot2": {
+      "source_sha": "9b9ba8ca7cdd4b0ab328be8b08c689cb5e6e63ed",
+      "domain": "release_2_4_1_pag_trial_shift_validation_v1",
+      "collected": false,
+      "points": [
+        {
+          "point": 0,
+          "covered": 1810,
+          "attempts": 2000,
+          "compatible": false,
+          "log_sha256": "f6eb89a5a6a9c06dcdb4864932d9214d6e610dd6e54fb373fcb0af6bedc6cdbd",
+          "reporting_summary": [
+            "discovered_pag_transport_contrast_complete_procedure_coverage: reporting_rate=1.000000 median_width=0.077841 median_width_over_effect=0.203505 manifest_point=false"
+          ],
+          "failure": [
+            "discovered_pag_transport_contrast_complete_procedure_coverage [fci_pair_cutoff_0_05_over_28_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization]: suite coverage decision rejects nominal compatibility (p=0.00000000000000018374755035818338, family risk=0.05)"
+          ]
+        },
+        {
+          "point": 1,
+          "covered": 1879,
+          "attempts": 2000,
+          "compatible": true,
+          "log_sha256": "c0e80659f7748171bd70acaefa6606ad4d41e3760cff6d5cad2836440e6e8891",
+          "reporting_summary": [
+            "discovered_pag_transport_contrast_complete_procedure_coverage: reporting_rate=0.998000 median_width=0.054163 median_width_over_effect=0.141603 manifest_point=true"
+          ],
+          "failure": []
+        },
+        {
+          "point": 2,
+          "covered": 1872,
+          "attempts": 2000,
+          "compatible": true,
+          "log_sha256": "953293378bfde7dd17dc77a5ad31cc46dce8893af150974390d59be3cd3b811f",
+          "reporting_summary": [
+            "discovered_pag_transport_contrast_complete_procedure_coverage: reporting_rate=0.999000 median_width=0.038353 median_width_over_effect=0.100269 manifest_point=false"
+          ],
+          "failure": []
+        }
+      ]
+    },
+    "prior_slot1": "Original source70 failure and its risk expenditure remain in the append-only allocation receipt; neither prior failed construction is relabeled or collected here.",
+    "risk_accounting": "The method was selected after development and prior failed constructions. Slot3 was preallocated before its independent outcomes; original alpha, family count and prior spending are preserved without reset.",
+    "registry_merge": {
+      "before_records": 1471,
+      "after_records": 1472,
+      "existing_rows_deep_equal": true,
+      "before_sha256": "e36432faa8c608f66c9f84b6cf60e9494ab199c7b5422afc212940a5b8819c10",
+      "after_sha256": "bfc0b086459d6aa700657d8f41768d86ad92aab4ee73591919c5dc24894e8cd1"
+    },
+    "raw_archive": "target/calibration-frozen-runs/70f19b82ccb1d18cf94c1e288e0d802fc447e4c4/20261018T174549Z",
+    "provenance_note": "Raw files and executable are retained in the SHA-scoped archive. Hashes and exact source/budgets are durable here. This receipt adds no waiver for subsequent source changes."
   }
 }
