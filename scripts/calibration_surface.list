@@ -469,6 +469,13 @@ suite.counterfactual_transport_decisions_oracle crates/antecedent-identify/tests
 suite.counterfactual_transport_lifecycle_oracle crates/antecedent/tests/counterfactual_transport_lifecycle.rs
 
 # ---- files whose inline unit tests are scaffolding, not measurement ---------
+# Reviewed followup changes only independent cfg(test) assertions/oracles.
+# Actual ignored calibration tests and record/DGP hosts remain measurement.
+testmod crates/antecedent-discovery/src/pcmci_plus.rs
+testmod crates/antecedent-estimate/src/population_aipw.rs
+testmod crates/antecedent-estimate/src/propensity/matching.rs
+testmod crates/antecedent-estimate/src/propensity/stratification.rs
+testmod crates/antecedent/src/analysis/discovered_transport_trial.rs
 testmod crates/antecedent-prob/src/hmc.rs
 testmod crates/antecedent-discovery/src/ci_screened_posterior.rs
 testmod crates/antecedent-validate/src/tests.rs

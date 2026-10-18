@@ -200,6 +200,35 @@ class DependencyFacets(unittest.TestCase):
             },
         )
 
+    def test_reviewed_unit_modules_are_not_measurement_hosts(self):
+        hosts = {
+            str(row.get(field, "")).rsplit("::", 1)[0]
+            for row in facets.load_records()
+            for field in ("test", "dgp")
+        }
+        for path in (
+            "crates/antecedent-discovery/src/pcmci_plus.rs",
+            "crates/antecedent-estimate/src/population_aipw.rs",
+            "crates/antecedent-estimate/src/propensity/matching.rs",
+            "crates/antecedent-estimate/src/propensity/stratification.rs",
+            "crates/antecedent/src/analysis/discovered_transport_trial.rs",
+        ):
+            self.assertIn(path, self.surface.testmods)
+            self.assertNotIn(path, hosts)
+            text = (ROOT / path).read_text()
+            self.assertNotIn("for_record(", facets.rust_code(text))
+            self.assertNotIn("#[ignore", facets.rust_code(text))
+            self.assertIn("mod tests", text)
+            original = facets.scaffolding_view(path, text)
+            unit = "\n#[cfg(test)] mod sentinel_unit { fn unit_only_marker() {} }\n"
+            self.assertEqual(
+                original.strip(), facets.scaffolding_view(path, text + unit).strip()
+            )
+            production = "\nfn production_change_must_remain_visible() {}\n"
+            self.assertNotEqual(
+                original, facets.scaffolding_view(path, text + production)
+            )
+
     def test_recordless_pcmci_gates_execute_the_separate_plain_algorithm(self):
         # The old recordless ledger contains plain PCMCI, not PCMCI+/JPCMCI+.
         # Preserve that distinction instead of inventing a replay of PCMCI+.
