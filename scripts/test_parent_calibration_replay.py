@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
 import unittest
 
 from _repo import ensure_scripts_on_path
@@ -172,6 +175,107 @@ class ReplayWorkerBudgetTest(unittest.TestCase):
         for value in ("0", "-1", "1.5", "ten", ""):
             with self.subTest(value=value), self.assertRaisesRegex(ValueError, "positive integer"):
                 facets.replay_thread_environment(value)
+
+
+class LegacyPrefixReplayRecipeTest(unittest.TestCase):
+    def fixture(self) -> tuple[dict, dict]:
+        source = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
+        points = []
+        grid = []
+        for point, (budget, scored, covered) in enumerate(
+            ((2000, 1930, 1830), (4000, 3800, 3610), (4000, 3870, 3670))
+        ):
+            grid.append({"point": point, "replicates": scored, "observed": covered / scored})
+            cell = {
+                "point": point,
+                "planned_attempts": budget,
+                "covered": covered,
+                "scored": scored,
+                "skipped": 0,
+                "log_sha256": "a" * 64,
+                "tally_sha256": "b" * 64,
+            }
+            if budget == 4000:
+                cell.update(computed_indices=[2000, 4000], prefix_tally_sha256="c" * 64)
+            else:
+                cell["retained_original_point"] = True
+            points.append(cell)
+        record = {
+            "id": "cov.parent",
+            "calibration_sha": source,
+            "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_case",
+            "functional": "effect.discovery_fraction_0_75",
+            "nominal": 0.95,
+            "grid": grid,
+        }
+        digest = hashlib.sha256(
+            json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        entry = {
+            **{k: record[k] for k in ("test", "functional", "nominal", "calibration_sha")},
+            "record_id": record["id"],
+            "measurement_payload_sha256": digest,
+            "points": points,
+        }
+        history = {
+            "schema": "calibration_validation_history.v1",
+            "legacy_prefix_protocol": {
+                "id": "original_source_prefix_completion.v1",
+                "source_sha": source,
+            },
+            "legacy_prefix_completions": [entry],
+        }
+        return record, history
+
+    def test_uses_declared_attempts_rather_than_conditional_scored_counts(self) -> None:
+        record, history = self.fixture()
+        result = facets.legacy_prefix_replay_environments([record], history)
+        self.assertEqual(
+            [int(env["ANTECEDENT_CALIBRATION_NSIM"]) for env in result], [2000, 4000, 4000]
+        )
+        self.assertEqual(
+            [env["ANTECEDENT_CALIBRATION_GRID_POINTS"] for env in result], ["0", "1", "2"]
+        )
+        self.assertEqual(
+            [env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"] for env in result], ["2001", "4001", "4001"]
+        )
+        # Facet migrations do not alter the measured payload or its attempt recipe.
+        record.update(facets=["core"], surface_list_blob="d" * 40)
+        self.assertEqual(facets.legacy_prefix_replay_environments([record], history), result)
+
+    def test_tampered_payload_counts_budgets_or_prefix_receipts_fail_closed(self) -> None:
+        record, history = self.fixture()
+        changed = copy.deepcopy(record)
+        changed["grid"][0]["replicates"] -= 1
+        with self.assertRaisesRegex(ValueError, "stored measurement payload"):
+            facets.legacy_prefix_replay_environments([changed], history)
+        for key, value in (
+            ("planned_attempts", 20000),
+            ("covered", 0),
+            ("log_sha256", "bad"),
+            ("computed_indices", [0, 4000]),
+            ("prefix_tally_sha256", "bad"),
+        ):
+            altered = copy.deepcopy(history)
+            altered["legacy_prefix_completions"][0]["points"][1][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                facets.legacy_prefix_replay_environments([record], altered)
+
+    def test_unrelated_or_later_source_ignores_historical_recipe_but_mixed_group_rejects(
+        self,
+    ) -> None:
+        record, history = self.fixture()
+        self.assertEqual(
+            facets.legacy_prefix_replay_environments(
+                [{**record, "calibration_sha": "f" * 40}], history
+            ),
+            [],
+        )
+        self.assertEqual(
+            facets.legacy_prefix_replay_environments([{**record, "id": "other"}], history), []
+        )
+        with self.assertRaisesRegex(ValueError, "separate replay groups"):
+            facets.legacy_prefix_replay_environments([record, {**record, "id": "other"}], history)
 
 
 if __name__ == "__main__":

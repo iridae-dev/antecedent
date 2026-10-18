@@ -2073,6 +2073,103 @@ def weighted_cluster_replay_environment(records: list[dict]) -> dict[str, str]:
     return {"ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL": str(versions.pop())} if versions else {}
 
 
+def legacy_prefix_replay_environments(
+    records: list[dict], history: dict | None = None
+) -> list[dict[str, str]]:
+    """Replay reviewed original-source prefix budgets, never inferred conditional N."""
+    path = ROOT / "parity" / "calibration_validation_history.json"
+    if history is None:
+        if not path.is_file():
+            return []
+        history = json.loads(read_text(path))
+    if history.get("schema") != "calibration_validation_history.v1":
+        raise ValueError("unknown calibration validation history schema")
+    protocol = history.get("legacy_prefix_protocol", {})
+    if protocol.get("id") != "original_source_prefix_completion.v1":
+        raise ValueError("unknown legacy prefix completion protocol")
+    entries = history.get("legacy_prefix_completions", [])
+    by_id = {entry["record_id"]: entry for entry in entries}
+    if len(by_id) != len(entries):
+        raise ValueError("duplicate legacy prefix replay history")
+    recipes = []
+    matched = 0
+    for record in records:
+        entry = by_id.get(record.get("id"))
+        if entry is None or entry.get("calibration_sha") != record.get("calibration_sha"):
+            continue
+        matched += 1
+        if (
+            not str(record.get("test", "")).startswith(
+                "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::"
+            )
+            or ".discovery_fraction_0_75" not in str(record.get("functional", ""))
+            or entry.get("calibration_sha") != protocol.get("source_sha")
+            or any(entry.get(key) != record.get(key) for key in ("test", "functional", "nominal"))
+            or record.get("decision_protocol")
+            or any(point.get("decision_protocol") for point in record.get("grid", []))
+        ):
+            raise ValueError("legacy prefix recipe does not identify the stored parent protocol")
+        body = {
+            key: value
+            for key, value in record.items()
+            if key not in {"facets", "surface_list_blob"}
+        }
+        payload_hash = hashlib.sha256(
+            json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if payload_hash != entry.get("measurement_payload_sha256"):
+            raise ValueError("legacy prefix recipe differs from the stored measurement payload")
+        points = entry.get("points", [])
+        if (
+            len(points) != 3
+            or any(type(point.get("point")) is not int for point in points)
+            or {point.get("point") for point in points} != {0, 1, 2}
+        ):
+            raise ValueError("legacy prefix recipe must bind all three fixed grid points")
+        recipe = {}
+        stored_points = {point["point"]: point for point in record.get("grid", [])}
+        for point in points:
+            index, budget = point["point"], point.get("planned_attempts")
+            if type(budget) is not int or budget not in {2000, 4000}:
+                raise ValueError("unknown legacy prefix fixed attempt budget")
+            scored = point.get("scored")
+            covered = point.get("covered")
+            skipped = point.get("skipped")
+            if (
+                any(type(value) is not int for value in (scored, covered, skipped))
+                or not 0 <= covered <= scored <= budget
+                or scored == 0
+                or skipped != 0
+                or stored_points.get(index, {}).get("replicates") != scored
+                or not _bit_equal(stored_points[index].get("observed"), covered / scored)
+            ):
+                raise ValueError("legacy prefix recipe counters do not match the stored grid")
+            for key in ("log_sha256", "tally_sha256"):
+                if not re.fullmatch(r"[0-9a-f]{64}", str(point.get(key, ""))):
+                    raise ValueError("legacy prefix recipe lacks its raw evidence hash")
+            if budget == 4000:
+                if point.get("computed_indices") != [2000, 4000] or not re.fullmatch(
+                    r"[0-9a-f]{64}", str(point.get("prefix_tally_sha256", ""))
+                ):
+                    raise ValueError("legacy prefix recipe lacks the retained prefix receipt")
+            elif point.get("retained_original_point") is not True:
+                raise ValueError("legacy prefix recipe must identify an untouched original point")
+            recipe[index] = budget
+        recipes.append(recipe)
+    if not recipes:
+        return []
+    if matched != len(records) or any(recipe != recipes[0] for recipe in recipes[1:]):
+        raise ValueError("mixed legacy prefix recipes require separate replay groups")
+    return [
+        {
+            "ANTECEDENT_CALIBRATION_GRID_POINTS": str(point),
+            "ANTECEDENT_CALIBRATION_NSIM": str(budget),
+            "ANTECEDENT_CALIBRATION_RECHECK_NSIM": str(budget + 1),
+        }
+        for point, budget in sorted(recipes[0].items())
+    ]
+
+
 def replay_thread_environment(value: str | None) -> dict[str, str]:
     """Preserve an explicit execution cap without inheriting measurement settings."""
     if value is None:
@@ -2136,6 +2233,7 @@ def replay(
         for g in groups:
             plan[g.index] = g
     group_protocols = {}
+    group_invocations = {}
     try:
         thread_env = replay_thread_environment(os.environ.get("ANTECEDENT_CALIBRATION_THREADS"))
         for g in plan.values():
@@ -2144,6 +2242,7 @@ def replay(
                 for rec in stored
                 if any(match.index == g.index for match in matches[str(rec["id"])])
             ]
+            group_invocations[g.index] = legacy_prefix_replay_environments(selected) or [{}]
             group_protocols[g.index] = {
                 **parent_replay_environment(selected),
                 **synthesis_replay_environment(selected),
@@ -2205,15 +2304,21 @@ def replay(
             if (out_dir / name).exists():
                 (out_dir / name).unlink()
         print(f"== replay group {g.index}: {g.label} ==", flush=True)
-        status = subprocess.run(
-            ["bash", str(ROOT / "scripts" / "gate_calibration.sh")],
-            cwd=ROOT,
-            env={
-                **env,
-                **group_protocols[g.index],
-                "ANTECEDENT_CALIBRATION_SHARD": f"{g.index - 1}/{total}",
-            },
-        ).returncode
+        statuses = []
+        for invocation in group_invocations[g.index]:
+            statuses.append(
+                subprocess.run(
+                    ["bash", str(ROOT / "scripts" / "gate_calibration.sh")],
+                    cwd=ROOT,
+                    env={
+                        **env,
+                        **group_protocols[g.index],
+                        **invocation,
+                        "ANTECEDENT_CALIBRATION_SHARD": f"{g.index - 1}/{total}",
+                    },
+                ).returncode
+            )
+        status = any(statuses)
         for name in names:
             if (LOG_DIR / name).exists():
                 shutil.move(str(LOG_DIR / name), str(out_dir / name))
