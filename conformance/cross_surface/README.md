@@ -68,6 +68,14 @@ One bundle with two hand-derived decisions, nodes `contract`, `law`, `result`,
 Files: `py_composition_bundle.bin` and `py_composition_bundle.identity.json`
 (bundle identity, cross-check only), `rust_composition_bundle.bin`.
 
+Bundle digests cover the complete embedded artifact bytes, including the container's
+producer package version. After a package-version change, refresh this canonical
+triplet with the existing Python and Rust bundle generators. Verify agreement between
+the independently assembled language surfaces and the hand-derived values above;
+the semantic node identities and results must not be replaced merely to match bytes.
+Previously retained artifact bytes keep their original bundle identity and remain
+consumable under that independently retained identity.
+
 The same regenerator includes this bundle pair, after the fixtures above:
 
     python python/tests/generate_cross_surface_bundle_fixtures.py
