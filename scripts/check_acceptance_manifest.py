@@ -184,6 +184,11 @@ def case_problems(case: dict[str, Any]) -> list[str]:
 
     expected = case["expected"]
     kind = expected.get("kind") if isinstance(expected, dict) else None
+    config = case["configuration"]
+    if isinstance(config, dict) and "calibration_grid_point" in config:
+        point = config["calibration_grid_point"]
+        if type(point) is not int or point not in (0, 1, 2) or kind not in CALIBRATED_KINDS:
+            errors.append(f"{prefix}: calibration_grid_point must bind a calibrated case to integer 0, 1 or 2")
     if kind not in KINDS:
         errors.append(f"{prefix}: expected.kind must be one of {sorted(KINDS)}")
     else:

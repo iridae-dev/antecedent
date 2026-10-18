@@ -34,9 +34,9 @@ RECHECK_NSIM="${ANTECEDENT_CALIBRATION_RECHECK_NSIM:-2000}"
 # Replicate count of a first run: the harness default (DEFAULT_N_SIM) unless
 # overridden. The recheck extends the first run from this index.
 FIRST_NSIM="${ANTECEDENT_CALIBRATION_NSIM:-400}"
-# Replicate count of a design bound to a calibrated-interval acceptance case at its base grid
-# point. Such a case requires at least this many replicates at its configured size (its
-# `min_replicates`), which is the design's base point, so that point runs them in its first
+# Replicate count of a design bound to a calibrated acceptance case. The ordinary
+# base-point minimum is retained; an explicit configuration.calibration_grid_point
+# additionally binds a non-base configured size to its required minimum in the first
 # pass: from PRECISION_N_SIM replicates the harness holds the coverage to level ± 2·MCSE itself
 # and no recheck follows. The other two points extend the measured size range and run the
 # ordinary first pass, unless separate acceptance cases freeze all three grid sizes; those
@@ -74,6 +74,24 @@ print(" ".join(sorted(
 PY
 ) "
 
+# Explicit non-base acceptance bindings augment the ordinary base-point minimum.
+ACCEPTANCE_POINT_TESTS=" $(python3 - <<'PYPOINT'
+import tomllib
+with open("parity/acceptance_manifest.toml", "rb") as handle:
+    cases = tomllib.load(handle)["case"]
+values = set()
+for case in cases:
+    point = case["configuration"].get("calibration_grid_point")
+    if point is None:
+        continue
+    if type(point) is not int or point not in (0, 1, 2):
+        raise SystemExit("invalid declared calibration_grid_point")
+    if case["expected"]["kind"] in {"calibrated_interval", "calibrated_statistical_test"} and case["evidence"]["status"] == "bound":
+        values.add(f"{case['evidence']['test'].rsplit('::', 1)[1]}:{point}")
+print(" ".join(sorted(values)))
+PYPOINT
+) "
+
 # First-pass replicate count of the group `shown` (its label, with any grid-point suffix).
 first_pass_nsim() {
   local test="${1%% \[grid point*}"
@@ -89,7 +107,13 @@ first_pass_nsim() {
       fi
       case "$ACCEPTANCE_GRID_TESTS" in
         *" $test "*) ;;
-        *) echo "$FIRST_NSIM"; return ;;
+        *)
+          local point=2
+          case "$1" in *"[grid point 0]"*) point=0 ;; esac
+          case "$ACCEPTANCE_POINT_TESTS" in
+            *" $test:$point "*) ;;
+            *) echo "$FIRST_NSIM"; return ;;
+          esac ;;
       esac ;;
   esac
   if [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] && [ "$test" != "$1" ] \

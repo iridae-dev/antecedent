@@ -474,7 +474,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/weighted_interval
 id = "weighted_aipw_interval_calibrated"
 area = "sampling_weights"
 workflow = "antecedent.estimate with aipw"
-configuration = { participants = 2000, weights = "unequal_survey" }
+configuration = { participants = 2000, weights = "unequal_survey", calibration_grid_point = 2 }
 expected = { kind = "calibrated_interval", outputs = ["weighted AIPW interval", "effective sample size"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Weighted influence-function variance is a new construction. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "survey_weighted_population", seed = 5262727, n = 2000, weight_cv = 0.8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1904,7 +1904,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/practitioner_scal
 id = "mediation_total_contrast_executed_and_bound"
 area = "interval_evidence"
 workflow = "antecedent.estimate mediation contrast"
-configuration = { contrast = "total", participants = 2000 }
+configuration = { contrast = "total", participants = 2000, calibration_grid_point = 2 }
 expected = { kind = "calibrated_interval", outputs = ["total contrast interval executed separately and bound to its own record"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Separate record per contrast; 95% required wherever runtime reports 95%. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "mediation_scm", seed = 8063669, n = 2000, direct = 0.3, indirect = 0.2, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1914,7 +1914,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/static_calibratio
 id = "mediation_direct_contrast_executed_and_bound"
 area = "interval_evidence"
 workflow = "antecedent.estimate mediation contrast"
-configuration = { contrast = "direct", participants = 2000 }
+configuration = { contrast = "direct", participants = 2000, calibration_grid_point = 2 }
 expected = { kind = "calibrated_interval", outputs = ["direct contrast interval executed separately and bound to its own record"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Separate record per contrast; 95% required wherever runtime reports 95%. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "mediation_scm", seed = 6500050, n = 2000, direct = 0.3, indirect = 0.2, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -1924,7 +1924,7 @@ evidence = { status = "bound", test = "crates/antecedent/tests/static_calibratio
 id = "mediation_mediated_contrast_executed_and_bound"
 area = "interval_evidence"
 workflow = "antecedent.estimate mediation contrast"
-configuration = { contrast = "mediated", participants = 2000 }
+configuration = { contrast = "mediated", participants = 2000, calibration_grid_point = 2 }
 expected = { kind = "calibrated_interval", outputs = ["mediated contrast interval executed separately and bound to its own record"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Separate record per contrast; 95% required wherever runtime reports 95%. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "mediation_scm", seed = 9170820, n = 2000, direct = 0.3, indirect = 0.2, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -2594,7 +2594,7 @@ evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity
 id = "knn_ci_path_10000"
 area = "matching_scale"
 workflow = "antecedent.estimate with knn matching interval"
-configuration = { donors = 10000, covariates = 8, k = 3 }
+configuration = { participants = 10000, covariates = 8, k = 3 }
 expected = { kind = "calibrated_interval", outputs = ["interval with matching calibration"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "propensity_matching_population", seed = 3151358, n = 10000, covariates = 8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
@@ -2614,7 +2614,7 @@ evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity
 id = "knn_ci_path_100000"
 area = "matching_scale"
 workflow = "antecedent.estimate with knn matching interval"
-configuration = { donors = 100000, covariates = 8, k = 3 }
+configuration = { participants = 100000, covariates = 8, k = 3 }
 expected = { kind = "calibrated_interval", outputs = ["interval with matching calibration"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "propensity_matching_population", seed = 2351493, n = 100000, covariates = 8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
