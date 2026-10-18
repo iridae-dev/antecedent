@@ -11,7 +11,7 @@ from fractions import Fraction
 from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
-import calibration_decision as decision
+import calibration_decision as decision  # noqa: E402 (repository path bootstrap above)
 
 
 def oracle_lower(n: int, k: int, a: int, b: int) -> Decimal:
@@ -23,10 +23,7 @@ def oracle_lower(n: int, k: int, a: int, b: int) -> Decimal:
         ctx.prec = 80
         # Independent exact integer binomial coefficient and rational probability.
         mass = (
-            Decimal(math.comb(n, k))
-            * Decimal(a) ** k
-            * Decimal(b - a) ** (n - k)
-            / Decimal(b) ** n
+            Decimal(math.comb(n, k)) * Decimal(a) ** k * Decimal(b - a) ** (n - k) / Decimal(b) ** n
         )
         term = total = Decimal(1)
         for j in range(k, 0, -1):
@@ -101,9 +98,7 @@ class DecisionTest(unittest.TestCase):
     def test_frozen_757_group_boundaries_match_independent_decimal_oracle(self):
         # Reviewed 100-digit Decimal integer-mass oracle; fixed historical family
         # size keeps this a regression fixture when the live source roster grows.
-        config = decision.config_for_manifest(
-            {"groups": [{"index": i} for i in range(757)]}
-        )
+        config = decision.config_for_manifest({"groups": [{"index": i} for i in range(757)]})
         cases = (
             (0.95, False, 400, 352, 399),
             (0.95, False, 2000, 1841, 1950),
@@ -122,20 +117,14 @@ class DecisionTest(unittest.TestCase):
             with self.subTest(nominal=nominal, lower_only=lower_only, n=n):
                 for k in (low, high):
                     self.assertTrue(
-                        decision.evaluate(config, n, n, k, nominal, lower_only)[
-                            "compatible"
-                        ]
+                        decision.evaluate(config, n, n, k, nominal, lower_only)["compatible"]
                     )
                 self.assertFalse(
-                    decision.evaluate(config, n, n, low - 1, nominal, lower_only)[
-                        "compatible"
-                    ]
+                    decision.evaluate(config, n, n, low - 1, nominal, lower_only)["compatible"]
                 )
                 if high < n:
                     self.assertFalse(
-                        decision.evaluate(config, n, n, high + 1, nominal, lower_only)[
-                            "compatible"
-                        ]
+                        decision.evaluate(config, n, n, high + 1, nominal, lower_only)["compatible"]
                     )
 
     def test_exact_counts_use_planned_look_not_random_reported_denominator(self):
@@ -149,18 +138,10 @@ class DecisionTest(unittest.TestCase):
 
     def test_near_threshold_noise_and_clear_miscalibration_remain_distinct(self):
         config = self.config()
-        self.assertTrue(
-            decision.evaluate(config, 20000, 20000, 18926, 0.95, False)["compatible"]
-        )
-        self.assertFalse(
-            decision.evaluate(config, 20000, 20000, 17200, 0.95, False)["compatible"]
-        )
-        self.assertFalse(
-            decision.evaluate(config, 20000, 20000, 19900, 0.95, False)["compatible"]
-        )
-        self.assertTrue(
-            decision.evaluate(config, 20000, 20000, 19900, 0.95, True)["compatible"]
-        )
+        self.assertTrue(decision.evaluate(config, 20000, 20000, 18926, 0.95, False)["compatible"])
+        self.assertFalse(decision.evaluate(config, 20000, 20000, 17200, 0.95, False)["compatible"])
+        self.assertFalse(decision.evaluate(config, 20000, 20000, 19900, 0.95, False)["compatible"])
+        self.assertTrue(decision.evaluate(config, 20000, 20000, 19900, 0.95, True)["compatible"])
 
     def test_unknown_family_fields_counts_looks_and_risks_fail_closed(self):
         config = self.config()

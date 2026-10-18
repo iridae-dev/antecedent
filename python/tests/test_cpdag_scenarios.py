@@ -140,11 +140,7 @@ def test_classes_beyond_six_nodes_enumerate_and_a_starved_budget_is_partial():
     wide = [*NAMES, "d", "e", "f", "g"]
     graph = Cpdag.from_directed_undirected(wide, [], [("a", "b"), ("b", "c")])
     table = tuple(
-        joint(a, b, c) / 16
-        for a in (0, 1)
-        for b in (0, 1)
-        for c in (0, 1)
-        for _ in range(16)
+        joint(a, b, c) / 16 for a in (0, 1) for b in (0, 1) for c in (0, 1) for _ in range(16)
     )
     wide_laws = transport.ExactTransportData(
         (
@@ -162,9 +158,13 @@ def test_classes_beyond_six_nodes_enumerate_and_a_starved_budget_is_partial():
     assert result.complete and len(result.completions) == 3
     for completion in result.completions:
         assert completion.mean("c") == pytest.approx(truth(completion.edges), abs=1e-12)
-    partial = run(graph, coordinates=coordinates(wide), laws=wide_laws,
-                  evidence=transport.CompletionEvidence(catalog(wide), "wide-law"),
-                  max_steps=2)
+    partial = run(
+        graph,
+        coordinates=coordinates(wide),
+        laws=wide_laws,
+        evidence=transport.CompletionEvidence(catalog(wide), "wide-law"),
+        max_steps=2,
+    )
     # A budget stop exports its prefix (only cancellation does not); it is never "complete".
     assert not partial.complete and partial.counts.not_enumerated > 0
     assert partial.receipt.stop == "search.operations"

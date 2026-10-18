@@ -76,9 +76,7 @@ nonlinear_options = {
     "permutation_seed": 4,
 }
 linear_test = evaluate_graph(curved, claims_independence, **nonlinear_options)
-nonlinear_test = evaluate_graph(
-    curved, claims_independence, ci_test="gpdc", **nonlinear_options
-)
+nonlinear_test = evaluate_graph(curved, claims_independence, ci_test="gpdc", **nonlinear_options)
 assert linear_test.n_violations is not None and linear_test.n_violations <= 2
 assert nonlinear_test.n_violations is not None and nonlinear_test.n_violations >= 4
 assert nonlinear_test.outcome == "rejected"

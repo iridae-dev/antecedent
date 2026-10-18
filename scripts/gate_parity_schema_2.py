@@ -43,6 +43,7 @@ for path in sorted(root.glob("parity/*.toml")):
     except tomllib.TOMLDecodeError as exc:
         problems.append(f"{path}: {exc}")
         continue
+
     def walk(obj, path=path):
         if isinstance(obj, dict):
             for key, value in obj.items():
@@ -55,19 +56,20 @@ for path in sorted(root.glob("parity/*.toml")):
                         obligation = {
                             "calibration_reason": "calibration",
                             "reason_code": "runtime_refusal",
-                            "reason": "python_product" if path.name == "python_products.toml" else "claim",
+                            "reason": "python_product"
+                            if path.name == "python_products.toml"
+                            else "claim",
                         }[key]
                         if path.name == "support_licensed.toml" and key == "calibration_reason":
                             obligation = "calibration"
                         if obligation not in codes[cid].get("applies_to", []):
-                            problems.append(
-                                f"{path}: {cid} does not apply to {obligation}"
-                            )
+                            problems.append(f"{path}: {cid} does not apply to {obligation}")
                 else:
                     walk(value)
         elif isinstance(obj, list):
             for item in obj:
                 walk(item)
+
     walk(data)
 
 if print_counts:
@@ -93,7 +95,9 @@ for src in sorted(root.glob("crates/*/src/**/*.rs")):
     for fn_body in re.findall(r"fn code\(&self\) -> &'static str \{(.*?)\n    \}", text, re.S):
         for literal in re.findall(r'=>\s*"([a-z][a-z0-9_]+)"', fn_body):
             if literal not in codes:
-                problems.append(f"{src}: fn code returns {literal!r}, absent from parity/reason_codes.toml")
+                problems.append(
+                    f"{src}: fn code returns {literal!r}, absent from parity/reason_codes.toml"
+                )
 
 # --- python_products ---
 pp = root / "parity/python_products.toml"
@@ -107,18 +111,31 @@ else:
             if key not in row:
                 problems.append(f"python_products.toml route #{i} missing {key}")
         if row.get("retains") is not True and not row.get("reason"):
-            problems.append(f"python_products.toml route {row.get('kind')} retains=false without reason")
+            problems.append(
+                f"python_products.toml route {row.get('kind')} retains=false without reason"
+            )
         test = row.get("test")
         if isinstance(test, str) and test not in route_tests:
             route_tests.append(test)
 
     def _collects(tests):
-        return subprocess.run(
-            ["uv", "run", "--no-sync", "pytest", "--collect-only", "-q", *(t.removeprefix("python/") for t in tests)],
-            cwd=root / "python",
-            capture_output=True,
-            text=True,
-        ).returncode == 0
+        return (
+            subprocess.run(
+                [
+                    "uv",
+                    "run",
+                    "--no-sync",
+                    "pytest",
+                    "--collect-only",
+                    "-q",
+                    *(t.removeprefix("python/") for t in tests),
+                ],
+                cwd=root / "python",
+                capture_output=True,
+                text=True,
+            ).returncode
+            == 0
+        )
 
     # One collection for every route node; only on failure, one per node to
     # name the uncollectable ones.
@@ -131,7 +148,9 @@ else:
             if key not in row:
                 problems.append(f"python_products.toml parameter #{i} missing {key}")
         if row.get("binding") == "contract" and not row.get("contract_key"):
-            problems.append(f"python_products.toml parameter {row.get('name')} missing contract_key")
+            problems.append(
+                f"python_products.toml parameter {row.get('name')} missing contract_key"
+            )
         if row.get("binding") == "reason" and not row.get("reason"):
             problems.append(f"python_products.toml parameter {row.get('name')} missing reason")
 
@@ -202,9 +221,7 @@ def _resolves(spec: str) -> bool:
     return "macro_rules!" in text and bool(re.search(rf"\b{re.escape(fn)}\b", text))
 
 
-def _band(
-    nominal: float, replicates: int
-) -> tuple[float, float, float | None, float | None]:
+def _band(nominal: float, replicates: int) -> tuple[float, float, float | None, float | None]:
     mcse = (nominal * (1.0 - nominal) / max(replicates, 1)) ** 0.5
     floor = nominal - 2.0 * mcse if replicates >= 1000 else None
     ceiling = nominal + 2.0 * mcse if replicates >= 1000 else None
@@ -230,7 +247,9 @@ if cr.is_file():
         test = str(rec.get("test", ""))
         # `surface_list_blob` arrives with the next collection: a registry written by a
         # collector that stores it names it in its header, and only then is it required.
-        stores_blob = "surface_list_blob" in cr.read_text(encoding="utf-8").split("[[record]]", 1)[0]
+        stores_blob = (
+            "surface_list_blob" in cr.read_text(encoding="utf-8").split("[[record]]", 1)[0]
+        )
         missing = [
             key
             for key in collector.FIELDS
@@ -240,7 +259,11 @@ if cr.is_file():
             problems.append(f"{label}: missing {', '.join(missing)}")
             continue
         tagged = rec["facets"]
-        if not isinstance(tagged, list) or not tagged or not all(isinstance(f, str) for f in tagged):
+        if (
+            not isinstance(tagged, list)
+            or not tagged
+            or not all(isinstance(f, str) for f in tagged)
+        ):
             problems.append(f"{label}: facets must be a non-empty list of facet names")
         else:
             unknown = sorted(set(tagged) - surface.facets)
@@ -260,7 +283,10 @@ if cr.is_file():
         )
         if rid != expected and not rid.startswith(expected + "."):
             problems.append(f"{label}: id does not match its fields ({expected}[.<label>])")
-        if rid.startswith(expected + ".") and _sanitize(rid[len(expected) + 1 :]) != rid[len(expected) + 1 :]:
+        if (
+            rid.startswith(expected + ".")
+            and _sanitize(rid[len(expected) + 1 :]) != rid[len(expected) + 1 :]
+        ):
             problems.append(f"{label}: record label is not sanitized")
         sha = str(rec["calibration_sha"])
         if not re.fullmatch(r"[0-9a-f]{40}", sha):
@@ -295,19 +321,31 @@ if cr.is_file():
         role = str(rec["role"])
         boundary = bool(rec["boundary"])
 
-        def family_pass(point: dict, lower_only: bool) -> bool | None:
+        def family_pass(
+            point: dict, lower_only: bool, *, rec=rec, nominal=nominal, label=label
+        ) -> bool | None:
             value = point.get("decision_protocol")
             if value is None:
                 return None
             try:
                 expected = collector.coverage_family.config_at_sha(str(rec["calibration_sha"]))
-                checked = collector.coverage_decision.validate_decision(value, nominal,
-                    observed=float(point["observed"]), replicates=int(point["replicates"]),
-                    expected_config=expected)
+                checked = collector.coverage_decision.validate_decision(
+                    value,
+                    nominal,
+                    observed=float(point["observed"]),
+                    replicates=int(point["replicates"]),
+                    expected_config=expected,
+                )
                 if checked["lower_only"] != lower_only:
                     raise ValueError("decision tail does not match the asserted coverage role")
                 return checked["compatible"]
-            except (ValueError, TypeError, KeyError, OSError, subprocess.CalledProcessError) as error:
+            except (
+                ValueError,
+                TypeError,
+                KeyError,
+                OSError,
+                subprocess.CalledProcessError,
+            ) as error:
                 problems.append(f"{label}: invalid frozen-family coverage decision: {error}")
                 return False
 
@@ -368,8 +406,7 @@ if cr.is_file():
         if [int(p["point"]) for p in grid] != list(range(collector.GRID_POINTS)):
             problems.append(f"{label}: grid points must be 0..{collector.GRID_POINTS - 1} in order")
         if any(
-            int(lo["n_max"]) >= int(hi["n_min"])
-            for lo, hi in zip(grid, grid[1:], strict=False)
+            int(lo["n_max"]) >= int(hi["n_min"]) for lo, hi in zip(grid, grid[1:], strict=False)
         ):
             problems.append(f"{label}: grid sample sizes must strictly increase point to point")
         if (int(rec["n_min"]), int(rec["n_max"])) != (
@@ -392,10 +429,16 @@ if cr.is_file():
             )
         if rec.get("decision_protocol") != governing.get("decision_protocol"):
             problems.append(f"{label}: decision_protocol must be the governing grid point's")
-        if any("decision_protocol" not in p and p["role"] != "named_boundary" for p in grid) and any("decision_protocol" in p for p in grid):
-            problems.append(f"{label}: cannot mix legacy and frozen-family decisions across the grid")
+        if any(
+            "decision_protocol" not in p and p["role"] != "named_boundary" for p in grid
+        ) and any("decision_protocol" in p for p in grid):
+            problems.append(
+                f"{label}: cannot mix legacy and frozen-family decisions across the grid"
+            )
         if "decision_protocol" in rec and rec.get("confirmation") is not None:
-            problems.append(f"{label}: fresh confirmation has no risk allocation in suite coverage protocol v1")
+            problems.append(
+                f"{label}: fresh confirmation has no risk allocation in suite coverage protocol v1"
+            )
         for point in grid:
             where = f"{label} grid point {point['point']}"
             for field in ("observed", "mcse"):
@@ -407,7 +450,11 @@ if cr.is_file():
             if int(point["n_min"]) < 1 or int(point["n_max"]) < int(point["n_min"]):
                 problems.append(f"{where}: measured row-count range is empty")
             point_role = str(point["role"])
-            passes = one_sided_pass(point) if point_role in {"one_sided", "conservative_point"} else nominal_pass(point)
+            passes = (
+                one_sided_pass(point)
+                if point_role in {"one_sided", "conservative_point"}
+                else nominal_pass(point)
+            )
             if point_role == "gated":
                 if point["boundary"]:
                     problems.append(f"{where}: a gated point cannot be a boundary")
@@ -461,7 +508,9 @@ if cr.is_file():
                 continue
             indices = [int(p["point"]) for p in confirmation]
             if indices != sorted(set(indices)) or not set(indices) <= set(range(len(grid))):
-                problems.append(f"{label}: confirmation points must be distinct grid points in order")
+                problems.append(
+                    f"{label}: confirmation points must be distinct grid points in order"
+                )
                 continue
             for point in confirmation:
                 where = f"{label} confirmation point {point['point']}"
@@ -471,8 +520,14 @@ if cr.is_file():
                     measured_point["n_max"],
                     measured_point["role"],
                 ):
-                    problems.append(f"{where}: must re-measure the grid point's sample sizes and role")
-                passes = one_sided_pass(point) if point["role"] in {"one_sided", "conservative_point"} else nominal_pass(point)
+                    problems.append(
+                        f"{where}: must re-measure the grid point's sample sizes and role"
+                    )
+                passes = (
+                    one_sided_pass(point)
+                    if point["role"] in {"one_sided", "conservative_point"}
+                    else nominal_pass(point)
+                )
                 if bool(point["boundary"]) == passes:
                     problems.append(
                         f"{where}: boundary must be true exactly when coverage {point['observed']} "
@@ -512,9 +567,7 @@ if cr.is_file():
         if role == "gated":
             named = re.search(r"nominal_(\d+)_coverage", test_fn)
             if named and abs(int(named.group(1)) / 100 - nominal) > 1e-9:
-                problems.append(
-                    f"{label}: nominal {nominal} contradicts the test name {test_fn}"
-                )
+                problems.append(f"{label}: nominal {nominal} contradicts the test name {test_fn}")
         elif role == "named_boundary":
             # Role comes from assert_boundary / assert_boundary_at. Renaming the
             # test to include "boundary" would edit the suite and owe remesure.
@@ -548,8 +601,16 @@ else:
         gate_sha = str(g.get("calibration_sha", ""))
         if "decision_protocol" in g or "coverage_decisions" in g:
             try:
-                collector.coverage_decision_logs.validate_ledger(g, collector.coverage_family.config_at_sha(gate_sha))
-            except (ValueError, KeyError, TypeError, OSError, subprocess.CalledProcessError) as error:
+                collector.coverage_decision_logs.validate_ledger(
+                    g, collector.coverage_family.config_at_sha(gate_sha)
+                )
+            except (
+                ValueError,
+                KeyError,
+                TypeError,
+                OSError,
+                subprocess.CalledProcessError,
+            ) as error:
                 problems.append(f"{label}: invalid frozen-family recordless ledger: {error}")
         if not re.fullmatch(r"[0-9a-f]{40}", gate_sha) or set(gate_sha) == {"0"}:
             problems.append(f"{label}: calibration_sha must be a real 40 lowercase hex commit")
@@ -557,7 +618,9 @@ else:
 by_id = {rec.get("id"): rec for rec in records}
 
 # --- licensed cell calibration obligation ---
-lic = tomllib.loads((root / "parity/support_licensed.toml").read_text(encoding="utf-8")).get("cell", [])
+lic = tomllib.loads((root / "parity/support_licensed.toml").read_text(encoding="utf-8")).get(
+    "cell", []
+)
 for cell in lic:
     label = f"{cell.get('query')}/{cell.get('graph_class')}/{cell.get('inference')}"
     has_cal = "calibration" in cell
@@ -574,13 +637,15 @@ for cell in lic:
         if cell.get("calibration_reason") != "boundary_record":
             problems.append(
                 f"support_licensed.toml {label}: calibration and calibration_reason together "
-                "are only legal as calibration_reason = \"boundary_record\""
+                'are only legal as calibration_reason = "boundary_record"'
             )
     elif has_cal == has_reason:
-        problems.append(f"support_licensed.toml {label}: exactly one of calibration / calibration_reason")
+        problems.append(
+            f"support_licensed.toml {label}: exactly one of calibration / calibration_reason"
+        )
     if has_cal and boundary_only != (cell.get("calibration_reason") == "boundary_record"):
         problems.append(
-            f"support_licensed.toml {label}: calibration_reason = \"boundary_record\" must be "
+            f'support_licensed.toml {label}: calibration_reason = "boundary_record" must be '
             "present exactly when every record at the reported level is a boundary"
         )
     if not has_cal and cell.get("calibration_reason") == "boundary_record":
@@ -594,7 +659,11 @@ for cell in lic:
     # known-truth values, SEs and disclosed probe figures stay in the license text.
     # ---- [gates] reason-code eligibility comes from the registry row ----
     cited = cell.get("calibration_reason")
-    if cited == "no_interval_reported" and cell.get("interval_method") not in (None, "none", "None"):
+    if cited == "no_interval_reported" and cell.get("interval_method") not in (
+        None,
+        "none",
+        "None",
+    ):
         problems.append(
             f"support_licensed.toml {label}: no_interval_reported cannot declare an interval method"
         )
@@ -606,7 +675,11 @@ for cell in lic:
         )
 
 # ---- [gates] registry scopes name real queries ----
-axes_queries = set(tomllib.loads((root / "parity/support_axes.toml").read_text(encoding="utf-8")).get("queries", []))
+axes_queries = set(
+    tomllib.loads((root / "parity/support_axes.toml").read_text(encoding="utf-8")).get(
+        "queries", []
+    )
+)
 for cid, code in codes.items():
     for query in code.get("queries") or []:
         if query not in axes_queries:
@@ -615,16 +688,20 @@ for cid, code in codes.items():
 # ---- [gates] estimator calibration obligation, keyed on group ----
 # Every `group = "estimation"` row states its calibration; calibration fields on
 # any other row would be an obligation no gate enforces.
-est = tomllib.loads((root / "parity/estimate.toml").read_text(encoding="utf-8")).get("capabilities", [])
+est = tomllib.loads((root / "parity/estimate.toml").read_text(encoding="utf-8")).get(
+    "capabilities", []
+)
 for row in est:
     has_cal = "calibration" in row
     has_reason = "calibration_reason" in row
     if row.get("group") == "estimation":
         if has_cal == bool(row.get("calibration_reason")):
-            problems.append(f"estimate.toml {row.get('id')}: exactly one of calibration / calibration_reason")
+            problems.append(
+                f"estimate.toml {row.get('id')}: exactly one of calibration / calibration_reason"
+            )
     elif has_cal or has_reason:
         problems.append(
-            f"estimate.toml {row.get('id')}: calibration fields only on group = \"estimation\" rows"
+            f'estimate.toml {row.get("id")}: calibration fields only on group = "estimation" rows'
         )
     row_id = row.get("id")
     if row_id not in collector.ESTIMATOR_ROW_IDS:
@@ -646,34 +723,59 @@ for row in est:
 # gate_composition.sh executes. Additions are free; removals are a reviewed
 # edit of this list.
 REQUIRED_COMPOSITION_ROWS = {
-    "compiler.inspect_licensed_cells", "compiler.e2e_licensed_cells",
-    "compiler.inspect_does_not_identify", "compiler.metadata_read_no_identify",
-    "compiler.validate_result_bindings", "compiler.claim_handoff",
-    "compiler.request_lifecycle", "compiler.discovery_class",
-    "compiler.prior_transfer_composition", "compiler.prepared_matches_fresh",
-    "compiler.adversarial_boundaries", "compiler.panel_response_cluster_bands",
+    "compiler.inspect_licensed_cells",
+    "compiler.e2e_licensed_cells",
+    "compiler.inspect_does_not_identify",
+    "compiler.metadata_read_no_identify",
+    "compiler.validate_result_bindings",
+    "compiler.claim_handoff",
+    "compiler.request_lifecycle",
+    "compiler.discovery_class",
+    "compiler.prior_transfer_composition",
+    "compiler.prepared_matches_fresh",
+    "compiler.adversarial_boundaries",
+    "compiler.panel_response_cluster_bands",
     "compiler.panel_class_pulse_completion_masses",
-    "compiler.panel_response_bayesian_unit_surfaces", "compiler.panel_class_pulse_bayesian",
-    "compiler.panel_class_response_surfaces", "compiler.panel_class_multi_step_sustained",
-    "compiler.contract_section", "compiler.request_identity", "compiler.provenance_ancestry",
-    "compiler.identity_contract_file", "compiler.licensed_family", "compiler.prepared_second_shot",
-    "compiler.prepared_family", "compiler.identity_encoding", "compiler.dbn_atom_identity",
-    "compiler.score_reuse_identity", "compiler.state_expected_version",
-    "compiler.series_refresh_atomicity", "compiler.series_state_reuse",
-    "compiler.score_batch_reuse", "compiler.capability_reports", "compiler.support_neighbors",
-    "compiler.capability_prefix", "compiler.claim_core", "compiler.design_rank",
-    "compiler.composition_prefix", "compiler.python_contract_smoke",
+    "compiler.panel_response_bayesian_unit_surfaces",
+    "compiler.panel_class_pulse_bayesian",
+    "compiler.panel_class_response_surfaces",
+    "compiler.panel_class_multi_step_sustained",
+    "compiler.contract_section",
+    "compiler.request_identity",
+    "compiler.provenance_ancestry",
+    "compiler.identity_contract_file",
+    "compiler.licensed_family",
+    "compiler.prepared_second_shot",
+    "compiler.prepared_family",
+    "compiler.identity_encoding",
+    "compiler.dbn_atom_identity",
+    "compiler.score_reuse_identity",
+    "compiler.state_expected_version",
+    "compiler.series_refresh_atomicity",
+    "compiler.series_state_reuse",
+    "compiler.score_batch_reuse",
+    "compiler.capability_reports",
+    "compiler.support_neighbors",
+    "compiler.capability_prefix",
+    "compiler.claim_core",
+    "compiler.design_rank",
+    "compiler.composition_prefix",
+    "compiler.python_contract_smoke",
     "compiler.python_stub_conformance",
 }
 compiler_rows = {
     row.get("id"): row
-    for row in tomllib.loads((root / "parity/compiler.toml").read_text(encoding="utf-8")).get("capabilities", [])
+    for row in tomllib.loads((root / "parity/compiler.toml").read_text(encoding="utf-8")).get(
+        "capabilities", []
+    )
 }
 for rid in sorted(REQUIRED_COMPOSITION_ROWS - compiler_rows.keys()):
     problems.append(f"compiler.toml: required composition row {rid} missing")
 for rid, row in compiler_rows.items():
     if not row.get("evidence_test") or not row.get("evidence_assertion"):
-        problems.append(f"compiler.toml {rid}: composition row without evidence_test/evidence_assertion")
+        problems.append(
+            f"compiler.toml {rid}: composition row without evidence_test/evidence_assertion"
+        )
 
 # ---- [gates] runtime reason-code list matches the registry ----
 # crates/antecedent-core/src/reason_codes_data.rs is generated from
@@ -684,11 +786,15 @@ if not data_rs.is_file():
     problems.append(f"{data_rs}: missing; run scripts/generate_support_matrix_docs.py")
 else:
     generated = data_rs.read_text(encoding="utf-8")
+
     def _const(name: str) -> list[str]:
         m = re.search(rf"pub const {name}: &\[&str\] = &\[(.*?)\];", generated, re.S)
         return re.findall(r'"([^"]+)"', m.group(1)) if m else []
+
     want_all = sorted(codes)
-    want_runtime = sorted(c for c, row in codes.items() if "runtime_refusal" in row.get("applies_to", []))
+    want_runtime = sorted(
+        c for c, row in codes.items() if "runtime_refusal" in row.get("applies_to", [])
+    )
     if _const("REASON_CODES") != want_all or _const("RUNTIME_REFUSAL_CODES") != want_runtime:
         problems.append(
             "crates/antecedent-core/src/reason_codes_data.rs is stale against "
@@ -703,18 +809,35 @@ for path in sorted(root.glob("crates/*/src/**/*.rs")) + sorted(root.glob("python
         if line.lstrip().startswith("//"):
             continue
         if '"reason=' in line and "concat!" not in line:
-            problems.append(f"{path}:{lineno}: raw \"reason=...\" literal; use antecedent::unsupported_reason!")
+            problems.append(
+                f'{path}:{lineno}: raw "reason=..." literal; use antecedent::unsupported_reason!'
+            )
 
 # --- release required_jobs ---
 # ---- [gates] job ids from a YAML parse of ci.yml ----
 # scripts/ci_workflow.py is the one reader of both ci.yml and release.toml's
 # `required_jobs`; gate_release_candidate.sh calls the same subcommand.
 listed = subprocess.run(
-    ["uv", "run", "--quiet", "--project", ".", "--only-group", "dev", "python",
-     str((root / "scripts/ci_workflow.py").resolve()), "required-jobs", "--json",
-     "--workflow", str((root / ".github/workflows/ci.yml").resolve()),
-     "--release", str((root / "parity/release.toml").resolve())],
-    cwd=root / "python", capture_output=True, text=True,
+    [
+        "uv",
+        "run",
+        "--quiet",
+        "--project",
+        ".",
+        "--only-group",
+        "dev",
+        "python",
+        str((root / "scripts/ci_workflow.py").resolve()),
+        "required-jobs",
+        "--json",
+        "--workflow",
+        str((root / ".github/workflows/ci.yml").resolve()),
+        "--release",
+        str((root / "parity/release.toml").resolve()),
+    ],
+    cwd=root / "python",
+    capture_output=True,
+    text=True,
 )
 if listed.returncode != 0:
     problems.append(f"scripts/ci_workflow.py required-jobs failed: {listed.stdout}{listed.stderr}")
@@ -743,10 +866,22 @@ except (ValueError, KeyError, StopIteration, OSError, subprocess.CalledProcessEr
 # A tag must not ship calibration labels from a registry that no longer
 # matches the code: the publish workflow attests before any build or upload.
 gating = subprocess.run(
-    ["uv", "run", "--quiet", "--project", ".", "--only-group", "dev", "python",
-     str((root / "scripts/ci_workflow.py").resolve()), "publish-gating",
-     str((root / ".github/workflows/publish-release.yml").resolve())],
-    cwd=root / "python", capture_output=True, text=True,
+    [
+        "uv",
+        "run",
+        "--quiet",
+        "--project",
+        ".",
+        "--only-group",
+        "dev",
+        "python",
+        str((root / "scripts/ci_workflow.py").resolve()),
+        "publish-gating",
+        str((root / ".github/workflows/publish-release.yml").resolve()),
+    ],
+    cwd=root / "python",
+    capture_output=True,
+    text=True,
 )
 if gating.returncode != 0:
     problems.append(f"scripts/ci_workflow.py publish-gating failed: {gating.stdout}{gating.stderr}")
@@ -759,7 +894,9 @@ for rel_path in ("parity/identity.toml", "parity/claims.toml"):
         problems.append(f"{rel_path} missing")
 
 # --- every identity row names its layer, its bindings, and what it covers ---
-identity_rows = tomllib.loads((root / "parity/identity.toml").read_text(encoding="utf-8")).get("identity", [])
+identity_rows = tomllib.loads((root / "parity/identity.toml").read_text(encoding="utf-8")).get(
+    "identity", []
+)
 adr = (root / "adr/0022-causal-compiler-contract.md").read_text(encoding="utf-8")
 for row in identity_rows:
     for field in (

@@ -2221,6 +2221,7 @@ def fit_gcm(
     splits: str = "shuffled",
     purge: int = 0,
 ) -> FittedGcm: ...
+
 class BatchCallbackHandle:
     def __init__(
         self,

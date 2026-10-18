@@ -31,7 +31,8 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from _repo import REPO_ROOT as ROOT, ensure_scripts_on_path
+from _repo import REPO_ROOT as ROOT
+from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
 import check_acceptance_manifest as manifest  # noqa: E402

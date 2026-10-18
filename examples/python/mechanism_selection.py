@@ -37,10 +37,7 @@ assert score(chosen, chosen["selected"]) > score(chosen, "linear_gaussian")
 for candidate in chosen["candidates"]:
     held_out = candidate["held_out_log_likelihood"]
     assert np.isclose(candidate["score"], held_out - candidate["complexity_penalty"])
-assert (
-    chosen["noise_inference"] == "invertible"
-    and chosen["attribution_compatible"] is True
-)
+assert chosen["noise_inference"] == "invertible" and chosen["attribution_compatible"] is True
 
 # 2. A root has no parents: tree families fail there and the failure is recorded, not dropped.
 root = record(fitted, "x")
@@ -66,9 +63,7 @@ try:
         ["x", "y"],
         [x, y],
         EDGES,
-        constraints={
-            "y": {"required": "linear_gaussian", "excluded": ["linear_gaussian"]}
-        },
+        constraints={"y": {"required": "linear_gaussian", "excluded": ["linear_gaussian"]}},
     )
 except Exception as refusal:  # noqa: BLE001 - the native refusal's class is not the point
     assert "mechanism_candidates_invalid" in str(refusal), refusal
@@ -88,9 +83,7 @@ ordered = antecedent.model.fit_gcm(
     purge=5,
 )
 timed = record(ordered, "r")
-assert (
-    timed["splits"] == "time_ordered" and timed["purge"] == 5 and timed["seed"] is None
-)
+assert timed["splits"] == "time_ordered" and timed["purge"] == 5 and timed["seed"] is None
 print(
     f"y: {chosen['selected']} (score {score(chosen, chosen['selected']):.3f}); x: {root['selected']}"
 )

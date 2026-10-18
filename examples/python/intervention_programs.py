@@ -75,10 +75,7 @@ assert value.model_uncertainty == "unquantified"
 # 3. Validation happens before any draw: a program that reads its own descendant is refused
 #    with a registered reason code, and a malformed expression never reaches the library.
 circular = assign("price", var("demand"))
-assert (
-    policy_support(model, [circular]).simulation.reason_code
-    == "policy_dependency_circular"
-)
+assert policy_support(model, [circular]).simulation.reason_code == "policy_dependency_circular"
 try:
     sample_policy(model, [circular], N_DRAWS, seed=1)
 except CausalError as refusal:
@@ -102,9 +99,7 @@ assert policy_program_identity(NAMES, [other]) != identity
 
 # 5. The same floor as a batch callback runs once for the whole batch and agrees with the
 #    expression, but an in-process function has no durable encoding.
-runtime = InterventionCallback(
-    lambda g: np.maximum(10.0, 0.85 * g), inputs=["g"], name="floor"
-)
+runtime = InterventionCallback(lambda g: np.maximum(10.0, 0.85 * g), inputs=["g"], name="floor")
 by_callback = CallbackProgram(
     "price",
     runtime,
@@ -135,9 +130,7 @@ program = CallbackProgram(
     reads=[GENERATED],
     mode="transform",
 )
-np.testing.assert_array_equal(
-    sample_callbacks(model, [program], N_DRAWS, seed=7).draws[0], floored
-)
+np.testing.assert_array_equal(sample_callbacks(model, [program], N_DRAWS, seed=7).draws[0], floored)
 artifact = encode_policy_program(
     NAMES, [CallbackProgram("price", recoverable, reads=[GENERATED], mode="transform")]
 )

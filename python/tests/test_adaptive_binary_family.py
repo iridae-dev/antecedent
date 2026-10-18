@@ -189,7 +189,11 @@ def completed(history: ai.ParticipantHistory, look: int, lag: int):
 
 
 def log_beta(a, b):
-    return np.vectorize(math.lgamma)(a) + np.vectorize(math.lgamma)(b) - np.vectorize(math.lgamma)(a + b)
+    return (
+        np.vectorize(math.lgamma)(a)
+        + np.vectorize(math.lgamma)(b)
+        - np.vectorize(math.lgamma)(a + b)
+    )
 
 
 def log_pmf(m: int, s: int, p, rho: float):
@@ -198,8 +202,10 @@ def log_pmf(m: int, s: int, p, rho: float):
     if rho == 0.0:
         return log_choose + s * np.log(p) + (m - s) * np.log1p(-p)
     kappa = (1.0 - rho) / rho
-    return log_choose + log_beta(s + p * kappa, m - s + (1.0 - p) * kappa) - log_beta(
-        p * kappa, (1.0 - p) * kappa
+    return (
+        log_choose
+        + log_beta(s + p * kappa, m - s + (1.0 - p) * kappa)
+        - log_beta(p * kappa, (1.0 - p) * kappa)
     )
 
 

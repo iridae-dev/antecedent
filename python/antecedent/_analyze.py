@@ -12,9 +12,9 @@ from .extensibility import providers as _providers
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
-from .missing import MissingPolicy
 from .interference import InterferenceQuery
 from .intervention_programs import PolicyProgramValue
+from .missing import MissingPolicy
 from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
 from .quasi import (
     AugmentedPanelDiD,

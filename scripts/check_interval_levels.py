@@ -117,7 +117,9 @@ def level_of(method: str, levels: dict[str, float]) -> float:
 def split_id(record_id: str) -> tuple[str, int, str]:
     match = ID_RE.match(record_id)
     if not match:
-        raise SystemExit(f"coverage record id {record_id!r} is not cov.<q>.<g>.<i>.<m>.l<NN>.<test>")
+        raise SystemExit(
+            f"coverage record id {record_id!r} is not cov.<q>.<g>.<i>.<m>.l<NN>.<test>"
+        )
     return match.group(1), int(match.group(2)), match.group(3)
 
 
@@ -163,7 +165,9 @@ def call_chain(source: str, entry: str) -> str | None:
         seen.add(name)
         chain.append(bodies[name])
         pending.extend(
-            other for other in bodies if re.search(rf"(?<![\w:]){re.escape(other)}\s*\(", bodies[name])
+            other
+            for other in bodies
+            if re.search(rf"(?<![\w:]){re.escape(other)}\s*\(", bodies[name])
         )
     return "\n".join(chain)
 
@@ -207,8 +211,14 @@ class Designs:
 # ---------------------------------------------------------------- the audit
 
 
-def audit(records: list[dict], cells: list[dict], estimator_rows: list[dict], exceptions: list[dict],
-          levels: dict[str, float], designs: Designs) -> dict:
+def audit(
+    records: list[dict],
+    cells: list[dict],
+    estimator_rows: list[dict],
+    exceptions: list[dict],
+    levels: dict[str, float],
+    designs: Designs,
+) -> dict:
     by_id = {record["id"]: record for record in records}
     findings: list[dict] = []
 
@@ -228,25 +238,43 @@ def audit(records: list[dict], cells: list[dict], estimator_rows: list[dict], ex
         subject = f"{prefix}|{rest}"
         exception = next((e for e in exceptions if prefix.startswith(e["construction"])), None)
         measured = sorted(by_level)
-        table.append({"construction": prefix, "test": rest, "runtime_level": expected, "measured": measured})
+        table.append(
+            {"construction": prefix, "test": rest, "runtime_level": expected, "measured": measured}
+        )
         if expected not in by_level:
             sample = by_level[measured[0]][0]
             if exception is not None:
                 used_exceptions.add(exception["construction"])
             elif designs.scores_reported_level(sample):
-                finding("PENDING", "runtime_level_unmeasured", subject,
-                        f"runtime reports {expected}%; the design scores it, the next measurement records it")
+                finding(
+                    "PENDING",
+                    "runtime_level_unmeasured",
+                    subject,
+                    f"runtime reports {expected}%; the design scores it, the next measurement records it",
+                )
             else:
-                finding("FAIL", "runtime_level_unmeasured", subject,
-                        f"runtime reports {expected}% but the records are at {measured}%")
+                finding(
+                    "FAIL",
+                    "runtime_level_unmeasured",
+                    subject,
+                    f"runtime reports {expected}% but the records are at {measured}%",
+                )
         elif exception is not None:
-            finding("FAIL", "stale_exception", subject,
-                    f"exception {exception['construction']!r} no longer applies: {expected}% is measured")
+            finding(
+                "FAIL",
+                "stale_exception",
+                subject,
+                f"exception {exception['construction']!r} no longer applies: {expected}% is measured",
+            )
         if method in levels:
             stray = [level for level in measured if level != expected]
             if stray:
-                finding("FAIL", "record_level_unreachable", subject,
-                        f"{method} intervals are always reported at {expected}%; records at {stray}%")
+                finding(
+                    "FAIL",
+                    "record_level_unreachable",
+                    subject,
+                    f"{method} intervals are always reported at {expected}%; records at {stray}%",
+                )
 
     for record in records:
         prefix, level, rest = split_id(record["id"])
@@ -255,16 +283,29 @@ def audit(records: list[dict], cells: list[dict], estimator_rows: list[dict], ex
                 continue
             gated = by_id.get(record["id"].replace(f".l{level}.", f".l{named}.", 1))
             if record.get("role") != "reported_level" or gated is None:
-                finding("FAIL", "misnamed_record", record["id"],
-                        f"named for {named}% but recorded at {level}%"
-                        + ("" if record.get("role") == "reported_level"
-                           else f" with role {record.get('role')!r}")
-                        + ("" if gated is not None else f"; no gated {named}% record to be the reported scoring of"))
+                finding(
+                    "FAIL",
+                    "misnamed_record",
+                    record["id"],
+                    f"named for {named}% but recorded at {level}%"
+                    + (
+                        ""
+                        if record.get("role") == "reported_level"
+                        else f" with role {record.get('role')!r}"
+                    )
+                    + (
+                        ""
+                        if gated is not None
+                        else f"; no gated {named}% record to be the reported scoring of"
+                    ),
+                )
 
     for row_kind, rows in (("cell", cells), ("estimator row", estimator_rows)):
         for index, row in enumerate(rows):
-            label = f"{row_kind} {row.get('query', '?')}/{row.get('graph_class', row.get('graph', '?'))}/" \
-                    f"{row.get('structure', '?')}/{row.get('inference', '?')}#{index}"
+            label = (
+                f"{row_kind} {row.get('query', '?')}/{row.get('graph_class', row.get('graph', '?'))}/"
+                f"{row.get('structure', '?')}/{row.get('inference', '?')}#{index}"
+            )
             cited = list(row.get("calibration") or [])
             missing = [rid for rid in cited if rid not in by_id]
             for rid in missing:
@@ -277,8 +318,12 @@ def audit(records: list[dict], cells: list[dict], estimator_rows: list[dict], ex
             for key, seen in cited_levels.items():
                 expected = round(level_of(method_of(key[0]), levels) * 100)
                 if expected not in seen and expected in groups.get(key, {}):
-                    finding("FAIL", "citation_level_mismatch", label,
-                            f"{key[0]}|{key[1]}: cites {sorted(seen)}%, runtime reports {expected}% and a record exists")
+                    finding(
+                        "FAIL",
+                        "citation_level_mismatch",
+                        label,
+                        f"{key[0]}|{key[1]}: cites {sorted(seen)}%, runtime reports {expected}% and a record exists",
+                    )
 
     contrast_groups: dict[tuple[str, int, str, str], dict[str, dict]] = defaultdict(dict)
     for record in records:
@@ -287,15 +332,19 @@ def audit(records: list[dict], cells: list[dict], estimator_rows: list[dict], ex
             continue
         prefix, level, rest = split_id(record["id"])
         test, _, label = rest.partition(".")
-        base = re.sub(r"(?:^|_)(?:%s)$" % "|".join(CONTRAST_LABELS), "", label)
+        base = re.sub(rf"(?:^|_)(?:{'|'.join(CONTRAST_LABELS)})$", "", label)
         contrast_groups[(prefix, level, test, base)][contrast] = record
     for (prefix, level, test, base), present in sorted(contrast_groups.items()):
         absent = [label for label in CONTRAST_LABELS if label not in present]
         if absent:
             sample = next(iter(present.values()))
             severity = "PENDING" if designs.executes_contrasts(sample) else "FAIL"
-            finding(severity, "contrast_not_separate", f"{prefix}.l{level}.{test}" + (f".{base}" if base else ""),
-                    f"no separate {', '.join(absent)} record at {level}%")
+            finding(
+                severity,
+                "contrast_not_separate",
+                f"{prefix}.l{level}.{test}" + (f".{base}" if base else ""),
+                f"no separate {', '.join(absent)} record at {level}%",
+            )
 
     unused = [e["construction"] for e in exceptions if e["construction"] not in used_exceptions]
     for construction in unused:
@@ -317,11 +366,15 @@ def run() -> dict:
 
 def report(result: dict, strict: bool, verbose: bool) -> int:
     findings = result["findings"]
-    fails = [f for f in findings if f["severity"] == "FAIL" or (strict and f["severity"] == "PENDING")]
+    fails = [
+        f for f in findings if f["severity"] == "FAIL" or (strict and f["severity"] == "PENDING")
+    ]
     pending = [f for f in findings if f["severity"] == "PENDING" and not strict]
     for finding in findings:
         if finding in fails or verbose:
-            print(f"{finding['severity']} {finding['code']}: {finding['subject']}: {finding['detail']}")
+            print(
+                f"{finding['severity']} {finding['code']}: {finding['subject']}: {finding['detail']}"
+            )
     by_code = defaultdict(int)
     for finding in pending:
         by_code[finding["code"]] += 1
@@ -365,7 +418,9 @@ def self_test() -> int:
         return {f["code"] for f in result["findings"] if severity in (None, f["severity"])}
 
     def go(records, cells=(), exceptions=(), designs=None) -> dict:
-        return audit(list(records), list(cells), [], list(exceptions), levels, designs or NoDesigns())
+        return audit(
+            list(records), list(cells), [], list(exceptions), levels, designs or NoDesigns()
+        )
 
     failures = []
 
@@ -373,47 +428,93 @@ def self_test() -> int:
         if got != want:
             failures.append(f"{name}: got {sorted(got)}, want {sorted(want)}")
 
-    both = [record(f"{base}.l90.x_nominal_90_coverage"),
-            record(f"{base}.l95.x_nominal_90_coverage", "reported_level")]
+    both = [
+        record(f"{base}.l90.x_nominal_90_coverage"),
+        record(f"{base}.l95.x_nominal_90_coverage", "reported_level"),
+    ]
     expect("clean pair", codes(go(both)), set())
-    expect("only 90 where runtime reports 95",
-           codes(go(both[:1]), "FAIL"), {"runtime_level_unmeasured"})
-    expect("pending when the design scores the level",
-           codes(go(both[:1], designs=ScoringDesigns()), "PENDING"), {"runtime_level_unmeasured"})
-    expect("excepted withheld interval",
-           codes(go(both[:1], exceptions=[{"construction": base, "reason": "withheld"}])), set())
-    expect("stale exception",
-           codes(go(both, exceptions=[{"construction": base, "reason": "withheld"}])),
-           {"stale_exception"})
-    expect("exception without reason",
-           codes(go(both[:1], exceptions=[{"construction": base, "reason": " "}])),
-           {"exception_without_reason"})
-    expect("misnamed gated record",
-           codes(go([record(f"{base}.l95.x_nominal_90_coverage")])),
-           {"misnamed_record"})
-    expect("level pair named by suffix",
-           codes(go([record(f"{base}.l90.x_l90"), record(f"{base}.l95.x_l95")])), set())
+    expect(
+        "only 90 where runtime reports 95",
+        codes(go(both[:1]), "FAIL"),
+        {"runtime_level_unmeasured"},
+    )
+    expect(
+        "pending when the design scores the level",
+        codes(go(both[:1], designs=ScoringDesigns()), "PENDING"),
+        {"runtime_level_unmeasured"},
+    )
+    expect(
+        "excepted withheld interval",
+        codes(go(both[:1], exceptions=[{"construction": base, "reason": "withheld"}])),
+        set(),
+    )
+    expect(
+        "stale exception",
+        codes(go(both, exceptions=[{"construction": base, "reason": "withheld"}])),
+        {"stale_exception"},
+    )
+    expect(
+        "exception without reason",
+        codes(go(both[:1], exceptions=[{"construction": base, "reason": " "}])),
+        {"exception_without_reason"},
+    )
+    expect(
+        "misnamed gated record",
+        codes(go([record(f"{base}.l95.x_nominal_90_coverage")])),
+        {"misnamed_record"},
+    )
+    expect(
+        "level pair named by suffix",
+        codes(go([record(f"{base}.l90.x_l90"), record(f"{base}.l95.x_l95")])),
+        set(),
+    )
     ident = "cov.q.temporal_pag.frequentist.identified_set"
-    expect("identified set reports 90",
-           codes(go([record(f"{ident}.l90.y_nominal_90_coverage")])), set())
-    expect("identified set never reports 95",
-           codes(go([record(f"{ident}.l90.y"), record(f"{ident}.l95.y")])),
-           {"record_level_unreachable"})
+    expect(
+        "identified set reports 90",
+        codes(go([record(f"{ident}.l90.y_nominal_90_coverage")])),
+        set(),
+    )
+    expect(
+        "identified set never reports 95",
+        codes(go([record(f"{ident}.l90.y"), record(f"{ident}.l95.y")])),
+        {"record_level_unreachable"},
+    )
     cell = {"query": "q", "graph_class": "Dag", "structure": "fixed", "inference": "Frequentist"}
-    expect("citation to a missing record",
-           codes(go(both, [{**cell, "calibration": [*(r["id"] for r in both), f"{base}.l95.absent"]}])),
-           {"citation_missing_record"})
-    expect("citation at the wrong level",
-           codes(go(both, [{**cell, "calibration": [both[0]["id"]]}])),
-           {"citation_level_mismatch"})
-    expect("citation at both levels",
-           codes(go(both, [{**cell, "calibration": [r["id"] for r in both]}])), set())
-    expect("mediated without total and direct",
-           codes(go([record(f"{base}.l95.m.mediated"), record(f"{base}.l90.m.mediated")]), "FAIL"),
-           {"contrast_not_separate"})
-    expect("mediated labelled by design with separate contrasts",
-           codes(go([record(f"{base}.l{lv}.m.k_0_{label}") for lv in (90, 95) for label in CONTRAST_LABELS])),
-           set())
+    expect(
+        "citation to a missing record",
+        codes(
+            go(both, [{**cell, "calibration": [*(r["id"] for r in both), f"{base}.l95.absent"]}])
+        ),
+        {"citation_missing_record"},
+    )
+    expect(
+        "citation at the wrong level",
+        codes(go(both, [{**cell, "calibration": [both[0]["id"]]}])),
+        {"citation_level_mismatch"},
+    )
+    expect(
+        "citation at both levels",
+        codes(go(both, [{**cell, "calibration": [r["id"] for r in both]}])),
+        set(),
+    )
+    expect(
+        "mediated without total and direct",
+        codes(go([record(f"{base}.l95.m.mediated"), record(f"{base}.l90.m.mediated")]), "FAIL"),
+        {"contrast_not_separate"},
+    )
+    expect(
+        "mediated labelled by design with separate contrasts",
+        codes(
+            go(
+                [
+                    record(f"{base}.l{lv}.m.k_0_{label}")
+                    for lv in (90, 95)
+                    for label in CONTRAST_LABELS
+                ]
+            )
+        ),
+        set(),
+    )
     full = [record(f"{base}.l{lv}.m.{label}") for lv in (90, 95) for label in CONTRAST_LABELS]
     expect("separate contrasts", codes(go(full)), set())
     for failure in failures:

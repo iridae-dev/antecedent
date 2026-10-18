@@ -23,11 +23,17 @@ class DelegatedIntervalCarrierTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "source.rs"
-            source.write_text("pub(crate) fn candidate_interval_replay() {}\n"
-                              "pub fn candidate_interval_internal() {}\n", encoding="utf-8", newline="\n")
+            source.write_text(
+                "pub(crate) fn candidate_interval_replay() {}\n"
+                "pub fn candidate_interval_internal() {}\n",
+                encoding="utf-8",
+                newline="\n",
+            )
             with patch.object(intervals, "ROOT", root), patch.object(intervals.cai, "ROOT", root):
-                self.assertEqual(intervals.surface_interval_findings("source.rs"),
-                                 [(2, "candidate_interval_internal")])
+                self.assertEqual(
+                    intervals.surface_interval_findings("source.rs"),
+                    [(2, "candidate_interval_internal")],
+                )
 
     def test_exact_projection_delegates_only_to_owned_method_with_factory_proof(self) -> None:
         import check_interval_coordinates as intervals
@@ -35,37 +41,78 @@ class DelegatedIntervalCarrierTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "carrier.py"
-            source.write_text("class Scalar:\n    @property\n    def interval(self):\n"
-                              "        return float(self._body['lower']), float(self._body['upper'])\n", encoding="utf-8", newline="\n")
-            field = {"name": "interval", "source": "carrier.py", "class": "Scalar",
-                     "method_records": ["method"], "authority_fixture": "factory-proof",
-                     "why": "Original authorized endpoint projection"}
-            record = {"id": "carrier", "prerequisite_records": ["method"],
-                      "fixtures": [{"id": "factory-proof", "role": "negative", "evidence_assertion": "reject_forgery"}],
-                      "delegated_interval_fields": [field]}
-            owners = {"method": {"coverage_records": ["actual-method"],
-                                  "inference_outputs": [{"allocated_coverage_records": ["actual-method"]}]}}
+            source.write_text(
+                "class Scalar:\n    @property\n    def interval(self):\n"
+                "        return float(self._body['lower']), float(self._body['upper'])\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            field = {
+                "name": "interval",
+                "source": "carrier.py",
+                "class": "Scalar",
+                "method_records": ["method"],
+                "authority_fixture": "factory-proof",
+                "why": "Original authorized endpoint projection",
+            }
+            record = {
+                "id": "carrier",
+                "prerequisite_records": ["method"],
+                "fixtures": [
+                    {
+                        "id": "factory-proof",
+                        "role": "negative",
+                        "evidence_assertion": "reject_forgery",
+                    }
+                ],
+                "delegated_interval_fields": [field],
+            }
+            owners = {
+                "method": {
+                    "coverage_records": ["actual-method"],
+                    "inference_outputs": [{"allocated_coverage_records": ["actual-method"]}],
+                }
+            }
             findings = [("carrier.py", 3, "interval")]
             with patch.object(intervals, "ROOT", root):
                 errors = []
-                self.assertEqual(intervals.delegated_interval_findings(record, findings, owners, errors), [])
+                self.assertEqual(
+                    intervals.delegated_interval_findings(record, findings, owners, errors), []
+                )
                 self.assertEqual(errors, [])
-                for altered_field in ({**field, "method_records": ["foreign"]},
-                                      {**field, "authority_fixture": "absent"},
-                                      {**field, "name": "new_interval"},
-                                      {**field, "method_records": []}):
+                for altered_field in (
+                    {**field, "method_records": ["foreign"]},
+                    {**field, "authority_fixture": "absent"},
+                    {**field, "name": "new_interval"},
+                    {**field, "method_records": []},
+                ):
                     errors = []
                     altered = {**record, "delegated_interval_fields": [altered_field]}
-                    self.assertEqual(intervals.delegated_interval_findings(altered, findings, owners, errors), findings)
+                    self.assertEqual(
+                        intervals.delegated_interval_findings(altered, findings, owners, errors),
+                        findings,
+                    )
                     self.assertTrue(errors)
                 errors = []
-                self.assertEqual(intervals.delegated_interval_findings(record, findings, {"method": {}}, errors), findings)
+                self.assertEqual(
+                    intervals.delegated_interval_findings(record, findings, {"method": {}}, errors),
+                    findings,
+                )
                 self.assertTrue(errors)
-                source.write_text("class Scalar:\n    @property\n    def interval(self):\n"
-                                  "        return float(self._body['lower']) - 1, float(self._body['upper']) + 1\n", encoding="utf-8", newline="\n")
+                source.write_text(
+                    "class Scalar:\n    @property\n    def interval(self):\n"
+                    "        return float(self._body['lower']) - 1, float(self._body['upper']) + 1\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
                 errors = []
-                self.assertEqual(intervals.delegated_interval_findings(record, findings, owners, errors), findings)
-                self.assertTrue(errors, "Numerically recomputed interval cannot borrow delegated evidence")
+                self.assertEqual(
+                    intervals.delegated_interval_findings(record, findings, owners, errors),
+                    findings,
+                )
+                self.assertTrue(
+                    errors, "Numerically recomputed interval cannot borrow delegated evidence"
+                )
 
 
 class ArchivedSupersededMeasurementTest(unittest.TestCase):
@@ -78,20 +125,52 @@ class ArchivedSupersededMeasurementTest(unittest.TestCase):
             source.parent.mkdir(parents=True)
             old = "cov.fixture.dag.frequentist.l95.old_method"
             replacement = "cov.fixture.dag.frequentist.l95.corrected_method"
-            source.write_text(f'#[test] #[ignore] fn old_method() {{ emit("{old}"); }}', encoding="utf-8", newline="\n")
+            source.write_text(
+                f'#[test] #[ignore] fn old_method() {{ emit("{old}"); }}',
+                encoding="utf-8",
+                newline="\n",
+            )
             subprocess.run(["git", "init", "-q", directory], check=True)
             subprocess.run(["git", "add", "."], cwd=root, check=True)
-            subprocess.run(["git", "-c", "commit.gpgsign=false", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
-                            "commit", "-q", "-m", "fixture"], cwd=root, check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@example.test",
+                    "commit",
+                    "-q",
+                    "-m",
+                    "fixture",
+                ],
+                cwd=root,
+                check=True,
+            )
             sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
             source.unlink()  # Retirement removes the live emitter; immutable history remains.
-            entry = {"id": old, "harness": "crates/fixture/tests/calibration.rs", "test": "old_method",
-                     "status": "failed", "measurement_commit": sha, "failure": "below unchanged floor",
-                     "disposition": "retired_superseded", "replacement_coverage_id": replacement}
-            record = {"id": "fixture", "historical_coverage_records": [entry], "inference_outputs": []}
+            entry = {
+                "id": old,
+                "harness": "crates/fixture/tests/calibration.rs",
+                "test": "old_method",
+                "status": "failed",
+                "measurement_commit": sha,
+                "failure": "below unchanged floor",
+                "disposition": "retired_superseded",
+                "replacement_coverage_id": replacement,
+            }
+            record = {
+                "id": "fixture",
+                "historical_coverage_records": [entry],
+                "inference_outputs": [],
+            }
             with patch.object(intervals, "ROOT", root):
                 errors = []
-                self.assertEqual(intervals.historical_allocations(record, [replacement], set(), errors), {old})
+                self.assertEqual(
+                    intervals.historical_allocations(record, [replacement], set(), errors), {old}
+                )
                 self.assertEqual(errors, [])
                 for field, value, expected in (
                     ("test", "invented", "no original ignored harness emitter"),
@@ -117,11 +196,14 @@ class ConditionalDgpReferenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "suite.rs"
             source.write_text(
-                'fn measure(latent: bool) { let key = RecordKey { '
-                'dgp: if latent { "latent_rows" } else { "markov_rows" }, }; }'
-            , encoding="utf-8", newline="\n")
-            self.assertEqual(collector.conditional_record_dgp_labels(source),
-                             {"latent_rows", "markov_rows"})
+                "fn measure(latent: bool) { let key = RecordKey { "
+                'dgp: if latent { "latent_rows" } else { "markov_rows" }, }; }',
+                encoding="utf-8",
+                newline="\n",
+            )
+            self.assertEqual(
+                collector.conditional_record_dgp_labels(source), {"latent_rows", "markov_rows"}
+            )
 
     def test_comments_unrelated_literals_and_computed_branches_do_not_resolve(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -129,8 +211,10 @@ class ConditionalDgpReferenceTest(unittest.TestCase):
             source.write_text(
                 '// dgp: if latent { "forged" } else { "forged2" }\n'
                 'fn measure() { let unrelated = "forged"; '
-                'let key = RecordKey { dgp: if latent { label() } else { "computed" }, }; }'
-            , encoding="utf-8", newline="\n")
+                'let key = RecordKey { dgp: if latent { label() } else { "computed" }, }; }',
+                encoding="utf-8",
+                newline="\n",
+            )
             self.assertEqual(collector.conditional_record_dgp_labels(source), set())
 
 
@@ -139,16 +223,25 @@ class PassingGroupHarvestTest(unittest.TestCase):
         sha = "a" * 40
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             def log(name: str, failed: bool = False, measured: str = sha) -> Path:
                 path = root / name
                 result = "FAILED. 0 passed; 1 failed;" if failed else "ok. 1 passed; 0 failed;"
-                path.write_text(f"test result: {result} finished in 0.1s\ncalibration-measured-at {measured}\n")
+                path.write_text(
+                    f"test result: {result} finished in 0.1s\ncalibration-measured-at {measured}\n"
+                )
                 return path
+
             complete = [log(f"complete.p{p}.log") for p in range(3)]
-            failed = [log(f"failed.p{p}.log") for p in range(3)] + [log("failed.p1.recheck.log", True)]
+            failed = [log(f"failed.p{p}.log") for p in range(3)] + [
+                log("failed.p1.recheck.log", True)
+            ]
             incomplete = [log("partial.p0.log"), log("partial.p2.log")]
             wrong_sha = [log("wrong.log", measured="b" * 40)]
-            self.assertEqual(collector.passing_group_logs(complete + failed + incomplete + wrong_sha, sha), complete)
+            self.assertEqual(
+                collector.passing_group_logs(complete + failed + incomplete + wrong_sha, sha),
+                complete,
+            )
 
     def test_malformed_whole_file_records_skip_the_entire_group(self) -> None:
         sha = "a" * 40
@@ -156,9 +249,13 @@ class PassingGroupHarvestTest(unittest.TestCase):
             logs = []
             for point in range(3):
                 log = Path(directory) / f"whole_file.p{point}.log"
-                log.write_text(f"test result: ok. 2 passed; 0 failed;\ncalibration-measured-at {sha}\n")
+                log.write_text(
+                    f"test result: ok. 2 passed; 0 failed;\ncalibration-measured-at {sha}\n"
+                )
                 logs.append(log)
-            with patch.object(collector, "merged_records", side_effect=SystemExit("duplicate record id")):
+            with patch.object(
+                collector, "merged_records", side_effect=SystemExit("duplicate record id")
+            ):
                 self.assertEqual(collector.passing_group_logs(logs, sha), [])
 
 
@@ -177,10 +274,14 @@ class AppendAttestedRecordsTest(unittest.TestCase):
             collector.append_attested_records({"same": {}}, {"same": {}})
 
     def test_replace_record_requires_explicit_collision_allowlist_and_fresh_evidence(self) -> None:
-        old = {"changed": {"id": "changed", "calibration_sha": "old"},
-               "unrelated": {"id": "unrelated", "calibration_sha": "old", "observed": 0.95}}
+        old = {
+            "changed": {"id": "changed", "calibration_sha": "old"},
+            "unrelated": {"id": "unrelated", "calibration_sha": "old", "observed": 0.95},
+        }
         new = {"changed": {"id": "changed", "calibration_sha": "new", "observed": 0.951}}
-        merged = collector.append_attested_records(old, new, mode="--keep-existing", replace_ids=["changed"])
+        merged = collector.append_attested_records(
+            old, new, mode="--keep-existing", replace_ids=["changed"]
+        )
         self.assertEqual(merged["changed"], new["changed"])
         self.assertIs(merged["unrelated"], old["unrelated"])
         with self.assertRaisesRegex(SystemExit, "refuses existing record ids"):
@@ -196,7 +297,18 @@ class AppendAttestedRecordsTest(unittest.TestCase):
             ledger = Path(directory) / "gates.toml"
             ledger.write_text('[[gate]]\ngroup="old-gate"\npassed=1\ncalibration_sha="old-sha"\n')
             argv = ["collector", "--keep-existing", "--no-cells", "--sha", "a" * 40]
-            with patch.object(sys, "argv", argv), patch.object(collector, "ROOT", Path(directory)), patch.object(collector, "OUT", Path(directory) / "records.toml"), patch.object(collector, "GATES", ledger), patch.object(collector, "load_records", return_value={"new": new}), patch.object(collector.facets, "load_records", return_value=[old]), patch.object(collector, "write_registry") as write, patch.object(collector, "write_gate_ledger") as gates, patch.object(collector, "gate_ledger", return_value={}), patch.object(collector.subprocess, "run"):
+            with (
+                patch.object(sys, "argv", argv),
+                patch.object(collector, "ROOT", Path(directory)),
+                patch.object(collector, "OUT", Path(directory) / "records.toml"),
+                patch.object(collector, "GATES", ledger),
+                patch.object(collector, "load_records", return_value={"new": new}),
+                patch.object(collector.facets, "load_records", return_value=[old]),
+                patch.object(collector, "write_registry") as write,
+                patch.object(collector, "write_gate_ledger") as gates,
+                patch.object(collector, "gate_ledger", return_value={}),
+                patch.object(collector.subprocess, "run"),
+            ):
                 self.assertEqual(collector.main(), 0)
                 self.assertEqual(write.call_args.args[0], {"old": old, "new": new})
                 self.assertEqual(write.call_args.kwargs, {"retag": False})
@@ -237,10 +349,9 @@ class AppendAttestedRecordsTest(unittest.TestCase):
             self.assertEqual(changed, 1)
             self.assertIn('calibration = ["new"]', path.read_text(encoding="utf-8"))
             self.assertEqual(
-                path.read_text(encoding="utf-8").split('[[cell]]')[2],
-                source.split('[[cell]]')[2],
+                path.read_text(encoding="utf-8").split("[[cell]]")[2],
+                source.split("[[cell]]")[2],
             )
-
 
 
 class LicensedCellSyncTest(unittest.TestCase):
@@ -250,27 +361,41 @@ class LicensedCellSyncTest(unittest.TestCase):
             '[[cell]]\nquery="AverageEffect"\ngraph_class="Admg"\n'
             f'structure="explicit"\ninference="{inference}"\nvalidation="none"\n'
             'estimators=["functional.effect"]\n'
-            + ('calibration = ["frontdoor"]\ncalibration_reason = "boundary_record"\n'
-               if bound else 'calibration_reason = "estimator_grid_not_measured"\n')
+            + (
+                'calibration = ["frontdoor"]\ncalibration_reason = "boundary_record"\n'
+                if bound
+                else 'calibration_reason = "estimator_grid_not_measured"\n'
+            )
         )
 
     @staticmethod
     def record(estimator: str, inference: str = "Bayesian", boundary: bool = False) -> dict:
-        return dict(query="AverageEffect", graph_class="Admg", structure="fixed",
-                    inference=inference, estimator=estimator, nominal=0.95, boundary=boundary)
+        return dict(
+            query="AverageEffect",
+            graph_class="Admg",
+            structure="fixed",
+            inference=inference,
+            estimator=estimator,
+            nominal=0.95,
+            boundary=boundary,
+        )
 
     def test_new_passing_fisher_and_bayesian_do_not_rebind_frontdoor_boundary(self) -> None:
-        for inference, estimator in (("Bayesian", "nested_markov_bayesian"),
-                                     ("Frequentist", "nested_markov_fisher")):
+        for inference, estimator in (
+            ("Bayesian", "nested_markov_bayesian"),
+            ("Frequentist", "nested_markov_fisher"),
+        ):
             with self.subTest(inference=inference), tempfile.TemporaryDirectory() as directory:
                 source = self.source(inference)
                 path = Path(directory) / "licensed.toml"
                 path.write_text(source, encoding="utf-8", newline="\n")
                 with patch.object(collector, "LICENSED", path):
-                    collector.sync_licensed_cells({
-                        "frontdoor": self.record("functional.effect", inference, True),
-                        "new_passing": self.record(estimator, inference),
-                    })
+                    collector.sync_licensed_cells(
+                        {
+                            "frontdoor": self.record("functional.effect", inference, True),
+                            "new_passing": self.record(estimator, inference),
+                        }
+                    )
                 parsed = collector.tomllib.loads(path.read_text(encoding="utf-8"))["cell"][0]
                 self.assertEqual(parsed["calibration"], ["frontdoor"])
                 self.assertEqual(parsed["calibration_reason"], "boundary_record")
@@ -281,8 +406,9 @@ class LicensedCellSyncTest(unittest.TestCase):
             path = Path(directory) / "licensed.toml"
             path.write_text(source, encoding="utf-8", newline="\n")
             with patch.object(collector, "LICENSED", path):
-                self.assertEqual(collector.sync_licensed_cells({
-                    "new": self.record("nested_markov_bayesian")}), 0)
+                self.assertEqual(
+                    collector.sync_licensed_cells({"new": self.record("nested_markov_bayesian")}), 0
+                )
             self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     def test_missing_bound_record_refuses_without_writing(self) -> None:
@@ -290,8 +416,9 @@ class LicensedCellSyncTest(unittest.TestCase):
             source = self.source()
             path = Path(directory) / "licensed.toml"
             path.write_text(source, encoding="utf-8", newline="\n")
-            with patch.object(collector, "LICENSED", path), self.assertRaisesRegex(
-                SystemExit, "bound calibration records absent"
+            with (
+                patch.object(collector, "LICENSED", path),
+                self.assertRaisesRegex(SystemExit, "bound calibration records absent"),
             ):
                 collector.sync_licensed_cells({"new": self.record("nested_markov_bayesian")})
             self.assertEqual(path.read_text(encoding="utf-8"), source)
@@ -301,11 +428,14 @@ class LicensedCellSyncTest(unittest.TestCase):
             source = self.source()
             path = Path(directory) / "licensed.toml"
             path.write_text(source, encoding="utf-8", newline="\n")
-            with patch.object(collector, "LICENSED", path), self.assertRaisesRegex(
-                SystemExit, "not owned by the licensed cell"
+            with (
+                patch.object(collector, "LICENSED", path),
+                self.assertRaisesRegex(SystemExit, "not owned by the licensed cell"),
             ):
-                collector.sync_licensed_cells({"new": self.record("nested_markov_bayesian")},
-                    {("AverageEffect", "Admg", "explicit", "Bayesian", "none"): ["new"]})
+                collector.sync_licensed_cells(
+                    {"new": self.record("nested_markov_bayesian")},
+                    {("AverageEffect", "Admg", "explicit", "Bayesian", "none"): ["new"]},
+                )
             self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     def test_refresh_uses_new_measurement_of_original_bound_method(self) -> None:
@@ -319,47 +449,66 @@ class LicensedCellSyncTest(unittest.TestCase):
             self.assertNotIn("calibration_reason", parsed)
 
     def test_schema_ownership_does_not_require_new_foreign_posteriors(self) -> None:
-        for inference, foreign in (("Bayesian", "nested_markov_bayesian"),
-                                   ("Frequentist", "nested_markov_fisher")):
+        for inference, foreign in (
+            ("Bayesian", "nested_markov_bayesian"),
+            ("Frequentist", "nested_markov_fisher"),
+        ):
             cell = collector.tomllib.loads(self.source(inference))["cell"][0]
-            records = {"frontdoor": self.record("functional.effect", inference, True),
-                       "new_posterior": self.record(foreign, inference)}
+            records = {
+                "frontdoor": self.record("functional.effect", inference, True),
+                "new_posterior": self.record(foreign, inference),
+            }
             self.assertEqual(collector.licensed_cell_calibration_problems(cell, records), [])
             cell["calibration"].append("new_posterior")
-            self.assertTrue(any("foreign estimator" in error for error in
-                                collector.licensed_cell_calibration_problems(cell, records)))
+            self.assertTrue(
+                any(
+                    "foreign estimator" in error
+                    for error in collector.licensed_cell_calibration_problems(cell, records)
+                )
+            )
 
     def test_schema_requires_every_actual_owned_grid_and_rejects_missing_record(self) -> None:
         cell = collector.tomllib.loads(self.source())["cell"][0]
-        records = {"frontdoor": self.record("functional.effect", boundary=True),
-                   "new_owned_grid": self.record("functional.effect")}
+        records = {
+            "frontdoor": self.record("functional.effect", boundary=True),
+            "new_owned_grid": self.record("functional.effect"),
+        }
         errors = collector.licensed_cell_calibration_problems(cell, records)
         self.assertTrue(any("missing required owned records" in error for error in errors))
         cell["calibration"].append("new_owned_grid")
         self.assertEqual(collector.licensed_cell_calibration_problems(cell, records), [])
         del records["frontdoor"]
-        self.assertTrue(any("unknown bound record" in error for error in
-                            collector.licensed_cell_calibration_problems(cell, records)))
+        self.assertTrue(
+            any(
+                "unknown bound record" in error
+                for error in collector.licensed_cell_calibration_problems(cell, records)
+            )
+        )
 
     def test_schema_rejects_other_structure_even_with_same_estimator(self) -> None:
         cell = collector.tomllib.loads(self.source())["cell"][0]
         record = self.record("functional.effect")
         record["structure"] = "graph_posterior"
-        self.assertTrue(any("scientific coordinate" in error for error in
-                            collector.licensed_cell_calibration_problems(cell, {"frontdoor": record})))
+        self.assertTrue(
+            any(
+                "scientific coordinate" in error
+                for error in collector.licensed_cell_calibration_problems(
+                    cell, {"frontdoor": record}
+                )
+            )
+        )
 
     def test_default_refresh_refuses_foreign_existing_binding_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "licensed.toml"
             source = self.source()
             path.write_text(source, encoding="utf-8", newline="\n")
-            with patch.object(collector, "LICENSED", path), self.assertRaisesRegex(
-                SystemExit, "not owned by the licensed cell"
+            with (
+                patch.object(collector, "LICENSED", path),
+                self.assertRaisesRegex(SystemExit, "not owned by the licensed cell"),
             ):
                 collector.sync_licensed_cells({"frontdoor": self.record("nested_markov_bayesian")})
             self.assertEqual(path.read_text(encoding="utf-8"), source)
-
-
 
     @staticmethod
     def scientific_owner_evidence_errors(cell: dict, root: Path = collector.ROOT) -> list[str]:
@@ -374,14 +523,29 @@ class LicensedCellSyncTest(unittest.TestCase):
         source.parent.mkdir(parents=True)
         proof.parent.mkdir(parents=True)
         (root / "crates/owner/Cargo.toml").write_text(
-            '[package]\nname = "owner"\nversion = "0.1.0"\nedition = "2021"\n'
-        , encoding="utf-8", newline="\n")
-        source.write_text("// pub struct NativeOwner;" if comment_only else "pub struct NativeOwner;", encoding="utf-8", newline="\n")
-        proof.write_text("#[test]\n" + ("#[ignore]\n" if ignored else "")
-                         + "fn scientific_owner_proof() { assert_eq!(1, 1); }", encoding="utf-8", newline="\n")
-        return {"estimator": "actual.scientific", "source": "crates/owner/src/lib.rs",
-                "source_symbol": "NativeOwner", "evidence_test": "crates/owner/tests/owner.rs",
-                "evidence_assertion": "scientific_owner_proof"}
+            '[package]\nname = "owner"\nversion = "0.1.0"\nedition = "2021"\n',
+            encoding="utf-8",
+            newline="\n",
+        )
+        source.write_text(
+            "// pub struct NativeOwner;" if comment_only else "pub struct NativeOwner;",
+            encoding="utf-8",
+            newline="\n",
+        )
+        proof.write_text(
+            "#[test]\n"
+            + ("#[ignore]\n" if ignored else "")
+            + "fn scientific_owner_proof() { assert_eq!(1, 1); }",
+            encoding="utf-8",
+            newline="\n",
+        )
+        return {
+            "estimator": "actual.scientific",
+            "source": "crates/owner/src/lib.rs",
+            "source_symbol": "NativeOwner",
+            "evidence_test": "crates/owner/tests/owner.rs",
+            "evidence_assertion": "scientific_owner_proof",
+        }
 
     def test_separate_scientific_owner_does_not_change_public_selectors(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -390,39 +554,62 @@ class LicensedCellSyncTest(unittest.TestCase):
             selectors = list(cell["estimators"])
             cell["calibration_estimators"] = [self.scientific_owner(root)]
             self.assertEqual(self.scientific_owner_evidence_errors(cell, root), [])
-            self.assertTrue(collector.licensed_record_matches(cell, self.record("actual.scientific")))
+            self.assertTrue(
+                collector.licensed_record_matches(cell, self.record("actual.scientific"))
+            )
             self.assertEqual(cell["estimators"], selectors)
-            self.assertFalse(collector.licensed_record_matches(cell, self.record("nested_markov_bayesian")))
+            self.assertFalse(
+                collector.licensed_record_matches(cell, self.record("nested_markov_bayesian"))
+            )
 
     def test_scientific_owner_requires_actual_native_code_not_comment(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            cell = {"estimators": [], "calibration_estimators": [
-                self.scientific_owner(root, comment_only=True)]}
-            self.assertTrue(any("outside comments/tests" in error for error in
-                                self.scientific_owner_evidence_errors(cell, root)))
+            cell = {
+                "estimators": [],
+                "calibration_estimators": [self.scientific_owner(root, comment_only=True)],
+            }
+            self.assertTrue(
+                any(
+                    "outside comments/tests" in error
+                    for error in self.scientific_owner_evidence_errors(cell, root)
+                )
+            )
 
     def test_scientific_owner_requires_nonignored_asserting_native_proof(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             entry = self.scientific_owner(root, ignored=True)
             cell = {"estimators": [], "calibration_estimators": [entry]}
-            self.assertTrue(any("ignore" in error for error in
-                                self.scientific_owner_evidence_errors(cell, root)))
+            self.assertTrue(
+                any(
+                    "ignore" in error for error in self.scientific_owner_evidence_errors(cell, root)
+                )
+            )
             proof = root / entry["evidence_test"]
-            proof.write_text("#[test] fn scientific_owner_proof() {}", encoding="utf-8", newline="\n")
+            proof.write_text(
+                "#[test] fn scientific_owner_proof() {}", encoding="utf-8", newline="\n"
+            )
             self.assertTrue(self.scientific_owner_evidence_errors(cell, root))
 
     def test_scientific_owner_malformed_or_duplicate_declarations_refuse(self) -> None:
         for entries in ["actual.scientific", ["actual.scientific"], [{"estimator": "forged"}]]:
-            self.assertTrue(self.scientific_owner_evidence_errors(
-                {"estimators": [], "calibration_estimators": entries}))
+            self.assertTrue(
+                self.scientific_owner_evidence_errors(
+                    {"estimators": [], "calibration_estimators": entries}
+                )
+            )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             entry = self.scientific_owner(root)
-            self.assertTrue(any("duplicate" in error for error in
-                self.scientific_owner_evidence_errors(
-                    {"estimators": [], "calibration_estimators": [entry, entry]}, root)))
+            self.assertTrue(
+                any(
+                    "duplicate" in error
+                    for error in self.scientific_owner_evidence_errors(
+                        {"estimators": [], "calibration_estimators": [entry, entry]}, root
+                    )
+                )
+            )
 
 
 def _point(k: int, observed: float, role: str, **extra) -> dict:
@@ -453,7 +640,10 @@ UPPER = {"side": "upper", "target": "true upper extremal bound U"}
 
 class FacetTaggingTest(unittest.TestCase):
     def test_empty_measurement_needs_no_repository_reference_scan(self):
-        with patch.object(collector.facets, "load_surface") as surface, patch.object(collector.facets, "references") as refs:
+        with (
+            patch.object(collector.facets, "load_surface") as surface,
+            patch.object(collector.facets, "references") as refs,
+        ):
             collector.tag_facets({})
         surface.assert_not_called()
         refs.assert_not_called()
@@ -462,13 +652,25 @@ class FacetTaggingTest(unittest.TestCase):
 class ConservativePointTest(unittest.TestCase):
     @staticmethod
     def point(k=0):
-        return _point(k, 0.959, "conservative_point",
+        return _point(
+            k,
+            0.959,
+            "conservative_point",
             conservative_point=collector.GAUSSIAN_STUDY_T_CLAIM.copy(),
-            query="PooledEffect", graph_class="NoGraph", structure="fixed", modality="summary",
-            inference="Frequentist", estimator="evidence.synthesis.equal_study_gaussian",
-            interval_method="independent_gaussian_study_t", se_kind="empirical_study_variance",
-            dependence="independent", posterior="", identification="point",
-            functional="pooled_mean;equal_study_gaussian;studies=5-30", replicates_min=0)
+            query="PooledEffect",
+            graph_class="NoGraph",
+            structure="fixed",
+            modality="summary",
+            inference="Frequentist",
+            estimator="evidence.synthesis.equal_study_gaussian",
+            interval_method="independent_gaussian_study_t",
+            se_kind="empirical_study_variance",
+            dependence="independent",
+            posterior="",
+            identification="point",
+            functional="pooled_mean;equal_study_gaussian;studies=5-30",
+            replicates_min=0,
+        )
 
     def test_theorem_declared_method_retains_observed_conservative_coverage(self):
         record = collector.merge_grid("gaussian", {k: self.point(k) for k in range(3)})
@@ -492,20 +694,28 @@ class ConservativePointTest(unittest.TestCase):
     def test_nominal_method_cannot_relabel_a_failure_as_conservative(self):
         for updates in (
             {"estimator": "evidence.synthesis.random_effects"},
-            {"interval_method": "hksj_t"}, {"se_kind": "hartung_knapp"},
-            {"nominal": 0.90}, {"posterior": "draws"}, {"identification": "set"},
-            {"conservative_point": None}, {"conservative_point": {"target": "unreviewed"}},
+            {"interval_method": "hksj_t"},
+            {"se_kind": "hartung_knapp"},
+            {"nominal": 0.90},
+            {"posterior": "draws"},
+            {"identification": "set"},
+            {"conservative_point": None},
+            {"conservative_point": {"target": "unreviewed"}},
             {"functional": "pooled_mean;random_effects_dl;studies=5-30"},
-            {"role": "gated"}, {"boundary": True}, {"posterior_draws_min": 1000},
+            {"role": "gated"},
+            {"boundary": True},
+            {"posterior_draws_min": 1000},
         ):
             with self.subTest(updates=updates), self.assertRaises(SystemExit):
                 collector.merge_grid("bad", {k: {**self.point(k), **updates} for k in range(3)})
 
 
-
 class OneSidedRoleTest(unittest.TestCase):
     def test_a_one_sided_record_keeps_its_side_and_target(self) -> None:
-        points = {k: _point(k, obs, "one_sided", one_sided=UPPER) for k, obs in enumerate((0.99, 0.985, 1.0))}
+        points = {
+            k: _point(k, obs, "one_sided", one_sided=UPPER)
+            for k, obs in enumerate((0.99, 0.985, 1.0))
+        }
         record = collector.merge_grid("rid", points)
         self.assertEqual(record["role"], "one_sided")
         self.assertEqual(record["one_sided"], UPPER)
@@ -516,7 +726,10 @@ class OneSidedRoleTest(unittest.TestCase):
         points = {k: _point(k, 0.99, "one_sided") for k in range(3)}
         with self.assertRaisesRegex(SystemExit, "states one_sided"):
             collector.merge_grid("rid", points)
-        bad = {k: _point(k, 0.99, "one_sided", one_sided={"side": "both", "target": "t"}) for k in range(3)}
+        bad = {
+            k: _point(k, 0.99, "one_sided", one_sided={"side": "both", "target": "t"})
+            for k in range(3)
+        }
         with self.assertRaisesRegex(SystemExit, "side = lower|upper"):
             collector.merge_grid("rid", bad)
 
@@ -528,7 +741,9 @@ class OneSidedRoleTest(unittest.TestCase):
     def test_one_sided_does_not_mix_with_another_role(self) -> None:
         points = {k: _point(k, 0.99, "one_sided", one_sided=UPPER) for k in range(2)}
         points[2] = _point(2, 0.95, "gated", one_sided=UPPER)
-        with self.assertRaisesRegex(SystemExit, "another construction|incompatible roles|states one_sided"):
+        with self.assertRaisesRegex(
+            SystemExit, "another construction|incompatible roles|states one_sided"
+        ):
             collector.merge_grid("rid", points)
 
     def test_an_unknown_role_is_refused(self) -> None:
@@ -590,12 +805,18 @@ class ConfirmedPassingRangeTest(unittest.TestCase):
         self.assertEqual(record["confirmed_passing_range"], [200, 400])
 
     def test_a_point_the_confirmation_did_not_pass_is_not_recovered(self) -> None:
-        self.assertNotIn("confirmed_passing_range", self.confirmed(self.boundary_record((0,)), (2,)))
+        self.assertNotIn(
+            "confirmed_passing_range", self.confirmed(self.boundary_record((0,)), (2,))
+        )
         self.assertNotIn("confirmed_passing_range", self.confirmed(self.boundary_record((0,)), ()))
 
     def test_a_middle_failure_and_a_lone_point_are_not_subranges(self) -> None:
-        self.assertNotIn("confirmed_passing_range", self.confirmed(self.boundary_record((1,)), (0, 2)))
-        self.assertNotIn("confirmed_passing_range", self.confirmed(self.boundary_record((0, 1)), (2,)))
+        self.assertNotIn(
+            "confirmed_passing_range", self.confirmed(self.boundary_record((1,)), (0, 2))
+        )
+        self.assertNotIn(
+            "confirmed_passing_range", self.confirmed(self.boundary_record((0, 1)), (2,))
+        )
 
     def test_a_named_boundary_and_a_passing_record_recover_nothing(self) -> None:
         named = self.confirmed(self.boundary_record((0,), role="named_boundary"), (1, 2))
@@ -763,7 +984,9 @@ class ConfirmationMatchingTest(unittest.TestCase):
                 collector.merged_records(logs, sha=attested)
             # The same commit combines.
             for k in (1, 2):
-                write_text(root / f"g.p{k}.confirm.log", line(k, attested, confirmation=True) + "\n")
+                write_text(
+                    root / f"g.p{k}.confirm.log", line(k, attested, confirmation=True) + "\n"
+                )
             records = collector.merged_records(logs, sha=attested)
             self.assertEqual(next(iter(records.values()))["confirmed_passing_range"], [400, 800])
 
@@ -780,7 +1003,10 @@ class FourPointRangeTest(unittest.TestCase):
         ]
 
     def confirmed(self, points: tuple[int, ...]) -> list[dict]:
-        return [{"point": k, "n_min": self.SIZES[k], "n_max": self.SIZES[k], "boundary": False} for k in points]
+        return [
+            {"point": k, "n_min": self.SIZES[k], "n_max": self.SIZES[k], "boundary": False}
+            for k in points
+        ]
 
     def test_the_upper_three_points_recover_800_to_3200(self) -> None:
         self.assertEqual(
@@ -790,7 +1016,9 @@ class FourPointRangeTest(unittest.TestCase):
 
     def test_without_confirmation_or_with_a_gap_in_it_nothing_is_recovered(self) -> None:
         self.assertIsNone(collector.confirmed_passing_range(self.grid((0,)), []))
-        self.assertIsNone(collector.confirmed_passing_range(self.grid((0,)), self.confirmed((1, 3))))
+        self.assertIsNone(
+            collector.confirmed_passing_range(self.grid((0,)), self.confirmed((1, 3)))
+        )
 
     def test_a_failed_interior_point_is_never_inside_a_range(self) -> None:
         # 400 passed, 800 failed, 1600 and 3200 passed: only the upper run is a subrange.
@@ -817,61 +1045,77 @@ class GateProtocolTest(unittest.TestCase):
             ledger = root / "gates.toml"
             with patch.object(collector, "GATES", ledger):
                 collector.write_gate_ledger({"old": rows["old"]}, {"new": rows["new"]})
-            parsed = {row["group"]: row for row in collector.tomllib.loads(ledger.read_text())["gate"]}
+            parsed = {
+                row["group"]: row for row in collector.tomllib.loads(ledger.read_text())["gate"]
+            }
             self.assertEqual(parsed, rows)
-            new.write_text("CALIBRATION_GATE_PROTOCOL population_linear\nCALIBRATION_GATE_PROTOCOL other\n" + passed)
+            new.write_text(
+                "CALIBRATION_GATE_PROTOCOL population_linear\nCALIBRATION_GATE_PROTOCOL other\n"
+                + passed
+            )
             with self.assertRaisesRegex(SystemExit, "conflicting"):
                 collector.gate_ledger([new], "a" * 40)
 
 
-
 class FamilyDecisionRecordTest(unittest.TestCase):
     def config(self):
-        return collector.coverage_decision.config_for_manifest({'groups':[{'label':'one'}]})
+        return collector.coverage_decision.config_for_manifest({"groups": [{"label": "one"}]})
 
-    def point(self,k=0,covered=1879,planned=2000):
-        value=collector.coverage_decision.evaluate(self.config(),planned,planned,covered,0.95,False)
-        return _point(k,covered/planned,'gated',replicates=planned,decision_protocol=value)
+    def point(self, k=0, covered=1879, planned=2000):
+        value = collector.coverage_decision.evaluate(
+            self.config(), planned, planned, covered, 0.95, False
+        )
+        return _point(k, covered / planned, "gated", replicates=planned, decision_protocol=value)
 
     def test_near_nominal_monte_carlo_miss_retains_exact_metadata_each_grid(self):
-        points={k:self.point(k,1879+k) for k in range(3)}
-        record=collector.merge_grid('id',points)
-        self.assertEqual(record['decision_protocol'],points[0]['decision_protocol'])
-        self.assertEqual([p['decision_protocol']['covered'] for p in record['grid']],[1879,1880,1881])
-        self.assertTrue(all(collector.grid_fields_valid(p) for p in record['grid']))
+        points = {k: self.point(k, 1879 + k) for k in range(3)}
+        record = collector.merge_grid("id", points)
+        self.assertEqual(record["decision_protocol"], points[0]["decision_protocol"])
+        self.assertEqual(
+            [p["decision_protocol"]["covered"] for p in record["grid"]], [1879, 1880, 1881]
+        )
+        self.assertTrue(all(collector.grid_fields_valid(p) for p in record["grid"]))
 
     def test_named_boundary_grid_point_retains_its_separate_boundary_role(self):
-        points={k:self.point(k) for k in range(3)}
-        points[0]=_point(0,0.8,'named_boundary',boundary=True)
-        record=collector.merge_grid('id',points)
-        self.assertEqual(record['role'],'named_boundary')
-        self.assertNotIn('decision_protocol',record)
-        self.assertIn('decision_protocol',record['grid'][1])
+        points = {k: self.point(k) for k in range(3)}
+        points[0] = _point(0, 0.8, "named_boundary", boundary=True)
+        record = collector.merge_grid("id", points)
+        self.assertEqual(record["role"], "named_boundary")
+        self.assertNotIn("decision_protocol", record)
+        self.assertIn("decision_protocol", record["grid"][1])
 
     def test_false_counts_incompatible_final_and_mixed_family_are_rejected(self):
-        bad=self.point(); bad['decision_protocol']['covered']+=1
-        with self.assertRaisesRegex(SystemExit,'counts|p_value|compatibility'):
-            collector.merge_grid('id',{k:{**bad,'grid_point':k,'n_min':100*(k+1),'n_max':100*(k+1)} for k in range(3)})
-        with self.assertRaisesRegex(SystemExit,'incompatible'):
-            collector.merge_grid('id',{k:self.point(k,1500) for k in range(3)})
-        points={k:self.point(k) for k in range(3)}
-        del points[1]['decision_protocol']
-        with self.assertRaisesRegex(SystemExit,'mix coverage decision'):
-            collector.merge_grid('id',points)
+        bad = self.point()
+        bad["decision_protocol"]["covered"] += 1
+        with self.assertRaisesRegex(SystemExit, "counts|p_value|compatibility"):
+            collector.merge_grid(
+                "id",
+                {
+                    k: {**bad, "grid_point": k, "n_min": 100 * (k + 1), "n_max": 100 * (k + 1)}
+                    for k in range(3)
+                },
+            )
+        with self.assertRaisesRegex(SystemExit, "incompatible"):
+            collector.merge_grid("id", {k: self.point(k, 1500) for k in range(3)})
+        points = {k: self.point(k) for k in range(3)}
+        del points[1]["decision_protocol"]
+        with self.assertRaisesRegex(SystemExit, "mix coverage decision"):
+            collector.merge_grid("id", points)
 
     def test_intermediate_incompatible_look_is_audited_without_claiming_a_pass(self):
-        payload=self.point(0,300,400)
+        payload = self.point(0, 300, 400)
         collector.validate_point_decision(payload)
-        with self.assertRaisesRegex(SystemExit,'incompatible'):
-            collector.validate_point_decision(payload,final=True)
+        with self.assertRaisesRegex(SystemExit, "incompatible"):
+            collector.validate_point_decision(payload, final=True)
 
     def test_fresh_confirmation_rejected_and_optional_metadata_roundtrips(self):
-        record=collector.merge_grid('id',{k:self.point(k) for k in range(3)})
-        with self.assertRaisesRegex(SystemExit,'confirmation'):
-            collector.attach_confirmation('id',record,{0:self.point()})
-        encoded=collector.toml_value('grid',record['grid'])
-        decoded=collector.tomllib.loads('grid = '+encoded)['grid']
-        self.assertEqual(decoded,record['grid'])
+        record = collector.merge_grid("id", {k: self.point(k) for k in range(3)})
+        with self.assertRaisesRegex(SystemExit, "confirmation"):
+            collector.attach_confirmation("id", record, {0: self.point()})
+        encoded = collector.toml_value("grid", record["grid"])
+        decoded = collector.tomllib.loads("grid = " + encoded)["grid"]
+        self.assertEqual(decoded, record["grid"])
+
 
 if __name__ == "__main__":
     unittest.main()

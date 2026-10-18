@@ -250,9 +250,7 @@ class SamplingWeightsView(ResultModel):
     zero_weight_rows: int
     effective_sample_size: float
     weight_sum: float
-    target_population: str = (
-        "the weighted population the declared sampling weights represent"
-    )
+    target_population: str = "the weighted population the declared sampling weights represent"
 
     @property
     def design_effect(self) -> float:

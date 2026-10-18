@@ -90,18 +90,21 @@ from __future__ import annotations
 
 import argparse
 import json
-import calibration_decision as coverage_decision
-import calibration_family as coverage_family
-import calibration_decision_logs as coverage_decision_logs
 import re
 import subprocess
 import sys
 import tomllib
 from pathlib import Path
 
+import calibration_decision as coverage_decision
+import calibration_decision_logs as coverage_decision_logs
 import calibration_facets as facets
+import calibration_family
 from _repo import REPO_ROOT as ROOT
 from _repo import read_text, write_text
+
+# The schema reader consumes this module's historical configuration reader.
+coverage_family = calibration_family
 
 LOG_DIR = ROOT / "target" / "calibration-records"
 OUT = ROOT / "parity" / "coverage_records.toml"
