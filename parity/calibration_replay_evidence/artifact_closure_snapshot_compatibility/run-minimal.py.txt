@@ -1,0 +1,38 @@
+import hashlib,json,os,subprocess,sys,time
+from pathlib import Path
+main=Path('/Users/charleshinshaw/Desktop/antecedent');root=Path('/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent');out=main/'target/calibration-audit/verifier-refresh-c9659b468';sha='c9659b468b86366886facff69a73eeee5fc1f0f8';sys.path.insert(0,str(root/'scripts'));import calibration_facets as f
+plans=json.loads((out/'minimal-plans.json').read_text());env={k:v for k,v in os.environ.items() if not k.startswith('ANTECEDENT_CALIBRATION_')};env.update(CARGO_TARGET_DIR='/private/tmp/antecedent-attestation-target',CARGO_BUILD_JOBS='1',CARGO_INCREMENTAL='0',ANTECEDENT_CALIBRATION_THREADS='2',RUST_TEST_THREADS='1',RAYON_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',OMP_NUM_THREADS='1',MKL_NUM_THREADS='1',VECLIB_MAXIMUM_THREADS='1')
+def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+def clean():
+ assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()==sha
+ assert not subprocess.check_output(['git','status','--porcelain'],cwd=root,text=True).strip()
+clean()
+print('Reusing all three successful c965 strict preflights',flush=True)
+while True:
+ build=json.loads((out/'build-receipt.json').read_text())
+ if build['status']=='passed':break
+ if build['status']=='failed':raise SystemExit('final build failed')
+ time.sleep(5)
+assert build['source']==sha
+for path,item in build['executables'].items():assert digest(path)==item['sha256'],path
+golden=next(path for path,item in build['executables'].items() if item['target']=='suite_01')
+with (out/'golden-consumer.log').open('w') as stream:subprocess.run([golden,'artifact_compat_sequential_reliability_golden::','--test-threads=1'],cwd=root,env=env,stdout=stream,stderr=subprocess.STDOUT,check=True)
+receipt={'source':sha,'status':'running','requested_records':15,'groups':9,'threads':2,'old_waivers_preserved':True,'recordless_gates_unchanged':True,'waivers':[]};ledger=out/'minimal-execution-receipt.json'
+def save():ledger.write_text(json.dumps(receipt,indent=2)+'\n')
+save()
+try:
+ for plan in plans:
+  clean();print('START',plan['id'],flush=True);entry={**plan,'started_ns':time.time_ns(),'status':'running'};receipt['waivers'].append(entry);save();log=out/(plan['id']+'.log')
+  with log.open('w') as stream:result=subprocess.run([sys.executable,'-u','scripts/calibration_facets.py','replay','--waiver',plan['id'],'--waiver-file',plan['file']],cwd=root,env=env,stdout=stream,stderr=subprocess.STDOUT)
+  for path,item in build['executables'].items():assert digest(path)==item['sha256'],path
+  updated,errors=f.load_waivers(Path(plan['file']));assert not errors,errors
+  assert result.returncode==0 and updated[0].outcome and updated[0].outcome.identical,(plan['id'],result.returncode)
+  capture_dir=root/'target/calibration-replay'/plan['id'];capture=json.loads((capture_dir/'raw-replay-capture.json').read_text());assert capture['source_sha']==sha
+  required={'c30':'selection_corrected_two_candidates_l95','e15':'selection_corrected_four_candidates_l95','70':'utility_interval_eight_candidates_l95'}[plan['origin']];qualifying=[]
+  for name,expected in capture['logs'].items():
+   path=capture_dir/name;assert digest(path)==expected
+   if required in name and 'artifact-replay-witness decision_reliability_v1 replicate=0' in path.read_text():qualifying.append(name)
+  assert len(qualifying)>=3,(plan['id'],qualifying)
+  entry.update(status='passed',finished_ns=time.time_ns(),log=str(log),marker_logs=qualifying,capture=str(capture_dir/'raw-replay-capture.json'));save();print('PASS',plan['id'],flush=True)
+ receipt['status']='passed';save();clean();print('ALL15 REQUESTS /9 GROUPS PASS',flush=True)
+except BaseException as error:receipt.update(status='failed',error=repr(error));save();raise

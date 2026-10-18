@@ -1,0 +1,14 @@
+    Finished `release` profile [optimized] target(s) in 0.11s
+     Running tests/derivative_calibration.rs (/private/tmp/antecedent-attestation-target/release/deps/derivative_calibration-29384e26124510d1)
+
+running 1 test
+test point_derivative_frequentist_curvature_nominal_90_coverage ... calibration point_derivative_frequentist_curvature_nominal_90_coverage (recorded, not gated): nominal=0.95 coverage=0.953 mcse=0.0109 band=[0.917, 0.983] mean_length=0.8585 (381/400 covered, 0 skipped)
+calibration-record {"bound_replicates":400,"boundary":false,"dependence":"iid","dgp":"crates/antecedent/tests/derivative_calibration.rs::point_data","estimator":"response.kennedy_dr","functional":"all_observed.mean.complete","graph_class":"Dag","grid_point":1,"id":"cov.point_derivative.dag.frequentist.analytic_se.l95.point_derivative_frequentist_curvature_nominal_90_coverage","identification":"point","inference":"Frequentist","interval_method":"analytic_se","mcse":0.010635289135702893,"measured_at":"c9659b468b86366886facff69a73eeee5fc1f0f8","modality":"tabular","n_max":1000,"n_min":1000,"nominal":0.95,"observed":0.9525,"posterior":"","posterior_draws_min":0,"query":"PointDerivative","replicates":400,"replicates_min":0,"role":"reported_level","se_kind":"","structure":"fixed","test":"crates/antecedent/tests/derivative_calibration.rs::point_derivative_frequentist_curvature_nominal_90_coverage","unidentified_mass_max":0.0}
+info point_derivative_frequentist_curvature: centre bias=+0.0069 mc_sd=0.2234 mean_se=0.2190 se/sd=0.980 bias/sd=+0.031 z_sd=1.017 z_kurt=-0.13
+calibration point_derivative_frequentist_curvature_nominal_90_coverage: nominal=0.90 coverage=0.895 mcse=0.0150 band=[0.855, 0.945] mean_length=0.7204 (358/400 covered, 0 skipped)
+calibration-record {"bound_replicates":400,"boundary":false,"dependence":"iid","dgp":"crates/antecedent/tests/derivative_calibration.rs::point_data","estimator":"response.kennedy_dr","functional":"all_observed.mean.complete","graph_class":"Dag","grid_point":1,"id":"cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage","identification":"point","inference":"Frequentist","interval_method":"analytic_se","mcse":0.015327671055969331,"measured_at":"c9659b468b86366886facff69a73eeee5fc1f0f8","modality":"tabular","n_max":1000,"n_min":1000,"nominal":0.9,"observed":0.895,"posterior":"","posterior_draws_min":0,"query":"PointDerivative","replicates":400,"replicates_min":0,"role":"gated","se_kind":"","structure":"fixed","test":"crates/antecedent/tests/derivative_calibration.rs::point_derivative_frequentist_curvature_nominal_90_coverage","unidentified_mass_max":0.0}
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 1.10s
+
+calibration-measured-at c9659b468b86366886facff69a73eeee5fc1f0f8

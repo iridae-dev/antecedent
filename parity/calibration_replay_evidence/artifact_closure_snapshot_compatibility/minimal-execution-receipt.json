@@ -1,0 +1,62 @@
+{
+  "source": "c9659b468b86366886facff69a73eeee5fc1f0f8",
+  "status": "passed",
+  "requested_records": 15,
+  "groups": 9,
+  "threads": 2,
+  "old_waivers_preserved": true,
+  "recordless_gates_unchanged": true,
+  "waivers": [
+    {
+      "id": "unchanged-design-artifacts-from-c30-c9659b468",
+      "file": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/verifier-refresh-c9659b468/unchanged-design-artifacts-from-c30-c9659b468.toml",
+      "requests": 6,
+      "paths": 22,
+      "origin": "c30",
+      "started_ns": 1792361361874870000,
+      "status": "passed",
+      "finished_ns": 1792361425774539000,
+      "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/verifier-refresh-c9659b468/unchanged-design-artifacts-from-c30-c9659b468.log",
+      "marker_logs": [
+        "decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p0.log",
+        "decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p1.log",
+        "decision_reliability_interval_calibration__selection_corrected_two_candidates_l95.p2.log"
+      ],
+      "capture": "/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent/target/calibration-replay/unchanged-design-artifacts-from-c30-c9659b468/raw-replay-capture.json"
+    },
+    {
+      "id": "unchanged-design-artifacts-from-e15-c9659b468",
+      "file": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/verifier-refresh-c9659b468/unchanged-design-artifacts-from-e15-c9659b468.toml",
+      "requests": 5,
+      "paths": 17,
+      "origin": "e15",
+      "started_ns": 1792361425842862000,
+      "status": "passed",
+      "finished_ns": 1792361545856660000,
+      "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/verifier-refresh-c9659b468/unchanged-design-artifacts-from-e15-c9659b468.log",
+      "marker_logs": [
+        "decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p0.log",
+        "decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p1.log",
+        "decision_reliability_interval_calibration__selection_corrected_four_candidates_l95.p2.log"
+      ],
+      "capture": "/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent/target/calibration-replay/unchanged-design-artifacts-from-e15-c9659b468/raw-replay-capture.json"
+    },
+    {
+      "id": "unchanged-design-artifacts-from-70-c9659b468",
+      "file": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/verifier-refresh-c9659b468/unchanged-design-artifacts-from-70-c9659b468.toml",
+      "requests": 4,
+      "paths": 13,
+      "origin": "70",
+      "started_ns": 1792361545918443000,
+      "status": "passed",
+      "finished_ns": 1792361596271144000,
+      "log": "/Users/charleshinshaw/Desktop/antecedent/target/calibration-audit/verifier-refresh-c9659b468/unchanged-design-artifacts-from-70-c9659b468.log",
+      "marker_logs": [
+        "decision_reliability_interval_calibration__utility_interval_eight_candidates_l95.p0.log",
+        "decision_reliability_interval_calibration__utility_interval_eight_candidates_l95.p1.log",
+        "decision_reliability_interval_calibration__utility_interval_eight_candidates_l95.p2.log"
+      ],
+      "capture": "/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent/target/calibration-replay/unchanged-design-artifacts-from-70-c9659b468/raw-replay-capture.json"
+    }
+  ]
+}

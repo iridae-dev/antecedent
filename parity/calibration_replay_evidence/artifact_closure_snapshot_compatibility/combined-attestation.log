@@ -1,0 +1,8 @@
+documentation-only equivalence: 4 paths, 7 explicitly reviewed line changes
+note: waiver wiring-and-layout-from-4fe0e268 is inert: every record measured at its from has been re-measured; delete it
+note: waiver wiring-and-layout-from-c0a6de5e is inert: every record measured at its from has been re-measured; delete it
+note: waiver wiring-and-layout-from-dd3cb96e is inert: every record measured at its from has been re-measured; delete it
+note: waiver wiring-and-layout-from-b4f06ae0 is inert: every record measured at its from has been re-measured; delete it
+note: waiver wiring-and-layout-from-f11161bc is inert: every record measured at its from has been re-measured; delete it
+note: waiver wiring-and-layout-from-72411f0b is inert: every record measured at its from has been re-measured; delete it
+calibration surface: 408 paths in 216 facets; boundaries hold; 14 replay waiver(s) valid; list blob 97fdd521ec1d

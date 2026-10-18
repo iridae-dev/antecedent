@@ -1,0 +1,80 @@
+{
+  "source": "c9659b468b86366886facff69a73eeee5fc1f0f8",
+  "status": "passed",
+  "commands": [
+    [
+      "cargo",
+      "test",
+      "--release",
+      "-p",
+      "antecedent",
+      "--no-run",
+      "--message-format=json",
+      "--test",
+      "derivative_calibration",
+      "--test",
+      "evidence_synthesis_calibration",
+      "--test",
+      "sample_split_parent_set_effect_calibration",
+      "--test",
+      "weighted_interval_calibration"
+    ],
+    [
+      "cargo",
+      "test",
+      "--release",
+      "-p",
+      "antecedent-design",
+      "--test",
+      "decision_reliability_interval_calibration",
+      "--test",
+      "suite_01",
+      "--no-run",
+      "--message-format=json"
+    ],
+    [
+      "cargo",
+      "test",
+      "--release",
+      "-p",
+      "antecedent-estimate",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ]
+  ],
+  "default_features": true,
+  "target_dir": "/private/tmp/antecedent-attestation-target",
+  "started_ns": 1792360811205594000,
+  "executables": {
+    "/private/tmp/antecedent-attestation-target/release/deps/sample_split_parent_set_effect_calibration-d423820be12b13c5": {
+      "target": "sample_split_parent_set_effect_calibration",
+      "sha256": "86bc9ed44f2f66729c91ed1492dad5c25db8b1397dc854e5033e63c772b97398"
+    },
+    "/private/tmp/antecedent-attestation-target/release/deps/evidence_synthesis_calibration-e03e829c37be223a": {
+      "target": "evidence_synthesis_calibration",
+      "sha256": "c5f2b1ad9333b2e7f13dd5c068a1857df735f44d3f55b992a47876f573f51baf"
+    },
+    "/private/tmp/antecedent-attestation-target/release/deps/derivative_calibration-29384e26124510d1": {
+      "target": "derivative_calibration",
+      "sha256": "2172b309bca603d4e886040aa4fc0f99f3631e4f888712ceb381afd5fa785785"
+    },
+    "/private/tmp/antecedent-attestation-target/release/deps/weighted_interval_calibration-b5d3000732c51f72": {
+      "target": "weighted_interval_calibration",
+      "sha256": "bdd40cea23259f3c27dd4e03f26c89c926b92c543779edf8de4406adfa34061f"
+    },
+    "/private/tmp/antecedent-attestation-target/release/deps/decision_reliability_interval_calibration-3c9cce8226cfa841": {
+      "target": "decision_reliability_interval_calibration",
+      "sha256": "06c3585dc2e4cde5a0f3b241c0b3c4982c3c526aaba0b1938ca661a5f0c700a5"
+    },
+    "/private/tmp/antecedent-attestation-target/release/deps/suite_01-e7a8834020c7a35b": {
+      "target": "suite_01",
+      "sha256": "ed424a319ead4fa45147b28cb84b328d7d6136ddab274b49927d6420bb9e9a39"
+    },
+    "/private/tmp/antecedent-attestation-target/release/deps/antecedent_estimate-c32a2e49857a2664": {
+      "target": "antecedent_estimate",
+      "sha256": "19b4187e776961a8b5c327b67974009dc355e7a73474d37d6aa56acb968fe865"
+    }
+  },
+  "finished_ns": 1792361360811116000
+}

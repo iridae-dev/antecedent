@@ -1,0 +1,9 @@
+BUILD START c9659b468b86366886facff69a73eeee5fc1f0f8
+== Cargo source guard: 0 changed/unknown inputs invalidated; 2343 content hashes
+    Finished `release` profile [optimized] target(s) in 0.34s
+   Compiling antecedent-io-core v2.4.1 (/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent/crates/antecedent-io-core)
+   Compiling antecedent-design v2.4.1 (/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent/crates/antecedent-design)
+    Finished `release` profile [optimized] target(s) in 6m 15s
+   Compiling antecedent-estimate v2.4.1 (/Users/charleshinshaw/.codex/worktrees/calibration-attestation/antecedent/crates/antecedent-estimate)
+    Finished `release` profile [optimized] target(s) in 2m 52s
+BUILD PASS

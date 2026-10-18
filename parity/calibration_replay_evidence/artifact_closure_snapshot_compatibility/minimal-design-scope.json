@@ -1,0 +1,448 @@
+{
+  "70a71dd33bc55cbc2398b0f91c4a2c797afad618": {
+    "rows": 3,
+    "facets": [
+      "core",
+      "design",
+      "suite.decision_reliability_interval_calibration"
+    ],
+    "paths": [
+      "Cargo.toml",
+      "crates/antecedent-design/src/decision_reliability/artifact.rs",
+      "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+      "crates/antecedent-identify/src/lib.rs",
+      "crates/antecedent-identify/src/sid.rs",
+      "crates/antecedent-io-core/src/cohort_decision.rs",
+      "crates/antecedent-stats/src/ci/calibration.rs",
+      "crates/antecedent-validate/src/sensitivity.rs",
+      "crates/antecedent/src/analysis/contract.rs",
+      "crates/antecedent/src/analysis/sample_split_analysis.rs",
+      "crates/antecedent/tests/common/calibration.rs",
+      "crates/antecedent/tests/common/calibration_decision.rs",
+      "scripts/gate_calibration.sh"
+    ],
+    "proofs": [
+      "Cargo.toml",
+      "crates/antecedent-io-core/src/cohort_decision.rs",
+      "crates/antecedent-stats/src/ci/calibration.rs",
+      "crates/antecedent-validate/src/sensitivity.rs",
+      "crates/antecedent-identify/src/lib.rs",
+      "crates/antecedent-identify/src/sid.rs",
+      "crates/antecedent/src/analysis/contract.rs",
+      "crates/antecedent/src/analysis/sample_split_analysis.rs"
+    ],
+    "needs_actual_exercise": [
+      "crates/antecedent-design/src/decision_reliability/artifact.rs",
+      "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+      "crates/antecedent/tests/common/calibration.rs",
+      "crates/antecedent/tests/common/calibration_decision.rs",
+      "scripts/gate_calibration.sh"
+    ],
+    "existing_replay_candidates": [
+      {
+        "id": "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.full_allowed_edge_holm_including_contemporaneous_v1",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_five_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      }
+    ]
+  },
+  "c30e10304f4bd85a01ad81dd133a360ddc95c2f1": {
+    "rows": 177,
+    "facets": [
+      "core",
+      "design",
+      "suite.decision_reliability_interval_calibration"
+    ],
+    "paths": [
+      "Cargo.toml",
+      "crates/antecedent-design/src/decision_reliability/artifact.rs",
+      "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+      "crates/antecedent-discovery/src/selective/contract.rs",
+      "crates/antecedent-estimate/src/lib.rs",
+      "crates/antecedent-estimate/src/propensity/mod.rs",
+      "crates/antecedent-identify/src/lib.rs",
+      "crates/antecedent-identify/src/sid.rs",
+      "crates/antecedent-io-core/src/cohort_decision.rs",
+      "crates/antecedent-stats/src/ci/calibration.rs",
+      "crates/antecedent-stats/src/lib.rs",
+      "crates/antecedent-stats/src/response.rs",
+      "crates/antecedent-validate/src/sensitivity.rs",
+      "crates/antecedent/src/analysis/contract.rs",
+      "crates/antecedent/src/analysis/contract_identity.rs",
+      "crates/antecedent/src/analysis/mod.rs",
+      "crates/antecedent/src/analysis/sample_split_analysis.rs",
+      "crates/antecedent/src/estimator_spec.rs",
+      "crates/antecedent/tests/common/calibration.rs",
+      "crates/antecedent/tests/common/calibration_decision.rs",
+      "crates/antecedent/tests/common/sparse_scm.rs",
+      "scripts/gate_calibration.sh"
+    ],
+    "proofs": [
+      "Cargo.toml",
+      "crates/antecedent-io-core/src/cohort_decision.rs",
+      "crates/antecedent-stats/src/ci/calibration.rs",
+      "crates/antecedent-validate/src/sensitivity.rs",
+      "crates/antecedent-estimate/src/lib.rs",
+      "crates/antecedent-stats/src/lib.rs",
+      "crates/antecedent-identify/src/lib.rs",
+      "crates/antecedent-identify/src/sid.rs",
+      "crates/antecedent/src/analysis/mod.rs",
+      "crates/antecedent/src/analysis/contract.rs",
+      "crates/antecedent/src/analysis/contract_identity.rs",
+      "crates/antecedent/src/estimator_spec.rs",
+      "crates/antecedent/src/analysis/sample_split_analysis.rs"
+    ],
+    "needs_actual_exercise": [
+      "crates/antecedent-design/src/decision_reliability/artifact.rs",
+      "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+      "crates/antecedent-discovery/src/selective/contract.rs",
+      "crates/antecedent-estimate/src/propensity/mod.rs",
+      "crates/antecedent-stats/src/response.rs",
+      "crates/antecedent/tests/common/calibration.rs",
+      "crates/antecedent/tests/common/calibration_decision.rs",
+      "crates/antecedent/tests/common/sparse_scm.rs",
+      "scripts/gate_calibration.sh"
+    ],
+    "existing_replay_candidates": [
+      {
+        "id": "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage",
+        "exercises": [
+          "crates/antecedent-stats/src/response.rs",
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.point_derivative.dag.frequentist.analytic_se.l95.point_derivative_frequentist_curvature_nominal_90_coverage",
+        "exercises": [
+          "crates/antecedent-stats/src/response.rs",
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage",
+        "exercises": [
+          "crates/antecedent-estimate/src/propensity/mod.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage",
+        "exercises": [
+          "crates/antecedent-estimate/src/propensity/mod.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage",
+        "exercises": [
+          "crates/antecedent-discovery/src/selective/contract.rs",
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "crates/antecedent/tests/common/sparse_scm.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.separate_streams",
+        "exercises": [
+          "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_0",
+        "exercises": [
+          "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_two_candidates_l95.shared_rho_0_5",
+        "exercises": [
+          "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.intervention_response.cpdag.bayesian.posterior_quantile.l90.intervention_response_cpdag_bayesian_nominal_coverage",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.intervention_response.cpdag.bayesian.posterior_quantile.l95.intervention_response_cpdag_bayesian_nominal_coverage",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.bayesian.posterior_quantile.l95.posterior_draws_2000_rows_1000_l95",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_linear_adjustment_hc1_interval",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_att_interval",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_partially_linear_interval",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage",
+        "exercises": [
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_fifteen_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_five_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_thirty_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_five_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_fifteen_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_five_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_ten_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_thirty_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_five_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.pooled_effect.no_graph.frequentist.wald_z.l95.pooled_fixed_effect_twenty_studies",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      }
+    ]
+  },
+  "e15c4b0c33daf638d11f64b6a7fff6e3bc216022": {
+    "rows": 12,
+    "facets": [
+      "core",
+      "design",
+      "suite.decision_reliability_interval_calibration"
+    ],
+    "paths": [
+      "Cargo.toml",
+      "crates/antecedent-design/src/decision_reliability/artifact.rs",
+      "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+      "crates/antecedent-discovery/src/selective/contract.rs",
+      "crates/antecedent-estimate/src/lib.rs",
+      "crates/antecedent-estimate/src/propensity/mod.rs",
+      "crates/antecedent-identify/src/lib.rs",
+      "crates/antecedent-identify/src/sid.rs",
+      "crates/antecedent-io-core/src/cohort_decision.rs",
+      "crates/antecedent-stats/src/ci/calibration.rs",
+      "crates/antecedent-validate/src/sensitivity.rs",
+      "crates/antecedent/src/analysis/contract.rs",
+      "crates/antecedent/src/analysis/mod.rs",
+      "crates/antecedent/src/analysis/sample_split_analysis.rs",
+      "crates/antecedent/tests/common/calibration.rs",
+      "crates/antecedent/tests/common/calibration_decision.rs",
+      "scripts/gate_calibration.sh"
+    ],
+    "proofs": [
+      "Cargo.toml",
+      "crates/antecedent-io-core/src/cohort_decision.rs",
+      "crates/antecedent-stats/src/ci/calibration.rs",
+      "crates/antecedent-validate/src/sensitivity.rs",
+      "crates/antecedent-estimate/src/lib.rs",
+      "crates/antecedent-identify/src/lib.rs",
+      "crates/antecedent-identify/src/sid.rs",
+      "crates/antecedent/src/analysis/mod.rs",
+      "crates/antecedent/src/analysis/contract.rs",
+      "crates/antecedent/src/analysis/sample_split_analysis.rs"
+    ],
+    "needs_actual_exercise": [
+      "crates/antecedent-design/src/decision_reliability/artifact.rs",
+      "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+      "crates/antecedent-discovery/src/selective/contract.rs",
+      "crates/antecedent-estimate/src/propensity/mod.rs",
+      "crates/antecedent/tests/common/calibration.rs",
+      "crates/antecedent/tests/common/calibration_decision.rs",
+      "scripts/gate_calibration.sh"
+    ],
+    "existing_replay_candidates": [
+      {
+        "id": "cov.intervention_response.pag.frequentist.analytic_se.l95.intervention_response_pag_graph_posterior_frequentist_nominal_coverage",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_cluster_dml_interval",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_cluster_interval",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dr_learner_cluster_interval",
+        "exercises": [
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear",
+        "exercises": [
+          "crates/antecedent-estimate/src/propensity/mod.rs",
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      },
+      {
+        "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage.discovery_fraction_0_75",
+        "exercises": [
+          "crates/antecedent-discovery/src/selective/contract.rs",
+          "crates/antecedent/tests/common/calibration.rs",
+          "crates/antecedent/tests/common/calibration_decision.rs",
+          "scripts/gate_calibration.sh"
+        ]
+      }
+    ]
+  }
+}

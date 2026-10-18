@@ -1,0 +1,12 @@
+    Finished `release` profile [optimized] target(s) in 0.12s
+     Running tests/weighted_interval_calibration.rs (/private/tmp/antecedent-attestation-target/release/deps/weighted_interval_calibration-b5d3000732c51f72)
+
+running 1 test
+test weighted_matching_interval ... info interval diagnostics weighted_matching_interval: bias=0.00124 empirical_sd=0.07990 rms_se=0.07982
+calibration weighted_matching_interval [population_linear]: nominal=0.95 coverage=0.950 mcse=0.0015 band=[0.945, 0.955] floor=0.947 ceiling=0.953 mean_length=0.3107 (18993/20000 covered, 0 skipped)
+calibration-record {"bound_replicates":20000,"boundary":false,"dependence":"iid","dgp":"crates/antecedent/tests/weighted_interval_calibration.rs::informative_sampling_heterogeneous_effect","estimator":"propensity.matching","functional":"all_observed.mean+matching=population_linear+weights=sampling","graph_class":"Dag","grid_point":1,"id":"cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear","identification":"point","inference":"Frequentist","interval_method":"analytic_se","mcse":0.0015462030510253173,"measured_at":"c9659b468b86366886facff69a73eeee5fc1f0f8","modality":"tabular","n_max":1200,"n_min":1200,"nominal":0.95,"observed":0.94965,"posterior":"","posterior_draws_min":0,"query":"AverageEffect","replicates":20000,"replicates_min":0,"role":"gated","se_kind":"homoskedastic","structure":"fixed","test":"crates/antecedent/tests/weighted_interval_calibration.rs::weighted_matching_interval","unidentified_mass_max":0.0}
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 9.06s
+
+calibration-measured-at c9659b468b86366886facff69a73eeee5fc1f0f8
