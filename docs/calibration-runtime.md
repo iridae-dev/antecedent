@@ -59,6 +59,23 @@ queue finishes. Limit the *sum* of simulation workers, independent replay and
 extension workers, and competing compiler or test workers. A per-process limit
 alone does not prevent oversubscription.
 
+Keep the number of build caches bounded. Reuse one target directory for ordinary
+branch checks and retain a separate cache only when an active frozen measurement
+or attestation checkout needs it. Repeated target directories, feature sets and
+test profiles can retain many generations of binaries and incremental compiler
+state. Share the same profile and feature set where the checks permit it.
+
+Before deleting a cache, check which builds and test executables are using it.
+Remove only inactive compiler output; keep raw calibration logs, tally sidecars,
+archived measurement binaries and provenance receipts. Do not run `cargo clean`
+against an active measurement target. Once an isolated checkout has finished its
+measurements and replay obligations, retire its compiler cache. Compare available
+disk space before and after cleanup: APFS clones and shared blocks can make the
+recovered space much smaller than the sum of directory sizes. For future
+one-shot debug builds, `CARGO_INCREMENTAL=0` avoids accumulating incremental
+state at the cost of slower subsequent compilation; set it before building,
+rather than changing the configuration of a running build.
+
 Collection can also become the bottleneck: repeated dependency-graph scans for
 individual completed groups delayed reporting and harvesting in an earlier
 targeted run. The frozen targeted controller therefore dispatches numerical work
