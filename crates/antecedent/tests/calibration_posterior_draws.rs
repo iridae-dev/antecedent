@@ -98,7 +98,11 @@ fn coverage_at_draws(test: &'static str, draws: usize, salt: u64) {
         REPORTED_LEVEL,
     );
     let (mut widths, mut excluding_zero) = (Vec::new(), 0_u32);
-    for scored in map_replicates(replicates, |rep| replicate(draws, salt, rep)) {
+    // A recheck by extension evaluates only the replicates beyond the first run's, so the
+    // reporting rate is over the replicates this run evaluated, not the full count.
+    let evaluated = map_replicates(replicates, |rep| replicate(draws, salt, rep));
+    let attempted = evaluated.len();
+    for scored in evaluated {
         match scored {
             Some(Replicate { study, result, interval: (lower, upper) }) => {
                 bind(&mut tally, &study, &result);
@@ -112,7 +116,7 @@ fn coverage_at_draws(test: &'static str, draws: usize, salt: u64) {
     tally.assert();
 
     let reported = widths.len();
-    let reporting_rate = reported as f64 / f64::from(replicates);
+    let reporting_rate = reported as f64 / attempted as f64;
     assert!(
         reporting_rate >= MIN_REPORTING_RATE,
         "{draws} draws: {reporting_rate} of replicates reported an interval"
