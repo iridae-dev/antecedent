@@ -22,7 +22,7 @@ def audit_logs(
     expected_config: dict | None = None,
     roster: list[dict] | None = None,
 ) -> dict[str, list[dict]]:
-    texts = {log: log.read_text(errors="strict") for log in logs}
+    texts = {log: log.read_text(errors="strict", encoding="utf-8") for log in logs}
     if not any(
         "calibration-decision-context " in text
         or "calibration-decision " in text
@@ -91,7 +91,7 @@ def audit_logs(
             raise ValueError(f"{log.name}: missing fixed-attempt tally sidecar")
         states = {}
         if raw:
-            for line in sidecar.read_text().splitlines():
+            for line in sidecar.read_text(encoding="utf-8").splitlines():
                 state = json.loads(line)
                 if state["key"] in states and states[state["key"]] != state:
                     raise ValueError(f"{log.name}: conflicting repeated tally state")

@@ -91,7 +91,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         facets = SimpleNamespace(load_records=lambda records=records: records)
         ledger = self.root / "gates.toml"
         ledger.write_text(
-            '[[gate]]\ngroup="antecedent-prob__sbc.p0"\npassed=1\n[[gate]]\ngroup="antecedent-prob__sbc.p1"\npassed=1\n[[gate]]\ngroup="antecedent-prob__sbc.p2"\npassed=1\n[[gate]]\ngroup="external_gate.p0"\npassed=1\n[[gate]]\ngroup="external_gate.p1"\npassed=1\n[[gate]]\ngroup="external_gate.p2"\npassed=1\n'
+            '[[gate]]\ngroup="antecedent-prob__sbc.p0"\npassed=1\n[[gate]]\ngroup="antecedent-prob__sbc.p1"\npassed=1\n[[gate]]\ngroup="antecedent-prob__sbc.p2"\npassed=1\n[[gate]]\ngroup="external_gate.p0"\npassed=1\n[[gate]]\ngroup="external_gate.p1"\npassed=1\n[[gate]]\ngroup="external_gate.p2"\npassed=1\n', encoding="utf-8"
         )
         with (
             patch.dict(sys.modules, {"calibration_facets": facets}),
@@ -135,7 +135,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             "".join(
                 f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\ncalibration_sha="legacy-sha"\n'
                 for point in range(3)
-            )
+            ), encoding="utf-8"
         )
         for record, expected in ((legacy, [group]), (current, [])):
             facets = SimpleNamespace(load_records=lambda record=record: [record])
@@ -181,7 +181,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             ledger.write_text(
                 "".join(
                     f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\n' for point in range(3)
-                )
+                ), encoding="utf-8"
             )
             self.assertTrue(groups.measures(group.head, group.test_filter, old))
             for records, expected in (([old], [group]), ([old, new], [])):
@@ -266,7 +266,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         self.assertFalse(groups.measures_current_protocol(group, {**new, "id": "old"}))
         ledger = self.root / "old-weighted-split-gates.toml"
         ledger.write_text(
-            "".join(f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\n' for point in range(3))
+            "".join(f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\n' for point in range(3)), encoding="utf-8"
         )
         with (
             patch.dict(
@@ -373,7 +373,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
                     f'[[gate]]\ngroup="{group.safe}.p{point}"\npassed=1\n'
                     + ('protocol="population_linear"\n' if point < markers else "")
                     for point in range(3)
-                )
+                ), encoding="utf-8"
             )
             with (
                 patch.dict(
@@ -472,19 +472,19 @@ class EvidenceArchiveTest(unittest.TestCase):
                     logs.mkdir()
                     consoles.mkdir()
                     (logs / "design.log").write_text(
-                        f"result {index}\ncalibration-measured-at {sha}\n"
+                        f"result {index}\ncalibration-measured-at {sha}\n", encoding="utf-8"
                     )
-                    (logs / "design.tallies.jsonl").write_text(f"tally {index}\n")
-                    (consoles / "design.txt").write_text(f"console {index}\n")
+                    (logs / "design.tallies.jsonl").write_text(f"tally {index}\n", encoding="utf-8")
+                    (consoles / "design.txt").write_text(f"console {index}\n", encoding="utf-8")
                     groups.archive_logs()
                 runs = list((archive / sha).iterdir())
                 self.assertEqual(len(runs), 2)
                 self.assertEqual(
-                    {(p / "records/design.tallies.jsonl").read_text() for p in runs},
+                    {(p / "records/design.tallies.jsonl").read_text(encoding="utf-8") for p in runs},
                     {"tally 0\n", "tally 1\n"},
                 )
                 self.assertEqual(
-                    {(p / "console/design.txt").read_text() for p in runs},
+                    {(p / "console/design.txt").read_text(encoding="utf-8") for p in runs},
                     {"console 0\n", "console 1\n"},
                 )
                 self.assertFalse(logs.exists())

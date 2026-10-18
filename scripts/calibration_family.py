@@ -171,7 +171,7 @@ def _source_paths(root: Path, sha: str | None) -> list[str]:
     return sorted(
         path.relative_to(root).as_posix()
         for path in (root / "crates").rglob("*.rs")
-        if "CoverageTally" in path.read_text()
+        if "CoverageTally" in path.read_text(encoding="utf-8")
     )
 
 
@@ -297,7 +297,7 @@ def gate_roster(gate: bytes, acceptance: bytes) -> list[dict]:
 
 
 def build_manifest(root: Path = ROOT, audit: dict | None = None) -> dict:
-    audit = audit or json.loads((root / AUDIT_PATH).read_text())
+    audit = audit or json.loads((root / AUDIT_PATH).read_text(encoding="utf-8"))
     validate_label_audit(audit, root)
     gate = read_source(root, GATE_PATH)
     acceptance = read_source(root, ACCEPTANCE_PATH)
@@ -353,8 +353,8 @@ def config_at_sha(sha: str, root: Path = ROOT) -> dict:
 
 def current_config(root: Path = ROOT) -> dict:
     return validate_manifest(
-        json.loads((root / MANIFEST_PATH).read_text()),
-        json.loads((root / AUDIT_PATH).read_text()),
+        json.loads((root / MANIFEST_PATH).read_text(encoding="utf-8")),
+        json.loads((root / AUDIT_PATH).read_text(encoding="utf-8")),
         root,
     )
 
@@ -371,8 +371,8 @@ def main() -> int:
             )
         audit = reviewed_label_audit()
         manifest = build_manifest(audit=audit)
-        (ROOT / AUDIT_PATH).write_text(json.dumps(audit, indent=2) + "\n")
-        (ROOT / MANIFEST_PATH).write_text(json.dumps(manifest, indent=2) + "\n")
+        (ROOT / AUDIT_PATH).write_text(json.dumps(audit, indent=2) + "\n", encoding="utf-8")
+        (ROOT / MANIFEST_PATH).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     config = current_config()
     print(decision.canonical_json(config))
     return 0

@@ -19,7 +19,7 @@ class ConjunctiveFacetTest(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
         for name in ("core.rs", "response.rs", "curve.rs"):
-            (self.root / name).write_text("// fixture\n")
+            (self.root / name).write_text("// fixture\n", encoding="utf-8")
         self.root_patch = patch.object(facets, "ROOT", self.root)
         self.root_patch.start()
         self.addCleanup(self.root_patch.stop)

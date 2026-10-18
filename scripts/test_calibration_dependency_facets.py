@@ -48,7 +48,7 @@ class DependencyFacets(unittest.TestCase):
         code = facets.rust_code(
             (
                 ROOT / "crates/antecedent/tests/transport_statistical_calibration.rs"
-            ).read_text()
+            ).read_text(encoding="utf-8")
         )
         self.assertIn("identify_catalog_transport", code)
         self.assertNotIn("estimate_discovered_transport", code)
@@ -80,14 +80,14 @@ class DependencyFacets(unittest.TestCase):
             "discovered_transport_temporal",
         )
         for path in (ROOT / "crates").rglob("*.rs"):
-            text = path.read_text()
+            text = path.read_text(encoding="utf-8")
             if "for_record(" not in text:
                 continue
             code = facets.rust_code(text)
             if any(name in code for name in names) or '"pcmci_plus"' in text:
                 users.add(path.relative_to(ROOT).as_posix())
         self.assertEqual(users, {DISCOVERED})
-        self.assertIn('query: "DiscoveredTransport"', (ROOT / DISCOVERED).read_text())
+        self.assertIn('query: "DiscoveredTransport"', (ROOT / DISCOVERED).read_text(encoding="utf-8"))
 
     def test_frozen_source_records_can_be_retagged_without_restamping_evidence(self):
         frozen = "70a71dd33"
@@ -168,7 +168,7 @@ class DependencyFacets(unittest.TestCase):
     def test_measured_catalog_and_exact_api_callers_match_inventory(self):
         direct_catalog, direct_exact = set(), set()
         for path in (ROOT / "crates").rglob("*.rs"):
-            text = path.read_text()
+            text = path.read_text(encoding="utf-8")
             if "for_record(" not in text:
                 continue
             code = facets.rust_code(text)
@@ -215,7 +215,7 @@ class DependencyFacets(unittest.TestCase):
         ):
             self.assertIn(path, self.surface.testmods)
             self.assertNotIn(path, hosts)
-            text = (ROOT / path).read_text()
+            text = (ROOT / path).read_text(encoding="utf-8")
             self.assertNotIn("for_record(", facets.rust_code(text))
             self.assertNotIn("#[ignore", facets.rust_code(text))
             self.assertIn("mod tests", text)
@@ -232,7 +232,7 @@ class DependencyFacets(unittest.TestCase):
     def test_recordless_pcmci_gates_execute_the_separate_plain_algorithm(self):
         # The old recordless ledger contains plain PCMCI, not PCMCI+/JPCMCI+.
         # Preserve that distinction instead of inventing a replay of PCMCI+.
-        text = (ROOT / "crates/antecedent-discovery/src/pcmci.rs").read_text()
+        text = (ROOT / "crates/antecedent-discovery/src/pcmci.rs").read_text(encoding="utf-8")
         code = facets.rust_code(text)
         self.assertIn("fn pcmci_null_fpr_near_alpha", code)
         self.assertIn("fn pcmci_planted_lag1_power", code)

@@ -56,7 +56,7 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "crates").mkdir()
-            (root / "crates/new.rs").write_text('CoverageTally::new("case", 0.95);')
+            (root / "crates/new.rs").write_text('CoverageTally::new("case", 0.95);', encoding="utf-8")
             with self.assertRaisesRegex(
                 ValueError, "explicit source-fixed-family review"
             ):
@@ -67,10 +67,10 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
             root = Path(directory)
             (root / "crates").mkdir()
             path = root / "crates/knn_matching_calibration.rs"
-            path.write_text('CoverageTally::new("case", 0.95);')
+            path.write_text('CoverageTally::new("case", 0.95);', encoding="utf-8")
             audit = family.reviewed_label_audit(root)
             family.validate_label_audit(audit, root)
-            path.write_text('CoverageTally::new("case", 0.90);')
+            path.write_text('CoverageTally::new("case", 0.90);', encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "stale"):
                 family.validate_label_audit(audit, root)
 
@@ -80,9 +80,9 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
             for name in ("crates", "scripts", "parity"):
                 (root / name).mkdir()
             (root / family.GATE_PATH).write_text(
-                "printf 'group 1: alpha\\ngroup 2: beta\\ngrid 2\\n'"
+                "printf 'group 1: alpha\\ngroup 2: beta\\ngrid 2\\n'", encoding="utf-8"
             )
-            (root / family.ACCEPTANCE_PATH).write_text("")
+            (root / family.ACCEPTANCE_PATH).write_text("", encoding="utf-8")
             audit = family.reviewed_label_audit(root)
             manifest = family.build_manifest(root, audit)
             config = family.validate_manifest(manifest, audit, root)

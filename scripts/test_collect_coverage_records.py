@@ -228,7 +228,7 @@ class PassingGroupHarvestTest(unittest.TestCase):
                 path = root / name
                 result = "FAILED. 0 passed; 1 failed;" if failed else "ok. 1 passed; 0 failed;"
                 path.write_text(
-                    f"test result: {result} finished in 0.1s\ncalibration-measured-at {measured}\n"
+                    f"test result: {result} finished in 0.1s\ncalibration-measured-at {measured}\n", encoding="utf-8"
                 )
                 return path
 
@@ -250,7 +250,7 @@ class PassingGroupHarvestTest(unittest.TestCase):
             for point in range(3):
                 log = Path(directory) / f"whole_file.p{point}.log"
                 log.write_text(
-                    f"test result: ok. 2 passed; 0 failed;\ncalibration-measured-at {sha}\n"
+                    f"test result: ok. 2 passed; 0 failed;\ncalibration-measured-at {sha}\n", encoding="utf-8"
                 )
                 logs.append(log)
             with patch.object(
@@ -295,7 +295,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
         new = {"id": "new", "calibration_sha": "new-sha", "facets": ["core"]}
         with tempfile.TemporaryDirectory() as directory:
             ledger = Path(directory) / "gates.toml"
-            ledger.write_text('[[gate]]\ngroup="old-gate"\npassed=1\ncalibration_sha="old-sha"\n')
+            ledger.write_text('[[gate]]\ngroup="old-gate"\npassed=1\ncalibration_sha="old-sha"\n', encoding="utf-8")
             argv = ["collector", "--keep-existing", "--no-cells", "--sha", "a" * 40]
             with (
                 patch.object(sys, "argv", argv),
@@ -687,7 +687,7 @@ class ConservativePointTest(unittest.TestCase):
             out = Path(directory) / "records.toml"
             with patch.object(collector, "surface_list_blob", return_value="1" * 40):
                 collector.write_registry({"gaussian": record}, out, retag=False)
-            parsed = collector.tomllib.loads(out.read_text())["record"][0]
+            parsed = collector.tomllib.loads(out.read_text(encoding="utf-8"))["record"][0]
         self.assertEqual(parsed["conservative_point"], collector.GAUSSIAN_STUDY_T_CLAIM)
         self.assertEqual(parsed["observed"], 0.959)
 
@@ -1037,8 +1037,8 @@ class GateProtocolTest(unittest.TestCase):
             root = Path(directory)
             old, new = root / "old.log", root / "new.log"
             passed = "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n"
-            old.write_text(passed)
-            new.write_text("CALIBRATION_GATE_PROTOCOL population_linear\n" + passed)
+            old.write_text(passed, encoding="utf-8")
+            new.write_text("CALIBRATION_GATE_PROTOCOL population_linear\n" + passed, encoding="utf-8")
             rows = collector.gate_ledger([old, new], "a" * 40)
             self.assertNotIn("protocol", rows["old"])
             self.assertEqual(rows["new"]["protocol"], "population_linear")
@@ -1046,12 +1046,12 @@ class GateProtocolTest(unittest.TestCase):
             with patch.object(collector, "GATES", ledger):
                 collector.write_gate_ledger({"old": rows["old"]}, {"new": rows["new"]})
             parsed = {
-                row["group"]: row for row in collector.tomllib.loads(ledger.read_text())["gate"]
+                row["group"]: row for row in collector.tomllib.loads(ledger.read_text(encoding="utf-8"))["gate"]
             }
             self.assertEqual(parsed, rows)
             new.write_text(
                 "CALIBRATION_GATE_PROTOCOL population_linear\nCALIBRATION_GATE_PROTOCOL other\n"
-                + passed
+                + passed, encoding="utf-8"
             )
             with self.assertRaisesRegex(SystemExit, "conflicting"):
                 collector.gate_ledger([new], "a" * 40)

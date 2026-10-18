@@ -50,7 +50,7 @@ class DecisionLogTests(unittest.TestCase):
             "calibration-measured-at " + self.sha,
             "calibration-decision-context " + json.dumps(self.config),
         ]
-        log.write_text("\n".join(lines) + "\n")
+        log.write_text("\n".join(lines) + "\n", encoding="utf-8")
         log.with_suffix(".tallies.jsonl").write_text(
             json.dumps(
                 {
@@ -66,7 +66,7 @@ class DecisionLogTests(unittest.TestCase):
                     },
                 }
             )
-            + "\n"
+            + "\n", encoding="utf-8"
         )
         return log
 
@@ -97,12 +97,12 @@ class DecisionLogTests(unittest.TestCase):
                     log.with_suffix(".tallies.jsonl").unlink()
                 elif mutation == "record":
                     log.write_text(
-                        log.read_text().replace(
+                        log.read_text(encoding="utf-8").replace(
                             '"record_id": "record"', '"record_id": null'
-                        )
+                        ), encoding="utf-8"
                     )
                 elif mutation == "source":
-                    log.write_text(log.read_text().replace(self.sha, "b" * 40))
+                    log.write_text(log.read_text(encoding="utf-8").replace(self.sha, "b" * 40), encoding="utf-8")
                 else:
                     new = log.with_name("unknown.p0.log")
                     log.rename(new)
@@ -124,8 +124,8 @@ class DecisionLogTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "final recordless"):
             self.audit([log])
         log.write_text(
-            log.read_text()
-            + "calibration-recheck reason\ncalibration-recheck-test test\n"
+            log.read_text(encoding="utf-8")
+            + "calibration-recheck reason\ncalibration-recheck-test test\n", encoding="utf-8"
         )
         with self.assertRaisesRegex(ValueError, "successor"):
             self.audit([log])
@@ -137,12 +137,12 @@ class DecisionLogTests(unittest.TestCase):
     def test_qualified_test_recheck_request_cannot_disappear(self):
         log = self.write(record=False)
         log.write_text(
-            log.read_text().replace('"test": "test"', '"test": "module::tests::test"')
-            + "calibration-recheck reason\ncalibration-recheck-test module::tests::test\n"
+            log.read_text(encoding="utf-8").replace('"test": "test"', '"test": "module::tests::test"')
+            + "calibration-recheck reason\ncalibration-recheck-test module::tests::test\n", encoding="utf-8"
         )
         side = log.with_suffix(".tallies.jsonl")
         side.write_text(
-            side.read_text().replace("test::tally@", "module::tests::test::tally@")
+            side.read_text(encoding="utf-8").replace("test::tally@", "module::tests::test::tally@"), encoding="utf-8"
         )
         with self.assertRaisesRegex(ValueError, "successor"):
             self.audit([log])
@@ -157,23 +157,23 @@ class DecisionLogTests(unittest.TestCase):
             + self.sha
             + "\ncalibration-decision-context "
             + json.dumps(self.config)
-            + "\n"
+            + "\n", encoding="utf-8"
         )
         self.audit([nominal, boundary])
         nominal.write_text(
-            nominal.read_text()
+            nominal.read_text(encoding="utf-8")
             + "calibration-record "
             + json.dumps({"id": "boundary", "role": "named_boundary"})
-            + "\n"
+            + "\n", encoding="utf-8"
         )
         self.audit([nominal])
 
     def test_domain_context_and_grid_owner_are_not_interchangeable(self):
         log = self.write()
         side = log.with_suffix(".tallies.jsonl")
-        state = json.loads(side.read_text())
+        state = json.loads(side.read_text(encoding="utf-8"))
         state["decision_context"]["config"]["validation_domain"] = "another_domain"
-        side.write_text(json.dumps(state) + "\n")
+        side.write_text(json.dumps(state) + "\n", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "context"):
             self.audit([log])
 
@@ -211,7 +211,7 @@ class DecisionLogTests(unittest.TestCase):
             + self.sha
             + "\ncalibration-decision-context "
             + json.dumps(self.config)
-            + "\n"
+            + "\n", encoding="utf-8"
         )
         self.assertEqual(self.audit([log]), {log.name: []})
         validate_ledger(
@@ -227,7 +227,7 @@ class DecisionLogTests(unittest.TestCase):
 
     def test_legacy_logs_stay_legacy(self):
         log = self.root / "legacy.log"
-        log.write_text("test result: ok. 1 passed; 0 failed;\n")
+        log.write_text("test result: ok. 1 passed; 0 failed;\n", encoding="utf-8")
         self.assertEqual(audit_logs([log], self.sha), {})
 
 
