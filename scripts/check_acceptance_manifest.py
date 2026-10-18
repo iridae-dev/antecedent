@@ -370,11 +370,7 @@ def evidence_problems(prefix: str, evidence: Any, root: Path = ROOT, kind: Any =
     source = (root / path).resolve()
     if root.resolve() not in source.parents or not source.is_file():
         return [f"{prefix}: test file {path} does not exist in the repository"]
-    if source.suffix == ".rs":
-        pattern = rf"\bfn\s+{re.escape(name)}\b"
-    elif source.suffix == ".py":
-        pattern = rf"^\s*(?:async\s+)?def\s+{re.escape(name)}\b"
-    else:
+    if source.suffix not in {".rs", ".py"}:
         return [f"{prefix}: test file {path} must be .rs or .py"]
     text = source.read_text(encoding="utf-8")
     if test_source(text, source.suffix, name) is None:
