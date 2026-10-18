@@ -4,8 +4,10 @@
 //! probability that rises with a confounder `z`; a sampled unit's weight is its inverse
 //! inclusion probability. The population effect is `1` (the unit effect is `1 + z/2` and `z`
 //! has mean zero), so an estimator that ignored the weights would speak for the over-sampled
-//! high-`z` units and miss. Each design scores `effect ± z_{0.975} · se` from the estimator
-//! that backs a weighted route, on a sample whose size the grid varies.
+//! high-`z` units and miss. Designs score `effect ± z_{0.975} · se`, except the Hajek IPW
+//! designs, which use positive covariate-calibrated weights and the corresponding full
+//! estimating-equation sandwich to control their finite-sample ratio instability. Stratification explicitly declares linear regression adjustment within finite
+//! propensity bins. Every construction is measured on a sample whose size the grid varies.
 //!
 //! A weighted interval is another construction than its unweighted namesake: its estimand,
 //! its variance and its effective sample size differ, so every record binds the functional
@@ -23,7 +25,8 @@ use std::sync::Arc;
 
 use antecedent::{PanelDidQuery, Study};
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, ExecutionContext, StreamDomain, TargetPopulation, VariableId,
+    AssumptionSet, AverageEffectQuery, CausalRng, ExecutionContext, StreamDomain, TargetPopulation,
+    VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::{
@@ -46,8 +49,11 @@ const TRUTH: f64 = 1.0;
 const T: VariableId = VariableId::from_raw(0);
 const Y: VariableId = VariableId::from_raw(1);
 const Z: VariableId = VariableId::from_raw(2);
-/// Rows per cluster of the clustered designs.
-const CLUSTER_SIZE: usize = 8;
+/// Population units per cluster of the clustered designs (about eight are sampled).
+const CLUSTER_POPULATION: usize = 32;
+
+/// Population subjects per cluster of the panel design (about four are sampled).
+const PANEL_CLUSTER_POPULATION: usize = 16;
 
 /// Sampled units with their inverse-inclusion-probability weights and cluster labels.
 struct Sample {
@@ -67,34 +73,50 @@ enum Effect {
     Heterogeneous,
 }
 
-/// Draw `n` sampled units by Poisson sampling from the super-population. With `clustered`,
-/// consecutive sampled units share a cluster effect on the covariate and the outcome.
+/// One super-population unit: its covariate, treatment, outcome and inclusion probability. The
+/// covariate carries half of its cluster's `shock`, which also enters the outcome.
+fn population_unit(rng: &mut CausalRng, shock: f64, effect: Effect) -> (f64, f64, f64, f64) {
+    let z = standard_normal(rng) + 0.5 * shock;
+    let t = f64::from(rng.next_f64() < sigmoid(-0.3 + 0.8 * z));
+    let noise = standard_normal(rng);
+    let y = match effect {
+        Effect::Constant => z + t + shock + (0.5 + 0.5 * z.abs()) * noise,
+        Effect::Heterogeneous => z + (1.0 + 0.5 * z) * t + shock + 0.7 * noise,
+    };
+    (z, t, y, sigmoid(-1.4 + z))
+}
+
+/// Draw `n` sampled units by Poisson sampling from the super-population. With `clustered`, the
+/// population is made of clusters of [`CLUSTER_POPULATION`] units sharing a cluster effect on
+/// the covariate and the outcome, and each unit of a cluster is included independently, so a
+/// cluster's sampled size varies with its effect and the weights represent the population the
+/// effect and the truth are defined on. (Stopping each cluster after a fixed number of
+/// inclusions would give a cluster with a low inclusion rate more population units than one
+/// with a high rate, which tilts the weighted population away from the one the truth speaks
+/// for.) The final cluster is cut at `n` rows.
 fn sample(n: usize, seed: u64, effect: Effect, clustered: bool) -> Sample {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5A01);
-    let mut shocks: Vec<f64> = Vec::new();
     let mut out = Sample { t: vec![], y: vec![], z: vec![], w: vec![], cluster: vec![] };
+    let mut group = 0_u32;
     while out.t.len() < n {
-        let group = if clustered { out.t.len() / CLUSTER_SIZE } else { out.t.len() };
-        if clustered && shocks.len() <= group {
-            shocks.push(standard_normal(&mut rng));
+        let (shock, units) =
+            if clustered { (standard_normal(&mut rng), CLUSTER_POPULATION) } else { (0.0, 1) };
+        for _ in 0..units {
+            let (z, t, y, inclusion) = population_unit(&mut rng, shock, effect);
+            if rng.next_f64() < inclusion {
+                out.t.push(t);
+                out.y.push(y);
+                out.z.push(z);
+                out.w.push(1.0 / inclusion);
+                out.cluster.push(group);
+            }
         }
-        let shock = if clustered { shocks[group] } else { 0.0 };
-        let z = standard_normal(&mut rng) + 0.5 * shock;
-        let t = f64::from(rng.next_f64() < sigmoid(-0.3 + 0.8 * z));
-        let noise = standard_normal(&mut rng);
-        let y = match effect {
-            Effect::Constant => z + t + shock + (0.5 + 0.5 * z.abs()) * noise,
-            Effect::Heterogeneous => z + (1.0 + 0.5 * z) * t + shock + 0.7 * noise,
-        };
-        let inclusion = sigmoid(-1.4 + z);
-        if rng.next_f64() < inclusion {
-            out.t.push(t);
-            out.y.push(y);
-            out.z.push(z);
-            out.w.push(1.0 / inclusion);
-            out.cluster.push(u32::try_from(group).unwrap_or(u32::MAX));
-        }
+        group += 1;
     }
+    for column in [&mut out.t, &mut out.y, &mut out.z, &mut out.w] {
+        column.truncate(n);
+    }
+    out.cluster.truncate(n);
     out
 }
 
@@ -152,6 +174,7 @@ fn weighting(sample: &Sample, cluster: bool) -> Option<EffectEstimate> {
     let (data, estimand) = table(sample)?;
     let mut estimator = PropensityWeighting::new()
         .with_bootstrap_replicates(0)
+        .with_covariate_balance(true)
         .with_overlap(no_clip())
         .with_sampling_weights(SamplingWeights::new(sample.w.clone()).ok()?);
     if cluster {
@@ -174,6 +197,7 @@ fn stratification(sample: &Sample) -> Option<EffectEstimate> {
         .with_bootstrap_replicates(0)
         .with_overlap(no_clip())
         .with_n_strata(10)
+        .with_regression_adjustment(true)
         .with_sampling_weights(SamplingWeights::new(sample.w.clone()).ok()?);
     let prepared = estimator.prepare(&data, &estimand, &query()).ok()?;
     estimator
@@ -189,6 +213,7 @@ fn stratification(sample: &Sample) -> Option<EffectEstimate> {
 fn matching(sample: &Sample) -> Option<EffectEstimate> {
     let (data, estimand) = table(sample)?;
     let estimator = PropensityMatching::new()
+        .with_population_variance(true)
         .with_overlap(no_clip())
         .with_sampling_weights(SamplingWeights::new(sample.w.clone()).ok()?);
     let prepared = estimator.prepare(&data, &estimand, &query()).ok()?;
@@ -274,6 +299,7 @@ fn glm(sample: &Sample, family: GlmFamily) -> Option<EffectEstimate> {
 fn distance_matching(sample: &Sample) -> Option<EffectEstimate> {
     let (data, estimand) = table(sample)?;
     let estimator = DistanceMatching::new()
+        .with_population_variance(true)
         .with_overlap(no_clip())
         .with_sampling_weights(SamplingWeights::new(sample.w.clone()).ok()?);
     let prepared = estimator.prepare(&data, &estimand, &query()).ok()?;
@@ -371,8 +397,11 @@ fn randomized(sample: &Sample, seed: u64) -> Option<((f64, f64), u64)> {
     Some(((fit.effect - radius, fit.effect + radius), n as u64))
 }
 
-/// Balanced two-period panel: cluster-level treatment, a baseline effect of `z`, and a
-/// post-period change that carries the heterogeneous effect.
+/// Two-period panel: cluster-level treatment, a baseline effect of `z`, and a post-period change
+/// that carries the heterogeneous effect. Each cluster holds [`PANEL_CLUSTER_POPULATION`]
+/// population subjects, each included independently, so the weights represent a fixed
+/// population and the truth is its effect (a fixed number of inclusions per cluster would give
+/// low-inclusion clusters more population subjects).
 fn panel(clusters_per_arm: usize, seed: u64) -> Option<((f64, f64), u64)> {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5A03);
     let (mut subjects, mut clusters, mut treated, mut post) = (vec![], vec![], vec![], vec![]);
@@ -381,8 +410,7 @@ fn panel(clusters_per_arm: usize, seed: u64) -> Option<((f64, f64), u64)> {
     for cluster in 0..2 * clusters_per_arm {
         let active = cluster >= clusters_per_arm;
         let shock = 0.6 * standard_normal(&mut rng);
-        let mut members = 0;
-        while members < 4 {
+        for _ in 0..PANEL_CLUSTER_POPULATION {
             let z = standard_normal(&mut rng) + 0.5 * shock;
             let inclusion = sigmoid(-1.4 + z);
             if rng.next_f64() >= inclusion {
@@ -401,7 +429,6 @@ fn panel(clusters_per_arm: usize, seed: u64) -> Option<((f64, f64), u64)> {
                 weights.push(weight);
             }
             subject += 1;
-            members += 1;
         }
     }
     let n = outcome.len();
@@ -471,8 +498,9 @@ fn measure_against(
     replicate: impl Fn(usize, u64) -> Option<((f64, f64), u64)> + Sync,
 ) {
     let n = grid_n(base);
-    let mut tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL);
+    let mut tally = analytic_tally(test, dgp, construction);
+    let mut centres = Vec::new();
+    let mut se_squared_sum = 0.0;
     for row in map_replicates(n_sim(), |rep| replicate(n, 91_000 + rep)) {
         let Some((interval, rows)) = row else {
             tally.skip();
@@ -488,8 +516,77 @@ fn measure_against(
             },
         );
         tally.record(Some(interval), truth);
+        centres.push((interval.0 + interval.1) / 2.0);
+        se_squared_sum += ((interval.1 - interval.0) / (2.0 * Z95)).powi(2);
+    }
+    if centres.len() > 1 {
+        let count = centres.len() as f64;
+        let mean = centres.iter().sum::<f64>() / count;
+        let sd = (centres.iter().map(|centre| (centre - mean).powi(2)).sum::<f64>()
+            / (count - 1.0))
+            .sqrt();
+        eprintln!(
+            "info interval diagnostics {test}: bias={:.5} empirical_sd={sd:.5} rms_se={:.5}",
+            mean - truth,
+            (se_squared_sum / count).sqrt(),
+        );
     }
     tally.assert();
+}
+
+/// Preserve collected raw-construction records when a gate measures its declared upgrade.
+fn analytic_tally(test: &'static str, dgp: &'static str, basis: &Construction) -> CoverageTally {
+    let tally =
+        CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL);
+    if basis.functional.contains("matching=population_linear") {
+        tally.labelled("population_linear")
+    } else if basis.functional.contains("stratification=regression_linear_hc3") {
+        tally.labelled("regression_linear_hc3")
+    } else {
+        tally
+    }
+}
+
+#[test]
+fn upgraded_weighted_constructions_preserve_legacy_record_identity() {
+    for (estimator, test, functional, suffix) in [
+        (
+            "propensity.matching",
+            "weighted_matching_interval",
+            "all_observed.mean+matching=population_linear",
+            "population_linear",
+        ),
+        (
+            "distance.matching",
+            "weighted_distance_matching_interval",
+            "all_observed.mean+matching=population_linear",
+            "population_linear",
+        ),
+        (
+            "propensity.stratification",
+            "weighted_stratification_interval",
+            "all_observed.mean+stratification=regression_linear_hc3",
+            "regression_linear_hc3",
+        ),
+    ] {
+        let raw = construction(estimator, "homoskedastic", "iid", "AverageEffect");
+        let upgraded =
+            construction_for(estimator, "homoskedastic", "iid", "AverageEffect", functional);
+        let mut old = analytic_tally(test, "identity_probe", &raw);
+        let mut new = analytic_tally(test, "identity_probe", &upgraded);
+        let facts = ScopeFacts {
+            row_count: 1200,
+            replicates_ok: None,
+            posterior_draws: None,
+            unidentified_mass: 0.0,
+        };
+        old.bind(&raw, facts);
+        new.bind(&upgraded, facts);
+        let old_id = old.record_id().unwrap();
+        let new_id = new.record_id().unwrap();
+        assert_ne!(old_id, new_id, "an upgraded method must preserve the collected raw record");
+        assert_eq!(new_id, format!("{old_id}.{suffix}"));
+    }
 }
 
 fn scored(fit: Option<EffectEstimate>, rows: usize) -> Option<((f64, f64), u64)> {
@@ -532,7 +629,7 @@ fn the_scored_intervals_are_ordered_and_centred_near_the_population_effect() {
         assert!(((lo + hi) / 2.0 - TRUTH).abs() < 0.4, "centre {}", (lo + hi) / 2.0);
     }
     let ((lo, hi), rows) = panel(40, 91_005).expect("a weighted panel fit");
-    assert_eq!(rows, 640);
+    assert!(rows > 320 && rows % 2 == 0);
     assert!(lo < hi && ((lo + hi) / 2.0 - TRUTH).abs() < 0.6);
 }
 
@@ -569,31 +666,83 @@ fn weighted_linear_adjustment_cluster_interval() {
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn weighted_ipw_hajek_interval() {
-    measure(
-        "weighted_ipw_hajek_interval",
-        "informative_sampling_heterogeneous_effect",
-        1200,
-        &construction("propensity.weighting", "", "iid", "AverageEffect"),
-        |n, seed| {
-            let s = sample(n, seed, Effect::Heterogeneous, false);
-            scored(weighting(&s, false), n)
-        },
-    );
+    measure_balanced_hajek("weighted_ipw_hajek_interval", false);
 }
 
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn weighted_ipw_hajek_cluster_interval() {
-    measure(
-        "weighted_ipw_hajek_cluster_interval",
-        "informative_sampling_clustered_heterogeneous_effect",
-        1200,
-        &construction("propensity.weighting", "cluster", "cluster", "AverageEffect"),
-        |n, seed| {
-            let s = sample(n, seed, Effect::Heterogeneous, true);
-            scored(weighting(&s, true), n)
-        },
+    measure_balanced_hajek("weighted_ipw_hajek_cluster_interval", true);
+}
+
+fn measure_balanced_hajek(test: &'static str, cluster: bool) {
+    const METHOD: &str = "balanced_population_score";
+    let n = grid_n(1200);
+    let dgp = if cluster {
+        "informative_sampling_clustered_heterogeneous_effect"
+    } else {
+        "informative_sampling_heterogeneous_effect"
+    };
+    let mut basis = construction_for(
+        "propensity.weighting",
+        if cluster { "cluster" } else { "" },
+        if cluster { "cluster" } else { "iid" },
+        "AverageEffect",
+        "all_observed.mean+weighting=balanced_linear_hc3",
     );
+    basis.interval_method = METHOD.into();
+    let mut tally =
+        CoverageTally::for_record(RecordKey { test, dgp, interval: METHOD }, REPORTED_LEVEL);
+    let mut reference_df = Vec::new();
+    for fit in map_replicates(n_sim(), |rep| {
+        let sample = sample(n, 91_000 + rep, Effect::Heterogeneous, cluster);
+        let (data, estimand) = table(&sample)?;
+        let mut estimator = PropensityWeighting::new()
+            .with_bootstrap_replicates(0)
+            .with_overlap(no_clip())
+            .with_sampling_weights(SamplingWeights::new(sample.w).ok()?)
+            .with_covariate_balance(true);
+        if cluster {
+            estimator = estimator.with_source_cluster_ids(sample.cluster);
+        }
+        let prepared = estimator.prepare(&data, &estimand, &query()).ok()?;
+        estimator
+            .population_score_interval(
+                &prepared,
+                &mut PropensityEstimationWorkspace::default(),
+                &ExecutionContext::for_tests(1),
+                AssumptionSet::new(),
+                REPORTED_LEVEL,
+            )
+            .ok()
+    }) {
+        let Some(fit) = fit else {
+            tally.skip();
+            continue;
+        };
+        if let Some(df) = fit.reference_df {
+            reference_df.push(df);
+        }
+        tally.bind(
+            &basis,
+            ScopeFacts {
+                row_count: n as u64,
+                replicates_ok: None,
+                posterior_draws: None,
+                unidentified_mass: 0.0,
+            },
+        );
+        tally.record(Some((fit.lower, fit.upper)), TRUTH);
+    }
+    if !reference_df.is_empty() {
+        let mean = reference_df.iter().sum::<f64>() / reference_df.len() as f64;
+        eprintln!(
+            "info calibrated interval reference df {test}: mean={mean:.3} min={:.3} max={:.3}",
+            reference_df.iter().copied().fold(f64::INFINITY, f64::min),
+            reference_df.iter().copied().fold(0.0_f64, f64::max)
+        );
+    }
+    tally.assert();
 }
 
 #[test]
@@ -618,7 +767,13 @@ fn weighted_stratification_interval() {
         "weighted_stratification_interval",
         "informative_sampling_heterogeneous_effect",
         1200,
-        &construction("propensity.stratification", "", "iid", "AverageEffect"),
+        &construction_for(
+            "propensity.stratification",
+            "",
+            "iid",
+            "AverageEffect",
+            "all_observed.mean+stratification=regression_linear_hc3",
+        ),
         |n, seed| {
             let s = sample(n, seed, Effect::Heterogeneous, false);
             scored(stratification(&s), n)
@@ -635,7 +790,13 @@ fn weighted_matching_interval() {
         "weighted_matching_interval",
         "informative_sampling_heterogeneous_effect",
         1200,
-        &construction("propensity.matching", "homoskedastic", "iid", "AverageEffect"),
+        &construction_for(
+            "propensity.matching",
+            "homoskedastic",
+            "iid",
+            "AverageEffect",
+            "all_observed.mean+matching=population_linear",
+        ),
         |n, seed| {
             let s = sample(n, seed, Effect::Heterogeneous, false);
             scored(matching(&s), n)
@@ -710,7 +871,13 @@ fn weighted_distance_matching_interval() {
         "weighted_distance_matching_interval",
         "informative_sampling_heterogeneous_effect",
         1200,
-        &construction("distance.matching", "homoskedastic", "iid", "AverageEffect"),
+        &construction_for(
+            "distance.matching",
+            "homoskedastic",
+            "iid",
+            "AverageEffect",
+            "all_observed.mean+matching=population_linear",
+        ),
         |n, seed| {
             let s = sample(n, seed, Effect::Heterogeneous, false);
             scored(distance_matching(&s), n)

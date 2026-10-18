@@ -58,6 +58,9 @@ pub struct DistanceMatching {
     /// clustered influence function exists for fixed-M nearest-neighbour matching; see
     /// [`super::matching::matching_contrast`].
     pub se_kind: AnalyticSeKind,
+    /// Separate outcome residual noise and population treatment-effect heterogeneity in the
+    /// matching variance, declaring linear arm outcome models on the matching features.
+    pub population_variance: bool,
     /// Optional cluster ids aligned to prepared complete-case rows.
     pub cluster_ids: Option<Vec<u32>>,
     /// Optional bindings for named predicates / custom target distributions.
@@ -89,6 +92,7 @@ impl DistanceMatching {
             glm_options: GlmOptions::default(),
             caliper: None,
             se_kind: AnalyticSeKind::Homoskedastic,
+            population_variance: false,
             cluster_ids: None,
             population_registry: None,
             multiway_ids: None,
@@ -145,6 +149,15 @@ impl DistanceMatching {
     #[must_use]
     pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
         self.se_kind = se_kind;
+        self
+    }
+
+    /// Declare linear arm outcome models and include both residual donor-reuse noise and
+    /// population treatment-effect heterogeneity in the analytic variance. The raw
+    /// constant-effect homoskedastic construction remains the default.
+    #[must_use]
+    pub const fn with_population_variance(mut self, enabled: bool) -> Self {
+        self.population_variance = enabled;
         self
     }
 
@@ -298,6 +311,7 @@ impl DistanceMatching {
                 dim,
                 distance: MatchingDistance::Euclidean,
                 matches,
+                population_variance: self.population_variance,
                 ctx,
             },
             &problem.target_population,

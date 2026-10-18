@@ -63,7 +63,11 @@ impl KnnDistanceMatching {
     /// count, which changes the estimate and its variance.
     #[must_use]
     pub fn construction_id(&self) -> String {
-        format!("{KNN_DISTANCE_MATCHING_CONSTRUCTION}/neighbors={}", self.neighbors)
+        let mut id = format!("{KNN_DISTANCE_MATCHING_CONSTRUCTION}/neighbors={}", self.neighbors);
+        if self.matching.population_variance {
+            id.push_str("/variance=population_linear");
+        }
+        id
     }
 
     /// Prepare the covariate design.

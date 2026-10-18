@@ -2003,6 +2003,20 @@ fn compile_with_payloads(
     {
         functional = format!("{functional}+{propensity}");
     }
+    if let Some(strategy) = study
+        .estimator_spec
+        .as_deref()
+        .and_then(crate::estimator_spec::EstimatorSpec::stratification_calibration_label)
+    {
+        functional = format!("{functional}+{strategy}");
+    }
+    if let Some(strategy) = study
+        .estimator_spec
+        .as_deref()
+        .and_then(crate::estimator_spec::EstimatorSpec::matching_calibration_label)
+    {
+        functional = format!("{functional}+{strategy}");
+    }
     // Sampling weights change the estimand and the variance: an interval measured on unweighted
     // rows must not bind to a weighted-population estimate.
     let weighted_table = match &study.data {

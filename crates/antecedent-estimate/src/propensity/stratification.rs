@@ -30,6 +30,11 @@ use crate::util::BootstrapSeResult;
 /// **Sampling weights.** The propensity model is the weighted logistic fit; within a stratum
 /// each arm's mean is the sampling-weighted mean, and strata are pooled by their weighted
 /// population share. Strata are cut at the sample quantiles of the fitted propensity.
+/// Finite bins do not in general remove within-bin confounding. Call
+/// [`Self::with_regression_adjustment`] to declare arm-specific linear outcome models with
+/// stratum intercepts; that construction standardizes fitted arm outcomes over the target
+/// population and includes outcome-model fitting in its analytic sandwich. Its consistency
+/// requires those outcome models to be correct, rather than balance merely within each bin.
 ///
 /// **Clusters.** Declared cluster labels make the analytic SE the cluster sandwich of the
 /// stratified estimator's influence values *given the strata* (the stratum boundaries and the
@@ -49,6 +54,10 @@ pub struct PropensityStratification {
     pub glm_options: GlmOptions,
     /// Number of quantile strata (default 5).
     pub n_strata: u32,
+    /// Declare arm-specific linear outcome models with stratum intercepts and common
+    /// covariate slopes within each arm. This corrects residual confounding within finite
+    /// propensity bins when those outcome models are correct. The default uses raw means.
+    pub regression_adjustment: bool,
     /// Optional bindings for named predicates / custom target distributions.
     pub population_registry: Option<PopulationRegistry>,
     /// Policy for treatment rows at neither declared level. The default refuses; the
@@ -79,6 +88,7 @@ impl PropensityStratification {
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
             n_strata: 5,
+            regression_adjustment: false,
             population_registry: None,
             other_levels: OtherLevels::default(),
             sampling_weights: None,
@@ -160,6 +170,15 @@ impl PropensityStratification {
     #[must_use]
     pub const fn with_n_strata(mut self, n_strata: u32) -> Self {
         self.n_strata = n_strata;
+        self
+    }
+
+    /// Standardize arm-specific, stratum-intercept linear outcome regressions over the
+    /// weighted target population. Analytic uncertainty includes outcome-model fitting and
+    /// population composition. This is a distinct construction from raw stratified means.
+    #[must_use]
+    pub const fn with_regression_adjustment(mut self, enabled: bool) -> Self {
+        self.regression_adjustment = enabled;
         self
     }
 
@@ -269,7 +288,7 @@ impl PropensityStratification {
             retained.as_deref().map_or_else(|| s.weights.to_vec(), |idx| gather(&s.weights, idx))
         });
         let stratum = assign_strata(&s_used, n_strata);
-        let result = stratified_ate(
+        let raw = stratified_ate(
             &t_used,
             &y_used,
             sampling_used.as_deref(),
@@ -277,6 +296,31 @@ impl PropensityStratification {
             n_strata,
             &problem.target_population,
         )?;
+        let result = if self.regression_adjustment {
+            let design = retained.as_deref().map_or_else(
+                || problem.design_matrix.to_vec(),
+                |rows| {
+                    problem
+                        .design_matrix
+                        .chunks(problem.nrows)
+                        .flat_map(|column| rows.iter().map(|&row| column[row]))
+                        .collect()
+                },
+            );
+            regression_stratified_ate(
+                &t_used,
+                &y_used,
+                sampling_used.as_deref(),
+                &stratum,
+                n_strata,
+                &problem.target_population,
+                &design,
+                problem.design_ncols,
+                &raw,
+            )?
+        } else {
+            raw
+        };
         let clusters = self.clusters(problem)?;
         let clusters_used = gather_optional_row_labels(
             clusters.as_deref(),
@@ -410,7 +454,7 @@ impl PropensityStratification {
         let weights_used: Option<Vec<f64>> =
             sampling.map(|_| retained.as_deref().map_or_else(|| s.clone(), |kept| gather(s, kept)));
         let stratum = assign_strata(&s_used, n_strata);
-        stratified_ate(
+        let raw = stratified_ate(
             &t_used,
             &y_used,
             weights_used.as_deref(),
@@ -418,8 +462,28 @@ impl PropensityStratification {
             n_strata,
             &problem.target_population,
         )
-        .ok()
-        .map(|r| r.ate)
+        .ok()?;
+        if self.regression_adjustment {
+            let design = retained.as_deref().map_or_else(
+                || x.clone(),
+                |rows| x.chunks(m).flat_map(|column| rows.iter().map(|&row| column[row])).collect(),
+            );
+            regression_stratified_ate(
+                &t_used,
+                &y_used,
+                weights_used.as_deref(),
+                &stratum,
+                n_strata,
+                &problem.target_population,
+                &design,
+                ncols,
+                &raw,
+            )
+            .ok()
+            .map(|result| result.ate)
+        } else {
+            Some(raw.ate)
+        }
     }
 }
 
@@ -575,8 +639,10 @@ pub(crate) fn stratified_ate(
     let retained_n: usize =
         pooled.iter().map(|&(s, ..)| cells[s][0].count + cells[s][1].count).sum();
     let retained_fraction = retained_n as f64 / (treatment.len().max(1) as f64);
-    // Influence of each row on the pooled contrast, strata held fixed: the row's weighted
-    // deviation from its arm mean, over the arm's mass, times the stratum's share.
+    // Stratum membership is held fixed, but its population share is estimated. The IF has
+    // both the arm-mean residual and the change in the pooled contrast when this row changes
+    // its stratum's target mass. Omitting the latter conditions on random stratum shares and
+    // loses the population variation of heterogeneous effects.
     let n = treatment.len() as f64;
     let mut influence = vec![0.0; treatment.len()];
     let mut in_pool = vec![false; n_strata];
@@ -585,6 +651,9 @@ pub(crate) fn stratified_ate(
     }
     let share_of: std::collections::HashMap<usize, f64> =
         pooled.iter().map(|&(s, _, share, _)| (s, share)).collect();
+    let difference_of: std::collections::HashMap<usize, f64> =
+        pooled.iter().map(|&(s, difference, ..)| (s, difference)).collect();
+    let mut share_variance = 0.0;
     for i in 0..treatment.len() {
         let s = stratum[i];
         if !in_pool[s] {
@@ -593,18 +662,177 @@ pub(crate) fn stratified_ate(
         let arm = usize::from(treatment[i] > 0.5);
         let cell = &cells[s][arm];
         let sign = if arm == 1 { 1.0 } else { -1.0 };
-        influence[i] = sign
+        let residual = sign
             * n
             * (share_of[&s] / total_w)
             * (weight_of(i) / cell.mass)
             * (outcome[i] - cell.mean);
+        let in_target = match target {
+            TargetPopulation::Treated => arm == 1,
+            TargetPopulation::Untreated => arm == 0,
+            _ => true,
+        };
+        let share =
+            if in_target { n * weight_of(i) / total_w * (difference_of[&s] - ate) } else { 0.0 };
+        influence[i] = residual + share;
+        share_variance += share * share + 2.0 * residual * share;
     }
     Ok(StratifiedResult {
         ate,
-        se_analytic: se_var.sqrt(),
+        // Retain the within-arm finite-sample correction; add the missing share variance
+        // and its covariance with the residual part under the same iid sandwich convention.
+        se_analytic: (se_var + share_variance / (n * (n - 1.0))).max(0.0).sqrt(),
         influence,
         retained_fraction,
         n_obs: retained_n,
+    })
+}
+
+/// Regression-standardized stratification, with the sandwich of its weighted normal
+/// equations and target-population mean. Stratum membership is locally fixed, as in the
+/// raw construction; bootstrap replicates refit the propensity and recut its strata.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "aligned prepared rows, arm regression solves and their full joint target/HC3 sandwich"
+)]
+fn regression_stratified_ate(
+    treatment: &[f64],
+    outcome: &[f64],
+    weights: Option<&[f64]>,
+    stratum: &[usize],
+    n_strata: usize,
+    target: &TargetPopulation,
+    design: &[f64],
+    design_ncols: usize,
+    raw: &StratifiedResult,
+) -> Result<StratifiedResult, EstimationError> {
+    let n = treatment.len();
+    let weight = |i: usize| weights.map_or(1.0, |mass| mass[i]);
+    let mut counts = vec![[0_usize; 2]; n_strata];
+    for i in 0..n {
+        counts[stratum[i]][usize::from(treatment[i] > 0.5)] += 1;
+    }
+    let mut stratum_column = vec![None; n_strata];
+    let mut kept_strata = 0;
+    for (s, count) in counts.iter().enumerate() {
+        if count.iter().all(|&count| count >= 2) {
+            stratum_column[s] = Some(kept_strata);
+            kept_strata += 1;
+        }
+    }
+    let p = kept_strata + design_ncols - 1;
+    let mut x = vec![0.0; n * p];
+    for i in 0..n {
+        if let Some(column) = stratum_column[stratum[i]] {
+            x[i * p + column] = 1.0;
+            for c in 1..design_ncols {
+                x[i * p + kept_strata + c - 1] = design[c * n + i];
+            }
+        }
+    }
+    let in_target = |i: usize| match target {
+        TargetPopulation::Treated => treatment[i] > 0.5,
+        TargetPopulation::Untreated => treatment[i] <= 0.5,
+        _ => true,
+    };
+    let mut target_mass = 0.0;
+    let mut target_design = vec![0.0; p];
+    for i in 0..n {
+        if stratum_column[stratum[i]].is_some() && in_target(i) {
+            target_mass += weight(i);
+            for c in 0..p {
+                target_design[c] += weight(i) * x[i * p + c];
+            }
+        }
+    }
+    for value in &mut target_design {
+        *value /= target_mass;
+    }
+    let mut coefficients = Vec::new();
+    let mut mean_derivatives = Vec::new();
+    let mut inverse_information = Vec::new();
+    for active in [false, true] {
+        let mut information = vec![0.0; p * p];
+        let mut rhs = vec![0.0; p];
+        let mut arm_count = 0;
+        for i in 0..n {
+            if (treatment[i] > 0.5) != active || stratum_column[stratum[i]].is_none() {
+                continue;
+            }
+            arm_count += 1;
+            for c in 0..p {
+                rhs[c] += weight(i) * x[i * p + c] * outcome[i];
+                for d in 0..p {
+                    information[c * p + d] += weight(i) * x[i * p + c] * x[i * p + d];
+                }
+            }
+        }
+        if arm_count <= p {
+            return Err(EstimationError::data_msg(
+                "regression stratification requires residual degrees of freedom in each arm",
+            ));
+        }
+        let solve = |rhs: &[f64]| {
+            crate::util::solve_spd(&information, rhs, p).ok_or_else(|| {
+                EstimationError::stats_msg("singular outcome model in regression stratification")
+            })
+        };
+        coefficients.push(solve(&rhs)?);
+        mean_derivatives.push(solve(&target_design)?);
+        let mut inverse = vec![0.0; p * p];
+        for c in 0..p {
+            let mut unit = vec![0.0; p];
+            unit[c] = 1.0;
+            let column = solve(&unit)?;
+            for d in 0..p {
+                inverse[d * p + c] = column[d];
+            }
+        }
+        inverse_information.push(inverse);
+    }
+    let dot = |left: &[f64], right: &[f64]| {
+        left.iter().zip(right).map(|(left, right)| left * right).sum::<f64>()
+    };
+    let ate = dot(&target_design, &coefficients[1]) - dot(&target_design, &coefficients[0]);
+    let mut influence = vec![0.0; n];
+    for i in 0..n {
+        if stratum_column[stratum[i]].is_none() {
+            continue;
+        }
+        let row = &x[i * p..(i + 1) * p];
+        let arm = usize::from(treatment[i] > 0.5);
+        let sign = if arm == 1 { 1.0 } else { -1.0 };
+        let residual = outcome[i] - dot(row, &coefficients[arm]);
+        let leverage = weight(i)
+            * (0..p)
+                .map(|c| {
+                    (0..p)
+                        .map(|d| row[c] * inverse_information[arm][c * p + d] * row[d])
+                        .sum::<f64>()
+                })
+                .sum::<f64>();
+        if leverage >= 1.0 - 1e-10 {
+            return Err(EstimationError::data_msg(
+                "unit-leverage outcome model in regression stratification",
+            ));
+        }
+        // HC3 is the exact case-deletion correction of a weighted least-squares residual:
+        // e_i/(1-h_ii). Unequal survey weights can give individual rows substantial leverage,
+        // for which a scalar residual-degrees-of-freedom correction is insufficient.
+        influence[i] = sign * n as f64 * weight(i) * residual * dot(row, &mean_derivatives[arm])
+            / (1.0 - leverage);
+        if in_target(i) {
+            let contrast = dot(row, &coefficients[1]) - dot(row, &coefficients[0]);
+            influence[i] += n as f64 * weight(i) / target_mass * (contrast - ate);
+        }
+    }
+    Ok(StratifiedResult {
+        ate,
+        se_analytic: crate::se::hetero_influence_se(&influence),
+        influence,
+        retained_fraction: raw.retained_fraction,
+        n_obs: raw.n_obs,
     })
 }
 
@@ -668,5 +896,74 @@ mod tests {
         assert!((result.ate - 1.0).abs() <= 1e-12);
         assert!((result.se_analytic - 2.0_f64.sqrt()).abs() <= 1e-12);
         assert!(result.se_analytic.is_finite());
+    }
+
+    #[test]
+    fn heterogeneous_stratum_shares_match_case_weight_perturbations() {
+        let treatment = [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0];
+        let outcome = [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 3.0, 3.0];
+        let stratum = [0, 0, 0, 0, 1, 1, 1, 1];
+        let weights = [1.0, 2.0, 3.0, 2.0, 2.0, 1.0, 2.0, 4.0];
+        let target = TargetPopulation::AllObserved;
+        let result =
+            stratified_ate(&treatment, &outcome, Some(&weights), &stratum, 2, &target).unwrap();
+        // An independent closed form: both arm means are constant in each stratum, so the
+        // contrast is (mass_0 + 3 mass_1)/(mass_0 + mass_1). Perturb one row's case mass.
+        let point = |mass: &[f64]| {
+            let first = mass[..4].iter().sum::<f64>();
+            let second = mass[4..].iter().sum::<f64>();
+            (first + 3.0 * second) / (first + second)
+        };
+        let epsilon = 1e-5;
+        let mut variance = 0.0;
+        for i in 0..weights.len() {
+            let (mut plus, mut minus) = (weights, weights);
+            plus[i] *= 1.0 + epsilon;
+            minus[i] *= 1.0 - epsilon;
+            let derivative = (point(&plus) - point(&minus)) / (2.0 * epsilon);
+            assert!((result.influence[i] - 8.0 * derivative).abs() < 1e-8);
+            variance += derivative * derivative;
+        }
+        variance *= 8.0 / 7.0;
+        assert!((result.se_analytic.powi(2) - variance).abs() < 1e-10);
+        assert!(result.se_analytic > 0.0, "random population shares carry uncertainty");
+    }
+
+    #[test]
+    fn regression_adjustment_removes_within_stratum_confounding() {
+        let treatment = [0., 0., 0., 0., 1., 1., 1., 1., 0., 0., 0., 0., 1., 1., 1., 1.];
+        let z =
+            [-2., -1.8, -1.6, -1.4, -1.6, -1.4, -1.2, -1., 0., 0.2, 0.4, 0.6, 0.4, 0.6, 0.8, 1.];
+        let stratum: Vec<usize> = (0..16).map(|row| usize::from(row >= 8)).collect();
+        let weights: Vec<f64> = (0..16).map(|row| 1.0 + (row % 3) as f64).collect();
+        let outcome: Vec<f64> = (0..16)
+            .map(|i| z[i] + 0.4 * stratum[i] as f64 + treatment[i] * (1.0 + 0.5 * z[i]))
+            .collect();
+        let design: Vec<f64> = [vec![1.0; 16], z.to_vec()].concat();
+        let target = TargetPopulation::AllObserved;
+        let raw =
+            stratified_ate(&treatment, &outcome, Some(&weights), &stratum, 2, &target).unwrap();
+        let mass = weights.iter().sum::<f64>();
+        let truth = (0..16).map(|i| weights[i] * (1.0 + 0.5 * z[i])).sum::<f64>() / mass;
+        assert!((raw.ate - truth).abs() > 0.3, "raw bins retain confounding");
+        let corrected = regression_stratified_ate(
+            &treatment,
+            &outcome,
+            Some(&weights),
+            &stratum,
+            2,
+            &target,
+            &design,
+            2,
+            &raw,
+        )
+        .unwrap();
+        assert!((corrected.ate - truth).abs() < 1e-10);
+        // With exact linear outcomes there is no outcome-model residual uncertainty. The
+        // remaining IF is precisely the independent weighted mean of unit treatment effects.
+        for i in 0..16 {
+            let expected = 16.0 * weights[i] / mass * (1.0 + 0.5 * z[i] - truth);
+            assert!((corrected.influence[i] - expected).abs() < 1e-9);
+        }
     }
 }

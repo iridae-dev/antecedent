@@ -9,6 +9,9 @@
 //! says nothing about it; this design measures it. Besides coverage at the nominal level, the
 //! design asserts the precision target (median interval width at most 1.5 times the effect) and
 //! that at least 90 percent of replicates report an interval.
+//! The declared population-variance construction propagates the shared OLS bias correction's
+//! full outcome coefficients, including covariance with reused donor outcomes, and estimates
+//! homoskedastic noise from arm-regression residuals with their residual degrees of freedom.
 //!
 //! The ignored design runs through `scripts/gate_calibration.sh`; it emits no coverage record
 //! (the estimator is not reachable through the facade) and gates pass or fail.
@@ -80,7 +83,8 @@ fn draw(rows: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
 /// ATT and its analytic standard error from the three-neighbour estimator, `None` on a refusal.
 fn replicate(rows: usize, seed: u64) -> Option<(f64, f64)> {
     let (data, estimand) = draw(rows, seed);
-    let knn = KnnDistanceMatching::new(NEIGHBORS).ok()?;
+    let mut knn = KnnDistanceMatching::new(NEIGHBORS).ok()?;
+    knn.matching = knn.matching.with_population_variance(true);
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
         .with_target_population(TargetPopulation::Treated);
     let prepared = knn.prepare(&data, &estimand, &query).ok()?;
@@ -115,12 +119,26 @@ fn knn_matching_replicates_are_finite_and_centred_on_the_effect() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn knn_matching_interval_ci_coverage() {
+    eprintln!("CALIBRATION_GATE_PROTOCOL population_linear");
     let rows = ROWS.n(MAX_ROWS);
     let mut tally = CoverageTally::new("knn_matching_interval", REPORTED_LEVEL);
     let mut widths = Vec::new();
     let mut reported = 0u32;
     let fits = map_replicates(n_sim(), |rep| replicate(rows, SEED + rep));
     let attempts = fits.len();
+    let usable: Vec<(f64, f64)> = fits.iter().flatten().copied().collect();
+    if usable.len() > 1 {
+        let count = usable.len() as f64;
+        let mean = usable.iter().map(|(point, _)| point).sum::<f64>() / count;
+        let sd = (usable.iter().map(|(point, _)| (point - mean).powi(2)).sum::<f64>()
+            / (count - 1.0))
+            .sqrt();
+        let se = (usable.iter().map(|(_, se)| se * se).sum::<f64>() / count).sqrt();
+        eprintln!(
+            "info knn interval diagnostics: bias={:.6} empirical_sd={sd:.6} rms_se={se:.6}",
+            mean - EFFECT
+        );
+    }
     for fit in fits {
         match fit.and_then(interval) {
             Some((lo, hi)) => {

@@ -703,6 +703,162 @@ fn weighting_cluster_se_is_the_cluster_sandwich_with_the_propensity_correction()
     assert!((fit.se_analytic() - independent.se_analytic()).abs() > 1e-6);
 }
 
+/// Independent one-dimensional entropy balance: bisection of the monotone tilted covariate
+/// mean, followed by arm normalization. It does not use the production Newton calibration.
+fn balanced_weighting_oracle(study: &Study, mass: &[f64]) -> (f64, Vec<f64>) {
+    let beta = weighted_logit(&study.z, &study.t, mass);
+    let total = mass.iter().sum::<f64>();
+    let target = study.z.iter().zip(mass).map(|(z, w)| z * w).sum::<f64>() / total;
+    let mut weights = vec![0.0; study.len()];
+    for active in [false, true] {
+        let rows: Vec<usize> = (0..study.len()).filter(|&i| (study.t[i] > 0.5) == active).collect();
+        let base: Vec<f64> = rows
+            .iter()
+            .map(|&i| {
+                let e = sigmoid(beta[0] + beta[1] * study.z[i]);
+                mass[i] / if active { e } else { 1.0 - e }
+            })
+            .collect();
+        let tilted = |slope: f64| {
+            let values: Vec<f64> =
+                rows.iter().zip(&base).map(|(&i, w)| w * (slope * study.z[i]).exp()).collect();
+            let sum = values.iter().sum::<f64>();
+            let mean = rows.iter().zip(&values).map(|(&i, w)| w * study.z[i]).sum::<f64>() / sum;
+            (mean, values, sum)
+        };
+        let (mut lo, mut hi) = (-32.0, 32.0);
+        for _ in 0..90 {
+            let mid = (lo + hi) / 2.0;
+            if tilted(mid).0 < target {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        let (_, values, sum) = tilted((lo + hi) / 2.0);
+        for (&i, w) in rows.iter().zip(values) {
+            weights[i] = w * total / sum;
+        }
+    }
+    let point = (0..study.len())
+        .map(|i| (if study.t[i] > 0.5 { 1.0 } else { -1.0 }) * weights[i] * study.y[i])
+        .sum::<f64>()
+        / total;
+    (point, weights)
+}
+
+#[test]
+fn balanced_weighting_matches_independent_moments_and_full_case_derivative_sandwich() {
+    let study = small_study(100, 111);
+    let mass = normalized(&study.w);
+    let (point, weights) = balanced_weighting_oracle(&study, &mass);
+    let (data, estimand) = study.data();
+    let estimator = PropensityWeighting::new()
+        .with_bootstrap_replicates(0)
+        .with_overlap(no_clip())
+        .with_sampling_weights(study.weights())
+        .with_covariate_balance(true);
+    let prepared = estimator.prepare(&data, &estimand, &query()).unwrap();
+    let fit = estimator
+        .fit(&prepared, &mut PropensityEstimationWorkspace::default(), &ctx(), AssumptionSet::new())
+        .unwrap();
+    close(fit.ate, point, 1e-8, "independent bisection-balanced point");
+    let total = mass.iter().sum::<f64>();
+    let mut derivatives = vec![0.0; study.len()];
+    for i in 0..study.len() {
+        let (mut plus, mut minus) = (mass.clone(), mass.clone());
+        let step = 1e-5;
+        plus[i] *= 1.0 + step;
+        minus[i] *= 1.0 - step;
+        derivatives[i] = (balanced_weighting_oracle(&study, &plus).0
+            - balanced_weighting_oracle(&study, &minus).0)
+            / (2.0 * step);
+    }
+    // HC3 is the difference between fitted and case-deleted weighted regression residuals.
+    for active in [false, true] {
+        let rows: Vec<usize> = (0..study.len()).filter(|&i| (study.t[i] > 0.5) == active).collect();
+        let x: Vec<Vec<f64>> = rows.iter().map(|&i| vec![1.0, study.z[i]]).collect();
+        let y: Vec<f64> = rows.iter().map(|&i| study.y[i]).collect();
+        let w: Vec<f64> = rows.iter().map(|&i| weights[i]).collect();
+        let beta = weighted_least_squares(&x, &y, &w);
+        let gram: Vec<Vec<f64>> = (0..2)
+            .map(|c| {
+                (0..2).map(|d| x.iter().zip(&w).map(|(row, w)| w * row[c] * row[d]).sum()).collect()
+            })
+            .collect();
+        let bread = inverse(&gram);
+        for (&i, row) in rows.iter().zip(&x) {
+            let leverage = weights[i]
+                * (0..2)
+                    .map(|c| (0..2).map(|d| row[c] * bread[c][d] * row[d]).sum::<f64>())
+                    .sum::<f64>();
+            let residual = study.y[i] - beta[0] - beta[1] * study.z[i];
+            derivatives[i] +=
+                (if active { 1.0 } else { -1.0 }) * weights[i] / total * residual * leverage
+                    / (1.0 - leverage);
+        }
+    }
+    let n = study.len() as f64;
+    let mean = derivatives.iter().sum::<f64>() / n;
+    let expected = (derivatives.iter().map(|d| (d - mean).powi(2)).sum::<f64>() * n / (n - 1.0)
+        * n
+        / (n - 2.0))
+        .sqrt();
+    close(
+        fit.se_analytic(),
+        expected,
+        1e-6,
+        "full propensity and moment-target influence plus HC3",
+    );
+    let interval = estimator
+        .population_score_interval(
+            &prepared,
+            &mut PropensityEstimationWorkspace::default(),
+            &ctx(),
+            AssumptionSet::new(),
+            0.95,
+        )
+        .unwrap();
+    let mass_variance =
+        mass.iter().map(|m| (m - 1.0).powi(2)).sum::<f64>() / (n * (n - 1.0)) * n / (n - 2.0);
+    let covariance =
+        derivatives.iter().zip(&mass).map(|(d, m)| (d - mean) * (m - 1.0)).sum::<f64>() / (n - 1.0)
+            * n
+            / (n - 2.0);
+    close(interval.mass_variance, mass_variance, 1e-10, "independent random-mass variance");
+    close(
+        interval.effect_mass_covariance,
+        covariance,
+        1e-7,
+        "independent full effect/mass covariance",
+    );
+    for endpoint in [interval.lower, interval.upper] {
+        let delta = endpoint - point;
+        let score_variance =
+            expected * expected - 2.0 * delta * covariance + delta * delta * mass_variance;
+        close(
+            delta * delta / score_variance,
+            antecedent_stats::student_t_ppf(0.975, interval.reference_df.unwrap()).powi(2),
+            1e-5,
+            "endpoint inverts independent population score quadratic",
+        );
+    }
+    let groups: Vec<u32> = (0..study.len()).map(|row| (row / 10) as u32).collect();
+    let mut totals = std::collections::BTreeMap::<u32, f64>::new();
+    for (derivative, group) in derivatives.iter().zip(&groups) {
+        *totals.entry(*group).or_default() += derivative - mean;
+    }
+    let count = totals.len() as f64;
+    let expected =
+        (count / (count - 1.0) * totals.values().map(|total| total * total).sum::<f64>()).sqrt();
+    let clustered = estimator.with_source_cluster_ids(groups);
+    let prepared = clustered.prepare(&data, &estimand, &query()).unwrap();
+    let fit = clustered
+        .fit(&prepared, &mut PropensityEstimationWorkspace::default(), &ctx(), AssumptionSet::new())
+        .unwrap();
+    close(fit.se_analytic(), expected, 1e-6, "clustered full moment-target influence");
+}
+
 // ---------------------------------------------------------------------------------------------
 // Stratification
 // ---------------------------------------------------------------------------------------------
@@ -747,6 +903,50 @@ fn stratification_oracle(study: &Study, k: usize) -> (f64, f64) {
         effect += d * share / total;
         variance += v * (share / total).powi(2);
     }
+    // Population stratum shares are estimated from the same weighted rows. An independent
+    // case-mass derivative of the pooled point adds their variance and the covariance with
+    // the arm-mean derivative (the finite-arm correction above remains separate).
+    let point = |case_mass: &[f64]| {
+        let mut sum = 0.0;
+        let mut mass_sum = 0.0;
+        for s in 0..k {
+            let mut arm_mass = [0.0; 2];
+            let mut arm_sum = [0.0; 2];
+            for i in (0..n).filter(|&i| stratum[i] == s) {
+                let arm = usize::from(study.t[i] > 0.5);
+                arm_mass[arm] += case_mass[i];
+                arm_sum[arm] += case_mass[i] * study.y[i];
+            }
+            if arm_mass.iter().all(|&w| w > 0.0) {
+                let share = arm_mass.iter().sum::<f64>();
+                sum += share * (arm_sum[1] / arm_mass[1] - arm_sum[0] / arm_mass[0]);
+                mass_sum += share;
+            }
+        }
+        sum / mass_sum
+    };
+    let epsilon = 1e-5;
+    let mut full_variance = 0.0;
+    let mut conditional_variance = 0.0;
+    for i in 0..n {
+        let (mut plus, mut minus) = (mass.clone(), mass.clone());
+        plus[i] *= 1.0 + epsilon;
+        minus[i] *= 1.0 - epsilon;
+        let derivative = (point(&plus) - point(&minus)) / (2.0 * epsilon);
+        full_variance += derivative.powi(2);
+        let s = stratum[i];
+        let arm = study.t[i];
+        let arm_rows: Vec<usize> =
+            (0..n).filter(|&j| stratum[j] == s && study.t[j] == arm).collect();
+        let arm_mass = arm_rows.iter().map(|&j| mass[j]).sum::<f64>();
+        let arm_mean = arm_rows.iter().map(|&j| mass[j] * study.y[j]).sum::<f64>() / arm_mass;
+        let stratum_mass = (0..n).filter(|&j| stratum[j] == s).map(|j| mass[j]).sum::<f64>();
+        let residual = (if arm > 0.5 { 1.0 } else { -1.0 }) * stratum_mass / total * mass[i]
+            / arm_mass
+            * (study.y[i] - arm_mean);
+        conditional_variance += residual.powi(2);
+    }
+    variance += (full_variance - conditional_variance) * n as f64 / (n - 1) as f64;
     (effect, variance.sqrt())
 }
 
@@ -790,6 +990,10 @@ fn stratification_cluster_se_sums_the_stratified_influence_within_clusters() {
 /// weighted propensity, the donors' linear bias correction, and `σ² Σ c_i²` with
 /// `σ² = ½ Σ w̃_q (τ_q − τ)²`.
 fn matching_oracle(study: &Study) -> (f64, f64) {
+    matching_variance_oracle(study, false)
+}
+
+fn matching_variance_oracle(study: &Study, population_variance: bool) -> (f64, f64) {
     let n = study.len();
     let mass = normalized(&study.w);
     let beta = weighted_logit(&study.z, &study.t, &mass);
@@ -831,6 +1035,70 @@ fn matching_oracle(study: &Study) -> (f64, f64) {
     for unit in (0..n).filter(|unit| !queried.contains(unit)) {
         coefficient[unit] += mass[unit] / total;
     }
+    if population_variance {
+        // OLS on the original covariate is independent of the affine matching-logit fit.
+        let fit = |rows: &[usize]| {
+            let x: Vec<Vec<f64>> = rows.iter().map(|&row| vec![1.0, study.z[row]]).collect();
+            let y: Vec<f64> = rows.iter().map(|&row| study.y[row]).collect();
+            weighted_least_squares(&x, &y, &vec![1.0; rows.len()])
+        };
+        let (beta1, beta0) = (fit(&treated), fit(&control));
+        let residual_sum: f64 = [(&treated, &beta1), (&control, &beta0)]
+            .iter()
+            .map(|(rows, beta)| {
+                rows.iter()
+                    .map(|&row| (study.y[row] - beta[0] - beta[1] * study.z[row]).powi(2))
+                    .sum::<f64>()
+            })
+            .sum();
+        let noise = residual_sum / (n - 4) as f64;
+        let target_design =
+            [1.0, pairs.iter().map(|&(row, ..)| mass[row] * study.z[row]).sum::<f64>() / total];
+        for rows in [&treated, &control] {
+            let gram: Vec<Vec<f64>> = (0..2)
+                .map(|c| {
+                    (0..2)
+                        .map(|d| {
+                            rows.iter()
+                                .map(|&row| {
+                                    let x = [1.0, study.z[row]];
+                                    x[c] * x[d]
+                                })
+                                .sum()
+                        })
+                        .collect()
+                })
+                .collect();
+            let bread = inverse(&gram);
+            let mismatch: Vec<f64> = (0..2)
+                .map(|c| {
+                    target_design[c]
+                        - rows
+                            .iter()
+                            .map(|&row| coefficient[row] * if c == 0 { 1.0 } else { study.z[row] })
+                            .sum::<f64>()
+                })
+                .collect();
+            for &row in rows {
+                let x = [1.0, study.z[row]];
+                coefficient[row] += (0..2)
+                    .map(|c| (0..2).map(|d| x[c] * bread[c][d] * mismatch[d]).sum::<f64>())
+                    .sum::<f64>();
+            }
+        }
+        let contrast = |row: usize| beta1[0] - beta0[0] + (beta1[1] - beta0[1]) * study.z[row];
+        let mean = pairs.iter().map(|&(row, ..)| mass[row] * contrast(row)).sum::<f64>() / total;
+        let heterogeneity = pairs
+            .iter()
+            .map(|&(row, ..)| (mass[row] / total * (contrast(row) - mean)).powi(2))
+            .sum::<f64>()
+            * pairs.len() as f64
+            / (pairs.len() - 1) as f64;
+        return (
+            ate,
+            (noise * coefficient.iter().map(|c| c * c).sum::<f64>() + heterogeneity).sqrt(),
+        );
+    }
     // Reliability-weights correction of the weighted variance: 1 / (1 - sum of squared shares).
     let concentration: f64 = pairs.iter().map(|&(q, ..)| (mass[q] / total).powi(2)).sum();
     let sigma2 = 0.5
@@ -846,6 +1114,24 @@ fn matching_is_the_weighted_mean_of_matched_effects_with_its_donor_variance() {
     let fit = matching(&study, true);
     close(fit.ate, ate, 1e-7, "weighted matched effect");
     close(fit.se_analytic(), se, 1e-7, "weighted Abadie-Imbens standard error");
+}
+
+#[test]
+fn population_matching_variance_separates_noise_and_effect_heterogeneity() {
+    let study = small_study(120, 15);
+    let (ate, se) = matching_variance_oracle(&study, true);
+    let (data, estimand) = study.data();
+    let estimator = PropensityMatching::new()
+        .with_overlap(no_clip())
+        .with_sampling_weights(study.weights())
+        .with_population_variance(true);
+    let prepared = estimator.prepare(&data, &estimand, &query()).unwrap();
+    let fit = estimator
+        .fit(&prepared, &mut PropensityEstimationWorkspace::default(), &ctx(), AssumptionSet::new())
+        .unwrap();
+    close(fit.ate, ate, 1e-7, "population matching point");
+    close(fit.se_analytic(), se, 1e-7, "noise plus heterogeneity variance");
+    close(fit.ate, matching(&study, true).ate, 1e-12, "variance option preserves point");
 }
 
 // ---------------------------------------------------------------------------------------------

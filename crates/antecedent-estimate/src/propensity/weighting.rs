@@ -19,6 +19,28 @@ use crate::sampling_weights::SamplingWeights;
 use crate::se::AnalyticSeKind;
 use crate::util::BootstrapSeResult;
 
+/// A score-inverted interval for the calibrated weighted-population contrast. The common
+/// population-mass denominator and its covariance with the full effect influence enter the
+/// Fieller quadratic, so the endpoints need not be symmetric about the point estimate.
+#[derive(Clone, Debug)]
+pub struct BalancedWeightingInterval {
+    /// Calibrated point estimate with its analytic sandwich SE.
+    pub estimate: EffectEstimate,
+    /// Lower endpoint of the bounded confidence set.
+    pub lower: f64,
+    /// Upper endpoint of the bounded confidence set.
+    pub upper: f64,
+    /// Requested probability level.
+    pub level: f64,
+    /// Variance of the normalized population-mass mean.
+    pub mass_variance: f64,
+    /// Covariance of the effect influence mean and normalized population-mass mean.
+    pub effect_mass_covariance: f64,
+    /// Working-Gaussian quadratic-form Satterthwaite reference df for iid rows. Cluster
+    /// intervals use the cluster sandwich's normal score reference and record `None`.
+    pub reference_df: Option<f64>,
+}
+
 /// Inverse-probability weighting estimator (ATE/ATT/ATC via `TargetPopulation`).
 ///
 /// Point estimate is the Hajek (self-normalized) weighted difference of means. Positivity is
@@ -45,6 +67,10 @@ pub struct PropensityWeighting {
     pub overlap: OverlapPolicy,
     /// GLM fitting options for the propensity model.
     pub glm_options: GlmOptions,
+    /// Exponentially calibrate each arm's IPW weights to the sampling-weighted population's
+    /// covariate moments. Declares linear arm outcome models for the residual HC3 correction;
+    /// the full sandwich includes fitted propensity and estimated moment-target uncertainty.
+    pub covariate_balance: bool,
     /// Optional bindings for named predicates / custom target distributions.
     pub population_registry: Option<PopulationRegistry>,
     /// Policy for treatment rows at neither declared level. The default refuses; the
@@ -75,6 +101,7 @@ impl PropensityWeighting {
             bootstrap_replicates: 200,
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
+            covariate_balance: false,
             population_registry: None,
             other_levels: OtherLevels::default(),
             sampling_weights: None,
@@ -104,6 +131,15 @@ impl PropensityWeighting {
     #[must_use]
     pub const fn with_glm_options(mut self, glm_options: GlmOptions) -> Self {
         self.glm_options = glm_options;
+        self
+    }
+
+    /// Balance each arm to the weighted population's intercept/covariate moments by positive
+    /// exponential calibration of its IPW weights. Supported for untrimmed ATEs. This is a
+    /// distinct point/variance construction from uncalibrated Hajek weighting.
+    #[must_use]
+    pub const fn with_covariate_balance(mut self, enabled: bool) -> Self {
+        self.covariate_balance = enabled;
         self
     }
 
@@ -200,6 +236,82 @@ impl PropensityWeighting {
         self.attach_bootstrap(problem, workspace, ctx, point)
     }
 
+    /// Invert the calibrated contrast's population estimating equation using its full joint
+    /// covariance with the estimated population mass (Fieller's ratio construction). The
+    /// returned endpoints are a separate construction from a symmetric analytic-SE interval.
+    /// For iid rows, a working-Gaussian, noncentral quadratic-form Satterthwaite reference
+    /// carries variance-estimator uncertainty; its noise model uses unweighted arm OLS.
+    /// The cluster construction retains the cluster sandwich's normal score reference.
+    /// Requires [`Self::with_covariate_balance`] and an untrimmed ATE.
+    ///
+    /// # Errors
+    /// Invalid level, cancellation, failed calibrated fit, or an unbounded confidence set.
+    pub fn population_score_interval(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut PropensityEstimationWorkspace,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        level: f64,
+    ) -> Result<BalancedWeightingInterval, EstimationError> {
+        if !self.covariate_balance || !level.is_finite() || level <= 0.0 || level >= 1.0 {
+            return Err(EstimationError::data_msg(
+                "population score interval requires calibrated weights and 0 < level < 1",
+            ));
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(EstimationError::data_msg("population score interval cancelled"));
+        }
+        let (estimate, psi, linearization) =
+            self.fit_point_influence(problem, workspace, assumptions)?;
+        let mass: Vec<f64> = problem
+            .sampling_weights
+            .as_ref()
+            .map_or_else(|| vec![1.0; problem.nrows], |s| s.weights.to_vec());
+        let groups = self.clusters(problem)?;
+        let variance = |values: &[f64]| -> Result<f64, EstimationError> {
+            let se = match groups.as_deref() {
+                Some(groups) => crate::se::cluster_influence_se(values, groups)?,
+                None => hajek_iid_se(values, problem.design_ncols),
+            };
+            Ok(se * se)
+        };
+        let v_effect = estimate.se_analytic().powi(2);
+        let v_mass = variance(&mass)?;
+        let joint: Vec<f64> = psi.iter().zip(&mass).map(|(p, m)| p + m).collect();
+        let covariance = 0.5 * (variance(&joint)? - v_effect - v_mass);
+        let reference_df = if groups.is_none() {
+            Some(
+                linearization
+                    .ok_or_else(|| {
+                        EstimationError::stats_msg("missing calibrated variance operator")
+                    })?
+                    .reference_df()?,
+            )
+        } else {
+            None
+        };
+        let z = reference_df.map_or_else(
+            || antecedent_stats::normal_ppf((1.0 + level) / 2.0),
+            |df| antecedent_stats::student_t_ppf((1.0 + level) / 2.0, df),
+        );
+        let a = 1.0 - z * z * v_mass;
+        if !a.is_finite() || a <= 0.0 {
+            return Err(EstimationError::stats_msg("population-mass confidence set is unbounded"));
+        }
+        let centre = -z * z * covariance / a;
+        let radius = (z.powi(4) * covariance * covariance + a * z * z * v_effect).sqrt() / a;
+        Ok(BalancedWeightingInterval {
+            lower: estimate.ate + centre - radius,
+            upper: estimate.ate + centre + radius,
+            estimate,
+            level,
+            mass_variance: v_mass,
+            effect_mass_covariance: covariance,
+            reference_df,
+        })
+    }
+
     /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
     /// uncertainty stage). Equal to what `fit` publishes when `bootstrap_replicates > 0`,
     /// without refitting the point model.
@@ -229,6 +341,15 @@ impl PropensityWeighting {
         workspace: &mut PropensityEstimationWorkspace,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.fit_point_influence(problem, workspace, assumptions).map(|(estimate, _, _)| estimate)
+    }
+
+    fn fit_point_influence(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut PropensityEstimationWorkspace,
+        assumptions: AssumptionSet,
+    ) -> Result<(EffectEstimate, Vec<f64>, Option<BalancedLinearization>), EstimationError> {
         let target = IpwTarget::from_population(&problem.target_population)?;
         if matches!(target, IpwTarget::Custom) && problem.target_weights.is_none() {
             return Err(EstimationError::unsupported(
@@ -254,20 +375,52 @@ impl PropensityWeighting {
         );
         apply_target_weights(&mut weights, problem.target_weights.as_deref());
         apply_target_weights(&mut weights, sampling);
+        if self.covariate_balance {
+            if !matches!(target, IpwTarget::Ate) || trim.is_some() {
+                return Err(EstimationError::unsupported(
+                    "covariate-balanced weighting currently requires an untrimmed ATE",
+                ));
+            }
+            balance_arm_weights(
+                &problem.design_matrix,
+                problem.design_ncols,
+                &problem.treatment,
+                sampling,
+                &mut weights,
+            )?;
+        }
         let ate = hajek_difference(&problem.treatment, &problem.outcome, &weights)?;
-        let psi = hajek_influence_values(
-            &problem.treatment,
-            &problem.outcome,
-            &weights,
-            Some(HajekPropensity {
-                scores: &model.fit.scores,
-                design: &problem.design_matrix,
-                ncols: problem.design_ncols,
-                target,
-                clip: clip_of(problem.overlap),
-                row_mass: sampling,
-            }),
-        )?;
+        let (psi, linearization) = if self.covariate_balance {
+            let (psi, linearization) = balanced_influence_values(
+                &problem.design_matrix,
+                problem.design_ncols,
+                &problem.treatment,
+                &problem.outcome,
+                sampling,
+                &model.fit.scores,
+                clip_of(problem.overlap),
+                &weights,
+                ate,
+            )?;
+            (psi, Some(linearization))
+        } else {
+            (
+                hajek_influence_values(
+                    &problem.treatment,
+                    &problem.outcome,
+                    &weights,
+                    Some(HajekPropensity {
+                        scores: &model.fit.scores,
+                        design: &problem.design_matrix,
+                        ncols: problem.design_ncols,
+                        target,
+                        clip: clip_of(problem.overlap),
+                        row_mass: sampling,
+                    }),
+                )?,
+                None,
+            )
+        };
         let se_analytic = match clusters.as_deref() {
             Some(groups) => crate::se::cluster_influence_se(&psi, groups)?,
             None => hajek_iid_se(&psi, problem.design_ncols),
@@ -290,7 +443,7 @@ impl PropensityWeighting {
         if clusters.is_some() {
             estimate = estimate.with_se_kind(AnalyticSeKind::Cluster);
         }
-        Ok(estimate)
+        Ok((estimate, psi, linearization))
     }
 
     fn bootstrap_se(
@@ -391,6 +544,9 @@ impl PropensityWeighting {
             if let Some(full) = sampling {
                 w[r] *= full[src];
             }
+        }
+        if self.covariate_balance {
+            balance_arm_weights(x, ncols, t, sampling.map(|_| s.as_slice()), w).ok()?;
         }
         hajek_difference(t, y, w).ok()
     }
@@ -631,9 +787,531 @@ pub(crate) fn hajek_influence_se(
     Ok(hajek_iid_se(&psi, ncols))
 }
 
+/// Positive exponential calibration of each arm to the full weighted covariate moments.
+fn balance_arm_weights(
+    x: &[f64],
+    p: usize,
+    treatment: &[f64],
+    sampling: Option<&[f64]>,
+    weights: &mut [f64],
+) -> Result<(), EstimationError> {
+    let n = treatment.len();
+    let mass = |i: usize| sampling.map_or(1.0, |s| s[i]);
+    let target: Vec<f64> = (0..p).map(|c| (0..n).map(|i| mass(i) * x[c * n + i]).sum()).collect();
+    let scale = (0..n).map(mass).sum::<f64>();
+    for active in [false, true] {
+        let rows: Vec<usize> = (0..n).filter(|&i| (treatment[i] > 0.5) == active).collect();
+        let base: Vec<f64> = rows.iter().map(|&i| weights[i]).collect();
+        let mut lambda = vec![0.0; p];
+        let evaluate = |lambda: &[f64]| -> Option<(f64, Vec<f64>)> {
+            let calibrated: Vec<f64> = rows
+                .iter()
+                .zip(&base)
+                .map(|(&i, base)| {
+                    base * (0..p).map(|c| lambda[c] * x[c * n + i]).sum::<f64>().exp()
+                })
+                .collect();
+            let objective = calibrated.iter().sum::<f64>()
+                - lambda.iter().zip(&target).map(|(a, b)| a * b).sum::<f64>();
+            objective.is_finite().then_some((objective, calibrated))
+        };
+        let mut converged = false;
+        for _ in 0..60 {
+            let (objective, calibrated) = evaluate(&lambda).ok_or_else(|| {
+                EstimationError::stats_msg("nonfinite exponential calibration weights")
+            })?;
+            let mut residual = target.clone();
+            let mut hessian = vec![0.0; p * p];
+            for (&i, &w) in rows.iter().zip(&calibrated) {
+                for c in 0..p {
+                    residual[c] -= w * x[c * n + i];
+                    for d in 0..p {
+                        hessian[c * p + d] += w * x[c * n + i] * x[d * n + i];
+                    }
+                }
+            }
+            if residual.iter().all(|r| r.abs() <= 1e-10 * scale) {
+                for (&i, &w) in rows.iter().zip(&calibrated) {
+                    weights[i] = w;
+                }
+                converged = true;
+                break;
+            }
+            let step = crate::util::solve_spd(&hessian, &residual, p).ok_or_else(|| {
+                EstimationError::stats_msg("singular covariate-balance information")
+            })?;
+            let descent = residual.iter().zip(&step).map(|(r, s)| r * s).sum::<f64>();
+            let mut length = 1.0;
+            let mut accepted = false;
+            for _ in 0..30 {
+                let candidate: Vec<f64> =
+                    lambda.iter().zip(&step).map(|(l, s)| l + length * s).collect();
+                if evaluate(&candidate).is_some_and(|(value, calibrated)| {
+                    // Near the optimum, objective reductions round away before the moment
+                    // equations reach their requested tolerance. Accept a Newton step that
+                    // halves their residual as an independent, well-scaled merit criterion.
+                    let candidate_residual = (0..p)
+                        .map(|c| {
+                            (target[c]
+                                - rows
+                                    .iter()
+                                    .zip(&calibrated)
+                                    .map(|(&i, w)| w * x[c * n + i])
+                                    .sum::<f64>())
+                            .abs()
+                        })
+                        .fold(0.0_f64, f64::max);
+                    value <= objective - 1e-4 * length * descent
+                        || candidate_residual
+                            <= 0.5 * residual.iter().map(|r| r.abs()).fold(0.0_f64, f64::max)
+                }) {
+                    lambda = candidate;
+                    accepted = true;
+                    break;
+                }
+                length *= 0.5;
+            }
+            if !accepted {
+                return Err(EstimationError::stats_msg("covariate-balance line search failed"));
+            }
+        }
+        if !converged {
+            return Err(EstimationError::stats_msg("covariate-balance fit did not converge"));
+        }
+    }
+    Ok(())
+}
+
+/// A centered outcome-to-influence map `L = diag(d) + U V'`.
+struct LowRankInfluence {
+    diagonal: Vec<f64>,
+    left: Vec<f64>,
+    right: Vec<f64>,
+    rank: usize,
+}
+
+impl LowRankInfluence {
+    fn apply(&self, y: &[f64]) -> Vec<f64> {
+        let reduced: Vec<f64> = (0..self.rank)
+            .map(|c| (0..y.len()).map(|i| self.right[i * self.rank + c] * y[i]).sum())
+            .collect();
+        (0..y.len())
+            .map(|i| {
+                self.diagonal[i] * y[i]
+                    + (0..self.rank).map(|c| self.left[i * self.rank + c] * reduced[c]).sum::<f64>()
+            })
+            .collect()
+    }
+    fn transpose_apply(&self, y: &[f64]) -> Vec<f64> {
+        let reduced: Vec<f64> = (0..self.rank)
+            .map(|c| (0..y.len()).map(|i| self.left[i * self.rank + c] * y[i]).sum())
+            .collect();
+        (0..y.len())
+            .map(|i| {
+                self.diagonal[i] * y[i]
+                    + (0..self.rank)
+                        .map(|c| self.right[i * self.rank + c] * reduced[c])
+                        .sum::<f64>()
+            })
+            .collect()
+    }
+    fn quadratic_traces(&self) -> Result<(f64, f64), EstimationError> {
+        let n = self.diagonal.len();
+        let k = self.rank;
+        let rank = 2 * k;
+        let diagonal: Vec<f64> = self.diagonal.iter().map(|d| d * d).collect();
+        let mut basis = vec![0.0; n * rank];
+        let mut core = vec![0.0; rank * rank];
+        for i in 0..n {
+            for c in 0..k {
+                basis[i * rank + c] = self.diagonal[i] * self.left[i * k + c];
+                basis[i * rank + k + c] = self.right[i * k + c];
+            }
+        }
+        for c in 0..k {
+            core[c * rank + k + c] = 1.0;
+            core[(k + c) * rank + c] = 1.0;
+            for d in 0..k {
+                core[(k + c) * rank + k + d] =
+                    (0..n).map(|i| self.left[i * k + c] * self.left[i * k + d]).sum();
+            }
+        }
+        Ok(antecedent_stats::diagonal_low_rank_quadratic_traces(&diagonal, &basis, &core, rank)?)
+    }
+}
+
+struct BalancedLinearization {
+    operator: LowRankInfluence,
+    working_mean: Vec<f64>,
+    noise_variance: f64,
+}
+
+impl BalancedLinearization {
+    fn reference_df(&self) -> Result<f64, EstimationError> {
+        let (trace, squared_trace) = self.operator.quadratic_traces()?;
+        let signal = self.operator.apply(&self.working_mean);
+        let second = self.operator.transpose_apply(&signal);
+        let noncentral_mean = signal.iter().map(|x| x * x).sum::<f64>();
+        let noncentral_variance = second.iter().map(|x| x * x).sum::<f64>();
+        // For Gaussian Y~N(mu,sigma²I), E[Y'QY]=sigma²trQ+mu'Qmu and
+        // Var[Y'QY]=2sigma⁴tr(Q²)+4sigma²mu'Q²mu. Match those two moments to a
+        // scaled chi-square rather than pretending that a high-weight row contributes n df.
+        let mean = self.noise_variance * trace + noncentral_mean;
+        let half_variance = self.noise_variance.powi(2) * squared_trace
+            + 2.0 * self.noise_variance * noncentral_variance;
+        if half_variance <= 0.0 {
+            return Ok(1e12);
+        }
+        let df = mean * mean / half_variance;
+        if !df.is_finite() || df <= 0.0 {
+            return Err(EstimationError::stats_msg("invalid calibrated quadratic reference df"));
+        }
+        Ok(df.clamp(1.0, 1e12))
+    }
+}
+
+/// Sandwich of logistic scores, both calibrated-arm moment equations and the population
+/// contrast. Eliminating the calibration coefficients gives outcome-model residuals plus
+/// the estimated target's conditional contrast; the remaining logistic derivative is added
+/// explicitly. HC3 corrects the fitted weighted residuals for their case-deletion leverage.
+#[allow(clippy::too_many_arguments, reason = "aligned calibrated weighted estimating equations")]
+fn balanced_influence_values(
+    x: &[f64],
+    p: usize,
+    treatment: &[f64],
+    outcome: &[f64],
+    sampling: Option<&[f64]>,
+    propensity: &[f64],
+    clip: Option<f64>,
+    weights: &[f64],
+    ate: f64,
+) -> Result<(Vec<f64>, BalancedLinearization), EstimationError> {
+    let n = treatment.len();
+    let mass = |i: usize| sampling.map_or(1.0, |s| s[i]);
+    let total = (0..n).map(mass).sum::<f64>();
+    let mut beta = Vec::new();
+    let mut inverse = Vec::new();
+    for active in [false, true] {
+        let mut information = vec![0.0; p * p];
+        let mut rhs = vec![0.0; p];
+        for i in (0..n).filter(|&i| (treatment[i] > 0.5) == active) {
+            for c in 0..p {
+                rhs[c] += weights[i] * x[c * n + i] * outcome[i];
+                for d in 0..p {
+                    information[c * p + d] += weights[i] * x[c * n + i] * x[d * n + i];
+                }
+            }
+        }
+        let solve = |rhs: &[f64]| {
+            crate::util::solve_spd(&information, rhs, p)
+                .ok_or_else(|| EstimationError::stats_msg("singular calibrated outcome moment"))
+        };
+        beta.push(solve(&rhs)?);
+        let mut inv = vec![0.0; p * p];
+        for c in 0..p {
+            let mut unit = vec![0.0; p];
+            unit[c] = 1.0;
+            let column = solve(&unit)?;
+            for d in 0..p {
+                inv[d * p + c] = column[d];
+            }
+        }
+        inverse.push(inv);
+    }
+    let mut psi = vec![0.0; n];
+    let mut score = vec![0.0; n];
+    let mut information = vec![0.0; n];
+    let mut derivative = vec![0.0; n];
+    for i in 0..n {
+        let arm = usize::from(treatment[i] > 0.5);
+        let sign = if arm == 1 { 1.0 } else { -1.0 };
+        let prediction = |a: usize| (0..p).map(|c| beta[a][c] * x[c * n + i]).sum::<f64>();
+        let residual = outcome[i] - prediction(arm);
+        let leverage = weights[i]
+            * (0..p)
+                .map(|c| {
+                    (0..p)
+                        .map(|d| x[c * n + i] * inverse[arm][c * p + d] * x[d * n + i])
+                        .sum::<f64>()
+                })
+                .sum::<f64>();
+        if leverage >= 1.0 - 1e-10 {
+            return Err(EstimationError::stats_msg("unit-leverage calibrated outcome moment"));
+        }
+        psi[i] = n as f64 / total
+            * (sign * weights[i] * residual / (1.0 - leverage)
+                + mass(i) * (prediction(1) - prediction(0) - ate));
+        let e = propensity[i];
+        let log_derivative = if clip.is_some_and(|c| e <= c || e >= 1.0 - c) {
+            0.0
+        } else if arm == 1 {
+            -(1.0 - e)
+        } else {
+            e
+        };
+        derivative[i] = n as f64 / total * sign * weights[i] * residual * log_derivative;
+        score[i] = mass(i) * (treatment[i] - e);
+        information[i] = mass(i) * e * (1.0 - e);
+    }
+    crate::se::add_nuisance_correction(
+        &mut psi,
+        x,
+        p,
+        &score,
+        &information,
+        &derivative,
+        "singular propensity information in balanced weighting",
+    )?;
+    let linearization = balanced_linearization(
+        x,
+        p,
+        treatment,
+        outcome,
+        sampling,
+        propensity,
+        clip,
+        weights,
+        &score,
+        &information,
+        &inverse,
+    )?;
+    Ok((psi, linearization))
+}
+
+/// Assemble the exact diagonal-plus-low-rank map of outcome noise into the calibrated IF.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "the low-rank blocks must share the calibrated and propensity information matrices"
+)]
+fn balanced_linearization(
+    x: &[f64],
+    p: usize,
+    treatment: &[f64],
+    outcome: &[f64],
+    sampling: Option<&[f64]>,
+    propensity: &[f64],
+    clip: Option<f64>,
+    weights: &[f64],
+    score: &[f64],
+    information: &[f64],
+    inverse: &[Vec<f64>],
+) -> Result<BalancedLinearization, EstimationError> {
+    let n = treatment.len();
+    let mass = |i: usize| sampling.map_or(1.0, |s| s[i]);
+    let total = (0..n).map(mass).sum::<f64>();
+    let invert = |matrix: &[f64]| -> Result<Vec<f64>, EstimationError> {
+        let mut inverse = vec![0.0; p * p];
+        for c in 0..p {
+            let mut unit = vec![0.0; p];
+            unit[c] = 1.0;
+            let column = crate::util::solve_spd(matrix, &unit, p).ok_or_else(|| {
+                EstimationError::stats_msg("singular calibrated variance operator")
+            })?;
+            for d in 0..p {
+                inverse[d * p + c] = column[d];
+            }
+        }
+        Ok(inverse)
+    };
+    let mut prop_information = vec![0.0; p * p];
+    let mut calibration_derivative = vec![vec![0.0; p * p]; 2];
+    let mut log_weight = vec![0.0; n];
+    for i in 0..n {
+        let arm = usize::from(treatment[i] > 0.5);
+        let e = propensity[i];
+        log_weight[i] = if clip.is_some_and(|c| e <= c || e >= 1.0 - c) {
+            0.0
+        } else if arm == 1 {
+            -(1.0 - e)
+        } else {
+            e
+        };
+        let sign = if arm == 1 { 1.0 } else { -1.0 };
+        for c in 0..p {
+            for d in 0..p {
+                prop_information[c * p + d] += information[i] * x[c * n + i] * x[d * n + i];
+                calibration_derivative[arm][c * p + d] +=
+                    sign * weights[i] * log_weight[i] * x[c * n + i] * x[d * n + i];
+            }
+        }
+    }
+    let prop_inverse = invert(&prop_information)?;
+    let rank = 3 * p + 2;
+    let mut diagonal = vec![0.0; n];
+    let mut left = vec![0.0; n * rank];
+    let mut right = vec![0.0; n * rank];
+    let scaling = n as f64 / total;
+    for i in 0..n {
+        let arm = usize::from(treatment[i] > 0.5);
+        let sign = if arm == 1 { 1.0 } else { -1.0 };
+        let leverage = weights[i]
+            * (0..p)
+                .map(|c| {
+                    (0..p)
+                        .map(|d| x[c * n + i] * inverse[arm][c * p + d] * x[d * n + i])
+                        .sum::<f64>()
+                })
+                .sum::<f64>();
+        let raw = sign * weights[i] / (1.0 - leverage);
+        diagonal[i] = scaling * raw;
+        let prop_row: Vec<f64> = (0..p)
+            .map(|c| score[i] * (0..p).map(|d| x[d * n + i] * prop_inverse[d * p + c]).sum::<f64>())
+            .collect();
+        for a in 0..2 {
+            for c in 0..p {
+                let direction = if a == 1 { 1.0 } else { -1.0 };
+                left[i * rank + a * p + c] = scaling
+                    * (direction * mass(i) * x[c * n + i]
+                        - if arm == a { raw * x[c * n + i] } else { 0.0 }
+                        - (0..p)
+                            .map(|d| prop_row[d] * calibration_derivative[a][d * p + c])
+                            .sum::<f64>());
+                right[i * rank + a * p + c] = if arm == a {
+                    weights[i] * (0..p).map(|d| inverse[a][c * p + d] * x[d * n + i]).sum::<f64>()
+                } else {
+                    0.0
+                };
+            }
+        }
+        left[i * rank + 2 * p] = -scaling * mass(i);
+        right[i * rank + 2 * p] = sign * weights[i] / total;
+        for c in 0..p {
+            left[i * rank + 2 * p + 1 + c] = scaling * prop_row[c];
+            right[i * rank + 2 * p + 1 + c] = sign * weights[i] * log_weight[i] * x[c * n + i];
+        }
+    }
+    // Appending -1 * mean(L)' centers every influence column without materializing n².
+    let mean_left: Vec<f64> =
+        (0..rank - 1).map(|c| (0..n).map(|i| left[i * rank + c]).sum::<f64>() / n as f64).collect();
+    for i in 0..n {
+        let mean = diagonal[i] / n as f64
+            + (0..rank - 1).map(|c| mean_left[c] * right[i * rank + c]).sum::<f64>();
+        left[i * rank + rank - 1] = -1.0;
+        right[i * rank + rank - 1] = mean;
+    }
+    let (working_mean, noise_variance) = gaussian_working_outcomes(x, p, treatment, outcome)?;
+    Ok(BalancedLinearization {
+        operator: LowRankInfluence { diagonal, left, right, rank },
+        working_mean,
+        noise_variance,
+    })
+}
+
+/// Unweighted arm OLS is an orthogonal projection: its residual RSS/(n-2p) estimates the
+/// homoskedastic working noise variance without the nonsymmetric weighted-smoother bias.
+fn gaussian_working_outcomes(
+    x: &[f64],
+    p: usize,
+    treatment: &[f64],
+    outcome: &[f64],
+) -> Result<(Vec<f64>, f64), EstimationError> {
+    let n = treatment.len();
+    let mut working_mean = vec![0.0; n];
+    let mut rss = 0.0;
+    for active in [false, true] {
+        let mut gram = vec![0.0; p * p];
+        let mut rhs = vec![0.0; p];
+        for i in (0..n).filter(|&i| (treatment[i] > 0.5) == active) {
+            for c in 0..p {
+                rhs[c] += x[c * n + i] * outcome[i];
+                for d in 0..p {
+                    gram[c * p + d] += x[c * n + i] * x[d * n + i];
+                }
+            }
+        }
+        let coefficients = crate::util::solve_spd(&gram, &rhs, p)
+            .ok_or_else(|| EstimationError::stats_msg("singular Gaussian working outcome model"))?;
+        for i in (0..n).filter(|&i| (treatment[i] > 0.5) == active) {
+            working_mean[i] = (0..p).map(|c| coefficients[c] * x[c * n + i]).sum();
+            rss += (outcome[i] - working_mean[i]).powi(2);
+        }
+    }
+    if n <= 2 * p {
+        return Err(EstimationError::data_msg(
+            "calibrated Gaussian reference requires residual degrees of freedom",
+        ));
+    }
+    Ok((working_mean, rss / (n - 2 * p) as f64))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::util::solve_spd;
+
+    #[test]
+    fn calibrated_variance_operator_and_noncentral_df_match_dense_noise_basis() {
+        let n = 20;
+        let z: Vec<f64> = (0..n).map(|i| (i as f64 - 10.0) / 5.0).collect();
+        let t: Vec<f64> = (0..n).map(|i| f64::from(i % 3 == 0)).collect();
+        let y: Vec<f64> =
+            (0..n).map(|i| z[i] + t[i] * (1.0 + 0.5 * z[i]) + (i as f64).sin()).collect();
+        let mass: Vec<f64> = (0..n).map(|i| 1.0 + (i % 5) as f64).collect();
+        let mut design = vec![1.0; n];
+        design.extend_from_slice(&z);
+        let (_, e) = oracle_fit(&t, &y, &z, &mass, super::IpwTarget::Ate, None, None);
+        let mut weights: Vec<f64> =
+            (0..n).map(|i| mass[i] / if t[i] > 0.5 { e[i] } else { 1.0 - e[i] }).collect();
+        super::balance_arm_weights(&design, 2, &t, Some(&mass), &mut weights).unwrap();
+        let point = super::hajek_difference(&t, &y, &weights).unwrap();
+        let (psi, linear) = super::balanced_influence_values(
+            &design,
+            2,
+            &t,
+            &y,
+            Some(&mass),
+            &e,
+            None,
+            &weights,
+            point,
+        )
+        .unwrap();
+        let mean = psi.iter().sum::<f64>() / n as f64;
+        let mapped = linear.operator.apply(&y);
+        for i in 0..n {
+            assert!((mapped[i] - (psi[i] - mean)).abs() < 1e-9);
+        }
+        let mut dense = vec![0.0; n * n];
+        for column in 0..n {
+            let mut outcome = vec![0.0; n];
+            outcome[column] = 1.0;
+            let point = super::hajek_difference(&t, &outcome, &weights).unwrap();
+            let (values, _) = super::balanced_influence_values(
+                &design,
+                2,
+                &t,
+                &outcome,
+                Some(&mass),
+                &e,
+                None,
+                &weights,
+                point,
+            )
+            .unwrap();
+            let mean = values.iter().sum::<f64>() / n as f64;
+            for row in 0..n {
+                dense[row * n + column] = values[row] - mean;
+            }
+        }
+        let q: Vec<f64> = (0..n * n)
+            .map(|index| {
+                let (i, j) = (index / n, index % n);
+                (0..n).map(|row| dense[row * n + i] * dense[row * n + j]).sum()
+            })
+            .collect();
+        let trace = (0..n).map(|i| q[i * n + i]).sum::<f64>();
+        let squared = q.iter().map(|x| x * x).sum::<f64>();
+        let actual = linear.operator.quadratic_traces().unwrap();
+        assert!((actual.0 - trace).abs() < 1e-8 * trace);
+        assert!((actual.1 - squared).abs() < 1e-8 * squared);
+        let qmean: Vec<f64> =
+            (0..n).map(|i| (0..n).map(|j| q[i * n + j] * linear.working_mean[j]).sum()).collect();
+        let noncentral = linear.working_mean.iter().zip(&qmean).map(|(a, b)| a * b).sum::<f64>();
+        let expected = (linear.noise_variance * trace + noncentral).powi(2)
+            / (linear.noise_variance.powi(2) * squared
+                + 2.0 * linear.noise_variance * qmean.iter().map(|x| x * x).sum::<f64>());
+        assert!((linear.reference_df().unwrap() - expected).abs() < 1e-8 * expected);
+    }
 
     // Independent case-weight perturbation oracle: refit the logistic MLE and
     // weighted means after infinitesimally changing each observation's mass.

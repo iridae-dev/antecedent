@@ -66,6 +66,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         }
         EstimatorSpec::PropensityWeighting(cfg) => {
             EstimatorSpecWire::PropensityWeighting(EstimatorConfigWire {
+                outcome: cfg.covariate_balance.then(|| "covariate_balanced_linear_hc3".into()),
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
                 cluster_ids: declared_clusters(
@@ -81,6 +82,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         }
         EstimatorSpec::PropensityMatching(cfg) => {
             EstimatorSpecWire::PropensityMatching(EstimatorConfigWire {
+                outcome: cfg.population_variance.then(|| "population_linear_variance".into()),
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
                 se_kind: Some(se_kind(cfg.se_kind)),
@@ -105,6 +107,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 glm: Some(glm_options(&cfg.glm_options)),
                 other_levels: other_levels_key(cfg.other_levels),
                 n_strata: Some(cfg.n_strata),
+                outcome: cfg.regression_adjustment.then(|| "stratum_intercepts_linear_hc3".into()),
                 cluster_ids: declared_clusters(
                     cfg.cluster_ids.as_deref(),
                     cfg.source_cluster_ids.as_deref(),
@@ -118,6 +121,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         }
         EstimatorSpec::DistanceMatching(cfg) => {
             EstimatorSpecWire::DistanceMatching(EstimatorConfigWire {
+                outcome: cfg.population_variance.then(|| "population_linear_variance".into()),
                 glm: Some(glm_options(&cfg.glm_options)),
                 se_kind: Some(se_kind(cfg.se_kind)),
                 caliper_bits: cfg.caliper.map(f64::to_bits),

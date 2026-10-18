@@ -40,7 +40,7 @@ pub enum EstimatorSpec {
     PropensityWeighting(Box<PropensityWeighting>),
     /// Caller-configured propensity-score matching.
     PropensityMatching(Box<PropensityMatching>),
-    /// Caller-configured propensity stratification.
+    /// Caller-configured propensity stratification (raw means or declared regression adjustment).
     PropensityStratification(Box<PropensityStratification>),
     /// Caller-configured covariate distance matching.
     DistanceMatching(Box<DistanceMatching>),
@@ -174,8 +174,33 @@ impl EstimatorSpec {
     pub fn propensity_calibration_label(&self) -> Option<String> {
         match self {
             Self::Aipw(cfg) => cfg.propensity.calibration_label(),
+            Self::PropensityWeighting(cfg) if cfg.covariate_balance => {
+                Some("weighting=balanced_linear_hc3".into())
+            }
             _ => None,
         }
+    }
+
+    /// Distinguish declared regression-standardized strata from raw stratum means.
+    #[must_use]
+    pub fn stratification_calibration_label(&self) -> Option<&'static str> {
+        match self {
+            Self::PropensityStratification(cfg) if cfg.regression_adjustment => {
+                Some("stratification=regression_linear_hc3")
+            }
+            _ => None,
+        }
+    }
+
+    /// Separate population matching variance from the raw constant-effect approximation.
+    #[must_use]
+    pub fn matching_calibration_label(&self) -> Option<&'static str> {
+        let declared = match self {
+            Self::PropensityMatching(cfg) => cfg.population_variance,
+            Self::DistanceMatching(cfg) => cfg.population_variance,
+            _ => false,
+        };
+        declared.then_some("matching=population_linear")
     }
 }
 

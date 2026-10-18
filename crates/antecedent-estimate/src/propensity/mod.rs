@@ -71,7 +71,7 @@ pub(crate) use prepare::{
     trim_of, trim_retained_rows,
 };
 pub use stratification::PropensityStratification;
-pub use weighting::PropensityWeighting;
+pub use weighting::{BalancedWeightingInterval, PropensityWeighting};
 
 use crate::overlap::{IpwTarget, OverlapReport};
 

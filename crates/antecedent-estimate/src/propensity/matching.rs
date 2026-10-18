@@ -98,6 +98,9 @@ pub struct PropensityMatching {
     /// multiway and HAC kinds are refused because donor outcomes belong to other
     /// clusters and times than the matched unit.
     pub se_kind: AnalyticSeKind,
+    /// Separate outcome residual noise and population treatment-effect heterogeneity in the
+    /// matching variance, declaring linear arm outcome models on the matching features.
+    pub population_variance: bool,
     /// Optional cluster ids aligned to prepared complete-case rows.
     pub cluster_ids: Option<Vec<u32>>,
     /// Optional bindings for named predicates / custom target distributions.
@@ -132,6 +135,7 @@ impl PropensityMatching {
             caliper: None,
             caliper_scale: CaliperScale::Logit,
             se_kind: AnalyticSeKind::Homoskedastic,
+            population_variance: false,
             cluster_ids: None,
             population_registry: None,
             multiway_ids: None,
@@ -206,6 +210,15 @@ impl PropensityMatching {
     #[must_use]
     pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
         self.se_kind = se_kind;
+        self
+    }
+
+    /// Declare linear arm outcome models and include both residual donor-reuse noise and
+    /// population treatment-effect heterogeneity in the analytic variance. The raw
+    /// constant-effect homoskedastic construction remains the default.
+    #[must_use]
+    pub const fn with_population_variance(mut self, enabled: bool) -> Self {
+        self.population_variance = enabled;
         self
     }
 
@@ -336,6 +349,7 @@ impl PropensityMatching {
                 dim: 1,
                 distance: MatchingDistance::Absolute,
                 matches: 1,
+                population_variance: self.population_variance,
                 ctx,
             },
             &problem.target_population,
@@ -388,6 +402,7 @@ pub(crate) struct MatchingSample<'a> {
     pub(crate) distance: MatchingDistance,
     /// Nearest donors averaged for each query (`1` is single-nearest-neighbour matching).
     pub(crate) matches: usize,
+    pub(crate) population_variance: bool,
     /// Memory limit and cancellation for the index build and the match passes.
     pub(crate) ctx: &'a ExecutionContext,
 }
@@ -573,7 +588,16 @@ pub(crate) fn matching_contrast(
     se: SeSpec<'_>,
     target_weights: Option<&[f64]>,
 ) -> Result<MatchedEstimate, EstimationError> {
-    let MatchingSample { treatment, outcome, features, dim, distance, matches, ctx } = sample;
+    let MatchingSample {
+        treatment,
+        outcome,
+        features,
+        dim,
+        distance,
+        matches,
+        population_variance,
+        ctx,
+    } = sample;
     let SeSpec { kind: se_kind, cluster_ids, multiway_ids, panel_times } = se;
     if let Some(ids) = cluster_ids {
         if ids.len() != treatment.len() {
@@ -729,7 +753,49 @@ pub(crate) fn matching_contrast(
             matches,
         )
     });
+    let population_se = if population_variance {
+        let unit_weights = vec![1.0; treatment.len()];
+        let weights = target_weights.unwrap_or(&unit_weights);
+        let mut coefficients = custom_unit_coefficients(
+            weights,
+            &effect_rows,
+            &donor_usage,
+            &treated_idx,
+            &control_idx,
+            treatment.len(),
+            ate_form,
+            matches!(target, TargetPopulation::Untreated),
+            matches,
+        );
+        if ate_form {
+            let mass = effect_rows.iter().map(|&row| weights[row]).sum::<f64>();
+            let queried: std::collections::HashSet<usize> = effect_rows.iter().copied().collect();
+            for (row, coefficient) in coefficients.iter_mut().enumerate() {
+                if !queried.contains(&row) {
+                    *coefficient -= weights[row] / mass;
+                }
+            }
+        }
+        Some(population_matching_se(
+            &treated_feat,
+            &treated_y,
+            &control_feat,
+            &control_y,
+            &treated_idx,
+            &control_idx,
+            features,
+            dim,
+            &effect_rows,
+            &coefficients,
+            weights,
+        )?)
+    } else {
+        None
+    };
     let se_analytic = match se_kind {
+        AnalyticSeKind::Homoskedastic if population_se.is_some() => {
+            population_se.unwrap_or(f64::NAN)
+        }
         AnalyticSeKind::Homoskedastic => match &weighted_coefficients {
             Some(coefficients) => weighted_abadie_imbens_se(
                 &per_unit_effects,
@@ -885,6 +951,127 @@ fn weighted_abadie_imbens_se(
     (sigma2 * coefficients.iter().map(|c| c * c).sum::<f64>()).max(0.0).sqrt()
 }
 
+/// Abadie–Imbens population variance: outcome-noise donor reuse plus the variance of the
+/// conditional treatment effect over the target population. The fitted arm means are the
+/// linear models already declared by matching's bias correction. Estimating noise from the
+/// entire matched-contrast spread would charge effect heterogeneity to donor noise as well.
+#[allow(clippy::too_many_arguments, reason = "arm regressions and aligned matched population")]
+fn population_matching_se(
+    treated_features: &[f64],
+    treated_y: &[f64],
+    control_features: &[f64],
+    control_y: &[f64],
+    treated_rows: &[usize],
+    control_rows: &[usize],
+    features: &[f64],
+    dim: usize,
+    effect_rows: &[usize],
+    coefficients: &[f64],
+    weights: &[f64],
+) -> Result<f64, EstimationError> {
+    let beta1 = fit_linear_mean(treated_features, treated_y, dim)
+        .ok_or_else(|| EstimationError::stats_msg("matching arm outcome model failed"))?;
+    let beta0 = fit_linear_mean(control_features, control_y, dim)
+        .ok_or_else(|| EstimationError::stats_msg("matching arm outcome model failed"))?;
+    let n = treated_y.len() + control_y.len();
+    let parameters = beta1.len() + beta0.len();
+    if n <= parameters || effect_rows.len() < 2 {
+        return Err(EstimationError::data_msg(
+            "population matching variance requires residual degrees of freedom",
+        ));
+    }
+    let mut residual_sum = 0.0;
+    for (x, y, beta) in
+        [(treated_features, treated_y, &beta1), (control_features, control_y, &beta0)]
+    {
+        for (row, outcome) in y.iter().enumerate() {
+            residual_sum += (outcome - predict_linear(beta, x, dim, row)).powi(2);
+        }
+    }
+    let noise = residual_sum / (n - parameters) as f64;
+    let mass = effect_rows.iter().map(|&row| weights[row]).sum::<f64>();
+    let contrasts: Vec<f64> = effect_rows
+        .iter()
+        .map(|&row| {
+            predict_linear(&beta1, features, dim, row) - predict_linear(&beta0, features, dim, row)
+        })
+        .collect();
+    let mean = effect_rows
+        .iter()
+        .zip(&contrasts)
+        .map(|(&row, contrast)| weights[row] * contrast)
+        .sum::<f64>()
+        / mass;
+    let count = effect_rows.len() as f64;
+    let heterogeneity = effect_rows
+        .iter()
+        .zip(&contrasts)
+        .map(|(&row, contrast)| (weights[row] / mass * (contrast - mean)).powi(2))
+        .sum::<f64>()
+        * count
+        / (count - 1.0);
+    let target_design: Vec<f64> = std::iter::once(1.0)
+        .chain((0..dim).map(|c| {
+            effect_rows.iter().map(|&row| weights[row] * features[row * dim + c]).sum::<f64>()
+                / mass
+        }))
+        .collect();
+    let norm = bias_adjusted_coefficient_norm(
+        treated_features,
+        dim,
+        treated_rows,
+        coefficients,
+        &target_design,
+    )? + bias_adjusted_coefficient_norm(
+        control_features,
+        dim,
+        control_rows,
+        coefficients,
+        &target_design,
+    )?;
+    Ok((noise * norm + heterogeneity).sqrt())
+}
+
+/// Exact coefficients of outcome noise after the shared OLS bias correction. If the raw
+/// donor coefficient vector is c, the corrected vector is c + X(X'X)^-1(a-X'c), where a is
+/// the target query's covariate mean. Squaring raw donor coefficients alone loses the fitted
+/// regression's variance and its covariance with the matched outcomes.
+fn bias_adjusted_coefficient_norm(
+    features: &[f64],
+    dim: usize,
+    rows: &[usize],
+    coefficients: &[f64],
+    target: &[f64],
+) -> Result<f64, EstimationError> {
+    let p = dim + 1;
+    let mut gram = vec![0.0; p * p];
+    let mut mismatch = target.to_vec();
+    let row = |i: usize| {
+        std::iter::once(1.0)
+            .chain(features[i * dim..(i + 1) * dim].iter().copied())
+            .collect::<Vec<_>>()
+    };
+    for (i, &source) in rows.iter().enumerate() {
+        let x = row(i);
+        for c in 0..p {
+            mismatch[c] -= x[c] * coefficients[source];
+            for d in 0..p {
+                gram[c * p + d] += x[c] * x[d];
+            }
+        }
+    }
+    let correction = crate::util::solve_spd(&gram, &mismatch, p)
+        .ok_or_else(|| EstimationError::stats_msg("singular matching bias-adjustment variance"))?;
+    Ok(rows
+        .iter()
+        .enumerate()
+        .map(|(i, &source)| {
+            (coefficients[source] + row(i).iter().zip(&correction).map(|(x, b)| x * b).sum::<f64>())
+                .powi(2)
+        })
+        .sum())
+}
+
 /// Donor-reuse counts `Kⱼ` from query→donor local indices.
 fn donor_counts(donor_local: &[usize], n_donors: usize) -> Vec<usize> {
     let mut k = vec![0usize; n_donors.max(1)];
@@ -998,6 +1185,88 @@ mod tests {
     use antecedent_kernels::standard_normal;
 
     use super::*;
+
+    #[test]
+    fn fitted_bias_adjustment_noise_variance_matches_outcome_basis_oracle() {
+        let n = 12;
+        let treatment: Vec<f64> = (0..n).map(|i| f64::from(i % 2 == 1)).collect();
+        let features: Vec<f64> =
+            (0..n).flat_map(|i| [1.3 * i as f64, (i * i % 7) as f64 + 0.17 * i as f64]).collect();
+        let (treated, control) = split_by_treatment(&treatment);
+        let mut coefficients = vec![1.0 / n as f64; n];
+        for i in 0..n {
+            let donor = (0..n)
+                .filter(|&j| treatment[i] != treatment[j])
+                .min_by(|&a, &b| {
+                    let distance = |j: usize| {
+                        (0..2)
+                            .map(|d| (features[2 * i + d] - features[2 * j + d]).powi(2))
+                            .sum::<f64>()
+                    };
+                    distance(a).total_cmp(&distance(b)).then(a.cmp(&b))
+                })
+                .unwrap();
+            coefficients[donor] += 1.0 / n as f64;
+        }
+        let target = [
+            1.0,
+            (0..n).map(|i| features[2 * i]).sum::<f64>() / n as f64,
+            (0..n).map(|i| features[2 * i + 1]).sum::<f64>() / n as f64,
+        ];
+        let norm = bias_adjusted_coefficient_norm(
+            &gather_rowmajor(&features, 2, &treated),
+            2,
+            &treated,
+            &coefficients,
+            &target,
+        )
+        .unwrap()
+            + bias_adjusted_coefficient_norm(
+                &gather_rowmajor(&features, 2, &control),
+                2,
+                &control,
+                &coefficients,
+                &target,
+            )
+            .unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let mut workspace = PropensityEstimationWorkspace::default();
+        let mut oracle = 0.0;
+        // Conditional on X,T, matching and its fitted linear bias correction are exactly
+        // linear in y. Evaluating every unit outcome basis gives its complete noise vector.
+        for source in 0..n {
+            let mut outcome = vec![0.0; n];
+            outcome[source] = 1.0;
+            let fit = matching_contrast(
+                MatchingSample {
+                    treatment: &treatment,
+                    outcome: &outcome,
+                    features: &features,
+                    dim: 2,
+                    distance: MatchingDistance::Euclidean,
+                    matches: 1,
+                    population_variance: false,
+                    ctx: &ctx,
+                },
+                &TargetPopulation::AllObserved,
+                None,
+                &mut workspace,
+                SeSpec {
+                    kind: AnalyticSeKind::Homoskedastic,
+                    cluster_ids: None,
+                    multiway_ids: None,
+                    panel_times: None,
+                },
+                None,
+            )
+            .unwrap();
+            oracle += fit.ate.powi(2);
+        }
+        assert!(
+            (norm - oracle).abs() < 1e-12,
+            "coefficient norm {norm} vs noise-basis oracle {oracle}"
+        );
+    }
 
     #[test]
     fn pivot_floor_follows_the_matrix_scale() {
@@ -1181,6 +1450,7 @@ mod tests {
                     dim: 1,
                     distance: MatchingDistance::Absolute,
                     matches: 1,
+                    population_variance: false,
                     ctx: &ExecutionContext::for_tests(1),
                 },
                 &TargetPopulation::AllObserved,
@@ -1230,6 +1500,7 @@ mod tests {
                     dim: 1,
                     distance: MatchingDistance::Absolute,
                     matches: 1,
+                    population_variance: false,
                     ctx: &ExecutionContext::for_tests(1),
                 },
                 &TargetPopulation::AllObserved,
@@ -1384,6 +1655,7 @@ mod tests {
                 dim: 1,
                 distance: MatchingDistance::Absolute,
                 matches: 1,
+                population_variance: false,
                 ctx: &ExecutionContext::for_tests(1),
             },
             &TargetPopulation::CustomDistribution(antecedent_core::DistributionRef::from_raw(1)),
@@ -1414,6 +1686,7 @@ mod tests {
                 dim: 1,
                 distance: MatchingDistance::Absolute,
                 matches: 1,
+                population_variance: false,
                 ctx: &ExecutionContext::for_tests(1),
             },
             target,
