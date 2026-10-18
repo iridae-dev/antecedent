@@ -75,6 +75,24 @@ class DecisionLogTests(unittest.TestCase):
             logs, self.sha, expected_config=self.config, roster=self.roster
         )
 
+    def test_raw_record_binding_preserves_valid_cross_language_roundoff(self):
+        log = self.write(planned=20000, covered=19000)
+        lines = log.read_text(encoding="utf-8").splitlines()
+        for index, line in enumerate(lines):
+            if line.startswith(("calibration-decision ", "calibration-record ")):
+                prefix, _, payload = line.partition(" ")
+                row = json.loads(payload)
+                row["decision_protocol"]["p_value"] *= 1 - 1e-12
+                lines[index] = prefix + " " + json.dumps(row)
+        log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self.assertIn(log.name, self.audit([log]))
+        record = json.loads(lines[1].partition(" ")[2])
+        record["decision_protocol"]["p_value"] *= 1 - 1e-12
+        lines[1] = "calibration-record " + json.dumps(record)
+        log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "not bound"):
+            self.audit([log])
+
     def test_all_looks_and_recordless_decisions_audited(self):
         first = self.write(record=False, skip=2)
         second = self.write(

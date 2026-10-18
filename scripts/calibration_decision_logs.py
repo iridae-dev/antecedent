@@ -168,7 +168,7 @@ def audit_logs(
                     raise ValueError(
                         f"{log.name}: conflicting record decision identity"
                     )
-                bound[row["record_id"]] = value
+                bound[row["record_id"]] = row["decision_protocol"]
         for record in records:
             value = record.get("decision_protocol")
             if value is None and record.get("role") == "named_boundary":
