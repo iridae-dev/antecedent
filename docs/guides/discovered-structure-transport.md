@@ -10,6 +10,7 @@ routes keep the two apart.
 | Transport at a declared horizon over a discovered temporal class | `antecedent_identify::discovered_transport_temporal::transport_across_temporal_class` | A `TemporalTransportEnvelope` |
 | A point, a structural range or a refusal from the envelope and evidence | `analysis::discovered_transport_estimate::estimate_discovered_transport` | A `DiscoveredTransportEstimate` with a replayable artifact |
 | Experimental compatibility refinement of a static class | `analysis::discovered_transport_trial::estimate_trial_compatible_discovered_transport` | The unchanged original report, an explicit binary-trial test proof and an estimate over every retained member |
+| A contrast confidence set with declared bounded outcomes | `analysis::discovered_transport_trial::estimate_trial_compatible_transport_confidence_set` | An identified sampling interval or a labelled logical support bound, with replay against the original inputs |
 | Discovery run per population | `antecedent_discovery::selective::populations::PerPopulationDiscovery` | One structure per population and an edge-by-edge comparison |
 | Discovery then analysis on a row split | `antecedent_discovery::selective::reuse::split_rows` | Disjoint discovery and analysis tables with a receipt |
 
@@ -127,17 +128,35 @@ grid. Its estimate identity binds the refinement, so it cannot be substituted fo
 an estimate over the original unrefined class. Stratified or adaptive allocation
 needs a conditional randomization test and is not asserted by this entry point.
 
-The static complete-procedure calibration predeclares an FCI CI cutoff of
-`0.05 / 28`, using all unordered pairs of its eight measured variables, and 1023
-within-stratum permutations when the analytic CI test lacks support. The larger
-permutation budget makes that cutoff attainable. These choices are included in
-the discovery contract and calibration identity. This pair-based cutoff does not
-claim simultaneous error control over FCI's adaptively selected conditioning
-queries; coverage is measured for the complete procedure on the original DGP.
-At the manifest's 4,000-row static and six-variable temporal points, the harness
-also enforces reporting at least 90% of replicates and median interval width at
-most 1.5 times the simulated effect magnitude. Other grid points retain these
-diagnostics without extending the manifest's frozen usefulness scope.
+For outcomes with known support, the Rust endpoint
+`estimate_trial_compatible_transport_confidence_set` accepts an explicit
+`TransportOutcomeSupport { lower, upper }`. This asserts potential-outcome bounds
+in both populations; observed minima and maxima cannot establish that assumption.
+The query must request the mean curve at binary treatment levels `[0,1]`.
+Identified results retain the existing percentile-bootstrap contrast interval.
+Completed scientific nonidentification, rejection of every member by the trial,
+or a structural range instead returns the logical contrast bounds
+`[lower - upper, upper - lower]`. Thus binary outcomes yield `[-1,1]`.
+The returned `kind()` and `logical_reason()` distinguish these sets from identified
+point results. Cancellation, incomplete enumeration, resource limits and
+unestimable members remain errors.
+
+The confidence-set receipt binds the support, branch, trial proof, query, both
+datasets and execution seed. Replay with
+`verify_trial_compatible_transport_confidence_set_against` requires those original
+inputs and reruns estimation, including bootstrap; its cost can approach the
+original computation. Neither export nor replay grants calibration authority.
+
+The static complete-procedure design uses FCI's nominal independence-test cutoff
+`0.05` and 1023 within-stratum permutations when the analytic CI test lacks
+support. A smaller cutoff can lose indirect dependencies and introduce incorrect
+collider orientations; dividing by the number of variable pairs does not establish
+a graph-wide error bound. The design measures the complete procedure, including
+discovery and logical support sets, on its original DGP. At every static grid point,
+it separately requires identified points on at least 90% of attempts and a median
+confidence-set width at most 1.5 times the effect magnitude, including the full
+width of logical sets. The six-variable temporal manifest point retains its
+separate reporting and width requirements.
 
 - **Point**: every member is identified and they agree (the same expression, or equal
   estimates).
