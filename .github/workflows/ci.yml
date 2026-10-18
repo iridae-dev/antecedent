@@ -794,6 +794,12 @@ jobs:
             target: x64
             manylinux: ""
     steps:
+      # Replay evidence retains descriptive historical paths beyond MAX_PATH.
+      - name: Enable long paths for Windows checkout
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --global core.longpaths true
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust 1.85
