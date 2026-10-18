@@ -378,5 +378,51 @@ class TerminalObserverTests(unittest.TestCase):
         self.assertIsNotNone(self.check(extra={"python/src/defaults.rs": changed}))
 
 
+class ReviewedLintTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        repo = facets.Repo()
+        cls.old = repo.rust_sources("70a71dd33")
+        cls.new = repo.rust_sources("48da497f4")
+        cls.path = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs"
+
+    def check(self, *, after=None, path=None, extra=None):
+        path = path or self.path
+        old, new = dict(self.old), dict(self.new)
+        if extra:
+            old.update(extra)
+            new.update(extra)
+        if after is not None:
+            new[path] = after
+        return proof.prove("rust_reviewed_test_lint", path, old[path], new[path], old, new)
+
+    def test_actual_exact_lint_insertion(self):
+        self.assertIsNone(self.check())
+
+    def test_cfg_derive_body_literal_reason_and_other_path_reject(self):
+        source = self.new[self.path]
+        for changed in (
+            source.replace("clippy::too_many_lines", "clippy::other_lint"),
+            source.replace("#[allow(", "#[cfg(", 1),
+            source.replace("#[allow(", "#[derive(", 1),
+            source.replace("keep one complete discovery", "different reason"),
+            source.replace("0x5E7_0017", "0x5E7_0018"),
+            source + "\nfn extra() {}\n",
+        ):
+            self.assertNotEqual(changed, source)
+            self.assertIsNotNone(self.check(after=changed))
+        self.assertIsNotNone(self.check(path="crates/antecedent-stats/src/ci/calibration.rs"))
+
+    def test_tool_registration_and_source_observation_reject(self):
+        for path, source in (
+            ("crates/antecedent/src/other.rs", "#![register_tool(clippy)]"),
+            (
+                "crates/other/src/other.rs",
+                'fn f(){std::fs::read_to_string("sample_split_parent_set_effect_calibration.rs");}',
+            ),
+        ):
+            self.assertIsNotNone(self.check(extra={path: source}))
+
+
 if __name__ == "__main__":
     unittest.main()

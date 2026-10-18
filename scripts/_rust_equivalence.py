@@ -712,11 +712,52 @@ def _terminal_test_observer(
         return (
             "only the exact qualified terminal observer is permitted; all other tokens must match"
         )
+    return _restricted_test_source_context(path, before, old, new, old_sources, new_sources)
+
+
+def _reviewed_test_lint(path, old, new, old_sources, new_sources):
+    if path != "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs":
+        return "lint-only test path is not independently reviewed"
+    before, after = tokens(old), tokens(new)
+    if hashlib.sha256("\0".join(before).encode()).hexdigest() != (
+        "61d2d1d1af4d6f2d9dd58b52547c22ce1d4352e02a416fa34303177ac08b07de"
+    ):
+        return "lint-only original full token stream is not the reviewed fixture"
+    attribute = (
+        "#",
+        "[",
+        "allow",
+        "(",
+        "clippy",
+        "::",
+        "too_many_lines",
+        ",",
+        "reason",
+        "=",
+        '"keep one complete discovery, admission, estimation and recovery audit together per replicate"',
+        ")",
+        "]",
+    )
+    # Fixed insertion immediately before the reviewed non-macro replicate item.
+    index = 862
+    if before[index : index + 2] != ("fn", "replicate"):
+        return "lint-only reviewed item location changed"
+    if after != before[:index] + attribute + before[index:]:
+        return "only the exact builtin Clippy allow attribute may be inserted"
+    return _restricted_test_source_context(
+        path, before, old, new, old_sources, new_sources, lint_only=True
+    )
+
+
+def _restricted_test_source_context(
+    path, before, old, new, old_sources, new_sources, *, lint_only=False
+):
     crate = "/".join(path.split("/")[:2]) + "/"
     for sources, text in ((old_sources, old), (new_sources, new)):
         if sources.get(path) != text:
             return "test observer lacks its exact immutable source tree"
-        if problem := _compile_context(path, sources):
+        context = crate + "src/lib.rs" if lint_only else path
+        if problem := _compile_context(context, sources):
             return problem
         manifest = tomllib.loads(sources[crate + "Cargo.toml"])
         tables = [manifest, *manifest.get("target", {}).values()]
@@ -734,8 +775,9 @@ def _terminal_test_observer(
                     if _IDENT.fullmatch(before[j]):
                         derived.add(before[j])
                     j += 1
-        if problem := _derive_scope(path, sources, derived):
-            return problem
+        if not lint_only:
+            if problem := _derive_scope(path, sources, derived):
+                return problem
         for rel, source in sources.items():
             if not rel.endswith(".rs"):
                 continue
@@ -829,15 +871,23 @@ def _terminal_test_observer(
                 for i in range(len(code))
             ):
                 return "test observer source has location/token introspection"
-            if rel.startswith(crate) and (
-                any(code[i : i + 2] in (("as", "std"), ("mod", "std")) for i in range(len(code)))
-                or any(
-                    (alias or imported[-1]) == "std"
-                    for _, _, use in _uses(code)
-                    for imported, alias in _use_paths(use)
+            if (
+                not lint_only
+                and rel.startswith(crate)
+                and (
+                    any(
+                        code[i : i + 2] in (("as", "std"), ("mod", "std")) for i in range(len(code))
+                    )
+                    or any(
+                        (alias or imported[-1]) == "std"
+                        for _, _, use in _uses(code)
+                        for imported, alias in _use_paths(use)
+                    )
                 )
             ):
                 return "test observer crate has an unresolved std namespace binding"
+            if rel.startswith(crate) and {"register_tool", "register_attr"} & set(code):
+                return "reviewed test crate has unresolved attribute/tool registration"
             if rel.startswith(crate) and "macro_use" in code:
                 return "test observer crate has unresolved macro-use scope"
             if rel.startswith(crate) and any(
@@ -860,6 +910,8 @@ def prove(
 ) -> str | None:
     """None only when the restricted equivalence proof succeeds."""
     try:
+        if kind == "rust_reviewed_test_lint":
+            return _reviewed_test_lint(path, old, new, old_sources, new_sources)
         if kind == "rust_terminal_test_observer":
             return _terminal_test_observer(path, old, new, old_sources, new_sources)
         for sources in (old_sources, new_sources):

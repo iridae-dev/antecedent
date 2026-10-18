@@ -1162,7 +1162,12 @@ class ReviewedEquivalence:
 
 
 RUST_EQUIVALENCE_KINDS = frozenset(
-    {"rust_comments", "rust_pub_use_addition", "rust_terminal_test_observer"}
+    {
+        "rust_comments",
+        "rust_pub_use_addition",
+        "rust_terminal_test_observer",
+        "rust_reviewed_test_lint",
+    }
 )
 EQUIVALENCE_KINDS = (
     frozenset({"additive_wrapper", "proof_delegation", "retained_formula"}) | RUST_EQUIVALENCE_KINDS
