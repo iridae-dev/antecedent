@@ -775,9 +775,8 @@ def _restricted_test_source_context(
                     if _IDENT.fullmatch(before[j]):
                         derived.add(before[j])
                     j += 1
-        if not lint_only:
-            if problem := _derive_scope(path, sources, derived):
-                return problem
+        if not lint_only and (problem := _derive_scope(path, sources, derived)):
+            return problem
         for rel, source in sources.items():
             if not rel.endswith(".rs"):
                 continue
@@ -859,13 +858,16 @@ def _restricted_test_source_context(
             )
             if reads and "concat" in code and source_literals:
                 return f"{rel}: dynamically assembled source input is unresolved"
-            if source_literals and any(
-                code[i] in {"read_dir", "WalkDir", "walkdir", "glob", "glob_with"}
-                and code[i + 1 : i + 2] in (("(",), ("::",))
-                for i in range(len(code))
+            if (
+                source_literals
+                and any(
+                    code[i] in {"read_dir", "WalkDir", "walkdir", "glob", "glob_with"}
+                    and code[i + 1 : i + 2] in (("(",), ("::",))
+                    for i in range(len(code))
+                )
+                and not _isolated_python_defaults_scanner(rel, code, sources)
             ):
-                if not _isolated_python_defaults_scanner(rel, code, sources):
-                    return f"{rel}: unresolved source scanning forbids test observer proof"
+                return f"{rel}: unresolved source scanning forbids test observer proof"
             if rel == path and any(
                 code[i] in {"line", "column", "file", "stringify"} and code[i + 1 : i + 2] == ("!",)
                 for i in range(len(code))
