@@ -272,6 +272,44 @@ impl DrLearner {
         self.publish_units(effect, problem, ctx)
     }
 
+    /// Form a population ATE interval under independent homoskedastic Gaussian
+    /// arm-linear outcomes, including training-fold fit uncertainty and a declared
+    /// finite-ridge mean correction. The default robust fit remains unchanged.
+    ///
+    /// # Errors
+    /// Nonlinear outcome learners, dependence, unsupported target, failed fit, or invalid level.
+    pub fn population_linear_interval(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        level: f64,
+    ) -> Result<crate::population_aipw::PopulationAipwInterval, EstimationError> {
+        if self.units.spec.is_some() {
+            return Err(EstimationError::unsupported(
+                "population linear DR learner requires IID AIPW",
+            ));
+        }
+        let ridge = match self.outcome {
+            LearnerSpec::Linear(_) => 0.0,
+            LearnerSpec::Ridge(spec) => spec.lambda,
+            _ => {
+                return Err(EstimationError::unsupported(
+                    "population linear interval requires a linear outcome learner",
+                ));
+            }
+        };
+        let estimate = self.fit(problem, ctx, assumptions)?;
+        let nuisance =
+            cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+        let propensity = crate::learn_nuisance::guarded_propensity(
+            &nuisance.2,
+            crate::propensity::clip_of(problem.overlap),
+        )?;
+        let folds: Vec<u32> = nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+        crate::population_aipw::interval(problem, estimate, &propensity, &folds, ridge, level)
+    }
+
     /// Replace the iid standard error by the declared unit's cluster sandwich (the weighted
     /// influence's, for a sampling-weighted fit that keeps no score table).
     fn publish_units(

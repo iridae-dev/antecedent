@@ -799,6 +799,80 @@ impl AipwAte {
         self.attach_bootstrap(problem, workspace, ctx, point)
     }
 
+    /// Form a population interval under independent homoskedastic Gaussian arm-linear
+    /// outcomes, including the complete training-fold outcome-fit uncertainty.
+    ///
+    /// This explicit model construction leaves the robust default fit unchanged. Its
+    /// Gaussian conditional noise term and asymptotic random-population term are distinct.
+    ///
+    /// # Errors
+    /// Unsupported dependence, population, trimming, failed fit, or invalid confidence level.
+    pub fn population_linear_interval(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut AipwWorkspace,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        level: f64,
+    ) -> Result<crate::population_aipw::PopulationAipwInterval, EstimationError> {
+        if self.cluster_dml.is_some()
+            || self.cluster_ids.is_some()
+            || self.source_cluster_ids.is_some()
+            || self.multiway_ids.is_some()
+            || !matches!(self.se_kind, AnalyticSeKind::Homoskedastic | AnalyticSeKind::Hc1)
+            || self.bootstrap_replicates != 0
+        {
+            return Err(EstimationError::unsupported(
+                "population linear AIPW requires independent rows without bootstrap",
+            ));
+        }
+        let estimate = self.fit(problem, workspace, ctx, assumptions)?;
+        let table = estimate.scores.table.as_ref().ok_or_else(|| {
+            EstimationError::unsupported(
+                "population linear AIPW requires its cross-fit score table",
+            )
+        })?;
+        let propensity = table.propensities[problem.nrows..2 * problem.nrows].to_vec();
+        let folds = table.fold_ids.to_vec();
+        crate::population_aipw::interval(problem, estimate, &propensity, &folds, 0.0, level)
+    }
+
+    /// Form a control-population interval under independent arm-linear conditional means
+    /// with arbitrary heteroskedastic outcome variances. The complete treated-OLS training
+    /// coefficient enters an HC3 noise variance, with separate control-target heterogeneity.
+    /// This explicit asymptotic model construction leaves the default ATC fit unchanged.
+    ///
+    /// # Errors
+    /// Dependence, trimming, a non-control target, invalid level, or failed nuisance fit.
+    pub fn population_linear_atc_interval(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut AipwWorkspace,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        level: f64,
+    ) -> Result<crate::population_atc::PopulationAtcInterval, EstimationError> {
+        if self.cluster_dml.is_some()
+            || self.cluster_ids.is_some()
+            || self.source_cluster_ids.is_some()
+            || self.multiway_ids.is_some()
+            || !matches!(self.se_kind, AnalyticSeKind::Homoskedastic | AnalyticSeKind::Hc1)
+            || self.bootstrap_replicates != 0
+        {
+            return Err(EstimationError::unsupported(
+                "arm-linear ATC requires independent rows without bootstrap",
+            ));
+        }
+        let estimate = self.fit(problem, workspace, ctx, assumptions)?;
+        let model = PropensityModel::fit(
+            problem,
+            self.backend,
+            &mut workspace.propensity,
+            &self.glm_options,
+        )?;
+        crate::population_atc::interval(problem, estimate, &model.clipped_scores, level)
+    }
+
     /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
     /// uncertainty stage), without refitting the nuisance models. The resampling scheme is
     /// the one the point fit's route implies: cross-fitted score-table refits for custom

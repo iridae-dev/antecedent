@@ -281,6 +281,40 @@ impl DmlAte {
         Ok(estimate.with_treatment_levels(problem.treatment_levels))
     }
 
+    /// Form a population ATE interval under independent homoskedastic Gaussian
+    /// arm-linear outcomes, including training-fold fit uncertainty and a declared
+    /// finite-ridge mean correction. The default robust fit remains unchanged.
+    ///
+    /// # Errors
+    /// Nonlinear outcome learners, dependence, unsupported target, failed fit, or invalid level.
+    pub fn population_linear_interval(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        level: f64,
+    ) -> Result<crate::population_aipw::PopulationAipwInterval, EstimationError> {
+        if self.units.spec.is_some() || !matches!(self.score, DmlScore::Aipw) {
+            return Err(EstimationError::unsupported("population linear DML requires IID AIPW"));
+        }
+        let ridge = match self.outcome {
+            LearnerSpec::Linear(_) => 0.0,
+            LearnerSpec::Ridge(spec) => spec.lambda,
+            _ => {
+                return Err(EstimationError::unsupported(
+                    "population linear interval requires a linear outcome learner",
+                ));
+            }
+        };
+        let estimate = self.fit(problem, ctx, assumptions)?;
+        let nuisance =
+            cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+        let propensity =
+            guarded_propensity(&nuisance.2, crate::propensity::clip_of(problem.overlap))?;
+        let folds: Vec<u32> = nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+        crate::population_aipw::interval(problem, estimate, &propensity, &folds, ridge, level)
+    }
+
     /// Row-identified cross-fitted AIPW score table from this estimator's own out-of-fold
     /// nuisances (the same cached bundle [`Self::fit`] uses), or `None` when the fit has no
     /// such table: the partially linear score has no per-arm scores, and a trimmed fit is

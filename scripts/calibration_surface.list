@@ -76,8 +76,17 @@ key estimator.learner estimator dr.learner
 key estimator.learner estimator causal.forest
 estimator.mediation crates/antecedent-estimate/src/static_mediation.rs
 key estimator.mediation estimator mediation.*
+estimator.population_linear_atc crates/antecedent-estimate/src/population_atc.rs
+key estimator.population_linear_atc interval_method population_linear_atc_hc3
+# The only stats call is the fixed normal quantile.
+allow adaptive_interval crates/antecedent-estimate/src/population_atc.rs antecedent_stats
+estimator.population_linear_aipw crates/antecedent-estimate/src/population_aipw.rs
+key estimator.population_linear_aipw interval_method population_linear_aipw_score
+# Only core ridge normal equations and a fixed normal quantile are used here.
+allow adaptive_interval crates/antecedent-estimate/src/population_aipw.rs antecedent_stats
 estimator.propensity_weighting crates/antecedent-estimate/src/propensity/weighting.rs
 key estimator.propensity_weighting estimator propensity.weighting
+key estimator.propensity_weighting interval_method population_linear_aipw_score
 estimator.propensity_matching crates/antecedent-estimate/src/propensity/matching.rs
 key estimator.propensity_matching estimator propensity.matching
 # Distance matching and its M-donor wrapper execute matching_contrast too.

@@ -134,7 +134,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
                 self.assertFalse(groups.measures_current_protocol(group, {**new, "id": old["id"]}))
 
     def test_population_aipw_protocol_requires_actual_model_and_corrected_point_identity(self) -> None:
-        for name in ("weighted_aipw_interval", "weighted_dml_aipw_interval", "weighted_dr_learner_interval"):
+        for name in ("weighted_aipw_population_linear_interval", "weighted_dml_aipw_population_linear_interval", "weighted_dr_learner_population_linear_interval"):
             group = groups.Group(1, f"weighted_interval_calibration: {name}", False, True)
             record = {"id": "new", "test": f"crates/antecedent/tests/weighted_interval_calibration.rs::{name}",
                       "interval_method": "population_linear_aipw_score", "se_kind": "population_linear_homoskedastic",
@@ -144,6 +144,15 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
                                  ("functional", "all_observed.mean+point_correction=arm_linear_projection"),
                                  ("functional", "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population")):
                 self.assertFalse(groups.measures_current_protocol(group, {**record, field: value}))
+
+    def test_actual_cluster_reference_is_a_new_protocol(self) -> None:
+        for name in ("weighted_aipw_cluster_dml_interval", "weighted_dml_cluster_interval", "weighted_dr_learner_cluster_interval"):
+            group = groups.Group(1, f"weighted_interval_calibration: {name}", False, True)
+            record = {"test":f"crates/antecedent/tests/weighted_interval_calibration.rs::{name}",
+                      "interval_method":"student_analytic", "functional":"all_observed.mean+reference=cluster_df"}
+            self.assertTrue(groups.measures_current_protocol(group, record))
+            self.assertFalse(groups.measures_current_protocol(group, {**record,"interval_method":"analytic_se"}))
+            self.assertFalse(groups.measures_current_protocol(group, {**record,"functional":"all_observed.mean"}))
 
     def test_atc_model_protocol_requires_heteroskedastic_control_target(self) -> None:
         group = groups.Group(1, "weighted_interval_calibration: weighted_aipw_atc_interval", False, True)

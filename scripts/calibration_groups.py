@@ -194,6 +194,8 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
     if protocol:
         if protocol not in str(record.get("functional", "")):
             return False
+        if protocol == "reference=cluster_df":
+            return record.get("interval_method") == "student_analytic"
         if protocol == "interval_variance=heteroskedastic_arm_linear_training_hc3":
             return (record.get("interval_method") == "population_linear_atc_hc3"
                     and record.get("se_kind") == "population_linear_heteroskedastic_hc3"
@@ -218,10 +220,13 @@ def current_group_protocol(group: Group) -> str | None:
     """Construction identity required before old test names count as measured."""
     if group.head == "weighted_interval_calibration":
         return {
+            "weighted_aipw_cluster_dml_interval": "reference=cluster_df",
+            "weighted_dml_cluster_interval": "reference=cluster_df",
+            "weighted_dr_learner_cluster_interval": "reference=cluster_df",
             "weighted_aipw_atc_interval": "interval_variance=heteroskedastic_arm_linear_training_hc3",
-            "weighted_aipw_interval": "interval_variance=homoskedastic_gaussian_arm_linear_population",
-            "weighted_dml_aipw_interval": "interval_variance=homoskedastic_gaussian_arm_linear_population",
-            "weighted_dr_learner_interval": "interval_variance=homoskedastic_gaussian_arm_linear_population",
+            "weighted_aipw_population_linear_interval": "interval_variance=homoskedastic_gaussian_arm_linear_population",
+            "weighted_dml_aipw_population_linear_interval": "interval_variance=homoskedastic_gaussian_arm_linear_population",
+            "weighted_dr_learner_population_linear_interval": "interval_variance=homoskedastic_gaussian_arm_linear_population",
             "weighted_matching_interval": "matching=population_linear",
             "weighted_distance_matching_interval": "matching=population_linear",
             "weighted_stratification_interval": "stratification=regression_linear_hc3",

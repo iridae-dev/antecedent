@@ -1,13 +1,15 @@
-//! Coverage designs for the normal-approximation intervals of sampling-weighted effects.
+//! Coverage designs for declared sampling-weighted effect intervals.
 //!
 //! Units come from a simulated super-population and are included with a known, unequal
 //! probability that rises with a confounder `z`; a sampled unit's weight is its inverse
 //! inclusion probability. The population effect is `1` (the unit effect is `1 + z/2` and `z`
 //! has mean zero), so an estimator that ignored the weights would speak for the over-sampled
-//! high-`z` units and miss. Designs score `effect ± z_{0.975} · se`, except the Hajek IPW
-//! designs, which use positive covariate-calibrated weights and the corresponding full
-//! estimating-equation sandwich to control their finite-sample ratio instability. Stratification explicitly declares linear regression adjustment within finite
-//! propensity bins. Every construction is measured on a sample whose size the grid varies.
+//! high-`z` units and miss. Designs score the declared public endpoints: cluster-DML
+//! uses its published Student reference; IID balanced IPW and cross-fitted population-linear
+//! methods use model-assisted score intervals. Other routes
+//! score `effect ± z_{0.975} · se`. Stratification declares linear regression adjustment
+//! within finite propensity bins. Every construction is measured on the same original
+//! sample-size grid and super-population truth.
 //!
 //! A weighted interval is another construction than its unweighted namesake: its estimand,
 //! its variance and its effective sample size differ, so every record binds the functional
@@ -145,6 +147,33 @@ fn interval(effect: &EffectEstimate) -> Option<(f64, f64)> {
     let se = effect.se_analytic();
     (effect.ate.is_finite() && se.is_finite() && se > 0.0)
         .then_some((effect.ate - Z95 * se, effect.ate + Z95 * se))
+}
+
+/// Score the actual finite-cluster reference published by cluster-DML estimators.
+fn scored_cluster_reference(fit: Option<EffectEstimate>, rows: usize) -> Option<((f64, f64), u64)> {
+    let fit = fit?;
+    let df = fit.uncertainty.analytic.reference_df?;
+    let critical = antecedent_stats::student_t_ppf((1.0 + REPORTED_LEVEL) / 2.0, df);
+    let se = fit.se_analytic();
+    (df.is_finite()
+        && df > 0.0
+        && critical.is_finite()
+        && se.is_finite()
+        && se > 0.0
+        && fit.ate.is_finite())
+    .then_some(((fit.ate - critical * se, fit.ate + critical * se), rows as u64))
+}
+
+fn cluster_reference_construction(estimator: &str) -> Construction {
+    let mut basis = construction_for(
+        estimator,
+        "cluster",
+        "cluster",
+        "AverageEffect",
+        "all_observed.mean+reference=cluster_df",
+    );
+    basis.interval_method = "student_analytic".into();
+    basis
 }
 
 fn linear(sample: &Sample, cluster: bool) -> Option<EffectEstimate> {
@@ -536,8 +565,11 @@ fn measure_against(
 
 /// Preserve collected raw-construction records when a gate measures its declared upgrade.
 fn analytic_tally(test: &'static str, dgp: &'static str, basis: &Construction) -> CoverageTally {
-    let tally =
-        CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL);
+    let interval = match basis.interval_method.as_str() {
+        "student_analytic" => "student_analytic",
+        _ => INTERVAL,
+    };
+    let tally = CoverageTally::for_record(RecordKey { test, dgp, interval }, REPORTED_LEVEL);
     if basis.functional.contains("matching=population_linear") {
         tally.labelled("population_linear")
     } else if basis.functional.contains("stratification=regression_linear_hc3") {
@@ -617,6 +649,36 @@ fn upgraded_weighted_constructions_preserve_legacy_record_identity() {
         ids.push(tally.record_id().unwrap());
     }
     assert_ne!(ids[0], ids[1], "the new model variance must preserve old Satterthwaite records");
+}
+
+#[test]
+fn cluster_scoring_uses_the_published_student_reference_and_preserves_normal_evidence() {
+    let mut fit = EffectEstimate::new(2.0, 0.5, AssumptionSet::new(), no_clip());
+    fit.uncertainty.analytic.reference_df = Some(4.0);
+    let normal = interval(&fit).unwrap();
+    let student = scored_cluster_reference(Some(fit), 17).unwrap();
+    let critical = antecedent_stats::student_t_ppf(0.975, 4.0);
+    assert_eq!(student.1, 17);
+    assert!((student.0.0 - (2.0 - critical * 0.5)).abs() < 1e-12);
+    assert!(student.0.0 < normal.0 && student.0.1 > normal.1);
+    let raw = construction("aipw", "cluster", "cluster", "AverageEffect");
+    let upgraded = cluster_reference_construction("aipw");
+    let mut ids = Vec::new();
+    for basis in [raw, upgraded] {
+        let mut tally =
+            analytic_tally("weighted_aipw_cluster_dml_interval", "identity_probe", &basis);
+        tally.bind(
+            &basis,
+            ScopeFacts {
+                row_count: 1200,
+                replicates_ok: None,
+                posterior_draws: None,
+                unidentified_mass: 0.0,
+            },
+        );
+        ids.push(tally.record_id().unwrap());
+    }
+    assert_ne!(ids[0], ids[1]);
 }
 
 fn scored(fit: Option<EffectEstimate>, rows: usize) -> Option<((f64, f64), u64)> {
@@ -795,6 +857,68 @@ fn measure_balanced_hajek(test: &'static str, cluster: bool) {
     tally.assert();
 }
 
+/// Score the actual public model-assisted endpoints; no normal reconstruction in the harness.
+fn measure_population_aipw(
+    test: &'static str,
+    estimator: &str,
+    fit: impl Fn(&Sample) -> Option<antecedent_estimate::population_aipw::PopulationAipwInterval> + Sync,
+) {
+    let n = grid_n(1200);
+    let method = "population_linear_aipw_score";
+    let mut basis = construction_for(
+        estimator,
+        "population_linear_homoskedastic",
+        "iid",
+        "AverageEffect",
+        "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection",
+    );
+    basis.interval_method = method.into();
+    let mut tally = CoverageTally::for_record(
+        RecordKey { test, dgp: "informative_sampling_heterogeneous_effect", interval: method },
+        REPORTED_LEVEL,
+    );
+    let mut diagnostics = Vec::new();
+    for result in
+        map_replicates(n_sim(), |rep| fit(&sample(n, 91_000 + rep, Effect::Heterogeneous, false)))
+    {
+        let Some(result) = result else {
+            tally.skip();
+            continue;
+        };
+        tally.bind(
+            &basis,
+            ScopeFacts {
+                row_count: n as u64,
+                replicates_ok: None,
+                posterior_draws: None,
+                unidentified_mass: 0.0,
+            },
+        );
+        tally.record(Some((result.lower, result.upper)), TRUTH);
+        diagnostics.push((
+            result.estimate.ate,
+            result.noise_variance,
+            result.target_variance,
+            result.point_correction,
+        ));
+    }
+    if !diagnostics.is_empty() {
+        let count = diagnostics.len() as f64;
+        let mean = diagnostics.iter().map(|d| d.0).sum::<f64>() / count;
+        let variance =
+            diagnostics.iter().map(|d| (d.0 - mean).powi(2)).sum::<f64>() / (count - 1.0);
+        eprintln!(
+            "info population AIPW {test}: bias={:.6} sd={:.6} noise_variance={:.6} target_variance={:.6} point_correction={:.6}",
+            mean - TRUTH,
+            variance.sqrt(),
+            diagnostics.iter().map(|d| d.1).sum::<f64>() / count,
+            diagnostics.iter().map(|d| d.2).sum::<f64>() / count,
+            diagnostics.iter().map(|d| d.3).sum::<f64>() / count
+        );
+    }
+    tally.assert();
+}
+
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn weighted_aipw_interval() {
@@ -808,6 +932,27 @@ fn weighted_aipw_interval() {
             scored(aipw(&s), n)
         },
     );
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn weighted_aipw_population_linear_interval() {
+    measure_population_aipw("weighted_aipw_population_linear_interval", "aipw", |sample| {
+        let (data, estimand) = table(sample)?;
+        let estimator = AipwAte::new()
+            .with_bootstrap_replicates(0)
+            .with_sampling_weights(SamplingWeights::new(sample.w.clone()).ok()?);
+        let p = estimator.prepare(&data, &estimand, &query()).ok()?;
+        estimator
+            .population_linear_interval(
+                &p,
+                &mut AipwWorkspace::default(),
+                &ExecutionContext::for_tests(1),
+                AssumptionSet::new(),
+                REPORTED_LEVEL,
+            )
+            .ok()
+    });
 }
 
 #[test]
@@ -831,8 +976,6 @@ fn weighted_stratification_interval() {
     );
 }
 
-/// Weighted matching earns its own record: the variance of a weighted matched mean is another
-/// construction than the equal-weight Abadie-Imbens one (`matching_homoskedastic_ci_coverage`).
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn weighted_matching_interval() {
@@ -952,6 +1095,25 @@ fn weighted_dml_aipw_interval() {
 
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn weighted_dml_aipw_population_linear_interval() {
+    measure_population_aipw("weighted_dml_aipw_population_linear_interval", "dml", |sample| {
+        let (data, estimand) = table(sample)?;
+        let estimator =
+            DmlAte::new().with_sampling_weights(SamplingWeights::new(sample.w.clone()).ok()?);
+        let p = estimator.prepare(&data, &estimand, &query()).ok()?;
+        estimator
+            .population_linear_interval(
+                &p,
+                &ExecutionContext::for_tests(1),
+                AssumptionSet::new(),
+                REPORTED_LEVEL,
+            )
+            .ok()
+    });
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn weighted_dml_partially_linear_interval() {
     measure(
         "weighted_dml_partially_linear_interval",
@@ -976,6 +1138,29 @@ fn weighted_dr_learner_interval() {
         |n, seed| {
             let s = sample(n, seed, Effect::Heterogeneous, false);
             scored(dr_learner(&s), n)
+        },
+    );
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn weighted_dr_learner_population_linear_interval() {
+    measure_population_aipw(
+        "weighted_dr_learner_population_linear_interval",
+        "dr.learner",
+        |sample| {
+            let (data, estimand) = table(sample)?;
+            let estimator = DrLearner::new()
+                .with_sampling_weights(SamplingWeights::new(sample.w.clone()).ok()?);
+            let p = estimator.prepare(&data, &estimand, &query()).ok()?;
+            estimator
+                .population_linear_interval(
+                    &p,
+                    &ExecutionContext::for_tests(1),
+                    AssumptionSet::new(),
+                    REPORTED_LEVEL,
+                )
+                .ok()
         },
     );
 }
@@ -1007,22 +1192,60 @@ fn weighted_aipw_att_interval() {
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn weighted_aipw_atc_interval() {
-    measure(
-        "weighted_aipw_atc_interval",
-        "informative_sampling_constant_effect",
-        1200,
-        &construction_for(
-            "aipw",
-            "homoskedastic",
-            "iid",
-            "AverageEffect",
-            "untreated.mean+overlap=clip:none,trim:none",
-        ),
-        |n, seed| {
-            let s = sample(n, seed, Effect::Constant, false);
-            scored(aipw_in_sample(&s, TargetPopulation::Untreated, no_clip()), n)
-        },
+    let n = grid_n(1200);
+    let method = "population_linear_atc_hc3";
+    let mut basis = construction_for(
+        "aipw",
+        "population_linear_heteroskedastic_hc3",
+        "iid",
+        "AverageEffect",
+        "untreated.mean+overlap=clip:none,trim:none+interval_variance=heteroskedastic_arm_linear_training_hc3",
     );
+    basis.interval_method = method.into();
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "weighted_aipw_atc_interval",
+            dgp: "informative_sampling_constant_effect",
+            interval: method,
+        },
+        REPORTED_LEVEL,
+    );
+    for result in map_replicates(n_sim(), |rep| {
+        let s = sample(n, 91_000 + rep, Effect::Constant, false);
+        let (data, estimand) = table(&s)?;
+        let estimator = AipwAte::new()
+            .with_bootstrap_replicates(0)
+            .with_overlap(no_clip())
+            .with_sampling_weights(SamplingWeights::new(s.w).ok()?);
+        let p = estimator
+            .prepare(&data, &estimand, &query().with_target_population(TargetPopulation::Untreated))
+            .ok()?;
+        estimator
+            .population_linear_atc_interval(
+                &p,
+                &mut AipwWorkspace::default(),
+                &ExecutionContext::for_tests(1),
+                AssumptionSet::new(),
+                REPORTED_LEVEL,
+            )
+            .ok()
+    }) {
+        let Some(result) = result else {
+            tally.skip();
+            continue;
+        };
+        tally.bind(
+            &basis,
+            ScopeFacts {
+                row_count: n as u64,
+                replicates_ok: None,
+                posterior_draws: None,
+                unidentified_mass: 0.0,
+            },
+        );
+        tally.record(Some((result.lower, result.upper)), TRUTH);
+    }
+    tally.assert();
 }
 
 #[test]
@@ -1060,10 +1283,10 @@ fn weighted_aipw_cluster_dml_interval() {
         "weighted_aipw_cluster_dml_interval",
         "informative_sampling_clustered_heterogeneous_effect",
         1200,
-        &construction("aipw", "cluster", "cluster", "AverageEffect"),
+        &cluster_reference_construction("aipw"),
         |n, seed| {
             let s = sample(n, seed, Effect::Heterogeneous, true);
-            scored(aipw_cluster_dml(&s), n)
+            scored_cluster_reference(aipw_cluster_dml(&s), n)
         },
     );
 }
@@ -1197,10 +1420,10 @@ fn weighted_dml_cluster_interval() {
         "weighted_dml_cluster_interval",
         "informative_sampling_clustered_heterogeneous_effect",
         1200,
-        &construction("dml", "cluster", "cluster", "AverageEffect"),
+        &cluster_reference_construction("dml"),
         |n, seed| {
             let s = sample(n, seed, Effect::Heterogeneous, true);
-            scored(clustered_flexible(&s, false), n)
+            scored_cluster_reference(clustered_flexible(&s, false), n)
         },
     );
 }
@@ -1212,10 +1435,10 @@ fn weighted_dr_learner_cluster_interval() {
         "weighted_dr_learner_cluster_interval",
         "informative_sampling_clustered_heterogeneous_effect",
         1200,
-        &construction("dr.learner", "cluster", "cluster", "AverageEffect"),
+        &cluster_reference_construction("dr.learner"),
         |n, seed| {
             let s = sample(n, seed, Effect::Heterogeneous, true);
-            scored(clustered_flexible(&s, true), n)
+            scored_cluster_reference(clustered_flexible(&s, true), n)
         },
     );
 }

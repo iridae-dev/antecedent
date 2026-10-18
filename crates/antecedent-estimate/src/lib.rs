@@ -55,6 +55,8 @@ pub mod frontdoor_functional;
 pub mod functional_distribution;
 pub mod gcomp;
 pub mod glm_adjustment;
+pub mod population_aipw;
+pub mod population_atc;
 pub use antecedent_stats::identified_set;
 pub mod interference;
 pub mod interference_observational;
