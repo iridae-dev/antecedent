@@ -49,6 +49,17 @@
 estimator.discovered_transport crates/antecedent/src/analysis/discovered_transport_estimate.rs
 estimator.discovered_transport crates/antecedent/src/analysis/discovered_transport_temporal.rs
 key estimator.discovered_transport query DiscoveredTransport
+# Catalog search and exact transport plans are not used by regression/response
+# constructors. The transport tests below replay the genuine changed paths;
+# their unrelated records do not acquire a fabricated execution dependency.
+identity.catalog_transport crates/antecedent-identify/src/sid/catalog.rs
+key identity.catalog_transport query *Transport*
+key identity.catalog_transport estimator *transport*
+key identity.catalog_transport functional *catalog_transport*
+estimator.exact_transport crates/antecedent-expr/src/exact_plan.rs
+key estimator.exact_transport query *Transport* *Finite* *Exact* *Recalc* *Distribution* *Counterfactual* *Functional* ObservationConditionalProbability
+key estimator.exact_transport estimator *transport* *exact* *recalc* *finite* functional.* *count_fitted*
+key estimator.exact_transport functional *exact* *recalc* *finite* *fitted_table*
 estimator.pcmci_plus crates/antecedent-discovery/src/pcmci_plus.rs
 key estimator.pcmci_plus query DiscoveredTransport
 key estimator.pcmci_plus estimator *pcmci_plus* *jpcmci* *rpcmci* *orientation_stability*
