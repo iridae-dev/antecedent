@@ -2079,9 +2079,9 @@ def weighted_cluster_replay_environment(records: list[dict]) -> dict[str, str]:
         ):
             continue
         identity = record.get("interval_method"), record.get("functional")
-        if identity == ("analytic_se", "all_observed.mean"):
+        if identity == ("analytic_se", "all_observed.mean+weights=sampling"):
             versions.add(1)
-        elif identity == ("student_analytic", "all_observed.mean+reference=cluster_df"):
+        elif identity == ("student_analytic", "all_observed.mean+reference=cluster_df+weights=sampling"):
             versions.add(2)
         else:
             raise ValueError(f"unknown stored weighted cluster protocol {identity!r}")

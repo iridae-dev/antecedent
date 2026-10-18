@@ -150,9 +150,9 @@ class WeightedClusterReplayProtocolTest(unittest.TestCase):
             "weighted_dr_learner_cluster_interval",
         ):
             with self.subTest(test=test):
-                old = self.record(test, "analytic_se", "all_observed.mean")
+                old = self.record(test, "analytic_se", "all_observed.mean+weights=sampling")
                 new = self.record(
-                    test, "student_analytic", "all_observed.mean+reference=cluster_df"
+                    test, "student_analytic", "all_observed.mean+reference=cluster_df+weights=sampling"
                 )
                 self.assertEqual(
                     facets.weighted_cluster_replay_environment([old]),
@@ -170,6 +170,24 @@ class WeightedClusterReplayProtocolTest(unittest.TestCase):
                 ):
                     with self.assertRaisesRegex(ValueError, "unknown stored"):
                         facets.weighted_cluster_replay_environment([altered])
+
+    def test_checked_in_cluster_records_bind_the_actual_sampling_weight_functional(self) -> None:
+        records = facets.load_records()
+        selected = [
+            record for record in records
+            if record["test"].endswith((
+                "::weighted_aipw_cluster_dml_interval",
+                "::weighted_dml_cluster_interval",
+                "::weighted_dr_learner_cluster_interval",
+            ))
+        ]
+        self.assertEqual(len(selected), 6)
+        for record in selected:
+            expected = "1" if record["interval_method"] == "analytic_se" else "2"
+            self.assertEqual(
+                facets.weighted_cluster_replay_environment([record]),
+                {"ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL": expected},
+            )
 
     def test_other_gate_does_not_acquire_a_cluster_override(self) -> None:
         self.assertEqual(
