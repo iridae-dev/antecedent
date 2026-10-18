@@ -3,8 +3,12 @@ from pathlib import Path
 root=Path('/Users/charleshinshaw/Desktop/antecedent')
 archive=root/'target/calibration-replay/recordless-count-recovery-767659966'
 planfile=archive/'plan.json';plan=json.loads(planfile.read_text(encoding='utf-8'))
-assert subprocess.check_output(['git','-C',plan['worktree'],'rev-parse','HEAD'],text=True).strip()==plan['source']
-assert not subprocess.check_output(['git','-C',plan['worktree'],'status','--porcelain'],text=True).strip()
+recorded_head=subprocess.check_output(['git','-C',plan['worktree'],'rev-parse','HEAD'],text=True).strip()
+if recorded_head != plan['source']:
+ raise ValueError('recovery worktree does not match the recorded source')
+worktree_status=subprocess.check_output(['git','-C',plan['worktree'],'status','--porcelain'],text=True).strip()
+if worktree_status:
+ raise ValueError('recovery worktree has uncommitted changes')
 results=[]
 for case in plan['cases']:
  raw=archive/(case['package']+'.log');text=raw.read_text(encoding='utf-8')

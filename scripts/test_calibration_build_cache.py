@@ -155,11 +155,12 @@ class SharedCargoSourceContextTest(unittest.TestCase):
 
     def test_interrupted_prebuild_releases_lock_and_keeps_sources_invalidated(self) -> None:
         root = self.checkout("first", "answer=1")
-        with (
-            self.assertRaisesRegex(RuntimeError, "failed"),
-            guarded_release_cache(root, self.target),
-        ):
-            raise RuntimeError("failed")
+
+        def failed_prebuild() -> None:
+            with guarded_release_cache(root, self.target):
+                raise RuntimeError("failed")
+
+        self.assertRaisesRegex(RuntimeError, "failed", failed_prebuild)
         with guarded_release_cache(root, self.target) as receipt:
             self.assertEqual(receipt["invalidated_inputs"], [])
             self.assertEqual(self.timestamp_build(root), "answer=1")

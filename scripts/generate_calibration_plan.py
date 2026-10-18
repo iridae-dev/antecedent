@@ -420,11 +420,13 @@ def render() -> str:
         lines = [
             "# Calibration backlog plan",
             "",
-            "Generated from `support_licensed.toml`: 0 cells across 0 coordinates remain "
-            "marked `estimator_grid_not_measured`. All seventeen reviewed coordinates now "
-            "cite existing measured records without unresolved boundary points. These bindings "
-            "retain their exact method and source scopes; current attestation and execution "
-            "binding are still required. Historical planning alone grants no calibration.",
+            (
+                "Generated from `support_licensed.toml`: 0 cells across 0 coordinates remain "
+                "marked `estimator_grid_not_measured`. All seventeen reviewed coordinates now "
+                "cite existing measured records without unresolved boundary points. These bindings "
+                "retain their exact method and source scopes; current attestation and execution "
+                "binding are still required. Historical planning alone grants no calibration."
+            ),
             "",
             "## Completed reviewed coordinate bindings",
             "",
