@@ -36,11 +36,15 @@ struct Fixture {
 }
 
 fn fixture(seed: u64) -> Fixture {
+    fixture_with_groups(seed, GROUPS)
+}
+
+fn fixture_with_groups(seed: u64, groups: usize) -> Fixture {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xC1D);
-    let n = GROUPS * SIZE;
+    let n = groups * SIZE;
     let (mut t, mut y, mut z0, mut z1) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     let mut cluster = vec![0_u32; n];
-    for g in 0..GROUPS {
+    for g in 0..groups {
         let shift = 0.7 * standard_normal(&mut rng);
         let shock = 1.5 * standard_normal(&mut rng);
         let effect = 2.0 + 1.5 * standard_normal(&mut rng);
@@ -154,6 +158,50 @@ fn the_published_interval_uses_the_few_cluster_t_reference() {
     assert_eq!(plain.uncertainty.analytic.reference_df, None);
     let published = PublishedScalarUncertainty::select(plain);
     close(published.critical_value(plain), antecedent::result::reported_se_interval_z(), "normal");
+}
+
+/// Even where the Student evidence covers the row count, a normal interval cannot borrow it.
+#[test]
+fn unweighted_normal_cluster_never_borrows_student_calibration() {
+    use antecedent_io::calibration::calibration_slot_in;
+    use antecedent_io::coverage_records_data::RECORDS;
+
+    let student = *RECORDS
+        .iter()
+        .find(|record| record.test.ends_with("::cluster_dml_t_wald_interval"))
+        .unwrap();
+    let normal = *RECORDS
+        .iter()
+        .find(|record| {
+            record.test.ends_with("::practitioner_aipw_cluster_interval")
+                && record.nominal.to_bits() == 0.95_f64.to_bits()
+        })
+        .unwrap();
+    assert!(student.n_min <= 800 && student.n_max >= 800);
+    for rows in [800, 1000] {
+        let fx = fixture_with_groups(5, rows / SIZE);
+        let study = Study::tabular(fx.data.clone())
+            .graph(fx.graph.clone())
+            .query(query())
+            .estimator(
+                AipwAte::new()
+                    .with_bootstrap_replicates(0)
+                    .with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster)
+                    .with_source_cluster_ids(fx.cluster.clone()),
+            )
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let result = study.run(&ExecutionContext::for_tests(5)).unwrap();
+        assert!(result.estimate.as_effect().unwrap().uncertainty.analytic.reference_df.is_none());
+        let basis = result.calibration_bases(&study.inspect().unwrap()).unwrap().remove(0);
+        assert_eq!(basis.key.interval_method, "analytic_se");
+        assert_eq!(basis.key.se_kind, "cluster");
+        assert_eq!(basis.key.dependence, "iid", "historical normal key convention");
+        let selected = calibration_slot_in(&basis, &[student, normal]);
+        assert_eq!(selected.record_id.as_deref(), Some(normal.id));
+        assert_eq!(selected.status, if rows == 800 { "scope_not_assessed" } else { "calibrated" });
+    }
 }
 
 /// These are lookup fixtures only: the stored normal row must never license Student endpoints.

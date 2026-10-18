@@ -1608,9 +1608,8 @@ impl StudyResult {
     /// correlation is not the `iid` construction of exchangeable rows: its variance ignores
     /// the dependence the data have, and a calibration measured for `iid` rows says nothing
     /// about it. It is labelled `serial_unmodelled`; a Newey-West kernel SE models the serial
-    /// correlation and is labelled `serial_hac`. A tabular cluster-sandwich SE is labelled
-    /// `cluster`; panel and other modalities keep [`Self::base_dependence`]. The posterior
-    /// bindings keep the base label too: a temporal
+    /// correlation and is labelled `serial_hac`. Every other modality keeps
+    /// [`Self::base_dependence`]. The posterior bindings keep the base label too: a temporal
     /// posterior's serial-dependence handling (long-run tempering) is part of its construction
     /// and named by its posterior key, not by this dimension.
     fn se_dependence(&self, se_kind: Option<antecedent_estimate::AnalyticSeKind>) -> &'static str {
@@ -1620,9 +1619,6 @@ impl StudyResult {
                 Some(antecedent_estimate::AnalyticSeKind::NeweyWest { .. }) => "serial_hac",
                 _ => "serial_unmodelled",
             },
-            C::Tabular if se_kind == Some(antecedent_estimate::AnalyticSeKind::Cluster) => {
-                "cluster"
-            }
             _ => self.base_dependence(),
         }
     }

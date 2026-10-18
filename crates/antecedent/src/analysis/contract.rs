@@ -2530,28 +2530,34 @@ fn data_row_count(data: &DataInput) -> u64 {
     }
 }
 
-/// Keep the measured weighted cluster reference separate from historical normal intervals.
-/// The analytic method enum still describes an SE family; this key also binds its reference.
-fn weighted_cluster_reference_key(
+/// Match the historical cluster constructions by their actual published reference.
+/// The unweighted normal key's `iid` spelling is a legacy key convention; its `cluster`
+/// SE kind still denotes clustered uncertainty. It does not assert independent errors.
+fn cluster_reference_key(
     result: &StudyResult,
     binding: &IntervalBinding,
     contract: &CausalContract,
-) -> (&'static str, String) {
-    let ordinary = (binding.method.as_str(), contract.functional.to_string());
+) -> (&'static str, String, &'static str) {
+    let ordinary = (binding.method.as_str(), contract.functional.to_string(), binding.dependence);
     if binding.method != IntervalMethod::AnalyticSe
         || binding.se_kind != Some(antecedent_estimate::AnalyticSeKind::Cluster)
-        || binding.dependence != "cluster"
-        || !matches!(result.logical_plan.estimator.as_deref(), Some("aipw" | "dml" | "dr.learner"))
-        || !result.estimate.as_effect().is_some_and(|estimate| {
-            estimate.uncertainty.analytic.reference_df.is_some_and(|df| df.is_finite() && df > 0.0)
-        })
+        || result.logical_plan.data_classification
+            != antecedent_contract::DataClassification::Tabular
     {
         return ordinary;
     }
-    let Some(functional) = contract.functional.strip_suffix("+weights=sampling") else {
-        return ordinary;
-    };
-    ("student_analytic", format!("{functional}+reference=cluster_df+weights=sampling"))
+    let student = result.estimate.as_effect().is_some_and(|estimate| {
+        estimate.uncertainty.analytic.reference_df.is_some_and(|df| df.is_finite() && df > 0.0)
+    });
+    match (contract.functional.strip_suffix("+weights=sampling"), student) {
+        (Some(functional), true) => (
+            "student_analytic",
+            format!("{functional}+reference=cluster_df+weights=sampling"),
+            "cluster",
+        ),
+        (Some(_), false) | (None, true) => (ordinary.0, ordinary.1, "cluster"),
+        (None, false) => ordinary,
+    }
 }
 
 impl StudyResult {
@@ -2626,8 +2632,8 @@ impl StudyResult {
         self.reported_interval_bindings(bayesian)
             .into_iter()
             .map(|binding| {
-                let (interval_method, functional) =
-                    weighted_cluster_reference_key(self, &binding, contract);
+                let (interval_method, functional, dependence) =
+                    cluster_reference_key(self, &binding, contract);
                 CalibrationBasisWire {
                     key: CalibrationKeyWire {
                         query: query.clone(),
@@ -2638,7 +2644,7 @@ impl StudyResult {
                         estimator: self.logical_plan.estimator.as_deref().unwrap_or("").to_string(),
                         interval_method: interval_method.to_string(),
                         se_kind: binding.se_kind.map_or("", |kind| kind.as_str()).to_string(),
-                        dependence: binding.dependence.to_string(),
+                        dependence: dependence.to_string(),
                         posterior: contract.posterior.to_string(),
                         functional,
                         level: if binding.level.is_finite() { binding.level } else { 0.0 },
