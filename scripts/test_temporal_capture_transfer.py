@@ -111,6 +111,7 @@ class TemporalTransfer(unittest.TestCase):
             build = {
                 "source": "M",
                 "purpose": "final_source",
+                "default_features": True,
                 "status": "passed",
                 "executables": {binary: {"sha256": "binary-hash"}},
             }
@@ -167,6 +168,27 @@ class TemporalTransfer(unittest.TestCase):
                     )
 
             self.assertEqual(load(capture), capture["payloads"])
+            wrong_features = copy.deepcopy(build)
+            wrong_features["default_features"] = False
+            wrong_raw = json.dumps(wrong_features).encode()
+            (path / "build.json").write_bytes(wrong_raw)
+            altered = copy.deepcopy(capture)
+            altered["ordinary_execution"]["build_receipt_sha256"] = hashlib.sha256(
+                wrong_raw
+            ).hexdigest()
+            with self.assertRaises(ValueError):
+                load(altered)
+            (path / "build.json").write_bytes(raw)
+            original_log = (path / "ordinary.log").read_bytes()
+            wrong_log = original_log + b'calibration-record {"measured_at":"old-source"}\n'
+            (path / "ordinary.log").write_bytes(wrong_log)
+            altered = copy.deepcopy(capture)
+            altered["ordinary_capture"]["logs"]["ordinary.log"] = hashlib.sha256(
+                wrong_log
+            ).hexdigest()
+            with self.assertRaises(ValueError):
+                load(altered)
+            (path / "ordinary.log").write_bytes(original_log)
             mutations = [
                 lambda c: c.update(source_sha="wrong"),
                 lambda c: c.pop("temporal_capture"),

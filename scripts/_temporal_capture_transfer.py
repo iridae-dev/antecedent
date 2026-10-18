@@ -265,6 +265,7 @@ def load_composite(
         build.get("source") != source_sha
         or build.get("status") != "passed"
         or build.get("purpose") != "final_source"
+        or build.get("default_features") is not True
     ):
         raise ValueError("ordinary guarded build does not bind the final source")
     gate_hash = sha256(_git(root, "show", f"{source_sha}:scripts/gate_calibration.sh"))
@@ -291,6 +292,13 @@ def load_composite(
                 raise ValueError(
                     "ordinary grid log lacks its actual final executable/terminal pass"
                 )
+            for line in text.splitlines():
+                if (
+                    line.startswith("calibration-record ")
+                    and json.loads(line.removeprefix("calibration-record ")).get("measured_at")
+                    != source_sha
+                ):
+                    raise ValueError("ordinary raw producer source differs from its final source")
     merged = transferred | {record: payloads[record] for record in ORDINARY_RECORDS}
     if not equal(merged, capture.get("payloads")):
         raise ValueError("composed payload changed beyond its verified children")
