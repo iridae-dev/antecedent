@@ -176,12 +176,15 @@ def split_size_problems(case: dict[str, Any]) -> list[str]:
             or not math.isclose(rows, total * (1 - fraction), rel_tol=0, abs_tol=1e-9)):
         return [f"{case['id']}: analysis_rows must equal participants * (1 - discovery_fraction) "
                 "with positive integer counts and a declared fraction in (0, 1)"]
+    if config.get("record_size_basis", "analysis_rows") not in {"analysis_rows", "procedure_rows"}:
+        return [f"{case['id']}: unknown split record_size_basis"]
     return []
 
 
 def case_size(case: dict[str, Any]) -> int | None:
     """Estimator record scope uses analysis rows; enrollment remains in the manifest."""
-    if "analysis_rows" in case["configuration"]:
+    if ("analysis_rows" in case["configuration"]
+            and case["configuration"].get("record_size_basis", "analysis_rows") == "analysis_rows"):
         return case["configuration"]["analysis_rows"]
     return next((case["configuration"][k] for k in ("participants", "rows", "steps")
                  if isinstance(case["configuration"].get(k), int)), None)

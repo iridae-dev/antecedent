@@ -129,6 +129,11 @@ class ReleaseClosureTest(unittest.TestCase):
                                    "discovery_fraction": 0.5}
         self.assertEqual(closure.case_size(target), 1500)
         self.assertEqual(closure.split_size_problems(target), [])
+        target["configuration"]["record_size_basis"] = "procedure_rows"
+        self.assertEqual(closure.case_size(target), 3000)
+        self.assertEqual(closure.split_size_problems(target), [])
+        target["configuration"]["record_size_basis"] = "ambiguous"
+        self.assertTrue(closure.split_size_problems(target))
 
     def test_parent_split_case_cannot_borrow_a_legacy_half_split_record(self) -> None:
         target = case("parent", "calibrated_interval",

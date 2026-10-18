@@ -231,6 +231,51 @@ def test_source(text: str, suffix: str, name: str) -> tuple[str, str] | None:
                 break
             body.append(following)
         return _attributes_above(lines, index), "\n".join(body)
+    return macro_test_source(text, name) if suffix == ".rs" else None
+
+
+def macro_test_source(text: str, name: str) -> tuple[str, str] | None:
+    """Recognize same-file test macros forwarding their first identifier unchanged.
+
+    This deliberately supports only the simple declarative form used by the calibration
+    roster. A mention in a comment, a non-test macro or renamed forwarding is not evidence.
+    """
+    if not re.search(r"!\s*\(\s*" + re.escape(name) + r"\s*[,)]", text):
+        return None
+    from _rust_source import lex
+
+    source = lex(text)
+    definitions: dict[str, tuple[str, str]] = {}
+    for match in re.finditer(r"\bmacro_rules!\s+(\w+)\s*\{", source.skeleton):
+        start, depth, end = match.end(), 1, match.end()
+        while end < len(source.skeleton) and depth:
+            depth += (source.skeleton[end] == "{") - (source.skeleton[end] == "}")
+            end += 1
+        if depth:
+            continue
+        body = source.skeleton[start:end - 1]
+        binder = re.match(r"\s*\(\s*\$(\w+)\s*:\s*ident\s*[,)]", body)
+        if binder:
+            definitions[match.group(1)] = (binder.group(1), source.kept[start:end - 1])
+
+    def resolve(macro: str, visited: set[str]) -> tuple[str, str] | None:
+        if macro in visited or macro not in definitions:
+            return None
+        parameter, body = definitions[macro]
+        skeleton = lex(body).skeleton
+        generated = re.search(r"\bfn\s+\$" + re.escape(parameter) + r"\s*\(", skeleton)
+        if generated and re.search(r"#\s*\[\s*test\s*\]", skeleton[:generated.start()]):
+            return body[:generated.start()], body.replace("$" + parameter, name)
+        for forwarded in re.finditer(r"\b(\w+)!\s*\(\s*\$" + re.escape(parameter) + r"\s*[,)]", skeleton):
+            result = resolve(forwarded.group(1), visited | {macro})
+            if result:
+                return result[0], body + "\n" + result[1]
+        return None
+
+    for invocation in re.finditer(r"\b(\w+)!\s*\(\s*" + re.escape(name) + r"\s*[,)]", source.skeleton):
+        result = resolve(invocation.group(1), set())
+        if result:
+            return result
     return None
 
 
@@ -332,7 +377,7 @@ def evidence_problems(prefix: str, evidence: Any, root: Path = ROOT, kind: Any =
     else:
         return [f"{prefix}: test file {path} must be .rs or .py"]
     text = source.read_text(encoding="utf-8")
-    if not re.search(pattern, text, re.MULTILINE):
+    if test_source(text, source.suffix, name) is None:
         return [f"{prefix}: {path} does not define {name}"]
     return closure_problems(prefix, evidence, kind, root, path, name, text, source.suffix)
 

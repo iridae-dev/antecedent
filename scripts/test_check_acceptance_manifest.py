@@ -28,6 +28,28 @@ def case(cid: str = "c", kind: str = "value", evidence: dict[str, Any] | None = 
 
 
 class RequireBoundTest(unittest.TestCase):
+    def test_same_file_forwarding_macro_must_really_generate_the_named_test(self) -> None:
+        source = '''
+macro_rules! outer { ($name:ident, $x:expr) => { inner!($name, $x); }; }
+macro_rules! inner { ($name:ident, $x:expr) => {
+    #[test]
+    #[ignore = "calibration"]
+    fn $name() { assert!(run($x)); }
+}; }
+outer!(actual, 4);
+// outer!(comment_only, 7);
+const TEXT: &str = "outer!(string_only, 10);";
+'''
+        result = manifest.test_source(source, ".rs", "actual")
+        self.assertIsNotNone(result)
+        self.assertIn("#[ignore", result[0])
+        self.assertIn("fn actual()", result[1])
+        for absent in ("comment_only", "string_only", "nonexistent"):
+            self.assertIsNone(manifest.test_source(source, ".rs", absent))
+        self.assertIsNone(manifest.test_source(source.replace("#[test]", ""), ".rs", "actual"))
+        renamed = source.replace("inner!($name, $x)", "inner!(different, $x)")
+        self.assertIsNone(manifest.test_source(renamed, ".rs", "actual"))
+
     @staticmethod
     def manifest_of(*cases: dict[str, Any]) -> dict[str, Any]:
         return {"manifest": {"schema_version": 1}, "case": list(cases)}
