@@ -145,6 +145,18 @@ class ReleaseClosureTest(unittest.TestCase):
                    "functional": "total_effect.variables_15.discovery_fraction_0_75.topology_layered"}
         self.assertEqual(closure.records_of(target, [legacy, current]), [current])
 
+    def test_weighted_split_new_allocation_keeps_procedure_scope_and_version_binding(self) -> None:
+        target = case("weighted", "calibrated_interval",
+                      "crates/antecedent/tests/sample_split_weighted_effect_calibration.rs::design",
+                      configuration={"participants": 3000, "analysis_rows": 750,
+                                     "discovery_fraction": 0.75, "record_size_basis": "procedure_rows"})
+        legacy = record(test=target["evidence"]["test"], n_min=3000, n_max=3000,
+                        functional="weighted_population_total_effect")
+        current = {**legacy, "id": "v2", "functional":
+                   "weighted_population_total_effect.discovery_fraction_0_75.conflict_resolution_treatment_invariant"}
+        self.assertEqual(closure.case_size(target), 3000)
+        self.assertEqual(closure.records_of(target, [legacy, current]), [current])
+
     def test_calibrated_records_need_two_thousand_replicates_and_uncertainty(self) -> None:
         data = self.calibrated()
         self.assertEqual(closure.calibrated_record_problems(data, [record()]), [])

@@ -37,6 +37,7 @@ Changes since 2.4.0. Released identities, artifact encodings and goldens are unc
 ### Changed
 
 - The versioned treatment-parent-set effect procedure allocates three quarters of rows to discovery and one quarter to independent analysis. Earlier half-split sources replay under their original version; their records do not attest the new allocation.
+- The weighted discovery-to-effect calibration procedure uses a distinct three-quarter discovery allocation and accepts orientation conflicts only when the treatment parent set is invariant across compatible resolutions. Its legacy half-split replay remains separate.
 - Sampling-weighted interval constructions distinguish calibrated IPW scores, model-assisted outcome noise and target-population variation, regression-adjusted propensity strata, and the finite-cluster reference returned by cluster DML. Measurement scores the actual published interval and keeps each method identity distinct.
 - Formal coverage-compatibility decisions use a frozen complete source family, exact binomial tails and predeclared replicate looks in a fresh validation seed domain. Existing collected records retain their original semantics. Reporting, width, scientific coverage floors and replicate minima remain separate requirements; non-rejection is not proof of nominal coverage.
 - Model and attribution refusals that name a registered reason code raise the unsupported-route exception in Python, with `reason_code` set.

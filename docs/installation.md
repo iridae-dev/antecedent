@@ -1,6 +1,6 @@
 # Install and verify Antecedent
 
-Choose a released package for ordinary use or a source checkout when testing an unreleased branch. Read documentation for the same version as your package.
+Choose a released package for ordinary use or a source checkout when testing an unreleased branch. Read documentation for the same version as your package. This branch is the [2.4.1 release draft](release-notes/v2.4.1.md); the registry installation commands below select the published 2.4 line and do not install an unreleased candidate.
 
 ## Python package
 
@@ -17,9 +17,9 @@ The release wheel matrix covers CPython 3.11–3.14 on Linux x86_64 and aarch64 
 
 For notebooks, install `pandas matplotlib ipykernel jupyterlab` in that environment, run `python -m ipykernel install --user --name antecedent-24`, and select that kernel. After upgrading an imported native extension, restart the kernel. [Choose an example](examples.md) for its additional dependencies.
 
-## Testing the 2.4 branch before publication
+## Testing 2.4.1 before publication
 
-Installing from PyPI does not install an unreleased branch. In a checkout of `2.4.0`, create and activate a virtual environment, then:
+Installing from PyPI does not install an unreleased branch. In a checkout of the `2.4.1` branch, create and activate a virtual environment, then:
 
 ```bash
 python -m pip install maturin

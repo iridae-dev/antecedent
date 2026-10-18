@@ -155,6 +155,11 @@ def records_of(case: dict[str, Any], records: list[dict[str, Any]]) -> list[dict
             fraction = case["configuration"].get("discovery_fraction")
             if fraction != 0.75 or "discovery_fraction_0_75" not in record.get("functional", "").split("."):
                 continue
+        if ("sample_split_weighted_effect_calibration.rs::" in wanted
+                and case["configuration"].get("discovery_fraction") == 0.75
+                and not {"discovery_fraction_0_75", "conflict_resolution_treatment_invariant"}
+                    .issubset(record.get("functional", "").split("."))):
+            continue
         if not math.isclose(record.get("nominal", math.nan), targets.get("nominal_coverage", math.nan), abs_tol=1e-9):
             continue
         if size is not None and not record["n_min"] <= size <= record["n_max"]:
