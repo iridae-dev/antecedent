@@ -45,6 +45,7 @@ Environment: INTERVAL_COORDINATES_ROOT (tree to read, default the repo), INTERVA
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import os
 import re
@@ -318,6 +319,52 @@ def measured_recordless_registration(registration: dict, path: Path) -> bool:
         and re.fullmatch(r"[0-9a-f]{40}", row.get("calibration_sha", ""))
         for row in load("parity/calibration_gates.toml").get("gate", [])
     )
+
+
+def reviewed_nonemitting_boundary(registration: dict, path: Path) -> bool:
+    """The original cancelling-edge diagnostic deliberately emits no typed record.
+
+    Reviewed literal-preserving function tokens prove its named-boundary branch
+    returns before emission. `score(..., false)` only persists the unkeyed
+    reporting/recovery tallies. This is diagnostic ownership, never calibration
+    authority or an exemption for another mixed suite. All three original gate
+    receipts and complete-tree attestation are still required.
+    """
+    from _rust_equivalence import tokens
+
+    name = "sample_split_cancelling_edge_boundary_95"
+    if (
+        registration["target"] != "sample_split_effect_calibration"
+        or registration["name"] != name
+        or path != ROOT / "crates/antecedent/tests/sample_split_effect_calibration.rs"
+        or name not in ignored_test_literals(path).get(name, [])
+    ):
+        return False
+    expected = {
+        name: "7b4cf337d050b09e1ad8ddce6c1c404ea4dfdf581fdc96eab9650f6293bac630",
+        "named_boundary": "4ebe326283cc811eccaca2f87a41afd08ba2bc49d8dc393921769db8f76bf88e",
+        "score": "503171f8d5a4096e09d6ffa02ae9159531f7c3a458e8e4f029392f285823c48d",
+    }
+    masked, items = rust_items(path.resolve())
+    for function, digest in expected.items():
+        matches = [item for item in items if item.kind == "fn" and item.name == function]
+        if len(matches) != 1:
+            return False
+        item = matches[0]
+        payload = json.dumps(tokens(masked.code[item.start:item.body[1]]), separators=(",", ":"))
+        if hashlib.sha256(payload.encode()).hexdigest() != digest:
+            return False
+    rows = load("parity/calibration_gates.toml").get("gate", [])
+    for point in range(3):
+        group = f"sample_split_effect_calibration__{name}.p{point}"
+        matching = [row for row in rows if row.get("group") == group]
+        if (
+            len(matching) != 1 or type(matching[0].get("passed")) is not int
+            or matching[0]["passed"] != 1
+            or matching[0].get("calibration_sha") != "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+        ):
+            return False
+    return True
 
 
 def text_fields(
@@ -967,7 +1014,7 @@ def check() -> dict:
         ):
             continue
         for p in ROOT.glob(f"crates/*/tests/**/{reg['target']}.rs"):
-            if measured_recordless_registration(reg, p):
+            if measured_recordless_registration(reg, p) or reviewed_nonemitting_boundary(reg, p):
                 if attestation_result is None:
                     attestation_result = cai.attested()
                 if not attestation_result[0]:

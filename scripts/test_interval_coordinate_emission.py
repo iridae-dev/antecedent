@@ -37,6 +37,39 @@ class EmissionTests(unittest.TestCase):
                         wrapper.replace('  local file=', '  # local file=')):
             self.assertEqual(audit.registrations(changed), [])
 
+    def test_reviewed_mixed_suite_diagnostic_never_emits(self):
+        relative = "crates/antecedent/tests/sample_split_effect_calibration.rs"
+        original = (audit.ROOT / relative).read_text(encoding="utf-8")
+        name = "sample_split_cancelling_edge_boundary_95"
+        registration = {"target": "sample_split_effect_calibration", "name": name}
+        rows = [row for row in audit.load("parity/calibration_gates.toml")["gate"]
+                if row["group"].startswith(f"sample_split_effect_calibration__{name}.p")]
+        ledger = "".join('[[gate]]\ngroup="' + row["group"] + '"\npassed=1\ncalibration_sha="'
+                         + row["calibration_sha"] + '"\n' for row in rows)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / relative
+            path.parent.mkdir(parents=True)
+            (root / "parity").mkdir()
+            receipt = root / "parity/calibration_gates.toml"
+            path.write_text(original, encoding="utf-8")
+            receipt.write_text(ledger, encoding="utf-8")
+            with patch.object(audit, "ROOT", root):
+                self.assertTrue(audit.reviewed_nonemitting_boundary(registration, path))
+                self.assertFalse(audit.reviewed_nonemitting_boundary({**registration, "name": "other"}, path))
+                for changed in (original.replace("        return;", "        tally.emit_named_boundary(); return;", 1),
+                                original.replace("reported.persist();", "tally.assert(); reported.persist();")):
+                    path.write_text(changed, encoding="utf-8")
+                    audit.rust_items.cache_clear()
+                    self.assertFalse(audit.reviewed_nonemitting_boundary(registration, path))
+                path.write_text(original, encoding="utf-8")
+                audit.rust_items.cache_clear()
+                for changed in (ledger.replace("passed=1", "passed=0", 1),
+                                ledger.split("[[gate]]", 2)[0] + "[[gate]]" + ledger.split("[[gate]]", 2)[1],
+                                ledger.replace("c30e10304f4bd85a01ad81dd133a360ddc95c2f1", "a" * 40)):
+                    receipt.write_text(changed, encoding="utf-8")
+                    self.assertFalse(audit.reviewed_nonemitting_boundary(registration, path))
+
     def test_recordless_requires_exact_passed_ledger_and_untyped_source(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
