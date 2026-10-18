@@ -66,6 +66,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import _rust_source as _rust
+import _rust_equivalence
 from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path, read_text, write_text
 
@@ -950,6 +951,7 @@ class Repo:
         self._changed: dict[tuple[str, str | None], list[str]] = {}
         self._blobs: dict[tuple[str, str], str | None] = {}
         self._gate_rows: dict[str, list[dict]] = {}
+        self._rust_trees: dict[str, dict[str, str]] = {}
 
     def resolve(self, ref: str) -> str | None:
         if ref not in self._resolved:
@@ -969,6 +971,38 @@ class Repo:
             result = _git("rev-parse", "--verify", f"{sha}:{path}")
             self._blobs[key] = result.stdout.strip() if result.returncode == 0 else None
         return self._blobs[key]
+
+    def rust_sources(self, sha: str) -> dict[str, str]:
+        """Immutable Rust sources and Cargo context for restricted equivalence proofs."""
+        if sha not in self._rust_trees:
+            listing = _git("ls-tree", "-r", "--name-only", sha)
+            if listing.returncode:
+                return {}
+            paths = [p for p in listing.stdout.splitlines() if p.endswith(".rs") or p.endswith("/Cargo.toml") or p == "Cargo.toml"]
+            if any("\n" in p or "\r" in p for p in paths):
+                return {}
+            batch = subprocess.run(
+                ["git", "cat-file", "--batch"], cwd=ROOT,
+                input="".join(f"{sha}:{path}\n" for path in paths).encode(), capture_output=True,
+            )
+            if batch.returncode:
+                return {}
+            data, offset, sources = batch.stdout, 0, {}
+            try:
+                for path in paths:
+                    end = data.index(b"\n", offset)
+                    header = data[offset:end].split()
+                    if len(header) != 3 or header[1] != b"blob":
+                        return {}
+                    length = int(header[2]); offset = end + 1
+                    sources[path] = data[offset:offset + length].decode("utf-8")
+                    offset += length + 1
+                if offset != len(data):
+                    return {}
+            except (ValueError, UnicodeError):
+                return {}
+            self._rust_trees[sha] = sources
+        return self._rust_trees[sha]
 
     def gate_pass(self, ledger: str, rid: str, measurement_sha: str) -> int | None:
         """Corroborate a real original pass in an immutable collection commit."""
@@ -1010,6 +1044,9 @@ class FakeRepo(Repo):
 
     def blob(self, sha: str, path: str) -> str | None:
         return self.blobs.get((sha, path))
+
+    def rust_sources(self, sha: str) -> dict[str, str]:
+        return self._rust_trees.get(sha, {})
 
     def gate_pass(self, ledger: str, rid: str, measurement_sha: str) -> int | None:
         return self.gate_passes.get((ledger, rid, measurement_sha))
@@ -1089,7 +1126,8 @@ class ReviewedEquivalence:
     invariant_evidence: str
 
 
-EQUIVALENCE_KINDS = frozenset({"additive_wrapper", "proof_delegation", "retained_formula"})
+RUST_EQUIVALENCE_KINDS = frozenset({"rust_comments", "rust_pub_use_addition"})
+EQUIVALENCE_KINDS = frozenset({"additive_wrapper", "proof_delegation", "retained_formula"}) | RUST_EQUIVALENCE_KINDS
 BLOB_ID = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
 
@@ -1412,7 +1450,24 @@ def validate_waivers(
                 "/tests/" in rel or
                 (rel.startswith(numerical_crates) and not rel.endswith("/lib.rs"))
             )
-            if numerical_path or facet.startswith(("estimator.", "suite.")) or facet in ("mechanism", "design"):
+            rust_proved = False
+            if certificate.kind in RUST_EQUIVALENCE_KINDS:
+                if not start or not end or not rel.endswith(".rs"):
+                    bad.append(f"{label}: {rel}: Rust proof requires committed Rust sources")
+                else:
+                    old_sources, new_sources = repo.rust_sources(start), repo.rust_sources(end)
+                    if rel not in old_sources or rel not in new_sources:
+                        bad.append(f"{label}: {rel}: missing immutable Rust proof source")
+                    else:
+                        proof_problem = _rust_equivalence.prove(
+                            certificate.kind, rel, old_sources[rel], new_sources[rel],
+                            old_sources, new_sources,
+                        )
+                        if proof_problem:
+                            bad.append(f"{label}: {rel}: Rust equivalence proof failed: {proof_problem}")
+                        else:
+                            rust_proved = True
+            if (numerical_path or facet.startswith(("estimator.", "suite.")) or facet in ("mechanism", "design")) and not rust_proved:
                 bad.append(f"{label}: {rel}: numerical owners require exercised numeric replay")
             if certificate.from_blob and not BLOB_ID.fullmatch(certificate.from_blob):
                 bad.append(f"{label}: {rel}: from_blob is not a Git object identity")
