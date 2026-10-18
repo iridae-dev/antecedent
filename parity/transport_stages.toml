@@ -12368,3 +12368,16 @@ reference = "provenance/evidence_ledger.pooled_interval.toml"
 limits = "Independent Gaussian study estimates, potentially unequal unknown variances; equal-study mean and between-study t reference. Legacy Wald/HKSJ evidence is not inherited."
 evidence_test = "crates/antecedent/tests/evidence_ledger_facade.rs"
 evidence_assertion = "equal_study_gaussian_pool_has_a_distinct_conservative_interval_and_durable_replay"
+
+
+[[routes]]
+route = "antecedent.result.PublishedScalarUncertainty.interval"
+stage = "uncertainty"
+status = "licensed"
+graph = "exact_method_record_scope"
+evidence = "published_scalar_uncertainty_selection_and_exact_coverage_records"
+functional = "exact_scalar_endpoint_construction"
+guarantee = "published_scalar_endpoint_rule_with_exact_currently_attesting_method_scope_no_universal_standard_error_coverage"
+evidence_test = "crates/antecedent/src/result.rs"
+evidence_assertion = "finite_analytic_without_bootstrap_publishes_analytic"
+notes = "Only the exact allocated measured constructions with current attestation; no arbitrary standard error or declaration helper carries a calibrated claim."

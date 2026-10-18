@@ -11751,3 +11751,21 @@ executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "adaptive_inference.participant_family.sealed_contract_replays.artifact"
 provider_trust = "native_execution_of_declared_procedure_no_external_provider"
 exact_request_verification = "not_applicable_no_external_provider"
+
+
+[[cell]]
+id = "estimate.uncertainty"
+route = "antecedent.result.PublishedScalarUncertainty.interval"
+algorithm_provenance = ["provenance/estimate.uncertainty.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "estimate.uncertainty.normal_endpoint.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Published EffectEstimate fields, actual analytic/bootstrap selection, and separately measured exact constructions."
+expected_values = "Finite analytic-only selection preserves its analytic SE; weak-IV unavailable uncertainty stays withheld; bootstrap selection remains distinct."
+tolerance = "Exact method and uncertainty identity; endpoint arithmetic uses the reported level."
+calibration = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_att_interval; cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_trimmed_interval; cov.average_effect.dag.frequentist.analytic_se.l95.weighted_distance_matching_interval.population_linear; cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_partially_linear_interval; cov.average_effect.dag.frequentist.analytic_se.l95.weighted_glm_gaussian_interval; cov.average_effect.dag.frequentist.analytic_se.l95.weighted_glm_logit_interval; cov.average_effect.dag.frequentist.analytic_se.l95.weighted_glm_negative_binomial_interval; cov.average_effect.dag.frequentist.analytic_se.l95.weighted_linear_adjustment_cluster_interval; cov.average_effect.dag.frequentist.analytic_se.l95.weighted_linear_adjustment_hc1_interval; cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.population_linear; cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.responder_complete_case_mcar_interval; cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.responder_weighted_mar_interval; cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.weighted_randomized_itt_interval; exact scopes and current attestation only."
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "estimate.uncertainty.weighted_roundtrip.artifact"
+provider_trust = "native_estimator_results_and_current_exact_scope_only"
+exact_request_verification = "not_applicable_no_external_provider"
