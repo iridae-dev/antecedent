@@ -473,6 +473,11 @@ pub(crate) fn refusal(code: &str, message: impl AsRef<str>) -> PyErr {
     unsupported_py_err(format!("{prefix}{code}: {}", message.as_ref()))
 }
 
+/// A refusal message with no registered reason code, as the Python class.
+pub(crate) fn unsupported_message(message: impl AsRef<str>) -> PyErr {
+    unsupported_py_err(message.as_ref().to_owned())
+}
+
 /// Build the Python exception for a refusal, carrying its `reason=<code>:` prefix.
 fn unsupported_py_err(message: String) -> PyErr {
     // A support-matrix refusal renders its verdict first: `refused: reason=<code>: …`.

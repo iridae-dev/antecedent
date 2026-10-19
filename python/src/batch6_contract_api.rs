@@ -88,7 +88,7 @@ fn summary_err(error: SummaryObservationError) -> PyErr {
 }
 
 fn feature_err(refusal: FeatureRefusal) -> PyErr {
-    CausalUnsupportedError::new_err(refusal.to_string())
+    crate::unsupported_message(refusal.to_string())
 }
 
 fn unknown_effect(family: &str, name: &str) -> PyErr {
