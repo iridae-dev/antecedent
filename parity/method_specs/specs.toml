@@ -1,0 +1,2851 @@
+# B04 method specifications.
+# One record per method child whose gap is not none.
+# Gap none leaves are 2.4.1 counterparts and are omitted.
+# Nothing in this file is advertised or admitted.
+# Unknown fields are unlisted.
+# estimator is the estimator or posterior construction.
+# references are ROADMAP.md section titles.
+
+[[spec]]
+id = "P01.linear.temporal.bayesian"
+parent = "P01"
+gap = "statistical"
+route = "licensed.PulseEffect.TemporalDag"
+target = "PulseEffect"
+review_status = "blocked_research"
+identifying_result = "PulseEffect"
+assumptions = "support_licensed.toml documents the power-posterior tempering. A full likelihood posterior is a different realization."
+sampling_units = "unlisted"
+estimator = "bayesian.temporal.gcomp"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. Licensed temporal Bayesian cells are a tempered generalized posterior, not an unrestricted Gaussian likelihood posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P01.iv.temporal.frequentist"
+parent = "P01"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No temporal IV estimator in route_manifest or licensed_routes.toml. Do not relabel temporal.linear.adjustment as IV."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P01.iv.temporal.bayesian"
+parent = "P01"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "bayesian_iv.rs is the static control-function model."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No temporal Bayesian IV module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P02.glm.static.bayesian"
+parent = "P02"
+gap = "statistical"
+route = "unlisted"
+target = "AverageEffect"
+review_status = "blocked_research"
+identifying_result = "AverageEffect"
+assumptions = "Licensed Bayesian AverageEffect ids are g-computation and robust ATE, not glm.adjustment."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No Bayesian GLM estimator id; a penalty or a prior are different objects."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P02.glm.temporal.frequentist"
+parent = "P02"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "temporal.linear.adjustment is identity-link, not a GLM link."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No temporal GLM route."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P02.glm.temporal.bayesian"
+parent = "P02"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "Owner follows the P02 stats/estimate/prob assignment."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No temporal Bayesian GLM module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P02.penalized_propensity.static.bayesian"
+parent = "P02"
+gap = "statistical"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "Frequentist-versus-posterior meaning of regularization is the open statistical gap."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. A penalty is not a posterior; no penalized-propensity posterior module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P02.penalized_propensity.temporal.frequentist"
+parent = "P02"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No temporal penalized propensity module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P02.penalized_propensity.temporal.bayesian"
+parent = "P02"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No temporal Bayesian penalized-propensity module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P03.aipw.static.bayesian"
+parent = "P03"
+gap = "statistical"
+route = "unlisted"
+target = "AverageEffect"
+review_status = "blocked_research"
+identifying_result = "AverageEffect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No Bayesian AIPW/DML posterior with stated prior and regularity; nuisance predictions are not a posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P03.aipw.temporal.frequentist"
+parent = "P03"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No observational temporal AIPW/DML route; known-randomization sequential scores are P03.policy."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P03.aipw.temporal.bayesian"
+parent = "P03"
+gap = "statistical"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No sequential Bayesian AIPW realization."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P03.policy.static.bayesian"
+parent = "P03"
+gap = "statistical"
+route = "unlisted"
+target = "policy_value"
+review_status = "blocked_research"
+identifying_result = "Policy_value"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No Bayesian policy-value posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P03.policy.temporal.bayesian"
+parent = "P03"
+gap = "statistical"
+route = "unlisted"
+target = "longitudinal_regime"
+review_status = "blocked_research"
+identifying_result = "Longitudinal_regime"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No Bayesian sequential-regime posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P04.static.bayesian"
+parent = "P04"
+gap = "statistical"
+route = "unlisted"
+target = "AverageEffect"
+review_status = "blocked_research"
+identifying_result = "AverageEffect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No posterior for the matching estimand; a Bayesian outcome model is a different estimand."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P04.temporal.frequentist"
+parent = "P04"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "Declared temporal counterpart is absent. Do not substitute a time-series regression."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No temporal matching route."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P04.temporal.bayesian"
+parent = "P04"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No temporal Bayesian matching module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P06.static.bayesian"
+parent = "P06"
+gap = "statistical"
+route = "licensed.AverageEffect.Pag"
+target = "AverageEffect"
+review_status = "blocked_research"
+identifying_result = "AverageEffect"
+assumptions = "Cpdag and Pag AverageEffect license Bayesian. Do not mix atoms that answer different questions."
+sampling_units = "unlisted"
+estimator = "Bayesian class envelope"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. CoDetermined and Unknown AverageEffect coordinates are Frequentist-only."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Standardize the envelope and preserve the representation",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P06.temporal.frequentist"
+parent = "P06"
+gap = "target"
+route = "unlisted"
+target = "AverageEffect"
+review_status = "specification_only"
+identifying_result = "No AverageEffect TemporalCpdag or TemporalPag row; temporal class licenses are other queries"
+assumptions = "ResponseCurve and PulseEffect license some temporal class cells. Those are not an AverageEffect envelope."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Standardize the envelope and preserve the representation",
+]
+
+[[spec]]
+id = "P06.temporal.bayesian"
+parent = "P06"
+gap = "target"
+route = "unlisted"
+target = "AverageEffect"
+review_status = "specification_only"
+identifying_result = "No temporal AverageEffect Bayesian class envelope"
+assumptions = "Unidentified mass must stay mass, not a weight."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Standardize the envelope and preserve the representation",
+]
+
+[[spec]]
+id = "P07.curve.temporal.bayesian"
+parent = "P07"
+gap = "statistical"
+route = "licensed.ResponseCurve.TemporalDag"
+target = "ResponseCurve"
+review_status = "blocked_research"
+identifying_result = "ResponseCurve"
+assumptions = "Same restriction as P01.linear.temporal.bayesian."
+sampling_units = "unlisted"
+estimator = "response.temporal.bayesian"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. Tempered generalized posterior, not an unrestricted temporal curve posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P07.derivative.temporal.frequentist"
+parent = "P07"
+gap = "validation"
+route = "licensed.AverageDerivative.TemporalDag"
+target = "AverageDerivative"
+review_status = "specification_only"
+identifying_result = "AverageDerivative"
+assumptions = "Manifest note on TemporalCpdag/TemporalPag. ATE refuters do not apply."
+sampling_units = "unlisted"
+estimator = "temporal.response.gcomp"
+diagnostics = "derivative-native cheap/full validation is not implemented; intervals are not reported"
+failure_policy = "Not a calibrated claim. Derivative-native cheap/full validation is not implemented; intervals are not reported."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P07.derivative.temporal.bayesian"
+parent = "P07"
+gap = "validation"
+route = "licensed.AverageDerivative.TemporalDag"
+target = "AverageDerivative"
+review_status = "specification_only"
+identifying_result = "AverageDerivative"
+assumptions = "TemporalAdmg derivative rows are closed."
+sampling_units = "unlisted"
+estimator = "response.temporal.bayesian"
+diagnostics = "no derivative-native Bayesian calibration; no_interval_reported"
+failure_policy = "Not a calibrated claim. No derivative-native Bayesian calibration; no_interval_reported."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P07.continuous_dose.static.bayesian"
+parent = "P07"
+gap = "statistical"
+route = "unlisted"
+target = "continuous_dose_policy"
+review_status = "blocked_research"
+identifying_result = "Continuous_dose_policy"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No posterior in continuous_dose.rs."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P07.continuous_dose.temporal.frequentist"
+parent = "P07"
+gap = "temporal-identification"
+route = "unlisted"
+target = "continuous_dose_policy"
+review_status = "blocked_research"
+identifying_result = "Continuous_dose_policy"
+assumptions = "No temporal continuous-dose route."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. The graphless row is a fixed group kernel with independent rows, not a horizon or history."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P07.continuous_dose.temporal.bayesian"
+parent = "P07"
+gap = "temporal-identification"
+route = "unlisted"
+target = "continuous_dose_policy"
+review_status = "blocked_research"
+identifying_result = "Continuous_dose_policy"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. No temporal Bayesian continuous-dose module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P07.smoothed_dose.static.bayesian"
+parent = "P07"
+gap = "statistical"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No posterior in smoothed_dose.rs."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P07.smoothed_dose.temporal.frequentist"
+parent = "P07"
+gap = "temporal-identification"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. Smoothed_dose.rs states only IID trial sampling, not a temporal design."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P07.smoothed_dose.temporal.bayesian"
+parent = "P07"
+gap = "temporal-identification"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. No temporal Bayesian smoothed-dose module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P07.dose_grid.static.frequentist"
+parent = "P07"
+gap = "validation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "Randomized dose only. Observational adjustment is refused. Exact-quadratic zero-bias row is a separate premise."
+sampling_units = "unlisted"
+estimator = "fixed-bandwidth local quadratic level, derivative, or contrast"
+diagnostics = "smoothing bias is outside the interval; simultaneous band is unimplemented; not a route_manifest row"
+failure_policy = "Not a calibrated claim. Smoothing bias is outside the interval; simultaneous band is unimplemented; not a route_manifest row."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P07.dose_grid.static.bayesian"
+parent = "P07"
+gap = "statistical"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No dose-grid posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P07.dose_grid.temporal.frequentist"
+parent = "P07"
+gap = "temporal-identification"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "A dose-by-time surface is X01, not this grid."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. Dose_grid_functional.rs excludes clustered and serial dependence."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+  "X01 — Treat a contrast of intervention worlds as one scientific target",
+]
+
+[[spec]]
+id = "P07.dose_grid.temporal.bayesian"
+parent = "P07"
+gap = "temporal-identification"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. No temporal Bayesian dose-grid module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P07.quantile.static.bayesian"
+parent = "P07"
+gap = "statistical"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No quantile posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P07.quantile.temporal.frequentist"
+parent = "P07"
+gap = "target"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "Static CDF inversion is not a temporal quantile"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P07.quantile.temporal.bayesian"
+parent = "P07"
+gap = "target"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "No temporal Bayesian quantile target"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.two_arm.static.bayesian"
+parent = "P09"
+gap = "statistical"
+route = "unlisted"
+target = "randomized_effect"
+review_status = "blocked_research"
+identifying_result = "Randomized_effect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No Bayesian two-arm randomization posterior; a design-based interval is not a posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P09.two_arm.temporal.frequentist"
+parent = "P09"
+gap = "target"
+route = "unlisted"
+target = "randomized_effect"
+review_status = "specification_only"
+identifying_result = "Bernoulli, complete, cluster, and stratified trials are not switchback designs"
+assumptions = "The temporal experiment route is P09.switchback."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.two_arm.temporal.bayesian"
+parent = "P09"
+gap = "target"
+route = "unlisted"
+target = "randomized_effect"
+review_status = "specification_only"
+identifying_result = "No temporal Bayesian two-arm trial target distinct from switchback"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.multiarm.static.bayesian"
+parent = "P09"
+gap = "statistical"
+route = "unlisted"
+target = "randomized_effect"
+review_status = "blocked_research"
+identifying_result = "Randomized_effect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No multi-arm posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P09.multiarm.temporal.frequentist"
+parent = "P09"
+gap = "target"
+route = "unlisted"
+target = "randomized_effect"
+review_status = "specification_only"
+identifying_result = "A multi-arm trial is not a temporal design"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.multiarm.temporal.bayesian"
+parent = "P09"
+gap = "target"
+route = "unlisted"
+target = "randomized_effect"
+review_status = "specification_only"
+identifying_result = "No temporal Bayesian multi-arm target"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.categorical.static.bayesian"
+parent = "P09"
+gap = "statistical"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No categorical-treatment posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P09.categorical.temporal.frequentist"
+parent = "P09"
+gap = "target"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "Categorical level contrasts are not a temporal experiment"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.categorical.temporal.bayesian"
+parent = "P09"
+gap = "target"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "No temporal Bayesian categorical-treatment target"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.factorial.static.bayesian"
+parent = "P09"
+gap = "statistical"
+route = "unlisted"
+target = "randomized_effect"
+review_status = "blocked_research"
+identifying_result = "Randomized_effect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No factorial posterior; factorial_bernoulli.rs is Horvitz-Thompson only."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P09.factorial.temporal.frequentist"
+parent = "P09"
+gap = "target"
+route = "unlisted"
+target = "randomized_effect"
+review_status = "specification_only"
+identifying_result = "A 2x2 factorial is not a switchback"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.factorial.temporal.bayesian"
+parent = "P09"
+gap = "target"
+route = "unlisted"
+target = "randomized_effect"
+review_status = "specification_only"
+identifying_result = "No temporal Bayesian factorial target"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.switchback.static.frequentist"
+parent = "P09"
+gap = "target"
+route = "unlisted"
+target = "SwitchbackEffect"
+review_status = "specification_only"
+identifying_result = "Switchback assignment is a sequence of periods; there is no static switchback route"
+assumptions = "support_axes.toml lists SwitchbackEffect as off_axis_public_queries."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.switchback.static.bayesian"
+parent = "P09"
+gap = "target"
+route = "unlisted"
+target = "SwitchbackEffect"
+review_status = "specification_only"
+identifying_result = "No static Bayesian switchback target"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P09.switchback.temporal.bayesian"
+parent = "P09"
+gap = "statistical"
+route = "unlisted"
+target = "randomized_effect"
+review_status = "blocked_research"
+identifying_result = "Randomized_effect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No switchback posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P09.adaptive.temporal.bayesian"
+parent = "P09"
+gap = "statistical"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No posterior module for repeated-measures adaptive procedures."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P09.interference.temporal.frequentist"
+parent = "P09"
+gap = "temporal-identification"
+route = "closed.InterferenceQuery.TemporalAdmg"
+target = "InterferenceQuery"
+review_status = "blocked_research"
+identifying_result = "InterferenceQuery"
+assumptions = "No temporal graphless interference row."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. InterferenceQuery is Dag-only; the graph does not identify a temporal contrast."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P09.interference.temporal.bayesian"
+parent = "P09"
+gap = "temporal-identification"
+route = "unlisted"
+target = "InterferenceQuery"
+review_status = "blocked_research"
+identifying_result = "InterferenceQuery"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. No temporal Bayesian interference route."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P10.static.bayesian"
+parent = "P10"
+gap = "statistical"
+route = "unlisted"
+target = "survival"
+review_status = "blocked_research"
+identifying_result = "Survival"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No survival posterior in survival.rs."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P10.temporal.frequentist"
+parent = "P10"
+gap = "implementation"
+route = "unlisted"
+target = "survival"
+review_status = "specification_only"
+identifying_result = "Survival"
+assumptions = "Product-limit risk sets are inside the static trial rows."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No trajectory or time-varying-treatment survival route."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P10.temporal.bayesian"
+parent = "P10"
+gap = "implementation"
+route = "unlisted"
+target = "survival"
+review_status = "specification_only"
+identifying_result = "Survival"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No temporal Bayesian survival module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P11.did.static.bayesian"
+parent = "P11"
+gap = "statistical"
+route = "unlisted"
+target = "difference_in_differences"
+review_status = "blocked_research"
+identifying_result = "Difference_in_differences"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No Bayesian repeated-cross-section DiD posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P11.did.temporal.bayesian"
+parent = "P11"
+gap = "statistical"
+route = "unlisted"
+target = "difference_in_differences"
+review_status = "blocked_research"
+identifying_result = "Difference_in_differences"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No Bayesian panel DiD posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P11.augmented_panel_did.static.frequentist"
+parent = "P11"
+gap = "target"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "Augmented panel ATT is a two-period panel estimand, not a repeated cross-section"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P11.augmented_panel_did.static.bayesian"
+parent = "P11"
+gap = "target"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "No static Bayesian augmented-panel target"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P11.augmented_panel_did.temporal.frequentist"
+parent = "P11"
+gap = "validation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "supplied-nuisance augmented two-period ATT"
+diagnostics = "point fit only; module states no interval is calibrated; 2x2 graphless row does not cover it"
+failure_policy = "Not a calibrated claim. Point fit only; module states no interval is calibrated; 2x2 graphless row does not cover it."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P11.augmented_panel_did.temporal.bayesian"
+parent = "P11"
+gap = "statistical"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No augmented panel DiD posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P11.staggered.static.frequentist"
+parent = "P11"
+gap = "target"
+route = "unlisted"
+target = "difference_in_differences"
+review_status = "specification_only"
+identifying_result = "A staggered event study is not a static contrast"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P11.staggered.static.bayesian"
+parent = "P11"
+gap = "target"
+route = "unlisted"
+target = "difference_in_differences"
+review_status = "specification_only"
+identifying_result = "No static Bayesian staggered target"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P11.staggered.temporal.bayesian"
+parent = "P11"
+gap = "statistical"
+route = "unlisted"
+target = "difference_in_differences"
+review_status = "blocked_research"
+identifying_result = "Difference_in_differences"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No staggered event-study posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P11.synthetic_control.static.frequentist"
+parent = "P11"
+gap = "target"
+route = "unlisted"
+target = "SyntheticControl"
+review_status = "specification_only"
+identifying_result = "Synthetic control is a balanced-panel contrast, not a static route"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P11.synthetic_control.static.bayesian"
+parent = "P11"
+gap = "target"
+route = "unlisted"
+target = "SyntheticControl"
+review_status = "specification_only"
+identifying_result = "No static Bayesian synthetic-control target"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P11.synthetic_control.temporal.frequentist"
+parent = "P11"
+gap = "validation"
+route = "quasi.synthetic_control"
+target = "SyntheticControl"
+review_status = "specification_only"
+identifying_result = "SyntheticControl"
+assumptions = "Checked path crates/antecedent/src/analysis/execute/checked_synthetic_control.rs. Placebo rank is uncalibrated."
+sampling_units = "unlisted"
+estimator = "simplex donor weights"
+diagnostics = "execution_only point estimate; no support_graphless interval license"
+failure_policy = "Not a calibrated claim. Execution_only point estimate; no support_graphless interval license."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P11.synthetic_control.temporal.bayesian"
+parent = "P11"
+gap = "statistical"
+route = "unlisted"
+target = "SyntheticControl"
+review_status = "blocked_research"
+identifying_result = "SyntheticControl"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No synthetic-control posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P11.rd.temporal.frequentist"
+parent = "P11"
+gap = "temporal-identification"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. No temporal regression-discontinuity route."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P11.rd.temporal.bayesian"
+parent = "P11"
+gap = "temporal-identification"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. No temporal Bayesian RD module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P11.local_ratio.static.bayesian"
+parent = "P11"
+gap = "statistical"
+route = "unlisted"
+target = "local_polynomial_ratio"
+review_status = "blocked_research"
+identifying_result = "Local_polynomial_ratio"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No Bayesian fuzzy-jump or kink posterior; bayesian_rd.rs is sharp local linear."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P11.local_ratio.temporal.frequentist"
+parent = "P11"
+gap = "temporal-identification"
+route = "unlisted"
+target = "local_polynomial_ratio"
+review_status = "blocked_research"
+identifying_result = "Local_polynomial_ratio"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. No temporal fuzzy RD or kink route."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P11.local_ratio.temporal.bayesian"
+parent = "P11"
+gap = "temporal-identification"
+route = "unlisted"
+target = "local_polynomial_ratio"
+review_status = "blocked_research"
+identifying_result = "Local_polynomial_ratio"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. No temporal Bayesian local-ratio module."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P12.intervention.temporal.bayesian"
+parent = "P12"
+gap = "statistical"
+route = "licensed.InterventionResponse.TemporalDag"
+target = "InterventionResponse"
+review_status = "blocked_research"
+identifying_result = "InterventionResponse"
+assumptions = "Ordinary carryover does not use cyclic Y routes."
+sampling_units = "unlisted"
+estimator = "response.temporal.bayesian"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. Tempered generalized posterior."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+  "Feedback and cyclic causal models",
+]
+
+[[spec]]
+id = "P12.counterfactual.static.bayesian"
+parent = "P12"
+gap = "statistical"
+route = "licensed.Counterfactual.Dag"
+target = "Counterfactual"
+review_status = "blocked_research"
+identifying_result = "Counterfactual"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "gcm.fit"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. Bayesian coordinate lists estimator gcm.fit only; no shared-noise posterior id."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P12.counterfactual.temporal.bayesian"
+parent = "P12"
+gap = "statistical"
+route = "licensed.Counterfactual.TemporalDag"
+target = "Counterfactual"
+review_status = "blocked_research"
+identifying_result = "Counterfactual"
+assumptions = "Manifest estimator printed for this route is temporal.linear.adjustment."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. No separate temporal counterfactual posterior estimator id."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P13.attribution.static.frequentist"
+parent = "P13"
+gap = "validation"
+route = "licensed.AnomalyAttribution.Dag"
+target = "AnomalyAttribution"
+review_status = "specification_only"
+identifying_result = "AnomalyAttribution"
+assumptions = "ChangeAttribution.Dag is the same pattern. intrinsic_influence is fitting_gap. MechanismChange and UnitChange are execution_only and off-axis."
+sampling_units = "unlisted"
+estimator = "gcm.fit"
+diagnostics = "validation none and no native refuter; ATE refuters do not apply"
+failure_policy = "Not a calibrated claim. Validation none and no native refuter; ATE refuters do not apply."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P13.attribution.static.bayesian"
+parent = "P13"
+gap = "validation"
+route = "licensed.AnomalyAttribution.Dag"
+target = "AnomalyAttribution"
+review_status = "specification_only"
+identifying_result = "AnomalyAttribution"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "gcm.fit.bayesian"
+diagnostics = "no attribution interval; validation none"
+failure_policy = "Not a calibrated claim. No attribution interval; validation none."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P13.attribution.temporal.frequentist"
+parent = "P13"
+gap = "validation"
+route = "licensed.AnomalyAttribution.TemporalDag"
+target = "AnomalyAttribution"
+review_status = "specification_only"
+identifying_result = "AnomalyAttribution"
+assumptions = "Closed Admg/Cpdag/Pag/TemporalAdmg: engine has no lagged latent slice. That is a target boundary."
+sampling_units = "unlisted"
+estimator = "gcm.fit"
+diagnostics = "temporal attribution has no native refuter and no interval"
+failure_policy = "Not a calibrated claim. Temporal attribution has no native refuter and no interval."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P13.attribution.temporal.bayesian"
+parent = "P13"
+gap = "validation"
+route = "licensed.AnomalyAttribution.TemporalDag"
+target = "AnomalyAttribution"
+review_status = "specification_only"
+identifying_result = "AnomalyAttribution"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "gcm.fit.bayesian"
+diagnostics = "no temporal Bayesian attribution interval"
+failure_policy = "Not a calibrated claim. No temporal Bayesian attribution interval."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P13.refuter.static.frequentist"
+parent = "P13"
+gap = "target"
+route = "unlisted"
+target = "AverageEffect"
+review_status = "specification_only"
+identifying_result = "ATE refuters do not certify conditional, derivative, mediation, or world-valued targets"
+assumptions = "Manifest states this refusal on derivative and attribution routes."
+sampling_units = "unlisted"
+estimator = "ATE refuters"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P13.refuter.static.bayesian"
+parent = "P13"
+gap = "target"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "Prior sensitivity is not a target-native refuter for non-ATE queries"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "prior sensitivity"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P13.refuter.temporal.frequentist"
+parent = "P13"
+gap = "target"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "No temporal target-native refuter route"
+assumptions = "X03 mechanism-change explanations are a promotion candidate, not this row."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+  "X03 — Infer time-varying structural effectiveness",
+]
+
+[[spec]]
+id = "P13.refuter.temporal.bayesian"
+parent = "P13"
+gap = "target"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "No temporal Bayesian target-native refuter"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P14.temporal.frequentist"
+parent = "P14"
+gap = "validation"
+route = "licensed.TransportQuery.TemporalAdmg"
+target = "TransportQuery"
+review_status = "specification_only"
+identifying_result = "TransportQuery"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "transport.trial_ipw"
+diagnostics = "temporal transport uncertainty is no_interval_reported"
+failure_policy = "Not a calibrated claim. Temporal transport uncertainty is no_interval_reported."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Standardize the envelope and preserve the representation",
+]
+
+[[spec]]
+id = "P14.temporal.bayesian"
+parent = "P14"
+gap = "validation"
+route = "licensed.TransportQuery.TemporalAdmg"
+target = "TransportQuery"
+review_status = "specification_only"
+identifying_result = "TransportQuery"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "transport.trial_bayesian_bootstrap"
+diagnostics = "temporal Bayesian transport reports no interval"
+failure_policy = "Not a calibrated claim. Temporal Bayesian transport reports no interval."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Standardize the envelope and preserve the representation",
+]
+
+[[spec]]
+id = "P15.conditional.static.frequentist"
+parent = "P15"
+gap = "implementation"
+route = "closed.ConditionalEffect.Admg"
+target = "ConditionalEffect"
+review_status = "specification_only"
+identifying_result = "ConditionalEffect"
+assumptions = "Dag, Cpdag, and Pag conditional effects are licensed. Refusal owner crates/antecedent/src/analysis/query_license.rs."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. ConditionalEffect on Admg has no compile arm."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P15.conditional.static.bayesian"
+parent = "P15"
+gap = "implementation"
+route = "closed.ConditionalEffect.Admg"
+target = "ConditionalEffect"
+review_status = "specification_only"
+identifying_result = "ConditionalEffect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No Bayesian Admg conditional compile arm."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P15.conditional.temporal.frequentist"
+parent = "P15"
+gap = "implementation"
+route = "closed.ConditionalEffect.TemporalAdmg"
+target = "ConditionalEffect"
+review_status = "specification_only"
+identifying_result = "ConditionalEffect"
+assumptions = "Licensed temporal conditional targets on TemporalDag are TemporalConditionalPulse and TemporalConditionalSustained, not this closed cell."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. ConditionalEffect on TemporalAdmg has no compile arm."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P15.conditional.temporal.bayesian"
+parent = "P15"
+gap = "implementation"
+route = "closed.ConditionalEffect.TemporalAdmg"
+target = "ConditionalEffect"
+review_status = "specification_only"
+identifying_result = "ConditionalEffect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No Bayesian TemporalAdmg conditional compile arm."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P15.projection.static.bayesian"
+parent = "P15"
+gap = "statistical"
+route = "licensed.AverageEffect.Admg"
+target = "AverageEffect"
+review_status = "blocked_research"
+identifying_result = "AverageEffect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "functional.effect"
+diagnostics = "unlisted"
+failure_policy = "Posterior construction is blocked. Admg AverageEffect lists functional.effect for both inferences; no distinct posterior id."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P15.projection.temporal.frequentist"
+parent = "P15"
+gap = "target"
+route = "licensed.AverageEffect.TemporalAdmg"
+target = "AverageEffect"
+review_status = "specification_only"
+identifying_result = "TemporalAdmg functional.effect is the contemporaneous projection, not Pulse or Sustained"
+assumptions = "Same projection note on InterventionResponse.TemporalAdmg and ResponseCurve.TemporalAdmg."
+sampling_units = "unlisted"
+estimator = "functional.effect"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P15.projection.temporal.bayesian"
+parent = "P15"
+gap = "target"
+route = "licensed.AverageEffect.TemporalAdmg"
+target = "AverageEffect"
+review_status = "specification_only"
+identifying_result = "No Bayesian posterior of the contemporaneous projection as a pulse"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "functional.effect"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P15.pulse.static.frequentist"
+parent = "P15"
+gap = "target"
+route = "unlisted"
+target = "PulseEffect"
+review_status = "specification_only"
+identifying_result = "PulseEffect has no static graph class"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P15.pulse.static.bayesian"
+parent = "P15"
+gap = "target"
+route = "unlisted"
+target = "PulseEffect"
+review_status = "specification_only"
+identifying_result = "No static Bayesian pulse"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P15.pulse.temporal.frequentist"
+parent = "P15"
+gap = "temporal-identification"
+route = "closed.PulseEffect.TemporalAdmg"
+target = "PulseEffect"
+review_status = "blocked_research"
+identifying_result = "PulseEffect"
+assumptions = "closed.TemporalConditionalPulse.TemporalAdmg is the same boundary."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. A temporal contrast on TemporalAdmg is not identified; licensed cells stay on TemporalDag, TemporalCpdag, and TemporalPag."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P15.pulse.temporal.bayesian"
+parent = "P15"
+gap = "temporal-identification"
+route = "closed.PulseEffect.TemporalAdmg"
+target = "PulseEffect"
+review_status = "blocked_research"
+identifying_result = "PulseEffect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. No identified Bayesian TemporalAdmg pulse."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P15.sustained.static.frequentist"
+parent = "P15"
+gap = "target"
+route = "unlisted"
+target = "SustainedEffect"
+review_status = "specification_only"
+identifying_result = "SustainedEffect has no static graph class"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P15.sustained.static.bayesian"
+parent = "P15"
+gap = "target"
+route = "unlisted"
+target = "SustainedEffect"
+review_status = "specification_only"
+identifying_result = "No static Bayesian sustained effect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+]
+
+[[spec]]
+id = "P15.sustained.temporal.frequentist"
+parent = "P15"
+gap = "temporal-identification"
+route = "closed.SustainedEffect.TemporalAdmg"
+target = "SustainedEffect"
+review_status = "blocked_research"
+identifying_result = "SustainedEffect"
+assumptions = "closed.TemporalConditionalSustained.TemporalAdmg is the same boundary. TemporalDag/Cpdag/Pag sustained rows are licensed."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. SustainedEffect on TemporalAdmg is not identified."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P15.sustained.temporal.bayesian"
+parent = "P15"
+gap = "temporal-identification"
+route = "closed.SustainedEffect.TemporalAdmg"
+target = "SustainedEffect"
+review_status = "blocked_research"
+identifying_result = "SustainedEffect"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. No identified Bayesian TemporalAdmg sustained effect."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+]
+
+[[spec]]
+id = "P16.static.frequentist"
+parent = "P16"
+gap = "validation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "Also crates/antecedent-contract/src/measurement.rs and crates/antecedent-estimate/src/measurement."
+sampling_units = "unlisted"
+estimator = "composed interval"
+diagnostics = "interval composition restriction stays until a whole composed route is validated; no route_manifest row"
+failure_policy = "Not a calibrated claim. Interval composition restriction stays until a whole composed route is validated; no route_manifest row."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Standardize the envelope and preserve the representation",
+]
+
+[[spec]]
+id = "P16.static.bayesian"
+parent = "P16"
+gap = "validation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "composed posterior"
+diagnostics = "posterior composition restriction is not validated as a route"
+failure_policy = "Not a calibrated claim. Posterior composition restriction is not validated as a route."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Standardize the envelope and preserve the representation",
+]
+
+[[spec]]
+id = "P16.temporal.frequentist"
+parent = "P16"
+gap = "validation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "X05 experimental bridges are a separate promotion candidate."
+sampling_units = "unlisted"
+estimator = "measurement transport"
+diagnostics = "no temporal composition route in route_manifest"
+failure_policy = "Not a calibrated claim. No temporal composition route in route_manifest."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Standardize the envelope and preserve the representation",
+  "X05 — Preserve experiment-to-update-to-decision meaning",
+]
+
+[[spec]]
+id = "P16.temporal.bayesian"
+parent = "P16"
+gap = "validation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "no validated temporal Bayesian measurement composition"
+failure_policy = "Not a calibrated claim. No validated temporal Bayesian measurement composition."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Standardize the envelope and preserve the representation",
+]
+
+[[spec]]
+id = "P18.static.frequentist"
+parent = "P18"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "invalidation"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No per-route delta contract; invalidation exists without a manifest refresh route."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P18.static.bayesian"
+parent = "P18"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No Bayesian prior-refresh route."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P18.temporal.frequentist"
+parent = "P18"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "Route unlisted."
+sampling_units = "unlisted"
+estimator = "prepared horizon-two period refresh"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. Only one prepared horizon-two refresh; other routes have no delta-or-invalidate contract."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P18.temporal.bayesian"
+parent = "P18"
+gap = "implementation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. No temporal Bayesian refresh route."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P19.static.frequentist"
+parent = "P19"
+gap = "implementation"
+route = "parity/capabilities/route_manifest.toml"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "One migration child per axis. Not one child per geometric cell."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. Licensed and graphless routes are not yet migrated onto the 3.0 contracts."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P19.static.bayesian"
+parent = "P19"
+gap = "implementation"
+route = "parity/capabilities/route_manifest.toml"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "One migration child per axis. Not one child per geometric cell."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. Licensed and graphless routes are not yet migrated onto the 3.0 contracts."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P19.temporal.frequentist"
+parent = "P19"
+gap = "implementation"
+route = "parity/capabilities/route_manifest.toml"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "One migration child per axis. Not one child per geometric cell."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. Licensed and graphless routes are not yet migrated onto the 3.0 contracts."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P19.temporal.bayesian"
+parent = "P19"
+gap = "implementation"
+route = "parity/capabilities/route_manifest.toml"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "One migration child per axis. Not one child per geometric cell."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Not an estimator yet. Licensed and graphless routes are not yet migrated onto the 3.0 contracts."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P20.static.frequentist"
+parent = "P20"
+gap = "validation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "Audit child. Zero unresolved mandatory rows is the later release condition, not this ticket."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "no family-by-family closure report against these children"
+failure_policy = "Not a calibrated claim. No family-by-family closure report against these children."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P20.static.bayesian"
+parent = "P20"
+gap = "validation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "Audit child. Zero unresolved mandatory rows is the later release condition, not this ticket."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "no family-by-family closure report against these children"
+failure_policy = "Not a calibrated claim. No family-by-family closure report against these children."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P20.temporal.frequentist"
+parent = "P20"
+gap = "validation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "Audit child. Zero unresolved mandatory rows is the later release condition, not this ticket."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "no family-by-family closure report against these children"
+failure_policy = "Not a calibrated claim. No family-by-family closure report against these children."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "P20.temporal.bayesian"
+parent = "P20"
+gap = "validation"
+route = "unlisted"
+target = "unlisted"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "Audit child. Zero unresolved mandatory rows is the later release condition, not this ticket."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "no family-by-family closure report against these children"
+failure_policy = "Not a calibrated claim. No family-by-family closure report against these children."
+references = [
+  "Static and temporal parity",
+  "Frequentist and Bayesian parity",
+  "Release scope and gates",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X01.static.frequentist"
+parent = "X01"
+gap = "implementation"
+route = "unlisted"
+target = "joint intervention contrast"
+review_status = "specification_only"
+identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
+assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises."
+sampling_units = "unlisted"
+estimator = "one contrast with covariance across the four worlds; not constructed"
+diagnostics = "support, calibration, identity, and artifact of the assembled contrast; procedure unlisted"
+failure_policy = "Subtracting independent marginal intervals is a failure. No static joint-contrast route with cross-world covariance. A single-world response is not Delta_AB."
+references = [
+  "Product outcome",
+  "Release scope and gates",
+  "X01 — Treat a contrast of intervention worlds as one scientific target",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X01.static.bayesian"
+parent = "X01"
+gap = "implementation"
+route = "unlisted"
+target = "joint intervention contrast"
+review_status = "specification_only"
+identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
+assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises."
+sampling_units = "unlisted"
+estimator = "aligned posterior draws of Delta_AB; not constructed"
+diagnostics = "support, calibration, identity, and artifact of the assembled contrast; procedure unlisted"
+failure_policy = "Subtracting independent marginal intervals is a failure. No aligned static posterior draws of Delta_AB. A single-world response is not Delta_AB."
+references = [
+  "Product outcome",
+  "Release scope and gates",
+  "X01 — Treat a contrast of intervention worlds as one scientific target",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X01.temporal.frequentist"
+parent = "X01"
+gap = "implementation"
+route = "unlisted"
+target = "joint intervention contrast"
+review_status = "specification_only"
+identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
+assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises. Here a and b are schedules or history-adapted programs with declared timing, horizon, and initial-state law."
+sampling_units = "unlisted"
+estimator = "one contrast with covariance across the four worlds; not constructed"
+diagnostics = "support, calibration, identity, and artifact of the assembled contrast; procedure unlisted"
+failure_policy = "Subtracting independent marginal intervals is a failure. No scheduled-program contrast route with cross-world covariance. A single-world response is not Delta_AB."
+references = [
+  "Product outcome",
+  "Release scope and gates",
+  "X01 — Treat a contrast of intervention worlds as one scientific target",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X01.temporal.bayesian"
+parent = "X01"
+gap = "implementation"
+route = "unlisted"
+target = "joint intervention contrast"
+review_status = "specification_only"
+identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
+assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises. Here a and b are schedules or history-adapted programs with declared timing, horizon, and initial-state law."
+sampling_units = "unlisted"
+estimator = "aligned posterior draws of Delta_AB; not constructed"
+diagnostics = "support, calibration, identity, and artifact of the assembled contrast; procedure unlisted"
+failure_policy = "Subtracting independent marginal intervals is a failure. No aligned temporal posterior draws of a program contrast. A single-world response is not Delta_AB."
+references = [
+  "Product outcome",
+  "Release scope and gates",
+  "X01 — Treat a contrast of intervention worlds as one scientific target",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X02.static.frequentist"
+parent = "X02"
+gap = "implementation"
+route = "unlisted"
+target = "L=0 saturation and interaction response"
+review_status = "not_admitted"
+identifying_result = "L=0 saturation and interaction response; joint Delta_AB"
+assumptions = "Static reduction of the panel proposal: finite seasonal dummies, one additive observable confounder, shared Michaelis-Menten a/(a+k) with k>0, one bilinear product of the two saturated channels, partial pooling of group intercepts only, independent rows. Simplex lag L=2 is omitted."
+sampling_units = "independent rows"
+estimator = "Gaussian estimating equations, independent rows"
+diagnostics = "unlisted"
+failure_policy = "Not admitted. Fitting is feasible as a finite-parameter Gaussian panel regression. Causal support for joint Delta_AB is absent. A programmable nonlinear callback that can be simulated does not identify the contrast or carry mechanism uncertainty across worlds."
+references = [
+  "Product outcome",
+  "Principal decisions",
+  "Release scope and gates",
+  "X02 — Estimate the mechanism, including its uncertainty",
+]
+
+[[spec]]
+id = "X02.static.bayesian"
+parent = "X02"
+gap = "implementation"
+route = "unlisted"
+target = "L=0 saturation and interaction response"
+review_status = "not_admitted"
+identifying_result = "L=0 saturation and interaction response; joint Delta_AB"
+assumptions = "Static reduction of the panel proposal: finite seasonal dummies, one additive observable confounder, shared Michaelis-Menten a/(a+k) with k>0, one bilinear product of the two saturated channels, partial pooling of group intercepts only, independent rows. Simplex lag L=2 is omitted."
+sampling_units = "independent rows"
+estimator = "same likelihood, prior on k and the interaction; not a tempered posterior"
+diagnostics = "unlisted"
+failure_policy = "Not admitted. Fitting is feasible as a finite-parameter Gaussian panel regression. Causal support for joint Delta_AB is absent. A programmable nonlinear callback that can be simulated does not identify the contrast or carry mechanism uncertainty across worlds."
+references = [
+  "Product outcome",
+  "Principal decisions",
+  "Release scope and gates",
+  "X02 — Estimate the mechanism, including its uncertainty",
+]
+
+[[spec]]
+id = "X02.temporal.frequentist"
+parent = "X02"
+gap = "temporal-identification"
+route = "unlisted"
+target = "finite-lag group-time response"
+review_status = "not_admitted"
+identifying_result = "Finite-lag group-time response; joint Delta_AB"
+assumptions = "Balanced geographic group-time panel, finite seasonal dummies, one additive observable confounder. Simplex distributed lag L=2. Shared Michaelis-Menten a/(a+k), k>0. One bilinear product of the two saturated channels. Partial pooling of group intercepts only. Gaussian AR(1) within group, independent groups."
+sampling_units = "geographic groups; times within group"
+estimator = "Gaussian AR(1) estimating equations and group-cluster sandwich"
+diagnostics = "unlisted"
+failure_policy = "Not admitted. Fitting is feasible as a finite-parameter Gaussian panel regression. Causal support for joint Delta_AB is absent. A programmable nonlinear callback that can be simulated does not identify the contrast or carry mechanism uncertainty across worlds."
+references = [
+  "Product outcome",
+  "Principal decisions",
+  "Release scope and gates",
+  "X02 — Estimate the mechanism, including its uncertainty",
+]
+
+[[spec]]
+id = "X02.temporal.bayesian"
+parent = "X02"
+gap = "temporal-identification"
+route = "unlisted"
+target = "finite-lag group-time response"
+review_status = "not_admitted"
+identifying_result = "Finite-lag group-time response; joint Delta_AB"
+assumptions = "Balanced geographic group-time panel, finite seasonal dummies, one additive observable confounder. Simplex distributed lag L=2. Shared Michaelis-Menten a/(a+k), k>0. One bilinear product of the two saturated channels. Partial pooling of group intercepts only. Gaussian AR(1) within group, independent groups."
+sampling_units = "geographic groups; times within group"
+estimator = "hierarchical prior on group intercepts, Dirichlet lag weights, prior on k"
+diagnostics = "unlisted"
+failure_policy = "Not admitted. Fitting is feasible as a finite-parameter Gaussian panel regression. Causal support for joint Delta_AB is absent. A programmable nonlinear callback that can be simulated does not identify the contrast or carry mechanism uncertainty across worlds."
+references = [
+  "Product outcome",
+  "Principal decisions",
+  "Release scope and gates",
+  "X02 — Estimate the mechanism, including its uncertainty",
+]
+
+[[spec]]
+id = "X02.broader.static.frequentist"
+parent = "X02.broader"
+gap = "theory"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, and extra interactions are outside the reviewed slice and have no identification proof."
+references = [
+  "Release scope and gates",
+  "X02 — Estimate the mechanism, including its uncertainty",
+]
+
+[[spec]]
+id = "X02.broader.static.bayesian"
+parent = "X02.broader"
+gap = "theory"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, and extra interactions are outside the reviewed slice and have no identification proof."
+references = [
+  "Release scope and gates",
+  "X02 — Estimate the mechanism, including its uncertainty",
+]
+
+[[spec]]
+id = "X02.broader.temporal.frequentist"
+parent = "X02.broader"
+gap = "theory"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, and extra interactions are outside the reviewed slice and have no identification proof."
+references = [
+  "Release scope and gates",
+  "X02 — Estimate the mechanism, including its uncertainty",
+]
+
+[[spec]]
+id = "X02.broader.temporal.bayesian"
+parent = "X02.broader"
+gap = "theory"
+route = "unlisted"
+target = "unlisted"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Identification is blocked. Geometric or infinite adstock, free Hill shape, group-specific saturation, spatial residuals, more than two channels, and extra interactions are outside the reviewed slice and have no identification proof."
+references = [
+  "Release scope and gates",
+  "X02 — Estimate the mechanism, including its uncertainty",
+]
+
+[[spec]]
+id = "X03.static.frequentist"
+parent = "X03"
+gap = "target"
+route = "unlisted"
+target = "time-varying effectiveness"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis. This axis has no time-varying estimand. Change and selection uncertainty are specified on the temporal records."
+references = [
+  "Release scope and gates",
+  "X03 — Infer time-varying structural effectiveness",
+]
+
+[[spec]]
+id = "X03.static.bayesian"
+parent = "X03"
+gap = "target"
+route = "unlisted"
+target = "time-varying effectiveness"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis. This axis has no time-varying estimand. Change and selection uncertainty are specified on the temporal records."
+references = [
+  "Release scope and gates",
+  "X03 — Infer time-varying structural effectiveness",
+]
+
+[[spec]]
+id = "X03.temporal.frequentist"
+parent = "X03"
+gap = "theory"
+route = "unlisted"
+target = "time-varying structural effectiveness"
+review_status = "blocked_research"
+identifying_result = "Time-varying structural effectiveness"
+assumptions = "Piecewise-constant change points, or smooth parameters with regularization or priors. Not every change point is identifiable. A decomposition of exposure, saturation, population or geographic composition, and mechanism needs reference worlds and joint uncertainty. Carryover stays separate from Y equilibrium."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "uncertainty for changes, smoothing, and model selection; procedure unlisted"
+failure_policy = "Refuse a unique attribution when those explanations are not separated. Changing spend or geography does not establish a mechanism change. No piecewise-constant or smooth time-varying parameter route; change-point identification is unproved."
+references = [
+  "Release scope and gates",
+  "X03 — Infer time-varying structural effectiveness",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X03.temporal.bayesian"
+parent = "X03"
+gap = "theory"
+route = "unlisted"
+target = "time-varying structural effectiveness"
+review_status = "blocked_research"
+identifying_result = "Time-varying structural effectiveness"
+assumptions = "Piecewise-constant change points, or smooth parameters with regularization or priors. Not every change point is identifiable. A decomposition of exposure, saturation, population or geographic composition, and mechanism needs reference worlds and joint uncertainty. Carryover stays separate from Y equilibrium."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "uncertainty for changes, smoothing, and model selection; procedure unlisted"
+failure_policy = "Refuse a unique attribution when those explanations are not separated. Changing spend or geography does not establish a mechanism change. No prior for smooth or change-point mechanisms; selection uncertainty is unproved."
+references = [
+  "Release scope and gates",
+  "X03 — Infer time-varying structural effectiveness",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X04.1.static.frequentist"
+parent = "X04.1"
+gap = "implementation"
+route = "gcm.model.intervention_programs"
+target = "PolicyProgramValue"
+review_status = "blocked_research"
+identifying_result = "Optimum of a declared finite candidate set, certificate scoped to that set"
+assumptions = "Controllable variables, permissible schedules, bounds, resource limits, and constraints are declared. Unsupported worlds stay unsupported. The program module crates/antecedent-model/src/program.rs simulates candidate programs."
+sampling_units = "unlisted"
+estimator = "exhaustive evaluation of a declared finite candidate set; not constructed"
+diagnostics = "feasibility checks and a set-scoped optimum certificate. Joint uncertainty of the evaluated set is unproved."
+failure_policy = "A best-found point without a certificate scoped to the declared set is a failure. The execution_only simulation is not a search and has no set-scoped optimum certificate."
+references = [
+  "Release scope and gates",
+  "X04 — Search a typed space of intervention programs",
+  "Plan backward from the decision",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X04.2.static.frequentist"
+parent = "X04.2"
+gap = "theory"
+route = "unlisted"
+target = "continuous intervention program"
+review_status = "blocked_research"
+identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
+assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Separate promotion from the finite candidate set."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "best-found feasible point and an optimality gap or bound when one exists; a best-found point is not a global optimum"
+failure_policy = "Claiming a global optimum from a best-found point is a failure. Continuous search is a separate record from X04.1. No convergence or global-optimum certificate for continuous search."
+references = [
+  "Release scope and gates",
+  "X04 — Search a typed space of intervention programs",
+  "Plan backward from the decision",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X04.1.static.bayesian"
+parent = "X04.1"
+gap = "implementation"
+route = "gcm.model.intervention_programs"
+target = "PolicyProgramValue"
+review_status = "blocked_research"
+identifying_result = "Optimum of a declared finite candidate set, certificate scoped to that set"
+assumptions = "Controllable variables, permissible schedules, bounds, resource limits, and constraints are declared. Unsupported worlds stay unsupported. The program module crates/antecedent-model/src/program.rs simulates candidate programs."
+sampling_units = "unlisted"
+estimator = "exhaustive evaluation of a declared finite candidate set; not constructed"
+diagnostics = "feasibility checks and a set-scoped optimum certificate. Selection-aware calibration of the searched decision is unproved."
+failure_policy = "A best-found point without a certificate scoped to the declared set is a failure. The execution_only simulation is not a search and has no set-scoped optimum certificate."
+references = [
+  "Release scope and gates",
+  "X04 — Search a typed space of intervention programs",
+  "Plan backward from the decision",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X04.2.static.bayesian"
+parent = "X04.2"
+gap = "theory"
+route = "unlisted"
+target = "continuous intervention program"
+review_status = "blocked_research"
+identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
+assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Separate promotion from the finite candidate set."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "best-found feasible point and an optimality gap or bound when one exists; a best-found point is not a global optimum"
+failure_policy = "Claiming a global optimum from a best-found point is a failure. Continuous search is a separate record from X04.1. No convergence or global-optimum certificate for continuous search."
+references = [
+  "Release scope and gates",
+  "X04 — Search a typed space of intervention programs",
+  "Plan backward from the decision",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X04.1.temporal.frequentist"
+parent = "X04.1"
+gap = "implementation"
+route = "gcm.model.intervention_programs"
+target = "PolicyProgramValue"
+review_status = "blocked_research"
+identifying_result = "Optimum of a declared finite candidate set, certificate scoped to that set"
+assumptions = "Controllable variables, permissible schedules, bounds, resource limits, and constraints are declared. Unsupported worlds stay unsupported. The program module crates/antecedent-model/src/program.rs simulates candidate programs."
+sampling_units = "unlisted"
+estimator = "exhaustive evaluation of a declared finite candidate set; not constructed"
+diagnostics = "feasibility checks and a set-scoped optimum certificate. Joint uncertainty of the evaluated set is unproved."
+failure_policy = "A best-found point without a certificate scoped to the declared set is a failure. The execution_only simulation is not a search and has no set-scoped optimum certificate."
+references = [
+  "Release scope and gates",
+  "X04 — Search a typed space of intervention programs",
+  "Plan backward from the decision",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X04.2.temporal.frequentist"
+parent = "X04.2"
+gap = "theory"
+route = "unlisted"
+target = "continuous intervention program"
+review_status = "blocked_research"
+identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
+assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Separate promotion from the finite candidate set."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "best-found feasible point and an optimality gap or bound when one exists; a best-found point is not a global optimum"
+failure_policy = "Claiming a global optimum from a best-found point is a failure. Continuous search is a separate record from X04.1. No convergence or global-optimum certificate for continuous search."
+references = [
+  "Release scope and gates",
+  "X04 — Search a typed space of intervention programs",
+  "Plan backward from the decision",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X04.1.temporal.bayesian"
+parent = "X04.1"
+gap = "implementation"
+route = "gcm.model.intervention_programs"
+target = "PolicyProgramValue"
+review_status = "blocked_research"
+identifying_result = "Optimum of a declared finite candidate set, certificate scoped to that set"
+assumptions = "Controllable variables, permissible schedules, bounds, resource limits, and constraints are declared. Unsupported worlds stay unsupported. The program module crates/antecedent-model/src/program.rs simulates candidate programs."
+sampling_units = "unlisted"
+estimator = "exhaustive evaluation of a declared finite candidate set; not constructed"
+diagnostics = "feasibility checks and a set-scoped optimum certificate. Selection-aware calibration of the searched decision is unproved."
+failure_policy = "A best-found point without a certificate scoped to the declared set is a failure. The execution_only simulation is not a search and has no set-scoped optimum certificate."
+references = [
+  "Release scope and gates",
+  "X04 — Search a typed space of intervention programs",
+  "Plan backward from the decision",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X04.2.temporal.bayesian"
+parent = "X04.2"
+gap = "theory"
+route = "unlisted"
+target = "continuous intervention program"
+review_status = "blocked_research"
+identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
+assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Separate promotion from the finite candidate set."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "best-found feasible point and an optimality gap or bound when one exists; a best-found point is not a global optimum"
+failure_policy = "Claiming a global optimum from a best-found point is a failure. Continuous search is a separate record from X04.1. No convergence or global-optimum certificate for continuous search."
+references = [
+  "Release scope and gates",
+  "X04 — Search a typed space of intervention programs",
+  "Plan backward from the decision",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X05.static.frequentist"
+parent = "X05"
+gap = "target"
+route = "unlisted"
+target = "experiment-to-decision closure"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis. Comprehensive closure is a longitudinal estimand translation. Static experiments remain P09."
+references = [
+  "Release scope and gates",
+  "X05 — Preserve experiment-to-update-to-decision meaning",
+]
+
+[[spec]]
+id = "X05.temporal.frequentist"
+parent = "X05"
+gap = "theory"
+route = "unlisted"
+target = "geo-experiment to longitudinal model to decision"
+review_status = "blocked_research"
+identifying_result = "Experiment estimand (population, window, dose, duration, regime) translated into a longitudinal model, with bridge uncertainty"
+assumptions = "Recency, duration, spend or exposure differences, transport, and source or mapping dependence stay in the bridge. The same experiment is not used twice through a prior and a later update. Experimental priors alone do not close the chain."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "bridge uncertainty, update-to-decision trace, and exact invalidation; procedure unlisted"
+failure_policy = "An incompatible mapping refuses or returns an explicitly weaker conditional result. No proved map from a windowed experiment estimand through recency, dose, transport, and update to a decision."
+references = [
+  "Release scope and gates",
+  "X05 — Preserve experiment-to-update-to-decision meaning",
+  "Standardize the envelope and preserve the representation",
+]
+
+[[spec]]
+id = "X05.static.bayesian"
+parent = "X05"
+gap = "target"
+route = "unlisted"
+target = "experiment-to-decision closure"
+review_status = "blocked_research"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis. Comprehensive closure is a longitudinal estimand translation. Static experiments remain P09."
+references = [
+  "Release scope and gates",
+  "X05 — Preserve experiment-to-update-to-decision meaning",
+]
+
+[[spec]]
+id = "X05.temporal.bayesian"
+parent = "X05"
+gap = "theory"
+route = "unlisted"
+target = "geo-experiment to longitudinal model to decision"
+review_status = "blocked_research"
+identifying_result = "Experiment estimand (population, window, dose, duration, regime) translated into a longitudinal model, with bridge uncertainty"
+assumptions = "Recency, duration, spend or exposure differences, transport, and source or mapping dependence stay in the bridge. The same experiment is not used twice through a prior and a later update. Experimental priors alone do not close the chain."
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "bridge uncertainty, update-to-decision trace, and exact invalidation; procedure unlisted"
+failure_policy = "An incompatible mapping refuses or returns an explicitly weaker conditional result. No proved map from a windowed experiment estimand through recency, dose, transport, and update to a decision."
+references = [
+  "Release scope and gates",
+  "X05 — Preserve experiment-to-update-to-decision meaning",
+  "Standardize the envelope and preserve the representation",
+]
+
+[[spec]]
+id = "X06.static.frequentist"
+parent = "X06"
+gap = "target"
+route = "unlisted"
+target = "independent joint-response reference"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis. The reference design is a synthetic panel."
+references = [
+  "Release scope and gates",
+  "X06 — Build the independent reference workflow first",
+]
+
+[[spec]]
+id = "X06.static.bayesian"
+parent = "X06"
+gap = "target"
+route = "unlisted"
+target = "independent joint-response reference"
+review_status = "specification_only"
+identifying_result = "unlisted"
+assumptions = "unlisted"
+sampling_units = "unlisted"
+estimator = "unlisted"
+diagnostics = "unlisted"
+failure_policy = "Refuse this axis. The reference design is a synthetic panel."
+references = [
+  "Release scope and gates",
+  "X06 — Build the independent reference workflow first",
+]
+
+[[spec]]
+id = "X06.temporal.frequentist"
+parent = "X06"
+gap = "validation"
+route = "unlisted"
+target = "synthetic two-channel panel"
+review_status = "specification_only"
+identifying_result = "Joint response on an independent synthetic two-channel panel"
+assumptions = "Generator truth, seeds, and reference values stay independent of production estimator code. Two channels, finite carryover, saturation, one known interaction, geographic partial pooling, one observable confounder, serial and group dependence."
+sampling_units = "groups in a synthetic panel"
+estimator = "frequentist fit of the admitted mechanism, or a documented unavailable fit"
+diagnostics = "hold out joint regimes as well as rows; an unsupported design must withhold a causal claim even if a simulation runs"
+failure_policy = "Specification only. A simulation is not a fit. If X02 stays excluded, keep the design fixtures and document the unavailable fitted workflow. No independent synthetic fixture, holdout regime, or unsupported-design refusal in route_manifest."
+references = [
+  "Release scope and gates",
+  "X06 — Build the independent reference workflow first",
+  "Verification and release evidence",
+]
+
+[[spec]]
+id = "X06.temporal.bayesian"
+parent = "X06"
+gap = "validation"
+route = "unlisted"
+target = "synthetic two-channel panel"
+review_status = "specification_only"
+identifying_result = "Joint response on an independent synthetic two-channel panel"
+assumptions = "Generator truth, seeds, and reference values stay independent of production estimator code. Two channels, finite carryover, saturation, one known interaction, geographic partial pooling, one observable confounder, serial and group dependence."
+sampling_units = "groups in a synthetic panel"
+estimator = "Bayesian fit with partial pooling, compared on an additive specification"
+diagnostics = "whole-procedure calibration; interaction stays off the additive comparison; external feature parity is not the claim"
+failure_policy = "Specification only. A simulation is not a fit. The additive comparison does not score the interaction. No pinned external additive comparison and no whole-procedure calibration fixture."
+references = [
+  "Release scope and gates",
+  "X06 — Build the independent reference workflow first",
+  "Verification and release evidence",
+]
