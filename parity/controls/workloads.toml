@@ -1,0 +1,211 @@
+# End-to-end control definitions for the 3.0 workload suite.
+# Predecessor tag: v2.4.1. Timings are not recorded in this file.
+# status = "defined" means the command exists and has not been measured.
+# status = "missing_entry_point" means no command times that family with its uncertainty.
+
+schema = 1
+predecessor_tag = "v2.4.1"
+measured = false
+
+[[control]]
+id = "adjustment"
+family = "adjustment"
+status = "defined"
+command = "python examples/python/propensity_weighting.py"
+timed_work = "analyze() requests 30 bootstrap replicates for the propensity-weighted average effect and returns overlap diagnostics (ESS and minimum propensity). The script prints calibration status and those overlap fields. Row synthesis sits outside that call."
+data = "examples/python/propensity_weighting.py"
+seed = "data=7 execution=11"
+predecessor = "v2.4.1"
+source = "examples/python/propensity_weighting.py"
+
+[[control]]
+id = "glm"
+family = "GLM"
+status = "defined"
+command = "cargo bench -p antecedent-prob --bench laplace_glm"
+timed_work = "The Criterion loop calls fit_laplace_glm on a Gaussian-identity design. That fit is MAP optimization plus 256 Laplace posterior draws. The workspace-reuse assertion runs after the loop."
+data = "crates/antecedent-prob/benches/laplace_glm.rs"
+seed = "1"
+predecessor = "v2.4.1"
+source = "benches/baselines/laplace_glm.md"
+
+[[control]]
+id = "aipw"
+family = "AIPW"
+status = "defined"
+command = "python examples/python/ihdp_propensity_e2e.py"
+timed_work = "The AIPW analyze() call requests 40 bootstrap replicates and returns a bootstrap or analytic standard error; the script turns that error into a Wald interval. The same process also runs IPW with the cheap refutation suite and overlap diagnostics. AIPW refutation is off."
+data = "examples/python/ihdp_propensity_e2e.py"
+seed = "data=42 execution=11"
+predecessor = "v2.4.1"
+source = "examples/python/ihdp_propensity_e2e.py"
+
+[[control]]
+id = "prepared_query_families"
+family = "prepared query families"
+status = "missing_entry_point"
+command = ""
+timed_work = "No command times a prepared multi-query family together with uncertainty. The nearest file calls analyze_many with bootstrap disabled."
+data = "python/tests/test_analyze_many.py"
+seed = "none"
+predecessor = "v2.4.1"
+source = "python/tests/test_analyze_many.py"
+nearest = "python/tests/test_analyze_many.py"
+
+[[control]]
+id = "bootstrap"
+family = "bootstrap"
+status = "defined"
+command = "cargo bench -p antecedent-estimate --bench propensity_bootstrap"
+timed_work = "The Criterion loop calls PropensityWeighting::fit with 50 replicates. Each iteration refits the logistic propensity, exposes the bootstrap standard error, and asserts propensity-workspace reuse."
+data = "crates/antecedent-estimate/benches/propensity_bootstrap.rs"
+seed = "11"
+predecessor = "v2.4.1"
+source = "benches/baselines/propensity.md"
+
+[[control]]
+id = "gaussian_bayes"
+family = "Gaussian Bayes"
+status = "defined"
+command = "USER_PATH_N=10000 cargo bench -p antecedent --bench user_path -- user_path_dag_ate_bayesian_laplace"
+timed_work = "The Criterion loop runs the Laplace average-effect study. At this row count the run includes 400 certified Laplace posterior draws. Bootstrap and refutation are off. Copy counts and identify-cache hits are printed by a separate untimed run after the loop."
+data = "crates/antecedent/benches/user_path.rs"
+seed = "11"
+predecessor = "v2.4.1"
+source = "benches/baselines/user_path.md"
+
+[[control]]
+id = "nonlinear_bayes"
+family = "nonlinear Bayes"
+status = "missing_entry_point"
+command = ""
+timed_work = "No command fits a nonlinear Bayesian model with its posterior diagnostics. The nearest bench is Gaussian-identity HMC, and its comment leaves ESS and R-hat publication checks outside that bench."
+data = "crates/antecedent-prob/benches/hmc.rs"
+seed = "5"
+predecessor = "v2.4.1"
+source = "crates/antecedent-prob/benches/hmc.rs"
+nearest = "crates/antecedent-prob/benches/hmc.rs"
+
+[[control]]
+id = "pc"
+family = "PC"
+status = "defined"
+command = "cargo bench -p antecedent-discovery --bench ci_search"
+timed_work = "The PC leg times Pc::run, which executes the conditional-independence tests and stores the CI-test count on the discovery result. The same binary also times PCMCI+ and LPCMCI. Link digests are printed after each timed leg."
+data = "crates/antecedent-discovery/benches/ci_search.rs"
+seed = "7"
+predecessor = "v2.4.1"
+source = "crates/antecedent-discovery/benches/ci_search.rs"
+
+[[control]]
+id = "fci"
+family = "FCI"
+status = "missing_entry_point"
+command = ""
+timed_work = "No command runs an FCI search. The nearest bench orients a supplied PAG with FCI-family rules and does not run conditional-independence tests."
+data = "crates/antecedent-discovery/benches/pag_orientation.rs"
+seed = "none"
+predecessor = "v2.4.1"
+source = "crates/antecedent-discovery/benches/pag_orientation.rs"
+nearest = "crates/antecedent-discovery/benches/pag_orientation.rs"
+
+[[control]]
+id = "pcmci"
+family = "PCMCI"
+status = "defined"
+command = "cargo +1.85 bench -p antecedent-discovery --bench pcmci"
+timed_work = "The Criterion loop calls Pcmci::run. Parent search and momentary conditional independence (alpha 0.05, FDR off) execute inside that call. The bench discards the result value."
+data = "crates/antecedent-discovery/benches/pcmci.rs"
+seed = "1"
+predecessor = "v2.4.1"
+source = "benches/baselines/pcmci.md"
+
+[[control]]
+id = "panel"
+family = "panel"
+status = "defined"
+command = "python examples/python/quasi_difference_in_differences.py"
+timed_work = "analyze() for the balanced-panel difference-in-differences returns the subject-clustered standard error and the cluster count. The same script prints the repeated-cross-section uncertainty field."
+data = "examples/python/quasi_difference_in_differences.py"
+seed = "none"
+predecessor = "v2.4.1"
+source = "examples/python/quasi_difference_in_differences.py"
+
+[[control]]
+id = "survival"
+family = "survival"
+status = "missing_entry_point"
+command = ""
+timed_work = "No command times a survival contrast with an interval. The nearest example states that the RMST contrast is point-only and prints the uncertainty field on that point result."
+data = "examples/python/survival_rmst.py"
+seed = "none"
+predecessor = "v2.4.1"
+source = "examples/python/survival_rmst.py"
+nearest = "examples/python/survival_rmst.py"
+
+[[control]]
+id = "policy"
+family = "policy"
+status = "missing_entry_point"
+command = ""
+timed_work = "No command times a policy value with an interval. The nearest example states that the scalar value stays point-only and prints that uncertainty field."
+data = "examples/python/policy_value_evaluation.py"
+seed = "none"
+predecessor = "v2.4.1"
+source = "examples/python/policy_value_evaluation.py"
+nearest = "examples/python/policy_value_evaluation.py"
+
+[[control]]
+id = "transport"
+family = "transport"
+status = "defined"
+command = "cargo run -p antecedent --example transport_statistical"
+timed_work = "estimate_checked on the prepared empirical table uses 40 bootstrap replicates, the count at which the percentile uncertainty slot is available. Inspect and the estimate both report identification, support, uncertainty, and assumptions."
+data = "examples/rust/transport_statistical.rs"
+seed = "7"
+predecessor = "v2.4.1"
+source = "examples/rust/transport_statistical.rs"
+
+[[control]]
+id = "counterfactual"
+family = "counterfactual"
+status = "defined"
+command = "python examples/python/staged_static_kinds.py"
+timed_work = "The Bayesian counterfactual analyze() requests 64 posterior draws and the script requires a posterior on the individual effect. Mediation contrasts in the same script set bootstrap to 0 and print calibration status."
+data = "examples/python/staged_static_kinds.py"
+seed = "none"
+predecessor = "v2.4.1"
+source = "examples/python/staged_static_kinds.py"
+
+[[control]]
+id = "decision"
+family = "decision"
+status = "defined"
+command = "python examples/python/rank_designs_evsi.py"
+timed_work = "rank_designs under the declared bet computes each study's expected value of sample information. The script checks those values against EVPI, prints explain(), and replays the exported artifact."
+data = "examples/python/rank_designs_evsi.py"
+seed = "3"
+predecessor = "v2.4.1"
+source = "examples/python/rank_designs_evsi.py"
+
+[[control]]
+id = "refresh"
+family = "refresh"
+status = "defined"
+command = "python examples/python/analysis_workflow.py"
+timed_work = "analyze() requests 25 bootstrap replicates. refresh() re-executes that study, so the refreshed estimate includes the same bootstrap. inspect() builds the identification report, and the script prints calibration status."
+data = "examples/python/analysis_workflow.py"
+seed = "data=17 execution=19"
+predecessor = "v2.4.1"
+source = "examples/python/analysis_workflow.py"
+
+[[control]]
+id = "neural_crossfit"
+family = "neural crossfit"
+status = "defined"
+command = "cargo run --release -q -p antecedent-learn --features ml-neural --example neural_crossfit_benchmark"
+timed_work = "Timers cover fold assignment and both cross-fit fit-and-predict passes (binary propensity and continuous outcome), including fold materialization and prediction transfer back to physical row order. This entry point does not compute an effect interval."
+data = "crates/antecedent-learn/examples/neural_crossfit_benchmark.rs"
+seed = "21"
+predecessor = "v2.4.1"
+source = "benches/baselines/neural_crossfit.md"
