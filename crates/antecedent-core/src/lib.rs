@@ -61,6 +61,7 @@ pub mod reason_code;
 pub mod recalc;
 pub mod response;
 pub mod rng_key;
+pub mod route_memory;
 pub mod sampling_design;
 pub mod schema;
 pub mod scientific_target;
@@ -164,6 +165,10 @@ pub use response::{
 pub use rng_key::{
     BatchSize, ChainId, DeclaredTolerance, FailedRngAttempt, FoldId, ReductionPolicy, ReplicateId,
     RngKey, SemanticOperation, StreamRequest, ToleranceError, WorkerId,
+};
+pub use route_memory::{
+    AdmittedRouteMemory, EncodedWidth, RouteBudget, RouteMemoryComponent, RouteMemoryDeclaration,
+    RouteMemoryError, RouteMemoryEstimate,
 };
 pub use sampling_design::SamplingDesign as DeclaredSamplingDesign;
 pub use sampling_design::{

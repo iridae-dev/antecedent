@@ -39,6 +39,7 @@
 #[non_exhaustive] pub enum antecedent_core::PredicateExpr
 #[non_exhaustive] pub enum antecedent_core::ProviderDeclarationError
 #[non_exhaustive] pub enum antecedent_core::QueryError
+#[non_exhaustive] pub enum antecedent_core::RouteMemoryError
 #[non_exhaustive] pub enum antecedent_core::SamplingDesignError
 #[non_exhaustive] pub enum antecedent_core::SchemaError
 #[non_exhaustive] pub enum antecedent_core::ScientificTargetError
@@ -76,6 +77,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_core::ExecutionContext
 impl core::clone::Clone for antecedent_core::AdaptiveBootstrapBudget
 impl core::clone::Clone for antecedent_core::AdaptiveDrawBudget
 impl core::clone::Clone for antecedent_core::AdmittedBytes
+impl core::clone::Clone for antecedent_core::AdmittedRouteMemory
 impl core::clone::Clone for antecedent_core::AllocationMethod
 impl core::clone::Clone for antecedent_core::AllowedRule
 impl core::clone::Clone for antecedent_core::AnomalyAttributionQuery
@@ -160,6 +162,7 @@ impl core::clone::Clone for antecedent_core::DoseTimeSurface
 impl core::clone::Clone for antecedent_core::DynamicRuleId
 impl core::clone::Clone for antecedent_core::EdgeRoute
 impl core::clone::Clone for antecedent_core::EffectiveSampleSizeRule
+impl core::clone::Clone for antecedent_core::EncodedWidth
 impl core::clone::Clone for antecedent_core::Environment
 impl core::clone::Clone for antecedent_core::EnvironmentId
 impl core::clone::Clone for antecedent_core::EvidenceCatalog
@@ -292,6 +295,11 @@ impl core::clone::Clone for antecedent_core::ResponseValue
 impl core::clone::Clone for antecedent_core::RngFactory
 impl core::clone::Clone for antecedent_core::RngKey
 impl core::clone::Clone for antecedent_core::RoleHint
+impl core::clone::Clone for antecedent_core::RouteBudget
+impl core::clone::Clone for antecedent_core::RouteMemoryComponent
+impl core::clone::Clone for antecedent_core::RouteMemoryDeclaration
+impl core::clone::Clone for antecedent_core::RouteMemoryError
+impl core::clone::Clone for antecedent_core::RouteMemoryEstimate
 impl core::clone::Clone for antecedent_core::SamplingDesign
 impl core::clone::Clone for antecedent_core::SamplingDesignDeclaration
 impl core::clone::Clone for antecedent_core::SamplingDesignError
@@ -423,6 +431,7 @@ impl core::clone::Clone for antecedent_core::recalc::StageIdentity
 impl core::clone::Clone for antecedent_core::recalc::StageStatus
 impl core::clone::Clone for antecedent_core::value::InterventionValueError
 impl core::cmp::Eq for antecedent_core::AdmittedBytes
+impl core::cmp::Eq for antecedent_core::AdmittedRouteMemory
 impl core::cmp::Eq for antecedent_core::AllocationMethod
 impl core::cmp::Eq for antecedent_core::AllowedRule
 impl core::cmp::Eq for antecedent_core::AnomalyAttributionQuery
@@ -491,6 +500,7 @@ impl core::cmp::Eq for antecedent_core::DoseTimeSurface
 impl core::cmp::Eq for antecedent_core::DynamicRuleId
 impl core::cmp::Eq for antecedent_core::EdgeRoute
 impl core::cmp::Eq for antecedent_core::EffectiveSampleSizeRule
+impl core::cmp::Eq for antecedent_core::EncodedWidth
 impl core::cmp::Eq for antecedent_core::Environment
 impl core::cmp::Eq for antecedent_core::EnvironmentId
 impl core::cmp::Eq for antecedent_core::EvidenceClaims
@@ -586,6 +596,11 @@ impl core::cmp::Eq for antecedent_core::ResamplingRule
 impl core::cmp::Eq for antecedent_core::RngFactory
 impl core::cmp::Eq for antecedent_core::RngKey
 impl core::cmp::Eq for antecedent_core::RoleHint
+impl core::cmp::Eq for antecedent_core::RouteBudget
+impl core::cmp::Eq for antecedent_core::RouteMemoryComponent
+impl core::cmp::Eq for antecedent_core::RouteMemoryDeclaration
+impl core::cmp::Eq for antecedent_core::RouteMemoryError
+impl core::cmp::Eq for antecedent_core::RouteMemoryEstimate
 impl core::cmp::Eq for antecedent_core::SamplingDesign
 impl core::cmp::Eq for antecedent_core::SamplingDesignDeclaration
 impl core::cmp::Eq for antecedent_core::SamplingDesignError
@@ -735,6 +750,7 @@ impl core::cmp::Ord for antecedent_core::recalc::StageIdentity
 impl core::cmp::PartialEq for antecedent_core::AdaptiveBootstrapBudget
 impl core::cmp::PartialEq for antecedent_core::AdaptiveDrawBudget
 impl core::cmp::PartialEq for antecedent_core::AdmittedBytes
+impl core::cmp::PartialEq for antecedent_core::AdmittedRouteMemory
 impl core::cmp::PartialEq for antecedent_core::AllocationMethod
 impl core::cmp::PartialEq for antecedent_core::AllowedRule
 impl core::cmp::PartialEq for antecedent_core::AnomalyAttributionQuery
@@ -816,6 +832,7 @@ impl core::cmp::PartialEq for antecedent_core::DoseTimeSurface
 impl core::cmp::PartialEq for antecedent_core::DynamicRuleId
 impl core::cmp::PartialEq for antecedent_core::EdgeRoute
 impl core::cmp::PartialEq for antecedent_core::EffectiveSampleSizeRule
+impl core::cmp::PartialEq for antecedent_core::EncodedWidth
 impl core::cmp::PartialEq for antecedent_core::Environment
 impl core::cmp::PartialEq for antecedent_core::EnvironmentId
 impl core::cmp::PartialEq for antecedent_core::EvidenceCatalog
@@ -944,6 +961,11 @@ impl core::cmp::PartialEq for antecedent_core::ResponseValue
 impl core::cmp::PartialEq for antecedent_core::RngFactory
 impl core::cmp::PartialEq for antecedent_core::RngKey
 impl core::cmp::PartialEq for antecedent_core::RoleHint
+impl core::cmp::PartialEq for antecedent_core::RouteBudget
+impl core::cmp::PartialEq for antecedent_core::RouteMemoryComponent
+impl core::cmp::PartialEq for antecedent_core::RouteMemoryDeclaration
+impl core::cmp::PartialEq for antecedent_core::RouteMemoryError
+impl core::cmp::PartialEq for antecedent_core::RouteMemoryEstimate
 impl core::cmp::PartialEq for antecedent_core::SamplingDesign
 impl core::cmp::PartialEq for antecedent_core::SamplingDesignDeclaration
 impl core::cmp::PartialEq for antecedent_core::SamplingDesignError
@@ -1145,6 +1167,7 @@ impl core::default::Default for antecedent_core::MonteCarloError
 impl core::default::Default for antecedent_core::OutcomeFunctional
 impl core::default::Default for antecedent_core::PolicyReads
 impl core::default::Default for antecedent_core::PopulationRegistry
+impl core::default::Default for antecedent_core::RouteMemoryDeclaration
 impl core::default::Default for antecedent_core::SmallRoleSet
 impl core::default::Default for antecedent_core::StateVersion
 impl core::default::Default for antecedent_core::SyntheticPanelMethod
@@ -1163,6 +1186,7 @@ impl core::error::Error for antecedent_core::PhysicalOperatorError
 impl core::error::Error for antecedent_core::ProviderDeclarationError
 impl core::error::Error for antecedent_core::QueryError
 impl core::error::Error for antecedent_core::RecoveryMismatch
+impl core::error::Error for antecedent_core::RouteMemoryError
 impl core::error::Error for antecedent_core::SamplingDesignError
 impl core::error::Error for antecedent_core::SchemaError
 impl core::error::Error for antecedent_core::ScientificTargetError
@@ -1172,6 +1196,7 @@ impl core::error::Error for antecedent_core::value::InterventionValueError
 impl core::fmt::Debug for antecedent_core::AdaptiveBootstrapBudget
 impl core::fmt::Debug for antecedent_core::AdaptiveDrawBudget
 impl core::fmt::Debug for antecedent_core::AdmittedBytes
+impl core::fmt::Debug for antecedent_core::AdmittedRouteMemory
 impl core::fmt::Debug for antecedent_core::AllocationMethod
 impl core::fmt::Debug for antecedent_core::AllowedRule
 impl core::fmt::Debug for antecedent_core::AnomalyAttributionQuery
@@ -1257,6 +1282,7 @@ impl core::fmt::Debug for antecedent_core::DoseTimeSurface
 impl core::fmt::Debug for antecedent_core::DynamicRuleId
 impl core::fmt::Debug for antecedent_core::EdgeRoute
 impl core::fmt::Debug for antecedent_core::EffectiveSampleSizeRule
+impl core::fmt::Debug for antecedent_core::EncodedWidth
 impl core::fmt::Debug for antecedent_core::Environment
 impl core::fmt::Debug for antecedent_core::EnvironmentId
 impl core::fmt::Debug for antecedent_core::EvidenceCatalog
@@ -1389,6 +1415,11 @@ impl core::fmt::Debug for antecedent_core::ResponseValue
 impl core::fmt::Debug for antecedent_core::RngFactory
 impl core::fmt::Debug for antecedent_core::RngKey
 impl core::fmt::Debug for antecedent_core::RoleHint
+impl core::fmt::Debug for antecedent_core::RouteBudget
+impl core::fmt::Debug for antecedent_core::RouteMemoryComponent
+impl core::fmt::Debug for antecedent_core::RouteMemoryDeclaration
+impl core::fmt::Debug for antecedent_core::RouteMemoryError
+impl core::fmt::Debug for antecedent_core::RouteMemoryEstimate
 impl core::fmt::Debug for antecedent_core::SamplingDesign
 impl core::fmt::Debug for antecedent_core::SamplingDesignDeclaration
 impl core::fmt::Debug for antecedent_core::SamplingDesignError
@@ -1534,6 +1565,7 @@ impl core::fmt::Display for antecedent_core::DeviceName
 impl core::fmt::Display for antecedent_core::DistributionRef
 impl core::fmt::Display for antecedent_core::DynamicRuleId
 impl core::fmt::Display for antecedent_core::EffectiveSampleSizeRule
+impl core::fmt::Display for antecedent_core::EncodedWidth
 impl core::fmt::Display for antecedent_core::EnvironmentId
 impl core::fmt::Display for antecedent_core::ExprType
 impl core::fmt::Display for antecedent_core::ExpressionFault
@@ -1559,6 +1591,8 @@ impl core::fmt::Display for antecedent_core::QueryId
 impl core::fmt::Display for antecedent_core::RecoveryMismatch
 impl core::fmt::Display for antecedent_core::RegimeId
 impl core::fmt::Display for antecedent_core::ResamplingRule
+impl core::fmt::Display for antecedent_core::RouteMemoryComponent
+impl core::fmt::Display for antecedent_core::RouteMemoryError
 impl core::fmt::Display for antecedent_core::SamplingDesignError
 impl core::fmt::Display for antecedent_core::SchemaError
 impl core::fmt::Display for antecedent_core::ScientificTargetError
@@ -1579,6 +1613,7 @@ impl core::fmt::Display for antecedent_core::recalc::StageIdentity
 impl core::fmt::Display for antecedent_core::recalc::StageStatus
 impl core::fmt::Display for antecedent_core::value::InterventionValueError
 impl core::hash::Hash for antecedent_core::AdmittedBytes
+impl core::hash::Hash for antecedent_core::AdmittedRouteMemory
 impl core::hash::Hash for antecedent_core::AllocationMethod
 impl core::hash::Hash for antecedent_core::AllowedRule
 impl core::hash::Hash for antecedent_core::AnomalyAttributionQuery
@@ -1640,6 +1675,7 @@ impl core::hash::Hash for antecedent_core::DoseTimeSurface
 impl core::hash::Hash for antecedent_core::DynamicRuleId
 impl core::hash::Hash for antecedent_core::EdgeRoute
 impl core::hash::Hash for antecedent_core::EffectiveSampleSizeRule
+impl core::hash::Hash for antecedent_core::EncodedWidth
 impl core::hash::Hash for antecedent_core::EnvironmentId
 impl core::hash::Hash for antecedent_core::EvidenceClaims
 impl core::hash::Hash for antecedent_core::EvidenceKind
@@ -1716,6 +1752,10 @@ impl core::hash::Hash for antecedent_core::RequestIdentity
 impl core::hash::Hash for antecedent_core::ResamplingRule
 impl core::hash::Hash for antecedent_core::RngKey
 impl core::hash::Hash for antecedent_core::RoleHint
+impl core::hash::Hash for antecedent_core::RouteBudget
+impl core::hash::Hash for antecedent_core::RouteMemoryComponent
+impl core::hash::Hash for antecedent_core::RouteMemoryDeclaration
+impl core::hash::Hash for antecedent_core::RouteMemoryEstimate
 impl core::hash::Hash for antecedent_core::SamplingDesign
 impl core::hash::Hash for antecedent_core::SamplingDesignDeclaration
 impl core::hash::Hash for antecedent_core::SamplingSelection
@@ -1785,6 +1825,7 @@ impl core::hash::Hash for antecedent_core::recalc::StageIdentity
 impl core::marker::Copy for antecedent_core::AdaptiveBootstrapBudget
 impl core::marker::Copy for antecedent_core::AdaptiveDrawBudget
 impl core::marker::Copy for antecedent_core::AdmittedBytes
+impl core::marker::Copy for antecedent_core::AdmittedRouteMemory
 impl core::marker::Copy for antecedent_core::AllowedRule
 impl core::marker::Copy for antecedent_core::AnomalyReference
 impl core::marker::Copy for antecedent_core::ArithOp
@@ -1829,6 +1870,7 @@ impl core::marker::Copy for antecedent_core::DistributionRef
 impl core::marker::Copy for antecedent_core::DynamicRuleId
 impl core::marker::Copy for antecedent_core::EdgeRoute
 impl core::marker::Copy for antecedent_core::EffectiveSampleSizeRule
+impl core::marker::Copy for antecedent_core::EncodedWidth
 impl core::marker::Copy for antecedent_core::EnvironmentId
 impl core::marker::Copy for antecedent_core::EvidenceClaims
 impl core::marker::Copy for antecedent_core::EvidenceKind
@@ -1883,6 +1925,11 @@ impl core::marker::Copy for antecedent_core::ReplicateId
 impl core::marker::Copy for antecedent_core::ResamplingRule
 impl core::marker::Copy for antecedent_core::RngKey
 impl core::marker::Copy for antecedent_core::RoleHint
+impl core::marker::Copy for antecedent_core::RouteBudget
+impl core::marker::Copy for antecedent_core::RouteMemoryComponent
+impl core::marker::Copy for antecedent_core::RouteMemoryDeclaration
+impl core::marker::Copy for antecedent_core::RouteMemoryError
+impl core::marker::Copy for antecedent_core::RouteMemoryEstimate
 impl core::marker::Copy for antecedent_core::SamplingDesign
 impl core::marker::Copy for antecedent_core::SamplingDesignDeclaration
 impl core::marker::Copy for antecedent_core::SamplingDesignError
@@ -1952,6 +1999,7 @@ impl core::marker::Copy for antecedent_core::value::InterventionValueError
 impl core::marker::Freeze for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Freeze for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::marker::Freeze for antecedent_core::AdmittedBytes [auto]
+impl core::marker::Freeze for antecedent_core::AdmittedRouteMemory [auto]
 impl core::marker::Freeze for antecedent_core::AllocationMethod [auto]
 impl core::marker::Freeze for antecedent_core::AllowedRule [auto]
 impl core::marker::Freeze for antecedent_core::AnomalyAttributionQuery [auto]
@@ -2037,6 +2085,7 @@ impl core::marker::Freeze for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Freeze for antecedent_core::DynamicRuleId [auto]
 impl core::marker::Freeze for antecedent_core::EdgeRoute [auto]
 impl core::marker::Freeze for antecedent_core::EffectiveSampleSizeRule [auto]
+impl core::marker::Freeze for antecedent_core::EncodedWidth [auto]
 impl core::marker::Freeze for antecedent_core::Environment [auto]
 impl core::marker::Freeze for antecedent_core::EnvironmentId [auto]
 impl core::marker::Freeze for antecedent_core::EvidenceCatalog [auto]
@@ -2169,6 +2218,11 @@ impl core::marker::Freeze for antecedent_core::ResponseValue [auto]
 impl core::marker::Freeze for antecedent_core::RngFactory [auto]
 impl core::marker::Freeze for antecedent_core::RngKey [auto]
 impl core::marker::Freeze for antecedent_core::RoleHint [auto]
+impl core::marker::Freeze for antecedent_core::RouteBudget [auto]
+impl core::marker::Freeze for antecedent_core::RouteMemoryComponent [auto]
+impl core::marker::Freeze for antecedent_core::RouteMemoryDeclaration [auto]
+impl core::marker::Freeze for antecedent_core::RouteMemoryError [auto]
+impl core::marker::Freeze for antecedent_core::RouteMemoryEstimate [auto]
 impl core::marker::Freeze for antecedent_core::SamplingDesign [auto]
 impl core::marker::Freeze for antecedent_core::SamplingDesignDeclaration [auto]
 impl core::marker::Freeze for antecedent_core::SamplingDesignError [auto]
@@ -2302,6 +2356,7 @@ impl core::marker::Freeze for antecedent_core::value::InterventionValueError [au
 impl core::marker::Send for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Send for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::marker::Send for antecedent_core::AdmittedBytes [auto]
+impl core::marker::Send for antecedent_core::AdmittedRouteMemory [auto]
 impl core::marker::Send for antecedent_core::AllocationMethod [auto]
 impl core::marker::Send for antecedent_core::AllowedRule [auto]
 impl core::marker::Send for antecedent_core::AnomalyAttributionQuery [auto]
@@ -2387,6 +2442,7 @@ impl core::marker::Send for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Send for antecedent_core::DynamicRuleId [auto]
 impl core::marker::Send for antecedent_core::EdgeRoute [auto]
 impl core::marker::Send for antecedent_core::EffectiveSampleSizeRule [auto]
+impl core::marker::Send for antecedent_core::EncodedWidth [auto]
 impl core::marker::Send for antecedent_core::Environment [auto]
 impl core::marker::Send for antecedent_core::EnvironmentId [auto]
 impl core::marker::Send for antecedent_core::EvidenceCatalog [auto]
@@ -2519,6 +2575,11 @@ impl core::marker::Send for antecedent_core::ResponseValue [auto]
 impl core::marker::Send for antecedent_core::RngFactory [auto]
 impl core::marker::Send for antecedent_core::RngKey [auto]
 impl core::marker::Send for antecedent_core::RoleHint [auto]
+impl core::marker::Send for antecedent_core::RouteBudget [auto]
+impl core::marker::Send for antecedent_core::RouteMemoryComponent [auto]
+impl core::marker::Send for antecedent_core::RouteMemoryDeclaration [auto]
+impl core::marker::Send for antecedent_core::RouteMemoryError [auto]
+impl core::marker::Send for antecedent_core::RouteMemoryEstimate [auto]
 impl core::marker::Send for antecedent_core::SamplingDesign [auto]
 impl core::marker::Send for antecedent_core::SamplingDesignDeclaration [auto]
 impl core::marker::Send for antecedent_core::SamplingDesignError [auto]
@@ -2652,6 +2713,7 @@ impl core::marker::Send for antecedent_core::value::InterventionValueError [auto
 impl core::marker::StructuralPartialEq for antecedent_core::AdaptiveBootstrapBudget
 impl core::marker::StructuralPartialEq for antecedent_core::AdaptiveDrawBudget
 impl core::marker::StructuralPartialEq for antecedent_core::AdmittedBytes
+impl core::marker::StructuralPartialEq for antecedent_core::AdmittedRouteMemory
 impl core::marker::StructuralPartialEq for antecedent_core::AllocationMethod
 impl core::marker::StructuralPartialEq for antecedent_core::AllowedRule
 impl core::marker::StructuralPartialEq for antecedent_core::AnomalyAttributionQuery
@@ -2732,6 +2794,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::DoseTimeSurface
 impl core::marker::StructuralPartialEq for antecedent_core::DynamicRuleId
 impl core::marker::StructuralPartialEq for antecedent_core::EdgeRoute
 impl core::marker::StructuralPartialEq for antecedent_core::EffectiveSampleSizeRule
+impl core::marker::StructuralPartialEq for antecedent_core::EncodedWidth
 impl core::marker::StructuralPartialEq for antecedent_core::Environment
 impl core::marker::StructuralPartialEq for antecedent_core::EnvironmentId
 impl core::marker::StructuralPartialEq for antecedent_core::EvidenceCatalog
@@ -2859,6 +2922,11 @@ impl core::marker::StructuralPartialEq for antecedent_core::ResponseValue
 impl core::marker::StructuralPartialEq for antecedent_core::RngFactory
 impl core::marker::StructuralPartialEq for antecedent_core::RngKey
 impl core::marker::StructuralPartialEq for antecedent_core::RoleHint
+impl core::marker::StructuralPartialEq for antecedent_core::RouteBudget
+impl core::marker::StructuralPartialEq for antecedent_core::RouteMemoryComponent
+impl core::marker::StructuralPartialEq for antecedent_core::RouteMemoryDeclaration
+impl core::marker::StructuralPartialEq for antecedent_core::RouteMemoryError
+impl core::marker::StructuralPartialEq for antecedent_core::RouteMemoryEstimate
 impl core::marker::StructuralPartialEq for antecedent_core::SamplingDesign
 impl core::marker::StructuralPartialEq for antecedent_core::SamplingDesignDeclaration
 impl core::marker::StructuralPartialEq for antecedent_core::SamplingDesignError
@@ -2987,6 +3055,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::value::InterventionV
 impl core::marker::Sync for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Sync for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::marker::Sync for antecedent_core::AdmittedBytes [auto]
+impl core::marker::Sync for antecedent_core::AdmittedRouteMemory [auto]
 impl core::marker::Sync for antecedent_core::AllocationMethod [auto]
 impl core::marker::Sync for antecedent_core::AllowedRule [auto]
 impl core::marker::Sync for antecedent_core::AnomalyAttributionQuery [auto]
@@ -3072,6 +3141,7 @@ impl core::marker::Sync for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Sync for antecedent_core::DynamicRuleId [auto]
 impl core::marker::Sync for antecedent_core::EdgeRoute [auto]
 impl core::marker::Sync for antecedent_core::EffectiveSampleSizeRule [auto]
+impl core::marker::Sync for antecedent_core::EncodedWidth [auto]
 impl core::marker::Sync for antecedent_core::Environment [auto]
 impl core::marker::Sync for antecedent_core::EnvironmentId [auto]
 impl core::marker::Sync for antecedent_core::EvidenceCatalog [auto]
@@ -3204,6 +3274,11 @@ impl core::marker::Sync for antecedent_core::ResponseValue [auto]
 impl core::marker::Sync for antecedent_core::RngFactory [auto]
 impl core::marker::Sync for antecedent_core::RngKey [auto]
 impl core::marker::Sync for antecedent_core::RoleHint [auto]
+impl core::marker::Sync for antecedent_core::RouteBudget [auto]
+impl core::marker::Sync for antecedent_core::RouteMemoryComponent [auto]
+impl core::marker::Sync for antecedent_core::RouteMemoryDeclaration [auto]
+impl core::marker::Sync for antecedent_core::RouteMemoryError [auto]
+impl core::marker::Sync for antecedent_core::RouteMemoryEstimate [auto]
 impl core::marker::Sync for antecedent_core::SamplingDesign [auto]
 impl core::marker::Sync for antecedent_core::SamplingDesignDeclaration [auto]
 impl core::marker::Sync for antecedent_core::SamplingDesignError [auto]
@@ -3337,6 +3412,7 @@ impl core::marker::Sync for antecedent_core::value::InterventionValueError [auto
 impl core::marker::Unpin for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Unpin for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::marker::Unpin for antecedent_core::AdmittedBytes [auto]
+impl core::marker::Unpin for antecedent_core::AdmittedRouteMemory [auto]
 impl core::marker::Unpin for antecedent_core::AllocationMethod [auto]
 impl core::marker::Unpin for antecedent_core::AllowedRule [auto]
 impl core::marker::Unpin for antecedent_core::AnomalyAttributionQuery [auto]
@@ -3422,6 +3498,7 @@ impl core::marker::Unpin for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Unpin for antecedent_core::DynamicRuleId [auto]
 impl core::marker::Unpin for antecedent_core::EdgeRoute [auto]
 impl core::marker::Unpin for antecedent_core::EffectiveSampleSizeRule [auto]
+impl core::marker::Unpin for antecedent_core::EncodedWidth [auto]
 impl core::marker::Unpin for antecedent_core::Environment [auto]
 impl core::marker::Unpin for antecedent_core::EnvironmentId [auto]
 impl core::marker::Unpin for antecedent_core::EvidenceCatalog [auto]
@@ -3554,6 +3631,11 @@ impl core::marker::Unpin for antecedent_core::ResponseValue [auto]
 impl core::marker::Unpin for antecedent_core::RngFactory [auto]
 impl core::marker::Unpin for antecedent_core::RngKey [auto]
 impl core::marker::Unpin for antecedent_core::RoleHint [auto]
+impl core::marker::Unpin for antecedent_core::RouteBudget [auto]
+impl core::marker::Unpin for antecedent_core::RouteMemoryComponent [auto]
+impl core::marker::Unpin for antecedent_core::RouteMemoryDeclaration [auto]
+impl core::marker::Unpin for antecedent_core::RouteMemoryError [auto]
+impl core::marker::Unpin for antecedent_core::RouteMemoryEstimate [auto]
 impl core::marker::Unpin for antecedent_core::SamplingDesign [auto]
 impl core::marker::Unpin for antecedent_core::SamplingDesignDeclaration [auto]
 impl core::marker::Unpin for antecedent_core::SamplingDesignError [auto]
@@ -3688,6 +3770,7 @@ impl core::ops::drop::Drop for antecedent_core::execution_attempt::OperationGuar
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdmittedBytes [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdmittedRouteMemory [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AllocationMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AllowedRule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AnomalyAttributionQuery [auto]
@@ -3773,6 +3856,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DoseTimeSurfac
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DynamicRuleId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::EdgeRoute [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::EffectiveSampleSizeRule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::EncodedWidth [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Environment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::EnvironmentId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::EvidenceCatalog [auto]
@@ -3904,6 +3988,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ResponseValue 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RngFactory [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RngKey [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RoleHint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RouteBudget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RouteMemoryComponent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RouteMemoryDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RouteMemoryError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RouteMemoryEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SamplingDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SamplingDesignDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SamplingDesignError [auto]
@@ -4037,6 +4126,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::value::Interve
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdmittedBytes [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdmittedRouteMemory [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AllocationMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AllowedRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AnomalyAttributionQuery [auto]
@@ -4122,6 +4212,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DoseTimeSurface [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DynamicRuleId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::EdgeRoute [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::EffectiveSampleSizeRule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::EncodedWidth [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Environment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::EnvironmentId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::EvidenceCatalog [auto]
@@ -4253,6 +4344,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ResponseValue [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RngFactory [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RngKey [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RoleHint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RouteBudget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RouteMemoryComponent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RouteMemoryDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RouteMemoryError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RouteMemoryEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SamplingDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SamplingDesignDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SamplingDesignError [auto]
@@ -4545,6 +4641,7 @@ pub enum antecedent_core::ResponseIdentification
 pub enum antecedent_core::ResponseUncertainty
 pub enum antecedent_core::ResponseValue
 pub enum antecedent_core::RoleHint
+pub enum antecedent_core::RouteMemoryComponent
 pub enum antecedent_core::SamplingDesign
 pub enum antecedent_core::SamplingSelection
 pub enum antecedent_core::ScalarType
@@ -5126,6 +5223,8 @@ pub fn <antecedent_core::AdmittedBytes>::const fn output(self) -> u64
 pub fn <antecedent_core::AdmittedBytes>::const fn retained(self) -> u64
 pub fn <antecedent_core::AdmittedBytes>::const fn scratch(self) -> u64
 pub fn <antecedent_core::AdmittedBytes>::const fn total(self) -> u64
+pub fn <antecedent_core::AdmittedRouteMemory>::const fn estimate(self) -> antecedent_core::RouteMemoryEstimate
+pub fn <antecedent_core::AdmittedRouteMemory>::const fn total(self) -> u64
 pub fn <antecedent_core::AllocationMethod>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::AnomalyAttributionQuery>::fn new(targets: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>, max_units: usize) -> Self
 pub fn <antecedent_core::AnomalyAttributionQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
@@ -5367,6 +5466,13 @@ pub fn <antecedent_core::DynamicRuleId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::DynamicRuleId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::DynamicRuleId>::const fn raw(self) -> u32
 pub fn <antecedent_core::EffectiveSampleSizeRule>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::EncodedWidth>::const fn bytes(self) -> u64
+pub fn <antecedent_core::EncodedWidth>::const fn float32() -> Self
+pub fn <antecedent_core::EncodedWidth>::const fn float64() -> Self
+pub fn <antecedent_core::EncodedWidth>::const fn int32() -> Self
+pub fn <antecedent_core::EncodedWidth>::const fn int64() -> Self
+pub fn <antecedent_core::EncodedWidth>::const fn new(bytes: u64) -> core::option::Option<Self>
+pub fn <antecedent_core::EncodedWidth>::const fn table_bytes(self, rows: u64, columns: u64) -> core::option::Option<u64>
 pub fn <antecedent_core::Environment>::fn try_new(identity: impl core::convert::Into<alloc::sync::Arc<str>>, variables: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableCoordinate]>>, selection_targets: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::EnvironmentId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::EnvironmentId>::const fn from_raw(raw: u32) -> Self
@@ -5692,6 +5798,34 @@ pub fn <antecedent_core::RngKey>::const fn open(self, seed: u64) -> antecedent_c
 pub fn <antecedent_core::RngKey>::const fn operation(self) -> antecedent_core::SemanticOperation
 pub fn <antecedent_core::RngKey>::const fn policy(self) -> antecedent_core::ReductionPolicy
 pub fn <antecedent_core::RngKey>::const fn replicate(self) -> antecedent_core::ReplicateId
+pub fn <antecedent_core::RouteBudget>::const fn bytes(self) -> u64
+pub fn <antecedent_core::RouteBudget>::const fn new(bytes: u64) -> Self
+pub fn <antecedent_core::RouteMemoryComponent>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn admit(self, budget: antecedent_core::RouteBudget) -> core::result::Result<antecedent_core::AdmittedRouteMemory, antecedent_core::RouteMemoryError>
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn design_expansion(self, bytes: u64) -> Self
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn encoded_column(self, width: antecedent_core::EncodedWidth) -> Self
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn estimate(self) -> core::result::Result<antecedent_core::RouteMemoryEstimate, antecedent_core::RouteMemoryError>
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn learner_fold_copies(self, copies: u64, bytes_per_copy: u64) -> Self
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn masks(self, bytes: u64) -> Self
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn new() -> Self
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn output(self, bytes: u64) -> Self
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn retained_scores_draws(self, bytes: u64) -> Self
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn rows(self, rows: u64) -> Self
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn solver_scratch(self, bytes: u64) -> Self
+pub fn <antecedent_core::RouteMemoryDeclaration>::const fn workers(self, workers: u64) -> Self
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn admit(self, budget: antecedent_core::RouteBudget) -> core::result::Result<antecedent_core::AdmittedRouteMemory, antecedent_core::RouteMemoryError>
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn concurrent_workers(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn copy_count(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn design_expansion(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn encoded_width(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn learner_fold_copies(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn masks(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn output(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn retained_scores_draws(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn scratch_copy_bytes(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn solver_scratch(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn total(self) -> u64
+pub fn <antecedent_core::RouteMemoryEstimate>::const fn worker_count(self) -> u64
 pub fn <antecedent_core::SamplingDesign>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::SamplingDesignDeclaration>::const fn design(self) -> antecedent_core::DeclaredSamplingDesign
 pub fn <antecedent_core::SamplingDesignDeclaration>::const fn new(design: antecedent_core::DeclaredSamplingDesign, time_column_present: bool) -> Self
@@ -6032,6 +6166,7 @@ pub mod antecedent_core::reason_code
 pub mod antecedent_core::recalc
 pub mod antecedent_core::response
 pub mod antecedent_core::rng_key
+pub mod antecedent_core::route_memory
 pub mod antecedent_core::sampling_design
 pub mod antecedent_core::schema
 pub mod antecedent_core::scientific_target
@@ -6045,6 +6180,8 @@ pub struct antecedent_core::AdaptiveBootstrapBudget
 pub struct antecedent_core::AdaptiveDrawBudget
 pub struct antecedent_core::AdmittedBytes
 pub struct antecedent_core::AdmittedBytes has private fields
+pub struct antecedent_core::AdmittedRouteMemory
+pub struct antecedent_core::AdmittedRouteMemory has private fields
 pub struct antecedent_core::AnomalyAttributionQuery
 pub struct antecedent_core::AssumptionRecord
 pub struct antecedent_core::AssumptionSet
@@ -6124,6 +6261,8 @@ pub struct antecedent_core::DoseTimeSurface has private fields
 pub struct antecedent_core::DynamicRuleId
 pub struct antecedent_core::DynamicRuleId has private fields
 pub struct antecedent_core::EdgeRoute
+pub struct antecedent_core::EncodedWidth
+pub struct antecedent_core::EncodedWidth has private fields
 pub struct antecedent_core::Environment
 pub struct antecedent_core::EnvironmentId
 pub struct antecedent_core::EnvironmentId has private fields
@@ -6244,6 +6383,12 @@ pub struct antecedent_core::RngFactory
 pub struct antecedent_core::RngFactory has private fields
 pub struct antecedent_core::RngKey
 pub struct antecedent_core::RngKey has private fields
+pub struct antecedent_core::RouteBudget
+pub struct antecedent_core::RouteBudget has private fields
+pub struct antecedent_core::RouteMemoryDeclaration
+pub struct antecedent_core::RouteMemoryDeclaration has private fields
+pub struct antecedent_core::RouteMemoryEstimate
+pub struct antecedent_core::RouteMemoryEstimate has private fields
 pub struct antecedent_core::SamplingDesignDeclaration
 pub struct antecedent_core::SamplingDesignDeclaration has private fields
 pub struct antecedent_core::ScientificTarget
@@ -6605,6 +6750,13 @@ pub use antecedent_core::rng_key::SemanticOperation = antecedent_core::SemanticO
 pub use antecedent_core::rng_key::StreamRequest = antecedent_core::StreamRequest
 pub use antecedent_core::rng_key::ToleranceError = antecedent_core::ToleranceError
 pub use antecedent_core::rng_key::WorkerId = antecedent_core::WorkerId
+pub use antecedent_core::route_memory::AdmittedRouteMemory = antecedent_core::AdmittedRouteMemory
+pub use antecedent_core::route_memory::EncodedWidth = antecedent_core::EncodedWidth
+pub use antecedent_core::route_memory::RouteBudget = antecedent_core::RouteBudget
+pub use antecedent_core::route_memory::RouteMemoryComponent = antecedent_core::RouteMemoryComponent
+pub use antecedent_core::route_memory::RouteMemoryDeclaration = antecedent_core::RouteMemoryDeclaration
+pub use antecedent_core::route_memory::RouteMemoryError = antecedent_core::RouteMemoryError
+pub use antecedent_core::route_memory::RouteMemoryEstimate = antecedent_core::RouteMemoryEstimate
 pub use antecedent_core::sampling_design::AllowedRule = antecedent_core::AllowedRule
 pub use antecedent_core::sampling_design::AttemptedRule = antecedent_core::AttemptedRule
 pub use antecedent_core::sampling_design::BoundEffectiveSampleSize = antecedent_core::BoundEffectiveSampleSize
@@ -7141,6 +7293,18 @@ pub variant antecedent_core::RoleHint::Selection
 pub variant antecedent_core::RoleHint::Time
 pub variant antecedent_core::RoleHint::TreatmentCandidate
 pub variant antecedent_core::RoleHint::UnitId
+pub variant antecedent_core::RouteMemoryComponent::ConcurrentWorkers
+pub variant antecedent_core::RouteMemoryComponent::DesignExpansion
+pub variant antecedent_core::RouteMemoryComponent::EncodedWidth
+pub variant antecedent_core::RouteMemoryComponent::LearnerFoldCopies
+pub variant antecedent_core::RouteMemoryComponent::Masks
+pub variant antecedent_core::RouteMemoryComponent::Output
+pub variant antecedent_core::RouteMemoryComponent::RetainedScoresDraws
+pub variant antecedent_core::RouteMemoryComponent::SolverScratch
+pub variant antecedent_core::RouteMemoryError::ExceedsBudget { estimated_bytes: u64, budget_bytes: u64 }
+pub variant antecedent_core::RouteMemoryError::MissingComponent { component: antecedent_core::RouteMemoryComponent }
+pub variant antecedent_core::RouteMemoryError::Unrepresentable
+pub variant antecedent_core::RouteMemoryError::ZeroWorkers
 pub variant antecedent_core::SamplingDesign::Clustered
 pub variant antecedent_core::SamplingDesign::Independent
 pub variant antecedent_core::SamplingDesign::Unknown
