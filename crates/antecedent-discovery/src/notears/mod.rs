@@ -372,9 +372,24 @@ impl Notears {
             }
         }
 
-        // Insert by decreasing |weight| so stronger edges win if a residual cycle appears.
+        // Stronger edges are inserted first. A directed cycle refuses the whole
+        // set before any edge is given to the DAG.
         edge_coefs
             .sort_by(|a, b| b.2.abs().partial_cmp(&a.2.abs()).unwrap_or(std::cmp::Ordering::Equal));
+        let directed = dense_edge_ids(&edge_coefs);
+        if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
+            antecedent_graph::error::DagOperation::Discovery,
+            antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+                consumer: "notears",
+                attempt: "thresholded weights that contain a directed cycle are not a DAG; read \
+                          the feedback from CyclicDigraph::condensation. This search does not \
+                          drop the weaker edges",
+            },
+            d,
+            &directed,
+        ) {
+            return Err(DiscoveryError::stats_msg(refusal.to_string()));
+        }
 
         let mut dag = Dag::empty();
         for &v in variables {
@@ -391,7 +406,17 @@ impl Notears {
                 Ok(()) => kept.push((par, child, w)),
                 Err(antecedent_graph::GraphError::Cycle { .. }) => {
                     return Err(DiscoveryError::stats_msg(
-                        "NOTEARS thresholded weights induce a cycle (solver |h| tolerance vs threshold mismatch)",
+                        antecedent_graph::error::CyclicDagRefusal {
+                            operation: antecedent_graph::error::DagOperation::Discovery,
+                            next_attempt: antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+                                consumer: "notears",
+                                attempt: "thresholded weights that contain a directed cycle are \
+                                          not a DAG; read the feedback from \
+                                          CyclicDigraph::condensation. This search does not drop \
+                                          the weaker edges",
+                            },
+                        }
+                        .to_string(),
                     ));
                 }
                 Err(e) => return Err(DiscoveryError::from(e)),
@@ -487,6 +512,12 @@ struct PairwiseFactor {
 /// Pairwise-available covariance (or correlation when `standardize`), repaired to positive
 /// semidefinite by clipping negative eigenvalues, factored so the NOTEARS least-squares score
 /// `tr((I-W)ᵀ S (I-W)) / 2` is evaluated on it exactly.
+/// Variable positions in a NOTEARS fit are dense indexes of the column list.
+#[allow(clippy::cast_possible_truncation)]
+fn dense_edge_ids(edges: &[(usize, usize, f64)]) -> Vec<(u32, u32)> {
+    edges.iter().map(|&(parent, child, _)| (parent as u32, child as u32)).collect()
+}
+
 fn pairwise_factor(
     columns: &[Arc<[f64]>],
     valid: &[Vec<bool>],

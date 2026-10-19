@@ -370,6 +370,17 @@ fn individually_valid_mechanisms_that_cannot_compose_are_refused() {
 }
 
 #[test]
+fn a_two_cycle_names_condensation_and_a_chain_still_compiles() {
+    let cyc = spec_of(vec![lg("A", 0.0, 1.0, &[("B", 0.5)]), lg("B", 0.0, 1.0, &[("A", 0.5)])]);
+    let err = ComposedLinearGaussian::compile(&cyc).unwrap_err();
+    assert!(
+        err.findings().iter().any(|finding| finding.remedy.contains("condensation")),
+        "{err:?}"
+    );
+    assert!(ComposedLinearGaussian::compile(&spec_of(chain())).is_ok());
+}
+
+#[test]
 fn an_intervention_outside_a_consumers_fitted_domain_is_refused() {
     let mut mechanisms = chain();
     mechanisms[0].output_support = Domain::Interval { lo: 0.0, hi: 10.0 };

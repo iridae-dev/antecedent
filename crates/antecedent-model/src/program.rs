@@ -92,8 +92,9 @@ fn refusal_circular(subject: String) -> PolicyRefusal {
         code: reason_code!("policy_dependency_circular"),
         detail: "intervention_program.dependency_circular",
         subject,
-        remedy: "remove a read so that no policy depends on its own output, directly or through \
-                 the graph",
+        remedy: "this topological executor has no cyclic license; next attempt: schedule the \
+                 dependency feedback with CyclicDigraph::condensation, which does not execute \
+                 the policies",
     }
 }
 
@@ -891,6 +892,13 @@ fn run_block(
     Ok(())
 }
 
+/// Dense program positions are graph node indexes. A model that compiled already
+/// stored them as `u32`.
+#[allow(clippy::cast_possible_truncation)]
+fn dense_id(index: usize) -> u32 {
+    index as u32
+}
+
 /// Evaluation order of a model once program reads are added to its parent edges.
 ///
 /// Returns indices into `model.parent_gathers`. `None` when no program reads another
@@ -929,6 +937,17 @@ pub(crate) fn execution_order(
             dependants[d].push(node);
         }
     }
+    let dependency_edges: Vec<(u32, u32)> = deps
+        .iter()
+        .enumerate()
+        .flat_map(|(node, predecessors)| {
+            predecessors.iter().map(move |&predecessor| (dense_id(predecessor), dense_id(node)))
+        })
+        .collect();
+    if antecedent_graph::error::directed_edges_contain_cycle(n, &dependency_edges) {
+        let pending = nodes_left_by_a_cycle(n, &dependants, &waiting);
+        return Err(refusal_circular(describe_cycle(model, &deps, &pending, programs)));
+    }
     let mut ready: BinaryHeap<Reverse<(usize, usize)>> = BinaryHeap::new();
     for node in 0..n {
         if waiting[node] == 0 {
@@ -957,6 +976,25 @@ pub(crate) fn execution_order(
     }
     let pending: Vec<bool> = processed.iter().map(|done| !done).collect();
     Err(refusal_circular(describe_cycle(model, &deps, &pending, programs)))
+}
+
+/// Nodes a source-peel cannot place. The peel's prefix is not returned: a cycle
+/// is not an execution order.
+fn nodes_left_by_a_cycle(n: usize, dependants: &[Vec<usize>], indegree: &[usize]) -> Vec<bool> {
+    let mut indegree = indegree.to_vec();
+    let mut ready: Vec<usize> =
+        indegree.iter().enumerate().filter(|(_, degree)| **degree == 0).map(|(i, _)| i).collect();
+    let mut placed = vec![false; n];
+    while let Some(node) = ready.pop() {
+        placed[node] = true;
+        for &next in &dependants[node] {
+            indegree[next] -= 1;
+            if indegree[next] == 0 {
+                ready.push(next);
+            }
+        }
+    }
+    placed.into_iter().map(|done| !done).collect()
 }
 
 /// Walk unmet dependencies from any unprocessed node until a node repeats.

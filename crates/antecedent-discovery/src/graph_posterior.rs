@@ -485,6 +485,23 @@ impl GraphPosterior {
     ///
     /// Shape failures from [`WeightedGraphSamples`].
     pub fn to_weighted_samples(&self) -> Result<WeightedGraphSamples, DiscoveryError> {
+        if self.atom_kind == GraphPosteriorAtomKind::Dag {
+            for atom in self.atoms.iter() {
+                if !crate::adjacency_mask::mask_is_dag(*atom, self.n_vars) {
+                    let refusal = antecedent_graph::error::CyclicDagRefusal {
+                        operation: antecedent_graph::error::DagOperation::GraphPosterior,
+                        next_attempt: antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+                            consumer: "graph_posterior",
+                            attempt: "a DAG-atom posterior does not drop a cyclic atom or mark it \
+                                      identified; hold the directed edges as a CyclicDigraph and \
+                                      read condensation, or ask sigma_separates for a \
+                                      conditional-independence question",
+                        },
+                    };
+                    return Err(DiscoveryError::data_msg(refusal.to_string()));
+                }
+            }
+        }
         let identified = Arc::from(vec![GraphIdentFlag::Identified; self.n_graphs]);
         let mut g = WeightedGraphSamples::new(
             Arc::clone(&self.weights),
@@ -1795,8 +1812,53 @@ mod tests {
         assert!(!mask_is_dag(cyclic, n));
         let dag = dag_from_adjacency_mask(chain, n).unwrap();
         assert_eq!(dag.edges().count(), 15);
-        assert!(dag_from_adjacency_mask(cyclic, n).is_err());
+        assert_eq!(
+            dag.topological_order().unwrap().first().map(|id| id.raw()),
+            Some(0),
+            "an acyclic chain still receives a topological order"
+        );
+        let err = dag_from_adjacency_mask(cyclic, n).unwrap_err();
+        let text = err.to_string();
+        assert!(text.contains("is not a DAG"), "{text}");
+        assert!(text.contains("condensation"), "{text}");
+        assert!(text.contains("not passed to Dag::insert_directed"), "{text}");
         assert!(dag_from_adjacency_mask(chain, 17).is_err());
+    }
+
+    #[test]
+    fn a_dag_posterior_does_not_mark_a_two_cycle_identified() {
+        let n = 2;
+        let chain = set_edge(AdjacencyMask::EMPTY, n, 0, 1, true);
+        let cycle = set_edge(chain, n, 1, 0, true);
+        let sampling = || SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("test"),
+            rejected_invalid: 0,
+        };
+        let acyclic = GraphPosterior::from_atoms(
+            n,
+            vec![1.0],
+            vec![chain],
+            vec![0.0; n * n],
+            vec![0.0; n * n],
+            sampling(),
+        )
+        .unwrap();
+        assert!(acyclic.to_weighted_samples().is_ok());
+        let cyclic = GraphPosterior::from_atoms(
+            n,
+            vec![1.0],
+            vec![cycle],
+            vec![0.0; n * n],
+            vec![0.0; n * n],
+            sampling(),
+        )
+        .unwrap();
+        let err = cyclic.to_weighted_samples().unwrap_err();
+        let text = err.to_string();
+        assert!(text.contains("graph posterior"), "{text}");
+        assert!(text.contains("condensation"), "{text}");
+        assert!(text.contains("sigma_separates"), "{text}");
     }
 
     #[test]

@@ -122,6 +122,37 @@ const INVALID_QUERY: &str = "counterfactual_transport.invalid_query";
 const INVALID_CATALOG: &str = "counterfactual_transport.invalid_catalog";
 /// The graph is outside the contract (directed cycle).
 const GRAPH_OUTSIDE_CONTRACT: &str = "counterfactual_transport.graph_outside_contract";
+
+/// Refuse a directed cycle before the transport problem is ordered.
+fn refuse_transport_cycle(
+    node_count: usize,
+    directed: &[(usize, usize)],
+) -> Result<(), IdentificationError> {
+    let edges = directed_edge_ids(directed);
+    if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
+        antecedent_graph::error::DagOperation::Identification,
+        antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+            consumer: "counterfactual_transport",
+            attempt: "hold the directed edges as a CyclicMixedGraph; condensation names the \
+                      feedback and sigma_separates answers a conditional-independence \
+                      question. This cell has no cyclic identification license",
+        },
+        node_count,
+        &edges,
+    ) {
+        return Err(IdentificationError::invalid_input(format!(
+            "{GRAPH_OUTSIDE_CONTRACT}: {refusal}"
+        )));
+    }
+    Ok(())
+}
+
+/// Dense indexes of a problem whose variable count already fits the contract.
+#[allow(clippy::cast_possible_truncation)]
+fn directed_edge_ids(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
+    edges.iter().map(|&(from, to)| (from as u32, to as u32)).collect()
+}
+
 /// The coupling is not the shared latent exogenous coupling.
 const COUPLING_UNSUPPORTED: &str = "counterfactual_transport.coupling_unsupported";
 /// A regime law of a selected sample is supplied; the contract has no selection-bias model.
@@ -148,10 +179,13 @@ pub fn counterfactual_transport_refusal(
         IdentificationError::UnsupportedInput { code } if *code == BOUNDS_EXCEEDED => {
             Some((reason_code!("route_not_supported"), BOUNDS_EXCEEDED))
         }
-        IdentificationError::UnsupportedInput { code }
-            if [GRAPH_OUTSIDE_CONTRACT, COUPLING_UNSUPPORTED].contains(code) =>
+        IdentificationError::UnsupportedInput { code } if *code == COUPLING_UNSUPPORTED => {
+            Some((reason_code!("route_not_supported"), COUPLING_UNSUPPORTED))
+        }
+        IdentificationError::InvalidInput { message }
+            if message.starts_with(GRAPH_OUTSIDE_CONTRACT) =>
         {
-            Some((reason_code!("route_not_supported"), code))
+            Some((reason_code!("route_not_supported"), GRAPH_OUTSIDE_CONTRACT))
         }
         IdentificationError::InvalidInput { message } if message.starts_with(INVALID_QUERY) => {
             Some((reason_code!("invalid_argument"), INVALID_QUERY))
@@ -266,11 +300,9 @@ impl CounterfactualTransportProblem {
         let mut directed_idx: Vec<(usize, usize)> = Vec::with_capacity(directed.len());
         for &(a, b) in directed {
             match (index_of(a), index_of(b)) {
-                (Some(i), Some(j)) if i != j => directed_idx.push((i, j)),
+                (Some(i), Some(j)) => directed_idx.push((i, j)),
                 _ => {
-                    return Err(invalid_query(
-                        "an edge names an unknown variable or is a self-loop",
-                    ));
+                    return Err(invalid_query("an edge names an unknown variable"));
                 }
             }
         }
@@ -278,10 +310,11 @@ impl CounterfactualTransportProblem {
         for &(a, b) in bidirected {
             match (index_of(a), index_of(b)) {
                 (Some(i), Some(j)) if i != j => bidirected_idx.push((i.min(j), i.max(j))),
+                (Some(_), Some(_)) => {
+                    return Err(invalid_query("a bidirected edge cannot be a self-loop"));
+                }
                 _ => {
-                    return Err(invalid_query(
-                        "an edge names an unknown variable or is a self-loop",
-                    ));
+                    return Err(invalid_query("an edge names an unknown variable"));
                 }
             }
         }
@@ -300,7 +333,8 @@ impl CounterfactualTransportProblem {
             bidirected_mask[a] |= 1 << b;
             bidirected_mask[b] |= 1 << a;
         }
-        // Kahn order, smallest index first.
+        refuse_transport_cycle(n, &directed_idx)?;
+        // Kahn order, smallest index first. The cycle check above already returned.
         let mut indegree: Vec<usize> = parents.iter().map(Vec::len).collect();
         let mut placed = vec![false; n];
         let mut topo = Vec::with_capacity(n);

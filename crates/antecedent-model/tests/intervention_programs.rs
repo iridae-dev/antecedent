@@ -338,6 +338,8 @@ fn circular_dependencies_are_refused_naming_the_cycle_before_any_draw() {
     .unwrap_err();
     let text = error.to_string();
     assert!(text.contains(" -> ") && text.contains("policies on"), "{text}");
+    assert!(text.contains("condensation"), "{text}");
+    assert!(text.contains("no cyclic license"), "{text}");
 
     // Reading a descendant of the target closes a cycle through the graph.
     let edge = model(2, &[(0, 1)], vec![MechanismSlot::Constant { value: 0.0 }; 2]);

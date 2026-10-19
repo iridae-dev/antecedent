@@ -325,7 +325,7 @@ impl DirectLingam {
             let co = order.iter().position(|&x| x == child);
             if let (Some(pi), Some(ci)) = (po, co) {
                 if pi < ci {
-                    let _ = dag.insert_directed(from, to);
+                    insert_forward(&mut dag, from, to)?;
                 }
             }
         }
@@ -402,6 +402,12 @@ impl DirectLingam {
             sepsets: crate::result::PcSepsets::default(),
         })
     }
+}
+
+/// Insert a forward edge of a causal order. A directed cycle is refused and is
+/// not dropped.
+fn insert_forward(dag: &mut Dag, from: DenseNodeId, to: DenseNodeId) -> Result<(), DiscoveryError> {
+    dag.insert_directed(from, to).map_err(DiscoveryError::from)
 }
 
 fn require_finite_column(col: &[f64]) -> Result<(), DiscoveryError> {
@@ -598,12 +604,27 @@ fn simple_regression_coef(y: &[f64], x: &[f64]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use antecedent_core::{
         CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
     };
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
     };
+
+    #[test]
+    fn a_two_cycle_is_not_inserted_and_a_chain_is() {
+        let mut dag = Dag::with_variables(2);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        insert_forward(&mut dag, a, b).unwrap();
+        let err = insert_forward(&mut dag, b, a).unwrap_err();
+        let text = err.to_string();
+        assert!(text.contains("condensation"), "{text}");
+        assert!(text.contains("sigma_separates"), "{text}");
+        assert!(dag.children(b).is_empty(), "the return edge was not dropped into the DAG");
+        assert_eq!(dag.topological_order().unwrap(), vec![a, b]);
+    }
 
     /// Non-Gaussian SEM: X0 → X1 → X2 with Laplace-like noise.
     fn lingam_chain(n: usize) -> (TabularData, Vec<VariableId>) {

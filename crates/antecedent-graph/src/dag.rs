@@ -583,7 +583,13 @@ mod tests {
         let c = DenseNodeId::from_raw(2);
         g.insert_directed(a, b).unwrap();
         g.insert_directed(b, c).unwrap();
-        assert!(matches!(g.insert_directed(c, a), Err(GraphError::Cycle { .. })));
+        let err = g.insert_directed(c, a).unwrap_err();
+        assert!(matches!(err, GraphError::Cycle { .. }));
+        let text = err.to_string();
+        assert!(text.contains("condensation"), "{text}");
+        assert!(text.contains("sigma_separates"), "{text}");
+        assert!(g.children(c).is_empty(), "the closing edge was not inserted");
+        assert!(g.topological_order().is_some(), "the chain that remains still has an order");
     }
 
     #[test]

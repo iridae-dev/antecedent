@@ -1,6 +1,8 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_graph::CyclicNextAttempt
+#[non_exhaustive] pub enum antecedent_graph::DagOperation
 #[non_exhaustive] pub enum antecedent_graph::GraphError
 #[non_exhaustive] pub enum antecedent_graph::OrdinaryDSeparationOnCycles
 #[non_exhaustive] pub enum antecedent_graph::SigmaSeparationStatus
@@ -24,10 +26,13 @@ impl core::clone::Clone for antecedent_graph::Cpdag
 impl core::clone::Clone for antecedent_graph::CpdagCompletion
 impl core::clone::Clone for antecedent_graph::CpdagCompletionSampler
 impl core::clone::Clone for antecedent_graph::CpdagReview
+impl core::clone::Clone for antecedent_graph::CyclicDagRefusal
 impl core::clone::Clone for antecedent_graph::CyclicDigraph
 impl core::clone::Clone for antecedent_graph::CyclicMixedGraph
+impl core::clone::Clone for antecedent_graph::CyclicNextAttempt
 impl core::clone::Clone for antecedent_graph::DSeparationWorkspace
 impl core::clone::Clone for antecedent_graph::Dag
+impl core::clone::Clone for antecedent_graph::DagOperation
 impl core::clone::Clone for antecedent_graph::DagReview
 impl core::clone::Clone for antecedent_graph::DefiniteStatusPath
 impl core::clone::Clone for antecedent_graph::DefiniteStatusPathSearch
@@ -73,9 +78,12 @@ impl core::cmp::Eq for antecedent_graph::CompletionValidationReport
 impl core::cmp::Eq for antecedent_graph::Condensation
 impl core::cmp::Eq for antecedent_graph::CopyLabels
 impl core::cmp::Eq for antecedent_graph::Cpdag
+impl core::cmp::Eq for antecedent_graph::CyclicDagRefusal
 impl core::cmp::Eq for antecedent_graph::CyclicDigraph
 impl core::cmp::Eq for antecedent_graph::CyclicMixedGraph
+impl core::cmp::Eq for antecedent_graph::CyclicNextAttempt
 impl core::cmp::Eq for antecedent_graph::Dag
+impl core::cmp::Eq for antecedent_graph::DagOperation
 impl core::cmp::Eq for antecedent_graph::DefiniteStatusPath
 impl core::cmp::Eq for antecedent_graph::DefiniteStatusPathSearch
 impl core::cmp::Eq for antecedent_graph::DenseNodeId
@@ -104,9 +112,12 @@ impl core::cmp::PartialEq for antecedent_graph::CompletionValidationReport
 impl core::cmp::PartialEq for antecedent_graph::Condensation
 impl core::cmp::PartialEq for antecedent_graph::CopyLabels
 impl core::cmp::PartialEq for antecedent_graph::Cpdag
+impl core::cmp::PartialEq for antecedent_graph::CyclicDagRefusal
 impl core::cmp::PartialEq for antecedent_graph::CyclicDigraph
 impl core::cmp::PartialEq for antecedent_graph::CyclicMixedGraph
+impl core::cmp::PartialEq for antecedent_graph::CyclicNextAttempt
 impl core::cmp::PartialEq for antecedent_graph::Dag
+impl core::cmp::PartialEq for antecedent_graph::DagOperation
 impl core::cmp::PartialEq for antecedent_graph::DefiniteStatusPath
 impl core::cmp::PartialEq for antecedent_graph::DefiniteStatusPathSearch
 impl core::cmp::PartialEq for antecedent_graph::DenseNodeId
@@ -135,6 +146,7 @@ impl core::default::Default for antecedent_graph::DSeparationWorkspace
 impl core::default::Default for antecedent_graph::GraphWorkspace
 impl core::default::Default for antecedent_graph::MiddleMark
 impl core::default::Default for antecedent_graph::SigmaSeparationWorkspace
+impl core::error::Error for antecedent_graph::CyclicDagRefusal
 impl core::error::Error for antecedent_graph::GraphError
 impl core::fmt::Debug for antecedent_graph::Admg
 impl core::fmt::Debug for antecedent_graph::BitSet
@@ -146,10 +158,13 @@ impl core::fmt::Debug for antecedent_graph::Cpdag
 impl core::fmt::Debug for antecedent_graph::CpdagCompletion
 impl core::fmt::Debug for antecedent_graph::CpdagCompletionSampler
 impl core::fmt::Debug for antecedent_graph::CpdagReview
+impl core::fmt::Debug for antecedent_graph::CyclicDagRefusal
 impl core::fmt::Debug for antecedent_graph::CyclicDigraph
 impl core::fmt::Debug for antecedent_graph::CyclicMixedGraph
+impl core::fmt::Debug for antecedent_graph::CyclicNextAttempt
 impl core::fmt::Debug for antecedent_graph::DSeparationWorkspace
 impl core::fmt::Debug for antecedent_graph::Dag
+impl core::fmt::Debug for antecedent_graph::DagOperation
 impl core::fmt::Debug for antecedent_graph::DagReview
 impl core::fmt::Debug for antecedent_graph::DefiniteStatusPath
 impl core::fmt::Debug for antecedent_graph::DefiniteStatusPathSearch
@@ -189,6 +204,9 @@ impl core::fmt::Debug for antecedent_graph::TieredBackground
 impl core::fmt::Debug for antecedent_graph::UnfoldedTemporalGraph
 impl core::fmt::Debug for antecedent_graph::UnfoldedTemporalPag
 impl core::fmt::Debug for antecedent_graph::WithinTier
+impl core::fmt::Display for antecedent_graph::CyclicDagRefusal
+impl core::fmt::Display for antecedent_graph::CyclicNextAttempt
+impl core::fmt::Display for antecedent_graph::DagOperation
 impl core::fmt::Display for antecedent_graph::GraphError
 impl core::hash::Hash for antecedent_graph::BitSet
 impl core::hash::Hash for antecedent_graph::DenseNodeId
@@ -203,6 +221,9 @@ impl core::iter::traits::iterator::Iterator for antecedent_graph::TemporalCpdagC
 impl core::iter::traits::iterator::Iterator for antecedent_graph::TemporalPagCompletionSampler
 impl core::marker::Copy for antecedent_graph::CompletionValidationReport
 impl core::marker::Copy for antecedent_graph::CopyLabels
+impl core::marker::Copy for antecedent_graph::CyclicDagRefusal
+impl core::marker::Copy for antecedent_graph::CyclicNextAttempt
+impl core::marker::Copy for antecedent_graph::DagOperation
 impl core::marker::Copy for antecedent_graph::DenseNodeId
 impl core::marker::Copy for antecedent_graph::Endpoint
 impl core::marker::Copy for antecedent_graph::MarkedEdge
@@ -223,10 +244,13 @@ impl core::marker::Freeze for antecedent_graph::Cpdag [auto]
 impl core::marker::Freeze for antecedent_graph::CpdagCompletion [auto]
 impl core::marker::Freeze for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::marker::Freeze for antecedent_graph::CpdagReview [auto]
+impl core::marker::Freeze for antecedent_graph::CyclicDagRefusal [auto]
 impl core::marker::Freeze for antecedent_graph::CyclicDigraph [auto]
 impl core::marker::Freeze for antecedent_graph::CyclicMixedGraph [auto]
+impl core::marker::Freeze for antecedent_graph::CyclicNextAttempt [auto]
 impl core::marker::Freeze for antecedent_graph::DSeparationWorkspace [auto]
 impl core::marker::Freeze for antecedent_graph::Dag [auto]
+impl core::marker::Freeze for antecedent_graph::DagOperation [auto]
 impl core::marker::Freeze for antecedent_graph::DagReview [auto]
 impl core::marker::Freeze for antecedent_graph::DefiniteStatusPath [auto]
 impl core::marker::Freeze for antecedent_graph::DefiniteStatusPathSearch [auto]
@@ -272,10 +296,13 @@ impl core::marker::Send for antecedent_graph::Cpdag [auto]
 impl core::marker::Send for antecedent_graph::CpdagCompletion [auto]
 impl core::marker::Send for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::marker::Send for antecedent_graph::CpdagReview [auto]
+impl core::marker::Send for antecedent_graph::CyclicDagRefusal [auto]
 impl core::marker::Send for antecedent_graph::CyclicDigraph [auto]
 impl core::marker::Send for antecedent_graph::CyclicMixedGraph [auto]
+impl core::marker::Send for antecedent_graph::CyclicNextAttempt [auto]
 impl core::marker::Send for antecedent_graph::DSeparationWorkspace [auto]
 impl core::marker::Send for antecedent_graph::Dag [auto]
+impl core::marker::Send for antecedent_graph::DagOperation [auto]
 impl core::marker::Send for antecedent_graph::DagReview [auto]
 impl core::marker::Send for antecedent_graph::DefiniteStatusPath [auto]
 impl core::marker::Send for antecedent_graph::DefiniteStatusPathSearch [auto]
@@ -319,8 +346,11 @@ impl core::marker::StructuralPartialEq for antecedent_graph::CompletionValidatio
 impl core::marker::StructuralPartialEq for antecedent_graph::Condensation
 impl core::marker::StructuralPartialEq for antecedent_graph::CopyLabels
 impl core::marker::StructuralPartialEq for antecedent_graph::Cpdag
+impl core::marker::StructuralPartialEq for antecedent_graph::CyclicDagRefusal
 impl core::marker::StructuralPartialEq for antecedent_graph::CyclicDigraph
 impl core::marker::StructuralPartialEq for antecedent_graph::CyclicMixedGraph
+impl core::marker::StructuralPartialEq for antecedent_graph::CyclicNextAttempt
+impl core::marker::StructuralPartialEq for antecedent_graph::DagOperation
 impl core::marker::StructuralPartialEq for antecedent_graph::DefiniteStatusPath
 impl core::marker::StructuralPartialEq for antecedent_graph::DefiniteStatusPathSearch
 impl core::marker::StructuralPartialEq for antecedent_graph::DenseNodeId
@@ -351,10 +381,13 @@ impl core::marker::Sync for antecedent_graph::Cpdag [auto]
 impl core::marker::Sync for antecedent_graph::CpdagCompletion [auto]
 impl core::marker::Sync for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::marker::Sync for antecedent_graph::CpdagReview [auto]
+impl core::marker::Sync for antecedent_graph::CyclicDagRefusal [auto]
 impl core::marker::Sync for antecedent_graph::CyclicDigraph [auto]
 impl core::marker::Sync for antecedent_graph::CyclicMixedGraph [auto]
+impl core::marker::Sync for antecedent_graph::CyclicNextAttempt [auto]
 impl core::marker::Sync for antecedent_graph::DSeparationWorkspace [auto]
 impl core::marker::Sync for antecedent_graph::Dag [auto]
+impl core::marker::Sync for antecedent_graph::DagOperation [auto]
 impl core::marker::Sync for antecedent_graph::DagReview [auto]
 impl core::marker::Sync for antecedent_graph::DefiniteStatusPath [auto]
 impl core::marker::Sync for antecedent_graph::DefiniteStatusPathSearch [auto]
@@ -404,10 +437,13 @@ impl core::marker::Unpin for antecedent_graph::Cpdag [auto]
 impl core::marker::Unpin for antecedent_graph::CpdagCompletion [auto]
 impl core::marker::Unpin for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::marker::Unpin for antecedent_graph::CpdagReview [auto]
+impl core::marker::Unpin for antecedent_graph::CyclicDagRefusal [auto]
 impl core::marker::Unpin for antecedent_graph::CyclicDigraph [auto]
 impl core::marker::Unpin for antecedent_graph::CyclicMixedGraph [auto]
+impl core::marker::Unpin for antecedent_graph::CyclicNextAttempt [auto]
 impl core::marker::Unpin for antecedent_graph::DSeparationWorkspace [auto]
 impl core::marker::Unpin for antecedent_graph::Dag [auto]
+impl core::marker::Unpin for antecedent_graph::DagOperation [auto]
 impl core::marker::Unpin for antecedent_graph::DagReview [auto]
 impl core::marker::Unpin for antecedent_graph::DefiniteStatusPath [auto]
 impl core::marker::Unpin for antecedent_graph::DefiniteStatusPathSearch [auto]
@@ -457,10 +493,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Cpdag [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CpdagCompletion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CpdagReview [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CyclicDagRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CyclicDigraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CyclicMixedGraph [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CyclicNextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DSeparationWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Dag [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DagOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DagReview [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DefiniteStatusPath [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DefiniteStatusPathSearch [auto]
@@ -510,10 +549,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Cpdag [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CpdagCompletion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CpdagReview [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CyclicDagRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CyclicDigraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CyclicMixedGraph [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CyclicNextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DSeparationWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Dag [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DagOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DagReview [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DefiniteStatusPath [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DefiniteStatusPathSearch [auto]
@@ -590,6 +632,8 @@ pub field antecedent_graph::CpdagReview::algorithm: alloc::sync::Arc<str>
 pub field antecedent_graph::CpdagReview::graph: antecedent_graph::Cpdag
 pub field antecedent_graph::CpdagReview::pending_edges: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)]>
 pub field antecedent_graph::CpdagReview::pending_undirected: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)]>
+pub field antecedent_graph::CyclicDagRefusal::next_attempt: antecedent_graph::CyclicNextAttempt
+pub field antecedent_graph::CyclicDagRefusal::operation: antecedent_graph::DagOperation
 pub field antecedent_graph::DSeparationWorkspace::ancestral: antecedent_graph::BitSet
 pub field antecedent_graph::DSeparationWorkspace::conditioning: antecedent_graph::BitSet
 pub field antecedent_graph::DSeparationWorkspace::frontier: alloc::vec::Vec<antecedent_graph::DenseNodeId>
@@ -829,6 +873,7 @@ pub fn <antecedent_graph::Dag>::fn topological_order(&self) -> core::option::Opt
 pub fn <antecedent_graph::Dag>::fn validate(&self) -> core::result::Result<(), antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn view<'a>(self: &'a Self, overlay: &'a antecedent_graph::GraphOverlay) -> antecedent_graph::DagView<'a>
 pub fn <antecedent_graph::Dag>::fn with_variables(n: u32) -> Self
+pub fn <antecedent_graph::DagOperation>::const fn as_str(self) -> &'static str
 pub fn <antecedent_graph::DagReview>::fn accept_all(self) -> Self
 pub fn <antecedent_graph::DagReview>::fn accept_edge(self, from: antecedent_core::ids::VariableId, to: antecedent_core::ids::VariableId) -> Self
 pub fn <antecedent_graph::DagReview>::fn from_dag(graph: antecedent_graph::Dag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
@@ -1037,7 +1082,9 @@ pub fn antecedent_graph::algo::mask_closure<M: antecedent_graph::algo::MaskWord>
 pub fn antecedent_graph::completion::audit_finite_mag_equivalence(graphs: &[antecedent_graph::Pag]) -> core::option::Option<bool>
 pub fn antecedent_graph::completion::is_mag_completion(g: &antecedent_graph::Pag) -> bool
 pub fn antecedent_graph::cpdag_completion::is_mec_member(cpdag: &antecedent_graph::Cpdag, dag: &antecedent_graph::Dag) -> bool
+pub fn antecedent_graph::directed_edges_contain_cycle(node_count: usize, edges: &[(u32, u32)]) -> bool
 pub fn antecedent_graph::ensure_lagged(graph: &mut antecedent_graph::TemporalDag, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn antecedent_graph::error::refuse_directed_cycle(operation: antecedent_graph::DagOperation, next_attempt: antecedent_graph::CyclicNextAttempt, node_count: usize, edges: &[(u32, u32)]) -> core::result::Result<(), antecedent_graph::CyclicDagRefusal>
 pub fn antecedent_graph::latent_project(dag: &antecedent_graph::Dag, observed: &[antecedent_graph::DenseNodeId]) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
 pub fn antecedent_graph::projection::projection_preserves_msep_sample(dag: &antecedent_graph::Dag, observed: &[antecedent_graph::DenseNodeId], queries: &[(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId, alloc::vec::Vec<antecedent_graph::DenseNodeId>)]) -> core::result::Result<bool, antecedent_graph::GraphError>
 pub fn antecedent_graph::sigma_separates(graph: &antecedent_graph::CyclicMixedGraph, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, conditioning: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::SigmaSeparationWorkspace) -> core::result::Result<antecedent_graph::SigmaSeparation, antecedent_graph::GraphError>
@@ -1085,6 +1132,7 @@ pub struct antecedent_graph::CpdagCompletion
 pub struct antecedent_graph::CpdagCompletionSampler
 pub struct antecedent_graph::CpdagCompletionSampler has private fields
 pub struct antecedent_graph::CpdagReview
+pub struct antecedent_graph::CyclicDagRefusal
 pub struct antecedent_graph::CyclicDigraph
 pub struct antecedent_graph::CyclicDigraph has private fields
 pub struct antecedent_graph::CyclicMixedGraph
@@ -1159,7 +1207,11 @@ pub use antecedent_graph::dsep::DSeparationWorkspace = antecedent_graph::DSepara
 pub use antecedent_graph::dsep::PathStep = antecedent_graph::PathStep
 pub use antecedent_graph::dsep::SeparationCertificate = antecedent_graph::SeparationCertificate
 pub use antecedent_graph::dsep::SeparationResult = antecedent_graph::SeparationResult
+pub use antecedent_graph::error::CyclicDagRefusal = antecedent_graph::CyclicDagRefusal
+pub use antecedent_graph::error::CyclicNextAttempt = antecedent_graph::CyclicNextAttempt
+pub use antecedent_graph::error::DagOperation = antecedent_graph::DagOperation
 pub use antecedent_graph::error::GraphError = antecedent_graph::GraphError
+pub use antecedent_graph::error::directed_edges_contain_cycle = antecedent_graph::directed_edges_contain_cycle
 pub use antecedent_graph::is_mag_completion = antecedent_graph::completion::is_mag_completion
 pub use antecedent_graph::is_mec_member = antecedent_graph::cpdag_completion::is_mec_member
 pub use antecedent_graph::msep::PagSeparation = antecedent_graph::PagSeparation
@@ -1171,6 +1223,7 @@ pub use antecedent_graph::pag::Pag = antecedent_graph::Pag
 pub use antecedent_graph::pag::PagReview = antecedent_graph::PagReview
 pub use antecedent_graph::projection::latent_project = antecedent_graph::latent_project
 pub use antecedent_graph::projection_preserves_msep_sample = antecedent_graph::projection::projection_preserves_msep_sample
+pub use antecedent_graph::refuse_directed_cycle = antecedent_graph::error::refuse_directed_cycle
 pub use antecedent_graph::selection::SelectionDiagram = antecedent_graph::SelectionDiagram
 pub use antecedent_graph::sigma_separation::EXHAUSTIVE_MIXED_NODE_BOUND = antecedent_graph::EXHAUSTIVE_MIXED_NODE_BOUND
 pub use antecedent_graph::sigma_separation::EXHAUSTIVE_NODE_BOUND = antecedent_graph::EXHAUSTIVE_NODE_BOUND
@@ -1207,6 +1260,17 @@ pub use antecedent_graph::workspace::BitSet = antecedent_graph::BitSet
 pub use antecedent_graph::workspace::GraphWorkspace = antecedent_graph::GraphWorkspace
 pub variant antecedent_graph::CopyLabels::Preserve
 pub variant antecedent_graph::CopyLabels::StaticIndex { extra: u32 }
+pub variant antecedent_graph::CyclicNextAttempt::Condensation
+pub variant antecedent_graph::CyclicNextAttempt::SigmaSeparation
+pub variant antecedent_graph::CyclicNextAttempt::Unlicensed { consumer: &'static str, attempt: &'static str }
+pub variant antecedent_graph::DagOperation::Abduction
+pub variant antecedent_graph::DagOperation::Adjustment
+pub variant antecedent_graph::DagOperation::DagProjection
+pub variant antecedent_graph::DagOperation::Discovery
+pub variant antecedent_graph::DagOperation::GraphPosterior
+pub variant antecedent_graph::DagOperation::Identification
+pub variant antecedent_graph::DagOperation::Simulation
+pub variant antecedent_graph::DagOperation::TopologicalOrder
 pub variant antecedent_graph::Endpoint::Arrow
 pub variant antecedent_graph::Endpoint::Circle
 pub variant antecedent_graph::Endpoint::Conflict

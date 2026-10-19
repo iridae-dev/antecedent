@@ -743,8 +743,9 @@ impl DiscoveryConstraints {
             .collect();
         if has_directed_cycle(&contemporaneous) {
             return Err(KnowledgeFault::Contradictory(
-                "the required contemporaneous links form a directed cycle (a variable would cause \
-                 itself)"
+                "the required contemporaneous links form a directed cycle; DAG discovery refused \
+                 this attempt. Next attempt: hold those links as a CyclicDigraph and read \
+                 condensation. This search does not drop the cycle"
                     .to_owned(),
             ));
         }
@@ -1031,6 +1032,27 @@ mod tests {
         };
         let compiled = c.compile(&vars).unwrap();
         assert!(!compiled.allows(link));
+    }
+
+    #[test]
+    fn a_required_two_cycle_names_condensation_and_a_chain_is_accepted() {
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let forward = contemp_link(vars[0], vars[1]);
+        let back = contemp_link(vars[1], vars[0]);
+        let cyclic = DiscoveryConstraints {
+            required: Arc::from([forward, back]),
+            ..DiscoveryConstraints::default()
+        };
+        let err = cyclic.validate().unwrap_err();
+        let text = err.to_string();
+        assert!(text.contains("directed cycle"), "{text}");
+        assert!(text.contains("condensation"), "{text}");
+        assert!(text.contains("CyclicDigraph"), "{text}");
+        let chain = DiscoveryConstraints {
+            required: Arc::from([forward]),
+            ..DiscoveryConstraints::default()
+        };
+        assert!(chain.validate().is_ok());
     }
 
     #[test]

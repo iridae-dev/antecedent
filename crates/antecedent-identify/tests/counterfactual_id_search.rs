@@ -762,6 +762,11 @@ fn shapes_outside_the_contract_refuse_with_their_details() {
         (cyclic.code, cyclic.detail),
         ("cell_not_licensed", "counterfactual_id.graph_outside_contract")
     );
+    assert!(cyclic.message.contains("condensation"), "{}", cyclic.message);
+    assert!(cyclic.message.contains("sigma_separates"), "{}", cyclic.message);
+    assert!(cyclic.message.contains("no cyclic identification license"), "{}", cyclic.message);
+    let chain = CounterfactualIdProblem::new(binary(2), &[(0, 1)], &[]).unwrap();
+    assert_eq!(chain.directed(), &[(0, 1)]);
 }
 
 // ---------------------------------------------------------------- evaluation checks

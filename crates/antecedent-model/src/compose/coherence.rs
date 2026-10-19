@@ -618,7 +618,9 @@ fn check_cycles(spec: &ComposedModelSpec, known: &BTreeSet<&str>, out: &mut Vec<
             CoherenceKind::Cycle,
             "mechanism_composition.cycle_directed_cycle",
             list(stuck),
-            "only acyclic compositions are executed; a feedback system needs its own equilibrium model",
+            "this acyclic composition refused the cycle; next attempt: \
+             CyclicDigraph::condensation for the feedback structure. The refusal is not an \
+             equilibrium solution",
         ));
     }
 }

@@ -451,4 +451,10 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
         counterfactual_transport_refusal(&error),
         Some(("route_not_supported", "counterfactual_transport.graph_outside_contract"))
     );
+    let text = error.to_string();
+    assert!(text.contains("condensation"), "{text}");
+    assert!(text.contains("sigma_separates"), "{text}");
+    assert!(text.contains("no cyclic identification license"), "{text}");
+    let chain = CounterfactualTransportProblem::new(&two, &[(a, b)], &[]).unwrap();
+    assert_eq!(chain.topological_order(), &[0, 1]);
 }

@@ -57,6 +57,12 @@ pub const CPDAG_MAX_NODES: usize = 6;
 
 /// Selection or latent structure was supplied.
 pub const CPDAG_SELECTION_OR_LATENT_DETAIL: &str = "cpdag_scenarios.selection_or_latent";
+
+/// Dense indexes of a CPDAG whose node count already fits `usize` graph ids.
+#[allow(clippy::cast_possible_truncation)]
+fn directed_edge_ids(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
+    edges.iter().map(|&(from, to)| (from as u32, to as u32)).collect()
+}
 /// Refusal detail of the earlier node-count ceiling ([`CPDAG_MAX_NODES`]).
 ///
 /// Never emitted now. It is written as two literals so the refusal-detail registry gate does
@@ -292,6 +298,15 @@ impl Skeleton {
         fixed.sort_unstable();
         undirected.sort_unstable();
         let skeleton = Self { variables, fixed, undirected, adjacent };
+        let directed = directed_edge_ids(&skeleton.fixed);
+        if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
+            antecedent_graph::error::DagOperation::DagProjection,
+            antecedent_graph::error::CyclicNextAttempt::Condensation,
+            skeleton.variables.len(),
+            &directed,
+        ) {
+            return Err(not_a_cpdag(refusal.to_string()));
+        }
         let orienter = Orienter::new(&skeleton);
         if skeleton.fixed.iter().any(|&(a, b)| orienter.reaches(b, a)) {
             return Err(not_a_cpdag("the directed edges contain a cycle"));

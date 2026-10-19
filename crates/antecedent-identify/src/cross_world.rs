@@ -207,11 +207,33 @@ pub fn check_cross_world_edges(
         )));
     }
     let n = u32::try_from(node_count).unwrap_or(u32::MAX);
-    if edges.iter().any(|&(a, b)| a >= n || b >= n || a == b) {
-        return Err(CrossWorldRefusal::graph("the edge list is not a DAG over the variables"));
+    if edges.iter().any(|&(a, b)| a >= n || b >= n) {
+        return Err(CrossWorldRefusal::graph("an edge names a variable outside the graph"));
+    }
+    if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
+        antecedent_graph::error::DagOperation::Identification,
+        antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+            consumer: "cross_world",
+            attempt: "hold the edges as a CyclicDigraph and read feedback from condensation; \
+                      this cell does not identify a cyclic contrast",
+        },
+        node_count,
+        edges,
+    ) {
+        return Err(CrossWorldRefusal::graph(refusal.to_string()));
     }
     let Some(order) = topological_order(node_count, edges) else {
-        return Err(CrossWorldRefusal::graph("the edge list is not a DAG over the variables"));
+        return Err(CrossWorldRefusal::graph(
+            antecedent_graph::error::CyclicDagRefusal {
+                operation: antecedent_graph::error::DagOperation::Identification,
+                next_attempt: antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+                    consumer: "cross_world",
+                    attempt: "hold the edges as a CyclicDigraph and read feedback from condensation; \
+                              this cell does not identify a cyclic contrast",
+                },
+            }
+            .to_string(),
+        ));
     };
     let mut sorted = edges.to_vec();
     sorted.sort_unstable();
@@ -473,5 +495,20 @@ mod tests {
         let mut node = serde_json::to_value(&witness.counterfactual_nodes[0]).unwrap();
         node["unexpected"] = serde_json::json!(1);
         assert!(serde_json::from_value::<CounterfactualNode>(node).is_err());
+    }
+
+    #[test]
+    fn a_two_cycle_is_not_ordered_and_the_acyclic_chain_still_is() {
+        let query = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
+        let refusal = check_cross_world_edges(2, &[(0, 1), (1, 0)], &query).unwrap_err();
+        assert_eq!(refusal.detail, "cross_world.graph_outside_contract");
+        assert!(
+            refusal.message.contains("cross_world has no cyclic license"),
+            "{}",
+            refusal.message
+        );
+        assert!(refusal.message.contains("condensation"), "{}", refusal.message);
+        let witness = check_cross_world_edges(3, &MEDIATION, &query).unwrap();
+        assert_eq!(witness.graph_edges.as_slice(), MEDIATION.as_slice());
     }
 }

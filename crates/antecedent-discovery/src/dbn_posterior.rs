@@ -481,9 +481,13 @@ pub fn temporal_dag_from_dbn_atoms(
         ));
     }
     if !mask_is_dag(cmask, n_vars) {
-        return Err(DiscoveryError::data_msg(
-            "temporal_dag_from_dbn_atoms: contemporaneous mask is not a DAG",
-        ));
+        let refusal = antecedent_graph::error::CyclicDagRefusal {
+            operation: antecedent_graph::error::DagOperation::Discovery,
+            next_attempt: antecedent_graph::error::CyclicNextAttempt::Condensation,
+        };
+        return Err(DiscoveryError::data_msg(format!(
+            "temporal_dag_from_dbn_atoms: contemporaneous mask is not a DAG; {refusal}"
+        )));
     }
     let mut g = TemporalDag::empty();
     // Contemporaneous edges.

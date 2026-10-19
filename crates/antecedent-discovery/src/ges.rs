@@ -959,16 +959,30 @@ fn apply_delete(
 
 /// Dor–Tarsi consistent extension of a PDAG to a DAG.
 fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
+    let directed: Vec<(u32, u32)> = pdag
+        .edges()
+        .iter()
+        .filter_map(|edge| edge.parent_child())
+        .map(|(from, to)| (from.raw(), to.raw()))
+        .collect();
+    if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
+        antecedent_graph::error::DagOperation::DagProjection,
+        antecedent_graph::error::CyclicNextAttempt::Condensation,
+        pdag.node_count(),
+        &directed,
+    ) {
+        return Err(DiscoveryError::Orientation(refusal.to_string()));
+    }
     let mut work = pdag.clone();
     let n = work.node_count();
     let mut dag = Dag::empty();
     for node in work.nodes() {
         dag.add_node(*node)?;
     }
-    // Copy already-directed edges.
+    // Copy already-directed edges. The check above accepted this directed set.
     for e in work.edges() {
         if let Some((from, to)) = e.parent_child() {
-            let _ = dag.insert_directed(from, to);
+            dag.insert_directed(from, to)?;
         }
     }
 
@@ -1026,7 +1040,7 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
         for n in neighbors {
             if remaining.contains(&n) {
                 work.orient_undirected(n, x)?;
-                let _ = dag.insert_directed(n, x);
+                dag.insert_directed(n, x)?;
             }
         }
         remaining.remove(&x);

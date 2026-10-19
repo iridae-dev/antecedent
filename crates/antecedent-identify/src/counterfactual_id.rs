@@ -327,10 +327,10 @@ impl CounterfactualIdProblem {
             canonical_levels.push(bits);
         }
         let bound = u32::try_from(n).unwrap_or(u32::MAX);
-        let valid = |&(a, b): &(u32, u32)| a < bound && b < bound && a != b;
+        let valid = |&(a, b): &(u32, u32)| a < bound && b < bound;
         if !directed.iter().all(valid) || !bidirected.iter().all(valid) {
             return Err(CounterfactualIdRefusal::invalid_query(
-                "an edge names an unknown variable or is a self-loop",
+                "an edge names an unknown variable",
             ));
         }
         let mut directed = directed.to_vec();
@@ -340,6 +340,19 @@ impl CounterfactualIdProblem {
             bidirected.iter().map(|&(a, b)| (a.min(b), a.max(b))).collect();
         bidirected.sort_unstable();
         bidirected.dedup();
+        if let Err(refusal) = antecedent_graph::error::refuse_directed_cycle(
+            antecedent_graph::error::DagOperation::Identification,
+            antecedent_graph::error::CyclicNextAttempt::Unlicensed {
+                consumer: "counterfactual_id",
+                attempt: "hold the directed edges as a CyclicMixedGraph; condensation names the \
+                          feedback and sigma_separates answers a conditional-independence \
+                          question. This cell has no cyclic identification license",
+            },
+            canonical_levels.len(),
+            &directed,
+        ) {
+            return Err(CounterfactualIdRefusal::graph(refusal.to_string()));
+        }
         let Some(topo) = crate::cross_world::topological_order(canonical_levels.len(), &directed)
         else {
             return Err(CounterfactualIdRefusal::graph("the directed edges contain a cycle"));

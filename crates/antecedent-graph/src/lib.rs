@@ -68,7 +68,10 @@ pub use cpdag_completion::{CpdagCompletion, CpdagCompletionSampler, is_mec_membe
 pub use cyclic::{CyclicDigraph, CyclicMixedGraph};
 pub use dag::{Dag, DagReview};
 pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
-pub use error::GraphError;
+pub use error::{
+    CyclicDagRefusal, CyclicNextAttempt, DagOperation, GraphError, directed_edges_contain_cycle,
+    refuse_directed_cycle,
+};
 pub use msep::PagSeparation;
 pub use overlay::{DagView, GraphOverlay};
 pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag, PagReview};
