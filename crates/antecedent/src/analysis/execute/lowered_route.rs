@@ -8,6 +8,7 @@
 
 #![cfg_attr(not(test), allow(dead_code))]
 
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use antecedent_contract::ExecutionPerformanceRecord;
@@ -27,6 +28,7 @@ use antecedent_identify::{
     UnresolvedObligation, WorldObligation,
 };
 
+use crate::analysis::prepared::recompile::{LifecycleInput, LifecycleProduct, PreparedRecompile};
 use crate::error::CausalError;
 use crate::estimator_spec::EstimatorSpec;
 use crate::planner::{
@@ -109,6 +111,10 @@ pub(crate) struct LoweredLinearGaussianRoute {
     evidence: LinearGaussianEvidenceProgram,
     physical: PhysicalExecutionPlan,
     physical_operators: Vec<antecedent_core::PhysicalOperator>,
+    /// Products whose validity decides whether the next call fits.
+    recompile: RefCell<PreparedRecompile>,
+    /// Claim from the last causal fit. Absent until that fit succeeds.
+    cached_claim: RefCell<Option<LinearGaussianClaim>>,
 }
 
 impl LoweredLinearGaussianRoute {
@@ -149,6 +155,11 @@ impl LoweredLinearGaussianRoute {
 
     /// Fit the retained program.
     ///
+    /// A later call reuses the retained causal fit while that product is still
+    /// valid. Utility and action changes leave it valid, so they perform no
+    /// new causal fit. The numeric fit, when it does run, is the ordinary
+    /// least-squares program this route already retained.
+    ///
     /// # Errors
     ///
     /// The context is already cancelled, or the retained fit fails.
@@ -160,6 +171,12 @@ impl LoweredLinearGaussianRoute {
             return Err(CausalError::Cancelled {
                 stage: super::super::super::stage::STAGE_ESTIMATE_POINT,
             });
+        }
+        if self.recompile.borrow().reuses_causal_fit() {
+            if let Some(claim) = self.cached_claim.borrow().clone() {
+                self.recompile.borrow_mut().retain_decision();
+                return Ok(claim);
+            }
         }
         let mut workspace = EstimationWorkspace::default();
         let estimate = if self.point_then_bootstrap {
@@ -183,11 +200,38 @@ impl LoweredLinearGaussianRoute {
                 .fit_checked(&self.program, &mut workspace, ctx)
                 .map_err(CausalError::from)?
         };
-        Ok(LinearGaussianClaim {
+        let claim = LinearGaussianClaim {
             receipt: receipt(&estimate, self.fitter.bootstrap_replicates),
             support_status: self.evidence.support_status,
             estimate,
-        })
+        };
+        *self.cached_claim.borrow_mut() = Some(claim.clone());
+        self.recompile.borrow_mut().retain_causal_fit();
+        Ok(claim)
+    }
+
+    /// Apply one lifecycle change and drop a cached claim whose fit it invalidates.
+    pub(crate) fn apply_input(&self, input: LifecycleInput) {
+        let keep_fit = {
+            let mut state = self.recompile.borrow_mut();
+            state.apply(input);
+            state.reuses_causal_fit()
+        };
+        if !keep_fit {
+            self.cached_claim.borrow_mut().take();
+        }
+    }
+
+    /// Whether `product` is still valid on this route.
+    #[must_use = "an invalid product has to be rebuilt"]
+    pub(crate) fn product_is_valid(&self, product: LifecycleProduct) -> bool {
+        self.recompile.borrow().is_valid(product)
+    }
+
+    /// Causal fits this route has run.
+    #[must_use = "compare this with the count from before the change"]
+    pub(crate) fn causal_fit_count(&self) -> u64 {
+        self.recompile.borrow().causal_fits()
     }
 }
 
@@ -252,6 +296,8 @@ impl Study {
             },
             physical_operators: linear_gaussian_physical_operators(&physical, resample)?,
             physical,
+            recompile: RefCell::new(PreparedRecompile::after_lower()),
+            cached_claim: RefCell::new(None),
         })
     }
 
@@ -474,7 +520,10 @@ mod tests {
     use antecedent_graph::Dag;
     use antecedent_identify::IdentificationOutcome;
 
+    use antecedent_stats::fit_counts::count_least_squares_solves;
+
     use crate::RefuteSuite;
+    use crate::analysis::prepared::recompile::{LifecycleInput, LifecycleProduct};
     use crate::strategy_table::EstimatorId;
 
     use super::super::super::Study;
@@ -603,6 +652,67 @@ mod tests {
         let study = rebuild_like(&base, false, |builder| builder.estimator(ridge));
         let err = study.lower_linear_gaussian_intervention(&ctx).unwrap_err();
         assert!(err.to_string().contains("ordinary least squares"), "{err}");
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "a reused fit must return the same contrast bits")]
+    fn linear_gaussian_utility_and_action_changes_perform_zero_causal_fits() {
+        let (route, ctx, ate, fits_before) = fitted_route();
+        for input in [LifecycleInput::Utility, LifecycleInput::Action] {
+            route.apply_input(input);
+            assert!(route.product_is_valid(LifecycleProduct::CausalFit), "{input:?}");
+            assert!(route.product_is_valid(LifecycleProduct::Structural), "{input:?}");
+            assert!(route.product_is_valid(LifecycleProduct::Unrelated), "{input:?}");
+            assert!(!route.product_is_valid(LifecycleProduct::Decision), "{input:?}");
+            let (claim, solves) = count_least_squares_solves(|| route.execute(&ctx).unwrap());
+            assert_eq!(solves, 0, "{input:?}");
+            assert_eq!(route.causal_fit_count(), fits_before, "{input:?}");
+            assert_eq!(claim.estimate.ate, ate, "{input:?}");
+            assert!(route.product_is_valid(LifecycleProduct::Decision), "{input:?}");
+        }
+    }
+
+    #[test]
+    fn linear_gaussian_prior_change_preserves_only_valid_structure() {
+        let (route, ctx, _, fits_before) = fitted_route();
+        route.apply_input(LifecycleInput::Prior);
+        assert!(route.product_is_valid(LifecycleProduct::Structural));
+        assert!(route.product_is_valid(LifecycleProduct::Unrelated));
+        assert!(!route.product_is_valid(LifecycleProduct::PriorStructural));
+        assert!(!route.product_is_valid(LifecycleProduct::CausalFit));
+        assert!(!route.product_is_valid(LifecycleProduct::Decision));
+        let (_, solves) = count_least_squares_solves(|| route.execute(&ctx).unwrap());
+        assert!(solves > 0);
+        assert_eq!(route.causal_fit_count(), fits_before + 1);
+    }
+
+    #[test]
+    fn linear_gaussian_source_period_and_history_changes_keep_unrelated_products() {
+        for input in [LifecycleInput::Source, LifecycleInput::Period, LifecycleInput::History] {
+            let (route, ctx, _, _) = fitted_route();
+            route.apply_input(input);
+            assert!(!route.product_is_valid(LifecycleProduct::CausalFit), "{input:?}");
+            assert!(!route.product_is_valid(LifecycleProduct::Decision), "{input:?}");
+            assert!(route.product_is_valid(LifecycleProduct::Structural), "{input:?}");
+            assert!(route.product_is_valid(LifecycleProduct::PriorStructural), "{input:?}");
+            assert!(route.product_is_valid(LifecycleProduct::Unrelated), "{input:?}");
+            let (_, solves) = count_least_squares_solves(|| route.execute(&ctx).unwrap());
+            assert!(solves > 0, "{input:?}");
+            assert!(route.product_is_valid(LifecycleProduct::Structural), "{input:?}");
+            assert!(route.product_is_valid(LifecycleProduct::PriorStructural), "{input:?}");
+            assert!(route.product_is_valid(LifecycleProduct::Unrelated), "{input:?}");
+        }
+    }
+
+    fn fitted_route() -> (super::LoweredLinearGaussianRoute, ExecutionContext, f64, u64) {
+        let study = contrast_study();
+        let ctx = ExecutionContext::for_tests(1);
+        let route = study.lower_linear_gaussian_intervention(&ctx).unwrap();
+        let (claim, solves) = count_least_squares_solves(|| route.execute(&ctx).unwrap());
+        assert!(solves > 0);
+        let fits = route.causal_fit_count();
+        assert_eq!(fits, 1);
+        (route, ctx, claim.estimate.ate, fits)
     }
 
     fn rebuild_like(

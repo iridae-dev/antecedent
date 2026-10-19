@@ -16,6 +16,7 @@ mod lifecycle;
 mod operations;
 mod prepare;
 mod prepare_identification;
+pub(crate) mod recompile;
 mod retarget;
 mod seal;
 mod sealed;
