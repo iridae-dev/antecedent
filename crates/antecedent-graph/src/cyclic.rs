@@ -8,11 +8,17 @@
 //! These types are not a [`Dag`] or an [`Admg`]. Those constructors still
 //! reject directed cycles. Contemporaneous self-loops are rejected here too.
 //!
+//! [`CyclicDigraph::condensation`] schedules directed strongly connected
+//! components, sources before sinks. [`CyclicMixedGraph::condensation`] reads
+//! the same directed edges. A bidirected edge is latent confounding and does
+//! not join components.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::VariableId;
 
 use crate::error::GraphError;
+use crate::scc::Condensation;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 
 /// Directed graph that allows cycles.
@@ -91,7 +97,7 @@ impl CyclicDigraph {
 
     /// Node labels in dense order.
     #[must_use]
-    pub const fn nodes(&self) -> &[NodeRef] {
+    pub fn nodes(&self) -> &[NodeRef] {
         &self.nodes
     }
 
@@ -197,6 +203,15 @@ impl CyclicDigraph {
     pub fn validate(&self) -> Result<(), GraphError> {
         validate_directed(self)
     }
+
+    /// Directed strongly connected components, sources before sinks.
+    ///
+    /// See [`Condensation`]. In an acyclic graph each node is its own component
+    /// and the schedule is the minimum-dense-id topological order.
+    #[must_use = "the condensation is the directed solve-block schedule"]
+    pub fn condensation(&self) -> Condensation {
+        crate::scc::decompose(&self.children, &self.parents)
+    }
 }
 
 /// Directed cyclic graph plus symmetric bidirected edges.
@@ -273,7 +288,7 @@ impl CyclicMixedGraph {
 
     /// Node labels in dense order.
     #[must_use]
-    pub const fn nodes(&self) -> &[NodeRef] {
+    pub fn nodes(&self) -> &[NodeRef] {
         self.directed.nodes()
     }
 
@@ -400,14 +415,19 @@ impl CyclicMixedGraph {
         self.directed.validate()?;
         validate_bidirected(self.nodes(), &self.bidirected)
     }
+
+    /// Directed strongly connected components of this mixed graph.
+    ///
+    /// Bidirected edges are ignored. A graph whose only edge is bidirected has
+    /// one singleton component per node, in dense-id order. See [`Condensation`].
+    #[must_use = "the condensation is the directed solve-block schedule"]
+    pub fn condensation(&self) -> Condensation {
+        self.directed.condensation()
+    }
 }
 
 fn known(node_count: usize, id: DenseNodeId) -> Result<(), GraphError> {
-    if id.as_usize() >= node_count {
-        Err(GraphError::UnknownNode { id: id.raw() })
-    } else {
-        Ok(())
-    }
+    if id.as_usize() >= node_count { Err(GraphError::UnknownNode { id: id.raw() }) } else { Ok(()) }
 }
 
 fn reject_self_loop(
@@ -708,18 +728,9 @@ mod tests {
         let (a, b) = (id(0), id(1));
         let mut graph = CyclicDigraph::with_variables(2);
         graph.insert_directed(a, b).unwrap();
-        assert_eq!(
-            graph.insert_directed(a, b),
-            Err(GraphError::DuplicateEdge { from: 0, to: 1 }),
-        );
-        assert_eq!(
-            graph.insert_directed(id(9), a),
-            Err(GraphError::UnknownNode { id: 9 }),
-        );
-        assert_eq!(
-            graph.insert_directed(a, id(4)),
-            Err(GraphError::UnknownNode { id: 4 }),
-        );
+        assert_eq!(graph.insert_directed(a, b), Err(GraphError::DuplicateEdge { from: 0, to: 1 }),);
+        assert_eq!(graph.insert_directed(id(9), a), Err(GraphError::UnknownNode { id: 9 }),);
+        assert_eq!(graph.insert_directed(a, id(4)), Err(GraphError::UnknownNode { id: 4 }),);
         assert_eq!(
             graph.add_node(NodeRef::Lagged {
                 variable: VariableId::from_raw(0),
@@ -736,10 +747,7 @@ mod tests {
             mixed.insert_bidirected(b, a),
             Err(GraphError::DuplicateEdge { from: 1, to: 0 }),
         );
-        assert_eq!(
-            mixed.insert_bidirected(id(3), a),
-            Err(GraphError::UnknownNode { id: 3 }),
-        );
+        assert_eq!(mixed.insert_bidirected(id(3), a), Err(GraphError::UnknownNode { id: 3 }),);
         assert!(mixed.directed_edge_pairs_sorted().is_empty());
         assert_eq!(
             mixed.add_node(NodeRef::Context {

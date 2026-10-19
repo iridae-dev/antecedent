@@ -14,6 +14,7 @@ impl core::clone::Clone for antecedent_graph::Admg
 impl core::clone::Clone for antecedent_graph::BitSet
 impl core::clone::Clone for antecedent_graph::CompletionSampler
 impl core::clone::Clone for antecedent_graph::CompletionValidationReport
+impl core::clone::Clone for antecedent_graph::Condensation
 impl core::clone::Clone for antecedent_graph::CopyLabels
 impl core::clone::Clone for antecedent_graph::Cpdag
 impl core::clone::Clone for antecedent_graph::CpdagCompletion
@@ -60,6 +61,7 @@ impl core::clone::Clone for antecedent_graph::WithinTier
 impl core::cmp::Eq for antecedent_graph::Admg
 impl core::cmp::Eq for antecedent_graph::BitSet
 impl core::cmp::Eq for antecedent_graph::CompletionValidationReport
+impl core::cmp::Eq for antecedent_graph::Condensation
 impl core::cmp::Eq for antecedent_graph::CopyLabels
 impl core::cmp::Eq for antecedent_graph::Cpdag
 impl core::cmp::Eq for antecedent_graph::CyclicDigraph
@@ -86,6 +88,7 @@ impl core::cmp::Ord for antecedent_graph::DenseNodeId
 impl core::cmp::PartialEq for antecedent_graph::Admg
 impl core::cmp::PartialEq for antecedent_graph::BitSet
 impl core::cmp::PartialEq for antecedent_graph::CompletionValidationReport
+impl core::cmp::PartialEq for antecedent_graph::Condensation
 impl core::cmp::PartialEq for antecedent_graph::CopyLabels
 impl core::cmp::PartialEq for antecedent_graph::Cpdag
 impl core::cmp::PartialEq for antecedent_graph::CyclicDigraph
@@ -119,6 +122,7 @@ impl core::fmt::Debug for antecedent_graph::Admg
 impl core::fmt::Debug for antecedent_graph::BitSet
 impl core::fmt::Debug for antecedent_graph::CompletionSampler
 impl core::fmt::Debug for antecedent_graph::CompletionValidationReport
+impl core::fmt::Debug for antecedent_graph::Condensation
 impl core::fmt::Debug for antecedent_graph::CopyLabels
 impl core::fmt::Debug for antecedent_graph::Cpdag
 impl core::fmt::Debug for antecedent_graph::CpdagCompletion
@@ -187,6 +191,7 @@ impl core::marker::Freeze for antecedent_graph::Admg [auto]
 impl core::marker::Freeze for antecedent_graph::BitSet [auto]
 impl core::marker::Freeze for antecedent_graph::CompletionSampler [auto]
 impl core::marker::Freeze for antecedent_graph::CompletionValidationReport [auto]
+impl core::marker::Freeze for antecedent_graph::Condensation [auto]
 impl core::marker::Freeze for antecedent_graph::CopyLabels [auto]
 impl core::marker::Freeze for antecedent_graph::Cpdag [auto]
 impl core::marker::Freeze for antecedent_graph::CpdagCompletion [auto]
@@ -230,6 +235,7 @@ impl core::marker::Send for antecedent_graph::Admg [auto]
 impl core::marker::Send for antecedent_graph::BitSet [auto]
 impl core::marker::Send for antecedent_graph::CompletionSampler [auto]
 impl core::marker::Send for antecedent_graph::CompletionValidationReport [auto]
+impl core::marker::Send for antecedent_graph::Condensation [auto]
 impl core::marker::Send for antecedent_graph::CopyLabels [auto]
 impl core::marker::Send for antecedent_graph::Cpdag [auto]
 impl core::marker::Send for antecedent_graph::CpdagCompletion [auto]
@@ -274,6 +280,7 @@ impl core::marker::Send for antecedent_graph::UnfoldedTemporalGraph [auto]
 impl core::marker::Send for antecedent_graph::UnfoldedTemporalPag [auto]
 impl core::marker::Send for antecedent_graph::WithinTier [auto]
 impl core::marker::StructuralPartialEq for antecedent_graph::CompletionValidationReport
+impl core::marker::StructuralPartialEq for antecedent_graph::Condensation
 impl core::marker::StructuralPartialEq for antecedent_graph::CopyLabels
 impl core::marker::StructuralPartialEq for antecedent_graph::Cpdag
 impl core::marker::StructuralPartialEq for antecedent_graph::CyclicDigraph
@@ -298,6 +305,7 @@ impl core::marker::Sync for antecedent_graph::Admg [auto]
 impl core::marker::Sync for antecedent_graph::BitSet [auto]
 impl core::marker::Sync for antecedent_graph::CompletionSampler [auto]
 impl core::marker::Sync for antecedent_graph::CompletionValidationReport [auto]
+impl core::marker::Sync for antecedent_graph::Condensation [auto]
 impl core::marker::Sync for antecedent_graph::CopyLabels [auto]
 impl core::marker::Sync for antecedent_graph::Cpdag [auto]
 impl core::marker::Sync for antecedent_graph::CpdagCompletion [auto]
@@ -345,6 +353,7 @@ impl core::marker::Unpin for antecedent_graph::Admg [auto]
 impl core::marker::Unpin for antecedent_graph::BitSet [auto]
 impl core::marker::Unpin for antecedent_graph::CompletionSampler [auto]
 impl core::marker::Unpin for antecedent_graph::CompletionValidationReport [auto]
+impl core::marker::Unpin for antecedent_graph::Condensation [auto]
 impl core::marker::Unpin for antecedent_graph::CopyLabels [auto]
 impl core::marker::Unpin for antecedent_graph::Cpdag [auto]
 impl core::marker::Unpin for antecedent_graph::CpdagCompletion [auto]
@@ -392,6 +401,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Admg [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::BitSet [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CompletionSampler [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CompletionValidationReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Condensation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CopyLabels [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Cpdag [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CpdagCompletion [auto]
@@ -439,6 +449,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Admg [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::BitSet [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CompletionSampler [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CompletionValidationReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Condensation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CopyLabels [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Cpdag [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CpdagCompletion [auto]
@@ -634,6 +645,10 @@ pub fn <antecedent_graph::CompletionSampler>::fn max_completions(&self) -> usize
 pub fn <antecedent_graph::CompletionSampler>::fn n_circle_sites(&self) -> usize
 pub fn <antecedent_graph::CompletionSampler>::fn new(pag: antecedent_graph::Pag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::CompletionSampler>::fn with_budget(pag: &antecedent_graph::Pag, max_completions: usize, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Condensation>::fn component_index(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<usize>
+pub fn <antecedent_graph::Condensation>::fn components(&self) -> &[alloc::vec::Vec<antecedent_graph::DenseNodeId>]
+pub fn <antecedent_graph::Condensation>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::Condensation>::fn len(&self) -> usize
 pub fn <antecedent_graph::Cpdag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Cpdag>::fn adjacent(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
 pub fn <antecedent_graph::Cpdag>::fn children(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
@@ -678,6 +693,7 @@ pub fn <antecedent_graph::CpdagReview>::fn try_into_dag(self) -> core::result::R
 pub fn <antecedent_graph::CyclicDigraph>::const fn empty() -> Self
 pub fn <antecedent_graph::CyclicDigraph>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::CyclicDigraph>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::CyclicDigraph>::fn condensation(&self) -> antecedent_graph::Condensation
 pub fn <antecedent_graph::CyclicDigraph>::fn directed_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
 pub fn <antecedent_graph::CyclicDigraph>::fn edges(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::MarkedEdge> + '_
 pub fn <antecedent_graph::CyclicDigraph>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
@@ -695,6 +711,7 @@ pub fn <antecedent_graph::CyclicMixedGraph>::fn add_node(&mut self, node: antece
 pub fn <antecedent_graph::CyclicMixedGraph>::fn bidirected_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
 pub fn <antecedent_graph::CyclicMixedGraph>::fn bidirected_neighbors(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
 pub fn <antecedent_graph::CyclicMixedGraph>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::CyclicMixedGraph>::fn condensation(&self) -> antecedent_graph::Condensation
 pub fn <antecedent_graph::CyclicMixedGraph>::fn directed_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
 pub fn <antecedent_graph::CyclicMixedGraph>::fn edges(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::MarkedEdge> + '_
 pub fn <antecedent_graph::CyclicMixedGraph>::fn from_cyclic_digraph(graph: antecedent_graph::CyclicDigraph) -> Self
@@ -979,6 +996,8 @@ pub struct antecedent_graph::BitSet has private fields
 pub struct antecedent_graph::CompletionSampler
 pub struct antecedent_graph::CompletionSampler has private fields
 pub struct antecedent_graph::CompletionValidationReport
+pub struct antecedent_graph::Condensation
+pub struct antecedent_graph::Condensation has private fields
 pub struct antecedent_graph::Cpdag
 pub struct antecedent_graph::Cpdag has private fields
 pub struct antecedent_graph::CpdagCompletion
