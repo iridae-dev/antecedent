@@ -1,0 +1,147 @@
+# Measurement protocol for the four B08 lanes.
+# This file is the plan. It is not a measurement. It stores no timings,
+# speedups, or byte counts. Lane controls and envelopes live in
+# parity/performance_lanes/lanes.toml. Historical bench timings are a different record.
+# status = "registered_not_measured" means the lane is named and has not been run.
+
+schema = 1
+predecessor_tag = "v2.4.1"
+measured = false
+lanes_table = "parity/performance_lanes/lanes.toml"
+
+[hardware]
+classes = ["apple_silicon", "x86_64_linux"]
+threads = [1, 4, 16]
+builds = ["portable", "runtime_dispatched"]
+device = "host CPU. Larger-server and device runs are outside this registered grid."
+
+[hardware.held_fixed]
+predecessor = "v2.4.1, frozen, same host as that control"
+hardware_class = "one class per cell; the two classes are not pooled"
+threads = "one of 1, 4, or 16 per cell; the counts are not pooled"
+build = "portable or runtime_dispatched per cell; the two builds are not mixed"
+control = "the B06 control id, its seed, and its timed section, including the uncertainty and diagnostics that control already computes"
+width = "encoded width stays at the control on row_capacity and exact_capacity"
+result = "the lane's result and retention contract"
+uncertainty_budget = "bootstrap replicates, posterior draws, and diagnostic passes stay at the control; the row tier does not shrink them"
+
+[sample]
+row_tiers = ["1e4", "1e5", "1e6", "1e7"]
+role = "plan"
+notes = "These are the sample-size and row tiers named for the sweep. They are not results. Eligible larger tiers are not registered in this protocol. A finished smaller tier does not stand in for a larger tier that missed its lane goal."
+
+[noise]
+host = "reference hardware classes only; a shared-runner smoke check is not a cell of this protocol"
+rule = "The Criterion comparison fails when mean.confidence_interval.lower_bound exceeds +0.25 and warns when the point estimate exceeds +0.10 with a lower bound above zero. A lower bound at or below zero is noise on that comparison, not a failure."
+repeats = "Every repeat stays in the record. Min, median, and max use the measurement summary. An even count takes the floor midpoint of the two central values. A repeat is not discarded for being the minimum, the maximum, or the one that missed."
+early_stop = "Do not stop early and drop the repeats that missed, ran out of memory, or were cancelled."
+
+[retry]
+same_cell = "A retry repeats the same lane, control, hardware class, build, thread count, and row tier. It appends a record. It does not delete or replace the earlier attempt."
+no_easier_workload = "A retry does not change the row tier, the thread count, the uncertainty budget, or the diagnostic passes."
+missing_entry_point = "A control with no entry point is recorded as unsuccessful. The nearest example is not the control."
+
+[small_workload]
+tier = "1e4"
+fail_lower_bound = 0.25
+warn_point = 0.10
+decides_exit_status = false
+notes = "On the 1e4 tier, a supplied relative comparison uses the same bounds as the Criterion comparison: lower bound above +0.25 is beyond the ceiling, and a point estimate above +0.10 with a lower bound above zero warns. The ceiling is reported on the resource path when that comparison is present. Absence of the comparison is not filled in, and it does not fail the Criterion comparison."
+
+[criterion]
+fail_lower_bound = 0.25
+warn_point = 0.10
+decides_exit_status = true
+absent_resource_file_fails = false
+notes = "Pass/fail of scripts/bench_regression.py is this relative-change comparison only. The resource directory is a separate report."
+
+[precision]
+counters = "non-negative integers; zero means none reported, not unknown"
+peak_rss = "peak_rss_bytes, or peak_rss_unsupported with a non-empty reason; a blank sample is not a record"
+stage_times = "stage_times_ns, integer nanoseconds per named stage; a stage missing from a repeat is omitted, not stored as zero"
+variability = "count, min, median, max"
+scientific_output = "the control's uncertainty and diagnostics; a point estimate by itself does not complete the cell"
+relative_change = "when a comparison is attached to a resource attempt, unitless point_estimate and lower_bound; this file stores neither"
+
+[output]
+criterion = "CRITERION_DIR/**/change/estimates.json, the existing comparison"
+resource = "RESOURCE_DIR/**/resource.json, one JSON object or a list of objects, one attempt each"
+command = "python3 scripts/bench_regression.py [CRITERION_DIR] [RESOURCE_DIR]"
+exit_status = "the Criterion comparison; resource lines are printed beside it"
+count_keys = [
+    "peak_rss_bytes",
+    "allocation_bytes",
+    "copy_bytes",
+    "borrow_bytes",
+    "source_passes",
+    "fit_count",
+    "test_count",
+    "retained_outputs",
+    "spill_bytes",
+    "threads",
+]
+other_native_fields = [
+    "peak_rss_unsupported",
+    "device",
+    "stage_times_ns",
+    "cancelled",
+    "failed",
+    "variability",
+]
+ignored_python_trace_prefixes = ["python_"]
+identity = [
+    "lane",
+    "control",
+    "hardware_class",
+    "build",
+    "threads",
+    "row_tier",
+    "outcome",
+    "target_met",
+]
+outcomes = ["completed", "unsuccessful", "oom"]
+
+[recording]
+drop_unsuccessful = false
+drop_oom = false
+drop_missed_target = false
+notes = "Unsuccessful and OOM attempts are written and printed. Cancellation stays on the attempt as cancelled=true with outcome unsuccessful. A refusal, a timeout, and a missing entry point are unsuccessful records."
+
+[missed_target]
+stays_on_record = true
+field = "target_met = false"
+next_attempt = "changes the plan that was supposed to reach the end-state"
+substitute_easier_workload = false
+notes = "A missed lane target stays on the record. The next attempt changes the plan that was supposed to reach that end-state. Do not substitute an easier workload: a smaller tier, a narrower control, a point estimate without its uncertainty, a dropped diagnostic pass, or the nearest example."
+
+[[lane]]
+id = "first_answer"
+status = "registered_not_measured"
+goal = "proposed 2-5x faster first answer on selected complete workloads"
+comparison = "frozen same-host v2.4.1"
+grid = "each of this lane's controls at each hardware class, build, thread count, and row tier"
+cell = "The timed section is the complete first answer, including requested uncertainty and diagnostics."
+
+[[lane]]
+id = "reuse_throughput"
+status = "registered_not_measured"
+goal = "proposed 10x throughput for compatible query, retarget, and refresh"
+comparison = "independent v2.4.1 solo call and the existing v2.4.1 prepared/batch API"
+grid = "each of this lane's controls at each hardware class, build, thread count, and row tier, against both baselines"
+cell = "Both baselines are part of the cell. Dropping the solo call or the prepared/batch API is not the cell."
+
+[[lane]]
+id = "row_capacity"
+status = "registered_not_measured"
+goal = "proposed 10x rows on named fixed-width lanes under the same RAM envelope and the declared time envelope"
+comparison = "defined v2.4.1 maximum for that fixed-width lane, with complete result requirements"
+grid = "each of this lane's controls at each hardware class, build, thread count, and row tier"
+cell = "Encoded width stays at the control. The scale axis is the named row tier. Completing a smaller tier does not replace a missed 10x end-state."
+
+[[lane]]
+id = "exact_capacity"
+status = "registered_not_measured"
+goal = "proposed exact 100x on one streaming reduction, with a fixed RAM ceiling and declared time and disk"
+comparison = "v2.4.1 result and retention requirements for the Gaussian control"
+grid = "glm and gaussian_bayes at each hardware class, build, thread count, and row tier"
+cell = "The timed section is the streaming reduction plus declared diagnostic passes (robust covariance, leverage, residual checks). Those passes stay in the plan. Arbitrary nonlinear likelihoods are not this lane. A smaller tier does not replace a missed 100x end-state."

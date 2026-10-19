@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Relative bench regression check over a Criterion baseline comparison.
 
-    python3 scripts/bench_regression.py [CRITERION_DIR]
+    python3 scripts/bench_regression.py [CRITERION_DIR] [RESOURCE_DIR]
 
 Run after `cargo bench ... --save-baseline base` on the base commit and
 `cargo bench ... --baseline base` on the head commit, on the same machine in the
@@ -21,6 +21,13 @@ allocation/copy/borrow bytes, source passes, fit/test counts, retained outputs,
 spill bytes, thread/device use, stage times, cancellation, failure, and
 variability. Keys from a Python allocator trace are ignored. Pass/fail stays
 the Criterion relative change.
+
+RESOURCE_DIR is a separate end-to-end/resource path. Each `resource.json` under
+it is one attempt, or a list of attempts. Those attempts are printed after the
+Criterion comparison, including unsuccessful and OOM attempts and a missed lane
+target. The process exit status is only the Criterion relative change. Omitting
+RESOURCE_DIR, or pointing it at a directory with no `resource.json`, does not
+fail that comparison.
 """
 
 from __future__ import annotations
@@ -46,6 +53,13 @@ _COUNT_KEYS = (
     "threads",
 )
 _VARIABILITY_PARTS = ("count", "min", "median", "max")
+_LANES = ("first_answer", "reuse_throughput", "row_capacity", "exact_capacity")
+_HARDWARE = ("apple_silicon", "x86_64_linux")
+_BUILDS = ("portable", "runtime_dispatched")
+_ROW_TIERS = ("1e4", "1e5", "1e6", "1e7")
+_THREADS = (1, 4, 16)
+_OUTCOMES = ("completed", "unsuccessful", "oom")
+_SMALL_WORKLOAD_TIER = "1e4"
 
 
 def _nonneg_int(value: object, label: str) -> int:
@@ -75,6 +89,8 @@ def _variability(value: object) -> dict[str, dict[str, int]]:
     for name, summary in value.items():
         if not isinstance(name, str) or not isinstance(summary, dict):
             raise ValueError("variability entries must be objects")
+        if name.startswith("python_"):
+            continue
         checked[name] = {
             part: _nonneg_int(summary[part], f"variability.{name}.{part}")
             for part in _VARIABILITY_PARTS
@@ -145,11 +161,133 @@ def comparison_result(estimate: dict, bench: str, measurement: dict | None = Non
     return result
 
 
+def _choice(value: object, allowed: tuple, label: str) -> object:
+    if isinstance(value, bool) or value not in allowed:
+        names = ", ".join(str(item) for item in allowed)
+        raise ValueError(f"{label} must be one of {names}")
+    return value
+
+
+def _relative(value: object) -> dict[str, float]:
+    if not isinstance(value, dict):
+        raise ValueError("relative must be an object")
+    checked: dict[str, float] = {}
+    for key in ("point_estimate", "lower_bound"):
+        number = value.get(key)
+        if isinstance(number, bool) or not isinstance(number, (int, float)):
+            raise ValueError(f"relative.{key} must be a number")
+        checked[key] = float(number)
+    return checked
+
+
+def _small_workload_ceiling(relative: dict[str, float]) -> str:
+    """How a 1e4 relative comparison sits against the Criterion bounds. Not an exit status."""
+    lower = relative["lower_bound"]
+    point = relative["point_estimate"]
+    if lower > FAIL_LOWER_BOUND:
+        return "beyond"
+    if point > WARN_POINT and lower > 0.0:
+        return "warn"
+    return "within"
+
+
+def resource_result(payload: dict) -> dict:
+    """One end-to-end attempt. Python tracemalloc keys are ignored. OOM and misses stay."""
+    if not isinstance(payload, dict):
+        raise ValueError("resource record must be an object")
+    control = payload.get("control")
+    if not isinstance(control, str) or not control:
+        raise ValueError("control must be a non-empty string")
+    target_met = payload.get("target_met")
+    if not isinstance(target_met, bool):
+        raise ValueError("target_met must be a boolean")
+    record = {
+        "lane": _choice(payload.get("lane"), _LANES, "lane"),
+        "control": control,
+        "hardware_class": _choice(payload.get("hardware_class"), _HARDWARE, "hardware_class"),
+        "build": _choice(payload.get("build"), _BUILDS, "build"),
+        "threads": _choice(payload.get("threads"), _THREADS, "threads"),
+        "row_tier": _choice(payload.get("row_tier"), _ROW_TIERS, "row_tier"),
+        "outcome": _choice(payload.get("outcome"), _OUTCOMES, "outcome"),
+        "target_met": target_met,
+    }
+    fields = measurement_fields(payload)
+    if fields:
+        record["measurement"] = fields
+    if "relative" in payload:
+        relative = _relative(payload["relative"])
+        record["relative"] = relative
+        if record["row_tier"] == _SMALL_WORKLOAD_TIER:
+            record["small_workload_ceiling"] = _small_workload_ceiling(relative)
+    return record
+
+
+def format_resource_line(record: dict) -> str:
+    """One attempt, including unsuccessful, OOM, and missed-target rows."""
+    parts = [
+        f"lane={record['lane']}",
+        f"control={record['control']}",
+        f"hardware={record['hardware_class']}",
+        f"build={record['build']}",
+        f"threads={record['threads']}",
+        f"tier={record['row_tier']}",
+        f"outcome={record['outcome']}",
+        f"target_met={str(record['target_met']).lower()}",
+    ]
+    measurement = record.get("measurement")
+    if measurement:
+        parts.append("measurement=" + ",".join(sorted(measurement)))
+    relative = record.get("relative")
+    if relative is not None:
+        parts.append(f"relative_point={relative['point_estimate']:+.1%}")
+        parts.append(f"relative_lower={relative['lower_bound']:+.1%}")
+    ceiling = record.get("small_workload_ceiling")
+    if ceiling is not None:
+        parts.append(f"small_workload_ceiling={ceiling}")
+    return "resource: " + " ".join(parts)
+
+
+def report_resources(root: Path) -> list[str]:
+    """Lines for every attempt under `root`. A missing directory supplies none.
+
+    Unreadable files are listed. They are not omitted, and they do not decide
+    the Criterion exit status. Unsuccessful and OOM attempts are kept.
+    """
+    if not root.is_dir():
+        return ["resource: none supplied"]
+    paths = sorted(path for path in root.glob("**/resource.json") if path.is_file())
+    if not paths:
+        return ["resource: none supplied"]
+    lines: list[str] = []
+    for path in paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as err:
+            lines.append(f"resource: unreadable {path}: {err}")
+            continue
+        items = payload if isinstance(payload, list) else [payload]
+        for index, item in enumerate(items):
+            try:
+                lines.append(format_resource_line(resource_result(item)))
+            except ValueError as err:
+                lines.append(f"resource: unreadable {path}[{index}]: {err}")
+    return lines or ["resource: none supplied"]
+
+
+def _emit_resources(root: Path | None) -> None:
+    if root is None:
+        return
+    for line in report_resources(root):
+        print(line)
+
+
 def main(argv: list[str]) -> int:
     criterion = Path(argv[0]) if argv else Path("target/criterion")
+    resource_root = Path(argv[1]) if len(argv) > 1 else None
     estimates = sorted(criterion.glob("**/change/estimates.json"))
     if not estimates:
         print(f"FAIL: no baseline comparison under {criterion} (was --baseline base used?)")
+        _emit_resources(resource_root)
         return 1
     failures, warnings = [], []
     for path in estimates:
@@ -162,6 +300,7 @@ def main(argv: list[str]) -> int:
             )
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as err:
             print(f"FAIL: {bench}: {err}")
+            _emit_resources(resource_root)
             return 1
         lower = result["lower_bound"]
         point = result["point_estimate"]
@@ -175,8 +314,10 @@ def main(argv: list[str]) -> int:
         print(f"FAIL: {len(failures)} benchmark(s) more than {FAIL_LOWER_BOUND:.0%} slower:")
         for line in failures:
             print(f"  {line}")
+        _emit_resources(resource_root)
         return 1
     print(f"bench regression: {len(estimates)} benchmark(s) compared, none beyond the bound")
+    _emit_resources(resource_root)
     return 0
 
 
