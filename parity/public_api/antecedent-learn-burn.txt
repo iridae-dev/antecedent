@@ -4,41 +4,373 @@
 impl core::clone::Clone for antecedent_learn_burn::LearnBurnError
 impl core::clone::Clone for antecedent_learn_burn::MlpSpec
 impl core::clone::Clone for antecedent_learn_burn::TrainedMlp
+impl core::clone::Clone for antecedent_learn_burn::device::CacheEntry
+impl core::clone::Clone for antecedent_learn_burn::device::CacheKey
+impl core::clone::Clone for antecedent_learn_burn::device::CacheLifetime
+impl core::clone::Clone for antecedent_learn_burn::device::CachedFit
+impl core::clone::Clone for antecedent_learn_burn::device::CandidateDescription
+impl core::clone::Clone for antecedent_learn_burn::device::DeviceOwner
+impl core::clone::Clone for antecedent_learn_burn::device::DeviceRuntime
+impl core::clone::Clone for antecedent_learn_burn::device::EpochLoss
+impl core::clone::Clone for antecedent_learn_burn::device::FoldOutcome
+impl core::clone::Clone for antecedent_learn_burn::device::FoldSpec
+impl core::clone::Clone for antecedent_learn_burn::device::GraphicsApi
+impl core::clone::Clone for antecedent_learn_burn::device::LearnerBackend
+impl core::clone::Clone for antecedent_learn_burn::device::LossSync
+impl core::clone::Clone for antecedent_learn_burn::device::Measurement
+impl core::clone::Clone for antecedent_learn_burn::device::ModelOwner
+impl core::clone::Clone for antecedent_learn_burn::device::Orchestration
+impl core::clone::Clone for antecedent_learn_burn::device::PortableFit
+impl core::clone::Clone for antecedent_learn_burn::device::RngLease
+impl core::clone::Clone for antecedent_learn_burn::device::RngLockScope
+impl core::clone::Clone for antecedent_learn_burn::device::RuntimeOwnership
+impl core::clone::Clone for antecedent_learn_burn::device::TransferStep
+impl core::cmp::Eq for antecedent_learn_burn::device::CacheEntry
+impl core::cmp::Eq for antecedent_learn_burn::device::CacheKey
+impl core::cmp::Eq for antecedent_learn_burn::device::CacheLifetime
+impl core::cmp::Eq for antecedent_learn_burn::device::CandidateDescription
+impl core::cmp::Eq for antecedent_learn_burn::device::DeviceOwner
+impl core::cmp::Eq for antecedent_learn_burn::device::GraphicsApi
+impl core::cmp::Eq for antecedent_learn_burn::device::LearnerBackend
+impl core::cmp::Eq for antecedent_learn_burn::device::LossSync
+impl core::cmp::Eq for antecedent_learn_burn::device::Measurement
+impl core::cmp::Eq for antecedent_learn_burn::device::ModelOwner
+impl core::cmp::Eq for antecedent_learn_burn::device::RngLease
+impl core::cmp::Eq for antecedent_learn_burn::device::RngLockScope
+impl core::cmp::Eq for antecedent_learn_burn::device::RuntimeOwnership
+impl core::cmp::Eq for antecedent_learn_burn::device::TransferStep
+impl core::cmp::PartialEq for antecedent_learn_burn::device::CacheEntry
+impl core::cmp::PartialEq for antecedent_learn_burn::device::CacheKey
+impl core::cmp::PartialEq for antecedent_learn_burn::device::CacheLifetime
+impl core::cmp::PartialEq for antecedent_learn_burn::device::CandidateDescription
+impl core::cmp::PartialEq for antecedent_learn_burn::device::DeviceOwner
+impl core::cmp::PartialEq for antecedent_learn_burn::device::EpochLoss
+impl core::cmp::PartialEq for antecedent_learn_burn::device::GraphicsApi
+impl core::cmp::PartialEq for antecedent_learn_burn::device::LearnerBackend
+impl core::cmp::PartialEq for antecedent_learn_burn::device::LossSync
+impl core::cmp::PartialEq for antecedent_learn_burn::device::Measurement
+impl core::cmp::PartialEq for antecedent_learn_burn::device::ModelOwner
+impl core::cmp::PartialEq for antecedent_learn_burn::device::RngLease
+impl core::cmp::PartialEq for antecedent_learn_burn::device::RngLockScope
+impl core::cmp::PartialEq for antecedent_learn_burn::device::RuntimeOwnership
+impl core::cmp::PartialEq for antecedent_learn_burn::device::TransferStep
+impl core::convert::From<antecedent_learn_burn::LearnBurnError> for antecedent_learn_burn::device::DeviceError
+impl core::default::Default for antecedent_learn_burn::device::LeaseScheduler
 impl core::error::Error for antecedent_learn_burn::LearnBurnError
+impl core::error::Error for antecedent_learn_burn::device::DeviceError
 impl core::fmt::Debug for antecedent_learn_burn::LearnBurnError
 impl core::fmt::Debug for antecedent_learn_burn::MlpSpec
 impl core::fmt::Debug for antecedent_learn_burn::TrainedMlp
+impl core::fmt::Debug for antecedent_learn_burn::device::CacheEntry
+impl core::fmt::Debug for antecedent_learn_burn::device::CacheKey
+impl core::fmt::Debug for antecedent_learn_burn::device::CacheLifetime
+impl core::fmt::Debug for antecedent_learn_burn::device::CachedFit
+impl core::fmt::Debug for antecedent_learn_burn::device::CandidateDescription
+impl core::fmt::Debug for antecedent_learn_burn::device::DeviceError
+impl core::fmt::Debug for antecedent_learn_burn::device::DeviceOwner
+impl core::fmt::Debug for antecedent_learn_burn::device::DeviceRuntime
+impl core::fmt::Debug for antecedent_learn_burn::device::EpochLoss
+impl core::fmt::Debug for antecedent_learn_burn::device::FoldOutcome
+impl core::fmt::Debug for antecedent_learn_burn::device::FoldSpec
+impl core::fmt::Debug for antecedent_learn_burn::device::GraphicsApi
+impl core::fmt::Debug for antecedent_learn_burn::device::LearnerBackend
+impl core::fmt::Debug for antecedent_learn_burn::device::LeaseScheduler
+impl core::fmt::Debug for antecedent_learn_burn::device::LossSync
+impl core::fmt::Debug for antecedent_learn_burn::device::Measurement
+impl core::fmt::Debug for antecedent_learn_burn::device::ModelOwner
+impl core::fmt::Debug for antecedent_learn_burn::device::Orchestration
+impl core::fmt::Debug for antecedent_learn_burn::device::PortableFit
+impl core::fmt::Debug for antecedent_learn_burn::device::RngLease
+impl core::fmt::Debug for antecedent_learn_burn::device::RngLockScope
+impl core::fmt::Debug for antecedent_learn_burn::device::RuntimeOwnership
+impl core::fmt::Debug for antecedent_learn_burn::device::TransferStep
 impl core::fmt::Display for antecedent_learn_burn::LearnBurnError
+impl core::fmt::Display for antecedent_learn_burn::device::DeviceError
 impl core::marker::Copy for antecedent_learn_burn::MlpSpec
+impl core::marker::Copy for antecedent_learn_burn::device::CacheEntry
+impl core::marker::Copy for antecedent_learn_burn::device::CacheKey
+impl core::marker::Copy for antecedent_learn_burn::device::CacheLifetime
+impl core::marker::Copy for antecedent_learn_burn::device::CandidateDescription
+impl core::marker::Copy for antecedent_learn_burn::device::DeviceOwner
+impl core::marker::Copy for antecedent_learn_burn::device::EpochLoss
+impl core::marker::Copy for antecedent_learn_burn::device::GraphicsApi
+impl core::marker::Copy for antecedent_learn_burn::device::LearnerBackend
+impl core::marker::Copy for antecedent_learn_burn::device::LossSync
+impl core::marker::Copy for antecedent_learn_burn::device::Measurement
+impl core::marker::Copy for antecedent_learn_burn::device::ModelOwner
+impl core::marker::Copy for antecedent_learn_burn::device::RngLease
+impl core::marker::Copy for antecedent_learn_burn::device::RngLockScope
+impl core::marker::Copy for antecedent_learn_burn::device::RuntimeOwnership
+impl core::marker::Copy for antecedent_learn_burn::device::TransferStep
 impl core::marker::Freeze for antecedent_learn_burn::LearnBurnError [auto]
 impl core::marker::Freeze for antecedent_learn_burn::MlpSpec [auto]
 impl core::marker::Freeze for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::CacheEntry [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::CacheKey [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::CacheLifetime [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::CachedFit [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::CandidateDescription [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::DeviceError [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::DeviceOwner [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::DeviceRuntime [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::EpochLoss [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::FoldOutcome [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::FoldSpec [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::GraphicsApi [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::LearnerBackend [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::LeaseScheduler [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::LossSync [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::Measurement [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::ModelOwner [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::Orchestration [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::PortableFit [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::RngLease [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::RngLockScope [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::RuntimeOwnership [auto]
+impl core::marker::Freeze for antecedent_learn_burn::device::TransferStep [auto]
 impl core::marker::Send for antecedent_learn_burn::LearnBurnError [auto]
 impl core::marker::Send for antecedent_learn_burn::MlpSpec [auto]
 impl core::marker::Send for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Send for antecedent_learn_burn::device::CacheEntry [auto]
+impl core::marker::Send for antecedent_learn_burn::device::CacheKey [auto]
+impl core::marker::Send for antecedent_learn_burn::device::CacheLifetime [auto]
+impl core::marker::Send for antecedent_learn_burn::device::CachedFit [auto]
+impl core::marker::Send for antecedent_learn_burn::device::CandidateDescription [auto]
+impl core::marker::Send for antecedent_learn_burn::device::DeviceError [auto]
+impl core::marker::Send for antecedent_learn_burn::device::DeviceOwner [auto]
+impl core::marker::Send for antecedent_learn_burn::device::DeviceRuntime [auto]
+impl core::marker::Send for antecedent_learn_burn::device::EpochLoss [auto]
+impl core::marker::Send for antecedent_learn_burn::device::FoldOutcome [auto]
+impl core::marker::Send for antecedent_learn_burn::device::FoldSpec [auto]
+impl core::marker::Send for antecedent_learn_burn::device::GraphicsApi [auto]
+impl core::marker::Send for antecedent_learn_burn::device::LearnerBackend [auto]
+impl core::marker::Send for antecedent_learn_burn::device::LeaseScheduler [auto]
+impl core::marker::Send for antecedent_learn_burn::device::LossSync [auto]
+impl core::marker::Send for antecedent_learn_burn::device::Measurement [auto]
+impl core::marker::Send for antecedent_learn_burn::device::ModelOwner [auto]
+impl core::marker::Send for antecedent_learn_burn::device::Orchestration [auto]
+impl core::marker::Send for antecedent_learn_burn::device::PortableFit [auto]
+impl core::marker::Send for antecedent_learn_burn::device::RngLease [auto]
+impl core::marker::Send for antecedent_learn_burn::device::RngLockScope [auto]
+impl core::marker::Send for antecedent_learn_burn::device::RuntimeOwnership [auto]
+impl core::marker::Send for antecedent_learn_burn::device::TransferStep [auto]
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::CacheEntry
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::CacheKey
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::CacheLifetime
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::CandidateDescription
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::DeviceOwner
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::EpochLoss
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::GraphicsApi
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::LearnerBackend
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::LossSync
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::Measurement
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::ModelOwner
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::RngLease
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::RngLockScope
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::RuntimeOwnership
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::TransferStep
 impl core::marker::Sync for antecedent_learn_burn::LearnBurnError [auto]
 impl core::marker::Sync for antecedent_learn_burn::MlpSpec [auto]
 impl core::marker::Sync for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::CacheEntry [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::CacheKey [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::CacheLifetime [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::CachedFit [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::CandidateDescription [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::DeviceError [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::DeviceOwner [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::DeviceRuntime [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::EpochLoss [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::FoldOutcome [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::FoldSpec [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::GraphicsApi [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::LearnerBackend [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::LeaseScheduler [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::LossSync [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::Measurement [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::ModelOwner [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::Orchestration [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::PortableFit [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::RngLease [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::RngLockScope [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::RuntimeOwnership [auto]
+impl core::marker::Sync for antecedent_learn_burn::device::TransferStep [auto]
 impl core::marker::Unpin for antecedent_learn_burn::LearnBurnError [auto]
 impl core::marker::Unpin for antecedent_learn_burn::MlpSpec [auto]
 impl core::marker::Unpin for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::CacheEntry [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::CacheKey [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::CacheLifetime [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::CachedFit [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::CandidateDescription [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::DeviceError [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::DeviceOwner [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::DeviceRuntime [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::EpochLoss [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::FoldOutcome [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::FoldSpec [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::GraphicsApi [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::LearnerBackend [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::LeaseScheduler [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::LossSync [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::Measurement [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::ModelOwner [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::Orchestration [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::PortableFit [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::RngLease [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::RngLockScope [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::RuntimeOwnership [auto]
+impl core::marker::Unpin for antecedent_learn_burn::device::TransferStep [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::LearnBurnError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::MlpSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::TrainedMlp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::CacheEntry [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::CacheKey [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::CacheLifetime [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::CachedFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::CandidateDescription [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::DeviceError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::DeviceOwner [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::DeviceRuntime [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::EpochLoss [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::FoldOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::FoldSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::GraphicsApi [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::LearnerBackend [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::LeaseScheduler [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::LossSync [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::Measurement [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::ModelOwner [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::Orchestration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::PortableFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::RngLease [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::RngLockScope [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::RuntimeOwnership [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::TransferStep [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::LearnBurnError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::MlpSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::TrainedMlp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::CacheEntry [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::CacheKey [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::CacheLifetime [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::CachedFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::CandidateDescription [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::DeviceError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::DeviceOwner [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::DeviceRuntime [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::EpochLoss [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::FoldOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::FoldSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::GraphicsApi [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::LearnerBackend [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::LeaseScheduler [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::LossSync [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::Measurement [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::ModelOwner [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::Orchestration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::PortableFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::RngLease [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::RngLockScope [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::RuntimeOwnership [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::TransferStep [auto]
+pub const fn antecedent_learn_burn::device::candidate_description() -> antecedent_learn_burn::device::CandidateDescription
+pub const fn antecedent_learn_burn::device::record_host_loss(epoch: usize, loss: f32) -> core::result::Result<antecedent_learn_burn::device::EpochLoss, antecedent_learn_burn::LearnBurnError>
 pub enum antecedent_learn_burn::LearnBurnError
+pub enum antecedent_learn_burn::device::CacheLifetime
+pub enum antecedent_learn_burn::device::DeviceError
+pub enum antecedent_learn_burn::device::DeviceOwner
+pub enum antecedent_learn_burn::device::GraphicsApi
+pub enum antecedent_learn_burn::device::LearnerBackend
+pub enum antecedent_learn_burn::device::LossSync
+pub enum antecedent_learn_burn::device::Measurement
+pub enum antecedent_learn_burn::device::ModelOwner
+pub enum antecedent_learn_burn::device::RngLockScope
+pub enum antecedent_learn_burn::device::TransferStep
 pub field antecedent_learn_burn::MlpSpec::binary: bool
 pub field antecedent_learn_burn::MlpSpec::epochs: usize
 pub field antecedent_learn_burn::MlpSpec::hidden: usize
 pub field antecedent_learn_burn::MlpSpec::learning_rate: f64
 pub field antecedent_learn_burn::MlpSpec::seed: u64
+pub field antecedent_learn_burn::device::CacheEntry::generation: u64
+pub field antecedent_learn_burn::device::CacheEntry::key: antecedent_learn_burn::device::CacheKey
+pub field antecedent_learn_burn::device::CacheEntry::lifetime: antecedent_learn_burn::device::CacheLifetime
+pub field antecedent_learn_burn::device::CacheKey::fold: u32
+pub field antecedent_learn_burn::device::CacheKey::seed: u64
+pub field antecedent_learn_burn::device::CacheKey::spec_tag: u64
+pub field antecedent_learn_burn::device::CachedFit::entry: antecedent_learn_burn::device::CacheEntry
+pub field antecedent_learn_burn::device::CachedFit::hit: bool
+pub field antecedent_learn_burn::device::CachedFit::model: antecedent_learn_burn::TrainedMlp
+pub field antecedent_learn_burn::device::CandidateDescription::backend: antecedent_learn_burn::device::LearnerBackend
+pub field antecedent_learn_burn::device::CandidateDescription::compiled: bool
+pub field antecedent_learn_burn::device::CandidateDescription::graphics_api: antecedent_learn_burn::device::GraphicsApi
+pub field antecedent_learn_burn::device::CandidateDescription::measurement: antecedent_learn_burn::device::Measurement
+pub field antecedent_learn_burn::device::CandidateDescription::next_platform: &'static str
+pub field antecedent_learn_burn::device::CandidateDescription::reason: &'static str
+pub field antecedent_learn_burn::device::EpochLoss::epoch: usize
+pub field antecedent_learn_burn::device::EpochLoss::loss: f32
+pub field antecedent_learn_burn::device::EpochLoss::sync: antecedent_learn_burn::device::LossSync
+pub field antecedent_learn_burn::device::FoldOutcome::id: u32
+pub field antecedent_learn_burn::device::FoldOutcome::model: antecedent_learn_burn::TrainedMlp
+pub field antecedent_learn_burn::device::FoldOutcome::predict_rows: alloc::vec::Vec<usize>
+pub field antecedent_learn_burn::device::FoldOutcome::predictions: alloc::vec::Vec<f64>
+pub field antecedent_learn_burn::device::FoldOutcome::seed: u64
+pub field antecedent_learn_burn::device::FoldOutcome::transfers: alloc::vec::Vec<antecedent_learn_burn::device::TransferStep>
+pub field antecedent_learn_burn::device::FoldSpec::id: u32
+pub field antecedent_learn_burn::device::FoldSpec::predict_rows: alloc::vec::Vec<usize>
+pub field antecedent_learn_burn::device::FoldSpec::spec: antecedent_learn_burn::MlpSpec
+pub field antecedent_learn_burn::device::FoldSpec::train_rows: alloc::vec::Vec<usize>
+pub field antecedent_learn_burn::device::Orchestration::folds: alloc::vec::Vec<antecedent_learn_burn::device::FoldOutcome>
+pub field antecedent_learn_burn::device::Orchestration::loss_sync: antecedent_learn_burn::device::LossSync
+pub field antecedent_learn_burn::device::Orchestration::measurement: antecedent_learn_burn::device::Measurement
+pub field antecedent_learn_burn::device::Orchestration::physical: alloc::vec::Vec<f64>
+pub field antecedent_learn_burn::device::Orchestration::rng_lock: antecedent_learn_burn::device::RngLockScope
+pub field antecedent_learn_burn::device::PortableFit::backend: antecedent_learn_burn::device::LearnerBackend
+pub field antecedent_learn_burn::device::PortableFit::epochs_synced: usize
+pub field antecedent_learn_burn::device::PortableFit::loss_sync: antecedent_learn_burn::device::LossSync
+pub field antecedent_learn_burn::device::PortableFit::measurement: antecedent_learn_burn::device::Measurement
+pub field antecedent_learn_burn::device::PortableFit::model: antecedent_learn_burn::TrainedMlp
+pub field antecedent_learn_burn::device::PortableFit::ownership: antecedent_learn_burn::device::RuntimeOwnership
+pub field antecedent_learn_burn::device::PortableFit::rng_lock: antecedent_learn_burn::device::RngLockScope
+pub field antecedent_learn_burn::device::PortableFit::transfers: alloc::vec::Vec<antecedent_learn_burn::device::TransferStep>
+pub field antecedent_learn_burn::device::RngLease::fold: u32
+pub field antecedent_learn_burn::device::RngLease::seed: u64
+pub field antecedent_learn_burn::device::RuntimeOwnership::backend: antecedent_learn_burn::device::LearnerBackend
+pub field antecedent_learn_burn::device::RuntimeOwnership::cache: antecedent_learn_burn::device::CacheLifetime
+pub field antecedent_learn_burn::device::RuntimeOwnership::device: antecedent_learn_burn::device::DeviceOwner
+pub field antecedent_learn_burn::device::RuntimeOwnership::model: antecedent_learn_burn::device::ModelOwner
 pub fn <antecedent_learn_burn::TrainedMlp>::fn predict(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, out: &mut [f64]) -> core::result::Result<(), antecedent_learn_burn::LearnBurnError>
+pub fn <antecedent_learn_burn::device::DeviceRuntime>::const fn cpu() -> Self
+pub fn <antecedent_learn_burn::device::DeviceRuntime>::fn cached_model(&mut self, key: antecedent_learn_burn::device::CacheKey, fit: impl core::ops::function::FnOnce() -> core::result::Result<antecedent_learn_burn::TrainedMlp, antecedent_learn_burn::LearnBurnError>) -> core::result::Result<antecedent_learn_burn::device::CachedFit, antecedent_learn_burn::device::DeviceError>
+pub fn <antecedent_learn_burn::device::DeviceRuntime>::fn invalidate(&mut self)
+pub fn <antecedent_learn_burn::device::DeviceRuntime>::fn ownership(&self) -> antecedent_learn_burn::device::RuntimeOwnership
+pub fn <antecedent_learn_burn::device::DeviceRuntime>::fn probe(&self, key: antecedent_learn_burn::device::CacheKey) -> core::option::Option<antecedent_learn_burn::device::CacheEntry>
+pub fn <antecedent_learn_burn::device::LeaseScheduler>::const fn new() -> Self
+pub fn <antecedent_learn_burn::device::LeaseScheduler>::fn acquire(&mut self, fold: u32, seed: u64) -> core::result::Result<antecedent_learn_burn::device::RngLease, antecedent_learn_burn::device::DeviceError>
+pub fn <antecedent_learn_burn::device::LeaseScheduler>::fn release(&mut self, lease: antecedent_learn_burn::device::RngLease) -> core::result::Result<(), antecedent_learn_burn::device::DeviceError>
+pub fn <antecedent_learn_burn::device::PortableFit>::fn predict(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, out: &mut [f64]) -> core::result::Result<(), antecedent_learn_burn::LearnBurnError>
+pub fn antecedent_learn_burn::device::cache_key(fold: &antecedent_learn_burn::device::FoldSpec) -> antecedent_learn_burn::device::CacheKey
+pub fn antecedent_learn_burn::device::orchestrate_cpu(runtime: &mut antecedent_learn_burn::device::DeviceRuntime, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], folds: &[antecedent_learn_burn::device::FoldSpec]) -> core::result::Result<antecedent_learn_burn::device::Orchestration, antecedent_learn_burn::device::DeviceError>
+pub fn antecedent_learn_burn::device::transfer_plan(epochs: usize) -> alloc::vec::Vec<antecedent_learn_burn::device::TransferStep>
 pub fn antecedent_learn_burn::train(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], spec: &antecedent_learn_burn::MlpSpec) -> core::result::Result<antecedent_learn_burn::TrainedMlp, antecedent_learn_burn::LearnBurnError>
+pub mod antecedent_learn_burn::device
 pub struct antecedent_learn_burn::MlpSpec
 pub struct antecedent_learn_burn::TrainedMlp
 pub struct antecedent_learn_burn::TrainedMlp has private fields
+pub struct antecedent_learn_burn::device::CacheEntry
+pub struct antecedent_learn_burn::device::CacheKey
+pub struct antecedent_learn_burn::device::CachedFit
+pub struct antecedent_learn_burn::device::CandidateDescription
+pub struct antecedent_learn_burn::device::DeviceRuntime
+pub struct antecedent_learn_burn::device::DeviceRuntime has private fields
+pub struct antecedent_learn_burn::device::EpochLoss
+pub struct antecedent_learn_burn::device::FoldOutcome
+pub struct antecedent_learn_burn::device::FoldSpec
+pub struct antecedent_learn_burn::device::LeaseScheduler
+pub struct antecedent_learn_burn::device::LeaseScheduler has private fields
+pub struct antecedent_learn_burn::device::Orchestration
+pub struct antecedent_learn_burn::device::PortableFit
+pub struct antecedent_learn_burn::device::RngLease
+pub struct antecedent_learn_burn::device::RuntimeOwnership
 pub variant antecedent_learn_burn::LearnBurnError::Architecture
 pub variant antecedent_learn_burn::LearnBurnError::Bias(alloc::string::String)
 pub variant antecedent_learn_burn::LearnBurnError::BinaryLabels
@@ -55,3 +387,29 @@ pub variant antecedent_learn_burn::LearnBurnError::PredictShape
 pub variant antecedent_learn_burn::LearnBurnError::ShapeMismatch
 pub variant antecedent_learn_burn::LearnBurnError::Weight(alloc::string::String)
 pub variant antecedent_learn_burn::LearnBurnError::WeightShape
+pub variant antecedent_learn_burn::device::CacheLifetime::NotCached
+pub variant antecedent_learn_burn::device::CacheLifetime::Runtime
+pub variant antecedent_learn_burn::device::DeviceError::Backend(antecedent_learn_burn::LearnBurnError)
+pub variant antecedent_learn_burn::device::DeviceError::EmptyFold
+pub variant antecedent_learn_burn::device::DeviceError::FoldOverlap { row: usize }
+pub variant antecedent_learn_burn::device::DeviceError::NotComparisonBackend
+pub variant antecedent_learn_burn::device::DeviceError::RngLockHeld { held_fold: u32 }
+pub variant antecedent_learn_burn::device::DeviceError::RngLockMismatch
+pub variant antecedent_learn_burn::device::DeviceError::RowOutOfBounds { row: usize, nrows: usize }
+pub variant antecedent_learn_burn::device::DeviceError::Shape
+pub variant antecedent_learn_burn::device::DeviceError::UnfilledRow { row: usize }
+pub variant antecedent_learn_burn::device::DeviceOwner::FitLocal
+pub variant antecedent_learn_burn::device::DeviceOwner::HostProcess
+pub variant antecedent_learn_burn::device::GraphicsApi::MetalViaWgpu
+pub variant antecedent_learn_burn::device::LearnerBackend::NdArrayCpu
+pub variant antecedent_learn_burn::device::LearnerBackend::Wgpu
+pub variant antecedent_learn_burn::device::LossSync::HostEveryEpoch
+pub variant antecedent_learn_burn::device::Measurement::NotMeasured
+pub variant antecedent_learn_burn::device::ModelOwner::HostPortable
+pub variant antecedent_learn_burn::device::ModelOwner::Vacant
+pub variant antecedent_learn_burn::device::RngLockScope::EntireFit
+pub variant antecedent_learn_burn::device::TransferStep::CacheReuse
+pub variant antecedent_learn_burn::device::TransferStep::DownloadLoss
+pub variant antecedent_learn_burn::device::TransferStep::DownloadWeights
+pub variant antecedent_learn_burn::device::TransferStep::UploadDesign
+pub variant antecedent_learn_burn::device::TransferStep::UploadTarget

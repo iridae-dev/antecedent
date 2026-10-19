@@ -1,7 +1,8 @@
 //! Burn-backed MLP. Hidden behind `antecedent-learn`'s `neural_net` spec.
 //!
-//! The public surface is column-major `f64` in / `f64` out. Training and inference run on
-//! the CPU `NdArray<f32>` backend only; there is no GPU/WGPU path.
+//! The public surface is column-major `f64` in / `f64` out. The default build trains and
+//! predicts on the CPU `NdArray<f32>` backend. The opt-in `wgpu` feature is the unmeasured
+//! device candidate.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -14,6 +15,8 @@ use burn::nn::{Linear, LinearConfig};
 use burn::optim::{AdamConfig, GradientsParams, Optimizer};
 use burn::tensor::activation::{relu, sigmoid};
 use burn::tensor::{Tensor, TensorData, backend::Backend};
+
+pub mod device;
 
 type TrainBackend = Autodiff<NdArray<f32>>;
 type InferBackend = NdArray<f32>;

@@ -9,5 +9,10 @@ description = "Optional Burn neural-net provider for antecedent-learn; emits Vec
 [lints]
 workspace = true
 
+[features]
+default = []
+# Opt-in. Not part of `default`, so the ndarray CPU wheel does not link it.
+wgpu = ["burn/wgpu"]
+
 [dependencies]
 burn = { workspace = true }
