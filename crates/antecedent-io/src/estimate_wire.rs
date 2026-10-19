@@ -145,9 +145,9 @@ pub struct CandidateSelectionWire {
     /// Family size.
     pub family_size: usize,
     /// Screen-half row indexes.
-    pub screen_rows: Vec<u32>,
+    pub screen_rows: Vec<u64>,
     /// Estimate-half row indexes.
-    pub estimate_rows: Vec<u32>,
+    pub estimate_rows: Vec<u64>,
     /// Whether the halves are disjoint.
     pub disjoint: bool,
 }
@@ -199,7 +199,7 @@ pub struct ScoreTableWire {
     /// Complete-case row count.
     pub n_rows: u64,
     /// Original row indexes.
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<u64>,
     /// Fold ids.
     pub fold_ids: Vec<u32>,
     /// Fold count.
@@ -359,8 +359,8 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
                 procedure: s.procedure.to_string(),
                 winner_index: s.winner_index,
                 family_size: s.family_size,
-                screen_rows: s.screen_rows.to_vec(),
-                estimate_rows: s.estimate_rows.to_vec(),
+                screen_rows: s.screen_rows.iter().map(|id| id.get()).collect(),
+                estimate_rows: s.estimate_rows.iter().map(|id| id.get()).collect(),
                 disjoint: s.disjoint,
             }
         }),
@@ -663,8 +663,20 @@ fn candidate_selection_from_wire(
         procedure: std::sync::Arc::from(s.procedure.as_str()),
         winner_index: s.winner_index,
         family_size: s.family_size,
-        screen_rows: std::sync::Arc::from(s.screen_rows.as_slice()),
-        estimate_rows: std::sync::Arc::from(s.estimate_rows.as_slice()),
+        screen_rows: s
+            .screen_rows
+            .iter()
+            .copied()
+            .map(antecedent_data::GlobalId::new)
+            .collect::<Vec<_>>()
+            .into(),
+        estimate_rows: s
+            .estimate_rows
+            .iter()
+            .copied()
+            .map(antecedent_data::GlobalId::new)
+            .collect::<Vec<_>>()
+            .into(),
         disjoint: s.disjoint,
     })
 }

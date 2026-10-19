@@ -56,7 +56,7 @@ pub struct PreparedPropensityProblem {
     /// `None` for all other target populations. Length equals [`Self::nrows`] when present.
     pub target_weights: Option<Arc<[f64]>>,
     /// Original data-frame row index of each complete-case row.
-    pub row_index: Arc<[u32]>,
+    pub row_index: Arc<[antecedent_data::GlobalId]>,
     /// Treatment variable id (for score-table provenance).
     pub treatment_id: VariableId,
     /// Optional complete-case fold ids. `None` draws a seeded, arm-stratified, unit-level
@@ -489,9 +489,11 @@ pub(crate) fn prepare_propensity_problem_with_levels(
             let mut idx = Vec::with_capacity(nrows);
             for (i, &keep) in row_mask.iter().enumerate() {
                 if keep {
-                    idx.push(u32::try_from(i).map_err(|_| {
-                        EstimationError::data_msg("row index exceeds the u32 row-id capacity")
-                    })?);
+                    idx.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })?));
                 }
             }
             Arc::from(idx)

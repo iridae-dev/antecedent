@@ -90,11 +90,11 @@ fn interference_fixture(n: usize) -> (NetworkData, Vec<bool>, InterferenceQuery)
     for i in 0..n {
         for step in [1usize, 7, 31, 101] {
             let j = (i + step) % n;
-            edges.push(NetworkEdge {
-                from: u32::try_from(i).unwrap(),
-                to: u32::try_from(j).unwrap(),
-                weight: 1.0,
-            });
+            edges.push(NetworkEdge::new(
+                u64::try_from(i).expect("row id"),
+                u64::try_from(j).expect("row id"),
+                1.0,
+            ));
         }
     }
     let network = NetworkData::try_new(data, edges).unwrap();

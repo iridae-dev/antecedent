@@ -1156,7 +1156,8 @@ fn graph_posterior_response_joint_if_aligns_atom_rows_by_index() {
         let rows = column.len();
         let center = column.iter().sum::<f64>() / rows as f64;
         for (&row, &value) in scores.row_index.iter().zip(column) {
-            aligned[row as usize] += weight / mass * (value - center) * n as f64 / rows as f64;
+            aligned[usize::try_from(row.get()).expect("row")] +=
+                weight / mass * (value - center) * n as f64 / rows as f64;
         }
         for (slot, value) in positional.iter_mut().zip(column) {
             *slot += weight / mass * value;

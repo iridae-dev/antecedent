@@ -54,7 +54,7 @@ pub struct ConditionalArmScores {
     /// Plugin IF for each arm mean.
     pub influence: [Vec<f64>; 2],
     /// Original-row index of each complete-case score.
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<antecedent_data::GlobalId>,
     /// Complete-case treatment values (same order as [`Self::row_index`]).
     pub treatment: Vec<f64>,
 }
@@ -372,9 +372,11 @@ impl ConditionalLinearAdjustment {
         let mut row_index = Vec::with_capacity(n);
         for (i, &keep) in row_mask.iter().enumerate() {
             if keep {
-                row_index.push(u32::try_from(i).map_err(|_| {
-                    EstimationError::data_msg("row index exceeds the u32 row-id capacity")
-                })?);
+                row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })?));
             }
         }
         let scores = ConditionalArmScores {

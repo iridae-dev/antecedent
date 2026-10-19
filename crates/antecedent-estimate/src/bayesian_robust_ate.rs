@@ -208,12 +208,22 @@ fn fold_plan(
     let n = input.row_ids.len();
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by_key(|&i| input.row_ids[i]);
-    let mut units = vec![0u32; n];
+    let mut units = Vec::with_capacity(n);
     for (rank, &i) in order.iter().enumerate() {
-        units[i] = u32::try_from(rank).map_err(|_| {
-            EstimationError::data_msg("invalid Bayesian robust ATE input or options")
-        })?;
+        units.push((
+            i,
+            antecedent_data::GlobalId::new(u64::try_from(rank).map_err(|_| {
+                EstimationError::data_msg(
+                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                )
+            })?),
+        ));
     }
+    let mut placed = vec![antecedent_data::GlobalId::new(0); n];
+    for (i, id) in units {
+        placed[i] = id;
+    }
+    let units = placed;
     let strata: Vec<u32> = input.treatment.iter().map(|&t| u32::from(t)).collect();
     CrossfitPlan::derive(
         n,

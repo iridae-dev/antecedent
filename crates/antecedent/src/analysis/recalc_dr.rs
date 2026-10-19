@@ -469,12 +469,12 @@ fn feature_bounds(
             let lo = table
                 .row_index
                 .iter()
-                .map(|&row| values[row as usize])
+                .map(|&row| values[usize::try_from(row.get()).expect("row id")])
                 .fold(f64::INFINITY, f64::min);
             let hi = table
                 .row_index
                 .iter()
-                .map(|&row| values[row as usize])
+                .map(|&row| values[usize::try_from(row.get()).expect("row id")])
                 .fold(f64::NEG_INFINITY, f64::max);
             bounds.push((VariableId::from_raw(id), lo, hi));
         }

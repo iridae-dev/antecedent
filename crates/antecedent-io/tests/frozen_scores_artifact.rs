@@ -53,7 +53,7 @@ fn wire() -> ScoreTableWire {
         propensities: vec![0.5; 2 * ROWS],
         observed_outcome: (0..ROWS).map(|i| f(i) * 0.25).collect(),
         n_rows: ROWS as u64,
-        row_index: (0..ROWS).map(|i| u32::try_from(2 * i).unwrap()).collect(),
+        row_index: (0..ROWS).map(|i| u64::try_from(2 * i).unwrap()).collect(),
         fold_ids: (0..ROWS).map(|i| u32::try_from(i % 2).unwrap()).collect(),
         n_folds: 2,
         scores: (0..2 * ROWS).map(|i| f(i).sin()).collect(),

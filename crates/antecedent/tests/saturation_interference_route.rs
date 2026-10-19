@@ -30,10 +30,12 @@ fn fixture(
         .flat_map(|cluster| {
             let first = cluster * 3;
             (first..first + 3).flat_map(move |from| {
-                (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
-                    from: from as u32,
-                    to: to as u32,
-                    weight: 1.0,
+                (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                    NetworkEdge::new(
+                        u64::try_from(from).expect("row id"),
+                        u64::try_from(to).expect("row id"),
+                        1.0,
+                    )
                 })
             })
         })
@@ -121,7 +123,7 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
 #[test]
 fn saturation_rejects_cross_cluster_edges_at_prepare() {
     let (data, assignment, query, mut edges) = fixture((0.0, 0.5), (1.0, 0.5));
-    edges.push(NetworkEdge { from: 0, to: 3, weight: 1.0 });
+    edges.push(NetworkEdge::new(0, 3, 1.0));
     let network = NetworkData::try_new(data.clone(), edges).unwrap();
     let study = Study::tabular(data)
         .graph(Dag::with_variables(1))
@@ -145,10 +147,12 @@ fn supported_saturation_interval_survives_retained_artifact_round_trip() {
         .flat_map(|cluster| {
             let first = cluster * 3;
             (first..first + 3).flat_map(move |from| {
-                (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
-                    from: from as u32,
-                    to: to as u32,
-                    weight: 1.0,
+                (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                    NetworkEdge::new(
+                        u64::try_from(from).expect("row id"),
+                        u64::try_from(to).expect("row id"),
+                        1.0,
+                    )
                 })
             })
         })

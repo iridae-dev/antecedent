@@ -151,7 +151,7 @@ pub struct ObservationalPolicyReportWire {
     /// Rows dropped for a missing cell.
     pub rows_dropped_missing: u64,
     /// Original row index of each scored row.
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<u64>,
     /// The action the policy takes at each scored row.
     pub policy_actions: Vec<f64>,
     /// The doubly robust score of each scored row.
@@ -346,7 +346,7 @@ impl ObservationalPolicyValue {
             evaluation_rows: estimate.evaluation_rows,
             learning_rows: estimate.learning_rows,
             rows_dropped_missing: estimate.rows_dropped_missing,
-            row_index: estimate.row_index,
+            row_index: estimate.row_index.iter().map(|id| id.get()).collect(),
             policy_actions: estimate.policy_actions,
             scores: estimate.scores,
             calibration: OBSERVATIONAL_POLICY_CALIBRATION.into(),

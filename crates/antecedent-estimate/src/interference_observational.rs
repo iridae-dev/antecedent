@@ -154,7 +154,7 @@ pub fn estimate_observational_exposure(
         let neighbors = data
             .incoming(unit)?
             .iter()
-            .map(|edge| (edge.from as usize, edge.weight))
+            .map(|edge| (usize::try_from(edge.from.get()).expect("row id"), edge.weight))
             .collect::<Vec<_>>();
         if neighbors.iter().any(|&(source, weight)| {
             spec.clusters[source] != spec.clusters[unit] || !weight.is_finite() || weight < 0.0
@@ -303,8 +303,8 @@ mod tests {
             .flat_map(|cluster| {
                 let first = (2 * cluster) as u32;
                 [
-                    NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                    NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                    NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
+                    NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),
                 ]
             })
             .collect::<Vec<_>>();
@@ -354,10 +354,10 @@ mod tests {
     fn supplied_propensities_recover_known_network_contrast_and_cluster_variance() {
         let data = TabularData::from_f64_columns([("y", &[0.0, 0.0, 6.0, 6.0][..])]).unwrap();
         let edges = vec![
-            NetworkEdge { from: 0, to: 1, weight: 1.0 },
-            NetworkEdge { from: 1, to: 0, weight: 1.0 },
-            NetworkEdge { from: 2, to: 3, weight: 1.0 },
-            NetworkEdge { from: 3, to: 2, weight: 1.0 },
+            NetworkEdge::new(0, 1, 1.0),
+            NetworkEdge::new(1, 0, 1.0),
+            NetworkEdge::new(2, 3, 1.0),
+            NetworkEdge::new(3, 2, 1.0),
         ];
         let network = NetworkData::try_new(data, edges).unwrap();
         let spec = ObservationalExposureSpec {
@@ -397,11 +397,11 @@ mod tests {
                 outcomes.push(1.0 + 2.0 * f64::from(treated) + residual);
                 assignment.push(treated);
                 labels.push(cluster as u32);
-                edges.push(NetworkEdge {
-                    from: (2 * cluster + 1 - unit) as u32,
-                    to: (2 * cluster + unit) as u32,
-                    weight: 1.0,
-                });
+                edges.push(NetworkEdge::new(
+                    u64::try_from(2 * cluster + 1 - unit).expect("row id"),
+                    u64::try_from(2 * cluster + unit).expect("row id"),
+                    1.0,
+                ));
             }
         }
         let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
@@ -448,8 +448,7 @@ mod tests {
     #[test]
     fn observed_exposure_refuses_cross_cluster_network() {
         let data = TabularData::from_f64_columns([("y", &[0.0, 0.0, 6.0, 6.0][..])]).unwrap();
-        let network =
-            NetworkData::try_new(data, vec![NetworkEdge { from: 0, to: 2, weight: 1.0 }]).unwrap();
+        let network = NetworkData::try_new(data, vec![NetworkEdge::new(0, 2, 1.0)]).unwrap();
         let spec = ObservationalExposureSpec {
             assignment: &[false, false, true, true],
             clusters: &[0, 0, 1, 1],

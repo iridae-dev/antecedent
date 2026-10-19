@@ -39,7 +39,7 @@ fn quadratic_fixture(n: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>, f64, Vec<f64>) 
 fn basis_gcomp_matches_independent_quadratic_ate_and_cate_reference() {
     let n = 400;
     let (treatment, outcome, z, ate_truth, cate_truth) = quadratic_fixture(n);
-    let rows: Vec<u32> = (1000..1000 + n as u32).collect();
+    let rows: Vec<u64> = (1000u64..1000 + u64::try_from(n).expect("n")).collect();
     let folds: Vec<u16> = (0..n).map(|i| (i % 5) as u16).collect();
     let result = BayesianBasisGComputation
         .fit(

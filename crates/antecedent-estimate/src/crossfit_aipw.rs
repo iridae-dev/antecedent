@@ -316,7 +316,7 @@ fn build_scores_pass(
             let mut e_valid = if let Some(shared) = shared_e.as_deref() {
                 gather(shared, valid)
             } else if let Some(((fold_penalty, tuning), ridge_ctx)) = penalized {
-                let units: Vec<u32> = train.iter().map(|&i| problem.row_index[i]).collect();
+                let units: Vec<_> = train.iter().map(|&i| problem.row_index[i]).collect();
                 let train_weights = sampling.map(|weights| gather(weights, train));
                 let (predicted, selection) = fit_penalized_fold(
                     fold_penalty,

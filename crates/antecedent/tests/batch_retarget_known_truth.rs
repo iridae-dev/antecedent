@@ -82,7 +82,10 @@ fn replicate(data_seed: u64, band_seed: u64, draws: u32) -> SimultaneousBand {
         .map(|(k, &s)| RetargetClaim {
             name: format!("c{k}"),
             query_index: 0,
-            weights: rows.iter().map(|&r| (s * z[r as usize]).exp()).collect(),
+            weights: rows
+                .iter()
+                .map(|r| (s * z[usize::try_from(r.get()).expect("row")]).exp())
+                .collect(),
             depends_on: vec![VariableId::from_raw(Z)],
         })
         .collect();

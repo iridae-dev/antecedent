@@ -96,7 +96,7 @@ pub(crate) fn gapped_block_bootstrap(
     block: usize,
     gap: usize,
     rng: &mut CausalRng,
-    scratch: &mut Vec<u32>,
+    scratch: &mut Vec<antecedent_data::GlobalId>,
 ) -> Result<GappedBootstrap, ValidationError> {
     let boot =
         resample_timeseries(data, ResamplingPlan::MovingBlock { length: block }, rng, scratch)
@@ -106,14 +106,14 @@ pub(crate) fn gapped_block_bootstrap(
     let mut layout: Vec<Option<usize>> = Vec::with_capacity(n + gap * (n / block.max(1) + 1));
     let mut source_rows = Vec::with_capacity(layout.capacity());
     for i in 0..n {
-        if i > 0 && scratch[i] != scratch[i - 1] + 1 {
+        if i > 0 && scratch[i].get() != scratch[i - 1].get() + 1 {
             for _ in 0..gap {
                 layout.push(None);
-                source_rows.push(scratch[i - 1] as usize);
+                source_rows.push(usize::try_from(scratch[i - 1].get()).expect("row id"));
             }
         }
         layout.push(Some(i));
-        source_rows.push(scratch[i] as usize);
+        source_rows.push(usize::try_from(scratch[i].get()).expect("row id"));
     }
     let len = layout.len();
     let mut columns = Vec::new();

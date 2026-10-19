@@ -589,7 +589,7 @@ struct PreparedLevels {
     /// Index into `levels` of each row's treatment.
     category: Vec<u32>,
     outcome: Vec<f64>,
-    row_index: Vec<u32>,
+    row_index: Vec<antecedent_data::GlobalId>,
     adjustment_set: Arc<[antecedent_core::VariableId]>,
     rows_by_level: Vec<u64>,
 }
@@ -673,9 +673,11 @@ impl PreparedLevels {
         }
         let mut row_index = Vec::with_capacity(n);
         for (i, _) in mask.iter().enumerate().filter(|&(_, &keep)| keep) {
-            row_index.push(u32::try_from(i).map_err(|_| {
-                EstimationError::data_msg("row index exceeds the u32 row-id capacity")
-            })?);
+            row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })?));
         }
         Ok(Self {
             n,

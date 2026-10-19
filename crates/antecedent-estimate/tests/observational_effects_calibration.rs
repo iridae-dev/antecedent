@@ -230,8 +230,12 @@ fn policy_prespecified_design(name: &'static str, base: usize) {
 
 /// The threshold `c` and direction of a learned rule `treat iff z > c` (or `z < c`), read off
 /// the actions the policy took on the scored rows; `None` when it is not a threshold rule.
-fn learned_rule_value(data: &BinaryStudy, rows: &[u32], actions: &[f64]) -> Option<f64> {
-    let z = |i: usize| data.z[rows[i] as usize];
+fn learned_rule_value(
+    data: &BinaryStudy,
+    rows: &[antecedent_data::GlobalId],
+    actions: &[f64],
+) -> Option<f64> {
+    let z = |i: usize| data.z[usize::try_from(rows[i].get()).expect("row")];
     let treated: Vec<f64> =
         (0..rows.len()).filter(|&i| (actions[i] - 1.0).abs() < f64::EPSILON).map(z).collect();
     let untreated: Vec<f64> = (0..rows.len()).filter(|&i| actions[i] == 0.0).map(z).collect();

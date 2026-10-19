@@ -102,8 +102,12 @@ pub fn estimate_interference_bayesian(
     let outcomes = data.units().float64_values(outcome)?;
     let incoming = (0..n)
         .map(|unit| {
-            data.incoming(unit)
-                .map(|edges| edges.iter().map(|e| (e.from as usize, e.weight)).collect::<Vec<_>>())
+            data.incoming(unit).map(|edges| {
+                edges
+                    .iter()
+                    .map(|e| (usize::try_from(e.from.get()).expect("row id"), e.weight))
+                    .collect::<Vec<_>>()
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let observed = exposures(assignment, &incoming, &query.exposure)?;
@@ -200,7 +204,10 @@ pub fn estimate_interference(
     let incoming = (0..assignment.len())
         .map(|unit| {
             data.incoming(unit).map(|edges| {
-                edges.iter().map(|edge| (edge.from as usize, edge.weight)).collect::<Vec<_>>()
+                edges
+                    .iter()
+                    .map(|edge| (usize::try_from(edge.from.get()).expect("row id"), edge.weight))
+                    .collect::<Vec<_>>()
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -310,7 +317,9 @@ pub fn estimate_cluster_interference_total_with_inference(
         entry.2 += 1;
         let incoming = data.incoming(i)?;
         if incoming.is_empty()
-            || incoming.iter().any(|edge| clusters[edge.from as usize] != cluster)
+            || incoming
+                .iter()
+                .any(|edge| clusters[usize::try_from(edge.from.get()).expect("row id")] != cluster)
         {
             return Err(EstimationError::unsupported(
                 "partial interference requires a nonempty within-cluster neighborhood for every unit and no cross-cluster edges",
@@ -455,8 +464,8 @@ mod tests {
             .flat_map(|cluster| {
                 let first = (cluster * 2) as u32;
                 [
-                    antecedent_data::NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                    antecedent_data::NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                    antecedent_data::NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
+                    antecedent_data::NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),
                 ]
             })
             .collect::<Vec<_>>();
@@ -516,12 +525,12 @@ mod tests {
     fn cluster_total_pointwise_refuses_thin_assignment_arms() {
         let outcomes = [1.0, 2.0, 2.0, 3.0, 8.0, 9.0, 9.0, 10.0];
         let table = TabularData::from_f64_columns([("y", &outcomes[..])]).unwrap();
-        let edges = (0..4)
+        let edges = (0..4u64)
             .flat_map(|cluster| {
                 let first = cluster * 2;
                 [
-                    antecedent_data::NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                    antecedent_data::NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                    antecedent_data::NetworkEdge::new(first, first + 1, 1.0),
+                    antecedent_data::NetworkEdge::new(first + 1, first, 1.0),
                 ]
             })
             .collect::<Vec<_>>();
@@ -570,8 +579,8 @@ mod tests {
         let data = NetworkData::try_new(
             table,
             [
-                antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 1, to: 0, weight: 1.0 },
+                antecedent_data::NetworkEdge::new(0, 1, 1.0),
+                antecedent_data::NetworkEdge::new(1, 0, 1.0),
             ],
         )
         .unwrap();
@@ -597,7 +606,13 @@ mod tests {
         let edges =
             [(0, 1), (1, 0), (2, 3), (3, 4), (4, 2), (5, 6), (6, 5), (7, 8), (8, 9), (9, 7)]
                 .into_iter()
-                .map(|(from, to)| antecedent_data::NetworkEdge { from, to, weight: 1.0 })
+                .map(|(from, to)| {
+                    antecedent_data::NetworkEdge::new(
+                        u64::try_from(from).expect("row id"),
+                        u64::try_from(to).expect("row id"),
+                        1.0,
+                    )
+                })
                 .collect::<Vec<_>>();
         let network = NetworkData::try_new(table, edges).unwrap();
         let query = InterferenceQuery::new(
@@ -663,8 +678,8 @@ mod tests {
         let data = NetworkData::try_new(
             table,
             [
-                antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 1, to: 0, weight: 1.0 },
+                antecedent_data::NetworkEdge::new(0, 1, 1.0),
+                antecedent_data::NetworkEdge::new(1, 0, 1.0),
             ],
         )
         .unwrap();
@@ -711,10 +726,10 @@ mod tests {
         let data = NetworkData::try_new(
             table,
             [
-                antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 0, to: 2, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 0, to: 3, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 2, to: 3, weight: 1.0 },
+                antecedent_data::NetworkEdge::new(0, 1, 1.0),
+                antecedent_data::NetworkEdge::new(0, 2, 1.0),
+                antecedent_data::NetworkEdge::new(0, 3, 1.0),
+                antecedent_data::NetworkEdge::new(2, 3, 1.0),
             ],
         )
         .unwrap();
@@ -746,11 +761,8 @@ mod tests {
     #[test]
     fn bayesian_interference_refuses_absent_exposure_support() {
         let table = TabularData::from_f64_columns([("y", &[1.0, 2.0][..])]).unwrap();
-        let data = NetworkData::try_new(
-            table,
-            [antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 }],
-        )
-        .unwrap();
+        let data =
+            NetworkData::try_new(table, [antecedent_data::NetworkEdge::new(0, 1, 1.0)]).unwrap();
         let query = InterferenceQuery::new(
             AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
             ExposureMapping::NeighborCount,
@@ -771,8 +783,8 @@ mod tests {
         let data = NetworkData::try_new(
             table,
             [
-                antecedent_data::NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: 1, to: 0, weight: 1.0 },
+                antecedent_data::NetworkEdge::new(0, 1, 1.0),
+                antecedent_data::NetworkEdge::new(1, 0, 1.0),
             ],
         )
         .unwrap();

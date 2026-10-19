@@ -359,7 +359,9 @@ pub fn bootstrap_rows(
         let mut selected = Vec::new();
         fill_resample_indexes(ResamplingPlan::IidBootstrap, members.len(), &mut rng, &mut selected)
             .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-        rows.extend(selected.into_iter().map(|i| members[i as usize]));
+        rows.extend(
+            selected.into_iter().map(|i| members[usize::try_from(i.get()).expect("row id")]),
+        );
     }
     Ok(rows)
 }

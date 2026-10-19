@@ -8581,7 +8581,7 @@ pub field antecedent_io_core::CheckedAipwLoweringWire::treatment: u32
 pub field antecedent_io_core::CheckedAipwLoweringWire::trim_bits: core::option::Option<u64>
 pub field antecedent_io_core::CheckedAipwRowsWire::data_snapshot: [u8; 32]
 pub field antecedent_io_core::CheckedAipwRowsWire::format: u16
-pub field antecedent_io_core::CheckedAipwRowsWire::rows: alloc::vec::Vec<u32>
+pub field antecedent_io_core::CheckedAipwRowsWire::rows: alloc::vec::Vec<u64>
 pub field antecedent_io_core::CheckedFrontDoorLoweringWire::active_bits: u64
 pub field antecedent_io_core::CheckedFrontDoorLoweringWire::arena: antecedent_io_core::ExprArenaWire
 pub field antecedent_io_core::CheckedFrontDoorLoweringWire::complete_case_rows: u64
@@ -9369,7 +9369,7 @@ pub field antecedent_io_core::ScoreTableKey::inference_binding: antecedent_core:
 pub field antecedent_io_core::ScoreTableKey::intervened: &'a [antecedent_core::ids::VariableId]
 pub field antecedent_io_core::ScoreTableKey::n_folds: u32
 pub field antecedent_io_core::ScoreTableKey::nuisance_provenance: &'a str
-pub field antecedent_io_core::ScoreTableKey::row_index: &'a [u32]
+pub field antecedent_io_core::ScoreTableKey::row_index: &'a [u64]
 pub field antecedent_io_core::ScoreTableKey::treatment: antecedent_core::ids::VariableId
 pub field antecedent_io_core::SectionBytes::data: alloc::sync::Arc<[u8]>
 pub field antecedent_io_core::SectionBytes::id: alloc::string::String
@@ -10831,7 +10831,7 @@ pub field antecedent_io_core::score_wire::ScoreTableWire::observed_arm: alloc::v
 pub field antecedent_io_core::score_wire::ScoreTableWire::observed_outcome: alloc::vec::Vec<f64>
 pub field antecedent_io_core::score_wire::ScoreTableWire::propensities: alloc::vec::Vec<f64>
 pub field antecedent_io_core::score_wire::ScoreTableWire::propensity_clip: core::option::Option<f64>
-pub field antecedent_io_core::score_wire::ScoreTableWire::row_index: alloc::vec::Vec<u32>
+pub field antecedent_io_core::score_wire::ScoreTableWire::row_index: alloc::vec::Vec<u64>
 pub field antecedent_io_core::score_wire::ScoreTableWire::scores: alloc::vec::Vec<f64>
 pub field antecedent_io_core::score_wire::ScoreTableWire::treatment: u32
 pub field antecedent_io_core::selective_discovery_artifact::ReceiptWire::coordinate: alloc::string::String
@@ -11388,6 +11388,7 @@ pub fn <antecedent_io_core::PayloadDigestWire>::fn f64s(kind: &str, values: &[f6
 pub fn <antecedent_io_core::PayloadDigestWire>::fn i64s(kind: &str, values: &[i64]) -> Self
 pub fn <antecedent_io_core::PayloadDigestWire>::fn u32_groups(kind: &str, groups: &[alloc::vec::Vec<u32>]) -> Self
 pub fn <antecedent_io_core::PayloadDigestWire>::fn u32s(kind: &str, values: &[u32]) -> Self
+pub fn <antecedent_io_core::PayloadDigestWire>::fn u64s(kind: &str, values: &[u64]) -> Self
 pub fn <antecedent_io_core::PriorCatalog>::fn filter_compatible(&self, target: &antecedent_io_core::TargetDesign) -> alloc::vec::Vec<antecedent_io_core::CompatibilityReport>
 pub fn <antecedent_io_core::PriorCatalog>::fn from_sources(sources: alloc::vec::Vec<antecedent_io_core::PriorSourceRef>) -> Self
 pub fn <antecedent_io_core::PriorCatalog>::fn new() -> Self

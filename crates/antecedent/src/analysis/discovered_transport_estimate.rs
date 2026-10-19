@@ -1092,11 +1092,17 @@ fn member_estimate(
 }
 
 /// Rows of every column at the drawn time indices.
-fn gathered(table: &Columns, times: &[u32]) -> Columns {
+fn gathered(table: &Columns, times: &[antecedent_data::GlobalId]) -> Columns {
     table
         .iter()
         .map(|(variable, column)| {
-            (*variable, times.iter().map(|t| column[*t as usize]).collect::<Vec<_>>())
+            (
+                *variable,
+                times
+                    .iter()
+                    .map(|t| column[usize::try_from(t.get()).expect("row id")])
+                    .collect::<Vec<_>>(),
+            )
         })
         .collect()
 }
@@ -1128,15 +1134,16 @@ fn blocked_contrast_interval(
     let requested = settings.evidence.bootstrap_replicates;
     let rows = |table: &Columns| table.values().next().map_or(0, Vec::len);
     let plan = antecedent_data::ResamplingPlan::CircularBlock { length: length as usize };
-    let draw = |population: u64, replicate: u32, n: usize| -> Option<Vec<u32>> {
-        let mut rng = ctx.rng.stream_for(
-            antecedent_core::StreamDomain::Transport,
-            (0x626c_6f63_u64 << 32) | (population << 24) | u64::from(replicate),
-        );
-        let mut times = Vec::new();
-        antecedent_data::fill_resample_indexes(plan, n, &mut rng, &mut times).ok()?;
-        Some(times)
-    };
+    let draw =
+        |population: u64, replicate: u32, n: usize| -> Option<Vec<antecedent_data::GlobalId>> {
+            let mut rng = ctx.rng.stream_for(
+                antecedent_core::StreamDomain::Transport,
+                (0x626c_6f63_u64 << 32) | (population << 24) | u64::from(replicate),
+            );
+            let mut times = Vec::new();
+            antecedent_data::fill_resample_indexes(plan, n, &mut rng, &mut times).ok()?;
+            Some(times)
+        };
     let mut contrasts = Vec::new();
     for replicate in 0..requested {
         if ctx.cancellation.is_cancelled() {
@@ -1609,8 +1616,20 @@ mod tests {
         for offset in [0, 1] {
             // A non-permutation resample changes source empirical probabilities; no fitted
             // laws or row snapshots may be reused merely because the causal graph is fixed.
-            let source_indices: Vec<u32> = (0..40).map(|i| (2 * i + offset) % 40).collect();
-            let target_indices: Vec<u32> = (0..10).map(|i| (2 * i + offset) % 10).collect();
+            let source_indices: Vec<antecedent_data::GlobalId> = (0..40u64)
+                .map(|i| {
+                    antecedent_data::GlobalId::new(
+                        (2 * i + u64::try_from(offset).expect("offset")) % 40,
+                    )
+                })
+                .collect();
+            let target_indices: Vec<antecedent_data::GlobalId> = (0..10u64)
+                .map(|i| {
+                    antecedent_data::GlobalId::new(
+                        (2 * i + u64::try_from(offset).expect("offset")) % 10,
+                    )
+                })
+                .collect();
             let resampled = EvidenceColumns {
                 source: gathered(&columns.source, &source_indices),
                 target: gathered(&columns.target, &target_indices),

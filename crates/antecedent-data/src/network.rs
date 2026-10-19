@@ -4,17 +4,27 @@
 
 use std::sync::Arc;
 
-use crate::{DataError, TableView, TabularData};
+use crate::{DataError, GlobalId, TableView, TabularData};
 
 /// Directed weighted edge from a source unit to an exposed target unit.
+///
+/// `from` and `to` are [`GlobalId`]s. They are not narrowed to `u32`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NetworkEdge {
     /// Source unit row.
-    pub from: u32,
+    pub from: GlobalId,
     /// Target unit row.
-    pub to: u32,
+    pub to: GlobalId,
     /// Non-negative exposure weight.
     pub weight: f64,
+}
+
+impl NetworkEdge {
+    /// Edge between two row identities.
+    #[must_use]
+    pub const fn new(from: u64, to: u64, weight: f64) -> Self {
+        Self { from: GlobalId::new(from), to: GlobalId::new(to), weight }
+    }
 }
 
 /// Tabular unit data paired with a fixed, row-indexed network.
@@ -48,12 +58,9 @@ impl NetworkData {
         let mut sorted = edges.to_vec();
         sorted.sort_by_key(|edge| (edge.from, edge.to));
         for (i, edge) in sorted.iter().enumerate() {
-            if edge.from as usize >= n || edge.to as usize >= n {
-                return Err(DataError::InvalidArgument {
-                    message: "network edge row index is outside the unit table".into(),
-                });
-            }
-            if edge.from == edge.to {
+            let from = table_row(edge.from, n)?;
+            let to = table_row(edge.to, n)?;
+            if from == to {
                 return Err(DataError::InvalidArgument {
                     message: "network self-edges are not allowed".into(),
                 });
@@ -76,7 +83,8 @@ impl NetworkData {
         by_to.sort_by_key(|edge| (edge.to, edge.from));
         let mut incoming_offsets = vec![0usize; n + 1];
         for edge in &by_to {
-            incoming_offsets[edge.to as usize + 1] += 1;
+            let to = table_row(edge.to, n)?;
+            incoming_offsets[to + 1] += 1;
         }
         for u in 0..n {
             incoming_offsets[u + 1] += incoming_offsets[u];
@@ -114,6 +122,20 @@ impl NetworkData {
         }
         Ok(&self.incoming_edges[self.incoming_offsets[unit]..self.incoming_offsets[unit + 1]])
     }
+}
+
+fn table_row(id: GlobalId, n: usize) -> Result<usize, DataError> {
+    let index = usize::try_from(id.get()).map_err(|_| DataError::InvalidArgument {
+        message: "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. \
+                  A u32 backend feature flag is not that attempt"
+            .into(),
+    })?;
+    if index >= n {
+        return Err(DataError::InvalidArgument {
+            message: "network edge row index is outside the unit table".into(),
+        });
+    }
+    Ok(index)
 }
 
 #[cfg(test)]

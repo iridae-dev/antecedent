@@ -616,7 +616,7 @@ pub(crate) struct RidgeFoldInput<'a> {
     /// Training treatment, 0/1.
     pub(crate) t_train: &'a [f64],
     /// Unit (original row) identity of each training row.
-    pub(crate) units: &'a [u32],
+    pub(crate) units: &'a [antecedent_data::GlobalId],
     /// Outer fold index.
     pub(crate) fold: usize,
     /// Seed of the fold plan the outer folds were drawn from.
@@ -1042,7 +1042,7 @@ mod tests {
     fn standardization_uses_training_statistics_only() {
         let train = [1.0, 1.0, 1.0, 1.0, 2.0, 4.0, 6.0, 8.0, 3.0, 3.0, 3.0, 3.0];
         let valid = [1.0, 1.0, 100.0, -3.0, 5.0, 7.0];
-        let units = [0, 1, 2, 3];
+        let units = [0u64, 1, 2, 3].map(antecedent_data::GlobalId::new);
         let t = [0.0, 1.0, 0.0, 1.0];
         let input = RidgeFoldInput {
             design_train: &train,
@@ -1074,7 +1074,7 @@ mod tests {
         train: Vec<f64>,
         valid: Vec<f64>,
         t: Vec<f64>,
-        units: Vec<u32>,
+        units: Vec<antecedent_data::GlobalId>,
     }
 
     fn duplicated() -> Duplicated {
@@ -1100,7 +1100,7 @@ mod tests {
             train: design(0..n),
             valid: design(n..n + nv),
             t: t[..n].to_vec(),
-            units: (0..80).collect(),
+            units: (0..80).map(antecedent_data::GlobalId::new).collect(),
         }
     }
 

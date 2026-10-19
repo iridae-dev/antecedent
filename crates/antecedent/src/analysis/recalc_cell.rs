@@ -614,7 +614,7 @@ pub struct ScoreResumeRequest {
     pub target: Option<TargetWeights>,
     /// The original row ids the weights are indexed by. When given they must equal the frozen
     /// scores' row ids exactly; when `None` only the row count is checked.
-    pub target_row_ids: Option<Vec<u32>>,
+    pub target_row_ids: Option<Vec<u64>>,
     /// Net-benefit rule.
     pub utility: UtilitySpec,
     /// The reported contrast.
@@ -779,7 +779,8 @@ impl ScoreResumeSession {
 
     fn check_rows(&self, request: &ScoreResumeRequest) -> Result<(), RecalcRunError> {
         if let Some(ids) = &request.target_row_ids {
-            if ids.as_slice() != self.table.row_index.as_ref() {
+            let stored: Vec<u64> = self.table.row_index.iter().map(|id| id.get()).collect();
+            if ids.as_slice() != stored.as_slice() {
                 return Err(RecalcRunError::Request("recalc.row_ids_mismatch"));
             }
         }

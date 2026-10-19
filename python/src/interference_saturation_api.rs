@@ -25,7 +25,7 @@ fn estimate_saturation_interference(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
-    edges: Vec<(u32, u32, f64)>,
+    edges: Vec<(u64, u64, f64)>,
     clusters: Vec<u32>,
     realized_saturation: Vec<f64>,
     low_saturation: f64,
@@ -69,7 +69,7 @@ fn estimate_saturation_interference(
             data,
             edges
                 .into_iter()
-                .map(|(from, to, weight)| NetworkEdge { from, to, weight })
+                .map(|(from, to, weight)| NetworkEdge::new(from, to, weight))
                 .collect::<Vec<_>>(),
         )
         .map_err(crate::py_err)?;

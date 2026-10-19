@@ -499,7 +499,7 @@ struct Problem {
     design: Vec<f64>,
     cell: Vec<u32>,
     outcome: Vec<f64>,
-    row_index: Vec<u32>,
+    row_index: Vec<antecedent_data::GlobalId>,
     adjustment_set: Arc<[VariableId]>,
 }
 
@@ -559,9 +559,11 @@ fn prepare_problem(
     let mut row_index = Vec::with_capacity(n);
     for (i, &keep) in mask.iter().enumerate() {
         if keep {
-            row_index.push(u32::try_from(i).map_err(|_| {
-                EstimationError::data_msg("row index exceeds the u32 row-id capacity")
-            })?);
+            row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })?));
         }
     }
     Ok(Problem {
@@ -629,11 +631,14 @@ impl LearnedNuisance {
     }
 }
 
-fn row_ids(rows: &[usize]) -> Result<Vec<u32>, EstimationError> {
+fn row_ids(rows: &[usize]) -> Result<Vec<u64>, EstimationError> {
     rows.iter()
         .map(|&i| {
-            u32::try_from(i)
-                .map_err(|_| EstimationError::data_msg("row index exceeds the u32 row-id capacity"))
+            u64::try_from(i).map_err(|_| {
+                EstimationError::data_msg(
+                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                )
+            })
         })
         .collect()
 }
@@ -646,8 +651,8 @@ fn learner_fold_predict(
     factory: &dyn LearnerFactory,
     view_spec: LearnerSpec,
     problem: &Problem,
-    train: &[u32],
-    valid: &[u32],
+    train: &[u64],
+    valid: &[u64],
     y: &[f64],
     ctx: &ExecutionContext,
 ) -> Result<(Vec<f64>, LearnerProvenance), String> {
@@ -734,7 +739,7 @@ impl ConditionalFits<'_> {
             return self.fit_learned(learned, fold, &rows, target);
         }
         let design_train = rows_colmajor(&problem.design, problem.n, problem.ncols, &rows);
-        let units: Vec<u32> = rows.iter().map(|&i| problem.row_index[i]).collect();
+        let units: Vec<_> = rows.iter().map(|&i| problem.row_index[i]).collect();
         let input = RidgeFoldInput {
             design_train: &design_train,
             n_train: rows.len(),

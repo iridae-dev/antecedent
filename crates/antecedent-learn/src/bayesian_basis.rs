@@ -67,7 +67,7 @@ pub struct BasisData<'a> {
     /// Number of covariate columns.
     pub n_covariates: usize,
     /// Row ids; default `0..n_rows`.
-    pub row_ids: Option<&'a [u32]>,
+    pub row_ids: Option<&'a [u64]>,
     /// Cross-fitting fold ids copied to the returned prediction.
     pub fold_ids: Option<&'a [u16]>,
 }
@@ -152,11 +152,11 @@ impl BayesianBasisGComputation {
             ctx,
         )?;
 
-        let row_ids: Vec<u32> = match row_ids {
+        let row_ids: Vec<u64> = match row_ids {
             Some(ids) => ids.to_vec(),
             None => (0..n)
                 .map(|i| {
-                    u32::try_from(i).map_err(|_| LearnError::Shape {
+                    u64::try_from(i).map_err(|_| LearnError::Shape {
                         message: "basis g-computation row count exceeds row id capacity",
                     })
                 })
@@ -209,7 +209,7 @@ fn validate_inputs(
     outcome: &[f64],
     covariates: &[f64],
     n_covariates: usize,
-    identities: (Option<&[u32]>, Option<&[u16]>),
+    identities: (Option<&[u64]>, Option<&[u16]>),
     population: BasisTargetPopulation,
     spec: BayesianBasisSpec,
 ) -> Result<usize, LearnError> {

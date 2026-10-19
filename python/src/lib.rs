@@ -1847,7 +1847,7 @@ pub(crate) fn shared_study_sections(
             provenance: t.nuisance_provenance.to_string(),
             columns: t.columns.iter().map(|c| (c.arm, c.threshold)).collect(),
             scores: t.scores.to_vec(),
-            row_index: t.row_index.to_vec(),
+            row_index: t.row_index.iter().map(|id| id.get()).collect(),
             fold_ids: t.fold_ids.to_vec(),
             adjustment_set: t.adjustment_set.iter().map(|v| v.raw()).collect(),
             observed_arm: t.observed_arm.to_vec(),
@@ -1869,8 +1869,8 @@ pub(crate) fn shared_study_sections(
                 procedure: s.procedure.to_string(),
                 winner_index: s.winner_index,
                 family_size: s.family_size,
-                screen_rows: s.screen_rows.to_vec(),
-                estimate_rows: s.estimate_rows.to_vec(),
+                screen_rows: s.screen_rows.iter().map(|id| id.get()).collect(),
+                estimate_rows: s.estimate_rows.iter().map(|id| id.get()).collect(),
                 disjoint: s.disjoint,
             })
             .or_else(|| {
@@ -1879,8 +1879,8 @@ pub(crate) fn shared_study_sections(
                     procedure: s.procedure.as_str().to_string(),
                     winner_index: s.winner_index,
                     family_size: s.family_size,
-                    screen_rows: s.screen_rows.to_vec(),
-                    estimate_rows: s.estimate_rows.to_vec(),
+                    screen_rows: s.screen_rows.iter().map(|id| id.get()).collect(),
+                    estimate_rows: s.estimate_rows.iter().map(|id| id.get()).collect(),
                     disjoint: s.disjoint,
                 })
             }),
@@ -2040,9 +2040,9 @@ pub(crate) struct CandidateSelectionSection {
     #[pyo3(get)]
     family_size: usize,
     #[pyo3(get)]
-    screen_rows: Vec<u32>,
+    screen_rows: Vec<u64>,
     #[pyo3(get)]
-    estimate_rows: Vec<u32>,
+    estimate_rows: Vec<u64>,
     #[pyo3(get)]
     disjoint: bool,
 }
@@ -2062,7 +2062,7 @@ pub(crate) struct ScoreTableSection {
     #[pyo3(get)]
     scores: Vec<f64>,
     #[pyo3(get)]
-    row_index: Vec<u32>,
+    row_index: Vec<u64>,
     #[pyo3(get)]
     fold_ids: Vec<u32>,
     #[pyo3(get)]

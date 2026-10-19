@@ -27,7 +27,7 @@ pub struct ScoreTable {
     /// Complete-case row count.
     pub n_rows: usize,
     /// Original data-frame row index of each complete-case row.
-    pub row_index: Arc<[u32]>,
+    pub row_index: Arc<[antecedent_data::GlobalId]>,
     /// Fold assignment (seeded, arm-stratified plan over distinct units; or a shared plan).
     pub fold_ids: Arc<[u32]>,
     /// Number of folds used to fit nuisances.
@@ -440,7 +440,7 @@ impl ScoreTable {
             propensities: self.propensities.to_vec(),
             observed_outcome: self.observed_outcome.to_vec(),
             n_rows: self.n_rows as u64,
-            row_index: self.row_index.to_vec(),
+            row_index: self.row_index.iter().map(|id| id.get()).collect(),
             fold_ids: self.fold_ids.to_vec(),
             n_folds: self.n_folds,
             scores: self.scores.to_vec(),
@@ -466,7 +466,13 @@ impl ScoreTable {
             propensities: wire.propensities.into(),
             observed_outcome: wire.observed_outcome.into(),
             n_rows: n,
-            row_index: Arc::from(wire.row_index),
+            row_index: wire
+                .row_index
+                .iter()
+                .copied()
+                .map(antecedent_data::GlobalId::new)
+                .collect::<Vec<_>>()
+                .into(),
             fold_ids: Arc::from(wire.fold_ids),
             n_folds: wire.n_folds,
             scores: Arc::from(wire.scores),
@@ -504,7 +510,9 @@ mod tests {
             propensities: vec![0.5; 2 * n].into(),
             observed_outcome: (0..n).map(|i| if i < 5 { 1.0 } else { 0.0 }).collect(),
             n_rows: n,
-            row_index: (0..n).map(|i| u32::try_from(i).unwrap()).collect(),
+            row_index: (0..n)
+                .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+                .collect(),
             fold_ids: (0..n).map(|i| u32::try_from(i % 2).unwrap()).collect(),
             n_folds: 2,
             scores: scores.into(),
@@ -653,7 +661,10 @@ mod tests {
             propensities: Arc::from([0.5; 4]),
             observed_outcome: Arc::from([1.0, 2.0]),
             n_rows: 2,
-            row_index: Arc::from([0, 1]),
+            row_index: Arc::from([
+                antecedent_data::GlobalId::new(0),
+                antecedent_data::GlobalId::new(1),
+            ]),
             fold_ids: Arc::from([0, 1]),
             n_folds: 2,
             scores: Arc::from([1.0, 2.0, 3.0, 4.0]),

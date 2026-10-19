@@ -396,15 +396,15 @@ mod tests {
         let (x, y) = line_design(n);
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, n, 2).unwrap();
-        let even: Vec<u32> = (0..n as u32).step_by(2).collect();
-        let odd: Vec<u32> = (1..n as u32).step_by(2).collect();
+        let even: Vec<u64> = (0..n).step_by(2).map(|i| u64::try_from(i).expect("row")).collect();
+        let odd: Vec<u64> = (1..n).step_by(2).map(|i| u64::try_from(i).expect("row")).collect();
         let train = view.with_rows(RowSelection::new(&even)).unwrap();
         let test = view.with_rows(RowSelection::new(&odd)).unwrap();
         let fitted = LinearLearner.fit(train, TargetView::new(&y), None, &ctx).unwrap();
         let mut out = vec![0.0; test.nrows()];
         fitted.predict(test, &mut out, &ctx).unwrap();
         for (k, &i) in odd.iter().enumerate() {
-            assert!((out[k] - y[i as usize]).abs() < 1e-8);
+            assert!((out[k] - y[usize::try_from(i).expect("row")]).abs() < 1e-8);
         }
         assert_eq!(train.dense().values().as_ptr(), x.as_ptr());
     }
@@ -414,7 +414,7 @@ mod tests {
         let x = [1.0, 1.0, 0.0, 1.0];
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, 2, 2).unwrap();
-        let rows = [0_u32, 1];
+        let rows = [0_u64, 1];
         let fitted = Identity.fit(view, RowSelection::new(&rows), &ctx).unwrap();
         let (buf, nrows, ncols) = fitted.transform(view, &ctx).unwrap();
         assert_eq!((nrows, ncols), (2, 2));
@@ -457,7 +457,7 @@ mod tests {
         assert!(out[..10].iter().all(|p| *p < 0.5), "{:?}", &out[..10]);
         assert!(out[20..].iter().all(|p| *p > 0.5), "{:?}", &out[20..]);
 
-        let even: Vec<u32> = (0..n as u32).step_by(2).collect();
+        let even: Vec<u64> = (0..n).step_by(2).map(|i| u64::try_from(i).expect("row")).collect();
         let train = view.with_rows(RowSelection::new(&even)).unwrap();
         let folded = factory.fit(train, TargetView::new(&y), None, &ctx).unwrap();
         let mut fold_out = vec![0.0; train.nrows()];

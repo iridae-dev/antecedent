@@ -965,7 +965,7 @@ fn refit(
     use antecedent_learn::{DesignView, RowSelection, TargetView, resolve_for};
     let ctx = ExecutionContext::for_tests(0);
     let view = DesignView::from_column_major(design, rows, columns).unwrap();
-    let train: Vec<u32> = train.iter().map(|i| *i as u32).collect();
+    let train: Vec<u64> = train.iter().map(|i| u64::try_from(*i).expect("row")).collect();
     resolve_for(spec, task)
         .unwrap()
         .fit(

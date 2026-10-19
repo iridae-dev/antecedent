@@ -343,7 +343,7 @@ mod audit_tests {
         let n = 30;
         let values: Vec<f64> = (0..n).map(|_| 1.0).chain((0..n).map(|i| i as f64)).collect();
         let target: Vec<f64> = (0..n).map(|i| 2.0 + i as f64).collect();
-        let rows: Vec<u32> = (0..20).collect();
+        let rows: Vec<u64> = (0..20).collect();
         let view = DesignView::from_column_major(&values, n, 2).unwrap();
         let train = view.with_rows(crate::RowSelection::new(&rows)).unwrap();
         let ctx = ExecutionContext::for_tests(22);

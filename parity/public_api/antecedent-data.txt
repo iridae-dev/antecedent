@@ -50,6 +50,7 @@ impl core::clone::Clone for antecedent_data::CategoricalColumn
 impl core::clone::Clone for antecedent_data::CategoryCode
 impl core::clone::Clone for antecedent_data::CategoryDomain
 impl core::clone::Clone for antecedent_data::CategoryLevel
+impl core::clone::Clone for antecedent_data::ChunkIndex
 impl core::clone::Clone for antecedent_data::Contrast
 impl core::clone::Clone for antecedent_data::ContrastMatrix
 impl core::clone::Clone for antecedent_data::DataError
@@ -65,6 +66,8 @@ impl core::clone::Clone for antecedent_data::F64Buffer
 impl core::clone::Clone for antecedent_data::FixedVectorColumn
 impl core::clone::Clone for antecedent_data::Float64Column
 impl core::clone::Clone for antecedent_data::ForeignF64Buffer
+impl core::clone::Clone for antecedent_data::GlobalId
+impl core::clone::Clone for antecedent_data::GlobalIndexError
 impl core::clone::Clone for antecedent_data::GroupAccounting
 impl core::clone::Clone for antecedent_data::IdRemap
 impl core::clone::Clone for antecedent_data::Int64Column
@@ -108,9 +111,6 @@ impl core::clone::Clone for antecedent_data::VectorVariableGroups
 impl core::clone::Clone for antecedent_data::WindowBoundary
 impl core::clone::Clone for antecedent_data::WindowChunk
 impl core::clone::Clone for antecedent_data::WindowNextAttempt
-impl core::clone::Clone for antecedent_data::global_index::ChunkIndex
-impl core::clone::Clone for antecedent_data::global_index::GlobalId
-impl core::clone::Clone for antecedent_data::global_index::GlobalIndexError
 impl core::cmp::Eq for antecedent_data::BooleanColumn
 impl core::cmp::Eq for antecedent_data::BorrowError
 impl core::cmp::Eq for antecedent_data::CalendarSpan
@@ -118,6 +118,7 @@ impl core::cmp::Eq for antecedent_data::CategoricalColumn
 impl core::cmp::Eq for antecedent_data::CategoryCode
 impl core::cmp::Eq for antecedent_data::CategoryDomain
 impl core::cmp::Eq for antecedent_data::CategoryLevel
+impl core::cmp::Eq for antecedent_data::ChunkIndex
 impl core::cmp::Eq for antecedent_data::DataError
 impl core::cmp::Eq for antecedent_data::DeclaredSplit
 impl core::cmp::Eq for antecedent_data::DiscoveryEstimationSplit
@@ -125,6 +126,8 @@ impl core::cmp::Eq for antecedent_data::DropReason
 impl core::cmp::Eq for antecedent_data::DropSummary
 impl core::cmp::Eq for antecedent_data::DummyOptions
 impl core::cmp::Eq for antecedent_data::EnvHoldoutSplit
+impl core::cmp::Eq for antecedent_data::GlobalId
+impl core::cmp::Eq for antecedent_data::GlobalIndexError
 impl core::cmp::Eq for antecedent_data::GroupAccounting
 impl core::cmp::Eq for antecedent_data::Int64Column
 impl core::cmp::Eq for antecedent_data::LagMap
@@ -153,12 +156,9 @@ impl core::cmp::Eq for antecedent_data::VectorVariableGroups
 impl core::cmp::Eq for antecedent_data::WindowBoundary
 impl core::cmp::Eq for antecedent_data::WindowChunk
 impl core::cmp::Eq for antecedent_data::WindowNextAttempt
-impl core::cmp::Eq for antecedent_data::global_index::ChunkIndex
-impl core::cmp::Eq for antecedent_data::global_index::GlobalId
-impl core::cmp::Eq for antecedent_data::global_index::GlobalIndexError
 impl core::cmp::Ord for antecedent_data::CategoryCode
-impl core::cmp::Ord for antecedent_data::global_index::ChunkIndex
-impl core::cmp::Ord for antecedent_data::global_index::GlobalId
+impl core::cmp::Ord for antecedent_data::ChunkIndex
+impl core::cmp::Ord for antecedent_data::GlobalId
 impl core::cmp::PartialEq for antecedent_data::BooleanColumn
 impl core::cmp::PartialEq for antecedent_data::BorrowError
 impl core::cmp::PartialEq for antecedent_data::CalendarSpan
@@ -166,6 +166,7 @@ impl core::cmp::PartialEq for antecedent_data::CategoricalColumn
 impl core::cmp::PartialEq for antecedent_data::CategoryCode
 impl core::cmp::PartialEq for antecedent_data::CategoryDomain
 impl core::cmp::PartialEq for antecedent_data::CategoryLevel
+impl core::cmp::PartialEq for antecedent_data::ChunkIndex
 impl core::cmp::PartialEq for antecedent_data::Contrast
 impl core::cmp::PartialEq for antecedent_data::ContrastMatrix
 impl core::cmp::PartialEq for antecedent_data::DataError
@@ -179,6 +180,8 @@ impl core::cmp::PartialEq for antecedent_data::EnvHoldoutSplit
 impl core::cmp::PartialEq for antecedent_data::F64Buffer
 impl core::cmp::PartialEq for antecedent_data::FixedVectorColumn
 impl core::cmp::PartialEq for antecedent_data::Float64Column
+impl core::cmp::PartialEq for antecedent_data::GlobalId
+impl core::cmp::PartialEq for antecedent_data::GlobalIndexError
 impl core::cmp::PartialEq for antecedent_data::GroupAccounting
 impl core::cmp::PartialEq for antecedent_data::Int64Column
 impl core::cmp::PartialEq for antecedent_data::LagMap
@@ -209,18 +212,15 @@ impl core::cmp::PartialEq for antecedent_data::VectorVariableGroups
 impl core::cmp::PartialEq for antecedent_data::WindowBoundary
 impl core::cmp::PartialEq for antecedent_data::WindowChunk
 impl core::cmp::PartialEq for antecedent_data::WindowNextAttempt
-impl core::cmp::PartialEq for antecedent_data::global_index::ChunkIndex
-impl core::cmp::PartialEq for antecedent_data::global_index::GlobalId
-impl core::cmp::PartialEq for antecedent_data::global_index::GlobalIndexError
 impl core::cmp::PartialOrd for antecedent_data::CategoryCode
-impl core::cmp::PartialOrd for antecedent_data::global_index::ChunkIndex
-impl core::cmp::PartialOrd for antecedent_data::global_index::GlobalId
+impl core::cmp::PartialOrd for antecedent_data::ChunkIndex
+impl core::cmp::PartialOrd for antecedent_data::GlobalId
 impl core::convert::From<alloc::sync::Arc<[f64]>> for antecedent_data::F64Buffer
 impl core::convert::From<alloc::vec::Vec<f64>> for antecedent_data::F64Buffer
 impl core::convert::From<antecedent_core::error::SchemaError> for antecedent_data::DataError
-impl core::convert::From<u32> for antecedent_data::global_index::ChunkIndex
-impl core::convert::From<u32> for antecedent_data::global_index::GlobalId
-impl core::convert::TryFrom<antecedent_data::global_index::GlobalId> for antecedent_data::global_index::ChunkIndex
+impl core::convert::From<u32> for antecedent_data::ChunkIndex
+impl core::convert::From<u32> for antecedent_data::GlobalId
+impl core::convert::TryFrom<antecedent_data::GlobalId> for antecedent_data::ChunkIndex
 impl core::default::Default for antecedent_data::DropSummary
 impl core::default::Default for antecedent_data::DummyOptions
 impl core::default::Default for antecedent_data::LaggedFrameOptions
@@ -234,8 +234,8 @@ impl core::default::Default for antecedent_data::ValidityBitmap
 impl core::default::Default for antecedent_data::VectorVariableGroups
 impl core::error::Error for antecedent_data::BorrowError
 impl core::error::Error for antecedent_data::DataError
+impl core::error::Error for antecedent_data::GlobalIndexError
 impl core::error::Error for antecedent_data::LagRefusal
-impl core::error::Error for antecedent_data::global_index::GlobalIndexError
 impl core::fmt::Debug for antecedent_data::ArrowLoadResult
 impl core::fmt::Debug for antecedent_data::BooleanColumn
 impl core::fmt::Debug for antecedent_data::BorrowError
@@ -244,6 +244,7 @@ impl core::fmt::Debug for antecedent_data::CategoricalColumn
 impl core::fmt::Debug for antecedent_data::CategoryCode
 impl core::fmt::Debug for antecedent_data::CategoryDomain
 impl core::fmt::Debug for antecedent_data::CategoryLevel
+impl core::fmt::Debug for antecedent_data::ChunkIndex
 impl core::fmt::Debug for antecedent_data::Contrast
 impl core::fmt::Debug for antecedent_data::ContrastMatrix
 impl core::fmt::Debug for antecedent_data::DataError
@@ -259,6 +260,8 @@ impl core::fmt::Debug for antecedent_data::F64Buffer
 impl core::fmt::Debug for antecedent_data::FixedVectorColumn
 impl core::fmt::Debug for antecedent_data::Float64Column
 impl core::fmt::Debug for antecedent_data::ForeignF64Buffer
+impl core::fmt::Debug for antecedent_data::GlobalId
+impl core::fmt::Debug for antecedent_data::GlobalIndexError
 impl core::fmt::Debug for antecedent_data::GroupAccounting
 impl core::fmt::Debug for antecedent_data::IdRemap
 impl core::fmt::Debug for antecedent_data::Int64Column
@@ -302,18 +305,17 @@ impl core::fmt::Debug for antecedent_data::VectorVariableGroups
 impl core::fmt::Debug for antecedent_data::WindowBoundary
 impl core::fmt::Debug for antecedent_data::WindowChunk
 impl core::fmt::Debug for antecedent_data::WindowNextAttempt
-impl core::fmt::Debug for antecedent_data::global_index::ChunkIndex
-impl core::fmt::Debug for antecedent_data::global_index::GlobalId
-impl core::fmt::Debug for antecedent_data::global_index::GlobalIndexError
 impl core::fmt::Display for antecedent_data::BorrowError
 impl core::fmt::Display for antecedent_data::DataError
+impl core::fmt::Display for antecedent_data::GlobalIndexError
 impl core::fmt::Display for antecedent_data::LagRefusal
 impl core::fmt::Display for antecedent_data::PopulationUnit
-impl core::fmt::Display for antecedent_data::global_index::GlobalIndexError
 impl core::hash::Hash for antecedent_data::CalendarSpan
 impl core::hash::Hash for antecedent_data::CategoryCode
+impl core::hash::Hash for antecedent_data::ChunkIndex
 impl core::hash::Hash for antecedent_data::DiscoveryEstimationSplit
 impl core::hash::Hash for antecedent_data::DropReason
+impl core::hash::Hash for antecedent_data::GlobalId
 impl core::hash::Hash for antecedent_data::LaggedColumn
 impl core::hash::Hash for antecedent_data::LaggedFrameOptions
 impl core::hash::Hash for antecedent_data::MaskPolicy
@@ -326,14 +328,15 @@ impl core::hash::Hash for antecedent_data::TimeDummyEncoding
 impl core::hash::Hash for antecedent_data::TimeRange
 impl core::hash::Hash for antecedent_data::UnknownCategoryPolicy
 impl core::hash::Hash for antecedent_data::WindowBoundary
-impl core::hash::Hash for antecedent_data::global_index::ChunkIndex
-impl core::hash::Hash for antecedent_data::global_index::GlobalId
 impl core::marker::Copy for antecedent_data::CalendarSpan
 impl core::marker::Copy for antecedent_data::CategoryCode
+impl core::marker::Copy for antecedent_data::ChunkIndex
 impl core::marker::Copy for antecedent_data::DiscoveryEstimationSplit
 impl core::marker::Copy for antecedent_data::DropReason
 impl core::marker::Copy for antecedent_data::DropSummary
 impl core::marker::Copy for antecedent_data::DummyOptions
+impl core::marker::Copy for antecedent_data::GlobalId
+impl core::marker::Copy for antecedent_data::GlobalIndexError
 impl core::marker::Copy for antecedent_data::LaggedColumn
 impl core::marker::Copy for antecedent_data::LaggedFrameOptions
 impl core::marker::Copy for antecedent_data::MaskPolicy
@@ -348,9 +351,6 @@ impl core::marker::Copy for antecedent_data::TimeRange
 impl core::marker::Copy for antecedent_data::UnitAccounting
 impl core::marker::Copy for antecedent_data::UnknownCategoryPolicy
 impl core::marker::Copy for antecedent_data::WindowBoundary
-impl core::marker::Copy for antecedent_data::global_index::ChunkIndex
-impl core::marker::Copy for antecedent_data::global_index::GlobalId
-impl core::marker::Copy for antecedent_data::global_index::GlobalIndexError
 impl core::marker::Freeze for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Freeze for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Freeze for antecedent_data::BooleanColumn [auto]
@@ -360,6 +360,7 @@ impl core::marker::Freeze for antecedent_data::CategoricalColumn [auto]
 impl core::marker::Freeze for antecedent_data::CategoryCode [auto]
 impl core::marker::Freeze for antecedent_data::CategoryDomain [auto]
 impl core::marker::Freeze for antecedent_data::CategoryLevel [auto]
+impl core::marker::Freeze for antecedent_data::ChunkIndex [auto]
 impl core::marker::Freeze for antecedent_data::Contrast [auto]
 impl core::marker::Freeze for antecedent_data::ContrastMatrix [auto]
 impl core::marker::Freeze for antecedent_data::DataError [auto]
@@ -375,6 +376,8 @@ impl core::marker::Freeze for antecedent_data::F64Buffer [auto]
 impl core::marker::Freeze for antecedent_data::FixedVectorColumn [auto]
 impl core::marker::Freeze for antecedent_data::Float64Column [auto]
 impl core::marker::Freeze for antecedent_data::ForeignF64Buffer [auto]
+impl core::marker::Freeze for antecedent_data::GlobalId [auto]
+impl core::marker::Freeze for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Freeze for antecedent_data::GroupAccounting [auto]
 impl core::marker::Freeze for antecedent_data::IdRemap [auto]
 impl core::marker::Freeze for antecedent_data::Int64Column [auto]
@@ -418,9 +421,6 @@ impl core::marker::Freeze for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Freeze for antecedent_data::WindowBoundary [auto]
 impl core::marker::Freeze for antecedent_data::WindowChunk [auto]
 impl core::marker::Freeze for antecedent_data::WindowNextAttempt [auto]
-impl core::marker::Freeze for antecedent_data::global_index::ChunkIndex [auto]
-impl core::marker::Freeze for antecedent_data::global_index::GlobalId [auto]
-impl core::marker::Freeze for antecedent_data::global_index::GlobalIndexError [auto]
 impl core::marker::Send for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Send for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Send for antecedent_data::BooleanColumn [auto]
@@ -430,6 +430,7 @@ impl core::marker::Send for antecedent_data::CategoricalColumn [auto]
 impl core::marker::Send for antecedent_data::CategoryCode [auto]
 impl core::marker::Send for antecedent_data::CategoryDomain [auto]
 impl core::marker::Send for antecedent_data::CategoryLevel [auto]
+impl core::marker::Send for antecedent_data::ChunkIndex [auto]
 impl core::marker::Send for antecedent_data::Contrast [auto]
 impl core::marker::Send for antecedent_data::ContrastMatrix [auto]
 impl core::marker::Send for antecedent_data::DataError [auto]
@@ -445,6 +446,8 @@ impl core::marker::Send for antecedent_data::F64Buffer [auto]
 impl core::marker::Send for antecedent_data::FixedVectorColumn [auto]
 impl core::marker::Send for antecedent_data::Float64Column [auto]
 impl core::marker::Send for antecedent_data::ForeignF64Buffer
+impl core::marker::Send for antecedent_data::GlobalId [auto]
+impl core::marker::Send for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Send for antecedent_data::GroupAccounting [auto]
 impl core::marker::Send for antecedent_data::IdRemap [auto]
 impl core::marker::Send for antecedent_data::Int64Column [auto]
@@ -488,9 +491,6 @@ impl core::marker::Send for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Send for antecedent_data::WindowBoundary [auto]
 impl core::marker::Send for antecedent_data::WindowChunk [auto]
 impl core::marker::Send for antecedent_data::WindowNextAttempt [auto]
-impl core::marker::Send for antecedent_data::global_index::ChunkIndex [auto]
-impl core::marker::Send for antecedent_data::global_index::GlobalId [auto]
-impl core::marker::Send for antecedent_data::global_index::GlobalIndexError [auto]
 impl core::marker::StructuralPartialEq for antecedent_data::BooleanColumn
 impl core::marker::StructuralPartialEq for antecedent_data::BorrowError
 impl core::marker::StructuralPartialEq for antecedent_data::CalendarSpan
@@ -498,6 +498,7 @@ impl core::marker::StructuralPartialEq for antecedent_data::CategoricalColumn
 impl core::marker::StructuralPartialEq for antecedent_data::CategoryCode
 impl core::marker::StructuralPartialEq for antecedent_data::CategoryDomain
 impl core::marker::StructuralPartialEq for antecedent_data::CategoryLevel
+impl core::marker::StructuralPartialEq for antecedent_data::ChunkIndex
 impl core::marker::StructuralPartialEq for antecedent_data::Contrast
 impl core::marker::StructuralPartialEq for antecedent_data::ContrastMatrix
 impl core::marker::StructuralPartialEq for antecedent_data::DataError
@@ -510,6 +511,8 @@ impl core::marker::StructuralPartialEq for antecedent_data::DummyOptions
 impl core::marker::StructuralPartialEq for antecedent_data::EnvHoldoutSplit
 impl core::marker::StructuralPartialEq for antecedent_data::FixedVectorColumn
 impl core::marker::StructuralPartialEq for antecedent_data::Float64Column
+impl core::marker::StructuralPartialEq for antecedent_data::GlobalId
+impl core::marker::StructuralPartialEq for antecedent_data::GlobalIndexError
 impl core::marker::StructuralPartialEq for antecedent_data::GroupAccounting
 impl core::marker::StructuralPartialEq for antecedent_data::Int64Column
 impl core::marker::StructuralPartialEq for antecedent_data::LagMap
@@ -539,9 +542,6 @@ impl core::marker::StructuralPartialEq for antecedent_data::VectorVariableGroups
 impl core::marker::StructuralPartialEq for antecedent_data::WindowBoundary
 impl core::marker::StructuralPartialEq for antecedent_data::WindowChunk
 impl core::marker::StructuralPartialEq for antecedent_data::WindowNextAttempt
-impl core::marker::StructuralPartialEq for antecedent_data::global_index::ChunkIndex
-impl core::marker::StructuralPartialEq for antecedent_data::global_index::GlobalId
-impl core::marker::StructuralPartialEq for antecedent_data::global_index::GlobalIndexError
 impl core::marker::Sync for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Sync for antecedent_data::BooleanColumn [auto]
 impl core::marker::Sync for antecedent_data::BorrowError [auto]
@@ -550,6 +550,7 @@ impl core::marker::Sync for antecedent_data::CategoricalColumn [auto]
 impl core::marker::Sync for antecedent_data::CategoryCode [auto]
 impl core::marker::Sync for antecedent_data::CategoryDomain [auto]
 impl core::marker::Sync for antecedent_data::CategoryLevel [auto]
+impl core::marker::Sync for antecedent_data::ChunkIndex [auto]
 impl core::marker::Sync for antecedent_data::Contrast [auto]
 impl core::marker::Sync for antecedent_data::ContrastMatrix [auto]
 impl core::marker::Sync for antecedent_data::DataError [auto]
@@ -565,6 +566,8 @@ impl core::marker::Sync for antecedent_data::F64Buffer [auto]
 impl core::marker::Sync for antecedent_data::FixedVectorColumn [auto]
 impl core::marker::Sync for antecedent_data::Float64Column [auto]
 impl core::marker::Sync for antecedent_data::ForeignF64Buffer
+impl core::marker::Sync for antecedent_data::GlobalId [auto]
+impl core::marker::Sync for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Sync for antecedent_data::GroupAccounting [auto]
 impl core::marker::Sync for antecedent_data::IdRemap [auto]
 impl core::marker::Sync for antecedent_data::Int64Column [auto]
@@ -608,9 +611,6 @@ impl core::marker::Sync for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Sync for antecedent_data::WindowBoundary [auto]
 impl core::marker::Sync for antecedent_data::WindowChunk [auto]
 impl core::marker::Sync for antecedent_data::WindowNextAttempt [auto]
-impl core::marker::Sync for antecedent_data::global_index::ChunkIndex [auto]
-impl core::marker::Sync for antecedent_data::global_index::GlobalId [auto]
-impl core::marker::Sync for antecedent_data::global_index::GlobalIndexError [auto]
 impl core::marker::Unpin for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Unpin for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Unpin for antecedent_data::BooleanColumn [auto]
@@ -620,6 +620,7 @@ impl core::marker::Unpin for antecedent_data::CategoricalColumn [auto]
 impl core::marker::Unpin for antecedent_data::CategoryCode [auto]
 impl core::marker::Unpin for antecedent_data::CategoryDomain [auto]
 impl core::marker::Unpin for antecedent_data::CategoryLevel [auto]
+impl core::marker::Unpin for antecedent_data::ChunkIndex [auto]
 impl core::marker::Unpin for antecedent_data::Contrast [auto]
 impl core::marker::Unpin for antecedent_data::ContrastMatrix [auto]
 impl core::marker::Unpin for antecedent_data::DataError [auto]
@@ -635,6 +636,8 @@ impl core::marker::Unpin for antecedent_data::F64Buffer [auto]
 impl core::marker::Unpin for antecedent_data::FixedVectorColumn [auto]
 impl core::marker::Unpin for antecedent_data::Float64Column [auto]
 impl core::marker::Unpin for antecedent_data::ForeignF64Buffer [auto]
+impl core::marker::Unpin for antecedent_data::GlobalId [auto]
+impl core::marker::Unpin for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Unpin for antecedent_data::GroupAccounting [auto]
 impl core::marker::Unpin for antecedent_data::IdRemap [auto]
 impl core::marker::Unpin for antecedent_data::Int64Column [auto]
@@ -678,9 +681,6 @@ impl core::marker::Unpin for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Unpin for antecedent_data::WindowBoundary [auto]
 impl core::marker::Unpin for antecedent_data::WindowChunk [auto]
 impl core::marker::Unpin for antecedent_data::WindowNextAttempt [auto]
-impl core::marker::Unpin for antecedent_data::global_index::ChunkIndex [auto]
-impl core::marker::Unpin for antecedent_data::global_index::GlobalId [auto]
-impl core::marker::Unpin for antecedent_data::global_index::GlobalIndexError [auto]
 impl core::ops::deref::Deref for antecedent_data::F64Buffer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BooleanColumn [auto]
@@ -690,6 +690,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoricalCol
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoryCode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoryDomain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoryLevel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ChunkIndex [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::Contrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ContrastMatrix [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DataError [auto]
@@ -701,6 +702,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DropSummary [a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DummyOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::EnvHoldoutSplit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::FixedVectorColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GlobalId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GlobalIndexError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GroupAccounting [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::IdRemap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::Int64Column [auto]
@@ -734,9 +737,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::VectorVariable
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowBoundary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowChunk [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowNextAttempt [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::global_index::ChunkIndex [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::global_index::GlobalId [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::global_index::GlobalIndexError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BooleanColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BorrowError [auto]
@@ -745,6 +745,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoricalColumn
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoryCode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoryDomain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoryLevel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ChunkIndex [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::Contrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ContrastMatrix [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DataError [auto]
@@ -756,6 +757,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DropSummary [auto
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DummyOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::EnvHoldoutSplit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::FixedVectorColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::GlobalId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::GlobalIndexError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::GroupAccounting [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::IdRemap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::Int64Column [auto]
@@ -789,9 +792,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::VectorVariableGro
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowBoundary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowChunk [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowNextAttempt [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_data::global_index::ChunkIndex [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_data::global_index::GlobalId [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_data::global_index::GlobalIndexError [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ColumnView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_data::ColumnView<'a> [auto]
@@ -920,8 +920,8 @@ pub field antecedent_data::MissingCell::row: usize
 pub field antecedent_data::MissingCell::variable: alloc::sync::Arc<str>
 pub field antecedent_data::MissingDeclaration::covariates: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent_data::MissingDeclaration::policy: antecedent_data::MissingPolicy
-pub field antecedent_data::NetworkEdge::from: u32
-pub field antecedent_data::NetworkEdge::to: u32
+pub field antecedent_data::NetworkEdge::from: antecedent_data::GlobalId
+pub field antecedent_data::NetworkEdge::to: antecedent_data::GlobalId
 pub field antecedent_data::NetworkEdge::weight: f64
 pub field antecedent_data::PanelUnit::series: antecedent_data::TimeSeriesData
 pub field antecedent_data::PanelUnit::unit_id: u32
@@ -970,6 +970,8 @@ pub fn <antecedent_data::CategoryCode>::const fn raw(self) -> u32
 pub fn <antecedent_data::CategoryDomain>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::CategoryDomain>::fn len(&self) -> usize
 pub fn <antecedent_data::CategoryDomain>::fn try_new(id: antecedent_core::ids::CategoryDomainId, levels: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::CategoryLevel]>>, ordered: bool, reference: core::option::Option<antecedent_data::CategoryCode>, unknown_policy: antecedent_data::UnknownCategoryPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ChunkIndex>::const fn get(self) -> u32
+pub fn <antecedent_data::ChunkIndex>::const fn new(local: u32) -> Self
 pub fn <antecedent_data::ColumnView<'a>>::fn id(self) -> antecedent_core::ids::VariableId
 pub fn <antecedent_data::ColumnView<'a>>::fn is_empty(self) -> bool
 pub fn <antecedent_data::ColumnView<'a>>::fn len(self) -> usize
@@ -1009,6 +1011,11 @@ pub fn <antecedent_data::ForeignF64Buffer>::const fn is_empty(&self) -> bool
 pub fn <antecedent_data::ForeignF64Buffer>::const fn len(&self) -> usize
 pub fn <antecedent_data::ForeignF64Buffer>::fn as_slice(&self) -> &[f64]
 pub fn <antecedent_data::ForeignF64Buffer>::unsafe fn new(owner: alloc::sync::Arc<dyn antecedent_data::ForeignBufferOwner>, ptr: *const f64, len: usize) -> Self
+pub fn <antecedent_data::GlobalId>::const fn get(self) -> u64
+pub fn <antecedent_data::GlobalId>::const fn new(raw: u64) -> Self
+pub fn <antecedent_data::GlobalId>::fn to_chunk_index(self) -> core::result::Result<antecedent_data::ChunkIndex, antecedent_data::GlobalIndexError>
+pub fn <antecedent_data::GlobalIndexError>::const fn id(self) -> antecedent_data::GlobalId
+pub fn <antecedent_data::GlobalIndexError>::const fn next_attempt(self) -> &'static str
 pub fn <antecedent_data::IdRemap>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::IdRemap>::fn len(&self) -> usize
 pub fn <antecedent_data::IdRemap>::fn map(&self, old: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_core::ids::VariableId, antecedent_data::DataError>
@@ -1072,6 +1079,7 @@ pub fn <antecedent_data::NetworkData>::const fn units(&self) -> &antecedent_data
 pub fn <antecedent_data::NetworkData>::fn edges(&self) -> &[antecedent_data::NetworkEdge]
 pub fn <antecedent_data::NetworkData>::fn incoming(&self, unit: usize) -> core::result::Result<&[antecedent_data::NetworkEdge], antecedent_data::DataError>
 pub fn <antecedent_data::NetworkData>::fn try_new(units: antecedent_data::TabularData, edges: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::NetworkEdge]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::NetworkEdge>::const fn new(from: u64, to: u64, weight: f64) -> Self
 pub fn <antecedent_data::OwnedColumn>::fn as_view(&self) -> antecedent_data::ColumnView<'_>
 pub fn <antecedent_data::OwnedColumn>::fn id(&self) -> antecedent_core::ids::VariableId
 pub fn <antecedent_data::OwnedColumn>::fn is_empty(&self) -> bool
@@ -1163,13 +1171,6 @@ pub fn <antecedent_data::VectorVariableGroups>::fn secondary_component_ids(&self
 pub fn <antecedent_data::VectorVariableGroups>::fn try_new(groups: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<[antecedent_core::ids::VariableId]>]>>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::WindowChunk>::const fn local_rows(&self) -> core::ops::range::Range<usize>
 pub fn <antecedent_data::WindowNextAttempt>::const fn name(&self) -> &'static str
-pub fn <antecedent_data::global_index::ChunkIndex>::const fn get(self) -> u32
-pub fn <antecedent_data::global_index::ChunkIndex>::const fn new(local: u32) -> Self
-pub fn <antecedent_data::global_index::GlobalId>::const fn get(self) -> u64
-pub fn <antecedent_data::global_index::GlobalId>::const fn new(raw: u64) -> Self
-pub fn <antecedent_data::global_index::GlobalId>::fn to_chunk_index(self) -> core::result::Result<antecedent_data::global_index::ChunkIndex, antecedent_data::global_index::GlobalIndexError>
-pub fn <antecedent_data::global_index::GlobalIndexError>::const fn id(self) -> antecedent_data::global_index::GlobalId
-pub fn <antecedent_data::global_index::GlobalIndexError>::const fn next_attempt(self) -> &'static str
 pub fn antecedent_data::arrow_adapter::tabular_from_arrow_c_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::arrow_adapter::tabular_from_record_batch(batch: &arrow_array::record_batch::RecordBatch) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::categorical::compile_contrast_matrix(domain: &antecedent_data::CategoryDomain, contrast: &antecedent_data::Contrast) -> core::result::Result<antecedent_data::ContrastMatrix, antecedent_data::DataError>
@@ -1179,12 +1180,12 @@ pub fn antecedent_data::complete_rows<T: antecedent_data::TableView>(table: &T, 
 pub fn antecedent_data::dedupe_variable_ids(ids: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::VariableId>) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn antecedent_data::dropped_row_digest(rows_total: usize, dropped: &[u64]) -> alloc::string::String
 pub fn antecedent_data::fill_circular_block_indexes(n: usize, length: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut [usize]) -> core::result::Result<(), antecedent_data::DataError>
-pub fn antecedent_data::fill_resample_index_batch(plan: antecedent_data::ResamplingPlan, n: usize, n_replicates: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, out: &mut [u32]) -> core::result::Result<(), antecedent_data::DataError>
-pub fn antecedent_data::fill_resample_indexes(plan: antecedent_data::ResamplingPlan, n: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<u32>) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_resample_index_batch(plan: antecedent_data::ResamplingPlan, n: usize, n_replicates: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, out: &mut [antecedent_data::GlobalId]) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_resample_indexes(plan: antecedent_data::ResamplingPlan, n: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn antecedent_data::first_missing_cell<T: antecedent_data::TableView>(table: &T, variables: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::option::Option<antecedent_data::MissingCell>, antecedent_data::DataError>
 pub fn antecedent_data::missing::policy_required_text(cell: &antecedent_data::MissingCell, route: &str, available: &[antecedent_data::MissingPolicy]) -> alloc::string::String
 pub fn antecedent_data::pool_multi_env_lagged_frame(data: &antecedent_data::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], frame_depth: u32, dummies: antecedent_data::DummyOptions, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_data::PooledLaggedFrame, antecedent_data::DataError>
-pub fn antecedent_data::resample::resample_timeseries(data: &antecedent_data::TimeSeriesData, plan: antecedent_data::ResamplingPlan, rng: &mut antecedent_core::execution::CausalRng, index_scratch: &mut alloc::vec::Vec<u32>) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub fn antecedent_data::resample::resample_timeseries(data: &antecedent_data::TimeSeriesData, plan: antecedent_data::ResamplingPlan, rng: &mut antecedent_core::execution::CausalRng, index_scratch: &mut alloc::vec::Vec<antecedent_data::GlobalId>) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub fn antecedent_data::surrogate::surrogate_permute_columns(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub fn antecedent_data::surrogate::surrogate_phase_randomize(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
 pub mod antecedent_data::aligned_buffer
@@ -1230,6 +1231,8 @@ pub struct antecedent_data::CategoryCode
 pub struct antecedent_data::CategoryCode has private fields
 pub struct antecedent_data::CategoryDomain
 pub struct antecedent_data::CategoryLevel
+pub struct antecedent_data::ChunkIndex
+pub struct antecedent_data::ChunkIndex has private fields
 pub struct antecedent_data::ContrastMatrix
 pub struct antecedent_data::DeclaredSplit
 pub struct antecedent_data::DeclaredSplit has private fields
@@ -1247,6 +1250,10 @@ pub struct antecedent_data::Float64Column
 pub struct antecedent_data::ForeignF64Buffer
 pub struct antecedent_data::ForeignF64Buffer has private fields
 pub struct antecedent_data::GappedSample<'a>
+pub struct antecedent_data::GlobalId
+pub struct antecedent_data::GlobalId has private fields
+pub struct antecedent_data::GlobalIndexError
+pub struct antecedent_data::GlobalIndexError has private fields
 pub struct antecedent_data::GroupAccounting
 pub struct antecedent_data::IdRemap
 pub struct antecedent_data::IdRemap has private fields
@@ -1298,12 +1305,6 @@ pub struct antecedent_data::VectorVariableGroups
 pub struct antecedent_data::VectorVariableGroups has private fields
 pub struct antecedent_data::WindowChunk
 pub struct antecedent_data::WindowChunk has private fields
-pub struct antecedent_data::global_index::ChunkIndex
-pub struct antecedent_data::global_index::ChunkIndex has private fields
-pub struct antecedent_data::global_index::GlobalId
-pub struct antecedent_data::global_index::GlobalId has private fields
-pub struct antecedent_data::global_index::GlobalIndexError
-pub struct antecedent_data::global_index::GlobalIndexError has private fields
 pub trait antecedent_data::ForeignBufferOwner: core::marker::Send + core::marker::Sync + core::fmt::Debug
 pub trait antecedent_data::TableView
 pub trait fn fn antecedent_data::TableView::column(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_data::ColumnView<'_>, antecedent_data::DataError>
@@ -1345,6 +1346,9 @@ pub use antecedent_data::dataset::TimeSeriesData = antecedent_data::TimeSeriesDa
 pub use antecedent_data::discrete::DiscreteColumn = antecedent_data::DiscreteColumn
 pub use antecedent_data::error::DataError = antecedent_data::DataError
 pub use antecedent_data::event::EventData = antecedent_data::EventData
+pub use antecedent_data::global_index::ChunkIndex = antecedent_data::ChunkIndex
+pub use antecedent_data::global_index::GlobalId = antecedent_data::GlobalId
+pub use antecedent_data::global_index::GlobalIndexError = antecedent_data::GlobalIndexError
 pub use antecedent_data::lagged_frame::LaggedFrame = antecedent_data::LaggedFrame
 pub use antecedent_data::lagged_frame::LaggedFrameOptions = antecedent_data::LaggedFrameOptions
 pub use antecedent_data::missing::DropReason = antecedent_data::DropReason

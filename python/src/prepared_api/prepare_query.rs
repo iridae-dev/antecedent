@@ -479,7 +479,7 @@ impl PyPreparedAnalysis {
         columns: Vec<Bound<'_, PyAny>>,
         edges: Vec<(String, String)>,
         outcome: String,
-        network: Vec<(u32, u32, f64)>,
+        network: Vec<(u64, u64, f64)>,
         realized_assignment: Vec<bool>,
         assignment_kind: String,
         assignment_probabilities: Vec<f64>,
@@ -535,10 +535,8 @@ impl PyPreparedAnalysis {
                 data.clone(),
                 network
                     .into_iter()
-                    .map(|(from, to, weight)| antecedent::estimate::NetworkEdge {
-                        from,
-                        to,
-                        weight,
+                    .map(|(from, to, weight)| {
+                        antecedent::estimate::NetworkEdge::new(from, to, weight)
                     })
                     .collect::<Vec<_>>(),
             )

@@ -52,8 +52,16 @@ fn cluster_partial_interference_total_effect_passes_public_prepare_estimate_arti
         .flat_map(|cluster| {
             let first = cluster * 2;
             [
-                NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                NetworkEdge::new(
+                    u64::try_from(first).expect("row id"),
+                    u64::try_from(first + 1).expect("row id"),
+                    1.0,
+                ),
+                NetworkEdge::new(
+                    u64::try_from(first + 1).expect("row id"),
+                    u64::try_from(first).expect("row id"),
+                    1.0,
+                ),
             ]
         })
         .collect::<Vec<_>>();
@@ -120,10 +128,12 @@ fn design_fixture() -> (TabularData, Vec<bool>, Vec<NetworkEdge>, serde_json::Va
         .as_array()
         .unwrap()
         .iter()
-        .map(|edge| NetworkEdge {
-            from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
-            to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
-            weight: edge[2].as_f64().unwrap(),
+        .map(|edge| {
+            NetworkEdge::new(
+                edge[0].as_u64().expect("edge endpoint"),
+                edge[1].as_u64().expect("edge endpoint"),
+                edge[2].as_f64().unwrap(),
+            )
         })
         .collect();
     (
@@ -155,10 +165,12 @@ fn bayesian_fixture() -> (TabularData, Vec<bool>, Vec<NetworkEdge>, serde_json::
         .as_array()
         .unwrap()
         .iter()
-        .map(|edge| NetworkEdge {
-            from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
-            to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
-            weight: 1.0,
+        .map(|edge| {
+            NetworkEdge::new(
+                edge[0].as_u64().expect("edge endpoint"),
+                edge[1].as_u64().expect("edge endpoint"),
+                1.0,
+            )
         })
         .collect();
     (

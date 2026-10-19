@@ -379,8 +379,8 @@ fn compile_batch_study(
     latency_mode: Option<antecedent::LatencyMode>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
-    screen_rows: Option<Vec<u32>>,
-    estimate_rows: Option<Vec<u32>>,
+    screen_rows: Option<Vec<u64>>,
+    estimate_rows: Option<Vec<u64>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
 ) -> PyResult<antecedent::BatchStudy> {
@@ -439,8 +439,8 @@ fn compile_ate_batch(
     latency_mode: Option<antecedent::LatencyMode>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
-    screen_rows: Option<Vec<u32>>,
-    estimate_rows: Option<Vec<u32>>,
+    screen_rows: Option<Vec<u64>>,
+    estimate_rows: Option<Vec<u64>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
 ) -> PyResult<(antecedent::BatchStudy, Vec<AverageEffectQuery>)> {
@@ -509,8 +509,8 @@ fn compile_cell_batch(
     latency_mode: Option<antecedent::LatencyMode>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
-    screen_rows: Option<Vec<u32>>,
-    estimate_rows: Option<Vec<u32>>,
+    screen_rows: Option<Vec<u64>>,
+    estimate_rows: Option<Vec<u64>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
     family_contrast: Option<String>,
@@ -600,8 +600,8 @@ fn analyze_ate_many(
     latency: Option<String>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
-    screen_rows: Option<Vec<u32>>,
-    estimate_rows: Option<Vec<u32>>,
+    screen_rows: Option<Vec<u64>>,
+    estimate_rows: Option<Vec<u64>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
 ) -> PyResult<Vec<AteAnalysisResult>> {
@@ -1390,8 +1390,8 @@ fn identify_structure(
 fn parse_candidate_screen(
     screen_id: Option<String>,
     procedure: Option<String>,
-    screen_rows: Option<Vec<u32>>,
-    estimate_rows: Option<Vec<u32>>,
+    screen_rows: Option<Vec<u64>>,
+    estimate_rows: Option<Vec<u64>>,
 ) -> PyResult<Option<antecedent::CandidateScreen>> {
     if screen_id.is_none()
         && procedure.is_none()
@@ -1419,8 +1419,18 @@ fn parse_candidate_screen(
     Ok(Some(antecedent::CandidateScreen {
         screen_id: std::sync::Arc::from(screen_id),
         procedure,
-        screen_rows: std::sync::Arc::from(screen_rows.unwrap_or_default()),
-        estimate_rows: std::sync::Arc::from(estimate_rows.unwrap_or_default()),
+        screen_rows: screen_rows
+            .unwrap_or_default()
+            .into_iter()
+            .map(antecedent_data::GlobalId::new)
+            .collect::<Vec<_>>()
+            .into(),
+        estimate_rows: estimate_rows
+            .unwrap_or_default()
+            .into_iter()
+            .map(antecedent_data::GlobalId::new)
+            .collect::<Vec<_>>()
+            .into(),
     }))
 }
 
@@ -1540,8 +1550,8 @@ fn prepare_ate_batch(
     latency: Option<String>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
-    screen_rows: Option<Vec<u32>>,
-    estimate_rows: Option<Vec<u32>>,
+    screen_rows: Option<Vec<u64>>,
+    estimate_rows: Option<Vec<u64>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
 ) -> PyResult<PyPreparedBatch> {
@@ -1614,8 +1624,8 @@ fn prepare_cells_batch(
     latency: Option<String>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
-    screen_rows: Option<Vec<u32>>,
-    estimate_rows: Option<Vec<u32>>,
+    screen_rows: Option<Vec<u64>>,
+    estimate_rows: Option<Vec<u64>>,
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
     family_contrast: Option<&str>,

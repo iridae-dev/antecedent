@@ -751,10 +751,11 @@ impl PreparedStudy {
     /// Score-reuse payload for this handle's score table under `identities`.
     fn score_reuse_wire(&self, identities: &ContractIdentities) -> Option<ScoreReuseIdentityWire> {
         let table = self.score_table()?;
+        let row_ids: Vec<u64> = table.row_index.iter().map(|id| id.get()).collect();
         Some(ScoreReuseIdentityWire::score_table(&antecedent_io::ScoreTableKey {
             identification: identities.identification,
             data_snapshot: identities.data_snapshot,
-            row_index: &table.row_index,
+            row_index: &row_ids,
             fold_ids: &table.fold_ids,
             n_folds: table.n_folds,
             adjustment_set: &table.adjustment_set,
@@ -807,7 +808,7 @@ impl PreparedStudy {
             };
             let rows = antecedent_io::CheckedAipwRowsWire {
                 format: 1,
-                rows,
+                rows: rows.iter().map(|id| id.get()).collect(),
                 data_snapshot: *contract.identities.data_snapshot.as_bytes(),
             };
             contract.checked_aipw_rows =

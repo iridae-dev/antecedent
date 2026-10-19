@@ -967,9 +967,9 @@ fn fit_models(
     let source_outcome: Vec<f64> = source_rows.iter().map(|i| input.outcome[*i]).collect();
     let fits = ctx.map_indexed(fold_count, |fold, inner| -> Result<_, EstimationError> {
         cancelled(inner)?;
-        let train: Vec<u32> = (0..n)
+        let train: Vec<u64> = (0..n)
             .filter(|i| usize::from(folds[*i]) != fold)
-            .map(|i| u32::try_from(i).unwrap_or(u32::MAX))
+            .map(|i| u64::try_from(i).expect("row id"))
             .collect();
         let membership = membership_factory
             .fit(
@@ -983,9 +983,9 @@ fn fit_models(
             .map_err(crate::learn_nuisance::learn_err)?
             .portable()
             .map_err(|e| not_portable(&e))?;
-        let outcome_train: Vec<u32> = (0..source_rows.len())
+        let outcome_train: Vec<u64> = (0..source_rows.len())
             .filter(|r| usize::from(folds[source_rows[*r]]) != fold)
-            .map(|r| u32::try_from(r).unwrap_or(u32::MAX))
+            .map(|r| u64::try_from(r).expect("row id"))
             .collect();
         let outcome = outcome_factory
             .fit(

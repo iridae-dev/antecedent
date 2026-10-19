@@ -185,7 +185,9 @@ fn batch_retarget_max_t_and_batch_preflight_stop_typed_at_every_poll() {
     let rows = scores.common_rows().unwrap().unwrap();
     let weights = |sign: f64| -> Vec<f64> {
         let z = data.float64_values(VariableId::from_raw(Z)).unwrap();
-        rows.iter().map(|&r| (sign * 0.4 * z[r as usize]).exp()).collect()
+        rows.iter()
+            .map(|r| (sign * 0.4 * z[usize::try_from(r.get()).expect("row")]).exp())
+            .collect()
     };
     let claim = |name: &str, query_index: usize, sign: f64| RetargetClaim {
         name: name.into(),

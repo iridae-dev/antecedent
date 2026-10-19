@@ -610,11 +610,11 @@ pub(crate) fn interference_snapshot(
     spec: &super::builder::InterferenceSpec,
 ) -> InterferenceSnapshotWire {
     let units = spec.network.units();
-    let mut edges: Vec<(u32, u32, u64)> = spec
+    let mut edges: Vec<(u64, u64, u64)> = spec
         .network
         .edges()
         .iter()
-        .map(|edge| (edge.from, edge.to, edge.weight.to_bits()))
+        .map(|edge| (edge.from.get(), edge.to.get(), edge.weight.to_bits()))
         .collect();
     edges.sort_unstable();
     let assignment: Vec<u8> = spec.assignment.iter().map(|&treated| u8::from(treated)).collect();
@@ -631,11 +631,11 @@ pub(crate) fn interference_snapshot(
 }
 
 /// Digest of the sorted `(from, to, weight bits)` edge list of an interference network.
-fn edges_digest(edges: &[(u32, u32, u64)]) -> PayloadDigestWire {
+fn edges_digest(edges: &[(u64, u64, u64)]) -> PayloadDigestWire {
     let mut stream = CanonicalWriter::new("antecedent.interference.edges.v1");
     stream.word(edges.len() as u64);
     for &(from, to, weight_bits) in edges {
-        stream.word(u64::from(from)).word(u64::from(to)).word(weight_bits);
+        stream.word(from).word(to).word(weight_bits);
     }
     PayloadDigestWire { digest: stream.finish(), len: edges.len() as u64 }
 }

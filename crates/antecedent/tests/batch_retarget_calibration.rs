@@ -88,9 +88,11 @@ fn prepare(fx: &Fixture, ctx: &ExecutionContext) -> PreparedBatch {
 
 /// The four claims on the snapshot's rows: two unweighted and two reweighted by
 /// `exp(± 0.4 z)`. Constant effects make the truth the same under every weighting.
-fn request(fx: &Fixture, rows: &[u32]) -> BatchRetargetRequest {
+fn request(fx: &Fixture, rows: &[antecedent_data::GlobalId]) -> BatchRetargetRequest {
     let tilt = |sign: f64| -> Vec<f64> {
-        rows.iter().map(|&r| (sign * 0.4 * fx.z[r as usize]).exp()).collect()
+        rows.iter()
+            .map(|r| (sign * 0.4 * fx.z[usize::try_from(r.get()).expect("row")]).exp())
+            .collect()
     };
     let claim = |name: &str, query_index: usize, weights: Vec<f64>| RetargetClaim {
         name: name.into(),

@@ -81,6 +81,7 @@ pub use dataset::{TabularData, TimeSeriesData};
 pub use discrete::DiscreteColumn;
 pub use error::DataError;
 pub use event::EventData;
+pub use global_index::{ChunkIndex, GlobalId, GlobalIndexError};
 pub use lagged_frame::{LaggedFrame, LaggedFrameOptions};
 pub use missing::{
     DropReason, GroupAccounting, MissingCell, RowAccounting, UnitAccounting, complete_rows,

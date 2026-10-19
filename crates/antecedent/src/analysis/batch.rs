@@ -120,9 +120,9 @@ pub struct CandidateScreen {
     /// Procedure used to pick the winner after the screen.
     pub procedure: CandidateProcedure,
     /// Row indexes used to screen candidates.
-    pub screen_rows: std::sync::Arc<[u32]>,
+    pub screen_rows: std::sync::Arc<[antecedent_data::GlobalId]>,
     /// Row indexes used to estimate the surfaced family.
-    pub estimate_rows: std::sync::Arc<[u32]>,
+    pub estimate_rows: std::sync::Arc<[antecedent_data::GlobalId]>,
 }
 
 /// Provenance recorded on each batch result.
@@ -137,9 +137,9 @@ pub struct CandidateSelection {
     /// Family size.
     pub family_size: usize,
     /// Screen half.
-    pub screen_rows: std::sync::Arc<[u32]>,
+    pub screen_rows: std::sync::Arc<[antecedent_data::GlobalId]>,
     /// Estimate half.
-    pub estimate_rows: std::sync::Arc<[u32]>,
+    pub estimate_rows: std::sync::Arc<[antecedent_data::GlobalId]>,
     /// Whether the two halves are disjoint.
     pub disjoint: bool,
 }
@@ -154,7 +154,7 @@ pub struct SharedCovariateDesign {
     /// `1 + adjustment_set.len()`.
     pub design_ncols: usize,
     /// Original-row index of each design row.
-    pub row_index: Arc<[u32]>,
+    pub row_index: Arc<[antecedent_data::GlobalId]>,
 }
 
 /// Shared fold seed/count and optional shared covariate design for a batch.
@@ -255,13 +255,19 @@ impl SharedBatchDesign {
     /// # Errors
     ///
     /// A row index outside the prepared table.
-    pub fn folds_for(&self, row_index: &[u32]) -> Result<Vec<u32>, CausalError> {
+    pub fn folds_for(
+        &self,
+        row_index: &[antecedent_data::GlobalId],
+    ) -> Result<Vec<u32>, CausalError> {
         let mut out = Vec::with_capacity(row_index.len());
         for &row in row_index {
-            let id =
-                self.fold_ids.get(row as usize).copied().ok_or_else(|| CausalError::Compile {
-                    message: "shared fold assignment does not cover a complete-case row".into(),
-                })?;
+            let id = self
+                .fold_ids
+                .get(usize::try_from(row.get()).unwrap_or(usize::MAX))
+                .copied()
+                .ok_or_else(|| CausalError::Compile {
+                message: "shared fold assignment does not cover a complete-case row".into(),
+            })?;
             out.push(id);
         }
         Ok(out)
@@ -275,7 +281,7 @@ impl SharedBatchDesign {
     pub fn design_for(
         &self,
         adjustment: &[VariableId],
-        row_index: &[u32],
+        row_index: &[antecedent_data::GlobalId],
     ) -> Result<Option<Vec<f64>>, CausalError> {
         let Some(cov) = self.covariate.as_ref() else {
             return Ok(None);
@@ -285,7 +291,7 @@ impl SharedBatchDesign {
         }
         let mut slot = vec![u32::MAX; self.fold_ids.len()];
         for (i, &row) in cov.row_index.iter().enumerate() {
-            if let Some(entry) = slot.get_mut(row as usize) {
+            if let Some(entry) = slot.get_mut(usize::try_from(row.get()).unwrap_or(usize::MAX)) {
                 *entry = u32::try_from(i).unwrap_or(u32::MAX);
             }
         }
@@ -293,7 +299,10 @@ impl SharedBatchDesign {
         let ncols = cov.design_ncols;
         let mut out = vec![0.0; n * ncols];
         for (i, &row) in row_index.iter().enumerate() {
-            let src = slot.get(row as usize).copied().unwrap_or(u32::MAX);
+            let src = slot
+                .get(usize::try_from(row.get()).unwrap_or(usize::MAX))
+                .copied()
+                .unwrap_or(u32::MAX);
             if src == u32::MAX {
                 return Err(CausalError::Compile {
                     message: "shared covariate design is missing a complete-case row".into(),
@@ -367,7 +376,7 @@ fn compile_shared_covariates(
     let mut row_index = Vec::with_capacity(n);
     for (i, &keep) in mask.iter().enumerate() {
         if keep {
-            row_index.push(u32::try_from(i).unwrap_or(u32::MAX));
+            row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).expect("row id")));
         }
     }
     Ok(SharedCovariateDesign {
@@ -1467,7 +1476,8 @@ fn subset_estimate_rows(
     for rows in [&screen.screen_rows, &screen.estimate_rows] {
         let mut seen = std::collections::HashSet::new();
         for &r in rows.iter() {
-            if r as usize >= n || !seen.insert(r) {
+            let pos = usize::try_from(r.get()).unwrap_or(usize::MAX);
+            if pos >= n || !seen.insert(r) {
                 return Err(CausalError::Compile {
                     message: "candidate-selection row indexes must be unique and within the table"
                         .into(),
@@ -1477,7 +1487,7 @@ fn subset_estimate_rows(
     }
     let mut bytes = vec![0u8; n.div_ceil(8)];
     for &r in screen.estimate_rows.iter() {
-        let i = r as usize;
+        let i = usize::try_from(r.get()).unwrap_or(usize::MAX);
         if i >= n {
             return Err(CausalError::Compile {
                 message: "candidate-selection estimate_rows exceed the table".into(),
@@ -1533,9 +1543,9 @@ fn attach_batch_inference_unavailable(
     attach_candidate_selection(results, screen, &[], &[], None);
 }
 
-fn rows_disjoint(a: &[u32], b: &[u32]) -> bool {
-    let mut left: Vec<u32> = a.to_vec();
-    let mut right: Vec<u32> = b.to_vec();
+fn rows_disjoint(a: &[antecedent_data::GlobalId], b: &[antecedent_data::GlobalId]) -> bool {
+    let mut left = a.to_vec();
+    let mut right = b.to_vec();
     left.sort_unstable();
     right.sort_unstable();
     left.dedup();
@@ -1896,8 +1906,16 @@ mod selection_review_tests {
             let screen = CandidateScreen {
                 screen_id: "review".into(),
                 procedure: CandidateProcedure::MaxT,
-                screen_rows: screen_rows.into(),
-                estimate_rows: estimate_rows.into(),
+                screen_rows: screen_rows
+                    .into_iter()
+                    .map(|id| antecedent_data::GlobalId::new(u64::try_from(id).unwrap()))
+                    .collect::<Vec<_>>()
+                    .into(),
+                estimate_rows: estimate_rows
+                    .into_iter()
+                    .map(|id| antecedent_data::GlobalId::new(u64::try_from(id).unwrap()))
+                    .collect::<Vec<_>>()
+                    .into(),
             };
             assert!(subset_estimate_rows(&data, Some(&screen)).is_err());
         }

@@ -122,9 +122,12 @@ impl CandidateScreen {
         let mut screen_rows = Vec::new();
         let mut estimate_rows = Vec::new();
         for (row, unit) in row_unit.iter().enumerate() {
-            let index = u32::try_from(row).map_err(|_| {
-                crate::compile_reason!("invalid_argument", "row index exceeds the u32 row-id range")
-            })?;
+            let index = antecedent_data::GlobalId::new(u64::try_from(row).map_err(|_| {
+                crate::compile_reason!(
+                    "invalid_argument",
+                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt"
+                )
+            })?);
             if screen_units.contains(unit) {
                 screen_rows.push(index);
             } else {
@@ -190,7 +193,9 @@ mod tests {
 
     /// Entities of each half, by label.
     fn halves(labels: &[u32], screen: &CandidateScreen) -> (BTreeSet<u32>, BTreeSet<u32>) {
-        let pick = |rows: &[u32]| rows.iter().map(|&r| labels[r as usize]).collect();
+        let pick = |rows: &[antecedent_data::GlobalId]| {
+            rows.iter().map(|r| labels[usize::try_from(r.get()).expect("row")]).collect()
+        };
         (pick(&screen.screen_rows), pick(&screen.estimate_rows))
     }
 
@@ -239,22 +244,28 @@ mod tests {
         let (screen, receipt) = split(ScreenUnits::Dyad { first: &first, second: &second }, 3);
         assert_eq!(receipt.unit_kind, "dyad_component");
         assert_eq!(receipt.n_units, 14);
-        let endpoints = |rows: &[u32]| -> BTreeSet<u32> {
-            rows.iter().flat_map(|&r| [first[r as usize], second[r as usize]]).collect()
+        let endpoints = |rows: &[antecedent_data::GlobalId]| -> BTreeSet<u32> {
+            rows.iter()
+                .flat_map(|r| {
+                    let i = usize::try_from(r.get()).expect("row");
+                    [first[i], second[i]]
+                })
+                .collect()
         };
         assert!(
             endpoints(&screen.screen_rows).is_disjoint(&endpoints(&screen.estimate_rows)),
             "an endpoint appears on both sides of the split"
         );
         // The chain 0-1-2-3 stays whole: all four dyads of it share one half.
-        let side: BTreeMap<u32, bool> = screen
+        let side: BTreeMap<antecedent_data::GlobalId, bool> = screen
             .screen_rows
             .iter()
             .map(|&r| (r, true))
             .chain(screen.estimate_rows.iter().map(|&r| (r, false)))
             .collect();
-        assert!(side[&0] == side[&1] && side[&1] == side[&2]);
-        assert!(side[&3] == side[&4] && side[&4] == side[&5]);
+        let id = antecedent_data::GlobalId::new;
+        assert!(side[&id(0)] == side[&id(1)] && side[&id(1)] == side[&id(2)]);
+        assert!(side[&id(3)] == side[&id(4)] && side[&id(4)] == side[&id(5)]);
     }
 
     #[test]
@@ -267,10 +278,22 @@ mod tests {
         let second_r: Vec<u32> = order.iter().map(|&i| second[i]).collect();
         let (b, rb) = split(ScreenUnits::Dyad { first: &first_r, second: &second_r }, 5);
         assert_eq!(ra.unit_digest, rb.unit_digest);
-        let rows_a: BTreeSet<(u32, u32)> =
-            a.screen_rows.iter().map(|&r| (first[r as usize], second[r as usize])).collect();
-        let rows_b: BTreeSet<(u32, u32)> =
-            b.screen_rows.iter().map(|&r| (first_r[r as usize], second_r[r as usize])).collect();
+        let rows_a: BTreeSet<(u32, u32)> = a
+            .screen_rows
+            .iter()
+            .map(|r| {
+                let i = usize::try_from(r.get()).expect("row");
+                (first[i], second[i])
+            })
+            .collect();
+        let rows_b: BTreeSet<(u32, u32)> = b
+            .screen_rows
+            .iter()
+            .map(|r| {
+                let i = usize::try_from(r.get()).expect("row");
+                (first_r[i], second_r[i])
+            })
+            .collect();
         assert_eq!(rows_a, rows_b);
     }
 

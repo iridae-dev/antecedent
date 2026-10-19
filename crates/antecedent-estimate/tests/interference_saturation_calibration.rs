@@ -64,16 +64,16 @@ fn saturation_pointwise_intervals_cover_effects_across_neighbor_mappings() {
             (0..UNITS_PER_CLUSTER).flat_map(move |within| {
                 let first = cluster * UNITS_PER_CLUSTER;
                 [
-                    NetworkEdge {
-                        from: (first + (within + 1) % 3) as u32,
-                        to: (first + within) as u32,
-                        weight: 1.0,
-                    },
-                    NetworkEdge {
-                        from: (first + (within + 2) % 3) as u32,
-                        to: (first + within) as u32,
-                        weight: 2.0,
-                    },
+                    NetworkEdge::new(
+                        u64::try_from(first + (within + 1) % 3).expect("row id"),
+                        u64::try_from(first + within).expect("row id"),
+                        1.0,
+                    ),
+                    NetworkEdge::new(
+                        u64::try_from(first + (within + 2) % 3).expect("row id"),
+                        u64::try_from(first + within).expect("row id"),
+                        2.0,
+                    ),
                 ]
             })
         })
@@ -196,11 +196,11 @@ fn complete_cluster_randomization_pointwise_total_interval_covers_truth() {
         .flat_map(|cluster| {
             (0..UNITS_PER_CLUSTER).map(move |within| {
                 let first = cluster * UNITS_PER_CLUSTER;
-                NetworkEdge {
-                    from: (first + (within + 1) % UNITS_PER_CLUSTER) as u32,
-                    to: (first + within) as u32,
-                    weight: 1.0,
-                }
+                NetworkEdge::new(
+                    u64::try_from(first + (within + 1) % UNITS_PER_CLUSTER).expect("row id"),
+                    u64::try_from(first + within).expect("row id"),
+                    1.0,
+                )
             })
         })
         .collect::<Vec<_>>();
@@ -266,10 +266,12 @@ fn complete_cluster_total_interval_calibrates_at_support_boundary() {
         let edges = (0..cluster_count)
             .flat_map(|cluster| {
                 let first = (3 * cluster) as u32;
-                (0..3).map(move |within| NetworkEdge {
-                    from: first + ((within + 1) % 3) as u32,
-                    to: first + within as u32,
-                    weight: 1.0,
+                (0..3).map(move |within| {
+                    NetworkEdge::new(
+                        u64::from(first + ((within + 1) % 3)),
+                        u64::from(first + within),
+                        1.0,
+                    )
                 })
             })
             .collect::<Vec<_>>();

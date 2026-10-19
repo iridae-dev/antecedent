@@ -138,10 +138,13 @@ pub(crate) fn cross_fit_nuisance(
         require_weight_capable(factory.as_ref(), spec)?;
     }
     let view = design_for_spec(spec, design, nrows, ncols)?;
-    let rows: Vec<u32> = (0..nrows)
+    let rows: Vec<antecedent_data::GlobalId> = (0..nrows)
         .map(|i| {
-            u32::try_from(i)
-                .map_err(|_| EstimationError::data_msg("rows exceed u32 index capacity"))
+            u64::try_from(i).map(antecedent_data::GlobalId::new).map_err(|_| {
+                EstimationError::data_msg(
+                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                )
+            })
         })
         .collect::<Result<_, _>>()?;
     let plan = derive_fold_ids(
@@ -226,13 +229,13 @@ pub(crate) fn cross_fit_aipw_nuisances(
     for part in fold_parts {
         treat_prov.extend(part.provenance);
         for (i, pred) in part.valid.iter().copied().zip(part.mu0) {
-            mu0[i as usize] = pred;
+            mu0[usize::try_from(i).expect("row id")] = pred;
         }
         for (i, pred) in part.valid.iter().copied().zip(part.mu1) {
-            mu1[i as usize] = pred;
+            mu1[usize::try_from(i).expect("row id")] = pred;
         }
         for (i, pred) in part.valid.iter().copied().zip(part.ehat) {
-            ehat[i as usize] = pred;
+            ehat[usize::try_from(i).expect("row id")] = pred;
         }
     }
     let treat = CrossFittedPrediction {
@@ -259,7 +262,7 @@ struct AipwFoldModels<'a> {
 }
 
 struct AipwFold {
-    valid: Vec<u32>,
+    valid: Vec<u64>,
     mu0: Vec<f64>,
     mu1: Vec<f64>,
     ehat: Vec<f64>,
@@ -286,7 +289,7 @@ fn fit_aipw_fold(
     let mut train0 = Vec::new();
     let mut train1 = Vec::new();
     for &i in rows.train {
-        let idx = i as u32;
+        let idx = u64::try_from(i).expect("row id");
         train.push(idx);
         if t[i] > 0.5 {
             train1.push(idx);
@@ -294,7 +297,7 @@ fn fit_aipw_fold(
             train0.push(idx);
         }
     }
-    let valid: Vec<u32> = rows.valid.iter().map(|&i| i as u32).collect();
+    let valid: Vec<u64> = rows.valid.iter().map(|&i| u64::try_from(i).expect("row id")).collect();
     if train.is_empty() || valid.is_empty() || train0.is_empty() || train1.is_empty() {
         return Err(antecedent_learn::LearnError::Shape {
             message: "empty DML/AIPW train, valid, or treatment arm in a fold",
@@ -384,7 +387,7 @@ pub(crate) struct AipwCacheEntry {
     treatment: LearnerSpec,
     folds: usize,
     seed: u64,
-    row_index: std::sync::Arc<[u32]>,
+    row_index: std::sync::Arc<[antecedent_data::GlobalId]>,
     fold_assignment: Option<std::sync::Arc<[u32]>>,
     fold_units: Option<std::sync::Arc<[u32]>>,
     fold_unit_kind: crate::cluster_dml_aipw::IndependenceUnit,

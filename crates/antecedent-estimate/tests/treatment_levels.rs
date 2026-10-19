@@ -290,9 +290,10 @@ fn a_declared_exclusion_is_counted_and_names_its_population() {
     let problem = estimator.prepare(&data, &estimand, &query).unwrap();
     assert_eq!(problem.nrows as u64, count(0.0) + count(2.0));
     // The retained rows are exactly the rows at the two declared levels, recoded to 0/1.
-    let expected: Vec<u32> =
-        (0..t.len()).filter(|&i| t[i] != 1.0).map(|i| u32::try_from(i).unwrap()).collect();
-    assert_eq!(problem.row_index.as_ref(), expected.as_slice());
+    let expected: Vec<u64> =
+        (0..t.len()).filter(|&i| t[i] != 1.0).map(|i| u64::try_from(i).unwrap()).collect();
+    let got: Vec<u64> = problem.row_index.iter().map(|id| id.get()).collect();
+    assert_eq!(got, expected);
     assert!(problem.treatment.iter().all(|&v| v == 0.0 || v == 1.0));
 
     let effect = estimator

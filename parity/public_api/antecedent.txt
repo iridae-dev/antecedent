@@ -6253,16 +6253,16 @@ pub field antecedent::BridgeInspection::transported: bool
 pub field antecedent::BridgeInspection::unavailable: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::BridgeInspection::value: f64
 pub field antecedent::BridgeInspection::value_kind: antecedent_contract::bridge::kind::ValueKind
-pub field antecedent::CandidateScreen::estimate_rows: alloc::sync::Arc<[u32]>
+pub field antecedent::CandidateScreen::estimate_rows: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent::CandidateScreen::procedure: antecedent::CandidateProcedure
 pub field antecedent::CandidateScreen::screen_id: alloc::sync::Arc<str>
-pub field antecedent::CandidateScreen::screen_rows: alloc::sync::Arc<[u32]>
+pub field antecedent::CandidateScreen::screen_rows: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent::CandidateSelection::disjoint: bool
-pub field antecedent::CandidateSelection::estimate_rows: alloc::sync::Arc<[u32]>
+pub field antecedent::CandidateSelection::estimate_rows: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent::CandidateSelection::family_size: usize
 pub field antecedent::CandidateSelection::procedure: antecedent::CandidateProcedure
 pub field antecedent::CandidateSelection::screen_id: alloc::sync::Arc<str>
-pub field antecedent::CandidateSelection::screen_rows: alloc::sync::Arc<[u32]>
+pub field antecedent::CandidateSelection::screen_rows: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent::CandidateSelection::winner_index: core::option::Option<usize>
 pub field antecedent::CausalContract::accepted_variable_names: core::option::Option<alloc::sync::Arc<[alloc::sync::Arc<str>]>>
 pub field antecedent::CausalContract::accepted_version: u32
@@ -6861,7 +6861,7 @@ pub field antecedent::SharedBatchDesign::n_folds: u32
 pub field antecedent::SharedCovariateDesign::adjustment_set: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent::SharedCovariateDesign::design_matrix: alloc::sync::Arc<[f64]>
 pub field antecedent::SharedCovariateDesign::design_ncols: usize
-pub field antecedent::SharedCovariateDesign::row_index: alloc::sync::Arc<[u32]>
+pub field antecedent::SharedCovariateDesign::row_index: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent::SimultaneousBand::critical_value: f64
 pub field antecedent::SimultaneousBand::draws: u32
 pub field antecedent::SimultaneousBand::level: f64
@@ -7690,7 +7690,7 @@ pub field antecedent::analysis::observational_policy::ObservationalPolicyReportW
 pub field antecedent::analysis::observational_policy::ObservationalPolicyReportWire::policy_actions: alloc::vec::Vec<f64>
 pub field antecedent::analysis::observational_policy::ObservationalPolicyReportWire::propensity_source: alloc::string::String
 pub field antecedent::analysis::observational_policy::ObservationalPolicyReportWire::reference: core::option::Option<antecedent::analysis::observational_policy::ReferenceWire>
-pub field antecedent::analysis::observational_policy::ObservationalPolicyReportWire::row_index: alloc::vec::Vec<u32>
+pub field antecedent::analysis::observational_policy::ObservationalPolicyReportWire::row_index: alloc::vec::Vec<u64>
 pub field antecedent::analysis::observational_policy::ObservationalPolicyReportWire::rows_dropped_missing: u64
 pub field antecedent::analysis::observational_policy::ObservationalPolicyReportWire::scores: alloc::vec::Vec<f64>
 pub field antecedent::analysis::observational_policy::ObservationalPolicyReportWire::se: f64
@@ -7736,7 +7736,7 @@ pub field antecedent::analysis::observational_survival::ObservationalSurvivalRep
 pub field antecedent::analysis::observational_survival::ObservationalSurvivalReportWire::n_obs: u64
 pub field antecedent::analysis::observational_survival::ObservationalSurvivalReportWire::rmst_difference: antecedent::analysis::observational_survival::ContrastWire
 pub field antecedent::analysis::observational_survival::ObservationalSurvivalReportWire::rmst_difference_scores: alloc::vec::Vec<f64>
-pub field antecedent::analysis::observational_survival::ObservationalSurvivalReportWire::row_index: alloc::vec::Vec<u32>
+pub field antecedent::analysis::observational_survival::ObservationalSurvivalReportWire::row_index: alloc::vec::Vec<u64>
 pub field antecedent::analysis::observational_survival::ObservationalSurvivalReportWire::rows_dropped_missing: u64
 pub field antecedent::analysis::observational_survival::ObservationalSurvivalReportWire::survival_difference: antecedent::analysis::observational_survival::ContrastWire
 pub field antecedent::analysis::observational_survival::ObservationalSurvivalReportWire::survival_difference_scores: alloc::vec::Vec<f64>
@@ -7835,7 +7835,7 @@ pub field antecedent::analysis::recalc_cell::ScoreResumeRequest::edges: alloc::v
 pub field antecedent::analysis::recalc_cell::ScoreResumeRequest::n_variables: u32
 pub field antecedent::analysis::recalc_cell::ScoreResumeRequest::quantity: antecedent::analysis::recalc_cell::ScoreQuantity
 pub field antecedent::analysis::recalc_cell::ScoreResumeRequest::target: core::option::Option<antecedent::analysis::recalc_receipt::TargetWeights>
-pub field antecedent::analysis::recalc_cell::ScoreResumeRequest::target_row_ids: core::option::Option<alloc::vec::Vec<u32>>
+pub field antecedent::analysis::recalc_cell::ScoreResumeRequest::target_row_ids: core::option::Option<alloc::vec::Vec<u64>>
 pub field antecedent::analysis::recalc_cell::ScoreResumeRequest::utility: antecedent::analysis::recalc_receipt::UtilitySpec
 pub field antecedent::analysis::recalc_composite::CompositeOutcome::capabilities: antecedent_core::recalc::RecalcCapabilities
 pub field antecedent::analysis::recalc_composite::CompositeOutcome::decision: alloc::sync::Arc<antecedent_design::composition_boundary::SupportedDecision>
@@ -8257,7 +8257,7 @@ pub fn <antecedent::BatchRetargetReport>::fn point_only_members(&self) -> alloc:
 pub fn <antecedent::BatchRetargetReport>::fn simultaneous_interval(&self, level: f64, seed: u64, draws: u32, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::SimultaneousBand, antecedent::BatchRetargetError>
 pub fn <antecedent::BatchRetargetReport>::fn tidy_rows(&self) -> alloc::vec::Vec<antecedent::TidyRow>
 pub fn <antecedent::BatchScores>::const fn source(&self) -> antecedent::ScoreSource
-pub fn <antecedent::BatchScores>::fn common_rows(&self) -> core::result::Result<core::option::Option<alloc::sync::Arc<[u32]>>, antecedent::BatchRetargetError>
+pub fn <antecedent::BatchScores>::fn common_rows(&self) -> core::result::Result<core::option::Option<alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>>, antecedent::BatchRetargetError>
 pub fn <antecedent::BatchScores>::fn estimate_retarget_cost(&self, request: &antecedent::BatchRetargetRequest) -> antecedent::RetargetCostEstimate
 pub fn <antecedent::BatchScores>::fn snapshot_id(&self) -> core::result::Result<core::option::Option<alloc::string::String>, antecedent::BatchRetargetError>
 pub fn <antecedent::BatchScores>::fn table(&self, index: usize) -> core::option::Option<&antecedent_estimate::scores::ScoreTable>
@@ -8848,8 +8848,8 @@ pub fn <antecedent::ScientificBridgeResult>::fn require_value_kind(&self, reques
 pub fn <antecedent::ScoreSource>::const fn as_str(self) -> &'static str
 pub fn <antecedent::SharedBatchDesign>::fn apply_to_propensity(&self, problem: &mut antecedent_estimate::propensity::prepare::PreparedPropensityProblem) -> core::result::Result<bool, antecedent::CausalError>
 pub fn <antecedent::SharedBatchDesign>::fn compile(data: &antecedent_data::dataset::TabularData, adjustment_sets: &[alloc::sync::Arc<[antecedent_core::ids::VariableId]>], n_folds: u32, fold_seed: u64) -> core::result::Result<Self, antecedent::CausalError>
-pub fn <antecedent::SharedBatchDesign>::fn design_for(&self, adjustment: &[antecedent_core::ids::VariableId], row_index: &[u32]) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent::CausalError>
-pub fn <antecedent::SharedBatchDesign>::fn folds_for(&self, row_index: &[u32]) -> core::result::Result<alloc::vec::Vec<u32>, antecedent::CausalError>
+pub fn <antecedent::SharedBatchDesign>::fn design_for(&self, adjustment: &[antecedent_core::ids::VariableId], row_index: &[antecedent_data::global_index::GlobalId]) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent::CausalError>
+pub fn <antecedent::SharedBatchDesign>::fn folds_for(&self, row_index: &[antecedent_data::global_index::GlobalId]) -> core::result::Result<alloc::vec::Vec<u32>, antecedent::CausalError>
 pub fn <antecedent::SmoothedDoseResult>::const fn estimate(&self) -> &antecedent_estimate::smoothed_dose::SmoothedDoseEstimate
 pub fn <antecedent::SmoothedDoseResult>::const fn wire(&self) -> &antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire
 pub fn <antecedent::SmoothedDoseResult>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>

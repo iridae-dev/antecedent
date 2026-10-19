@@ -168,7 +168,7 @@ pub fn estimate_saturation_interference(
         let neighbors = data
             .incoming(unit)?
             .iter()
-            .map(|edge| (edge.from as usize, edge.weight))
+            .map(|edge| (usize::try_from(edge.from.get()).expect("row id"), edge.weight))
             .collect::<Vec<_>>();
         if neighbors.len() > 16 {
             return Err(EstimationError::unsupported(
@@ -510,8 +510,8 @@ mod tests {
             .flat_map(|cluster| {
                 let first = (2 * cluster) as u32;
                 [
-                    NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                    NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                    NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
+                    NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),
                 ]
             })
             .collect::<Vec<_>>();
@@ -590,8 +590,8 @@ mod tests {
                 .flat_map(|cluster| {
                     let first = (2 * cluster) as u32;
                     [
-                        NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                        NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                        NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
+                        NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),
                     ]
                 })
                 .collect::<Vec<_>>();
@@ -721,17 +721,20 @@ mod tests {
         let clusters = [0_u32, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3];
         let assignment =
             vec![false, false, false, true, false, false, true, true, false, true, true, true];
-        let edges =
-            (0..4)
-                .flat_map(|cluster| {
-                    let first = cluster * 3;
-                    (first..first + 3).flat_map(move |from| {
-                        (first..first + 3).filter(move |&to| to != from).map(move |to| {
-                            NetworkEdge { from: from as u32, to: to as u32, weight: 1.0 }
-                        })
+        let edges = (0..4)
+            .flat_map(|cluster| {
+                let first = cluster * 3;
+                (first..first + 3).flat_map(move |from| {
+                    (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                        NetworkEdge::new(
+                            u64::try_from(from).expect("row id"),
+                            u64::try_from(to).expect("row id"),
+                            1.0,
+                        )
                     })
                 })
-                .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let outcomes = (0..12)
             .map(|i| {
                 let first = i / 3 * 3;
@@ -787,7 +790,7 @@ mod tests {
     fn exact_saturation_refuses_cross_cluster_edge() {
         let (network, assignment, query) = fixture();
         let mut edges = network.edges().to_vec();
-        edges.push(NetworkEdge { from: 0, to: 3, weight: 1.0 });
+        edges.push(NetworkEdge::new(0, 3, 1.0));
         let crossed = NetworkData::try_new(network.units().clone(), edges).unwrap();
         assert!(estimate_saturation_interference(&query, &crossed, &assignment).is_err());
     }
@@ -816,17 +819,20 @@ mod tests {
         let expanded_assignment = assignment.iter().copied().cycle().take(120).collect::<Vec<_>>();
         let outcomes = vec![1.0; 120];
         let expanded_data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
-        let expanded_edges =
-            (0..40)
-                .flat_map(|cluster| {
-                    let first = cluster * 3;
-                    (first..first + 3).flat_map(move |from| {
-                        (first..first + 3).filter(move |&to| to != from).map(move |to| {
-                            NetworkEdge { from: from as u32, to: to as u32, weight: 1.0 }
-                        })
+        let expanded_edges = (0..40)
+            .flat_map(|cluster| {
+                let first = cluster * 3;
+                (first..first + 3).flat_map(move |from| {
+                    (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                        NetworkEdge::new(
+                            u64::try_from(from).expect("row id"),
+                            u64::try_from(to).expect("row id"),
+                            1.0,
+                        )
                     })
                 })
-                .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let expanded = NetworkData::try_new(expanded_data, expanded_edges).unwrap();
         // The observed assignment here is arbitrary; this assertion exercises
         // the exact marginal calculation beyond the old enumeration cap.
@@ -842,17 +848,20 @@ mod tests {
         let realized = [vec![0.2; 72], vec![0.8; 72]].concat();
         let mut assignment = vec![false; 144];
         assignment[72..75].fill(true);
-        let edges =
-            (0..48)
-                .flat_map(|cluster| {
-                    let first = cluster * 3;
-                    (first..first + 3).flat_map(move |from| {
-                        (first..first + 3).filter(move |&to| to != from).map(move |to| {
-                            NetworkEdge { from: from as u32, to: to as u32, weight: 1.0 }
-                        })
+        let edges = (0..48)
+            .flat_map(|cluster| {
+                let first = cluster * 3;
+                (first..first + 3).flat_map(move |from| {
+                    (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                        NetworkEdge::new(
+                            u64::try_from(from).expect("row id"),
+                            u64::try_from(to).expect("row id"),
+                            1.0,
+                        )
                     })
                 })
-                .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let outcomes = (0..144).map(|unit| 1.0 + f64::from(assignment[unit])).collect::<Vec<_>>();
         let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
         let network = NetworkData::try_new(data, edges).unwrap();

@@ -160,7 +160,6 @@ impl CheckedBayesianBasisCateExecution {
                 outcome: inner.outcome,
                 adjustment_set: &self.cache.estimand.adjustment_set,
             },
-            "basis CATE row ID exceeds capacity",
         )?;
         let model = BayesianBasisGComputation;
         let fit = model.fit(

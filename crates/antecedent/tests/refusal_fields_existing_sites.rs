@@ -336,7 +336,10 @@ fn failed_batch_members_carry_the_claim_as_subject_and_only_what_they_measured()
     let batch = retarget_batch();
     let scores = batch.prepared.prepared_scores();
     let rows = scores.common_rows().unwrap().unwrap();
-    let plus: Vec<f64> = rows.iter().map(|&r| (0.4 * batch.z[r as usize]).exp()).collect();
+    let plus: Vec<f64> = rows
+        .iter()
+        .map(|r| (0.4 * batch.z[usize::try_from(r.get()).expect("row")]).exp())
+        .collect();
     let mut spike = vec![0.0; rows.len()];
     spike[..3].fill(1.0);
     let request = BatchRetargetRequest {
@@ -392,7 +395,10 @@ fn a_malformed_family_declaration_names_its_subject() {
     let batch = retarget_batch();
     let scores = batch.prepared.prepared_scores();
     let rows = scores.common_rows().unwrap().unwrap();
-    let plus: Vec<f64> = rows.iter().map(|&r| (0.4 * batch.z[r as usize]).exp()).collect();
+    let plus: Vec<f64> = rows
+        .iter()
+        .map(|r| (0.4 * batch.z[usize::try_from(r.get()).expect("row")]).exp())
+        .collect();
     let ctx = ExecutionContext::for_tests(1);
     let refuse = |request: BatchRetargetRequest| {
         batch.prepared.retarget(&scores, &request, &ctx).unwrap_err()

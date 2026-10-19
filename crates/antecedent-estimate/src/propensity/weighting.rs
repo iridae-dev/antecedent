@@ -201,7 +201,7 @@ impl PropensityWeighting {
         let labels = crate::se::declared_row_labels(
             self.cluster_ids.as_deref(),
             self.source_cluster_ids.as_deref(),
-            problem.row_index.iter().map(|&row| row as usize),
+            problem.row_index.iter().map(|row| usize::try_from(row.get()).expect("row id")),
         )?;
         if let Some(labels) = &labels {
             crate::se::require_clusters(Some(labels.as_ref()), problem.nrows)?;

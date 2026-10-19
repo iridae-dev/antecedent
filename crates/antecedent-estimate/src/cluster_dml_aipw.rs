@@ -777,9 +777,9 @@ fn dyad_units(first: &[u32], second: &[u32]) -> Result<Vec<u32>, EstimationError
 pub(crate) fn declared_unit_labels(
     first: (Option<&[u32]>, Option<&[u32]>),
     second: (Option<&[u32]>, Option<&[u32]>),
-    row_index: &[u32],
+    row_index: &[antecedent_data::GlobalId],
 ) -> Result<UnitLabels, EstimationError> {
-    let rows = || row_index.iter().map(|&row| row as usize);
+    let rows = || row_index.iter().map(|row| usize::try_from(row.get()).expect("row id"));
     let labels = |(retained, source): (Option<&[u32]>, Option<&[u32]>)| {
         crate::se::declared_row_labels(retained, source, rows())
             .map(|labels| labels.map(std::borrow::Cow::into_owned))
@@ -819,7 +819,10 @@ impl DeclaredUnits {
     /// # Errors
     ///
     /// An analysed row without a declared source label.
-    pub fn labels(&self, row_index: &[u32]) -> Result<UnitLabels, EstimationError> {
+    pub fn labels(
+        &self,
+        row_index: &[antecedent_data::GlobalId],
+    ) -> Result<UnitLabels, EstimationError> {
         declared_unit_labels(
             (self.first.as_deref(), self.first_source.as_deref()),
             (self.second.as_deref(), self.second_source.as_deref()),

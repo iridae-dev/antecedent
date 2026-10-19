@@ -218,7 +218,7 @@ struct PreparedCells {
     cell: Vec<u32>,
     n_cells: usize,
     outcome: Vec<f64>,
-    row_index: Vec<u32>,
+    row_index: Vec<antecedent_data::GlobalId>,
     adjustment_set: Arc<[VariableId]>,
     treatments: Arc<[VariableId]>,
     fold_assignment: Option<Vec<u32>>,
@@ -315,9 +315,11 @@ fn prepare_cells(
     let mut row_index = Vec::with_capacity(n);
     for (i, &keep) in mask.iter().enumerate() {
         if keep {
-            row_index.push(u32::try_from(i).map_err(|_| {
-                EstimationError::data_msg("row index exceeds the u32 row-id capacity")
-            })?);
+            row_index.push(antecedent_data::GlobalId::new(u64::try_from(i).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })?));
         }
     }
     Ok(PreparedCells {
@@ -999,7 +1001,7 @@ mod tests {
             cell: vec![1, 0, 0, 0, 0, 1, 0, 0, 0, 0],
             n_cells: 2,
             outcome: vec![1.0; 10],
-            row_index: (0..10).collect(),
+            row_index: (0..10u64).map(antecedent_data::GlobalId::new).collect(),
             adjustment_set: Arc::from([]),
             treatments: Arc::from([VariableId::from_raw(0)]),
             fold_assignment: Some(vec![0, 1, 1, 1, 1, 0, 1, 1, 1, 1]),

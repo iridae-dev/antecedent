@@ -64,7 +64,7 @@ fn portable(session: &RecalcSession, r: &RecalcRequest, n: usize, law: LawValue)
         n_variables: 3,
         edges: r.edges.clone(),
         target: r.target.clone(),
-        target_row_ids: Some(row_ids),
+        target_row_ids: Some(row_ids.iter().map(|id| id.get()).collect()),
         utility: r.utility,
         quantity: ScoreQuantity::AverageEffect,
         changed_inputs: vec![],

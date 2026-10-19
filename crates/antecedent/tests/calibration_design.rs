@@ -215,8 +215,8 @@ fn ring_edges() -> Vec<NetworkEdge> {
     (0..n)
         .flat_map(|i| {
             [
-                NetworkEdge { from: (i + 1) % n, to: i, weight: 1.0 },
-                NetworkEdge { from: (i + n - 1) % n, to: i, weight: 1.0 },
+                NetworkEdge::new(u64::from((i + 1) % n), u64::from(i), 1.0),
+                NetworkEdge::new(u64::from((i + n - 1) % n), u64::from(i), 1.0),
             ]
         })
         .collect()

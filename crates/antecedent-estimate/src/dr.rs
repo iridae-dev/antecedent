@@ -408,19 +408,21 @@ impl DrLearner {
         // fitted on those rows too; trimmed extreme-weight rows would otherwise dominate the
         // final stage while being excluded from the estimand.
         let retained = trim_retained_rows(raw_e, trim_of(problem.overlap))?;
-        let retained_u32: Option<Vec<u32>> = retained
+        let retained_rows: Option<Vec<u64>> = retained
             .as_ref()
             .map(|rows| {
                 rows.iter()
                     .map(|&i| {
-                        u32::try_from(i).map_err(|_| {
-                            EstimationError::data_msg("row index exceeds the u32 row-id capacity")
+                        u64::try_from(i).map_err(|_| {
+                            EstimationError::data_msg(
+                                "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                            )
                         })
                     })
-                    .collect::<Result<Vec<u32>, _>>()
+                    .collect::<Result<Vec<_>, _>>()
             })
             .transpose()?;
-        let fit_view = match &retained_u32 {
+        let fit_view = match &retained_rows {
             Some(rows) => {
                 view.with_rows(antecedent_learn::RowSelection::new(rows)).map_err(learn_err)?
             }

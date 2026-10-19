@@ -53,7 +53,6 @@ impl Study {
                 outcome: query_est.outcome,
                 adjustment_set: &estimand_est.adjustment_set,
             },
-            "bayesian.basis.gcomp row index exceeds row id capacity",
         )?;
         let model = BayesianBasisGComputation;
         let fit = model.fit(
@@ -248,7 +247,7 @@ pub(super) struct BasisRows {
     outcome: Vec<f64>,
     covariates_colmajor: Vec<f64>,
     n_covariates: usize,
-    row_ids: Vec<u32>,
+    row_ids: Vec<u64>,
 }
 
 /// Prior scale, treatment contrast, and estimator id recorded on a basis posterior.
@@ -272,7 +271,6 @@ impl BasisRows {
     pub(super) fn complete(
         data_est: &TabularData,
         columns: BasisColumns<'_>,
-        row_id_capacity_message: &'static str,
     ) -> Result<Self, CausalError> {
         let BasisColumns { treatment, outcome, adjustment_set } = columns;
         let treatment = data_est.float64_values(treatment)?;
@@ -298,13 +296,8 @@ impl BasisRows {
         let outcome: Vec<f64> = rows.iter().map(|row| outcome[*row]).collect();
         let covariates_colmajor: Vec<f64> =
             covariates.iter().flat_map(|column| rows.iter().map(|row| column[*row])).collect();
-        let row_ids: Vec<u32> = rows
-            .iter()
-            .map(|row| {
-                u32::try_from(*row)
-                    .map_err(|_| CausalError::Compile { message: row_id_capacity_message.into() })
-            })
-            .collect::<Result<_, _>>()?;
+        let row_ids: Vec<u64> =
+            rows.iter().map(|row| u64::try_from(*row).expect("row id")).collect();
         Ok(Self {
             treatment,
             outcome,

@@ -197,7 +197,6 @@ impl CheckedBayesianBasisAteExecution {
                 outcome: query_est.outcome,
                 adjustment_set: &estimand_est.adjustment_set,
             },
-            "bayesian.basis.gcomp row index exceeds row id capacity",
         )?;
         let model = BayesianBasisGComputation;
         let fit = model.fit(

@@ -68,9 +68,9 @@ pub struct CandidateSelectionRecord {
     /// Family size.
     pub family_size: usize,
     /// Row indexes used to screen candidates.
-    pub screen_rows: Arc<[u32]>,
+    pub screen_rows: Arc<[antecedent_data::GlobalId]>,
     /// Row indexes used to estimate the surfaced family.
-    pub estimate_rows: Arc<[u32]>,
+    pub estimate_rows: Arc<[antecedent_data::GlobalId]>,
     /// Whether the two halves are disjoint.
     pub disjoint: bool,
 }

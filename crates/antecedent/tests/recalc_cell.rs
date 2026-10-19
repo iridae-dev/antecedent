@@ -464,7 +464,7 @@ fn cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fits()
         n_variables: 6,
         edges: base_edges(),
         target: changed.spec.target.clone(),
-        target_row_ids: Some(row_ids.clone()),
+        target_row_ids: Some(row_ids.iter().map(|id| id.get()).collect()),
         utility: utility(),
         quantity: ScoreQuantity::Interaction,
         changed_inputs: Vec::new(),
@@ -685,7 +685,7 @@ fn cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
     };
     let mut wrong_ids = ok.clone();
     wrong_ids.target = Some(weights.clone());
-    let mut ids = fresh.score_table().row_index.to_vec();
+    let mut ids: Vec<u64> = fresh.score_table().row_index.iter().map(|id| id.get()).collect();
     ids.swap(0, 1);
     wrong_ids.target_row_ids = Some(ids);
     let error = execute_resumed_retarget(&mut fresh, &wrong_ids).unwrap_err();
@@ -799,7 +799,7 @@ fn cell_crossfit_scores_resume_the_same_way() {
         n_variables: 3,
         edges,
         target: changed.target.clone(),
-        target_row_ids: Some(fresh.score_table().row_index.to_vec()),
+        target_row_ids: Some(fresh.score_table().row_index.iter().map(|id| id.get()).collect()),
         utility: utility(),
         quantity: ScoreQuantity::AverageEffect,
         changed_inputs: Vec::new(),

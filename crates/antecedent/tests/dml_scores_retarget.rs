@@ -73,8 +73,8 @@ fn claim(name: &str, query_index: usize, weights: Vec<f64>) -> RetargetClaim {
     }
 }
 
-fn tilt(fx: &Fixture, rows: &[u32], sign: f64) -> Vec<f64> {
-    rows.iter().map(|&r| (sign * 0.4 * fx.z[r as usize]).exp()).collect()
+fn tilt(fx: &Fixture, rows: &[antecedent_data::GlobalId], sign: f64) -> Vec<f64> {
+    rows.iter().map(|r| (sign * 0.4 * fx.z[usize::try_from(r.get()).expect("row")]).exp()).collect()
 }
 
 fn close(a: f64, b: f64, what: &str) {

@@ -129,7 +129,7 @@ pub struct ObservationalSurvivalReportWire {
     /// Rows dropped for a missing cell.
     pub rows_dropped_missing: u64,
     /// Original row index of each used row.
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<u64>,
     /// Per-row score of the survival difference.
     pub survival_difference_scores: Vec<f64>,
     /// Per-row score of the restricted mean survival time difference.
@@ -246,7 +246,7 @@ impl ObservationalSurvivalEffect {
             rmst_difference: contrast(estimate.rmst_difference),
             n_obs: estimate.n_obs,
             rows_dropped_missing: estimate.rows_dropped_missing,
-            row_index: estimate.row_index,
+            row_index: estimate.row_index.iter().map(|id| id.get()).collect(),
             survival_difference_scores: estimate.survival_difference_scores,
             rmst_difference_scores: estimate.rmst_difference_scores,
             calibration: OBSERVATIONAL_SURVIVAL_CALIBRATION.into(),

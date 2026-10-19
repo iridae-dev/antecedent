@@ -22,7 +22,7 @@ fn estimate_observational_network_exposure(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
-    edges: Vec<(u32, u32, f64)>,
+    edges: Vec<(u64, u64, f64)>,
     clusters: Vec<u32>,
     exposure: String,
     from_level: (f64, f64),
@@ -59,7 +59,7 @@ fn estimate_observational_network_exposure(
             data,
             edges
                 .into_iter()
-                .map(|(from, to, weight)| NetworkEdge { from, to, weight })
+                .map(|(from, to, weight)| NetworkEdge::new(from, to, weight))
                 .collect::<Vec<_>>(),
         )
         .map_err(crate::py_err)?;

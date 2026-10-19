@@ -64,7 +64,7 @@ pub fn assign_folds(
     if folds < 2 {
         return Err(LearnError::Shape { message: "cross-fitting requires at least two folds" });
     }
-    if folds > usize::from(u16::MAX) + 1 || n_rows > u32::MAX as usize {
+    if folds > usize::from(u16::MAX) + 1 || u64::try_from(n_rows).is_err() {
         return Err(LearnError::Shape {
             message: "cross-fitting exceeds row or fold index capacity",
         });
@@ -113,7 +113,7 @@ fn scatter_fold_predictions(
     for part in parts {
         model_provenance.push(part.provenance);
         for (row, value) in part.valid_phys.into_iter().zip(part.preds) {
-            predictions[row as usize] = value;
+            predictions[usize::try_from(row).expect("row id")] = value;
         }
     }
     (predictions, model_provenance)
@@ -201,7 +201,7 @@ pub fn cross_fit_with_folds_weighted(
     if weights.is_some_and(|w| w.len() != n) {
         return Err(LearnError::Shape { message: "weights length != physical rows" });
     }
-    if fold_assignment.len() != n || n == 0 || n > u32::MAX as usize {
+    if fold_assignment.len() != n || n == 0 || u64::try_from(n).is_err() {
         return Err(LearnError::Shape { message: "fold plan length != physical rows" });
     }
     let folds =
@@ -216,7 +216,7 @@ pub fn cross_fit_with_folds_weighted(
 }
 
 struct FoldFit {
-    valid_phys: Vec<u32>,
+    valid_phys: Vec<u64>,
     preds: Vec<f64>,
     provenance: LearnerProvenance,
 }
@@ -237,7 +237,7 @@ fn fit_one_fold(
     let mut train = Vec::new();
     let mut valid = Vec::new();
     for (i, &f) in folds.iter().enumerate() {
-        let idx = i as u32;
+        let idx = u64::try_from(i).expect("row id");
         if f == fold {
             valid.push(idx);
         } else {
@@ -271,10 +271,10 @@ fn fit_one_fold(
     Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
 }
 
-fn gather_logical_target(y: TargetView<'_>, rows: &[u32]) -> Result<Vec<f64>, LearnError> {
+fn gather_logical_target(y: TargetView<'_>, rows: &[u64]) -> Result<Vec<f64>, LearnError> {
     let mut out = Vec::with_capacity(rows.len());
     for &i in rows {
-        let idx = i as usize;
+        let idx = usize::try_from(i).expect("row id");
         if idx >= y.len() {
             return Err(LearnError::Shape { message: "fold index out of target" });
         }
@@ -349,7 +349,7 @@ pub fn cross_fit_selected(
     let n = x.physical_nrows();
     if x.row_selection().is_some()
         || n == 0
-        || n > u32::MAX as usize
+        || u64::try_from(n).is_err()
         || y.len() != n
         || fold_assignment.len() != n
         || eligible.len() != n
@@ -358,12 +358,14 @@ pub fn cross_fit_selected(
     }
     let folds = complete_fold_count(fold_assignment, "invalid selected cross-fit folds")?;
     let parts = ctx.map_indexed(folds, |fold, inner| {
-        let train: Vec<u32> = (0..n)
+        let train: Vec<u64> = (0..n)
             .filter(|i| eligible[*i] && usize::from(fold_assignment[*i]) != fold)
-            .map(|i| i as u32)
+            .map(|i| u64::try_from(i).expect("row id"))
             .collect();
-        let valid: Vec<u32> =
-            (0..n).filter(|i| usize::from(fold_assignment[*i]) == fold).map(|i| i as u32).collect();
+        let valid: Vec<u64> = (0..n)
+            .filter(|i| usize::from(fold_assignment[*i]) == fold)
+            .map(|i| u64::try_from(i).expect("row id"))
+            .collect();
         if train.is_empty() {
             return Err(LearnError::Shape { message: "empty training role in cross-fit fold" });
         }

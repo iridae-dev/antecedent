@@ -6870,11 +6870,11 @@ pub field antecedent_estimate::BootstrapSeResult::replicates_failed: u32
 pub field antecedent_estimate::BootstrapSeResult::replicates_ok: u32
 pub field antecedent_estimate::BootstrapSeResult::se: core::option::Option<f64>
 pub field antecedent_estimate::CandidateSelectionRecord::disjoint: bool
-pub field antecedent_estimate::CandidateSelectionRecord::estimate_rows: alloc::sync::Arc<[u32]>
+pub field antecedent_estimate::CandidateSelectionRecord::estimate_rows: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent_estimate::CandidateSelectionRecord::family_size: usize
 pub field antecedent_estimate::CandidateSelectionRecord::procedure: alloc::sync::Arc<str>
 pub field antecedent_estimate::CandidateSelectionRecord::screen_id: alloc::sync::Arc<str>
-pub field antecedent_estimate::CandidateSelectionRecord::screen_rows: alloc::sync::Arc<[u32]>
+pub field antecedent_estimate::CandidateSelectionRecord::screen_rows: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent_estimate::CandidateSelectionRecord::winner_index: core::option::Option<usize>
 pub field antecedent_estimate::CateProfile::values: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::CausalForest::honesty: bool
@@ -6928,7 +6928,7 @@ pub field antecedent_estimate::CheckedAipwLowering::overlap: antecedent_estimate
 pub field antecedent_estimate::CheckedAipwLowering::population: antecedent_core::query::target::TargetPopulation
 pub field antecedent_estimate::CheckedAipwLowering::procedure: antecedent_estimate::CheckedAipwProcedure
 pub field antecedent_estimate::CheckedAipwLowering::propensity: antecedent_estimate::PropensityNuisance
-pub field antecedent_estimate::CheckedAipwLowering::rows: alloc::sync::Arc<[u32]>
+pub field antecedent_estimate::CheckedAipwLowering::rows: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent_estimate::CheckedAipwLowering::se_kind: antecedent_estimate::AnalyticSeKind
 pub field antecedent_estimate::CheckedAipwLowering::treatment: antecedent_core::ids::VariableId
 pub field antecedent_estimate::CheckedFrontDoorLowering::active: f64
@@ -6983,7 +6983,7 @@ pub field antecedent_estimate::ClusterTotalInterval::standard_error: f64
 pub field antecedent_estimate::ClusterTotalInterval::treated_clusters: usize
 pub field antecedent_estimate::ConditionalArmScores::influence: [alloc::vec::Vec<f64>; 2]
 pub field antecedent_estimate::ConditionalArmScores::means: [f64; 2]
-pub field antecedent_estimate::ConditionalArmScores::row_index: alloc::vec::Vec<u32>
+pub field antecedent_estimate::ConditionalArmScores::row_index: alloc::vec::Vec<antecedent_data::global_index::GlobalId>
 pub field antecedent_estimate::ConditionalArmScores::treatment: alloc::vec::Vec<f64>
 pub field antecedent_estimate::ConditionalLinearAdjustment::backend: antecedent_stats::faer_backend::FaerBackend
 pub field antecedent_estimate::ConditionalLinearAdjustment::fold_seed: u64
@@ -7503,7 +7503,7 @@ pub field antecedent_estimate::PreparedPropensityProblem::nrows: usize
 pub field antecedent_estimate::PreparedPropensityProblem::outcome: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::PreparedPropensityProblem::overlap: antecedent_estimate::OverlapPolicy
 pub field antecedent_estimate::PreparedPropensityProblem::propensity: antecedent_estimate::PropensityNuisance
-pub field antecedent_estimate::PreparedPropensityProblem::row_index: alloc::sync::Arc<[u32]>
+pub field antecedent_estimate::PreparedPropensityProblem::row_index: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent_estimate::PreparedPropensityProblem::sampling_weights: core::option::Option<antecedent_estimate::RetainedSamplingWeights>
 pub field antecedent_estimate::PreparedPropensityProblem::shared_design: bool
 pub field antecedent_estimate::PreparedPropensityProblem::target_population: antecedent_core::query::target::TargetPopulation
@@ -7607,7 +7607,7 @@ pub field antecedent_estimate::ResponseGridInputs::observed_regression: &'a [f64
 pub field antecedent_estimate::ResponseGridInputs::response_weight: &'a [f64]
 pub field antecedent_estimate::ResponseGridInputs::target_regression: &'a [f64]
 pub field antecedent_estimate::ResponseInfluence::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
-pub field antecedent_estimate::ResponseInfluence::row_index: alloc::sync::Arc<[u32]>
+pub field antecedent_estimate::ResponseInfluence::row_index: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent_estimate::RetainedSamplingWeights::record: antecedent_estimate::SamplingWeightRecord
 pub field antecedent_estimate::RetainedSamplingWeights::weights: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::RetargetResult::cluster_reference_df: core::option::Option<usize>
@@ -7709,7 +7709,7 @@ pub field antecedent_estimate::ScoreTable::observed_arm: alloc::sync::Arc<[u32]>
 pub field antecedent_estimate::ScoreTable::observed_outcome: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::ScoreTable::propensities: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::ScoreTable::propensity_clip: core::option::Option<f64>
-pub field antecedent_estimate::ScoreTable::row_index: alloc::sync::Arc<[u32]>
+pub field antecedent_estimate::ScoreTable::row_index: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent_estimate::ScoreTable::scores: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::ScoreTable::treatment: antecedent_core::ids::VariableId
 pub field antecedent_estimate::SequenceColumnReplacement::lag: u32
@@ -8826,7 +8826,7 @@ pub field antecedent_estimate::observational_policy::PolicyValueEstimate::learni
 pub field antecedent_estimate::observational_policy::PolicyValueEstimate::objective: antecedent_estimate::observational_policy::PolicyObjective
 pub field antecedent_estimate::observational_policy::PolicyValueEstimate::policy_actions: alloc::vec::Vec<f64>
 pub field antecedent_estimate::observational_policy::PolicyValueEstimate::reference: core::option::Option<antecedent_estimate::observational_policy::ReferenceComparison>
-pub field antecedent_estimate::observational_policy::PolicyValueEstimate::row_index: alloc::vec::Vec<u32>
+pub field antecedent_estimate::observational_policy::PolicyValueEstimate::row_index: alloc::vec::Vec<antecedent_data::global_index::GlobalId>
 pub field antecedent_estimate::observational_policy::PolicyValueEstimate::rows_dropped_missing: u64
 pub field antecedent_estimate::observational_policy::PolicyValueEstimate::scores: alloc::vec::Vec<f64>
 pub field antecedent_estimate::observational_policy::PolicyValueEstimate::se: f64
@@ -8858,7 +8858,7 @@ pub field antecedent_estimate::observational_survival::ObservationalSurvivalEsti
 pub field antecedent_estimate::observational_survival::ObservationalSurvivalEstimate::n_obs: u64
 pub field antecedent_estimate::observational_survival::ObservationalSurvivalEstimate::rmst_difference: antecedent_estimate::observational_survival::SurvivalContrast
 pub field antecedent_estimate::observational_survival::ObservationalSurvivalEstimate::rmst_difference_scores: alloc::vec::Vec<f64>
-pub field antecedent_estimate::observational_survival::ObservationalSurvivalEstimate::row_index: alloc::vec::Vec<u32>
+pub field antecedent_estimate::observational_survival::ObservationalSurvivalEstimate::row_index: alloc::vec::Vec<antecedent_data::global_index::GlobalId>
 pub field antecedent_estimate::observational_survival::ObservationalSurvivalEstimate::rows_dropped_missing: u64
 pub field antecedent_estimate::observational_survival::ObservationalSurvivalEstimate::survival_difference: antecedent_estimate::observational_survival::SurvivalContrast
 pub field antecedent_estimate::observational_survival::ObservationalSurvivalEstimate::survival_difference_scores: alloc::vec::Vec<f64>
@@ -9372,7 +9372,7 @@ pub fn <antecedent_estimate::AipwAte>::fn population_linear_interval(&self, prob
 pub fn <antecedent_estimate::AipwAte>::fn prepare(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_estimate::PreparedPropensityProblem, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn prepare_checked(&self, data: &antecedent_data::dataset::TabularData, identification: &antecedent_identify::result::IdentificationResult, estimand_index: usize) -> core::result::Result<antecedent_estimate::CheckedAipwPreparation, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn rebind_checked(&self, checked: &antecedent_estimate::CheckedAipwPreparation, data: &antecedent_data::dataset::TabularData) -> core::result::Result<antecedent_estimate::CheckedAipwPreparation, antecedent_estimate::EstimationError>
-pub fn <antecedent_estimate::AipwAte>::fn unit_labels(&self, row_index: &[u32]) -> core::result::Result<antecedent_estimate::cluster_dml_aipw::UnitLabels, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::AipwAte>::fn unit_labels(&self, row_index: &[antecedent_data::global_index::GlobalId]) -> core::result::Result<antecedent_estimate::cluster_dml_aipw::UnitLabels, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn with_cluster_ids(self, cluster_ids: alloc::vec::Vec<u32>) -> Self
 pub fn <antecedent_estimate::AipwAte>::fn with_multiway_ids(self, multiway_ids: alloc::vec::Vec<alloc::vec::Vec<u32>>) -> Self
 pub fn <antecedent_estimate::AipwAte>::fn with_panel_times(self, panel_times: alloc::vec::Vec<i64>) -> Self
@@ -9516,7 +9516,7 @@ pub fn <antecedent_estimate::DeclaredTreatmentLevels>::const fn restricted_popul
 pub fn <antecedent_estimate::DeclaredTreatmentLevels>::const fn rows_used(&self) -> u64
 pub fn <antecedent_estimate::DeclaredUnits>::fn check_source_rows(&self, source_rows: usize) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::DeclaredUnits>::fn has_second(&self) -> bool
-pub fn <antecedent_estimate::DeclaredUnits>::fn labels(&self, row_index: &[u32]) -> core::result::Result<antecedent_estimate::cluster_dml_aipw::UnitLabels, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::DeclaredUnits>::fn labels(&self, row_index: &[antecedent_data::global_index::GlobalId]) -> core::result::Result<antecedent_estimate::cluster_dml_aipw::UnitLabels, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::DistanceMatching>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
 pub fn <antecedent_estimate::DistanceMatching>::const fn with_caliper(self, caliper: f64) -> Self
 pub fn <antecedent_estimate::DistanceMatching>::const fn with_glm_options(self, glm_options: antecedent_stats::glm::GlmOptions) -> Self
@@ -10227,7 +10227,7 @@ pub fn antecedent_estimate::effect_constancy::holm_adjust(p_values: &[f64]) -> a
 pub fn antecedent_estimate::effect_constancy::test_effect_constancy(partitions: &[antecedent_estimate::effect_constancy::PartitionEstimate], dependence: &antecedent_estimate::effect_constancy::PartitionDependence, family: &antecedent_estimate::effect_constancy::ContrastFamily, alpha: f64) -> core::result::Result<antecedent_estimate::effect_constancy::EffectConstancyResult, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::effective_rows(scores: &[f64]) -> f64
 pub fn antecedent_estimate::empirical_table::assemble_grid_point_laws(input: &antecedent_estimate::StatisticalTransportInput, functional: &antecedent_identify::sid::BoundTransportFunctional, options: &antecedent_estimate::EmpiricalTableOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_expr::exact::ExactTransportData, antecedent_estimate::EstimationError>
-pub fn antecedent_estimate::empirical_table::fit_empirical_joint(sample: &antecedent_estimate::RegimeSample, axes: &[antecedent_expr::exact::DiscreteAxis], options: &antecedent_estimate::EmpiricalTableOptions, rows: core::option::Option<&[u32]>) -> core::result::Result<antecedent_expr::exact::ExactDiscreteLaw, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::empirical_table::fit_empirical_joint(sample: &antecedent_estimate::RegimeSample, axes: &[antecedent_expr::exact::DiscreteAxis], options: &antecedent_estimate::EmpiricalTableOptions, rows: core::option::Option<&[antecedent_data::global_index::GlobalId]>) -> core::result::Result<antecedent_expr::exact::ExactDiscreteLaw, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::empirical_table::licensed_iid_dependence(catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, samples: &[antecedent_estimate::RegimeSample]) -> bool
 pub fn antecedent_estimate::empirical_table::licensed_iid_regimes(catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, regimes: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::RegimeId>) -> bool
 pub fn antecedent_estimate::empirical_table::sample_key(sample: &antecedent_estimate::RegimeSample) -> (alloc::sync::Arc<str>, alloc::sync::Arc<str>, antecedent_core::ids::RegimeId, alloc::vec::Vec<(u32, u64)>)

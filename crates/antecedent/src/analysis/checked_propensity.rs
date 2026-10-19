@@ -59,7 +59,7 @@ pub(crate) struct CheckedPropensityLowering {
     pub(crate) procedure: CheckedPropensityProcedure,
     pub(crate) uncertainty: CheckedPropensityUncertainty,
     pub(crate) overlap: antecedent_estimate::OverlapPolicy,
-    pub(crate) source_rows: Arc<[u32]>,
+    pub(crate) source_rows: Arc<[antecedent_data::GlobalId]>,
 }
 
 /// Frozen semantic and analysis context used to construct a checked propensity operation.
@@ -441,7 +441,7 @@ pub struct CheckedPropensityInfo {
     /// Population targeted by the bound design.
     pub population: antecedent_core::TargetPopulation,
     /// Source rows retained by the propensity preparation.
-    pub source_rows: std::sync::Arc<[u32]>,
+    pub source_rows: std::sync::Arc<[antecedent_data::GlobalId]>,
     /// Named uncertainty procedure.
     pub uncertainty: std::sync::Arc<str>,
     /// Bootstrap count only when the weighting procedure can use it.

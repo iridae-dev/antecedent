@@ -250,7 +250,7 @@ pub struct ResponseInfluence {
     /// Influence of each retained row on each reported coordinate.
     pub columns: Vec<Vec<f64>>,
     /// Original data-frame row index of each complete-case row.
-    pub row_index: Arc<[u32]>,
+    pub row_index: Arc<[antecedent_data::GlobalId]>,
 }
 
 /// Continuous-response estimator with a caller-supplied valid adjustment set.

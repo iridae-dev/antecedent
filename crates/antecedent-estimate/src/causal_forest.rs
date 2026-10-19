@@ -447,7 +447,7 @@ struct ForestData<'a> {
     y: &'a [f64],
     t: &'a [f64],
     /// The rows of each declared cluster, when rows are not the independence unit.
-    clusters: Option<&'a [Vec<u32>]>,
+    clusters: Option<&'a [Vec<antecedent_data::GlobalId>]>,
 }
 
 /// Stopping rules shared by every tree of the forest.
@@ -489,11 +489,11 @@ fn grow_tree(data: &ForestData<'_>, shape: TreeShape, honesty: bool, rng: &mut C
     reason = "frac is in (0, 1], so the rounded count is a non-negative integer no larger than the cluster count; a u64 draw reduced modulo rest is below rest"
 )]
 fn cluster_subsample(
-    members: &[Vec<u32>],
+    members: &[Vec<antecedent_data::GlobalId>],
     frac: f64,
     honesty: bool,
     rng: &mut CausalRng,
-) -> (Vec<u32>, Vec<u32>) {
+) -> (Vec<antecedent_data::GlobalId>, Vec<antecedent_data::GlobalId>) {
     let groups = members.len();
     let mut order: Vec<usize> = (0..groups).collect();
     let want = ((groups as f64) * frac).round() as usize;
@@ -505,7 +505,7 @@ fn cluster_subsample(
         order.swap(i, j);
     }
     order.truncate(k);
-    let rows_of = |clusters: &[usize]| -> Vec<u32> {
+    let rows_of = |clusters: &[usize]| -> Vec<antecedent_data::GlobalId> {
         clusters.iter().flat_map(|&g| members[g].iter().copied()).collect()
     };
     if honesty {
@@ -520,10 +520,16 @@ fn cluster_subsample(
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    reason = "fit refuses n > u32::MAX, so the u32 row ids are exact; frac is in (0, 1], so the               rounded count is a non-negative integer no larger than n; a u64 draw reduced               modulo rest is below rest"
+    reason = "frac is in (0, 1], so the rounded count is a non-negative integer no larger than n; a u64 draw reduced modulo rest is below rest"
 )]
-fn subsample(n: usize, frac: f64, min_leaf: usize, rng: &mut CausalRng) -> Vec<u32> {
-    let mut idx: Vec<u32> = (0..n as u32).collect();
+fn subsample(
+    n: usize,
+    frac: f64,
+    min_leaf: usize,
+    rng: &mut CausalRng,
+) -> Vec<antecedent_data::GlobalId> {
+    let mut idx: Vec<antecedent_data::GlobalId> =
+        (0..n).map(|i| antecedent_data::GlobalId::new(u64::try_from(i).expect("row id"))).collect();
     let want = ((n as f64) * frac).round() as usize;
     let k = want.clamp(min_leaf.saturating_mul(2).min(n), n);
     for i in 0..k {
@@ -536,7 +542,7 @@ fn subsample(n: usize, frac: f64, min_leaf: usize, rng: &mut CausalRng) -> Vec<u
 }
 
 fn grow_from(
-    rows: &[u32],
+    rows: &[antecedent_data::GlobalId],
     depth: usize,
     data: &ForestData<'_>,
     shape: TreeShape,
@@ -560,25 +566,30 @@ fn grow_from(
 }
 
 fn best_split(
-    rows: &[u32],
+    rows: &[antecedent_data::GlobalId],
     data: &ForestData<'_>,
     min_leaf: usize,
     rng: &mut CausalRng,
-) -> Option<(usize, f64, Vec<u32>, Vec<u32>)> {
+) -> Option<(usize, f64, Vec<antecedent_data::GlobalId>, Vec<antecedent_data::GlobalId>)> {
     let ForestData { x, n, p, y, t, .. } = *data;
     let feats = choose_features(p, rng);
     let mut best_score = f64::NEG_INFINITY;
     let mut best: Option<(usize, f64)> = None;
     for &feat in &feats {
         let mut order = rows.to_vec();
-        order.sort_by(|&a, &b| x[feat * n + a as usize].total_cmp(&x[feat * n + b as usize]));
+        order.sort_by(|&a, &b| {
+            x[feat * n + usize::try_from(a.get()).expect("row id")]
+                .total_cmp(&x[feat * n + usize::try_from(b.get()).expect("row id")])
+        });
         let cuts = candidate_thresholds(&order, x, n, feat);
         let total = arm_sums(y, t, &order);
         let mut left_sums = [0.0; 4];
         let mut split = 0;
         for thr in cuts {
-            while split < order.len() && x[feat * n + order[split] as usize] <= thr {
-                let i = order[split] as usize;
+            while split < order.len()
+                && x[feat * n + usize::try_from(order[split].get()).expect("row id")] <= thr
+            {
+                let i = usize::try_from(order[split].get()).expect("row id");
                 let arm = if t[i] > 0.5 { 0 } else { 2 };
                 left_sums[arm] += y[i];
                 left_sums[arm + 1] += 1.0;
@@ -627,11 +638,17 @@ fn choose_features(p: usize, rng: &mut CausalRng) -> Vec<usize> {
     feats
 }
 
-fn candidate_thresholds(order: &[u32], x: &[f64], n: usize, feat: usize) -> Vec<f64> {
+fn candidate_thresholds(
+    order: &[antecedent_data::GlobalId],
+    x: &[f64],
+    n: usize,
+    feat: usize,
+) -> Vec<f64> {
     if order.len() < 2 {
         return Vec::new();
     }
-    let mut vals: Vec<f64> = order.iter().map(|&i| x[feat * n + i as usize]).collect();
+    let mut vals: Vec<f64> =
+        order.iter().map(|&i| x[feat * n + usize::try_from(i.get()).expect("row id")]).collect();
     vals.dedup_by(|a, b| (*a - *b).abs() <= 1e-12);
     if vals.len() < 2 {
         return Vec::new();
@@ -647,11 +664,17 @@ fn candidate_thresholds(order: &[u32], x: &[f64], n: usize, feat: usize) -> Vec<
     cuts
 }
 
-fn partition(rows: &[u32], x: &[f64], n: usize, feat: usize, thr: f64) -> (Vec<u32>, Vec<u32>) {
+fn partition(
+    rows: &[antecedent_data::GlobalId],
+    x: &[f64],
+    n: usize,
+    feat: usize,
+    thr: f64,
+) -> (Vec<antecedent_data::GlobalId>, Vec<antecedent_data::GlobalId>) {
     let mut left = Vec::new();
     let mut right = Vec::new();
     for &i in rows {
-        if x[feat * n + i as usize] <= thr {
+        if x[feat * n + usize::try_from(i.get()).expect("row id")] <= thr {
             left.push(i);
         } else {
             right.push(i);
@@ -662,7 +685,7 @@ fn partition(rows: &[u32], x: &[f64], n: usize, feat: usize, thr: f64) -> (Vec<u
 
 fn fill_cate(
     node: &mut Node,
-    rows: &[u32],
+    rows: &[antecedent_data::GlobalId],
     data: &ForestData<'_>,
     parent: Option<(f64, Option<f64>)>,
 ) {
@@ -685,10 +708,10 @@ fn fill_cate(
     }
 }
 
-fn arm_sums(y: &[f64], t: &[f64], rows: &[u32]) -> [f64; 4] {
+fn arm_sums(y: &[f64], t: &[f64], rows: &[antecedent_data::GlobalId]) -> [f64; 4] {
     let mut sums = [0.0; 4];
     for &i in rows {
-        let i = i as usize;
+        let i = usize::try_from(i.get()).expect("row id");
         let arm = if t[i] > 0.5 { 0 } else { 2 };
         sums[arm] += y[i];
         sums[arm + 1] += 1.0;
@@ -700,15 +723,19 @@ fn tau_from_sums([s1, n1, s0, n0]: [f64; 4]) -> Option<f64> {
     if n1 < 1.0 || n0 < 1.0 { None } else { Some(s1 / n1 - s0 / n0) }
 }
 
-fn leaf_tau(y: &[f64], t: &[f64], rows: &[u32]) -> Option<f64> {
+fn leaf_tau(y: &[f64], t: &[f64], rows: &[antecedent_data::GlobalId]) -> Option<f64> {
     leaf_stat(y, t, rows).map(|s| s.0)
 }
 
-fn leaf_se(y: &[f64], t: &[f64], rows: &[u32]) -> Option<f64> {
+fn leaf_se(y: &[f64], t: &[f64], rows: &[antecedent_data::GlobalId]) -> Option<f64> {
     leaf_stat(y, t, rows).and_then(|s| s.1)
 }
 
-fn leaf_stat(y: &[f64], t: &[f64], rows: &[u32]) -> Option<(f64, Option<f64>)> {
+fn leaf_stat(
+    y: &[f64],
+    t: &[f64],
+    rows: &[antecedent_data::GlobalId],
+) -> Option<(f64, Option<f64>)> {
     let [s1, n1, s0, n0] = arm_sums(y, t, rows);
     let tau = tau_from_sums([s1, n1, s0, n0])?;
     if n1 < 2.0 || n0 < 2.0 {
@@ -717,7 +744,7 @@ fn leaf_stat(y: &[f64], t: &[f64], rows: &[u32]) -> Option<(f64, Option<f64>)> {
     let mut q1 = 0.0;
     let mut q0 = 0.0;
     for &i in rows {
-        let i = i as usize;
+        let i = usize::try_from(i.get()).expect("row id");
         if t[i] > 0.5 {
             q1 += y[i] * y[i];
         } else {
@@ -757,9 +784,9 @@ mod tests {
     fn honest_leaf_never_reuses_split_outcomes() {
         let mut node = Node::Leaf { cate: Some(999.0), se: None };
         let data = ForestData { x: &[], n: 1, p: 0, y: &[10.0], t: &[1.0], clusters: None };
-        fill_cate(&mut node, &[0], &data, None);
+        fill_cate(&mut node, &[antecedent_data::GlobalId::new(0)], &data, None);
         assert!(node.predict_leaf(&[], 1, 0, 0).is_none());
-        fill_cate(&mut node, &[0], &data, Some((2.0, Some(0.5))));
+        fill_cate(&mut node, &[antecedent_data::GlobalId::new(0)], &data, Some((2.0, Some(0.5))));
         assert_eq!(node.predict_leaf(&[], 1, 0, 0), Some((2.0, Some(0.5))));
     }
 
@@ -898,13 +925,15 @@ mod tests {
     }
     #[test]
     fn honest_cluster_subsample_never_puts_a_cluster_on_both_sides() {
-        let members: Vec<Vec<u32>> = (0..12u32).map(|g| (g * 5..g * 5 + 5).collect()).collect();
-        let owner = |row: u32| row / 5;
+        let members: Vec<Vec<antecedent_data::GlobalId>> = (0..12u64)
+            .map(|g| (g * 5..g * 5 + 5).map(antecedent_data::GlobalId::new).collect())
+            .collect();
+        let owner = |row: antecedent_data::GlobalId| row.get() / 5;
         let mut rng = ExecutionContext::for_tests(5).rng.stream_for(StreamDomain::Estimate, 1);
         for _ in 0..50 {
             let (placement, estimation) = cluster_subsample(&members, 0.5, true, &mut rng);
-            let side = |rows: &[u32]| -> std::collections::BTreeSet<u32> {
-                rows.iter().map(|&r| owner(r)).collect()
+            let side = |rows: &[antecedent_data::GlobalId]| -> std::collections::BTreeSet<u64> {
+                rows.iter().map(|r| owner(*r)).collect()
             };
             let (p, e) = (side(&placement), side(&estimation));
             assert!(p.is_disjoint(&e), "a cluster informs both splitting and estimation");

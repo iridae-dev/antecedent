@@ -1225,7 +1225,7 @@ fn estimate_network_interference(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
-    edges: Vec<(u32, u32, f64)>,
+    edges: Vec<(u64, u64, f64)>,
     assignment_kind: String,
     assignment_probabilities: Vec<f64>,
     treated: usize,
@@ -1264,7 +1264,7 @@ fn estimate_network_interference(
         let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
         let network_edges = edges
             .into_iter()
-            .map(|(from, to, weight)| NetworkEdge { from, to, weight })
+            .map(|(from, to, weight)| NetworkEdge::new(from, to, weight))
             .collect::<Vec<_>>();
         let network = NetworkData::try_new(loaded.data, network_edges).map_err(py_err)?;
         let result =

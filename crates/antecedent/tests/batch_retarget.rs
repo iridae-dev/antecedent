@@ -82,8 +82,8 @@ fn prepare(fx: &Fixture, queries: &[AverageEffectQuery], seed: u64) -> PreparedB
 }
 
 /// Target weights `exp(sign · 0.4 · z)` on the snapshot rows.
-fn exp_weights(fx: &Fixture, rows: &[u32], sign: f64) -> Vec<f64> {
-    rows.iter().map(|&r| (sign * 0.4 * fx.z[r as usize]).exp()).collect()
+fn exp_weights(fx: &Fixture, rows: &[antecedent_data::GlobalId], sign: f64) -> Vec<f64> {
+    rows.iter().map(|r| (sign * 0.4 * fx.z[usize::try_from(r.get()).expect("row")]).exp()).collect()
 }
 
 fn retarget(

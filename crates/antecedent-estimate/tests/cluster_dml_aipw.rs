@@ -433,7 +433,10 @@ fn the_cluster_variance_has_its_closed_form_on_deterministic_scores() {
         propensities: vec![0.5; 2 * n].into(),
         observed_outcome: vec![0.0; n].into(),
         n_rows: n,
-        row_index: (0..u32::try_from(n).unwrap()).collect::<Vec<_>>().into(),
+        row_index: (0..n)
+            .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+            .collect::<Vec<_>>()
+            .into(),
         fold_ids: clusters.iter().map(|c| c % 5).collect::<Vec<_>>().into(),
         n_folds: 5,
         scores: scores.into(),
@@ -574,7 +577,10 @@ fn contrast_table(psi: &[f64], fold_ids: Vec<u32>) -> ScoreTable {
         propensities: vec![0.5; 2 * n].into(),
         observed_outcome: vec![0.0; n].into(),
         n_rows: n,
-        row_index: (0..u32::try_from(n).unwrap()).collect::<Vec<_>>().into(),
+        row_index: (0..n)
+            .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+            .collect::<Vec<_>>()
+            .into(),
         fold_ids: fold_ids.into(),
         n_folds: 5,
         scores: scores.into(),

@@ -239,7 +239,7 @@ fn interference_bernoulli_neighbor_count_known_truth() {
     let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
     let network = NetworkData::try_new(
         units.clone(),
-        [NetworkEdge { from: 0, to: 1, weight: 1.0 }, NetworkEdge { from: 1, to: 0, weight: 1.0 }],
+        [NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)],
     )
     .unwrap();
     let query = InterferenceQuery::new(
@@ -299,10 +299,12 @@ fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|edge| NetworkEdge {
-            from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
-            to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
-            weight: 1.0,
+        .map(|edge| {
+            NetworkEdge::new(
+                edge[0].as_u64().expect("edge endpoint"),
+                edge[1].as_u64().expect("edge endpoint"),
+                1.0,
+            )
         })
         .collect();
     let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
@@ -347,7 +349,7 @@ fn two_unit_interference(y: &[f64]) -> (TabularData, antecedent::PreparedStudy) 
     let units = TabularData::from_f64_columns([("y", y)]).unwrap();
     let network = NetworkData::try_new(
         units.clone(),
-        [NetworkEdge { from: 0, to: 1, weight: 1.0 }, NetworkEdge { from: 1, to: 0, weight: 1.0 }],
+        [NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)],
     )
     .unwrap();
     let query = InterferenceQuery::new(
@@ -406,7 +408,7 @@ fn design_cells_bind_calibration_under_the_harness_key() {
     let (units, prepared) = two_unit_interference(&[1.0, 4.0]);
     let network = NetworkData::try_new(
         units.clone(),
-        [NetworkEdge { from: 0, to: 1, weight: 1.0 }, NetworkEdge { from: 1, to: 0, weight: 1.0 }],
+        [NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)],
     )
     .unwrap();
     let study = Study::tabular(units)

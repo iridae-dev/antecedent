@@ -92,19 +92,19 @@ impl<'a> DenseDesign<'a> {
 /// Fold / train row subset over an immutable design buffer.
 #[derive(Clone, Copy, Debug)]
 pub struct RowSelection<'a> {
-    indices: &'a [u32],
+    indices: &'a [u64],
 }
 
 impl<'a> RowSelection<'a> {
     /// Borrow row indices into a physical design.
     #[must_use]
-    pub const fn new(indices: &'a [u32]) -> Self {
+    pub const fn new(indices: &'a [u64]) -> Self {
         Self { indices }
     }
 
     /// Index vector.
     #[must_use]
-    pub const fn indices(self) -> &'a [u32] {
+    pub const fn indices(self) -> &'a [u64] {
         self.indices
     }
 
@@ -160,7 +160,7 @@ impl<'a> DesignView<'a> {
     pub fn with_rows(self, rows: RowSelection<'a>) -> Result<Self, LearnError> {
         let n = self.dense.rows();
         for &i in rows.indices() {
-            if (i as usize) >= n {
+            if usize::try_from(i).expect("row id") >= n {
                 return Err(LearnError::Shape { message: "row selection index out of bounds" });
             }
         }
@@ -207,7 +207,7 @@ impl<'a> DesignView<'a> {
             return Err(LearnError::Shape { message: "logical row out of bounds" });
         }
         match self.rows {
-            Some(sel) => Ok(sel.indices()[logical_row] as usize),
+            Some(sel) => Ok(usize::try_from(sel.indices()[logical_row]).expect("row id")),
             None => Ok(logical_row),
         }
     }
@@ -268,8 +268,8 @@ mod tests {
         // Column-major 4×2: col0 = [1,1,1,1], col1 = [0,1,2,3]
         let x = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0];
         let view = DesignView::from_column_major(&x, 4, 2).unwrap();
-        let fold1 = [0_u32, 2];
-        let fold2 = [1_u32, 3];
+        let fold1 = [0_u64, 2];
+        let fold2 = [1_u64, 3];
         let a = view.with_rows(RowSelection::new(&fold1)).unwrap();
         let b = view.with_rows(RowSelection::new(&fold2)).unwrap();
         assert_eq!(a.nrows(), 2);

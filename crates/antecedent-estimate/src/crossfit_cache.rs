@@ -490,7 +490,10 @@ mod learned_preparation_tests {
             overlap: crate::OverlapPolicy::require_diagnostics(),
             target_population: TargetPopulation::AllObserved,
             target_weights: None,
-            row_index: Arc::from([0, 1]),
+            row_index: Arc::from([
+                antecedent_data::GlobalId::new(0),
+                antecedent_data::GlobalId::new(1),
+            ]),
             treatment_id: VariableId::from_raw(0),
             fold_assignment: None,
             fold_units: None,

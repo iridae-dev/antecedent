@@ -365,20 +365,17 @@ where
     let len = n
         .checked_mul(n_rep)
         .filter(|&len| {
-            len.checked_mul(std::mem::size_of::<u32>())
+            len.checked_mul(std::mem::size_of::<antecedent_data::GlobalId>())
                 .is_some_and(|bytes| isize::try_from(bytes).is_ok())
         })
         .ok_or_else(|| {
             EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
         })?;
-    if u32::try_from(n - 1).is_err() {
-        return Err(EstimationError::data_msg("bootstrap rows exceed u32 index capacity"));
-    }
     let mut indexes = Vec::new();
     indexes.try_reserve_exact(len).map_err(|e| {
         EstimationError::data_msg(format!("bootstrap index allocation failed: {e}"))
     })?;
-    indexes.resize(len, 0u32);
+    indexes.resize(len, antecedent_data::GlobalId::new(0));
     if let Err(error) = fill_resample_index_batch(
         ResamplingPlan::IidBootstrap,
         n,
@@ -410,7 +407,7 @@ where
 /// The rows of each cluster, in row order, for whole-cluster resampling.
 #[derive(Clone, Debug)]
 pub(crate) struct ClusterRows {
-    members: Vec<Vec<u32>>,
+    members: Vec<Vec<antecedent_data::GlobalId>>,
 }
 
 impl ClusterRows {
@@ -418,15 +415,17 @@ impl ClusterRows {
     ///
     /// # Errors
     ///
-    /// Fewer than two clusters (a one-cluster resample is the data), or rows beyond the
-    /// `u32` index capacity.
+    /// Fewer than two clusters (a one-cluster resample is the data), or a row that does
+    /// not fit in a [`antecedent_data::GlobalId`].
     pub(crate) fn new(labels: &[u32]) -> Result<Self, EstimationError> {
         let mut slot_of: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
-        let mut members: Vec<Vec<u32>> = Vec::new();
+        let mut members: Vec<Vec<antecedent_data::GlobalId>> = Vec::new();
         for (row, label) in labels.iter().enumerate() {
-            let row = u32::try_from(row).map_err(|_| {
-                EstimationError::data_msg("bootstrap rows exceed u32 index capacity")
-            })?;
+            let row = antecedent_data::GlobalId::new(u64::try_from(row).map_err(|_| {
+                EstimationError::data_msg(
+                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                )
+            })?);
             let next = members.len();
             let slot = *slot_of.entry(*label).or_insert(next);
             if slot == members.len() {
@@ -446,7 +445,7 @@ impl ClusterRows {
     }
 
     /// The rows of each cluster, in row order.
-    pub(crate) fn members(&self) -> &[Vec<u32>] {
+    pub(crate) fn members(&self) -> &[Vec<antecedent_data::GlobalId>] {
         &self.members
     }
 }
@@ -490,7 +489,7 @@ where
     let len = groups
         .checked_mul(n_rep)
         .filter(|&len| {
-            len.checked_mul(std::mem::size_of::<u32>())
+            len.checked_mul(std::mem::size_of::<antecedent_data::GlobalId>())
                 .is_some_and(|bytes| isize::try_from(bytes).is_ok())
         })
         .ok_or_else(|| {
@@ -500,7 +499,7 @@ where
     draws.try_reserve_exact(len).map_err(|e| {
         EstimationError::data_msg(format!("bootstrap index allocation failed: {e}"))
     })?;
-    draws.resize(len, 0u32);
+    draws.resize(len, antecedent_data::GlobalId::new(0));
     if let Err(error) = fill_resample_index_batch(
         ResamplingPlan::IidBootstrap,
         groups,
@@ -530,25 +529,42 @@ where
 /// How one bootstrap replicate's row indices are drawn from the batch of draws.
 enum ReplicateRows<'a> {
     /// `n` row draws per replicate: an iid row bootstrap.
-    Rows { indexes: &'a [u32], n: usize },
+    Rows { indexes: &'a [antecedent_data::GlobalId], n: usize },
     /// `groups` cluster draws per replicate, each expanded to all of its rows in order. The
     /// replicate is a whole-cluster resample whose length varies with the clusters drawn.
-    Clusters { draws: &'a [u32], groups: usize, members: &'a [Vec<u32>] },
+    Clusters {
+        draws: &'a [antecedent_data::GlobalId],
+        groups: usize,
+        members: &'a [Vec<antecedent_data::GlobalId>],
+    },
 }
 
 impl ReplicateRows<'_> {
-    fn fill(&self, r: usize, out: &mut Vec<usize>) {
+    fn fill(&self, r: usize, out: &mut Vec<usize>) -> Result<(), EstimationError> {
         out.clear();
+        let row = |id: antecedent_data::GlobalId| -> Result<usize, EstimationError> {
+            usize::try_from(id.get()).map_err(|_| {
+                EstimationError::data_msg(
+                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                )
+            })
+        };
         match self {
             Self::Rows { indexes, n } => {
-                out.extend(indexes[r * n..(r + 1) * n].iter().map(|&src| src as usize));
+                for src in &indexes[r * n..(r + 1) * n] {
+                    out.push(row(*src)?);
+                }
             }
             Self::Clusters { draws, groups, members } => {
-                for &cluster in &draws[r * groups..(r + 1) * groups] {
-                    out.extend(members[cluster as usize].iter().map(|&src| src as usize));
+                for cluster in &draws[r * groups..(r + 1) * groups] {
+                    let slot = row(*cluster)?;
+                    for src in &members[slot] {
+                        out.push(row(*src)?);
+                    }
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -574,7 +590,7 @@ where
             cancelled = true;
             break;
         }
-        rows.fill(r, &mut idx);
+        rows.fill(r, &mut idx)?;
         attempted += 1;
         let estimate = estimate(&mut scratch, &idx)?.filter(|ate| ate.is_finite());
         if let Some(ate) = estimate {
@@ -632,9 +648,15 @@ where
                     if ctx.cancellation.is_cancelled() {
                         break;
                     }
-                    rows.fill(r, &mut idx);
-                    *slot =
-                        Some(estimate(&mut scratch, &idx).map(|v| v.filter(|ate| ate.is_finite())));
+                    match rows.fill(r, &mut idx) {
+                        Ok(()) => {
+                            *slot = Some(
+                                estimate(&mut scratch, &idx)
+                                    .map(|v| v.filter(|ate| ate.is_finite())),
+                            );
+                        }
+                        Err(error) => *slot = Some(Err(error)),
+                    }
                 }
             });
             rest = next;

@@ -1108,7 +1108,7 @@ pub(crate) fn attach_conditional_functional_grid(
 
 pub(crate) fn tail_event_support(
     treatment: &[f64],
-    row_index: &[u32],
+    row_index: &[antecedent_data::GlobalId],
     outcome: &[f64],
     arm: usize,
     threshold: f64,
@@ -1123,7 +1123,7 @@ pub(crate) fn tail_event_support(
         if (t - target).abs() > 1e-12 {
             continue;
         }
-        let Some(&y) = outcome.get(row as usize) else {
+        let Some(&y) = outcome.get(usize::try_from(row.get()).expect("row id")) else {
             continue;
         };
         if !y.is_finite() {

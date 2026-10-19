@@ -1187,8 +1187,10 @@ fn prepared_batch_reuses_plans_and_records_screen() {
     let q2 = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let ctx = ExecutionContext::for_tests(192);
     let n = u32::try_from(data.row_count()).unwrap();
-    let screen_rows: Vec<u32> = (0..n / 2).collect();
-    let estimate_rows: Vec<u32> = (n / 2..n).collect();
+    let screen_rows: Vec<antecedent_data::GlobalId> =
+        (0..n / 2).map(|i| antecedent_data::GlobalId::new(u64::from(i))).collect();
+    let estimate_rows: Vec<antecedent_data::GlobalId> =
+        (n / 2..n).map(|i| antecedent_data::GlobalId::new(u64::from(i))).collect();
     let n_estimate = estimate_rows.len();
     let batch = BatchStudy::new(data.clone(), graph)
         .estimator(EstimatorId::Aipw)
@@ -2005,8 +2007,10 @@ fn candidate_selection_survives_when_joint_if_cannot_form() {
         .candidate_screen(CandidateScreen {
             screen_id: Arc::from("known_truth.no-joint"),
             procedure: CandidateProcedure::BenjaminiHochberg,
-            screen_rows: (0..n / 2).collect(),
-            estimate_rows: (n / 2..n).collect(),
+            screen_rows: (0..n / 2).map(|i| antecedent_data::GlobalId::new(u64::from(i))).collect(),
+            estimate_rows: (n / 2..n)
+                .map(|i| antecedent_data::GlobalId::new(u64::from(i)))
+                .collect(),
         })
         .estimate_many(&[q1, q2], &ctx)
         .unwrap();

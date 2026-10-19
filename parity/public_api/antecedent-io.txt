@@ -4205,11 +4205,11 @@ pub enum antecedent_io::scenario_covariance_artifact::CovarianceMethodWire
 pub enum antecedent_io::scenario_covariance_artifact::FunctionalWire
 pub enum antecedent_io::transport_grid_wire::GridPointWire
 pub field antecedent_io::CandidateSelectionWire::disjoint: bool
-pub field antecedent_io::CandidateSelectionWire::estimate_rows: alloc::vec::Vec<u32>
+pub field antecedent_io::CandidateSelectionWire::estimate_rows: alloc::vec::Vec<u64>
 pub field antecedent_io::CandidateSelectionWire::family_size: usize
 pub field antecedent_io::CandidateSelectionWire::procedure: alloc::string::String
 pub field antecedent_io::CandidateSelectionWire::screen_id: alloc::string::String
-pub field antecedent_io::CandidateSelectionWire::screen_rows: alloc::vec::Vec<u32>
+pub field antecedent_io::CandidateSelectionWire::screen_rows: alloc::vec::Vec<u64>
 pub field antecedent_io::CandidateSelectionWire::winner_index: core::option::Option<usize>
 pub field antecedent_io::ClipSensitivityWire::control_ess: alloc::vec::Vec<f64>
 pub field antecedent_io::ClipSensitivityWire::ess: alloc::vec::Vec<f64>
@@ -4340,7 +4340,7 @@ pub field antecedent_io::ScoreTableWire::observed_arm: alloc::vec::Vec<u32>
 pub field antecedent_io::ScoreTableWire::observed_outcome: alloc::vec::Vec<f64>
 pub field antecedent_io::ScoreTableWire::propensities: alloc::vec::Vec<f64>
 pub field antecedent_io::ScoreTableWire::propensity_clip: core::option::Option<f64>
-pub field antecedent_io::ScoreTableWire::row_index: alloc::vec::Vec<u32>
+pub field antecedent_io::ScoreTableWire::row_index: alloc::vec::Vec<u64>
 pub field antecedent_io::ScoreTableWire::scores: alloc::vec::Vec<f64>
 pub field antecedent_io::ScoreTableWire::treatment: u32
 pub field antecedent_io::adaptive_inference_result_artifact::AdaptiveResult::closed_guarantee: &'static str

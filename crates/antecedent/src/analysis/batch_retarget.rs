@@ -241,7 +241,9 @@ impl BatchScores {
     ///
     /// `row_weights_bound_to_snapshot` (`batch_retarget.mixed_snapshot`) when two tables
     /// were built on different rows.
-    pub fn common_rows(&self) -> Result<Option<Arc<[u32]>>, BatchRetargetError> {
+    pub fn common_rows(
+        &self,
+    ) -> Result<Option<Arc<[antecedent_data::GlobalId]>>, BatchRetargetError> {
         let mut present = self.tables.iter().flatten();
         let Some(first) = present.next() else {
             return Ok(None);
@@ -263,9 +265,10 @@ impl BatchScores {
     ///
     /// As [`Self::common_rows`].
     pub fn snapshot_id(&self) -> Result<Option<String>, BatchRetargetError> {
-        Ok(self
-            .common_rows()?
-            .map(|rows| to_hex(&PayloadDigestWire::u32s("batch.retarget_rows", &rows).digest)))
+        Ok(self.common_rows()?.map(|rows| {
+            let ids: Vec<u64> = rows.iter().map(|id| id.get()).collect();
+            to_hex(&PayloadDigestWire::u64s("batch.retarget_rows", &ids).digest)
+        }))
     }
 }
 
@@ -1336,14 +1339,19 @@ mod tests {
         }
     }
 
-    fn table(rows: &[u32]) -> ScoreTable {
+    fn table(rows: &[u64]) -> ScoreTable {
         let n = rows.len();
         ScoreTable {
             observed_arm: Arc::from(vec![0; n]),
             propensities: Arc::from(vec![0.5; 2 * n]),
             observed_outcome: Arc::from(vec![0.0; n]),
             n_rows: n,
-            row_index: Arc::from(rows.to_vec()),
+            row_index: rows
+                .iter()
+                .copied()
+                .map(antecedent_data::GlobalId::new)
+                .collect::<Vec<_>>()
+                .into(),
             fold_ids: Arc::from(vec![0; n]),
             n_folds: 2,
             scores: Arc::from(vec![0.0; 2 * n]),
@@ -1365,7 +1373,10 @@ mod tests {
             ScoreSource::Estimated,
             vec![Some(table(&[0, 1, 2])), None, Some(table(&[0, 1, 2]))],
         );
-        assert_eq!(&*same.common_rows().unwrap().unwrap(), &[0, 1, 2]);
+        assert_eq!(
+            same.common_rows().unwrap().unwrap().iter().map(|id| id.get()).collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
         assert_eq!(same.snapshot_id().unwrap(), same.snapshot_id().unwrap());
         for other in [table(&[0, 1, 3]), table(&[0, 1])] {
             let mixed =

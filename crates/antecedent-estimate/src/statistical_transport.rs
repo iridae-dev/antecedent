@@ -1271,7 +1271,7 @@ pub fn nominal_z_transport_interval(
 fn bootstrap_draw(
     counts: &[u64],
     rng: &mut antecedent_core::CausalRng,
-    indexes: &mut Vec<u32>,
+    indexes: &mut Vec<antecedent_data::GlobalId>,
     probabilities: &mut Vec<f64>,
     resampled: &mut [u64],
 ) -> bool {
@@ -1874,7 +1874,7 @@ fn finish_z_interval(
 fn resample_cited_counts(
     counts: &[u64],
     rng: &mut antecedent_core::CausalRng,
-    indexes: &mut Vec<u32>,
+    indexes: &mut Vec<antecedent_data::GlobalId>,
     out: &mut [u64],
 ) -> bool {
     let total = counts.iter().try_fold(0u64, |n, k| n.checked_add(*k));
@@ -1899,7 +1899,7 @@ fn resample_cited_counts(
     out.fill(0);
     for index in indexes.iter() {
         // The first cell whose cumulative count exceeds the row index holds that row.
-        let cell = cumulative.partition_point(|end| *end <= u64::from(*index));
+        let cell = cumulative.partition_point(|end| *end <= index.get());
         if cell >= out.len() {
             return false;
         }
@@ -2006,7 +2006,7 @@ mod tests {
         let mut drawn = Vec::new();
         fill_resample_indexes(ResamplingPlan::IidBootstrap, 10, &mut rng, &mut drawn).unwrap();
         for index in drawn {
-            expected[rows[index as usize]] += 1;
+            expected[rows[usize::try_from(index.get()).expect("row id")]] += 1;
         }
         assert_eq!(out, expected);
         assert!(!resample_cited_counts(&[0, 0], &mut rng, &mut indexes, &mut out[..2]));

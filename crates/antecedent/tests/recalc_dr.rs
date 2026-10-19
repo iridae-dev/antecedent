@@ -93,7 +93,7 @@ fn dr_existing_score_sources_match_heterogeneous_structural_truth() {
             .iter()
             .zip(table.column(1).unwrap().iter().zip(table.column(0).unwrap()).map(|(a, c)| a - c))
         {
-            close(score, 2.0 + 0.5 * columns[2].1[usize::try_from(*row).unwrap()]);
+            close(score, 2.0 + 0.5 * columns[2].1[usize::try_from(row.get()).unwrap()]);
         }
         if dr {
             let fitted = original.heterogeneity.fitted_effect.as_ref().unwrap();
@@ -266,11 +266,9 @@ fn check_portable_retarget(
     let weights: Vec<f64> = table
         .row_index
         .iter()
-        .map(
-            |row| {
-                if request.columns[2].1[usize::try_from(*row).unwrap()] > 0.0 { 3.0 } else { 1.0 }
-            },
-        )
+        .map(|row| {
+            if request.columns[2].1[usize::try_from(row.get()).unwrap()] > 0.0 { 3.0 } else { 1.0 }
+        })
         .collect();
     let mut portable = ScoreResumeSession::resume_from_scores(restored).unwrap();
     let mut resume_request = ScoreResumeRequest {
@@ -280,7 +278,7 @@ fn check_portable_retarget(
             weights: weights.clone(),
             depends_on: vec![VariableId::from_raw(2)],
         }),
-        target_row_ids: Some(table.row_index.to_vec()),
+        target_row_ids: Some(table.row_index.iter().map(|id| id.get()).collect()),
         utility: request.utility,
         quantity: ScoreQuantity::AverageEffect,
         changed_inputs: Vec::new(),
@@ -326,7 +324,10 @@ fn dr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data() 
         let first = run(&mut session, &request);
         let table = session.score_table().unwrap();
         assert_eq!(table.n_rows, 159);
-        assert_eq!(table.row_index.as_ref(), &(1..160).collect::<Vec<u32>>());
+        assert_eq!(
+            table.row_index.iter().map(|id| id.get()).collect::<Vec<_>>(),
+            (1..160u64).collect::<Vec<_>>()
+        );
         close(first.law.ate, 2.0 + 0.5 / 159.0);
         let exported = session.export_scores().unwrap();
         let bytes = exported.to_bytes("dr-complete-cases").unwrap();
@@ -479,20 +480,19 @@ fn dr_complete_case_retarget_uses_retained_row_ids_and_checked_adjustment() {
         request.columns[1].1[0] = f64::NAN;
         let mut session = DrSession::new();
         run(&mut session, &request);
-        let weights: Vec<f64> =
-            session
-                .score_table()
-                .unwrap()
-                .row_index
-                .iter()
-                .map(|row| {
-                    if request.columns[2].1[usize::try_from(*row).unwrap()] > 0.0 {
-                        3.0
-                    } else {
-                        1.0
-                    }
-                })
-                .collect();
+        let weights: Vec<f64> = session
+            .score_table()
+            .unwrap()
+            .row_index
+            .iter()
+            .map(|row| {
+                if request.columns[2].1[usize::try_from(row.get()).unwrap()] > 0.0 {
+                    3.0
+                } else {
+                    1.0
+                }
+            })
+            .collect();
         request.target = Some(TargetWeights {
             weights: weights.clone(),
             depends_on: vec![VariableId::from_raw(2)],

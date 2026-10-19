@@ -1086,7 +1086,9 @@ impl super::Study {
                         .iter()
                         .enumerate()
                         .filter_map(|(i, &keep)| {
-                            keep.then_some(u32::try_from(i).unwrap_or(u32::MAX))
+                            keep.then_some(antecedent_data::GlobalId::new(
+                                u64::try_from(i).expect("row id"),
+                            ))
                         })
                         .collect::<Vec<_>>(),
                     Err(_) => Vec::new(),
@@ -2496,7 +2498,7 @@ fn mix_response_influences(
         }
         let mut seen = vec![false; full_n];
         for &row in scores.row_index.iter() {
-            let slot = seen.get_mut(row as usize)?;
+            let slot = seen.get_mut(usize::try_from(row.get()).expect("row id"))?;
             if *slot {
                 return None;
             }
@@ -2507,7 +2509,8 @@ fn mix_response_influences(
             let center = col.iter().sum::<f64>() / n as f64;
             let mut full = vec![0.0; full_n];
             for (&row, &v) in scores.row_index.iter().zip(col) {
-                full[row as usize] = (v - center) * full_n as f64 / n as f64;
+                full[usize::try_from(row.get()).expect("row id")] =
+                    (v - center) * full_n as f64 / n as f64;
             }
             columns.push(full);
         }
@@ -2521,7 +2524,11 @@ fn mix_response_influences(
     }
     Some(antecedent_estimate::ResponseInfluence {
         columns,
-        row_index: (0..full_n).map(u32::try_from).collect::<Result<Vec<_>, _>>().ok()?.into(),
+        row_index: (0..full_n)
+            .map(|i| u64::try_from(i).map(antecedent_data::GlobalId::new))
+            .collect::<Result<Vec<_>, _>>()
+            .ok()?
+            .into(),
     })
 }
 
@@ -2716,7 +2723,10 @@ mod influence_review_tests {
     use super::*;
 
     fn influence(columns: Vec<Vec<f64>>) -> antecedent_estimate::ResponseInfluence {
-        antecedent_estimate::ResponseInfluence { columns, row_index: Arc::from([0, 1, 2, 3]) }
+        antecedent_estimate::ResponseInfluence {
+            columns,
+            row_index: [0u64, 1, 2, 3].map(antecedent_data::GlobalId::new).into(),
+        }
     }
 
     #[test]
@@ -2756,14 +2766,14 @@ mod influence_review_tests {
     fn response_mixture_aligns_original_row_ids() {
         let a = antecedent_estimate::ResponseInfluence {
             columns: vec![vec![-1.0, 1.0]],
-            row_index: Arc::from([0, 2]),
+            row_index: [0u64, 2].map(antecedent_data::GlobalId::new).into(),
         };
         let b = antecedent_estimate::ResponseInfluence {
             columns: vec![vec![-2.0, 2.0]],
-            row_index: Arc::from([1, 3]),
+            row_index: [1u64, 3].map(antecedent_data::GlobalId::new).into(),
         };
         let mixed = mix_response_influences(&[(0.5, a), (0.5, b)], 4).unwrap();
-        assert_eq!(mixed.row_index.as_ref(), &[0, 1, 2, 3]);
+        assert_eq!(mixed.row_index.iter().map(|id| id.get()).collect::<Vec<_>>(), vec![0, 1, 2, 3]);
         assert_eq!(mixed.columns[0], vec![-1.0, -2.0, 1.0, 2.0]);
     }
 }

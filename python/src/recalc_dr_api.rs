@@ -382,8 +382,8 @@ impl PyDrSession {
     fn prediction_columns(&self) -> Option<Vec<String>> {
         self.inner.prediction_columns()
     }
-    fn row_ids(&self) -> Option<Vec<u32>> {
-        self.inner.score_table().map(|t| t.row_index.to_vec())
+    fn row_ids(&self) -> Option<Vec<u64>> {
+        self.inner.score_table().map(|t| t.row_index.iter().map(|id| id.get()).collect())
     }
     fn score_contrast(&self) -> Option<Vec<f64>> {
         let t = self.inner.score_table()?;

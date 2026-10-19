@@ -8,13 +8,18 @@ use antecedent_data::{TableView, TabularData};
 use crate::EstimationError;
 use crate::util::range;
 
-/// Original row indices as the `u32` row ids influence scores carry; a row past the
-/// `u32` range is an error rather than a saturated id that would alias another row.
-pub(super) fn row_ids_u32(rows: &[usize]) -> Result<Arc<[u32]>, EstimationError> {
+/// Original row indices as [`antecedent_data::GlobalId`] values. A row that does not fit in
+/// `u64` is an error. A `u32` backend feature flag is not that attempt.
+pub(super) fn row_ids(rows: &[usize]) -> Result<Arc<[antecedent_data::GlobalId]>, EstimationError> {
     rows.iter()
         .map(|&i| {
-            u32::try_from(i)
-                .map_err(|_| EstimationError::data_msg("row index exceeds the u32 row-id capacity"))
+            u64::try_from(i)
+                .map(antecedent_data::GlobalId::new)
+                .map_err(|_| {
+                    EstimationError::data_msg(
+                        "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                    )
+                })
         })
         .collect()
 }

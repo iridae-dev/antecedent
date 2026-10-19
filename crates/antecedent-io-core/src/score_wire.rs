@@ -45,7 +45,7 @@ pub struct ScoreTableWire {
     /// Complete-case row count.
     pub n_rows: u64,
     /// Original data-frame row index of each complete-case row (the row ids).
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<u64>,
     /// Fold id of each row.
     pub fold_ids: Vec<u32>,
     /// Fold count.

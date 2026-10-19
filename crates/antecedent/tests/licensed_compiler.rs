@@ -1139,7 +1139,13 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
         let units = static_table(&[("y", 0)]);
         let n_units = 48usize;
         let edges: Vec<NetworkEdge> = (0..n_units)
-            .map(|i| NetworkEdge { from: i as u32, to: ((i + 1) % n_units) as u32, weight: 1.0 })
+            .map(|i| {
+                NetworkEdge::new(
+                    u64::try_from(i).expect("row id"),
+                    u64::try_from((i + 1) % n_units).expect("row id"),
+                    1.0,
+                )
+            })
             .collect();
         let network = NetworkData::try_new(units, edges).map_err(|e| format!("{expected}: {e}"))?;
         // The repeated 1100 pattern supplies all own/neighbor exposure pairs.

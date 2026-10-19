@@ -1168,7 +1168,7 @@ pub(in crate::contract_section) fn verify_checked_aipw_rows(
     let snapshot_matches = row_binding.data_snapshot == contract.identities.data_snapshot
         && contract.data_snapshot.as_ref().is_some_and(|snapshot| {
             row_binding.rows.len() as u64 <= snapshot.row_count
-                && row_binding.rows.iter().all(|row| u64::from(*row) < snapshot.row_count)
+                && row_binding.rows.iter().all(|row| *row < snapshot.row_count)
         });
     let ordered_unique =
         !row_binding.rows.is_empty() && row_binding.rows.windows(2).all(|pair| pair[0] < pair[1]);

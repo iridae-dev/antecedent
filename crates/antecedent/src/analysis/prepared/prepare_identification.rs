@@ -905,7 +905,9 @@ impl Study {
                         .iter()
                         .enumerate()
                         .filter_map(|(i, &keep)| {
-                            keep.then_some(u32::try_from(i).unwrap_or(u32::MAX))
+                            keep.then_some(antecedent_data::GlobalId::new(
+                                u64::try_from(i).expect("row id"),
+                            ))
                         })
                         .collect::<Vec<_>>(),
                     Err(_) => Vec::new(),

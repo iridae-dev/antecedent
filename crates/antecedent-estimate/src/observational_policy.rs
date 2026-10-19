@@ -168,7 +168,7 @@ pub struct PolicyValueEstimate {
     /// Rows dropped for a missing or non-finite cell.
     pub rows_dropped_missing: u64,
     /// Original row index of each scored row.
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<antecedent_data::GlobalId>,
     /// The action the policy takes at each scored row.
     pub policy_actions: Vec<f64>,
     /// The doubly robust score of each scored row.
@@ -722,7 +722,7 @@ struct Prepared {
     known_propensity: Option<Vec<f64>>,
     outcome: Vec<f64>,
     /// Original row index of each complete-case row.
-    row_index: Vec<u32>,
+    row_index: Vec<antecedent_data::GlobalId>,
     rows_by_level: Vec<u64>,
     dropped: u64,
 }
@@ -846,8 +846,10 @@ impl Prepared {
         let row_index = keep
             .iter()
             .map(|&i| {
-                u32::try_from(i).map_err(|_| {
-                    EstimationError::data_msg("row index exceeds the u32 row-id capacity")
+                u64::try_from(i).map(antecedent_data::GlobalId::new).map_err(|_| {
+                    EstimationError::data_msg(
+                        "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                    )
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;

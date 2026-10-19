@@ -19,9 +19,26 @@ use crate::buffer::F64Buffer;
 use crate::column::{ColumnView, Float64Column, OwnedColumn};
 use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
+use crate::global_index::GlobalId;
 use crate::split::TemporalRandomPolicy;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
+
+fn row_id(index: usize) -> Result<GlobalId, DataError> {
+    u64::try_from(index).map(GlobalId::new).map_err(|_| DataError::InvalidArgument {
+        message: "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. \
+                  A u32 backend feature flag is not that attempt"
+            .into(),
+    })
+}
+
+fn row_pos(id: GlobalId) -> Result<usize, DataError> {
+    usize::try_from(id.get()).map_err(|_| DataError::InvalidArgument {
+        message: "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. \
+                  A u32 backend feature flag is not that attempt"
+            .into(),
+    })
+}
 
 /// Null / permutation scheme for [`ResamplingPlan::Permutation`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -103,7 +120,7 @@ pub fn fill_resample_indexes(
     plan: ResamplingPlan,
     n: usize,
     rng: &mut CausalRng,
-    out: &mut Vec<u32>,
+    out: &mut Vec<GlobalId>,
 ) -> Result<(), DataError> {
     if plan.needs_clusters() {
         return Err(DataError::InvalidArgument {
@@ -132,7 +149,7 @@ pub(crate) fn fill_resample_indexes_grouped(
     n: usize,
     cluster_ids: Option<&[u32]>,
     rng: &mut CausalRng,
-    out: &mut Vec<u32>,
+    out: &mut Vec<GlobalId>,
 ) -> Result<(), DataError> {
     let clusters = prepare_clusters(plan, n, cluster_ids)?;
     fill_indexes_prepared(plan, n, clusters.as_ref(), rng, out)
@@ -168,61 +185,58 @@ fn prepare_clusters(
             context: "cluster_ids",
         });
     }
-    Ok(Some(ClusterIndex::build(ids)))
+    Ok(Some(ClusterIndex::build(ids)?))
 }
 
 /// Cluster membership in CSR form: rows sorted (stably) by cluster label, with
 /// `offsets[c]..offsets[c + 1]` delimiting cluster `c` (labels ascending).
 struct ClusterIndex {
-    members: Vec<u32>,
+    members: Vec<GlobalId>,
     offsets: Vec<usize>,
 }
 
 impl ClusterIndex {
-    fn build(cluster_ids: &[u32]) -> Self {
+    fn build(cluster_ids: &[u32]) -> Result<Self, DataError> {
         let n = cluster_ids.len();
-        #[allow(
-            clippy::cast_possible_truncation,
-            reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
-        )]
-        let mut members: Vec<u32> = (0..n as u32).collect();
-        members.sort_by_key(|&i| cluster_ids[i as usize]);
+        let mut members = Vec::with_capacity(n);
+        for index in 0..n {
+            members.push(row_id(index)?);
+        }
+        members.sort_by_key(|id| cluster_ids[usize::try_from(id.get()).unwrap_or(0)]);
         let mut offsets = vec![0usize];
         for k in 1..n {
-            if cluster_ids[members[k] as usize] != cluster_ids[members[k - 1] as usize] {
+            let left = usize::try_from(members[k].get()).unwrap_or(0);
+            let right = usize::try_from(members[k - 1].get()).unwrap_or(0);
+            if cluster_ids[left] != cluster_ids[right] {
                 offsets.push(k);
             }
         }
         offsets.push(n);
-        Self { members, offsets }
+        Ok(Self { members, offsets })
     }
 
     fn n_clusters(&self) -> usize {
         self.offsets.len() - 1
     }
 
-    fn cluster(&self, c: usize) -> &[u32] {
+    fn cluster(&self, c: usize) -> &[GlobalId] {
         &self.members[self.offsets[c]..self.offsets[c + 1]]
     }
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
-)]
 fn fill_indexes_prepared(
     plan: ResamplingPlan,
     n: usize,
     clusters: Option<&ClusterIndex>,
     rng: &mut CausalRng,
-    out: &mut Vec<u32>,
+    out: &mut Vec<GlobalId>,
 ) -> Result<(), DataError> {
     out.clear();
     out.reserve(n);
     match plan {
         ResamplingPlan::IidBootstrap => {
             for _ in 0..n {
-                out.push(unbiased_index(rng, n) as u32);
+                out.push(row_id(unbiased_index(rng, n))?);
             }
         }
         ResamplingPlan::BayesianBootstrap => {
@@ -231,14 +245,14 @@ fn fill_indexes_prepared(
             });
         }
         ResamplingPlan::MovingBlock { length } | ResamplingPlan::CircularBlock { length } => {
-            out.resize(n, 0);
+            out.resize(n, GlobalId::new(0));
             fill_block_slice(
                 n,
                 length,
                 matches!(plan, ResamplingPlan::CircularBlock { .. }),
                 rng,
                 out,
-                |i| i as u32,
+                |i| row_id(i).unwrap_or(GlobalId::new(0)),
             )?;
         }
         ResamplingPlan::StationaryBlock { expected_length } => {
@@ -253,7 +267,9 @@ fn fill_indexes_prepared(
             fill_cluster_bootstrap(clusters, rng, out)?;
         }
         ResamplingPlan::Permutation(PermutationScheme::Full) => {
-            out.extend(0..n as u32);
+            for index in 0..n {
+                out.push(row_id(index)?);
+            }
             // Fisher–Yates
             for i in (1..n).rev() {
                 let j = unbiased_index(rng, i + 1);
@@ -266,7 +282,7 @@ fn fill_indexes_prepared(
                     message: "clustered resampling requires cluster_ids".into(),
                 });
             };
-            fill_within_cluster_permutation(n, clusters, rng, out);
+            fill_within_cluster_permutation(n, clusters, rng, out)?;
         }
     }
     Ok(())
@@ -329,15 +345,11 @@ fn fill_block_slice<T: Copy>(
     Ok(())
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
-)]
 fn fill_stationary(
     n: usize,
     expected_length: f64,
     rng: &mut CausalRng,
-    out: &mut Vec<u32>,
+    out: &mut Vec<GlobalId>,
 ) -> Result<(), DataError> {
     if !(expected_length.is_finite() && expected_length >= 1.0) {
         return Err(DataError::InvalidArgument {
@@ -360,7 +372,7 @@ fn fill_stationary(
             if out.len() >= n {
                 break;
             }
-            out.push(((start + k) % n) as u32);
+            out.push(row_id((start + k) % n)?);
         }
     }
     out.truncate(n);
@@ -370,7 +382,7 @@ fn fill_stationary(
 fn fill_cluster_bootstrap(
     clusters: &ClusterIndex,
     rng: &mut CausalRng,
-    out: &mut Vec<u32>,
+    out: &mut Vec<GlobalId>,
 ) -> Result<(), DataError> {
     let g = clusters.n_clusters();
     if g == 0 {
@@ -385,19 +397,17 @@ fn fill_cluster_bootstrap(
     Ok(())
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
-)]
 fn fill_within_cluster_permutation(
     n: usize,
     clusters: &ClusterIndex,
     rng: &mut CausalRng,
-    out: &mut Vec<u32>,
-) {
-    out.extend(0..n as u32);
+    out: &mut Vec<GlobalId>,
+) -> Result<(), DataError> {
+    for index in 0..n {
+        out.push(row_id(index)?);
+    }
     // Shuffle each cluster's member rows among the slots that cluster occupies.
-    let mut vals: Vec<u32> = Vec::new();
+    let mut vals: Vec<GlobalId> = Vec::new();
     for c in 0..clusters.n_clusters() {
         let members = clusters.cluster(c);
         vals.clear();
@@ -407,9 +417,10 @@ fn fill_within_cluster_permutation(
             vals.swap(i, j);
         }
         for (k, &pos) in members.iter().enumerate() {
-            out[pos as usize] = vals[k];
+            out[row_pos(pos)?] = vals[k];
         }
     }
+    Ok(())
 }
 
 /// Fill `out` with length-`n` Bayesian-bootstrap weights (normalized Exp(1) draws).
@@ -498,7 +509,7 @@ pub fn fill_resample_index_batch(
     cluster_ids: Option<&[u32]>,
     ctx: &ExecutionContext,
     stream_base: u64,
-    out: &mut [u32],
+    out: &mut [GlobalId],
 ) -> Result<(), DataError> {
     check_resampling_cancelled(ctx)?;
     let expected = checked_batch_len(n, n_replicates)?;
@@ -682,7 +693,7 @@ pub fn resample_timeseries(
     data: &TimeSeriesData,
     plan: ResamplingPlan,
     rng: &mut CausalRng,
-    index_scratch: &mut Vec<u32>,
+    index_scratch: &mut Vec<GlobalId>,
 ) -> Result<TimeSeriesData, DataError> {
     if plan.needs_clusters() {
         return Err(DataError::InvalidArgument {
@@ -702,7 +713,7 @@ pub(crate) fn resample_timeseries_grouped(
     plan: ResamplingPlan,
     cluster_ids: Option<&[u32]>,
     rng: &mut CausalRng,
-    index_scratch: &mut Vec<u32>,
+    index_scratch: &mut Vec<GlobalId>,
 ) -> Result<TimeSeriesData, DataError> {
     resample_timeseries_with_policy(
         data,
@@ -727,7 +738,7 @@ pub(crate) fn resample_timeseries_with_policy(
     plan: ResamplingPlan,
     cluster_ids: Option<&[u32]>,
     rng: &mut CausalRng,
-    index_scratch: &mut Vec<u32>,
+    index_scratch: &mut Vec<GlobalId>,
     policy: TemporalRandomPolicy,
 ) -> Result<TimeSeriesData, DataError> {
     if matches!(plan, ResamplingPlan::IidBootstrap | ResamplingPlan::BayesianBootstrap) {
@@ -779,18 +790,19 @@ fn apply_weight_plan(data: &TimeSeriesData, weights: &[f64]) -> Result<TimeSerie
     TimeSeriesData::try_new(storage, data.time_index().clone())
 }
 
-fn apply_row_map(data: &TimeSeriesData, row_map: &[u32]) -> Result<TimeSeriesData, DataError> {
+fn apply_row_map(data: &TimeSeriesData, row_map: &[GlobalId]) -> Result<TimeSeriesData, DataError> {
     let n = row_map.len();
+    let positions = row_map.iter().copied().map(row_pos).collect::<Result<Vec<_>, _>>()?;
     let schema = data.schema().clone();
     let mut cols = Vec::with_capacity(schema.len());
     for v in schema.variables() {
         let ColumnView::Float64(src) = data.column(v.id)? else {
             return Err(DataError::TypeMismatch { id: v.id, expected: "float64" });
         };
-        let values: Vec<f64> = row_map.iter().map(|&r| src.values[r as usize]).collect();
+        let values: Vec<f64> = positions.iter().map(|&r| src.values[r]).collect();
         // A replicate slot inherits the source row's validity: values under
         // null slots must not resurface as valid observations.
-        let validity = src.validity.gather(row_map)?;
+        let validity = src.validity.gather_rows(&positions)?;
         // Rows gathered from a NaN-free column are NaN-free: skip the rescan.
         let mut values = F64Buffer::owned(Arc::<[f64]>::from(values));
         if src.values.is_nan_free() {
@@ -799,11 +811,12 @@ fn apply_row_map(data: &TimeSeriesData, row_map: &[u32]) -> Result<TimeSeriesDat
         cols.push(OwnedColumn::Float64(Float64Column::new(v.id, values, validity)?));
     }
     // Analysis mask and weights follow the same row map as the values.
-    let analysis_mask = data.storage().analysis_mask().map(|m| m.gather(row_map)).transpose()?;
+    let analysis_mask =
+        data.storage().analysis_mask().map(|m| m.gather_rows(&positions)).transpose()?;
     let weights = data
         .storage()
         .weights()
-        .map(|w| Arc::from(row_map.iter().map(|&r| w[r as usize]).collect::<Vec<f64>>()));
+        .map(|w| Arc::from(positions.iter().map(|&r| w[r]).collect::<Vec<f64>>()));
     let storage = OwnedColumnarStorage::try_new(schema, cols, analysis_mask, weights)?;
     let mut time_index = data.time_index().clone();
     time_index.length = n;
@@ -860,7 +873,8 @@ mod tests {
     #[test]
     fn row_map_gathers_validity_mask_and_weights() {
         let data = series_with_missing();
-        let out = apply_row_map(&data, &[2, 0, 2, 1]).unwrap();
+        let map = [GlobalId::new(2), GlobalId::new(0), GlobalId::new(2), GlobalId::new(1)];
+        let out = apply_row_map(&data, &map).unwrap();
         let ColumnView::Float64(col) = out.column(VariableId::from_raw(0)).unwrap() else {
             panic!("expected float64 column");
         };
@@ -934,7 +948,11 @@ mod tests {
         let ids = [2u32, 0, 2, 1, 0];
         let mut rng = CausalRng::from_seed(5);
         let mut out = Vec::new();
-        let allowed: [&[u32]; 3] = [&[1, 4], &[3], &[0, 2]];
+        let allowed: [Vec<GlobalId>; 3] = [
+            vec![GlobalId::new(1), GlobalId::new(4)],
+            vec![GlobalId::new(3)],
+            vec![GlobalId::new(0), GlobalId::new(2)],
+        ];
         for _ in 0..50 {
             let plan = ResamplingPlan::ClusterBootstrap { cluster: VariableId::from_raw(0) };
             fill_resample_indexes_grouped(plan, 5, Some(&ids), &mut rng, &mut out).unwrap();
@@ -949,11 +967,21 @@ mod tests {
             let plan = ResamplingPlan::Permutation(PermutationScheme::WithinCluster);
             fill_resample_indexes_grouped(plan, 5, Some(&ids), &mut rng, &mut out).unwrap();
             for (pos, &row) in out.iter().enumerate() {
-                assert_eq!(ids[pos], ids[row as usize]);
+                let index = usize::try_from(row.get()).expect("row");
+                assert_eq!(ids[pos], ids[index]);
             }
             let mut sorted = out.clone();
             sorted.sort_unstable();
-            assert_eq!(sorted, [0, 1, 2, 3, 4]);
+            assert_eq!(
+                sorted,
+                [
+                    GlobalId::new(0),
+                    GlobalId::new(1),
+                    GlobalId::new(2),
+                    GlobalId::new(3),
+                    GlobalId::new(4),
+                ]
+            );
         }
     }
 
@@ -993,10 +1021,10 @@ mod tests {
         };
         let idx = draw(5);
         assert_eq!(idx.len(), 100);
-        assert!(idx.iter().all(|&i| i < 100));
+        assert!(idx.iter().all(|i| i.get() < 100));
         for block in idx.chunks(10) {
             for w in block.windows(2) {
-                assert_eq!(w[1], w[0] + 1, "block is not a consecutive run: {block:?}");
+                assert_eq!(w[1].get(), w[0].get() + 1, "block is not a consecutive run: {block:?}");
             }
         }
         assert_eq!(idx, draw(5));
@@ -1016,7 +1044,10 @@ mod tests {
         .unwrap();
         let mut as_usize = vec![0usize; 64];
         fill_circular_block_indexes(64, 7, &mut rng_usize, &mut as_usize).unwrap();
-        assert_eq!(as_u32.iter().map(|&i| i as usize).collect::<Vec<_>>(), as_usize);
+        assert_eq!(
+            as_u32.iter().map(|i| usize::try_from(i.get()).expect("row")).collect::<Vec<_>>(),
+            as_usize
+        );
         assert_eq!(rng_u32.state(), rng_usize.state());
     }
 
@@ -1048,7 +1079,10 @@ mod tests {
         .unwrap();
         let mut sorted = idx.clone();
         sorted.sort_unstable();
-        assert_eq!(sorted, (0..20u32).collect::<Vec<_>>());
+        assert_eq!(
+            sorted.iter().map(|id| id.get()).collect::<Vec<_>>(),
+            (0..20u64).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -1069,7 +1103,7 @@ mod tests {
         // Every index must come from some original cluster; consecutive triples
         // from the same draw share a cluster id when length allows.
         for &i in &idx {
-            assert!((i as usize) < n);
+            assert!(i.get() < u64::try_from(n).expect("n"));
         }
     }
 
@@ -1093,8 +1127,8 @@ mod tests {
         let ctx = ExecutionContext::for_tests(42);
         let n = 20usize;
         let b = 8usize;
-        let mut out_a = vec![0u32; n * b];
-        let mut out_b = vec![0u32; n * b];
+        let mut out_a = vec![GlobalId::new(0); n * b];
+        let mut out_b = vec![GlobalId::new(0); n * b];
         fill_resample_index_batch(
             ResamplingPlan::IidBootstrap,
             n,
@@ -1116,7 +1150,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(out_a, out_b);
-        assert!(out_a.iter().all(|&i| (i as usize) < n));
+        assert!(out_a.iter().all(|i| i.get() < u64::try_from(n).expect("n")));
     }
 
     #[test]
@@ -1153,10 +1187,12 @@ mod tests {
             lengths[(rows.len() - 2) / 2] += 1;
             let mut cursor = 0;
             for _ in 0..2 {
-                if rows[cursor] == 0 {
+                if rows[cursor].get() == 0 {
                     cursor += 1;
                 } else {
-                    assert_eq!(&rows[cursor..cursor + 3], &[1, 2, 3]);
+                    let got: Vec<u64> =
+                        rows[cursor..cursor + 3].iter().map(|id| id.get()).collect();
+                    assert_eq!(got, [1, 2, 3]);
                     cursor += 3;
                 }
             }
@@ -1166,7 +1202,7 @@ mod tests {
         for (count, target) in lengths.into_iter().zip([0.25, 0.5, 0.25]) {
             assert!((count as f64 / 4000.0 - target).abs() < 0.04);
         }
-        let mut fixed = vec![0; 8];
+        let mut fixed = vec![GlobalId::new(0); 8];
         assert!(
             fill_resample_index_batch(plan, 4, 2, Some(&ids), &context, 11, &mut fixed).is_err()
         );
@@ -1191,16 +1227,20 @@ mod tests {
             for (row, &origin) in rows.iter().enumerate() {
                 assert_eq!(
                     column.validity().is_valid(row),
-                    source.validity().is_valid(origin as usize)
+                    source.validity().is_valid(usize::try_from(origin.get()).expect("row"))
                 );
                 assert_eq!(
                     replicate.storage().analysis_mask().unwrap().is_valid(row),
-                    data.storage().analysis_mask().unwrap().is_valid(origin as usize)
+                    data.storage()
+                        .analysis_mask()
+                        .unwrap()
+                        .is_valid(usize::try_from(origin.get()).expect("row"))
                 );
                 assert!(
                     (replicate.storage().weights().unwrap()[row]
-                        - data.storage().weights().unwrap()[origin as usize])
-                        .abs()
+                        - data.storage().weights().unwrap()
+                            [usize::try_from(origin.get()).expect("row")])
+                    .abs()
                         < 1e-12
                 );
             }
@@ -1238,7 +1278,7 @@ mod tests {
     fn cancelled_batches_return_before_mutating_output() {
         let context = ExecutionContext::for_tests(1);
         context.cancellation.cancel();
-        let mut indexes = [7];
+        let mut indexes = [GlobalId::new(7)];
         let mut weights = [0.7];
         assert!(
             fill_resample_index_batch(
@@ -1265,7 +1305,7 @@ mod tests {
             .unwrap_err()
                 == DataError::Cancelled
         );
-        assert_eq!(indexes, [7]);
+        assert_eq!(indexes, [GlobalId::new(7)]);
         assert!((weights[0] - 0.7).abs() < 1e-12);
     }
 }

@@ -123,6 +123,10 @@ fn u32_bytes(values: &[u32]) -> Vec<u8> {
     values.iter().flat_map(|v| v.to_le_bytes()).collect()
 }
 
+fn u64_bytes(values: &[u64]) -> Vec<u8> {
+    values.iter().flat_map(|v| v.to_le_bytes()).collect()
+}
+
 fn f64_bytes(values: &[f64]) -> Vec<u8> {
     crate::artifact_codec::f64s_to_le_bytes(values)
 }
@@ -186,7 +190,7 @@ fn compute_identity(
         f64_bytes(&t.propensities),
         f64_bytes(&t.observed_outcome),
         t.n_rows.to_le_bytes().to_vec(),
-        u32_bytes(&t.row_index),
+        u64_bytes(&t.row_index),
         u32_bytes(&t.fold_ids),
         t.n_folds.to_le_bytes().to_vec(),
         f64_bytes(&t.scores),
@@ -247,7 +251,7 @@ fn check_shape(
     if table.row_index.windows(2).any(|w| w[0] >= w[1]) {
         return Err(malformed("row ids must be strictly increasing"));
     }
-    let last = table.row_index.last().copied().map_or(0, u64::from);
+    let last = table.row_index.last().copied().unwrap_or(0);
     if input_rows == 0 || last >= input_rows || n as u64 > input_rows {
         return Err(malformed("row ids must lie inside the input row count"));
     }

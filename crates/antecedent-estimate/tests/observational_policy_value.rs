@@ -174,7 +174,7 @@ fn a_policy_learned_on_held_out_rows_is_scored_on_independent_rows() {
     // Each level holds out the ceiling of 40 percent of its rows.
     assert!((3200..=3202).contains(&result.evaluation_rows), "{}", result.evaluation_rows);
     assert_eq!(result.evaluation_rows + result.learning_rows, 8000);
-    let evaluated: std::collections::HashSet<u32> = result.row_index.iter().copied().collect();
+    let evaluated: std::collections::HashSet<_> = result.row_index.iter().copied().collect();
     assert_eq!(evaluated.len() as u64, result.evaluation_rows);
     // The split is seeded: the same seed holds out the same rows, another does not.
     let again = estimate(&data, &request, 5).unwrap();
@@ -182,8 +182,11 @@ fn a_policy_learned_on_held_out_rows_is_scored_on_independent_rows() {
     let other = estimate(&data, &request, 6).unwrap();
     assert_ne!(result.row_index, other.row_index);
     // Each treatment level is held out in proportion.
-    let held_treated =
-        result.row_index.iter().filter(|&&i| data.treatment[i as usize] == 1.0).count() as f64;
+    let held_treated = result
+        .row_index
+        .iter()
+        .filter(|i| data.treatment[usize::try_from(i.get()).expect("row")] == 1.0)
+        .count() as f64;
     let all_treated = data.treatment.iter().sum::<f64>();
     assert!((held_treated / all_treated - 0.4).abs() < 0.01);
 }

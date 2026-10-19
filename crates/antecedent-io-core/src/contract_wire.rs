@@ -57,7 +57,7 @@ pub struct CheckedAipwRowsWire {
     /// Row-binding payload format.
     pub format: u16,
     /// Source row ids retained by the checked estimator, in source order.
-    pub rows: Vec<u32>,
+    pub rows: Vec<u64>,
     /// Data snapshot identity these rows came from.
     pub data_snapshot: [u8; 32],
 }

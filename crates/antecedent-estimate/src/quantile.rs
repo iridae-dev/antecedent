@@ -367,7 +367,9 @@ mod review_tests {
             propensities: vec![0.5; 2 * n].into(),
             observed_outcome: (0..n).map(|i| if i % 2 == 0 { -1.0 } else { 2.0 }).collect(),
             n_rows: n,
-            row_index: (0..n).map(|i| u32::try_from(i).unwrap()).collect(),
+            row_index: (0..n)
+                .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+                .collect(),
             fold_ids: (0..n).map(|i| u32::try_from(i % 2).unwrap()).collect(),
             n_folds: 2,
             scores: scores.into(),
@@ -424,7 +426,9 @@ mod review_tests {
             propensities: vec![0.5; scores.len()].into(),
             observed_outcome: (0..n).map(|i| if i % 4 < 2 { -2.0 } else { 5.0 }).collect(),
             n_rows: n,
-            row_index: (0..n).map(|i| u32::try_from(i).unwrap()).collect(),
+            row_index: (0..n)
+                .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+                .collect(),
             fold_ids: (0..n).map(|i| u32::try_from(i % 5).unwrap()).collect(),
             n_folds: 5,
             scores: scores.into(),

@@ -1032,13 +1032,10 @@ mod checked_interference_tests {
     }
 
     fn cluster_edges() -> Vec<NetworkEdge> {
-        (0..4)
+        (0..4u64)
             .flat_map(|cluster| {
                 let first = cluster * 2;
-                [
-                    NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                    NetworkEdge { from: first + 1, to: first, weight: 1.0 },
-                ]
+                [NetworkEdge::new(first, first + 1, 1.0), NetworkEdge::new(first + 1, first, 1.0)]
             })
             .collect()
     }
@@ -1077,7 +1074,7 @@ mod checked_interference_tests {
             TabularData::from_f64_columns([("y", &[4.0, 4.0, 6.0, 6.0, 1.0, 1.0, 3.0, 3.0][..])])
                 .unwrap();
         let mut edges = cluster_edges();
-        edges.push(NetworkEdge { from: 0, to: 2, weight: 1.0 });
+        edges.push(NetworkEdge::new(0, 2, 1.0));
         let study = crate::Study::tabular(data.clone())
             .graph(dag())
             .query(CausalQuery::Interference(cluster_total_query()))
@@ -1105,10 +1102,7 @@ mod checked_interference_tests {
             .map(|value| value.as_f64().unwrap())
             .collect::<Vec<_>>();
         let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
-        let edges = vec![
-            NetworkEdge { from: 0, to: 1, weight: 1.0 },
-            NetworkEdge { from: 1, to: 0, weight: 1.0 },
-        ];
+        let edges = vec![NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)];
         let assignment = truth["assignment"]
             .as_array()
             .unwrap()
@@ -1149,10 +1143,12 @@ mod checked_interference_tests {
             .as_array()
             .unwrap()
             .iter()
-            .map(|edge| NetworkEdge {
-                from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
-                to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
-                weight: 1.0,
+            .map(|edge| {
+                NetworkEdge::new(
+                    edge[0].as_u64().expect("edge endpoint"),
+                    edge[1].as_u64().expect("edge endpoint"),
+                    1.0,
+                )
             })
             .collect::<Vec<_>>();
         let assignment = truth["assignment"]
@@ -1193,10 +1189,7 @@ mod checked_interference_tests {
             &data,
             dag(),
             contrast_query(),
-            vec![
-                NetworkEdge { from: 0, to: 1, weight: 1.0 },
-                NetworkEdge { from: 1, to: 0, weight: 1.0 },
-            ],
+            vec![NetworkEdge::new(0, 1, 1.0), NetworkEdge::new(1, 0, 1.0)],
             vec![true, false],
             InferenceMode::Frequentist,
         );

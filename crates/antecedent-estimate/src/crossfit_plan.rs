@@ -36,7 +36,7 @@ pub(crate) enum FoldSource<'a> {
     /// A recorded assignment (one id per row), shared across a batch.
     Shared(&'a [u32]),
     /// The seeded unit-level shuffle dealt round-robin within each stratum.
-    Stratified { strata: &'a [u32], units: &'a [u32], seed: u64 },
+    Stratified { strata: &'a [u32], units: &'a [antecedent_data::GlobalId], seed: u64 },
     /// Whole clusters dealt to folds (no stratification).
     Clustered { units: &'a [u32], seed: u64 },
 }
@@ -217,8 +217,9 @@ pub(crate) fn derive_fold_ids(
 /// caller validates its bounds first, so an empty plan never reaches a fit, and a retained
 /// assignment of the right length never equals it.
 pub(crate) fn row_fold_ids_u16(strata: &[u32], folds: usize, seed: u64) -> Vec<u16> {
-    let Ok(n) = u32::try_from(strata.len()) else { return Vec::new() };
-    let units: Vec<u32> = (0..n).collect();
+    let Ok(n) = u64::try_from(strata.len()) else { return Vec::new() };
+    let units: Vec<antecedent_data::GlobalId> =
+        (0..n).map(antecedent_data::GlobalId::new).collect();
     match crossfit_fold_plan(strata, &units, folds, seed) {
         Ok(ids) => ids.into_iter().filter_map(|id| u16::try_from(id).ok()).collect(),
         Err(_) => Vec::new(),
@@ -246,12 +247,15 @@ pub(crate) fn row_fold_ids_u16(strata: &[u32], folds: usize, seed: u64) -> Vec<u
     clippy::cast_sign_loss,
     reason = "the product is a non-negative uniform draw in [0, 1) scaled by i + 1"
 )]
-pub(crate) fn crossfit_fold_plan(
+pub(crate) fn crossfit_fold_plan<U>(
     strata: &[u32],
-    units: &[u32],
+    units: &[U],
     folds: usize,
     seed: u64,
-) -> Result<Vec<u32>, EstimationError> {
+) -> Result<Vec<u32>, EstimationError>
+where
+    U: Copy + Ord + std::hash::Hash,
+{
     if folds < 2 || u32::try_from(folds).is_err() {
         return Err(EstimationError::unsupported("cross-fitting requires at least two folds"));
     }
@@ -266,7 +270,7 @@ pub(crate) fn crossfit_fold_plan(
         return Err(EstimationError::data_msg("cross-fitting folds cannot exceed distinct units"));
     }
     // Units grouped by stratum, each group sorted by unit id (determinism), then shuffled.
-    let mut groups: std::collections::BTreeMap<u32, Vec<u32>> = std::collections::BTreeMap::new();
+    let mut groups: std::collections::BTreeMap<u32, Vec<U>> = std::collections::BTreeMap::new();
     for (&u, &s) in &stratum_of {
         groups.entry(s).or_default().push(u);
     }
@@ -296,8 +300,10 @@ mod tests {
     fn fold_plan_is_seeded_stratified_and_balanced() {
         // 100 units, stratum = parity: each fold must hold exactly 10 units of each stratum,
         // and the plan must change with the seed and not follow `i % folds`.
-        let units: Vec<u32> = (0..100).collect();
-        let strata: Vec<u32> = units.iter().map(|u| u % 2).collect();
+        let units: Vec<antecedent_data::GlobalId> =
+            (0..100).map(antecedent_data::GlobalId::new).collect();
+        let strata: Vec<u32> =
+            units.iter().map(|u| u32::try_from(u.get() % 2).expect("bit")).collect();
         let plan = crossfit_fold_plan(&strata, &units, 5, 11).unwrap();
         for fold in 0..5u32 {
             for stratum in 0..2u32 {
@@ -314,20 +320,38 @@ mod tests {
     #[test]
     fn fold_plan_keeps_duplicated_units_together_and_refuses_too_few_units() {
         // A bootstrap resample repeats unit ids; every copy must share its unit's fold.
-        let units = [7u32, 7, 3, 3, 3, 9, 1, 2, 4, 5, 6, 8];
+        let units = [7u64, 7, 3, 3, 3, 9, 1, 2, 4, 5, 6, 8].map(antecedent_data::GlobalId::new);
         let strata = [0u32; 12];
         let plan = crossfit_fold_plan(&strata, &units, 4, 5).unwrap();
         for (i, &u) in units.iter().enumerate() {
             for (j, &v) in units.iter().enumerate() {
                 if u == v {
-                    assert_eq!(plan[i], plan[j], "unit {u}");
+                    assert_eq!(plan[i], plan[j], "unit {}", u.get());
                 }
             }
         }
         assert!(plan.iter().all(|&f| f < 4));
-        let err = crossfit_fold_plan(&[0, 0, 0], &[1, 1, 2], 3, 5).unwrap_err();
+        let err = crossfit_fold_plan(
+            &[0, 0, 0],
+            &[
+                antecedent_data::GlobalId::new(1),
+                antecedent_data::GlobalId::new(1),
+                antecedent_data::GlobalId::new(2),
+            ],
+            3,
+            5,
+        )
+        .unwrap_err();
         assert!(err.to_string().contains("distinct units"), "{err}");
-        assert!(crossfit_fold_plan(&[0, 0], &[1, 2], 1, 5).is_err());
+        assert!(
+            crossfit_fold_plan(
+                &[0, 0],
+                &[antecedent_data::GlobalId::new(1), antecedent_data::GlobalId::new(2)],
+                1,
+                5,
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -380,8 +404,10 @@ mod tests {
 
     #[test]
     fn stratified_source_equals_the_free_function() {
-        let units: Vec<u32> = (0..40).collect();
-        let strata: Vec<u32> = units.iter().map(|u| u % 2).collect();
+        let units: Vec<antecedent_data::GlobalId> =
+            (0..40).map(antecedent_data::GlobalId::new).collect();
+        let strata: Vec<u32> =
+            units.iter().map(|u| u32::try_from(u.get() % 2).expect("bit")).collect();
         let direct = crossfit_fold_plan(&strata, &units, 4, 9).unwrap();
         let plan = CrossfitPlan::derive(
             40,

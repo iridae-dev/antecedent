@@ -32,6 +32,7 @@ impl OwnedColumnarStorage {
     ///
     /// Length mismatches, missing schema variables, duplicate columns, or weights that
     /// are not finite and non-negative with positive total over the analysis rows.
+    /// The row count is the column length. It is not capped at `2^32 - 1`.
     pub fn try_new(
         schema: CausalSchema,
         columns: Vec<OwnedColumn>,
@@ -46,11 +47,6 @@ impl OwnedColumnarStorage {
             });
         }
         let row_count = columns.first().map_or(0, OwnedColumn::len);
-        if row_count > u32::MAX as usize {
-            return Err(DataError::InvalidArgument {
-                message: "a dataset may have at most 2^32 - 1 rows".into(),
-            });
-        }
         for (i, col) in columns.iter().enumerate() {
             let expected_id = VariableId::from_raw(u32::try_from(i).map_err(|_| {
                 DataError::InvalidArgument { message: "schema exceeds VariableId range".into() }

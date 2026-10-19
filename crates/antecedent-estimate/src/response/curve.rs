@@ -19,7 +19,7 @@ use super::{
     exact_discrete_intervention_rows, intervention_needs_quadrature, local_design_refusal,
     plugin::intervention_plugin_influence, plugin::intervention_plugin_warnings,
     push_outcome_tail_diagnostic, push_pseudo_outcome_winsor_shift, sample::CompleteSample,
-    sample::row_ids_u32, simultaneous_multiplier_band, support_report,
+    sample::row_ids, simultaneous_multiplier_band, support_report,
 };
 
 impl ContinuousResponseEstimator {
@@ -215,7 +215,7 @@ impl ContinuousResponseEstimator {
                 draws: None,
             }
         };
-        let row_index = row_ids_u32(&sample.keep)?;
+        let row_index = row_ids(&sample.keep)?;
         // Local-polynomial exports are contributions to the estimate (order 1/n).
         // Shared IF covariance expects unnormalised row scores (order 1).
         let scale = n as f64;
@@ -286,8 +286,7 @@ impl ContinuousResponseEstimator {
         };
         let level = self.options.confidence_level;
         let z = normal_ppf(0.5 + level / 2.0);
-        let scores =
-            ResponseInfluence { columns: vec![psi], row_index: row_ids_u32(&sample.keep)? };
+        let scores = ResponseInfluence { columns: vec![psi], row_index: row_ids(&sample.keep)? };
         let minima: Vec<f64> =
             (0..treatments.len()).map(|column| sample.treatment_column_range(column).0).collect();
         let maxima: Vec<f64> =

@@ -181,7 +181,7 @@ pub struct ObservationalSurvivalEstimate {
     /// Rows dropped for a missing or non-finite cell.
     pub rows_dropped_missing: u64,
     /// Original row index of each complete-case row.
-    pub row_index: Vec<u32>,
+    pub row_index: Vec<antecedent_data::GlobalId>,
     /// Per-row score of the survival difference.
     pub survival_difference_scores: Vec<f64>,
     /// Per-row score of the restricted mean survival time difference.
@@ -607,7 +607,7 @@ struct Prepared {
     arm: Vec<u32>,
     duration: Vec<f64>,
     event: Vec<bool>,
-    row_index: Vec<u32>,
+    row_index: Vec<antecedent_data::GlobalId>,
     rows_by_arm: [u64; 2],
     events_by_arm: [u64; 2],
     dropped: u64,
@@ -735,8 +735,10 @@ impl Prepared {
         let row_index = keep
             .iter()
             .map(|&i| {
-                u32::try_from(i).map_err(|_| {
-                    EstimationError::data_msg("row index exceeds the u32 row-id capacity")
+                u64::try_from(i).map(antecedent_data::GlobalId::new).map_err(|_| {
+                    EstimationError::data_msg(
+                        "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                    )
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;

@@ -684,7 +684,7 @@ pub field antecedent_learn::BasisData::covariates_colmajor: &'a [f64]
 pub field antecedent_learn::BasisData::fold_ids: core::option::Option<&'a [u16]>
 pub field antecedent_learn::BasisData::n_covariates: usize
 pub field antecedent_learn::BasisData::outcome: &'a [f64]
-pub field antecedent_learn::BasisData::row_ids: core::option::Option<&'a [u32]>
+pub field antecedent_learn::BasisData::row_ids: core::option::Option<&'a [u64]>
 pub field antecedent_learn::BasisData::treatment: &'a [f64]
 pub field antecedent_learn::BasisDesign::ncols: usize
 pub field antecedent_learn::BasisDesign::nrows: usize
@@ -760,7 +760,7 @@ pub field antecedent_learn::PosteriorPrediction::diagnostics: antecedent_learn::
 pub field antecedent_learn::PosteriorPrediction::draw_count: usize
 pub field antecedent_learn::PosteriorPrediction::fold_ids: core::option::Option<alloc::sync::Arc<[u16]>>
 pub field antecedent_learn::PosteriorPrediction::provenance: antecedent_learn::PosteriorPredictionProvenance
-pub field antecedent_learn::PosteriorPrediction::row_ids: alloc::sync::Arc<[u32]>
+pub field antecedent_learn::PosteriorPrediction::row_ids: alloc::sync::Arc<[u64]>
 pub field antecedent_learn::PosteriorPrediction::target_names: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_learn::PosteriorPrediction::values: alloc::sync::Arc<[f64]>
 pub field antecedent_learn::PosteriorPredictionDiagnostics::draw_count: usize
@@ -876,12 +876,12 @@ pub fn <antecedent_learn::PolynomialBasis>::fn term_names(&self, covariate_names
 pub fn <antecedent_learn::PortablePredictor>::fn predict_trees_with(&self, n_rows: usize, value: &dyn core::ops::function::Fn(usize, usize) -> f64, out: &mut [f64]) -> core::result::Result<(), antecedent_learn::LearnError>
 pub fn <antecedent_learn::PortablePredictor>::fn validate(&self) -> core::result::Result<(), antecedent_learn::LearnError>
 pub fn <antecedent_learn::PosteriorPrediction>::fn draw_target(&self, draw: usize, target: usize) -> core::result::Result<&[f64], antecedent_learn::LearnError>
-pub fn <antecedent_learn::PosteriorPrediction>::fn new(draw_count: usize, target_names: alloc::vec::Vec<alloc::sync::Arc<str>>, row_ids: alloc::vec::Vec<u32>, fold_ids: core::option::Option<alloc::vec::Vec<u16>>, values: alloc::vec::Vec<f64>, provenance: antecedent_learn::PosteriorPredictionProvenance) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::PosteriorPrediction>::fn new(draw_count: usize, target_names: alloc::vec::Vec<alloc::sync::Arc<str>>, row_ids: alloc::vec::Vec<u64>, fold_ids: core::option::Option<alloc::vec::Vec<u16>>, values: alloc::vec::Vec<f64>, provenance: antecedent_learn::PosteriorPredictionProvenance) -> core::result::Result<Self, antecedent_learn::LearnError>
 pub fn <antecedent_learn::RidgeLogisticLearner>::fn new(lambda: f64) -> core::result::Result<Self, antecedent_learn::LearnError>
-pub fn <antecedent_learn::RowSelection<'a>>::const fn indices(self) -> &'a [u32]
+pub fn <antecedent_learn::RowSelection<'a>>::const fn indices(self) -> &'a [u64]
 pub fn <antecedent_learn::RowSelection<'a>>::const fn is_empty(self) -> bool
 pub fn <antecedent_learn::RowSelection<'a>>::const fn len(self) -> usize
-pub fn <antecedent_learn::RowSelection<'a>>::const fn new(indices: &'a [u32]) -> Self
+pub fn <antecedent_learn::RowSelection<'a>>::const fn new(indices: &'a [u64]) -> Self
 pub fn <antecedent_learn::TargetView<'a>>::const fn is_empty(self) -> bool
 pub fn <antecedent_learn::TargetView<'a>>::const fn len(self) -> usize
 pub fn <antecedent_learn::TargetView<'a>>::const fn new(values: &'a [f64]) -> Self

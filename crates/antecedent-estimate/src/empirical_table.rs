@@ -505,7 +505,7 @@ pub fn fit_empirical_joint(
     sample: &RegimeSample,
     axes: &[DiscreteAxis],
     options: &EmpiricalTableOptions,
-    rows: Option<&[u32]>,
+    rows: Option<&[antecedent_data::GlobalId]>,
 ) -> Result<ExactDiscreteLaw, EstimationError> {
     if options.estimator != EmpiricalTableEstimator::Plugin {
         return Err(EstimationError::Refused {
@@ -519,7 +519,10 @@ pub fn fit_empirical_joint(
     }
     validate_options(options)?;
     let n = sample.n();
-    if n == 0 || n > u32::MAX as usize || sample.columns.values().any(|column| column.len() != n) {
+    if n == 0
+        || u64::try_from(n).is_err()
+        || sample.columns.values().any(|column| column.len() != n)
+    {
         return Err(EstimationError::data_msg(
             "empirical columns must have equal, nonzero representable lengths",
         ));
@@ -533,7 +536,19 @@ pub fn fit_empirical_joint(
     let mut complete = 0.0;
     let n = sample.n();
     let take: Box<dyn Iterator<Item = usize>> = match rows {
-        Some(index) => Box::new(index.iter().map(|i| *i as usize)),
+        Some(index) => {
+            let positions = index
+                .iter()
+                .map(|id| {
+                    usize::try_from(id.get()).map_err(|_| {
+                        EstimationError::data_msg(
+                            "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Box::new(positions.into_iter())
+        }
         None => Box::new(0..n),
     };
     for row in take {
@@ -596,7 +611,7 @@ fn fit_statistical_joint(
     sample: &RegimeSample,
     axes: &[DiscreteAxis],
     options: &EmpiricalTableOptions,
-    rows: Option<&[u32]>,
+    rows: Option<&[antecedent_data::GlobalId]>,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactDiscreteLaw, EstimationError> {
     let EmpiricalTableEstimator::Learned(learner) = options.estimator else {
@@ -608,8 +623,19 @@ fn fit_statistical_joint(
         &EmpiricalTableOptions { estimator: EmpiricalTableEstimator::Plugin, ..*options },
         rows,
     )?;
-    let indexes: Vec<usize> =
-        rows.map_or_else(|| (0..sample.n()).collect(), |r| r.iter().map(|v| *v as usize).collect());
+    let indexes: Vec<usize> = match rows {
+        Some(index) => index
+            .iter()
+            .map(|id| {
+                usize::try_from(id.get()).map_err(|_| {
+                    EstimationError::data_msg(
+                        "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        None => (0..sample.n()).collect(),
+    };
     let level_index: Vec<HashMap<u64, usize>> =
         axes.iter().map(|axis| categorical_level_index(&axis.values)).collect();
     let columns = axes
@@ -661,7 +687,7 @@ pub(crate) fn assemble_statistical_laws(
     input: &StatisticalTransportInput,
     functional: &BoundTransportFunctional,
     options: &EmpiricalTableOptions,
-    row_indexes: &BTreeMap<SampleKey, Vec<u32>>,
+    row_indexes: &BTreeMap<SampleKey, Vec<antecedent_data::GlobalId>>,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactTransportData, EstimationError> {
     assemble_laws(input, functional, options, row_indexes, true, ctx)
@@ -670,7 +696,7 @@ fn assemble_laws(
     input: &StatisticalTransportInput,
     functional: &BoundTransportFunctional,
     options: &EmpiricalTableOptions,
-    row_indexes: &BTreeMap<SampleKey, Vec<u32>>,
+    row_indexes: &BTreeMap<SampleKey, Vec<antecedent_data::GlobalId>>,
     require_coverage: bool,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactTransportData, EstimationError> {
@@ -1282,7 +1308,7 @@ mod tests {
             &sample(2, 1, 1, 2),
             &axes,
             &EmpiricalTableOptions::default(),
-            Some(&[u32::MAX]),
+            Some(&[antecedent_data::GlobalId::new(u64::from(u32::MAX))]),
         )
         .unwrap_err();
         assert!(!matches!(other, EstimationError::EmptyEmpiricalSample { .. }));

@@ -39,10 +39,10 @@ fn fixture() -> (TabularData, Vec<bool>, InterferenceQuery, Vec<NetworkEdge>) {
         },
     );
     let edges = vec![
-        NetworkEdge { from: 0, to: 1, weight: 1.0 },
-        NetworkEdge { from: 1, to: 0, weight: 1.0 },
-        NetworkEdge { from: 2, to: 3, weight: 1.0 },
-        NetworkEdge { from: 3, to: 2, weight: 1.0 },
+        NetworkEdge::new(0, 1, 1.0),
+        NetworkEdge::new(1, 0, 1.0),
+        NetworkEdge::new(2, 3, 1.0),
+        NetworkEdge::new(3, 2, 1.0),
     ];
     (data, assignment, query, edges)
 }
@@ -119,11 +119,11 @@ fn known_probabilities_retain_pointwise_interval_and_artifact() {
             outcomes.push(baseline + 2.0 * f64::from(treated));
             assignment.push(treated);
             clusters.push(cluster as u32);
-            edges.push(NetworkEdge {
-                from: (2 * cluster + 1 - unit) as u32,
-                to: (2 * cluster + unit) as u32,
-                weight: 1.0,
-            });
+            edges.push(NetworkEdge::new(
+                u64::try_from(2 * cluster + 1 - unit).expect("row id"),
+                u64::try_from(2 * cluster + unit).expect("row id"),
+                1.0,
+            ));
         }
     }
     let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
@@ -175,7 +175,7 @@ fn observational_network_refuses_missing_assumption_and_cross_cluster_edge() {
     }
     assert!(query.validate().is_err());
     let (_, _, query, _) = fixture();
-    edges.push(NetworkEdge { from: 0, to: 2, weight: 1.0 });
+    edges.push(NetworkEdge::new(0, 2, 1.0));
     let network = NetworkData::try_new(data.clone(), edges).unwrap();
     let study = Study::tabular(data)
         .graph(Dag::with_variables(1))

@@ -656,7 +656,7 @@ fn resume_request(
     edges: Vec<(u32, u32)>,
     target_weights: Option<&PyReadonlyArray1<'_, f64>>,
     target_depends_on: &[u32],
-    target_row_ids: Option<Vec<u32>>,
+    target_row_ids: Option<Vec<u64>>,
     quantity: &str,
     arm: Option<u32>,
     benefit_per_unit: f64,
@@ -745,8 +745,8 @@ impl PyScoreResume {
     }
 
     /// The original row ids the target weights are indexed by, in row order.
-    fn row_ids(&self) -> Vec<u32> {
-        self.inner.score_table().row_index.to_vec()
+    fn row_ids(&self) -> Vec<u64> {
+        self.inner.score_table().row_index.iter().map(|id| id.get()).collect()
     }
 
     /// The frozen mean-functional score columns `(arm, scores)`.
@@ -778,7 +778,7 @@ impl PyScoreResume {
         arm: Option<u32>,
         target_weights: Option<PyReadonlyArray1<'_, f64>>,
         target_depends_on: Option<Vec<u32>>,
-        target_row_ids: Option<Vec<u32>>,
+        target_row_ids: Option<Vec<u64>>,
         changed_inputs: Option<Vec<(String, String)>>,
     ) -> PyResult<ResumePayload> {
         let request = resume_request(
@@ -820,7 +820,7 @@ impl PyScoreResume {
         arm: Option<u32>,
         target_weights: Option<PyReadonlyArray1<'_, f64>>,
         target_depends_on: Option<Vec<u32>>,
-        target_row_ids: Option<Vec<u32>>,
+        target_row_ids: Option<Vec<u64>>,
         changed_inputs: Option<Vec<(String, String)>>,
     ) -> PyResult<ResumePayload> {
         let request = resume_request(

@@ -175,7 +175,7 @@ pub struct CheckedAipwLowering {
     /// Declared cluster-DML independence unit, when the cross-fit owns whole clusters.
     pub cluster_dml: Option<ClusterDml>,
     /// Complete-case source row identities bound during preparation.
-    pub rows: Arc<[u32]>,
+    pub rows: Arc<[antecedent_data::GlobalId]>,
 }
 
 /// Checked AIPW preparation sealed to one identified ATE claim and data binding.
@@ -433,7 +433,7 @@ impl AipwAte {
     /// A retained row without a declared source label.
     pub fn unit_labels(
         &self,
-        row_index: &[u32],
+        row_index: &[antecedent_data::GlobalId],
     ) -> Result<crate::cluster_dml_aipw::UnitLabels, EstimationError> {
         crate::cluster_dml_aipw::declared_unit_labels(
             (self.cluster_ids.as_deref(), self.source_cluster_ids.as_deref()),
@@ -1102,7 +1102,7 @@ impl AipwAte {
         let declared_clusters = crate::se::declared_row_labels(
             self.cluster_ids.as_deref(),
             self.source_cluster_ids.as_deref(),
-            problem.row_index.iter().map(|&row| row as usize),
+            problem.row_index.iter().map(|row| usize::try_from(row.get()).expect("row id")),
         )?;
         let se_analytic = crate::se::influence_se_kind(
             self.se_kind,
@@ -1199,7 +1199,7 @@ impl AipwAte {
             let declared_clusters = crate::se::declared_row_labels(
                 self.cluster_ids.as_deref(),
                 self.source_cluster_ids.as_deref(),
-                problem.row_index.iter().map(|&row| row as usize),
+                problem.row_index.iter().map(|row| usize::try_from(row.get()).expect("row id")),
             )?;
             crate::se::influence_se_kind(
                 self.se_kind,
@@ -1386,10 +1386,12 @@ impl AipwAte {
         let len = n.checked_mul(n_rep).ok_or_else(|| {
             EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
         })?;
-        if u32::try_from(n.saturating_sub(1)).is_err() {
-            return Err(EstimationError::data_msg("bootstrap rows exceed u32 index capacity"));
+        if u64::try_from(n.saturating_sub(1)).is_err() {
+            return Err(EstimationError::data_msg(
+                "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+            ));
         }
-        let mut indexes = vec![0u32; len];
+        let mut indexes = vec![antecedent_data::GlobalId::new(0); len];
         let planned = antecedent_data::fill_resample_index_batch(
             antecedent_data::ResamplingPlan::IidBootstrap,
             n,
@@ -1404,8 +1406,10 @@ impl AipwAte {
                 if inner.cancellation.is_cancelled() {
                     return Ok::<_, EstimationError>(Replicate::Cancelled);
                 }
-                let idx: Vec<usize> =
-                    indexes[r * n..(r + 1) * n].iter().map(|&i| i as usize).collect();
+                let idx: Vec<usize> = indexes[r * n..(r + 1) * n]
+                    .iter()
+                    .map(|i| usize::try_from(i.get()).expect("row id"))
+                    .collect();
                 let p = resampled_problem(&base, &idx, None);
                 Ok(match self.crossfit_table(&p, false, inner, None) {
                     Ok((table, fit)) => match table.summarize(None) {
@@ -2776,7 +2780,7 @@ mod tests {
             select_rows_colmajor(&replicate.design_matrix, n, ncols, &train, &mut design_train);
             select_rows_colmajor(&replicate.design_matrix, n, ncols, &valid, &mut design_valid);
             let t_train = gather(&replicate.treatment, &train);
-            let units: Vec<u32> = train.iter().map(|&i| replicate.row_index[i]).collect();
+            let units: Vec<_> = train.iter().map(|&i| replicate.row_index[i]).collect();
             let (_, again) = crate::propensity::fit_ridge_fold(
                 &tuning,
                 &RidgeFoldInput {

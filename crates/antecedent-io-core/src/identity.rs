@@ -661,6 +661,16 @@ impl PayloadDigestWire {
         Self { digest: payload_digest(kind, &bytes), len: values.len() as u64 }
     }
 
+    /// Digest little-endian `u64` row ids.
+    #[must_use]
+    pub fn u64s(kind: &str, values: &[u64]) -> Self {
+        let mut bytes = Vec::with_capacity(values.len() * 8);
+        for value in values {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        Self { digest: payload_digest(kind, &bytes), len: values.len() as u64 }
+    }
+
     /// Digest little-endian `i64` values.
     #[must_use]
     pub fn i64s(kind: &str, values: &[i64]) -> Self {
@@ -1706,7 +1716,7 @@ pub struct ScoreTableKey<'a> {
     /// Data snapshot the nuisances were fitted on.
     pub data_snapshot: SemanticDigest,
     /// Row index of the scored rows.
-    pub row_index: &'a [u32],
+    pub row_index: &'a [u64],
     /// Cross-fitting fold of each row.
     pub fold_ids: &'a [u32],
     /// Number of folds.
@@ -1747,7 +1757,7 @@ impl ScoreReuseIdentityWire {
             kind: "score_table".into(),
             identification: Some(*identification.as_bytes()),
             data_snapshot: *data_snapshot.as_bytes(),
-            row_index: PayloadDigestWire::u32s("score_reuse.row_index", row_index),
+            row_index: PayloadDigestWire::u64s("score_reuse.row_index", row_index),
             fold_ids: PayloadDigestWire::u32s("score_reuse.fold_ids", fold_ids),
             n_folds,
             adjustment_set: vars_to_raw(adjustment_set),

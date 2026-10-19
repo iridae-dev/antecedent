@@ -36,11 +36,11 @@ fn known_exposure_probabilities_have_pointwise_cluster_coverage() {
                 outcomes.push(baseline + 2.0 * f64::from(treated));
                 assignments.push(treated);
                 labels.push(cluster as u32);
-                edges.push(NetworkEdge {
-                    from: (2 * cluster + 1 - unit) as u32,
-                    to: (2 * cluster + unit) as u32,
-                    weight: 1.0,
-                });
+                edges.push(NetworkEdge::new(
+                    u64::try_from(2 * cluster + 1 - unit).expect("row id"),
+                    u64::try_from(2 * cluster + unit).expect("row id"),
+                    1.0,
+                ));
             }
         }
         let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();

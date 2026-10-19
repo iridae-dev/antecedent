@@ -176,7 +176,10 @@ fn missing_cells_are_dropped_and_counted() {
     let estimate = run(&data, CensoringAssumption::IndependentWithinArm, 6).unwrap();
     assert_eq!(estimate.rows_dropped_missing, 2);
     assert_eq!(estimate.n_obs, 1198);
-    assert!(!estimate.row_index.contains(&3) && !estimate.row_index.contains(&10));
+    assert!(
+        !estimate.row_index.contains(&antecedent_data::GlobalId::new(3))
+            && !estimate.row_index.contains(&antecedent_data::GlobalId::new(10))
+    );
 }
 
 #[test]

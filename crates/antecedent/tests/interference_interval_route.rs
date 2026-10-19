@@ -89,8 +89,8 @@ fn licensed_cluster_total_interval_round_trips_and_refuses_forgery() {
         .flat_map(|cluster| {
             let first = (cluster * 2) as u32;
             [
-                NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
+                NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),
             ]
         })
         .collect::<Vec<_>>();
@@ -133,8 +133,8 @@ fn thin_cluster_total_cannot_forge_a_license() {
         .flat_map(|cluster| {
             let first = (cluster * 2) as u32;
             [
-                NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
+                NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),
             ]
         })
         .collect::<Vec<_>>();
@@ -185,10 +185,12 @@ fn licensed_saturation_interval_round_trips_and_refuses_forgery() {
         .flat_map(|cluster| {
             let first = cluster * 3;
             (first..first + 3).flat_map(move |from| {
-                (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
-                    from: from as u32,
-                    to: to as u32,
-                    weight: 1.0,
+                (first..first + 3).filter(move |&to| to != from).map(move |to| {
+                    NetworkEdge::new(
+                        u64::try_from(from).expect("row id"),
+                        u64::try_from(to).expect("row id"),
+                        1.0,
+                    )
                 })
             })
         })
@@ -242,11 +244,11 @@ fn licensed_observational_known_interval_round_trips_and_refuses_forgery() {
             outcomes.push(baseline + 2.0 * f64::from(treated));
             assignment.push(treated);
             clusters.push(cluster as u32);
-            edges.push(NetworkEdge {
-                from: (2 * cluster + 1 - unit) as u32,
-                to: (2 * cluster + unit) as u32,
-                weight: 1.0,
-            });
+            edges.push(NetworkEdge::new(
+                u64::try_from(2 * cluster + 1 - unit).expect("row id"),
+                u64::try_from(2 * cluster + unit).expect("row id"),
+                1.0,
+            ));
         }
     }
     let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
@@ -287,11 +289,11 @@ fn externally_estimated_observational_stays_point_only() {
             outcomes.push(1.0 + 2.0 * f64::from(treated));
             assignment.push(treated);
             clusters.push(cluster as u32);
-            edges.push(NetworkEdge {
-                from: (2 * cluster + 1 - unit) as u32,
-                to: (2 * cluster + unit) as u32,
-                weight: 1.0,
-            });
+            edges.push(NetworkEdge::new(
+                u64::try_from(2 * cluster + 1 - unit).expect("row id"),
+                u64::try_from(2 * cluster + unit).expect("row id"),
+                1.0,
+            ));
         }
     }
     let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();

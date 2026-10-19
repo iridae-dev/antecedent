@@ -595,7 +595,12 @@ mod tests {
             propensities: Arc::from([]),
             observed_outcome: Arc::from([0.0, 1.0, 0.0, 1.0]),
             n_rows: 4,
-            row_index: Arc::from([0, 1, 2, 3]),
+            row_index: Arc::from([
+                antecedent_data::GlobalId::new(0),
+                antecedent_data::GlobalId::new(1),
+                antecedent_data::GlobalId::new(2),
+                antecedent_data::GlobalId::new(3),
+            ]),
             fold_ids: Arc::from([0, 1, 0, 1]),
             n_folds: 2,
             scores: Arc::from([0.0, 0.0, 0.0, 0.0, 1.0, 3.0, 1.0, 3.0]),
@@ -757,7 +762,10 @@ mod tests {
         t.n_rows = n;
         t.observed_arm = arm.into();
         t.observed_outcome = vec![0.0; n].into();
-        t.row_index = (0..n as u32).collect::<Vec<_>>().into();
+        t.row_index = (0..n)
+            .map(|i| antecedent_data::GlobalId::new(u64::try_from(i).unwrap()))
+            .collect::<Vec<_>>()
+            .into();
         t.fold_ids = (0..n).map(|i| (i % 2) as u32).collect::<Vec<_>>().into();
         t.scores = vec![0.0; 2 * n].into();
         t.propensities = propensities.into();

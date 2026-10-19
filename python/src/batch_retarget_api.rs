@@ -220,9 +220,12 @@ impl PyPreparedBatch {
     /// Original-row index every claim's weights must align with: the rows of the scores a
     /// retarget now reads (the last `estimate`'s, else the prepare-time rows). `None` when no
     /// plan has scores; refuses `row_weights_bound_to_snapshot` when plans disagree.
-    fn retarget_rows(&self) -> PyResult<Option<Vec<u32>>> {
+    fn retarget_rows(&self) -> PyResult<Option<Vec<u64>>> {
         let scores = self.current_scores()?;
-        Ok(scores.common_rows().map_err(retarget_error)?.map(|rows| rows.to_vec()))
+        Ok(scores
+            .common_rows()
+            .map_err(retarget_error)?
+            .map(|rows| rows.iter().map(|id| id.get()).collect()))
     }
 
     /// `prepared` or `estimated`: where the scores a retarget now reads came from.
