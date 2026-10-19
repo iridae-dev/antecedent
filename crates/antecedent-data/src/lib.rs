@@ -34,6 +34,7 @@ pub mod discrete;
 pub mod error;
 pub mod event;
 pub mod lagged_frame;
+mod lazy_identity;
 pub mod materialize;
 pub mod missing;
 pub mod multi_env;
