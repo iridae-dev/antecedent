@@ -29,6 +29,7 @@
 #[non_exhaustive] pub enum antecedent_estimate::nuisance_cache::NuisanceRole
 #[non_exhaustive] pub enum antecedent_estimate::scenario_covariance::CovarianceMethod
 #[non_exhaustive] pub enum antecedent_estimate::scenario_covariance::RowDependence
+#[non_exhaustive] pub enum antecedent_estimate::tiled_prediction::TileError
 #[non_exhaustive] pub struct antecedent_estimate::AnalyticSe
 #[non_exhaustive] pub struct antecedent_estimate::BlockSeRecord
 #[non_exhaustive] pub struct antecedent_estimate::CrossfitRecord
@@ -628,6 +629,14 @@ impl core::clone::Clone for antecedent_estimate::temporal_transport::HistorySupp
 impl core::clone::Clone for antecedent_estimate::temporal_transport::HistorySupportRow
 impl core::clone::Clone for antecedent_estimate::temporal_transport::PreparedTemporalSequence
 impl core::clone::Clone for antecedent_estimate::temporal_transport::TemporalSequenceReport
+impl core::clone::Clone for antecedent_estimate::tiled_prediction::AxisOrder
+impl core::clone::Clone for antecedent_estimate::tiled_prediction::Encoding
+impl core::clone::Clone for antecedent_estimate::tiled_prediction::EvalAxis
+impl core::clone::Clone for antecedent_estimate::tiled_prediction::GridPoint
+impl core::clone::Clone for antecedent_estimate::tiled_prediction::Reduction
+impl core::clone::Clone for antecedent_estimate::tiled_prediction::StreamSummary
+impl core::clone::Clone for antecedent_estimate::tiled_prediction::StreamedValue
+impl core::clone::Clone for antecedent_estimate::tiled_prediction::TileError
 impl core::clone::Clone for antecedent_estimate::transport_scenarios::MeanEnvelope
 impl core::clone::Clone for antecedent_estimate::transport_scenarios::PreparedScenarioSet
 impl core::clone::Clone for antecedent_estimate::transport_scenarios::ScenarioResult
@@ -804,6 +813,12 @@ impl core::cmp::Eq for antecedent_estimate::temporal_refresh::RefreshDecision
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::RefreshInvalidation
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::RefreshReceipt
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::TemporalWindowIdentity
+impl core::cmp::Eq for antecedent_estimate::tiled_prediction::AxisOrder
+impl core::cmp::Eq for antecedent_estimate::tiled_prediction::Encoding
+impl core::cmp::Eq for antecedent_estimate::tiled_prediction::EvalAxis
+impl core::cmp::Eq for antecedent_estimate::tiled_prediction::Reduction
+impl core::cmp::Eq for antecedent_estimate::tiled_prediction::StreamSummary
+impl core::cmp::Eq for antecedent_estimate::tiled_prediction::TileError
 impl core::cmp::Eq for antecedent_estimate::vector_treatment::VectorCovariance
 impl core::cmp::Ord for antecedent_estimate::ObservationPattern
 impl core::cmp::Ord for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
@@ -1279,6 +1294,14 @@ impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::RefreshRece
 impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::TemporalWindowIdentity
 impl core::cmp::PartialEq for antecedent_estimate::temporal_transport::HistorySupportReport
 impl core::cmp::PartialEq for antecedent_estimate::temporal_transport::HistorySupportRow
+impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::AxisOrder
+impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::Encoding
+impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::EvalAxis
+impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::GridPoint
+impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::Reduction
+impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::StreamSummary
+impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::StreamedValue
+impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::TileError
 impl core::cmp::PartialEq for antecedent_estimate::transport_scenarios::MeanEnvelope
 impl core::cmp::PartialEq for antecedent_estimate::transport_scenarios::StatusMass
 impl core::cmp::PartialEq for antecedent_estimate::transport_scenarios::StructuralEnvelope
@@ -1409,6 +1432,7 @@ impl core::error::Error for antecedent_estimate::cohort_linear_effect::CohortInt
 impl core::error::Error for antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
 impl core::error::Error for antecedent_estimate::measurement::MeasurementError
 impl core::error::Error for antecedent_estimate::nuisance_cache::NuisanceCacheError
+impl core::error::Error for antecedent_estimate::tiled_prediction::TileError
 impl core::fmt::Debug for antecedent_estimate::AdjustedEstimate
 impl core::fmt::Debug for antecedent_estimate::AdmgConditionalExactPlan
 impl core::fmt::Debug for antecedent_estimate::AipwAte
@@ -1980,6 +2004,14 @@ impl core::fmt::Debug for antecedent_estimate::temporal_transport::HistorySuppor
 impl core::fmt::Debug for antecedent_estimate::temporal_transport::HistorySupportRow
 impl core::fmt::Debug for antecedent_estimate::temporal_transport::PreparedTemporalSequence
 impl core::fmt::Debug for antecedent_estimate::temporal_transport::TemporalSequenceReport
+impl core::fmt::Debug for antecedent_estimate::tiled_prediction::AxisOrder
+impl core::fmt::Debug for antecedent_estimate::tiled_prediction::Encoding
+impl core::fmt::Debug for antecedent_estimate::tiled_prediction::EvalAxis
+impl core::fmt::Debug for antecedent_estimate::tiled_prediction::GridPoint
+impl core::fmt::Debug for antecedent_estimate::tiled_prediction::Reduction
+impl core::fmt::Debug for antecedent_estimate::tiled_prediction::StreamSummary
+impl core::fmt::Debug for antecedent_estimate::tiled_prediction::StreamedValue
+impl core::fmt::Debug for antecedent_estimate::tiled_prediction::TileError
 impl core::fmt::Debug for antecedent_estimate::transport_scenarios::MeanEnvelope
 impl core::fmt::Debug for antecedent_estimate::transport_scenarios::PreparedScenarioSet
 impl core::fmt::Debug for antecedent_estimate::transport_scenarios::ScenarioResult
@@ -2006,6 +2038,8 @@ impl core::fmt::Display for antecedent_estimate::cohort_linear_effect::CohortInt
 impl core::fmt::Display for antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
 impl core::fmt::Display for antecedent_estimate::measurement::MeasurementError
 impl core::fmt::Display for antecedent_estimate::nuisance_cache::NuisanceCacheError
+impl core::fmt::Display for antecedent_estimate::tiled_prediction::EvalAxis
+impl core::fmt::Display for antecedent_estimate::tiled_prediction::TileError
 impl core::hash::Hash for antecedent_estimate::AnalyticSeKind
 impl core::hash::Hash for antecedent_estimate::BayesianBackendKind
 impl core::hash::Hash for antecedent_estimate::CircularBlockFamily
@@ -2030,6 +2064,12 @@ impl core::hash::Hash for antecedent_estimate::nuisance_cache::PredictedRow
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::ProviderDependency
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::TreatmentDependency
+impl core::hash::Hash for antecedent_estimate::tiled_prediction::AxisOrder
+impl core::hash::Hash for antecedent_estimate::tiled_prediction::Encoding
+impl core::hash::Hash for antecedent_estimate::tiled_prediction::EvalAxis
+impl core::hash::Hash for antecedent_estimate::tiled_prediction::Reduction
+impl core::hash::Hash for antecedent_estimate::tiled_prediction::StreamSummary
+impl core::hash::Hash for antecedent_estimate::tiled_prediction::TileError
 impl core::hash::Hash for antecedent_estimate::vector_treatment::VectorCovariance
 impl core::marker::Copy for antecedent_estimate::AdjustedEstimate
 impl core::marker::Copy for antecedent_estimate::AlignedRows
@@ -2230,6 +2270,14 @@ impl core::marker::Copy for antecedent_estimate::temporal_initial_state::StateCo
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::ObservationPeriod
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::RefreshDecision
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::RefreshInvalidation
+impl core::marker::Copy for antecedent_estimate::tiled_prediction::AxisOrder
+impl core::marker::Copy for antecedent_estimate::tiled_prediction::Encoding
+impl core::marker::Copy for antecedent_estimate::tiled_prediction::EvalAxis
+impl core::marker::Copy for antecedent_estimate::tiled_prediction::GridPoint
+impl core::marker::Copy for antecedent_estimate::tiled_prediction::Reduction
+impl core::marker::Copy for antecedent_estimate::tiled_prediction::StreamSummary
+impl core::marker::Copy for antecedent_estimate::tiled_prediction::StreamedValue
+impl core::marker::Copy for antecedent_estimate::tiled_prediction::TileError
 impl core::marker::Copy for antecedent_estimate::vector_treatment::JointWald
 impl core::marker::Copy for antecedent_estimate::vector_treatment::VectorCovariance
 impl core::marker::Freeze for antecedent_estimate::AdjustedEstimate [auto]
@@ -2800,6 +2848,14 @@ impl core::marker::Freeze for antecedent_estimate::temporal_transport::HistorySu
 impl core::marker::Freeze for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_transport::PreparedTemporalSequence [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_transport::TemporalSequenceReport [auto]
+impl core::marker::Freeze for antecedent_estimate::tiled_prediction::AxisOrder [auto]
+impl core::marker::Freeze for antecedent_estimate::tiled_prediction::Encoding [auto]
+impl core::marker::Freeze for antecedent_estimate::tiled_prediction::EvalAxis [auto]
+impl core::marker::Freeze for antecedent_estimate::tiled_prediction::GridPoint [auto]
+impl core::marker::Freeze for antecedent_estimate::tiled_prediction::Reduction [auto]
+impl core::marker::Freeze for antecedent_estimate::tiled_prediction::StreamSummary [auto]
+impl core::marker::Freeze for antecedent_estimate::tiled_prediction::StreamedValue [auto]
+impl core::marker::Freeze for antecedent_estimate::tiled_prediction::TileError [auto]
 impl core::marker::Freeze for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::marker::Freeze for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::marker::Freeze for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -3391,6 +3447,14 @@ impl core::marker::Send for antecedent_estimate::temporal_transport::HistorySupp
 impl core::marker::Send for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
 impl core::marker::Send for antecedent_estimate::temporal_transport::PreparedTemporalSequence [auto]
 impl core::marker::Send for antecedent_estimate::temporal_transport::TemporalSequenceReport [auto]
+impl core::marker::Send for antecedent_estimate::tiled_prediction::AxisOrder [auto]
+impl core::marker::Send for antecedent_estimate::tiled_prediction::Encoding [auto]
+impl core::marker::Send for antecedent_estimate::tiled_prediction::EvalAxis [auto]
+impl core::marker::Send for antecedent_estimate::tiled_prediction::GridPoint [auto]
+impl core::marker::Send for antecedent_estimate::tiled_prediction::Reduction [auto]
+impl core::marker::Send for antecedent_estimate::tiled_prediction::StreamSummary [auto]
+impl core::marker::Send for antecedent_estimate::tiled_prediction::StreamedValue [auto]
+impl core::marker::Send for antecedent_estimate::tiled_prediction::TileError [auto]
 impl core::marker::Send for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::marker::Send for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::marker::Send for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -3867,6 +3931,14 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::TemporalWindowIdentity
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_transport::HistorySupportReport
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_transport::HistorySupportRow
+impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::AxisOrder
+impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::Encoding
+impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::EvalAxis
+impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::GridPoint
+impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::Reduction
+impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::StreamSummary
+impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::StreamedValue
+impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::TileError
 impl core::marker::StructuralPartialEq for antecedent_estimate::transport_scenarios::MeanEnvelope
 impl core::marker::StructuralPartialEq for antecedent_estimate::transport_scenarios::StatusMass
 impl core::marker::StructuralPartialEq for antecedent_estimate::transport_scenarios::StructuralEnvelope
@@ -4455,6 +4527,14 @@ impl core::marker::Sync for antecedent_estimate::temporal_transport::HistorySupp
 impl core::marker::Sync for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_transport::PreparedTemporalSequence [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_transport::TemporalSequenceReport [auto]
+impl core::marker::Sync for antecedent_estimate::tiled_prediction::AxisOrder [auto]
+impl core::marker::Sync for antecedent_estimate::tiled_prediction::Encoding [auto]
+impl core::marker::Sync for antecedent_estimate::tiled_prediction::EvalAxis [auto]
+impl core::marker::Sync for antecedent_estimate::tiled_prediction::GridPoint [auto]
+impl core::marker::Sync for antecedent_estimate::tiled_prediction::Reduction [auto]
+impl core::marker::Sync for antecedent_estimate::tiled_prediction::StreamSummary [auto]
+impl core::marker::Sync for antecedent_estimate::tiled_prediction::StreamedValue [auto]
+impl core::marker::Sync for antecedent_estimate::tiled_prediction::TileError [auto]
 impl core::marker::Sync for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::marker::Sync for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::marker::Sync for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -5046,6 +5126,14 @@ impl core::marker::Unpin for antecedent_estimate::temporal_transport::HistorySup
 impl core::marker::Unpin for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_transport::PreparedTemporalSequence [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_transport::TemporalSequenceReport [auto]
+impl core::marker::Unpin for antecedent_estimate::tiled_prediction::AxisOrder [auto]
+impl core::marker::Unpin for antecedent_estimate::tiled_prediction::Encoding [auto]
+impl core::marker::Unpin for antecedent_estimate::tiled_prediction::EvalAxis [auto]
+impl core::marker::Unpin for antecedent_estimate::tiled_prediction::GridPoint [auto]
+impl core::marker::Unpin for antecedent_estimate::tiled_prediction::Reduction [auto]
+impl core::marker::Unpin for antecedent_estimate::tiled_prediction::StreamSummary [auto]
+impl core::marker::Unpin for antecedent_estimate::tiled_prediction::StreamedValue [auto]
+impl core::marker::Unpin for antecedent_estimate::tiled_prediction::TileError [auto]
 impl core::marker::Unpin for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::marker::Unpin for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::marker::Unpin for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -5636,6 +5724,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_t
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_transport::PreparedTemporalSequence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_transport::TemporalSequenceReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::AxisOrder [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::Encoding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::EvalAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::GridPoint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::Reduction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::StreamSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::StreamedValue [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::TileError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -6226,6 +6322,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_tran
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_transport::PreparedTemporalSequence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_transport::TemporalSequenceReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::AxisOrder [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::Encoding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::EvalAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::GridPoint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::Reduction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::StreamSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::StreamedValue [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::TileError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::transport_scenarios::MeanEnvelope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::transport_scenarios::PreparedScenarioSet [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::transport_scenarios::ScenarioResult [auto]
@@ -6322,11 +6426,14 @@ impl<'a> core::clone::Clone for antecedent_estimate::policy_value::MultiActionIp
 impl<'a> core::clone::Clone for antecedent_estimate::policy_value::MultiActionLimits<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::survival::KnownCensoring<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::survival::SurvivalRows<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::tiled_prediction::TileRequest<'a>
 impl<'a> core::cmp::Eq for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::cmp::Eq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::cmp::PartialEq for antecedent_estimate::policy_value::MultiActionLimits<'a>
+impl<'a> core::cmp::PartialEq for antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
 impl<'a> core::default::Default for antecedent_estimate::SharedCellInputs<'a>
 impl<'a> core::default::Default for antecedent_estimate::policy_value::MultiActionLimits<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::CellScoreSpec<'a>
@@ -6363,6 +6470,8 @@ impl<'a> core::fmt::Debug for antecedent_estimate::policy_value::MultiActionLimi
 impl<'a> core::fmt::Debug for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::survival::KnownCensoring<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::survival::SurvivalRows<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::tiled_prediction::TileRequest<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::CellScoreSpec<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::ContinuousCellSpec<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::HydrateSource<'a>
@@ -6396,6 +6505,8 @@ impl<'a> core::marker::Copy for antecedent_estimate::policy_value::MultiActionIp
 impl<'a> core::marker::Copy for antecedent_estimate::policy_value::MultiActionLimits<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::survival::KnownCensoring<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::survival::SurvivalRows<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::tiled_prediction::TileRequest<'a>
 impl<'a> core::marker::Freeze for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6433,6 +6544,8 @@ impl<'a> core::marker::Freeze for antecedent_estimate::policy_value::MultiAction
 impl<'a> core::marker::Freeze for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::survival::SurvivalRows<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6470,9 +6583,12 @@ impl<'a> core::marker::Send for antecedent_estimate::policy_value::MultiActionLi
 impl<'a> core::marker::Send for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::survival::SurvivalRows<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::measurement::CategoricalFunctional<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::measurement::RiskDifferenceInput<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::policy_value::MultiActionLimits<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
 impl<'a> core::marker::Sync for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6510,6 +6626,8 @@ impl<'a> core::marker::Sync for antecedent_estimate::policy_value::MultiActionLi
 impl<'a> core::marker::Sync for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::survival::SurvivalRows<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6547,6 +6665,8 @@ impl<'a> core::marker::Unpin for antecedent_estimate::policy_value::MultiActionL
 impl<'a> core::marker::Unpin for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::survival::SurvivalRows<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6581,6 +6701,8 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::survival::SurvivalRows<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::CellScoreSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ContinuousCellSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::HydrateSource<'a> [auto]
@@ -6615,6 +6737,8 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_va
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::survival::SurvivalRows<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::OutcomeDraws<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::tiled_prediction::TileRequest<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::DoseBasis
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::EstimatorMenu
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::EstimatorMenuEntry
@@ -7010,6 +7134,10 @@ pub enum antecedent_estimate::temporal_initial_state::InitialStatePopulation
 pub enum antecedent_estimate::temporal_initial_state::InitialStateSpec
 pub enum antecedent_estimate::temporal_refresh::RefreshDecision
 pub enum antecedent_estimate::temporal_refresh::RefreshInvalidation
+pub enum antecedent_estimate::tiled_prediction::Encoding
+pub enum antecedent_estimate::tiled_prediction::EvalAxis
+pub enum antecedent_estimate::tiled_prediction::Reduction
+pub enum antecedent_estimate::tiled_prediction::StreamedValue
 pub enum antecedent_estimate::vector_treatment::VectorCovariance
 pub field antecedent_estimate::AdjustedEstimate::active: f64
 pub field antecedent_estimate::AdjustedEstimate::all_observed_population: bool
@@ -9499,6 +9627,28 @@ pub field antecedent_estimate::temporal_transport::TemporalSequenceReport::mean:
 pub field antecedent_estimate::temporal_transport::TemporalSequenceReport::sequence: alloc::vec::Vec<antecedent_core::value::Value>
 pub field antecedent_estimate::temporal_transport::TemporalSequenceReport::support: antecedent_estimate::temporal_transport::HistorySupportReport
 pub field antecedent_estimate::temporal_transport::TemporalSequenceReport::time_varying_confounders: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_estimate::tiled_prediction::GridPoint::coordinate: f64
+pub field antecedent_estimate::tiled_prediction::GridPoint::factor: f64
+pub field antecedent_estimate::tiled_prediction::GridPoint::id: u64
+pub field antecedent_estimate::tiled_prediction::OutcomeDraws::coefficients: &'a [f64]
+pub field antecedent_estimate::tiled_prediction::OutcomeDraws::id: u64
+pub field antecedent_estimate::tiled_prediction::StreamSummary::emitted: u64
+pub field antecedent_estimate::tiled_prediction::StreamSummary::invariant_evaluations: u64
+pub field antecedent_estimate::tiled_prediction::StreamSummary::reduction: antecedent_estimate::tiled_prediction::Reduction
+pub field antecedent_estimate::tiled_prediction::TileRequest::draw_count: u64
+pub field antecedent_estimate::tiled_prediction::TileRequest::draw_start: u64
+pub field antecedent_estimate::tiled_prediction::TileRequest::encoding: antecedent_estimate::tiled_prediction::Encoding
+pub field antecedent_estimate::tiled_prediction::TileRequest::failed_draws: &'a [bool]
+pub field antecedent_estimate::tiled_prediction::TileRequest::grid: &'a [antecedent_estimate::tiled_prediction::GridPoint]
+pub field antecedent_estimate::tiled_prediction::TileRequest::grid_count: u64
+pub field antecedent_estimate::tiled_prediction::TileRequest::grid_start: u64
+pub field antecedent_estimate::tiled_prediction::TileRequest::order: antecedent_estimate::tiled_prediction::AxisOrder
+pub field antecedent_estimate::tiled_prediction::TileRequest::outcomes: &'a [antecedent_estimate::tiled_prediction::OutcomeDraws<'a>]
+pub field antecedent_estimate::tiled_prediction::TileRequest::reduction: antecedent_estimate::tiled_prediction::Reduction
+pub field antecedent_estimate::tiled_prediction::TileRequest::row_count: u64
+pub field antecedent_estimate::tiled_prediction::TileRequest::row_features: &'a [f64]
+pub field antecedent_estimate::tiled_prediction::TileRequest::row_start: u64
+pub field antecedent_estimate::tiled_prediction::TileRequest::row_width: u64
 pub field antecedent_estimate::transport_scenarios::MeanEnvelope::lower: f64
 pub field antecedent_estimate::transport_scenarios::MeanEnvelope::lower_scenario: alloc::sync::Arc<str>
 pub field antecedent_estimate::transport_scenarios::MeanEnvelope::outcome: antecedent_core::ids::VariableId
@@ -10373,6 +10523,10 @@ pub fn <antecedent_estimate::temporal_transport::PreparedTemporalSequence>::cons
 pub fn <antecedent_estimate::temporal_transport::PreparedTemporalSequence>::fn evaluate(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_transport::TemporalSequenceReport, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_transport::PreparedTemporalSequence>::fn refresh(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_transport::TemporalSequenceReport>::const fn is_from(&self, prepared: &antecedent_estimate::temporal_transport::PreparedTemporalSequence) -> bool
+pub fn <antecedent_estimate::tiled_prediction::AxisOrder>::const fn axes(self) -> [antecedent_estimate::tiled_prediction::EvalAxis; 4]
+pub fn <antecedent_estimate::tiled_prediction::AxisOrder>::const fn row_major() -> Self
+pub fn <antecedent_estimate::tiled_prediction::AxisOrder>::fn try_new(axes: [antecedent_estimate::tiled_prediction::EvalAxis; 4]) -> core::result::Result<Self, antecedent_estimate::tiled_prediction::TileError>
+pub fn <antecedent_estimate::tiled_prediction::Encoding>::const fn width(self) -> core::result::Result<u64, antecedent_estimate::tiled_prediction::TileError>
 pub fn <antecedent_estimate::transport_scenarios::PreparedScenarioSet>::const fn data(&self) -> &antecedent_expr::exact::ExactTransportData
 pub fn <antecedent_estimate::transport_scenarios::PreparedScenarioSet>::const fn decision(&self) -> &antecedent_identify::sid::scenarios::ScenarioSetDecision
 pub fn <antecedent_estimate::transport_scenarios::PreparedScenarioSet>::const fn limits(&self) -> antecedent_expr::exact_plan::ExactEvaluationLimits
@@ -10729,6 +10883,7 @@ pub fn antecedent_estimate::temporal_refresh::decide_refresh(old: &antecedent_es
 pub fn antecedent_estimate::temporal_refresh::refresh_held<T, F>(held: &antecedent_estimate::temporal_refresh::HeldTemporalResult<T>, replacement: antecedent_estimate::temporal_refresh::TemporalWindowIdentity, evaluate: F) -> core::result::Result<(antecedent_estimate::temporal_refresh::HeldTemporalResult<T>, antecedent_estimate::temporal_refresh::RefreshReceipt), antecedent_estimate::EstimationError> where F: core::ops::function::FnOnce(&antecedent_estimate::temporal_refresh::TemporalWindowIdentity) -> core::result::Result<T, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(problem: &antecedent_estimate::SequentialProblem<'_>, query: &antecedent_core::query::temporal::TemporalEffectQuery, inference: antecedent_estimate::SequentialInference<'_>, ctx: &antecedent_core::execution::ExecutionContext, validation: core::option::Option<&mut alloc::vec::Vec<antecedent_estimate::temporal_sequential::SequentialBayesianMechanism>>) -> core::result::Result<(antecedent_estimate::EffectEstimate, core::option::Option<antecedent_estimate::CausalPosterior>), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_transport::prepare_temporal_sequence(decision: antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision, data: antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_transport::PreparedTemporalSequence, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::tiled_prediction::stream_tile(request: &antecedent_estimate::tiled_prediction::TileRequest<'_>, emit: impl core::ops::function::FnMut(antecedent_estimate::tiled_prediction::StreamedValue)) -> core::result::Result<antecedent_estimate::tiled_prediction::StreamSummary, antecedent_estimate::tiled_prediction::TileError>
 pub fn antecedent_estimate::transport::transport_augmented_response_grid(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], trial: &[bool], selection_probability: &[f64], inputs: &antecedent_estimate::ResponseGridInputs<'_>) -> core::result::Result<antecedent_estimate::TransportResponseGridEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_aipw_row_scores(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], outcome_regressions: core::option::Option<(&[f64], &[f64])>) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_to_target_bayesian_bootstrap(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], sampling: antecedent_estimate::DrawSpec) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
@@ -10864,6 +11019,7 @@ pub mod antecedent_estimate::temporal_response_dispersion
 pub mod antecedent_estimate::temporal_sequential
 pub mod antecedent_estimate::temporal_sequential_tuples
 pub mod antecedent_estimate::temporal_transport
+pub mod antecedent_estimate::tiled_prediction
 pub mod antecedent_estimate::transport
 pub mod antecedent_estimate::transport_scenarios
 pub mod antecedent_estimate::util
@@ -11419,6 +11575,12 @@ pub struct antecedent_estimate::temporal_transport::PreparedTemporalSequence
 pub struct antecedent_estimate::temporal_transport::PreparedTemporalSequence has private fields
 pub struct antecedent_estimate::temporal_transport::TemporalSequenceReport
 pub struct antecedent_estimate::temporal_transport::TemporalSequenceReport has private fields
+pub struct antecedent_estimate::tiled_prediction::AxisOrder
+pub struct antecedent_estimate::tiled_prediction::AxisOrder has private fields
+pub struct antecedent_estimate::tiled_prediction::GridPoint
+pub struct antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
+pub struct antecedent_estimate::tiled_prediction::StreamSummary
+pub struct antecedent_estimate::tiled_prediction::TileRequest<'a>
 pub struct antecedent_estimate::transport_scenarios::MeanEnvelope
 pub struct antecedent_estimate::transport_scenarios::PreparedScenarioSet
 pub struct antecedent_estimate::transport_scenarios::PreparedScenarioSet has private fields
@@ -12297,6 +12459,32 @@ pub variant antecedent_estimate::temporal_refresh::RefreshInvalidation::Interven
 pub variant antecedent_estimate::temporal_refresh::RefreshInvalidation::LagAlignmentChanged
 pub variant antecedent_estimate::temporal_refresh::RefreshInvalidation::PremisesChanged
 pub variant antecedent_estimate::temporal_refresh::RefreshInvalidation::StaleSnapshot
+pub variant antecedent_estimate::tiled_prediction::Encoding::HorizonIndicator { width: u64 }
+pub variant antecedent_estimate::tiled_prediction::Encoding::Polynomial { degree: u64 }
+pub variant antecedent_estimate::tiled_prediction::EvalAxis::Draw
+pub variant antecedent_estimate::tiled_prediction::EvalAxis::Grid
+pub variant antecedent_estimate::tiled_prediction::EvalAxis::Outcome
+pub variant antecedent_estimate::tiled_prediction::EvalAxis::Row
+pub variant antecedent_estimate::tiled_prediction::Reduction::DrawCovariance
+pub variant antecedent_estimate::tiled_prediction::Reduction::DrawMean
+pub variant antecedent_estimate::tiled_prediction::Reduction::Full
+pub variant antecedent_estimate::tiled_prediction::StreamedValue::DrawCovariance { row: u64, left_grid_id: u64, left_outcome: u64, right_grid_id: u64, right_outcome: u64, value: f64 }
+pub variant antecedent_estimate::tiled_prediction::StreamedValue::DrawMean { row: u64, grid_id: u64, outcome: u64, value: f64 }
+pub variant antecedent_estimate::tiled_prediction::StreamedValue::Full { row: u64, draw: u64, grid_id: u64, outcome: u64, value: f64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::AxisOrder
+pub variant antecedent_estimate::tiled_prediction::TileError::Coefficients { outcome: u64, expected: u64, actual: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::DrawCountNotExact { count: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::DrawRange { start: u64, count: u64, full: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::Empty { axis: &'static str }
+pub variant antecedent_estimate::tiled_prediction::TileError::GridRange { start: u64, count: u64, full: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::Horizon { grid_id: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::HorizonWidth
+pub variant antecedent_estimate::tiled_prediction::TileError::Index { value: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::NonFinitePoint { grid_id: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::PartialDraws { full: u64, start: u64, count: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::RowFeatures { expected: u64, actual: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::RowRange { start: u64, count: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::SizeOverflow
 pub variant antecedent_estimate::vector_treatment::VectorCovariance::Hc0
 pub variant antecedent_estimate::vector_treatment::VectorCovariance::Hc1
 pub variant antecedent_estimate::vector_treatment::VectorCovariance::Hc2
