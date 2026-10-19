@@ -19,6 +19,8 @@ impl core::clone::Clone for antecedent_graph::Cpdag
 impl core::clone::Clone for antecedent_graph::CpdagCompletion
 impl core::clone::Clone for antecedent_graph::CpdagCompletionSampler
 impl core::clone::Clone for antecedent_graph::CpdagReview
+impl core::clone::Clone for antecedent_graph::CyclicDigraph
+impl core::clone::Clone for antecedent_graph::CyclicMixedGraph
 impl core::clone::Clone for antecedent_graph::DSeparationWorkspace
 impl core::clone::Clone for antecedent_graph::Dag
 impl core::clone::Clone for antecedent_graph::DagReview
@@ -60,6 +62,8 @@ impl core::cmp::Eq for antecedent_graph::BitSet
 impl core::cmp::Eq for antecedent_graph::CompletionValidationReport
 impl core::cmp::Eq for antecedent_graph::CopyLabels
 impl core::cmp::Eq for antecedent_graph::Cpdag
+impl core::cmp::Eq for antecedent_graph::CyclicDigraph
+impl core::cmp::Eq for antecedent_graph::CyclicMixedGraph
 impl core::cmp::Eq for antecedent_graph::Dag
 impl core::cmp::Eq for antecedent_graph::DefiniteStatusPath
 impl core::cmp::Eq for antecedent_graph::DefiniteStatusPathSearch
@@ -84,6 +88,8 @@ impl core::cmp::PartialEq for antecedent_graph::BitSet
 impl core::cmp::PartialEq for antecedent_graph::CompletionValidationReport
 impl core::cmp::PartialEq for antecedent_graph::CopyLabels
 impl core::cmp::PartialEq for antecedent_graph::Cpdag
+impl core::cmp::PartialEq for antecedent_graph::CyclicDigraph
+impl core::cmp::PartialEq for antecedent_graph::CyclicMixedGraph
 impl core::cmp::PartialEq for antecedent_graph::Dag
 impl core::cmp::PartialEq for antecedent_graph::DefiniteStatusPath
 impl core::cmp::PartialEq for antecedent_graph::DefiniteStatusPathSearch
@@ -118,6 +124,8 @@ impl core::fmt::Debug for antecedent_graph::Cpdag
 impl core::fmt::Debug for antecedent_graph::CpdagCompletion
 impl core::fmt::Debug for antecedent_graph::CpdagCompletionSampler
 impl core::fmt::Debug for antecedent_graph::CpdagReview
+impl core::fmt::Debug for antecedent_graph::CyclicDigraph
+impl core::fmt::Debug for antecedent_graph::CyclicMixedGraph
 impl core::fmt::Debug for antecedent_graph::DSeparationWorkspace
 impl core::fmt::Debug for antecedent_graph::Dag
 impl core::fmt::Debug for antecedent_graph::DagReview
@@ -184,6 +192,8 @@ impl core::marker::Freeze for antecedent_graph::Cpdag [auto]
 impl core::marker::Freeze for antecedent_graph::CpdagCompletion [auto]
 impl core::marker::Freeze for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::marker::Freeze for antecedent_graph::CpdagReview [auto]
+impl core::marker::Freeze for antecedent_graph::CyclicDigraph [auto]
+impl core::marker::Freeze for antecedent_graph::CyclicMixedGraph [auto]
 impl core::marker::Freeze for antecedent_graph::DSeparationWorkspace [auto]
 impl core::marker::Freeze for antecedent_graph::Dag [auto]
 impl core::marker::Freeze for antecedent_graph::DagReview [auto]
@@ -225,6 +235,8 @@ impl core::marker::Send for antecedent_graph::Cpdag [auto]
 impl core::marker::Send for antecedent_graph::CpdagCompletion [auto]
 impl core::marker::Send for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::marker::Send for antecedent_graph::CpdagReview [auto]
+impl core::marker::Send for antecedent_graph::CyclicDigraph [auto]
+impl core::marker::Send for antecedent_graph::CyclicMixedGraph [auto]
 impl core::marker::Send for antecedent_graph::DSeparationWorkspace [auto]
 impl core::marker::Send for antecedent_graph::Dag [auto]
 impl core::marker::Send for antecedent_graph::DagReview [auto]
@@ -264,6 +276,8 @@ impl core::marker::Send for antecedent_graph::WithinTier [auto]
 impl core::marker::StructuralPartialEq for antecedent_graph::CompletionValidationReport
 impl core::marker::StructuralPartialEq for antecedent_graph::CopyLabels
 impl core::marker::StructuralPartialEq for antecedent_graph::Cpdag
+impl core::marker::StructuralPartialEq for antecedent_graph::CyclicDigraph
+impl core::marker::StructuralPartialEq for antecedent_graph::CyclicMixedGraph
 impl core::marker::StructuralPartialEq for antecedent_graph::DefiniteStatusPath
 impl core::marker::StructuralPartialEq for antecedent_graph::DefiniteStatusPathSearch
 impl core::marker::StructuralPartialEq for antecedent_graph::DenseNodeId
@@ -289,6 +303,8 @@ impl core::marker::Sync for antecedent_graph::Cpdag [auto]
 impl core::marker::Sync for antecedent_graph::CpdagCompletion [auto]
 impl core::marker::Sync for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::marker::Sync for antecedent_graph::CpdagReview [auto]
+impl core::marker::Sync for antecedent_graph::CyclicDigraph [auto]
+impl core::marker::Sync for antecedent_graph::CyclicMixedGraph [auto]
 impl core::marker::Sync for antecedent_graph::DSeparationWorkspace [auto]
 impl core::marker::Sync for antecedent_graph::Dag [auto]
 impl core::marker::Sync for antecedent_graph::DagReview [auto]
@@ -334,6 +350,8 @@ impl core::marker::Unpin for antecedent_graph::Cpdag [auto]
 impl core::marker::Unpin for antecedent_graph::CpdagCompletion [auto]
 impl core::marker::Unpin for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::marker::Unpin for antecedent_graph::CpdagReview [auto]
+impl core::marker::Unpin for antecedent_graph::CyclicDigraph [auto]
+impl core::marker::Unpin for antecedent_graph::CyclicMixedGraph [auto]
 impl core::marker::Unpin for antecedent_graph::DSeparationWorkspace [auto]
 impl core::marker::Unpin for antecedent_graph::Dag [auto]
 impl core::marker::Unpin for antecedent_graph::DagReview [auto]
@@ -379,6 +397,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Cpdag [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CpdagCompletion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CpdagReview [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CyclicDigraph [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CyclicMixedGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DSeparationWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Dag [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DagReview [auto]
@@ -424,6 +444,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Cpdag [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CpdagCompletion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CpdagCompletionSampler [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CpdagReview [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CyclicDigraph [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CyclicMixedGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DSeparationWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Dag [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DagReview [auto]
@@ -653,6 +675,40 @@ pub fn <antecedent_graph::CpdagReview>::fn from_cpdag(graph: antecedent_graph::C
 pub fn <antecedent_graph::CpdagReview>::fn is_complete(&self) -> bool
 pub fn <antecedent_graph::CpdagReview>::fn orient_edge(self, from: antecedent_core::ids::VariableId, to: antecedent_core::ids::VariableId) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::CpdagReview>::fn try_into_dag(self) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicDigraph>::const fn empty() -> Self
+pub fn <antecedent_graph::CyclicDigraph>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicDigraph>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::CyclicDigraph>::fn directed_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
+pub fn <antecedent_graph::CyclicDigraph>::fn edges(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::MarkedEdge> + '_
+pub fn <antecedent_graph::CyclicDigraph>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicDigraph>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicDigraph>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::CyclicDigraph>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::CyclicDigraph>::fn node_ids(&self) -> impl core::iter::traits::double_ended::DoubleEndedIterator<Item = antecedent_graph::DenseNodeId> + core::iter::traits::exact_size::ExactSizeIterator
+pub fn <antecedent_graph::CyclicDigraph>::fn nodes(&self) -> &[antecedent_core::node::NodeRef]
+pub fn <antecedent_graph::CyclicDigraph>::fn parents(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::CyclicDigraph>::fn successors(&self, id: antecedent_graph::DenseNodeId) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::DenseNodeId> + '_
+pub fn <antecedent_graph::CyclicDigraph>::fn validate(&self) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicDigraph>::fn with_variables(n: u32) -> Self
+pub fn <antecedent_graph::CyclicMixedGraph>::const fn empty() -> Self
+pub fn <antecedent_graph::CyclicMixedGraph>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicMixedGraph>::fn bidirected_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
+pub fn <antecedent_graph::CyclicMixedGraph>::fn bidirected_neighbors(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::CyclicMixedGraph>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::CyclicMixedGraph>::fn directed_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
+pub fn <antecedent_graph::CyclicMixedGraph>::fn edges(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::MarkedEdge> + '_
+pub fn <antecedent_graph::CyclicMixedGraph>::fn from_cyclic_digraph(graph: antecedent_graph::CyclicDigraph) -> Self
+pub fn <antecedent_graph::CyclicMixedGraph>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicMixedGraph>::fn insert_bidirected(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicMixedGraph>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicMixedGraph>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::CyclicMixedGraph>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::CyclicMixedGraph>::fn node_ids(&self) -> impl core::iter::traits::double_ended::DoubleEndedIterator<Item = antecedent_graph::DenseNodeId> + core::iter::traits::exact_size::ExactSizeIterator
+pub fn <antecedent_graph::CyclicMixedGraph>::fn nodes(&self) -> &[antecedent_core::node::NodeRef]
+pub fn <antecedent_graph::CyclicMixedGraph>::fn parents(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::CyclicMixedGraph>::fn successors(&self, id: antecedent_graph::DenseNodeId) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::DenseNodeId> + '_
+pub fn <antecedent_graph::CyclicMixedGraph>::fn validate(&self) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::CyclicMixedGraph>::fn with_variables(n: u32) -> Self
 pub fn <antecedent_graph::DSeparationWorkspace>::fn prepare(&mut self, n: usize)
 pub fn <antecedent_graph::Dag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn ancestors_of(&self, nodes: &[antecedent_graph::DenseNodeId], out: &mut antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace)
@@ -895,6 +951,7 @@ pub mod antecedent_graph::ancestry
 pub mod antecedent_graph::completion
 pub mod antecedent_graph::cpdag
 pub mod antecedent_graph::cpdag_completion
+pub mod antecedent_graph::cyclic
 pub mod antecedent_graph::dag
 pub mod antecedent_graph::dsep
 pub mod antecedent_graph::error
@@ -928,6 +985,10 @@ pub struct antecedent_graph::CpdagCompletion
 pub struct antecedent_graph::CpdagCompletionSampler
 pub struct antecedent_graph::CpdagCompletionSampler has private fields
 pub struct antecedent_graph::CpdagReview
+pub struct antecedent_graph::CyclicDigraph
+pub struct antecedent_graph::CyclicDigraph has private fields
+pub struct antecedent_graph::CyclicMixedGraph
+pub struct antecedent_graph::CyclicMixedGraph has private fields
 pub struct antecedent_graph::DSeparationWorkspace
 pub struct antecedent_graph::DSeparationWorkspace has private fields
 pub struct antecedent_graph::Dag
@@ -988,6 +1049,8 @@ pub use antecedent_graph::cpdag::CpdagReview = antecedent_graph::CpdagReview
 pub use antecedent_graph::cpdag::TemporalCpdag = antecedent_graph::TemporalCpdag
 pub use antecedent_graph::cpdag_completion::CpdagCompletion = antecedent_graph::CpdagCompletion
 pub use antecedent_graph::cpdag_completion::CpdagCompletionSampler = antecedent_graph::CpdagCompletionSampler
+pub use antecedent_graph::cyclic::CyclicDigraph = antecedent_graph::CyclicDigraph
+pub use antecedent_graph::cyclic::CyclicMixedGraph = antecedent_graph::CyclicMixedGraph
 pub use antecedent_graph::dag::Dag = antecedent_graph::Dag
 pub use antecedent_graph::dag::DagReview = antecedent_graph::DagReview
 pub use antecedent_graph::dsep::DSeparationWorkspace = antecedent_graph::DSeparationWorkspace

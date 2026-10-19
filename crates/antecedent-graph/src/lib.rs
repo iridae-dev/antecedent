@@ -1,7 +1,9 @@
 //! Causal graph types, dense indexes, and traversal workspaces.
 //!
-//! Distinct concrete types ([`Dag`], [`Admg`], [`Cpdag`], [`Pag`], [`TemporalDag`], …)
-//! preserve edge semantics — they are not interchangeable aliases.
+//! Distinct concrete types ([`Dag`], [`Admg`], [`CyclicDigraph`],
+//! [`CyclicMixedGraph`], [`Cpdag`], [`Pag`], [`TemporalDag`], …) preserve edge
+//! semantics — they are not interchangeable aliases. [`Dag`] and [`Admg`] still
+//! reject directed cycles.
 //!
 //! ```
 //! use antecedent_core::CausalSchemaBuilder;
@@ -29,6 +31,7 @@ pub mod ancestry;
 pub mod completion;
 pub mod cpdag;
 pub mod cpdag_completion;
+pub mod cyclic;
 pub mod dag;
 mod directed;
 pub mod dsep;
@@ -60,6 +63,7 @@ pub use completion::{
 };
 pub use cpdag::{Cpdag, CpdagReview, TemporalCpdag};
 pub use cpdag_completion::{CpdagCompletion, CpdagCompletionSampler, is_mec_member};
+pub use cyclic::{CyclicDigraph, CyclicMixedGraph};
 pub use dag::{Dag, DagReview};
 pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
 pub use error::GraphError;
