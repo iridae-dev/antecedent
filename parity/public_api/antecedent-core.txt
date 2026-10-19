@@ -69,6 +69,7 @@
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ParameterEvidence
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ParameterUncertainty
 #[non_exhaustive] pub enum antecedent_core::parallel_axis::ParallelPlanError
+#[non_exhaustive] pub enum antecedent_core::physical_choice::RejectionReason
 #[non_exhaustive] pub enum antecedent_core::query::ExperimentFamily
 #[non_exhaustive] pub enum antecedent_core::query::GraphAssumptionSet
 #[non_exhaustive] pub enum antecedent_core::query::TransportDistributionFamily
@@ -82,6 +83,7 @@
 #[non_exhaustive] pub struct antecedent_core::AverageEffectQuery
 #[non_exhaustive] pub struct antecedent_core::CalibrationBasis
 #[non_exhaustive] pub struct antecedent_core::ContractIdentities
+#[non_exhaustive] pub struct antecedent_core::physical_choice::PhysicalChoiceRefusal
 impl !core::marker::Freeze for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl !core::marker::Freeze for antecedent_core::execution::AdmissionLease [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExecutionContext [auto]
@@ -476,6 +478,16 @@ impl core::clone::Clone for antecedent_core::parallel_axis::ParallelAxis
 impl core::clone::Clone for antecedent_core::parallel_axis::ParallelPlanError
 impl core::clone::Clone for antecedent_core::parallel_axis::SerialInner
 impl core::clone::Clone for antecedent_core::parallel_axis::WorkerCap
+impl core::clone::Clone for antecedent_core::physical_choice::AvailableCapabilities
+impl core::clone::Clone for antecedent_core::physical_choice::CostQuotes
+impl core::clone::Clone for antecedent_core::physical_choice::DeclaredCost
+impl core::clone::Clone for antecedent_core::physical_choice::OperatorCapability
+impl core::clone::Clone for antecedent_core::physical_choice::PhysicalAlternative
+impl core::clone::Clone for antecedent_core::physical_choice::PhysicalChoice
+impl core::clone::Clone for antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl core::clone::Clone for antecedent_core::physical_choice::RejectedAlternative
+impl core::clone::Clone for antecedent_core::physical_choice::RejectionReason
+impl core::clone::Clone for antecedent_core::physical_choice::ResourceCapability
 impl core::clone::Clone for antecedent_core::query::ComputationLimits
 impl core::clone::Clone for antecedent_core::query::ExperimentFamily
 impl core::clone::Clone for antecedent_core::query::GraphAssumptionSet
@@ -837,6 +849,16 @@ impl core::cmp::Eq for antecedent_core::measurement_model::RepresentationVersion
 impl core::cmp::Eq for antecedent_core::parallel_axis::ParallelAxis
 impl core::cmp::Eq for antecedent_core::parallel_axis::ParallelPlanError
 impl core::cmp::Eq for antecedent_core::parallel_axis::SerialInner
+impl core::cmp::Eq for antecedent_core::physical_choice::AvailableCapabilities
+impl core::cmp::Eq for antecedent_core::physical_choice::CostQuotes
+impl core::cmp::Eq for antecedent_core::physical_choice::DeclaredCost
+impl core::cmp::Eq for antecedent_core::physical_choice::OperatorCapability
+impl core::cmp::Eq for antecedent_core::physical_choice::PhysicalAlternative
+impl core::cmp::Eq for antecedent_core::physical_choice::PhysicalChoice
+impl core::cmp::Eq for antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl core::cmp::Eq for antecedent_core::physical_choice::RejectedAlternative
+impl core::cmp::Eq for antecedent_core::physical_choice::RejectionReason
+impl core::cmp::Eq for antecedent_core::physical_choice::ResourceCapability
 impl core::cmp::Eq for antecedent_core::query::ComputationLimits
 impl core::cmp::Eq for antecedent_core::query::ExperimentFamily
 impl core::cmp::Eq for antecedent_core::query::GraphAssumptionSet
@@ -909,6 +931,7 @@ impl core::cmp::Ord for antecedent_core::WorldId
 impl core::cmp::Ord for antecedent_core::WorldObservation
 impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementKind
 impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementRoute
+impl core::cmp::Ord for antecedent_core::physical_choice::DeclaredCost
 impl core::cmp::Ord for antecedent_core::recalc::Branch
 impl core::cmp::Ord for antecedent_core::recalc::Revalidation
 impl core::cmp::Ord for antecedent_core::recalc::Stage
@@ -1291,6 +1314,16 @@ impl core::cmp::PartialEq for antecedent_core::measurement_model::VarianceCompon
 impl core::cmp::PartialEq for antecedent_core::parallel_axis::ParallelAxis
 impl core::cmp::PartialEq for antecedent_core::parallel_axis::ParallelPlanError
 impl core::cmp::PartialEq for antecedent_core::parallel_axis::SerialInner
+impl core::cmp::PartialEq for antecedent_core::physical_choice::AvailableCapabilities
+impl core::cmp::PartialEq for antecedent_core::physical_choice::CostQuotes
+impl core::cmp::PartialEq for antecedent_core::physical_choice::DeclaredCost
+impl core::cmp::PartialEq for antecedent_core::physical_choice::OperatorCapability
+impl core::cmp::PartialEq for antecedent_core::physical_choice::PhysicalAlternative
+impl core::cmp::PartialEq for antecedent_core::physical_choice::PhysicalChoice
+impl core::cmp::PartialEq for antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl core::cmp::PartialEq for antecedent_core::physical_choice::RejectedAlternative
+impl core::cmp::PartialEq for antecedent_core::physical_choice::RejectionReason
+impl core::cmp::PartialEq for antecedent_core::physical_choice::ResourceCapability
 impl core::cmp::PartialEq for antecedent_core::query::ComputationLimits
 impl core::cmp::PartialEq for antecedent_core::query::ExperimentFamily
 impl core::cmp::PartialEq for antecedent_core::query::GraphAssumptionSet
@@ -1363,6 +1396,7 @@ impl core::cmp::PartialOrd for antecedent_core::WorldId
 impl core::cmp::PartialOrd for antecedent_core::WorldObservation
 impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementKind
 impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementRoute
+impl core::cmp::PartialOrd for antecedent_core::physical_choice::DeclaredCost
 impl core::cmp::PartialOrd for antecedent_core::recalc::Branch
 impl core::cmp::PartialOrd for antecedent_core::recalc::Revalidation
 impl core::cmp::PartialOrd for antecedent_core::recalc::Stage
@@ -1448,6 +1482,7 @@ impl core::error::Error for antecedent_core::execution::AdmissionError
 impl core::error::Error for antecedent_core::execution_facts::ExecutionFactError
 impl core::error::Error for antecedent_core::inspect::InspectionRefusal
 impl core::error::Error for antecedent_core::parallel_axis::ParallelPlanError
+impl core::error::Error for antecedent_core::physical_choice::PhysicalChoiceRefusal
 impl core::error::Error for antecedent_core::scratch_pool::ScratchFull
 impl core::error::Error for antecedent_core::scratch_pool::ScratchPoolError
 impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
@@ -1846,6 +1881,16 @@ impl core::fmt::Debug for antecedent_core::parallel_axis::ParallelPlan
 impl core::fmt::Debug for antecedent_core::parallel_axis::ParallelPlanError
 impl core::fmt::Debug for antecedent_core::parallel_axis::SerialInner
 impl core::fmt::Debug for antecedent_core::parallel_axis::WorkerCap
+impl core::fmt::Debug for antecedent_core::physical_choice::AvailableCapabilities
+impl core::fmt::Debug for antecedent_core::physical_choice::CostQuotes
+impl core::fmt::Debug for antecedent_core::physical_choice::DeclaredCost
+impl core::fmt::Debug for antecedent_core::physical_choice::OperatorCapability
+impl core::fmt::Debug for antecedent_core::physical_choice::PhysicalAlternative
+impl core::fmt::Debug for antecedent_core::physical_choice::PhysicalChoice
+impl core::fmt::Debug for antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl core::fmt::Debug for antecedent_core::physical_choice::RejectedAlternative
+impl core::fmt::Debug for antecedent_core::physical_choice::RejectionReason
+impl core::fmt::Debug for antecedent_core::physical_choice::ResourceCapability
 impl core::fmt::Debug for antecedent_core::query::ComputationLimits
 impl core::fmt::Debug for antecedent_core::query::ExperimentFamily
 impl core::fmt::Debug for antecedent_core::query::GraphAssumptionSet
@@ -1974,6 +2019,14 @@ impl core::fmt::Display for antecedent_core::execution_facts::OutputRetention
 impl core::fmt::Display for antecedent_core::inspect::InspectionRefusal
 impl core::fmt::Display for antecedent_core::parallel_axis::ParallelAxis
 impl core::fmt::Display for antecedent_core::parallel_axis::ParallelPlanError
+impl core::fmt::Display for antecedent_core::physical_choice::DeclaredCost
+impl core::fmt::Display for antecedent_core::physical_choice::OperatorCapability
+impl core::fmt::Display for antecedent_core::physical_choice::PhysicalAlternative
+impl core::fmt::Display for antecedent_core::physical_choice::PhysicalChoice
+impl core::fmt::Display for antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl core::fmt::Display for antecedent_core::physical_choice::RejectedAlternative
+impl core::fmt::Display for antecedent_core::physical_choice::RejectionReason
+impl core::fmt::Display for antecedent_core::physical_choice::ResourceCapability
 impl core::fmt::Display for antecedent_core::recalc::ChangedDependency
 impl core::fmt::Display for antecedent_core::recalc::RefusalReason
 impl core::fmt::Display for antecedent_core::recalc::Stage
@@ -2244,6 +2297,16 @@ impl core::hash::Hash for antecedent_core::measurement_model::RepresentationMapp
 impl core::hash::Hash for antecedent_core::measurement_model::RepresentationVersion
 impl core::hash::Hash for antecedent_core::parallel_axis::ParallelAxis
 impl core::hash::Hash for antecedent_core::parallel_axis::SerialInner
+impl core::hash::Hash for antecedent_core::physical_choice::AvailableCapabilities
+impl core::hash::Hash for antecedent_core::physical_choice::CostQuotes
+impl core::hash::Hash for antecedent_core::physical_choice::DeclaredCost
+impl core::hash::Hash for antecedent_core::physical_choice::OperatorCapability
+impl core::hash::Hash for antecedent_core::physical_choice::PhysicalAlternative
+impl core::hash::Hash for antecedent_core::physical_choice::PhysicalChoice
+impl core::hash::Hash for antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl core::hash::Hash for antecedent_core::physical_choice::RejectedAlternative
+impl core::hash::Hash for antecedent_core::physical_choice::RejectionReason
+impl core::hash::Hash for antecedent_core::physical_choice::ResourceCapability
 impl core::hash::Hash for antecedent_core::query::ComputationLimits
 impl core::hash::Hash for antecedent_core::query::ExperimentFamily
 impl core::hash::Hash for antecedent_core::query::GraphAssumptionSet
@@ -2454,6 +2517,16 @@ impl core::marker::Copy for antecedent_core::measurement_model::ParameterUncerta
 impl core::marker::Copy for antecedent_core::parallel_axis::ParallelAxis
 impl core::marker::Copy for antecedent_core::parallel_axis::ParallelPlanError
 impl core::marker::Copy for antecedent_core::parallel_axis::SerialInner
+impl core::marker::Copy for antecedent_core::physical_choice::AvailableCapabilities
+impl core::marker::Copy for antecedent_core::physical_choice::CostQuotes
+impl core::marker::Copy for antecedent_core::physical_choice::DeclaredCost
+impl core::marker::Copy for antecedent_core::physical_choice::OperatorCapability
+impl core::marker::Copy for antecedent_core::physical_choice::PhysicalAlternative
+impl core::marker::Copy for antecedent_core::physical_choice::PhysicalChoice
+impl core::marker::Copy for antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl core::marker::Copy for antecedent_core::physical_choice::RejectedAlternative
+impl core::marker::Copy for antecedent_core::physical_choice::RejectionReason
+impl core::marker::Copy for antecedent_core::physical_choice::ResourceCapability
 impl core::marker::Copy for antecedent_core::query::ComputationLimits
 impl core::marker::Copy for antecedent_core::query::ExperimentFamily
 impl core::marker::Copy for antecedent_core::query::GraphAssumptionSet
@@ -2885,6 +2958,16 @@ impl core::marker::Freeze for antecedent_core::parallel_axis::ParallelPlan [auto
 impl core::marker::Freeze for antecedent_core::parallel_axis::ParallelPlanError [auto]
 impl core::marker::Freeze for antecedent_core::parallel_axis::SerialInner [auto]
 impl core::marker::Freeze for antecedent_core::parallel_axis::WorkerCap [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::CostQuotes [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::DeclaredCost [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::OperatorCapability [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::PhysicalAlternative [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::PhysicalChoice [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::PhysicalChoiceRefusal [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::RejectedAlternative [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::RejectionReason [auto]
+impl core::marker::Freeze for antecedent_core::physical_choice::ResourceCapability [auto]
 impl core::marker::Freeze for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Freeze for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Freeze for antecedent_core::query::GraphAssumptionSet [auto]
@@ -3325,6 +3408,16 @@ impl core::marker::Send for antecedent_core::parallel_axis::ParallelPlan [auto]
 impl core::marker::Send for antecedent_core::parallel_axis::ParallelPlanError [auto]
 impl core::marker::Send for antecedent_core::parallel_axis::SerialInner [auto]
 impl core::marker::Send for antecedent_core::parallel_axis::WorkerCap [auto]
+impl core::marker::Send for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::marker::Send for antecedent_core::physical_choice::CostQuotes [auto]
+impl core::marker::Send for antecedent_core::physical_choice::DeclaredCost [auto]
+impl core::marker::Send for antecedent_core::physical_choice::OperatorCapability [auto]
+impl core::marker::Send for antecedent_core::physical_choice::PhysicalAlternative [auto]
+impl core::marker::Send for antecedent_core::physical_choice::PhysicalChoice [auto]
+impl core::marker::Send for antecedent_core::physical_choice::PhysicalChoiceRefusal [auto]
+impl core::marker::Send for antecedent_core::physical_choice::RejectedAlternative [auto]
+impl core::marker::Send for antecedent_core::physical_choice::RejectionReason [auto]
+impl core::marker::Send for antecedent_core::physical_choice::ResourceCapability [auto]
 impl core::marker::Send for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Send for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Send for antecedent_core::query::GraphAssumptionSet [auto]
@@ -3744,6 +3837,16 @@ impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::V
 impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::ParallelAxis
 impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::ParallelPlanError
 impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::SerialInner
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::AvailableCapabilities
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::CostQuotes
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::DeclaredCost
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::OperatorCapability
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::PhysicalAlternative
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::PhysicalChoice
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::PhysicalChoiceRefusal
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::RejectedAlternative
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::RejectionReason
+impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::ResourceCapability
 impl core::marker::StructuralPartialEq for antecedent_core::query::ComputationLimits
 impl core::marker::StructuralPartialEq for antecedent_core::query::ExperimentFamily
 impl core::marker::StructuralPartialEq for antecedent_core::query::GraphAssumptionSet
@@ -4182,6 +4285,16 @@ impl core::marker::Sync for antecedent_core::parallel_axis::ParallelPlan [auto]
 impl core::marker::Sync for antecedent_core::parallel_axis::ParallelPlanError [auto]
 impl core::marker::Sync for antecedent_core::parallel_axis::SerialInner [auto]
 impl core::marker::Sync for antecedent_core::parallel_axis::WorkerCap [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::CostQuotes [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::DeclaredCost [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::OperatorCapability [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::PhysicalAlternative [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::PhysicalChoice [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::PhysicalChoiceRefusal [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::RejectedAlternative [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::RejectionReason [auto]
+impl core::marker::Sync for antecedent_core::physical_choice::ResourceCapability [auto]
 impl core::marker::Sync for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Sync for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Sync for antecedent_core::query::GraphAssumptionSet [auto]
@@ -4622,6 +4735,16 @@ impl core::marker::Unpin for antecedent_core::parallel_axis::ParallelPlan [auto]
 impl core::marker::Unpin for antecedent_core::parallel_axis::ParallelPlanError [auto]
 impl core::marker::Unpin for antecedent_core::parallel_axis::SerialInner [auto]
 impl core::marker::Unpin for antecedent_core::parallel_axis::WorkerCap [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::CostQuotes [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::DeclaredCost [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::OperatorCapability [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::PhysicalAlternative [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::PhysicalChoice [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::PhysicalChoiceRefusal [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::RejectedAlternative [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::RejectionReason [auto]
+impl core::marker::Unpin for antecedent_core::physical_choice::ResourceCapability [auto]
 impl core::marker::Unpin for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Unpin for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Unpin for antecedent_core::query::GraphAssumptionSet [auto]
@@ -5065,6 +5188,16 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis:
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::ParallelPlanError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::SerialInner [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::WorkerCap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::CostQuotes [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::DeclaredCost [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::OperatorCapability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::PhysicalAlternative [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::PhysicalChoice [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::PhysicalChoiceRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::RejectedAlternative [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::RejectionReason [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::ResourceCapability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::ComputationLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::ExperimentFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::GraphAssumptionSet [auto]
@@ -5504,6 +5637,16 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::Pa
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::ParallelPlanError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::SerialInner [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::WorkerCap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::AvailableCapabilities [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::CostQuotes [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::DeclaredCost [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::OperatorCapability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::PhysicalAlternative [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::PhysicalChoice [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::PhysicalChoiceRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::RejectedAlternative [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::RejectionReason [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::ResourceCapability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::ComputationLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::ExperimentFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::GraphAssumptionSet [auto]
@@ -5628,6 +5771,9 @@ pub const <antecedent_core::TransportOutcomeKind>::LEGACY_IDENTIFICATION_SPELLIN
 pub const <antecedent_core::cancellation_boundary::CancelSite>::ALL: [Self; 7]
 pub const <antecedent_core::measurement_model::MeasurementKind>::ALL: [Self; 6]
 pub const <antecedent_core::measurement_model::MeasurementRoute>::ALL: [Self; 5]
+pub const <antecedent_core::physical_choice::OperatorCapability>::ALL: [Self; 4]
+pub const <antecedent_core::physical_choice::PhysicalAlternative>::ALL: [Self; 4]
+pub const <antecedent_core::physical_choice::ResourceCapability>::ALL: [Self; 4]
 pub const <antecedent_core::recalc::StageIdentity>::ABSENT: Self
 pub const <antecedent_core::scratch_pool::ScratchKind>::ALL: [Self; 5]
 pub const antecedent_core::ARCH_SIMD_COMPILED: bool
@@ -5757,6 +5903,9 @@ pub enum antecedent_core::execution_facts::OutputRetention
 pub enum antecedent_core::measurement_model::MeasurementParameters
 pub enum antecedent_core::measurement_model::MeasurementRoute
 pub enum antecedent_core::parallel_axis::ParallelAxis
+pub enum antecedent_core::physical_choice::OperatorCapability
+pub enum antecedent_core::physical_choice::PhysicalAlternative
+pub enum antecedent_core::physical_choice::ResourceCapability
 pub enum antecedent_core::query::OutcomeGuarantee
 pub enum antecedent_core::recalc::Boundary
 pub enum antecedent_core::recalc::ChangeKind
@@ -7418,6 +7567,34 @@ pub fn <antecedent_core::parallel_axis::SerialInner>::const fn workers(self) -> 
 pub fn <antecedent_core::parallel_axis::WorkerCap>::const fn limit(&self) -> u32
 pub fn <antecedent_core::parallel_axis::WorkerCap>::fn new(limit: u32) -> Self
 pub fn <antecedent_core::parallel_axis::WorkerCap>::fn reserved(&self) -> u32
+pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn all() -> Self
+pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn empty() -> Self
+pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn has_operator(self, capability: antecedent_core::physical_choice::OperatorCapability) -> bool
+pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn has_resource(self, capability: antecedent_core::physical_choice::ResourceCapability) -> bool
+pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn with_operator(self, capability: antecedent_core::physical_choice::OperatorCapability) -> Self
+pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn with_resource(self, capability: antecedent_core::physical_choice::ResourceCapability) -> Self
+pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn without_operator(self, capability: antecedent_core::physical_choice::OperatorCapability) -> Self
+pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn without_resource(self, capability: antecedent_core::physical_choice::ResourceCapability) -> Self
+pub fn <antecedent_core::physical_choice::CostQuotes>::const fn cost(self, alternative: antecedent_core::physical_choice::PhysicalAlternative) -> antecedent_core::physical_choice::DeclaredCost
+pub fn <antecedent_core::physical_choice::CostQuotes>::const fn new(direct_prepared_numeric_views: antecedent_core::physical_choice::DeclaredCost, streamed_reduction: antecedent_core::physical_choice::DeclaredCost, materialized_design: antecedent_core::physical_choice::DeclaredCost, optional_lazy_preparation: antecedent_core::physical_choice::DeclaredCost) -> Self
+pub fn <antecedent_core::physical_choice::DeclaredCost>::const fn from_raw(raw: u64) -> Self
+pub fn <antecedent_core::physical_choice::DeclaredCost>::const fn raw(self) -> u64
+pub fn <antecedent_core::physical_choice::OperatorCapability>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::physical_choice::OperatorCapability>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::physical_choice::PhysicalAlternative>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::physical_choice::PhysicalAlternative>::const fn required_operator(self) -> antecedent_core::physical_choice::OperatorCapability
+pub fn <antecedent_core::physical_choice::PhysicalAlternative>::const fn required_resource(self) -> antecedent_core::physical_choice::ResourceCapability
+pub fn <antecedent_core::physical_choice::PhysicalAlternative>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::physical_choice::PhysicalChoice>::const fn choose(quotes: antecedent_core::physical_choice::CostQuotes, available: antecedent_core::physical_choice::AvailableCapabilities) -> core::result::Result<Self, antecedent_core::physical_choice::PhysicalChoiceRefusal>
+pub fn <antecedent_core::physical_choice::PhysicalChoice>::const fn rejected(&self) -> &[antecedent_core::physical_choice::RejectedAlternative]
+pub fn <antecedent_core::physical_choice::PhysicalChoice>::const fn selected(&self) -> antecedent_core::physical_choice::PhysicalAlternative
+pub fn <antecedent_core::physical_choice::PhysicalChoice>::const fn selected_cost(&self) -> antecedent_core::physical_choice::DeclaredCost
+pub fn <antecedent_core::physical_choice::PhysicalChoice>::fn report(&self) -> alloc::string::String
+pub fn <antecedent_core::physical_choice::PhysicalChoiceRefusal>::const fn rejected(&self) -> &[antecedent_core::physical_choice::RejectedAlternative]
+pub fn <antecedent_core::physical_choice::RejectedAlternative>::const fn alternative(self) -> antecedent_core::physical_choice::PhysicalAlternative
+pub fn <antecedent_core::physical_choice::RejectedAlternative>::const fn reason(self) -> antecedent_core::physical_choice::RejectionReason
+pub fn <antecedent_core::physical_choice::ResourceCapability>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::physical_choice::ResourceCapability>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::query::ExperimentFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::query::GraphAssumptionSet>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::query::OutcomeGuarantee>::const fn as_str(self) -> &'static str
@@ -7554,6 +7731,7 @@ pub mod antecedent_core::measurement_model
 pub mod antecedent_core::node
 pub mod antecedent_core::operator
 pub mod antecedent_core::parallel_axis
+pub mod antecedent_core::physical_choice
 pub mod antecedent_core::physical_operator
 pub mod antecedent_core::provider_capability
 pub mod antecedent_core::query
@@ -7963,6 +8141,17 @@ pub struct antecedent_core::parallel_axis::SerialInner
 pub struct antecedent_core::parallel_axis::SerialInner has private fields
 pub struct antecedent_core::parallel_axis::WorkerCap
 pub struct antecedent_core::parallel_axis::WorkerCap has private fields
+pub struct antecedent_core::physical_choice::AvailableCapabilities
+pub struct antecedent_core::physical_choice::AvailableCapabilities has private fields
+pub struct antecedent_core::physical_choice::CostQuotes
+pub struct antecedent_core::physical_choice::CostQuotes has private fields
+pub struct antecedent_core::physical_choice::DeclaredCost
+pub struct antecedent_core::physical_choice::DeclaredCost has private fields
+pub struct antecedent_core::physical_choice::PhysicalChoice
+pub struct antecedent_core::physical_choice::PhysicalChoice has private fields
+pub struct antecedent_core::physical_choice::PhysicalChoiceRefusal has private fields
+pub struct antecedent_core::physical_choice::RejectedAlternative
+pub struct antecedent_core::physical_choice::RejectedAlternative has private fields
 pub struct antecedent_core::query::ComputationLimits
 pub struct antecedent_core::query::TheoremReference
 pub struct antecedent_core::recalc::Branch
@@ -9126,6 +9315,21 @@ pub variant antecedent_core::parallel_axis::ParallelPlanError::ConcurrentCap { w
 pub variant antecedent_core::parallel_axis::ParallelPlanError::SecondAxis { held: antecedent_core::parallel_axis::ParallelAxis, requested: antecedent_core::parallel_axis::ParallelAxis }
 pub variant antecedent_core::parallel_axis::ParallelPlanError::WorkersAboveCap { workers: u32, cap: u32 }
 pub variant antecedent_core::parallel_axis::ParallelPlanError::ZeroWorkers
+pub variant antecedent_core::physical_choice::OperatorCapability::DesignMaterialization
+pub variant antecedent_core::physical_choice::OperatorCapability::LazyPreparation
+pub variant antecedent_core::physical_choice::OperatorCapability::PreparedNumericView
+pub variant antecedent_core::physical_choice::OperatorCapability::StreamedReduction
+pub variant antecedent_core::physical_choice::PhysicalAlternative::DirectPreparedNumericViews
+pub variant antecedent_core::physical_choice::PhysicalAlternative::MaterializedDesign
+pub variant antecedent_core::physical_choice::PhysicalAlternative::OptionalLazyPreparation
+pub variant antecedent_core::physical_choice::PhysicalAlternative::StreamedReduction
+pub variant antecedent_core::physical_choice::RejectionReason::MissingOperatorCapability { capability: antecedent_core::physical_choice::OperatorCapability }
+pub variant antecedent_core::physical_choice::RejectionReason::MissingResourceCapability { capability: antecedent_core::physical_choice::ResourceCapability }
+pub variant antecedent_core::physical_choice::RejectionReason::NotLowerCost { cost: antecedent_core::physical_choice::DeclaredCost, selected_cost: antecedent_core::physical_choice::DeclaredCost }
+pub variant antecedent_core::physical_choice::ResourceCapability::DesignMemory
+pub variant antecedent_core::physical_choice::ResourceCapability::LazyBackend
+pub variant antecedent_core::physical_choice::ResourceCapability::PreparedColumns
+pub variant antecedent_core::physical_choice::ResourceCapability::StreamingScratch
 pub variant antecedent_core::query::ExperimentFamily::SuppliedCatalog
 pub variant antecedent_core::query::ExperimentFamily::TheoremExperiments
 pub variant antecedent_core::query::GraphAssumptionSet::SemiMarkovianSelectionAdmg
