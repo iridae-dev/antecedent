@@ -75,6 +75,7 @@ pub mod multi_arm;
 pub mod nested_markov_binary;
 pub mod nested_markov_uncertainty;
 pub mod nonlinear_mediation;
+pub mod nuisance_cache;
 pub mod observation;
 pub mod observational_policy;
 pub mod observational_survival;
