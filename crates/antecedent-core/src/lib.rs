@@ -70,6 +70,7 @@ pub mod search;
 pub use search::{
     DEFAULT_SEARCH_MEMORY_BYTES, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
 };
+pub mod search_budget;
 pub mod temporal;
 pub mod text;
 pub mod tolerance;

@@ -69,6 +69,7 @@
 #[non_exhaustive] pub enum antecedent_core::recalc::CalibrationInput
 #[non_exhaustive] pub enum antecedent_core::recalc::CouplingInput
 #[non_exhaustive] pub enum antecedent_core::recalc::ProviderStandingInput
+#[non_exhaustive] pub enum antecedent_core::search_budget::SearchBudgetError
 #[non_exhaustive] pub enum antecedent_core::value::InterventionValueError
 #[non_exhaustive] pub struct antecedent_core::AverageEffectQuery
 #[non_exhaustive] pub struct antecedent_core::CalibrationBasis
@@ -452,6 +453,18 @@ impl core::clone::Clone for antecedent_core::recalc::StageEntry
 impl core::clone::Clone for antecedent_core::recalc::StageIdentities
 impl core::clone::Clone for antecedent_core::recalc::StageIdentity
 impl core::clone::Clone for antecedent_core::recalc::StageStatus
+impl core::clone::Clone for antecedent_core::search_budget::AdmittedExactSearch
+impl core::clone::Clone for antecedent_core::search_budget::ApproximationEvidence
+impl core::clone::Clone for antecedent_core::search_budget::ExactGraphSearch
+impl core::clone::Clone for antecedent_core::search_budget::ExactMatching
+impl core::clone::Clone for antecedent_core::search_budget::FunctionalEnumeration
+impl core::clone::Clone for antecedent_core::search_budget::GpdcKernel
+impl core::clone::Clone for antecedent_core::search_budget::MatchingDistance
+impl core::clone::Clone for antecedent_core::search_budget::NumericalMode
+impl core::clone::Clone for antecedent_core::search_budget::SearchBudgetError
+impl core::clone::Clone for antecedent_core::search_budget::SearchEstimate
+impl core::clone::Clone for antecedent_core::search_budget::SearchFamily
+impl core::clone::Clone for antecedent_core::search_budget::SearchResourceLimit
 impl core::clone::Clone for antecedent_core::value::InterventionValueError
 impl core::cmp::Eq for antecedent_core::AdmittedBytes
 impl core::cmp::Eq for antecedent_core::AdmittedRouteMemory
@@ -759,6 +772,18 @@ impl core::cmp::Eq for antecedent_core::recalc::StageEntry
 impl core::cmp::Eq for antecedent_core::recalc::StageIdentities
 impl core::cmp::Eq for antecedent_core::recalc::StageIdentity
 impl core::cmp::Eq for antecedent_core::recalc::StageStatus
+impl core::cmp::Eq for antecedent_core::search_budget::AdmittedExactSearch
+impl core::cmp::Eq for antecedent_core::search_budget::ApproximationEvidence
+impl core::cmp::Eq for antecedent_core::search_budget::ExactGraphSearch
+impl core::cmp::Eq for antecedent_core::search_budget::ExactMatching
+impl core::cmp::Eq for antecedent_core::search_budget::FunctionalEnumeration
+impl core::cmp::Eq for antecedent_core::search_budget::GpdcKernel
+impl core::cmp::Eq for antecedent_core::search_budget::MatchingDistance
+impl core::cmp::Eq for antecedent_core::search_budget::NumericalMode
+impl core::cmp::Eq for antecedent_core::search_budget::SearchBudgetError
+impl core::cmp::Eq for antecedent_core::search_budget::SearchEstimate
+impl core::cmp::Eq for antecedent_core::search_budget::SearchFamily
+impl core::cmp::Eq for antecedent_core::search_budget::SearchResourceLimit
 impl core::cmp::Eq for antecedent_core::value::InterventionValueError
 impl core::cmp::Ord for antecedent_core::CategoryDomainId
 impl core::cmp::Ord for antecedent_core::ComponentId
@@ -1160,6 +1185,18 @@ impl core::cmp::PartialEq for antecedent_core::recalc::StageEntry
 impl core::cmp::PartialEq for antecedent_core::recalc::StageIdentities
 impl core::cmp::PartialEq for antecedent_core::recalc::StageIdentity
 impl core::cmp::PartialEq for antecedent_core::recalc::StageStatus
+impl core::cmp::PartialEq for antecedent_core::search_budget::AdmittedExactSearch
+impl core::cmp::PartialEq for antecedent_core::search_budget::ApproximationEvidence
+impl core::cmp::PartialEq for antecedent_core::search_budget::ExactGraphSearch
+impl core::cmp::PartialEq for antecedent_core::search_budget::ExactMatching
+impl core::cmp::PartialEq for antecedent_core::search_budget::FunctionalEnumeration
+impl core::cmp::PartialEq for antecedent_core::search_budget::GpdcKernel
+impl core::cmp::PartialEq for antecedent_core::search_budget::MatchingDistance
+impl core::cmp::PartialEq for antecedent_core::search_budget::NumericalMode
+impl core::cmp::PartialEq for antecedent_core::search_budget::SearchBudgetError
+impl core::cmp::PartialEq for antecedent_core::search_budget::SearchEstimate
+impl core::cmp::PartialEq for antecedent_core::search_budget::SearchFamily
+impl core::cmp::PartialEq for antecedent_core::search_budget::SearchResourceLimit
 impl core::cmp::PartialEq for antecedent_core::value::InterventionValueError
 impl core::cmp::PartialOrd for antecedent_core::CategoryDomainId
 impl core::cmp::PartialOrd for antecedent_core::ComponentId
@@ -1243,6 +1280,7 @@ impl core::default::Default for antecedent_core::execution_attempt::ObservationT
 impl core::default::Default for antecedent_core::execution_attempt::OperationCounts
 impl core::default::Default for antecedent_core::recalc::ResumeContext
 impl core::default::Default for antecedent_core::recalc::StageIdentities
+impl core::default::Default for antecedent_core::search_budget::FunctionalEnumeration
 impl core::error::Error for antecedent_core::CallbackError
 impl core::error::Error for antecedent_core::DeclarationError
 impl core::error::Error for antecedent_core::ExpressionFault
@@ -1263,6 +1301,7 @@ impl core::error::Error for antecedent_core::SchemaError
 impl core::error::Error for antecedent_core::ScientificTargetError
 impl core::error::Error for antecedent_core::TemporalIndexError
 impl core::error::Error for antecedent_core::ToleranceError
+impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
 impl core::error::Error for antecedent_core::value::InterventionValueError
 impl core::fmt::Debug for antecedent_core::AdaptiveBootstrapBudget
 impl core::fmt::Debug for antecedent_core::AdaptiveDrawBudget
@@ -1642,6 +1681,18 @@ impl core::fmt::Debug for antecedent_core::recalc::StageEntry
 impl core::fmt::Debug for antecedent_core::recalc::StageIdentities
 impl core::fmt::Debug for antecedent_core::recalc::StageIdentity
 impl core::fmt::Debug for antecedent_core::recalc::StageStatus
+impl core::fmt::Debug for antecedent_core::search_budget::AdmittedExactSearch
+impl core::fmt::Debug for antecedent_core::search_budget::ApproximationEvidence
+impl core::fmt::Debug for antecedent_core::search_budget::ExactGraphSearch
+impl core::fmt::Debug for antecedent_core::search_budget::ExactMatching
+impl core::fmt::Debug for antecedent_core::search_budget::FunctionalEnumeration
+impl core::fmt::Debug for antecedent_core::search_budget::GpdcKernel
+impl core::fmt::Debug for antecedent_core::search_budget::MatchingDistance
+impl core::fmt::Debug for antecedent_core::search_budget::NumericalMode
+impl core::fmt::Debug for antecedent_core::search_budget::SearchBudgetError
+impl core::fmt::Debug for antecedent_core::search_budget::SearchEstimate
+impl core::fmt::Debug for antecedent_core::search_budget::SearchFamily
+impl core::fmt::Debug for antecedent_core::search_budget::SearchResourceLimit
 impl core::fmt::Debug for antecedent_core::value::InterventionValueError
 impl core::fmt::Display for antecedent_core::AllowedRule
 impl core::fmt::Display for antecedent_core::AttemptedRule
@@ -1716,6 +1767,9 @@ impl core::fmt::Display for antecedent_core::recalc::RefusalReason
 impl core::fmt::Display for antecedent_core::recalc::Stage
 impl core::fmt::Display for antecedent_core::recalc::StageIdentity
 impl core::fmt::Display for antecedent_core::recalc::StageStatus
+impl core::fmt::Display for antecedent_core::search_budget::MatchingDistance
+impl core::fmt::Display for antecedent_core::search_budget::SearchBudgetError
+impl core::fmt::Display for antecedent_core::search_budget::SearchFamily
 impl core::fmt::Display for antecedent_core::value::InterventionValueError
 impl core::hash::Hash for antecedent_core::AdmittedBytes
 impl core::hash::Hash for antecedent_core::AdmittedRouteMemory
@@ -1949,6 +2003,17 @@ impl core::hash::Hash for antecedent_core::recalc::Branch
 impl core::hash::Hash for antecedent_core::recalc::Revalidation
 impl core::hash::Hash for antecedent_core::recalc::Stage
 impl core::hash::Hash for antecedent_core::recalc::StageIdentity
+impl core::hash::Hash for antecedent_core::search_budget::AdmittedExactSearch
+impl core::hash::Hash for antecedent_core::search_budget::ApproximationEvidence
+impl core::hash::Hash for antecedent_core::search_budget::ExactGraphSearch
+impl core::hash::Hash for antecedent_core::search_budget::ExactMatching
+impl core::hash::Hash for antecedent_core::search_budget::FunctionalEnumeration
+impl core::hash::Hash for antecedent_core::search_budget::GpdcKernel
+impl core::hash::Hash for antecedent_core::search_budget::MatchingDistance
+impl core::hash::Hash for antecedent_core::search_budget::NumericalMode
+impl core::hash::Hash for antecedent_core::search_budget::SearchEstimate
+impl core::hash::Hash for antecedent_core::search_budget::SearchFamily
+impl core::hash::Hash for antecedent_core::search_budget::SearchResourceLimit
 impl core::marker::Copy for antecedent_core::AdaptiveBootstrapBudget
 impl core::marker::Copy for antecedent_core::AdaptiveDrawBudget
 impl core::marker::Copy for antecedent_core::AdmittedBytes
@@ -2131,6 +2196,18 @@ impl core::marker::Copy for antecedent_core::recalc::Stage
 impl core::marker::Copy for antecedent_core::recalc::StageEntry
 impl core::marker::Copy for antecedent_core::recalc::StageIdentity
 impl core::marker::Copy for antecedent_core::recalc::StageStatus
+impl core::marker::Copy for antecedent_core::search_budget::AdmittedExactSearch
+impl core::marker::Copy for antecedent_core::search_budget::ApproximationEvidence
+impl core::marker::Copy for antecedent_core::search_budget::ExactGraphSearch
+impl core::marker::Copy for antecedent_core::search_budget::ExactMatching
+impl core::marker::Copy for antecedent_core::search_budget::FunctionalEnumeration
+impl core::marker::Copy for antecedent_core::search_budget::GpdcKernel
+impl core::marker::Copy for antecedent_core::search_budget::MatchingDistance
+impl core::marker::Copy for antecedent_core::search_budget::NumericalMode
+impl core::marker::Copy for antecedent_core::search_budget::SearchBudgetError
+impl core::marker::Copy for antecedent_core::search_budget::SearchEstimate
+impl core::marker::Copy for antecedent_core::search_budget::SearchFamily
+impl core::marker::Copy for antecedent_core::search_budget::SearchResourceLimit
 impl core::marker::Copy for antecedent_core::value::InterventionValueError
 impl core::marker::Freeze for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Freeze for antecedent_core::AdaptiveDrawBudget [auto]
@@ -2510,6 +2587,18 @@ impl core::marker::Freeze for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::AdmittedExactSearch [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::ApproximationEvidence [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::ExactGraphSearch [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::ExactMatching [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::FunctionalEnumeration [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::GpdcKernel [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::MatchingDistance [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::NumericalMode [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::SearchBudgetError [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::SearchEstimate [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::SearchFamily [auto]
+impl core::marker::Freeze for antecedent_core::search_budget::SearchResourceLimit [auto]
 impl core::marker::Freeze for antecedent_core::value::InterventionValueError [auto]
 impl core::marker::Send for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Send for antecedent_core::AdaptiveDrawBudget [auto]
@@ -2889,6 +2978,18 @@ impl core::marker::Send for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Send for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Send for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Send for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Send for antecedent_core::search_budget::AdmittedExactSearch [auto]
+impl core::marker::Send for antecedent_core::search_budget::ApproximationEvidence [auto]
+impl core::marker::Send for antecedent_core::search_budget::ExactGraphSearch [auto]
+impl core::marker::Send for antecedent_core::search_budget::ExactMatching [auto]
+impl core::marker::Send for antecedent_core::search_budget::FunctionalEnumeration [auto]
+impl core::marker::Send for antecedent_core::search_budget::GpdcKernel [auto]
+impl core::marker::Send for antecedent_core::search_budget::MatchingDistance [auto]
+impl core::marker::Send for antecedent_core::search_budget::NumericalMode [auto]
+impl core::marker::Send for antecedent_core::search_budget::SearchBudgetError [auto]
+impl core::marker::Send for antecedent_core::search_budget::SearchEstimate [auto]
+impl core::marker::Send for antecedent_core::search_budget::SearchFamily [auto]
+impl core::marker::Send for antecedent_core::search_budget::SearchResourceLimit [auto]
 impl core::marker::Send for antecedent_core::value::InterventionValueError [auto]
 impl core::marker::StructuralPartialEq for antecedent_core::AdaptiveBootstrapBudget
 impl core::marker::StructuralPartialEq for antecedent_core::AdaptiveDrawBudget
@@ -3253,6 +3354,18 @@ impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageEntry
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageIdentities
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageIdentity
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageStatus
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::AdmittedExactSearch
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::ApproximationEvidence
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::ExactGraphSearch
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::ExactMatching
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::FunctionalEnumeration
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::GpdcKernel
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::MatchingDistance
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::NumericalMode
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::SearchBudgetError
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::SearchEstimate
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::SearchFamily
+impl core::marker::StructuralPartialEq for antecedent_core::search_budget::SearchResourceLimit
 impl core::marker::StructuralPartialEq for antecedent_core::value::InterventionValueError
 impl core::marker::Sync for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Sync for antecedent_core::AdaptiveDrawBudget [auto]
@@ -3632,6 +3745,18 @@ impl core::marker::Sync for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Sync for antecedent_core::search_budget::AdmittedExactSearch [auto]
+impl core::marker::Sync for antecedent_core::search_budget::ApproximationEvidence [auto]
+impl core::marker::Sync for antecedent_core::search_budget::ExactGraphSearch [auto]
+impl core::marker::Sync for antecedent_core::search_budget::ExactMatching [auto]
+impl core::marker::Sync for antecedent_core::search_budget::FunctionalEnumeration [auto]
+impl core::marker::Sync for antecedent_core::search_budget::GpdcKernel [auto]
+impl core::marker::Sync for antecedent_core::search_budget::MatchingDistance [auto]
+impl core::marker::Sync for antecedent_core::search_budget::NumericalMode [auto]
+impl core::marker::Sync for antecedent_core::search_budget::SearchBudgetError [auto]
+impl core::marker::Sync for antecedent_core::search_budget::SearchEstimate [auto]
+impl core::marker::Sync for antecedent_core::search_budget::SearchFamily [auto]
+impl core::marker::Sync for antecedent_core::search_budget::SearchResourceLimit [auto]
 impl core::marker::Sync for antecedent_core::value::InterventionValueError [auto]
 impl core::marker::Unpin for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Unpin for antecedent_core::AdaptiveDrawBudget [auto]
@@ -4011,6 +4136,18 @@ impl core::marker::Unpin for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::AdmittedExactSearch [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::ApproximationEvidence [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::ExactGraphSearch [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::ExactMatching [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::FunctionalEnumeration [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::GpdcKernel [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::MatchingDistance [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::NumericalMode [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::SearchBudgetError [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::SearchEstimate [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::SearchFamily [auto]
+impl core::marker::Unpin for antecedent_core::search_budget::SearchResourceLimit [auto]
 impl core::marker::Unpin for antecedent_core::value::InterventionValueError [auto]
 impl core::ops::drop::Drop for antecedent_core::execution_attempt::OperationGuard
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveBootstrapBudget [auto]
@@ -4390,6 +4527,18 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageE
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageIdentities [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::AdmittedExactSearch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::ApproximationEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::ExactGraphSearch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::ExactMatching [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::FunctionalEnumeration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::GpdcKernel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::MatchingDistance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::NumericalMode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::SearchBudgetError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::SearchEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::SearchFamily [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::SearchResourceLimit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::value::InterventionValueError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdaptiveDrawBudget [auto]
@@ -4768,6 +4917,18 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageEntr
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIdentities [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::AdmittedExactSearch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::ApproximationEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::ExactGraphSearch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::ExactMatching [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::FunctionalEnumeration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::GpdcKernel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::MatchingDistance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::NumericalMode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::SearchBudgetError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::SearchEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::SearchFamily [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::SearchResourceLimit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::value::InterventionValueError [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SearchBudget<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_core::SearchBudget<'a> [auto]
@@ -4977,6 +5138,9 @@ pub enum antecedent_core::recalc::RetargetSupport
 pub enum antecedent_core::recalc::Revalidation
 pub enum antecedent_core::recalc::Stage
 pub enum antecedent_core::recalc::StageStatus
+pub enum antecedent_core::search_budget::MatchingDistance
+pub enum antecedent_core::search_budget::NumericalMode
+pub enum antecedent_core::search_budget::SearchFamily
 pub field antecedent_core::AdaptiveBootstrapBudget::enabled: bool
 pub field antecedent_core::AdaptiveBootstrapBudget::min_replicates: u32
 pub field antecedent_core::AdaptiveBootstrapBudget::se_rel_epsilon: f64
@@ -6488,6 +6652,36 @@ pub fn <antecedent_core::recalc::StageIdentity>::fn revalidation_since(&self, re
 pub fn <antecedent_core::recalc::StageIdentity>::fn to_hex(&self) -> alloc::string::String
 pub fn <antecedent_core::recalc::StageStatus>::const fn revalidation(&self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_core::recalc::StageStatus>::const fn tag(&self) -> &'static str
+pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn family(self) -> antecedent_core::search_budget::SearchFamily
+pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn memory_bytes(self) -> u64
+pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn work(self) -> u64
+pub fn <antecedent_core::search_budget::ApproximationEvidence>::const fn contract(self) -> &'static str
+pub fn <antecedent_core::search_budget::ApproximationEvidence>::const fn new(contract: &'static str) -> core::option::Option<Self>
+pub fn <antecedent_core::search_budget::ExactGraphSearch>::const fn estimate(self) -> core::result::Result<antecedent_core::search_budget::SearchEstimate, antecedent_core::search_budget::SearchBudgetError>
+pub fn <antecedent_core::search_budget::ExactGraphSearch>::const fn new(nodes: u64, depth: u64) -> Self
+pub fn <antecedent_core::search_budget::ExactMatching>::const fn estimate(self) -> core::result::Result<antecedent_core::search_budget::SearchEstimate, antecedent_core::search_budget::SearchBudgetError>
+pub fn <antecedent_core::search_budget::ExactMatching>::const fn new(donors: u64, queries: u64, dimensions: u64, distance: antecedent_core::search_budget::MatchingDistance) -> Self
+pub fn <antecedent_core::search_budget::FunctionalEnumeration>::const fn estimate(self) -> core::result::Result<antecedent_core::search_budget::SearchEstimate, antecedent_core::search_budget::SearchBudgetError>
+pub fn <antecedent_core::search_budget::FunctionalEnumeration>::const fn factor(self, cardinality: u64) -> Self
+pub fn <antecedent_core::search_budget::FunctionalEnumeration>::const fn new() -> Self
+pub fn <antecedent_core::search_budget::GpdcKernel>::const fn estimate(self) -> core::result::Result<antecedent_core::search_budget::SearchEstimate, antecedent_core::search_budget::SearchBudgetError>
+pub fn <antecedent_core::search_budget::GpdcKernel>::const fn new(rows: u64, conditioning_columns: u64) -> Self
+pub fn <antecedent_core::search_budget::MatchingDistance>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::search_budget::NumericalMode>::const fn approximation(evidence: antecedent_core::search_budget::ApproximationEvidence) -> Self
+pub fn <antecedent_core::search_budget::NumericalMode>::const fn evidence(self) -> core::option::Option<antecedent_core::search_budget::ApproximationEvidence>
+pub fn <antecedent_core::search_budget::NumericalMode>::const fn exact() -> Self
+pub fn <antecedent_core::search_budget::NumericalMode>::const fn is_exact(self) -> bool
+pub fn <antecedent_core::search_budget::SearchBudgetError>::const fn approximation_fallback(self) -> core::result::Result<antecedent_core::search_budget::ApproximationEvidence, Self>
+pub fn <antecedent_core::search_budget::SearchEstimate>::const fn admit(self, limit: antecedent_core::search_budget::SearchResourceLimit, mode: antecedent_core::search_budget::NumericalMode) -> core::result::Result<antecedent_core::search_budget::AdmittedExactSearch, antecedent_core::search_budget::SearchBudgetError>
+pub fn <antecedent_core::search_budget::SearchEstimate>::const fn count(self) -> u64
+pub fn <antecedent_core::search_budget::SearchEstimate>::const fn family(self) -> antecedent_core::search_budget::SearchFamily
+pub fn <antecedent_core::search_budget::SearchEstimate>::const fn memory_bytes(self) -> u64
+pub fn <antecedent_core::search_budget::SearchEstimate>::const fn width(self) -> u64
+pub fn <antecedent_core::search_budget::SearchEstimate>::const fn work(self) -> u64
+pub fn <antecedent_core::search_budget::SearchFamily>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn memory_bytes(self) -> u64
+pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn new(memory_bytes: u64, work: u64) -> Self
+pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn work(self) -> u64
 pub fn antecedent_core::blake3_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::clip_value(value: f64, lower: f64, upper: f64) -> f64
 pub fn antecedent_core::default_user_threads() -> u32
@@ -6529,6 +6723,7 @@ pub mod antecedent_core::sampling_design
 pub mod antecedent_core::schema
 pub mod antecedent_core::scientific_target
 pub mod antecedent_core::search
+pub mod antecedent_core::search_budget
 pub mod antecedent_core::temporal
 pub mod antecedent_core::text
 pub mod antecedent_core::tolerance
@@ -6876,6 +7071,22 @@ pub struct antecedent_core::recalc::StageIdentities
 pub struct antecedent_core::recalc::StageIdentities has private fields
 pub struct antecedent_core::recalc::StageIdentity
 pub struct antecedent_core::recalc::StageIdentity has private fields
+pub struct antecedent_core::search_budget::AdmittedExactSearch
+pub struct antecedent_core::search_budget::AdmittedExactSearch has private fields
+pub struct antecedent_core::search_budget::ApproximationEvidence
+pub struct antecedent_core::search_budget::ApproximationEvidence has private fields
+pub struct antecedent_core::search_budget::ExactGraphSearch
+pub struct antecedent_core::search_budget::ExactGraphSearch has private fields
+pub struct antecedent_core::search_budget::ExactMatching
+pub struct antecedent_core::search_budget::ExactMatching has private fields
+pub struct antecedent_core::search_budget::FunctionalEnumeration
+pub struct antecedent_core::search_budget::FunctionalEnumeration has private fields
+pub struct antecedent_core::search_budget::GpdcKernel
+pub struct antecedent_core::search_budget::GpdcKernel has private fields
+pub struct antecedent_core::search_budget::SearchEstimate
+pub struct antecedent_core::search_budget::SearchEstimate has private fields
+pub struct antecedent_core::search_budget::SearchResourceLimit
+pub struct antecedent_core::search_budget::SearchResourceLimit has private fields
 pub trait antecedent_core::BatchCallback: core::marker::Send + core::marker::Sync + core::fmt::Debug
 pub trait antecedent_core::ProgressSink: core::marker::Send + core::marker::Sync
 pub trait fn fn antecedent_core::BatchCallback::call(&self, inputs: &[&[f64]], out: &mut [f64]) -> core::result::Result<(), antecedent_core::CallbackError>
@@ -8012,5 +8223,22 @@ pub variant antecedent_core::recalc::Stage::Utility
 pub variant antecedent_core::recalc::StageStatus::Recomputed { because: antecedent_core::recalc::ChangedDependency }
 pub variant antecedent_core::recalc::StageStatus::Refused { reason: antecedent_core::recalc::RefusalReason }
 pub variant antecedent_core::recalc::StageStatus::Reused { dependency: antecedent_core::recalc::Stage }
+pub variant antecedent_core::search_budget::MatchingDistance::Absolute
+pub variant antecedent_core::search_budget::MatchingDistance::Euclidean
+pub variant antecedent_core::search_budget::NumericalMode::Approximation(antecedent_core::search_budget::ApproximationEvidence)
+pub variant antecedent_core::search_budget::NumericalMode::Exact
+pub variant antecedent_core::search_budget::SearchBudgetError::ApproximationFallbackRefused { family: antecedent_core::search_budget::SearchFamily }
+pub variant antecedent_core::search_budget::SearchBudgetError::EmptyFactor
+pub variant antecedent_core::search_budget::SearchBudgetError::EmptyGraph
+pub variant antecedent_core::search_budget::SearchBudgetError::ExceedsLimit { family: antecedent_core::search_budget::SearchFamily, estimated_bytes: u64, estimated_work: u64, limit_bytes: u64, limit_work: u64 }
+pub variant antecedent_core::search_budget::SearchBudgetError::GpdcKernelShape { rows: u64, conditioning_columns: u64 }
+pub variant antecedent_core::search_budget::SearchBudgetError::MatchingShape { donors: u64, queries: u64, dimensions: u64, distance: antecedent_core::search_budget::MatchingDistance }
+pub variant antecedent_core::search_budget::SearchBudgetError::MissingFactors
+pub variant antecedent_core::search_budget::SearchBudgetError::NamedApproximationFallback { family: antecedent_core::search_budget::SearchFamily, contract: &'static str }
+pub variant antecedent_core::search_budget::SearchBudgetError::Unrepresentable { family: antecedent_core::search_budget::SearchFamily }
+pub variant antecedent_core::search_budget::SearchFamily::FunctionalEnumeration
+pub variant antecedent_core::search_budget::SearchFamily::Gpdc
+pub variant antecedent_core::search_budget::SearchFamily::GraphSearch
+pub variant antecedent_core::search_budget::SearchFamily::Matching
 pub variant antecedent_core::value::InterventionValueError::NonFinite
 pub variant antecedent_core::value::InterventionValueError::NotConcrete
