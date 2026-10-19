@@ -1,0 +1,58 @@
+# G01 CPU control for the current 3.0 neural-crossfit candidate.
+# This file is the plan. It is not a measurement. It stores no host name,
+# commit, backend observation, dtype observation, stage time, or cold/warm state.
+# status = "registered_not_measured" means the control is named and has not been run.
+# The historical 2.1 timing in benches/baselines/neural_crossfit.md is not this control.
+
+schema = 1
+id = "G01"
+status = "registered_not_measured"
+measured = false
+
+[workload]
+id = "neural_crossfit"
+stages = [
+    "fold_planning",
+    "propensity_fit",
+    "outcome_fit",
+    "prediction",
+    "restore_to_physical_row_order",
+]
+entry_point = "crates/antecedent-learn/examples/neural_crossfit_benchmark.rs"
+command = "cargo run --release -q -p antecedent-learn --features ml-neural --example neural_crossfit_benchmark"
+printed_timers = [
+    "fold_plan_ms",
+    "propensity_fit_predict_ms",
+    "outcome_fit_predict_ms",
+    "total_ms",
+]
+notes = "Run from the repository root. The example times fold planning, then the propensity fit-and-predict pass, then the outcome fit-and-predict pass. Prediction and restoration to physical row order run inside those two passes (cross_fit_with_folds scatters held-out predictions back onto physical rows). The example prints backend=burn_ndarray_cpu and does not print host, commit, dtype, or cold/warm."
+
+[record]
+fields = [
+    "host",
+    "commit",
+    "backend",
+    "dtype",
+    "stage_times",
+    "cold_warm",
+]
+notes = "A finished record fills every field from the run of command on the host where it ran. This file leaves every field empty. stage_times covers the named workload stages. cold_warm is the state of that run. A later comparison repeats command on the exact host and revision used for the comparison."
+
+[historical]
+source = "benches/baselines/neural_crossfit.md"
+role = "not the control"
+notes = "The 2.1 timing note is historical context. It does not supply host, the measured commit, dtype, cold/warm, or the stage times for this control."
+
+[comparison]
+rule = "Repeat this control on the exact host and revision used for the comparison."
+same_command = true
+
+[g03]
+id = "G03"
+material_gain_threshold = "2×"
+threshold_status = "proposal"
+frozen = false
+freeze_when = "After a CPU record of this control exists, and before any GPU result is examined."
+gpu_result = "A GPU result cannot freeze or move this threshold."
+notes = "2× is the initial complete-workload material-gain proposal. It stays unfrozen until a CPU record exists. Examining a GPU result does not freeze it and does not change it."
