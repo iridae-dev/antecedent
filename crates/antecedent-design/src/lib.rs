@@ -28,6 +28,7 @@ pub mod evsi;
 pub mod functional_source;
 pub mod inverse_query;
 pub mod inverse_query_artifact;
+pub mod joint_coupling;
 pub mod objective;
 pub mod obligation_adapters;
 mod plan_common;

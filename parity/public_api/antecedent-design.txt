@@ -482,6 +482,13 @@ impl core::clone::Clone for antecedent_design::inverse_query_artifact::Selection
 impl core::clone::Clone for antecedent_design::inverse_query_artifact::SetWire
 impl core::clone::Clone for antecedent_design::inverse_query_artifact::SourceReceiptWire
 impl core::clone::Clone for antecedent_design::inverse_query_artifact::TailWire
+impl core::clone::Clone for antecedent_design::joint_coupling::ActingUtilityBound
+impl core::clone::Clone for antecedent_design::joint_coupling::Action
+impl core::clone::Clone for antecedent_design::joint_coupling::ChosenAction
+impl core::clone::Clone for antecedent_design::joint_coupling::CouplingAbsent
+impl core::clone::Clone for antecedent_design::joint_coupling::CouplingSource
+impl core::clone::Clone for antecedent_design::joint_coupling::JointCoupling
+impl core::clone::Clone for antecedent_design::joint_coupling::SupportMarginal
 impl core::clone::Clone for antecedent_design::prior_signal::CandidateSignalPrior
 impl core::clone::Clone for antecedent_design::prior_signal::CandidateSignalSource
 impl core::clone::Clone for antecedent_design::prior_signal::NativeSignalFamily
@@ -796,6 +803,13 @@ impl core::cmp::Eq for antecedent_design::inverse_query_artifact::SelectionOutco
 impl core::cmp::Eq for antecedent_design::inverse_query_artifact::SelectionWire
 impl core::cmp::Eq for antecedent_design::inverse_query_artifact::SourceReceiptWire
 impl core::cmp::Eq for antecedent_design::inverse_query_artifact::TailWire
+impl core::cmp::Eq for antecedent_design::joint_coupling::ActingUtilityBound
+impl core::cmp::Eq for antecedent_design::joint_coupling::Action
+impl core::cmp::Eq for antecedent_design::joint_coupling::ChosenAction
+impl core::cmp::Eq for antecedent_design::joint_coupling::CouplingAbsent
+impl core::cmp::Eq for antecedent_design::joint_coupling::CouplingSource
+impl core::cmp::Eq for antecedent_design::joint_coupling::JointCoupling
+impl core::cmp::Eq for antecedent_design::joint_coupling::SupportMarginal
 impl core::cmp::Eq for antecedent_design::prior_signal::PriorSignalError
 impl core::cmp::Eq for antecedent_design::prior_signal::TransportPolicyDecl
 impl core::cmp::Eq for antecedent_design::proposal_receipt::ArrivalVerdict
@@ -1247,6 +1261,13 @@ impl core::cmp::PartialEq for antecedent_design::inverse_query_artifact::Selecti
 impl core::cmp::PartialEq for antecedent_design::inverse_query_artifact::SetWire
 impl core::cmp::PartialEq for antecedent_design::inverse_query_artifact::SourceReceiptWire
 impl core::cmp::PartialEq for antecedent_design::inverse_query_artifact::TailWire
+impl core::cmp::PartialEq for antecedent_design::joint_coupling::ActingUtilityBound
+impl core::cmp::PartialEq for antecedent_design::joint_coupling::Action
+impl core::cmp::PartialEq for antecedent_design::joint_coupling::ChosenAction
+impl core::cmp::PartialEq for antecedent_design::joint_coupling::CouplingAbsent
+impl core::cmp::PartialEq for antecedent_design::joint_coupling::CouplingSource
+impl core::cmp::PartialEq for antecedent_design::joint_coupling::JointCoupling
+impl core::cmp::PartialEq for antecedent_design::joint_coupling::SupportMarginal
 impl core::cmp::PartialEq for antecedent_design::prior_signal::NativeSignalFamily
 impl core::cmp::PartialEq for antecedent_design::prior_signal::PriorSignalDiagnostics
 impl core::cmp::PartialEq for antecedent_design::prior_signal::PriorSignalError
@@ -1489,6 +1510,7 @@ impl core::error::Error for antecedent_design::design_ranking_artifact::DesignRa
 impl core::error::Error for antecedent_design::evsi::FutureStudyError
 impl core::error::Error for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::error::Error for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
+impl core::error::Error for antecedent_design::joint_coupling::CouplingAbsent
 impl core::error::Error for antecedent_design::proposal_receipt::ProposalReceiptError
 impl core::error::Error for antecedent_design::sensitivity_decision::SensitivityDecisionError
 impl core::error::Error for antecedent_design::sequential_evaluation::SequentialEvaluationError
@@ -1903,6 +1925,13 @@ impl core::fmt::Debug for antecedent_design::inverse_query_artifact::SelectionWi
 impl core::fmt::Debug for antecedent_design::inverse_query_artifact::SetWire
 impl core::fmt::Debug for antecedent_design::inverse_query_artifact::SourceReceiptWire
 impl core::fmt::Debug for antecedent_design::inverse_query_artifact::TailWire
+impl core::fmt::Debug for antecedent_design::joint_coupling::ActingUtilityBound
+impl core::fmt::Debug for antecedent_design::joint_coupling::Action
+impl core::fmt::Debug for antecedent_design::joint_coupling::ChosenAction
+impl core::fmt::Debug for antecedent_design::joint_coupling::CouplingAbsent
+impl core::fmt::Debug for antecedent_design::joint_coupling::CouplingSource
+impl core::fmt::Debug for antecedent_design::joint_coupling::JointCoupling
+impl core::fmt::Debug for antecedent_design::joint_coupling::SupportMarginal
 impl core::fmt::Debug for antecedent_design::prior_signal::CandidateSignalPrior
 impl core::fmt::Debug for antecedent_design::prior_signal::NativeSignalFamily
 impl core::fmt::Debug for antecedent_design::prior_signal::PriorSignalDiagnostics
@@ -2074,6 +2103,7 @@ impl core::fmt::Display for antecedent_design::design_ranking_artifact::DesignRa
 impl core::fmt::Display for antecedent_design::evsi::FutureStudyError
 impl core::fmt::Display for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::fmt::Display for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
+impl core::fmt::Display for antecedent_design::joint_coupling::CouplingAbsent
 impl core::fmt::Display for antecedent_design::proposal_receipt::ProposalReceiptError
 impl core::fmt::Display for antecedent_design::sensitivity_decision::SensitivityDecisionError
 impl core::fmt::Display for antecedent_design::sequential_evaluation::HistoryKey
@@ -2244,6 +2274,13 @@ impl core::marker::Copy for antecedent_design::inverse_query_artifact::GridScope
 impl core::marker::Copy for antecedent_design::inverse_query_artifact::SelectionOutcomeWire
 impl core::marker::Copy for antecedent_design::inverse_query_artifact::SelectionWire
 impl core::marker::Copy for antecedent_design::inverse_query_artifact::TailWire
+impl core::marker::Copy for antecedent_design::joint_coupling::ActingUtilityBound
+impl core::marker::Copy for antecedent_design::joint_coupling::Action
+impl core::marker::Copy for antecedent_design::joint_coupling::ChosenAction
+impl core::marker::Copy for antecedent_design::joint_coupling::CouplingAbsent
+impl core::marker::Copy for antecedent_design::joint_coupling::CouplingSource
+impl core::marker::Copy for antecedent_design::joint_coupling::JointCoupling
+impl core::marker::Copy for antecedent_design::joint_coupling::SupportMarginal
 impl core::marker::Copy for antecedent_design::prior_signal::NativeSignalFamily
 impl core::marker::Copy for antecedent_design::prior_signal::SourceToTarget
 impl core::marker::Copy for antecedent_design::proposal_receipt::EvidenceState
@@ -2687,6 +2724,13 @@ impl core::marker::Freeze for antecedent_design::inverse_query_artifact::Selecti
 impl core::marker::Freeze for antecedent_design::inverse_query_artifact::SetWire [auto]
 impl core::marker::Freeze for antecedent_design::inverse_query_artifact::SourceReceiptWire [auto]
 impl core::marker::Freeze for antecedent_design::inverse_query_artifact::TailWire [auto]
+impl core::marker::Freeze for antecedent_design::joint_coupling::ActingUtilityBound [auto]
+impl core::marker::Freeze for antecedent_design::joint_coupling::Action [auto]
+impl core::marker::Freeze for antecedent_design::joint_coupling::ChosenAction [auto]
+impl core::marker::Freeze for antecedent_design::joint_coupling::CouplingAbsent [auto]
+impl core::marker::Freeze for antecedent_design::joint_coupling::CouplingSource [auto]
+impl core::marker::Freeze for antecedent_design::joint_coupling::JointCoupling [auto]
+impl core::marker::Freeze for antecedent_design::joint_coupling::SupportMarginal [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -3257,6 +3301,13 @@ impl core::marker::Send for antecedent_design::inverse_query_artifact::Selection
 impl core::marker::Send for antecedent_design::inverse_query_artifact::SetWire [auto]
 impl core::marker::Send for antecedent_design::inverse_query_artifact::SourceReceiptWire [auto]
 impl core::marker::Send for antecedent_design::inverse_query_artifact::TailWire [auto]
+impl core::marker::Send for antecedent_design::joint_coupling::ActingUtilityBound [auto]
+impl core::marker::Send for antecedent_design::joint_coupling::Action [auto]
+impl core::marker::Send for antecedent_design::joint_coupling::ChosenAction [auto]
+impl core::marker::Send for antecedent_design::joint_coupling::CouplingAbsent [auto]
+impl core::marker::Send for antecedent_design::joint_coupling::CouplingSource [auto]
+impl core::marker::Send for antecedent_design::joint_coupling::JointCoupling [auto]
+impl core::marker::Send for antecedent_design::joint_coupling::SupportMarginal [auto]
 impl core::marker::Send for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Send for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Send for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -3774,6 +3825,13 @@ impl core::marker::StructuralPartialEq for antecedent_design::inverse_query_arti
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_query_artifact::SetWire
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_query_artifact::SourceReceiptWire
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_query_artifact::TailWire
+impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::ActingUtilityBound
+impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::Action
+impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::ChosenAction
+impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::CouplingAbsent
+impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::CouplingSource
+impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::JointCoupling
+impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::SupportMarginal
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::NativeSignalFamily
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::PriorSignalDiagnostics
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::PriorSignalError
@@ -4331,6 +4389,13 @@ impl core::marker::Sync for antecedent_design::inverse_query_artifact::Selection
 impl core::marker::Sync for antecedent_design::inverse_query_artifact::SetWire [auto]
 impl core::marker::Sync for antecedent_design::inverse_query_artifact::SourceReceiptWire [auto]
 impl core::marker::Sync for antecedent_design::inverse_query_artifact::TailWire [auto]
+impl core::marker::Sync for antecedent_design::joint_coupling::ActingUtilityBound [auto]
+impl core::marker::Sync for antecedent_design::joint_coupling::Action [auto]
+impl core::marker::Sync for antecedent_design::joint_coupling::ChosenAction [auto]
+impl core::marker::Sync for antecedent_design::joint_coupling::CouplingAbsent [auto]
+impl core::marker::Sync for antecedent_design::joint_coupling::CouplingSource [auto]
+impl core::marker::Sync for antecedent_design::joint_coupling::JointCoupling [auto]
+impl core::marker::Sync for antecedent_design::joint_coupling::SupportMarginal [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -4902,6 +4967,13 @@ impl core::marker::Unpin for antecedent_design::inverse_query_artifact::Selectio
 impl core::marker::Unpin for antecedent_design::inverse_query_artifact::SetWire [auto]
 impl core::marker::Unpin for antecedent_design::inverse_query_artifact::SourceReceiptWire [auto]
 impl core::marker::Unpin for antecedent_design::inverse_query_artifact::TailWire [auto]
+impl core::marker::Unpin for antecedent_design::joint_coupling::ActingUtilityBound [auto]
+impl core::marker::Unpin for antecedent_design::joint_coupling::Action [auto]
+impl core::marker::Unpin for antecedent_design::joint_coupling::ChosenAction [auto]
+impl core::marker::Unpin for antecedent_design::joint_coupling::CouplingAbsent [auto]
+impl core::marker::Unpin for antecedent_design::joint_coupling::CouplingSource [auto]
+impl core::marker::Unpin for antecedent_design::joint_coupling::JointCoupling [auto]
+impl core::marker::Unpin for antecedent_design::joint_coupling::SupportMarginal [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -5470,6 +5542,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_quer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_query_artifact::SetWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_query_artifact::SourceReceiptWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_query_artifact::TailWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::ActingUtilityBound [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::Action [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::ChosenAction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::CouplingAbsent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::CouplingSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::JointCoupling [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::SupportMarginal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::NativeSignalFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::PriorSignalDiagnostics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::PriorSignalError [auto]
@@ -6033,6 +6112,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_query_a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_query_artifact::SetWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_query_artifact::SourceReceiptWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_query_artifact::TailWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::ActingUtilityBound [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::Action [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::ChosenAction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::CouplingAbsent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::CouplingSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::JointCoupling [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::SupportMarginal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::NativeSignalFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::PriorSignalDiagnostics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::PriorSignalError [auto]
@@ -6660,6 +6746,8 @@ pub const <antecedent_design::composition_bundle::NodeKind>::ALL: [Self; 18]
 pub const <antecedent_design::decision_artifact::DecisionResultArtifact>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_design::decision_reliability::PublishedRoute>::ALL: [Self; 4]
 pub const <antecedent_design::decision_robust_artifact::RobustResultArtifact>::CLAIM_LINK_ID: &'static str
+pub const <antecedent_design::joint_coupling::JointCoupling>::ROWS_0_0_AND_2_2: Self
+pub const <antecedent_design::joint_coupling::JointCoupling>::ROWS_0_2_AND_2_0: Self
 pub const <antecedent_design::sequential_evaluation::SequentialAssumptions>::DECLARED: Self
 pub const <antecedent_design::transport_sensitivity::TransportRoute>::ALL: [Self; 13]
 pub const <antecedent_design::transported_policy::TransportPremises>::DECLARED: Self
@@ -6759,6 +6847,10 @@ pub const antecedent_design::inverse_query_artifact::INVERSE_QUERY_INFERENCE_CLA
 pub const antecedent_design::inverse_query_artifact::MAX_INVERSE_QUERY_ARTIFACT_BYTES: usize
 pub const antecedent_design::inverse_query_artifact::MAX_INVERSE_QUERY_CLAIMS: usize
 pub const antecedent_design::inverse_query_artifact::MAX_INVERSE_QUERY_SOURCE_EVIDENCE: usize
+pub const antecedent_design::joint_coupling::NOT_ACTING_UTILITY: i64
+pub const antecedent_design::joint_coupling::PROBABILITY_DENOMINATOR: i64
+pub const antecedent_design::joint_coupling::SUPPORT_TWO: i64
+pub const antecedent_design::joint_coupling::SUPPORT_ZERO: i64
 pub const antecedent_design::repair::REPAIR_MAX_CANDIDATES: usize
 pub const antecedent_design::repair::REPAIR_MAX_DEPTH: usize
 pub const antecedent_design::repair::REPAIR_MAX_MEMORY_BYTES: u64
@@ -6807,6 +6899,8 @@ pub const antecedent_design::transported_synthesis::DETAIL_TRANSPORT_VARIANCE_ON
 pub const antecedent_design::transported_synthesis::DETAIL_TRANSPORT_VARIANCE_UNDECLARED: &str
 pub const antecedent_design::transported_synthesis::DETAIL_UNKNOWN_SOURCE: &str
 pub const antecedent_design::transported_synthesis::TRANSPORTED_SYNTHESIS_RESULT_VERSION: u32
+pub const fn antecedent_design::joint_coupling::acting_utility(x: i64, y: i64) -> i64
+pub const fn antecedent_design::joint_coupling::joint_sensitive_decision(source: antecedent_design::joint_coupling::CouplingSource) -> core::result::Result<antecedent_design::joint_coupling::ChosenAction, antecedent_design::joint_coupling::CouplingAbsent>
 pub enum antecedent_design::ActionKind
 pub enum antecedent_design::CandidateDesign
 pub enum antecedent_design::DecisionContractError
@@ -6943,6 +7037,8 @@ pub enum antecedent_design::inverse_query_artifact::GridScopeWire
 pub enum antecedent_design::inverse_query_artifact::SelectionOutcomeWire
 pub enum antecedent_design::inverse_query_artifact::SelectionWire
 pub enum antecedent_design::inverse_query_artifact::TailWire
+pub enum antecedent_design::joint_coupling::Action
+pub enum antecedent_design::joint_coupling::CouplingSource
 pub enum antecedent_design::prior_signal::CandidateSignalSource
 pub enum antecedent_design::prior_signal::NativeSignalFamily
 pub enum antecedent_design::prior_signal::SourceToTarget
@@ -8212,6 +8308,12 @@ pub field antecedent_design::inverse_query_artifact::SourceReceiptWire::causal_c
 pub field antecedent_design::inverse_query_artifact::SourceReceiptWire::provider_id: alloc::string::String
 pub field antecedent_design::inverse_query_artifact::SourceReceiptWire::rng_id: alloc::string::String
 pub field antecedent_design::inverse_query_artifact::SourceReceiptWire::snapshot_id: alloc::string::String
+pub field antecedent_design::joint_coupling::ActingUtilityBound::lower: i64
+pub field antecedent_design::joint_coupling::ActingUtilityBound::upper: i64
+pub field antecedent_design::joint_coupling::ChosenAction::action: antecedent_design::joint_coupling::Action
+pub field antecedent_design::joint_coupling::ChosenAction::expected_acting_utility: i64
+pub field antecedent_design::joint_coupling::SupportMarginal::mass_two: i64
+pub field antecedent_design::joint_coupling::SupportMarginal::mass_zero: i64
 pub field antecedent_design::prior_signal::CandidateSignalPrior::diagnostics: antecedent_design::prior_signal::PriorSignalDiagnostics
 pub field antecedent_design::prior_signal::CandidateSignalPrior::prior: antecedent_design::DecisionPrior<f64>
 pub field antecedent_design::prior_signal::CandidateSignalPrior::prior_id: alloc::string::String
@@ -9235,6 +9337,15 @@ pub fn <antecedent_design::inverse_query_artifact::InverseQueryArtifact>::fn wit
 pub fn <antecedent_design::inverse_query_artifact::InverseQueryArtifact>::fn with_source_evidence(self, sources: alloc::vec::Vec<antecedent_design::source_evidence::SourceEvidence>) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::inverse_query_artifact::InverseQueryWire>::fn from_query(query: &antecedent_design::inverse_query::InverseQuery) -> Self
 pub fn <antecedent_design::inverse_query_artifact::InverseQueryWire>::fn into_query(self, contract: antecedent_design::DecisionContract) -> antecedent_design::inverse_query::InverseQuery
+pub fn <antecedent_design::joint_coupling::ActingUtilityBound>::const fn contains(self, value: i64) -> bool
+pub fn <antecedent_design::joint_coupling::ActingUtilityBound>::const fn preserved() -> Self
+pub fn <antecedent_design::joint_coupling::CouplingAbsent>::const fn bound(self) -> antecedent_design::joint_coupling::ActingUtilityBound
+pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn acting_utility_numerator(self) -> i64
+pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn expected_acting_utility(self) -> i64
+pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn marginal_x(self) -> antecedent_design::joint_coupling::SupportMarginal
+pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn marginal_y(self) -> antecedent_design::joint_coupling::SupportMarginal
+pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn mass_numerator(self, x: i64, y: i64) -> core::option::Option<i64>
+pub fn <antecedent_design::joint_coupling::SupportMarginal>::const fn is_equal_halves(self) -> bool
 pub fn <antecedent_design::prior_signal::PriorSignalError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::proposal_receipt::ProposalBundle>::fn build(repair: &antecedent_design::RepairReportArtifact, ranking: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire) -> core::result::Result<Self, antecedent_design::proposal_receipt::ProposalReceiptError>
 pub fn <antecedent_design::proposal_receipt::ProposalBundle>::fn compute_identity(&self) -> alloc::string::String
@@ -9555,6 +9666,7 @@ pub mod antecedent_design::inverse_forward_source
 pub mod antecedent_design::inverse_observational_scenarios
 pub mod antecedent_design::inverse_query
 pub mod antecedent_design::inverse_query_artifact
+pub mod antecedent_design::joint_coupling
 pub mod antecedent_design::objective
 pub mod antecedent_design::obligation_adapters
 pub mod antecedent_design::preposterior
@@ -9891,6 +10003,13 @@ pub struct antecedent_design::inverse_query_artifact::MemberStatusWire
 pub struct antecedent_design::inverse_query_artifact::PosteriorFeasibilityWire
 pub struct antecedent_design::inverse_query_artifact::SetWire
 pub struct antecedent_design::inverse_query_artifact::SourceReceiptWire
+pub struct antecedent_design::joint_coupling::ActingUtilityBound
+pub struct antecedent_design::joint_coupling::ChosenAction
+pub struct antecedent_design::joint_coupling::CouplingAbsent
+pub struct antecedent_design::joint_coupling::CouplingAbsent has private fields
+pub struct antecedent_design::joint_coupling::JointCoupling
+pub struct antecedent_design::joint_coupling::JointCoupling has private fields
+pub struct antecedent_design::joint_coupling::SupportMarginal
 pub struct antecedent_design::prior_signal::CandidateSignalPrior
 pub struct antecedent_design::prior_signal::PriorSignalDiagnostics
 pub struct antecedent_design::prior_signal::PriorSignalRequest
@@ -10931,6 +11050,10 @@ pub variant antecedent_design::inverse_query_artifact::SelectionWire::LastInGrid
 pub variant antecedent_design::inverse_query_artifact::SelectionWire::RequireUnique
 pub variant antecedent_design::inverse_query_artifact::TailWire::Lower
 pub variant antecedent_design::inverse_query_artifact::TailWire::Upper
+pub variant antecedent_design::joint_coupling::Action::Act
+pub variant antecedent_design::joint_coupling::Action::NotAct
+pub variant antecedent_design::joint_coupling::CouplingSource::MarginalsOnly
+pub variant antecedent_design::joint_coupling::CouplingSource::Supplied(antecedent_design::joint_coupling::JointCoupling)
 pub variant antecedent_design::prior_signal::CandidateSignalSource::CoefficientPriorOnly
 pub variant antecedent_design::prior_signal::CandidateSignalSource::Native(antecedent_design::prior_signal::NativeSignalFamily)
 pub variant antecedent_design::prior_signal::CandidateSignalSource::Provider(alloc::sync::Arc<dyn antecedent_design::signal::SignalProvider>)
