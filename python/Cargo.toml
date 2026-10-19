@@ -33,6 +33,7 @@ antecedent-contract = { workspace = true }
 antecedent-data = { workspace = true, features = ["arrow"] }
 antecedent = { workspace = true }
 antecedent-io = { workspace = true }
+antecedent-io-core = { workspace = true }
 antecedent-prob = { workspace = true }
 # Type conversion only (mediation estimand / graph construction for analyze*).
 antecedent-expr = { workspace = true }
@@ -41,6 +42,7 @@ antecedent-identify = { workspace = true }
 antecedent-design = { workspace = true }
 antecedent-model = { workspace = true }
 antecedent-attribution = { workspace = true }
+antecedent-state = { workspace = true }
 antecedent-stats = { workspace = true }
 antecedent-validate = { workspace = true }
 antecedent-discovery = { workspace = true }

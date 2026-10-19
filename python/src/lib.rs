@@ -37,6 +37,7 @@ mod adaptive_procedure_api;
 mod artifact_api;
 mod ate_api;
 mod attribution_api;
+mod batch6_contract_api;
 mod batch_retarget_api;
 pub(crate) mod bayesian;
 mod bounds_api;
@@ -2730,6 +2731,7 @@ impl PyCancellationToken {
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    batch6_contract_api::register(m)?;
     registry::register_module(m)
 }
 
