@@ -16,6 +16,7 @@ pub mod design;
 pub mod divergence;
 pub mod error;
 pub mod faer_backend;
+pub mod faer_scope;
 pub mod fdr;
 pub mod fit_counts;
 pub mod gam;

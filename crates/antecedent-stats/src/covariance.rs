@@ -545,9 +545,12 @@ fn ensure_multiway_meat_psd(
         return Ok(());
     }
     let mat = faer::Mat::<f64>::from_fn(ncols, ncols, |r, c| meat[r * ncols + c]);
-    let eigs = mat
-        .self_adjoint_eigenvalues(faer::Side::Lower)
-        .map_err(|_| StatsError::Backend("multiway meat eigendecomposition failed".into()))?;
+    let (values, _) = crate::faer_backend::symmetric_eigen_in_scope(
+        mat.as_ref(),
+        crate::faer_backend::serial_scope(),
+    )
+    .map_err(|_| StatsError::Backend("multiway meat eigendecomposition failed".into()))?;
+    let eigs: Vec<f64> = (0..ncols).map(|k| values.as_ref().column_vector()[k]).collect();
     let scale = abs_diag.iter().copied().fold(0.0_f64, f64::max);
     let tol = 64.0 * f64::EPSILON * scale;
     for &lam in &eigs {
@@ -575,14 +578,15 @@ pub fn symmetric_eigen(matrix: &[f64], d: usize) -> Result<(Vec<f64>, Vec<f64>),
         });
     }
     let mat = faer::Mat::<f64>::from_fn(d, d, |r, c| matrix[r * d + c]);
-    let eig = mat
-        .self_adjoint_eigen(faer::Side::Lower)
-        .map_err(|_| StatsError::Backend("symmetric eigendecomposition failed".into()))?;
-    let values = (0..d).map(|k| eig.S().column_vector()[k]).collect();
+    let (eig_values, eig_vectors) = crate::faer_backend::symmetric_eigen_in_scope(
+        mat.as_ref(),
+        crate::faer_backend::serial_scope(),
+    )?;
+    let values = (0..d).map(|k| eig_values.as_ref().column_vector()[k]).collect();
     let mut vectors = vec![0.0; d * d];
     for r in 0..d {
         for k in 0..d {
-            vectors[r * d + k] = eig.U()[(r, k)];
+            vectors[r * d + k] = eig_vectors[(r, k)];
         }
     }
     Ok((values, vectors))

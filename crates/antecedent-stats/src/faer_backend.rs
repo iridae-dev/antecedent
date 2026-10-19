@@ -2,10 +2,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use faer::linalg::solvers::{ColPivQr, SolveLstsqCore};
-use faer::{Conj, Mat};
+use faer::diag::Diag;
+use faer::dyn_stack::MemStack;
+use faer::linalg::qr::col_pivoting::factor::{
+    qr_in_place, qr_in_place_scratch, recommended_block_size,
+};
+use faer::linalg::qr::col_pivoting::solve::{
+    solve_lstsq_in_place_scratch, solve_lstsq_in_place_with_conj,
+};
+use faer::linalg::svd::{ComputeSvdVectors, svd, svd_scratch};
+use faer::{Conj, Mat, MatRef, Spec};
 
 use crate::error::StatsError;
+use crate::faer_scope::FaerScope;
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 
 /// Default `faer` backend.
@@ -49,10 +58,11 @@ impl DenseLinearAlgebra for FaerBackend {
                     .collect();
                 let a =
                     Mat::<f64>::from_fn(nrows, ncols, |r, c| x_colmajor[c * nrows + r] / scales[c]);
-                let qr = ColPivQr::new(a.as_ref());
+                let scope = serial_scope();
+                let factored = column_pivoted_qr(a, scope)?;
 
                 // Rank from |R_ii| relative to the largest pivot.
-                let r_factor = qr.thin_R();
+                let r_factor = factored.thin_r.as_ref();
                 let size = r_factor.nrows().min(r_factor.ncols());
                 let mut max_diag = 0.0_f64;
                 let mut min_diag = f64::INFINITY;
@@ -81,7 +91,7 @@ impl DenseLinearAlgebra for FaerBackend {
 
                 // solve_lstsq writes β into the leading ncols entries of the RHS.
                 let mut rhs = Mat::<f64>::from_fn(nrows, 1, |r, _| y[r]);
-                qr.solve_lstsq_in_place_with_conj(Conj::No, rhs.as_mut());
+                solve_with_scope(&factored, rhs.as_mut(), scope)?;
 
                 let mut coefficients = vec![0.0; ncols];
                 for i in 0..ncols {
@@ -138,10 +148,10 @@ impl FaerBackend {
             return Err(StatsError::Shape { message: "X buffer too short" });
         }
         let a = Mat::<f64>::from_fn(nrows, ncols, |r, c| x_colmajor[c * nrows + r]);
-        let svd = a.thin_svd().map_err(|_| {
+        let svd = thin_svd_in_scope(a.as_ref(), serial_scope()).map_err(|_| {
             StatsError::Backend("minimum-norm least squares: SVD did not converge".into())
         })?;
-        let (u, s, v) = (svd.U(), svd.S().column_vector(), svd.V());
+        let (u, s, v) = (svd.u.as_ref(), svd.s.as_ref().column_vector(), svd.v.as_ref());
         let size = nrows.min(ncols);
         let s_max = (0..size).map(|i| s[i].abs()).fold(0.0_f64, f64::max);
         let tol = (nrows.max(ncols) as f64) * f64::EPSILON * s_max;
@@ -176,6 +186,168 @@ impl FaerBackend {
             diagnostics: FitDiagnostics::new(rank, rcond, "faer-svd", 0),
         })
     }
+}
+
+struct ScopedQr {
+    q_basis: Mat<f64>,
+    q_coeff: Mat<f64>,
+    r_full: Mat<f64>,
+    thin_r: Mat<f64>,
+    perm_forward: Vec<usize>,
+    perm_inverse: Vec<usize>,
+}
+
+pub(crate) fn serial_scope() -> FaerScope {
+    FaerScope::try_new(1, u64::MAX).unwrap_or_else(|_| unreachable!("one worker is a scope"))
+}
+
+fn column_pivoted_qr(mut qr: Mat<f64>, scope: FaerScope) -> Result<ScopedQr, StatsError> {
+    let (nrows, ncols) = qr.shape();
+    let par = scope.parallelism();
+    let block_size = recommended_block_size::<f64>(nrows, ncols);
+    let scratch = faer::dyn_stack::StackReq::and(
+        qr_in_place_scratch::<usize, f64>(nrows, ncols, block_size, par, Spec::default()),
+        solve_lstsq_in_place_scratch::<usize, f64>(nrows, ncols, block_size, 1, par),
+    );
+    scope.admit_scratch(scratch).map_err(|error| StatsError::Backend(error.to_string()))?;
+    let mut buffer =
+        scope.scratch_buffer(scratch).map_err(|error| StatsError::Backend(error.to_string()))?;
+    let size = nrows.min(ncols);
+    let mut q_coeff = Mat::<f64>::zeros(block_size, size);
+    let mut perm_forward = vec![0usize; ncols];
+    let mut perm_inverse = vec![0usize; ncols];
+    let _ = qr_in_place(
+        qr.as_mut(),
+        q_coeff.as_mut(),
+        &mut perm_forward,
+        &mut perm_inverse,
+        par,
+        MemStack::new(&mut buffer),
+        Spec::default(),
+    );
+    let (q_basis, r_full) = split_triangular(qr);
+    let thin_r = r_full.get(..size, ..size).to_owned();
+    Ok(ScopedQr { q_basis, q_coeff, r_full, thin_r, perm_forward, perm_inverse })
+}
+
+fn solve_with_scope(
+    factored: &ScopedQr,
+    rhs: faer::MatMut<'_, f64>,
+    scope: FaerScope,
+) -> Result<(), StatsError> {
+    let par = scope.parallelism();
+    let (nrows, ncols) = factored.q_basis.shape();
+    let block_size = factored.q_coeff.nrows();
+    let scratch =
+        solve_lstsq_in_place_scratch::<usize, f64>(nrows, ncols, block_size, rhs.ncols(), par);
+    scope.admit_scratch(scratch).map_err(|error| StatsError::Backend(error.to_string()))?;
+    let mut buffer =
+        scope.scratch_buffer(scratch).map_err(|error| StatsError::Backend(error.to_string()))?;
+    let perm =
+        faer::perm::PermRef::new_checked(&factored.perm_forward, &factored.perm_inverse, ncols);
+    solve_lstsq_in_place_with_conj(
+        factored.q_basis.as_ref(),
+        factored.q_coeff.as_ref(),
+        factored.r_full.as_ref(),
+        perm,
+        Conj::No,
+        rhs,
+        par,
+        MemStack::new(&mut buffer),
+    );
+    Ok(())
+}
+
+fn split_triangular(lu: Mat<f64>) -> (Mat<f64>, Mat<f64>) {
+    let (nrows, ncols) = lu.shape();
+    let size = nrows.min(ncols);
+    if nrows >= ncols {
+        let mut lower = lu;
+        let mut upper = Mat::<f64>::zeros(size, size);
+        upper.copy_from_triangular_upper(lower.get(..size, ..size));
+        for c in 0..size {
+            for r in 0..c {
+                lower[(r, c)] = 0.0;
+            }
+            lower[(c, c)] = 1.0;
+        }
+        (lower, upper)
+    } else {
+        let mut upper = lu;
+        let mut lower = Mat::<f64>::zeros(size, size);
+        lower.copy_from_strict_triangular_lower(upper.get(..size, ..size));
+        for c in 0..ncols {
+            for r in (c + 1)..size {
+                upper[(r, c)] = 0.0;
+            }
+        }
+        for i in 0..size {
+            lower[(i, i)] = 1.0;
+        }
+        (lower, upper)
+    }
+}
+
+pub(crate) fn symmetric_eigen_in_scope(
+    matrix: MatRef<'_, f64>,
+    scope: FaerScope,
+) -> Result<(Diag<f64>, Mat<f64>), StatsError> {
+    let n = matrix.nrows();
+    let par = scope.parallelism();
+    let scratch = faer::linalg::evd::self_adjoint_evd_scratch::<f64>(
+        n,
+        faer::linalg::evd::ComputeEigenvectors::Yes,
+        par,
+        Spec::default(),
+    );
+    scope.admit_scratch(scratch).map_err(|error| StatsError::Backend(error.to_string()))?;
+    let mut buffer =
+        scope.scratch_buffer(scratch).map_err(|error| StatsError::Backend(error.to_string()))?;
+    let mut values = Diag::<f64>::zeros(n);
+    let mut vectors = Mat::<f64>::zeros(n, n);
+    faer::linalg::evd::self_adjoint_evd(
+        matrix,
+        values.as_mut(),
+        Some(vectors.as_mut()),
+        par,
+        MemStack::new(&mut buffer),
+        Spec::default(),
+    )
+    .map_err(|_| StatsError::Backend("symmetric eigendecomposition failed".into()))?;
+    Ok((values, vectors))
+}
+
+struct ThinSvd {
+    u: Mat<f64>,
+    s: Diag<f64>,
+    v: Mat<f64>,
+}
+
+fn thin_svd_in_scope(
+    a: MatRef<'_, f64>,
+    scope: FaerScope,
+) -> Result<ThinSvd, faer::linalg::svd::SvdError> {
+    let (nrows, ncols) = a.shape();
+    let size = nrows.min(ncols);
+    let par = scope.parallelism();
+    let compute = ComputeSvdVectors::Thin;
+    let scratch = svd_scratch::<f64>(nrows, ncols, compute, compute, par, Spec::default());
+    scope.admit_scratch(scratch).map_err(|_| faer::linalg::svd::SvdError::NoConvergence)?;
+    let mut buffer =
+        scope.scratch_buffer(scratch).map_err(|_| faer::linalg::svd::SvdError::NoConvergence)?;
+    let mut u = Mat::<f64>::zeros(nrows, size);
+    let mut v = Mat::<f64>::zeros(ncols, size);
+    let mut s = Diag::<f64>::zeros(size);
+    svd(
+        a,
+        s.as_mut(),
+        Some(u.as_mut()),
+        Some(v.as_mut()),
+        par,
+        MemStack::new(&mut buffer),
+        Spec::default(),
+    )?;
+    Ok(ThinSvd { u, s, v })
 }
 
 #[cfg(test)]

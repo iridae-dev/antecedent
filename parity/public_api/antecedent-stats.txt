@@ -23,6 +23,7 @@
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::WeightScheme
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::WithinUnitCorrelation
 #[non_exhaustive] pub enum antecedent_stats::ci::AttainableP
+#[non_exhaustive] pub enum antecedent_stats::faer_scope::FaerScopeError
 #[non_exhaustive] pub enum antecedent_stats::measurement_error::MeasurementErrorError
 #[non_exhaustive] pub enum antecedent_stats::synthesis_transport::TransportedSynthesisError
 #[non_exhaustive] pub struct antecedent_stats::Hc2Coefficient
@@ -245,6 +246,8 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::UnitSummary
 impl core::clone::Clone for antecedent_stats::adaptive_inference::WeightScheme
 impl core::clone::Clone for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::clone::Clone for antecedent_stats::ci::AttainableP
+impl core::clone::Clone for antecedent_stats::faer_scope::FaerScope
+impl core::clone::Clone for antecedent_stats::faer_scope::FaerScopeError
 impl core::clone::Clone for antecedent_stats::gram::GramLayoutError
 impl core::clone::Clone for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::clone::Clone for antecedent_stats::measurement_error::BinaryErrorRates
@@ -308,6 +311,8 @@ impl core::cmp::Eq for antecedent_stats::adaptive_inference::UncertaintyParadigm
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::UnitSummary
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::cmp::Eq for antecedent_stats::ci::AttainableP
+impl core::cmp::Eq for antecedent_stats::faer_scope::FaerScope
+impl core::cmp::Eq for antecedent_stats::faer_scope::FaerScopeError
 impl core::cmp::Eq for antecedent_stats::gram::GramLayoutError
 impl core::cmp::Eq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::cmp::PartialEq for antecedent_stats::BasisKind
@@ -472,6 +477,8 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::UnitSummary
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::cmp::PartialEq for antecedent_stats::ci::AttainableP
+impl core::cmp::PartialEq for antecedent_stats::faer_scope::FaerScope
+impl core::cmp::PartialEq for antecedent_stats::faer_scope::FaerScopeError
 impl core::cmp::PartialEq for antecedent_stats::gram::GramLayoutError
 impl core::cmp::PartialEq for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::BinaryErrorRates
@@ -542,6 +549,7 @@ impl core::error::Error for antecedent_stats::SynthesisError
 impl core::error::Error for antecedent_stats::adaptive_inference::AdaptiveInferenceError
 impl core::error::Error for antecedent_stats::adaptive_inference::CapacityError
 impl core::error::Error for antecedent_stats::adaptive_inference::ProcedureContractError
+impl core::error::Error for antecedent_stats::faer_scope::FaerScopeError
 impl core::error::Error for antecedent_stats::measurement_error::MeasurementErrorError
 impl core::error::Error for antecedent_stats::synthesis_transport::TransportedSynthesisError
 impl core::fmt::Debug for antecedent_stats::AdditiveDesign
@@ -745,6 +753,8 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::UnitSummary
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::WeightScheme
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::fmt::Debug for antecedent_stats::ci::AttainableP
+impl core::fmt::Debug for antecedent_stats::faer_scope::FaerScope
+impl core::fmt::Debug for antecedent_stats::faer_scope::FaerScopeError
 impl core::fmt::Debug for antecedent_stats::gram::GramLayoutError
 impl core::fmt::Debug for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::fmt::Debug for antecedent_stats::measurement_error::BinaryErrorRates
@@ -774,6 +784,7 @@ impl core::fmt::Display for antecedent_stats::SynthesisError
 impl core::fmt::Display for antecedent_stats::adaptive_inference::AdaptiveInferenceError
 impl core::fmt::Display for antecedent_stats::adaptive_inference::CapacityError
 impl core::fmt::Display for antecedent_stats::adaptive_inference::ProcedureContractError
+impl core::fmt::Display for antecedent_stats::faer_scope::FaerScopeError
 impl core::fmt::Display for antecedent_stats::gram::GramLayoutError
 impl core::fmt::Display for antecedent_stats::measurement_error::MeasurementErrorError
 impl core::fmt::Display for antecedent_stats::synthesis_transport::TransportedSynthesisError
@@ -892,6 +903,8 @@ impl core::marker::Copy for antecedent_stats::adaptive_inference::UnitSummary
 impl core::marker::Copy for antecedent_stats::adaptive_inference::WeightScheme
 impl core::marker::Copy for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::marker::Copy for antecedent_stats::ci::AttainableP
+impl core::marker::Copy for antecedent_stats::faer_scope::FaerScope
+impl core::marker::Copy for antecedent_stats::faer_scope::FaerScopeError
 impl core::marker::Copy for antecedent_stats::gram::GramLayoutError
 impl core::marker::Copy for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::marker::Copy for antecedent_stats::measurement_error::BinaryErrorRates
@@ -1100,6 +1113,8 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::UnitSummary 
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Freeze for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Freeze for antecedent_stats::faer_scope::FaerScope [auto]
+impl core::marker::Freeze for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Freeze for antecedent_stats::gram::GramLayoutError [auto]
 impl core::marker::Freeze for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -1324,6 +1339,8 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::UnitSummary [a
 impl core::marker::Send for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Send for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Send for antecedent_stats::faer_scope::FaerScope [auto]
+impl core::marker::Send for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Send for antecedent_stats::gram::GramLayoutError [auto]
 impl core::marker::Send for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -1509,6 +1526,8 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::marker::StructuralPartialEq for antecedent_stats::ci::AttainableP
+impl core::marker::StructuralPartialEq for antecedent_stats::faer_scope::FaerScope
+impl core::marker::StructuralPartialEq for antecedent_stats::faer_scope::FaerScopeError
 impl core::marker::StructuralPartialEq for antecedent_stats::gram::GramLayoutError
 impl core::marker::StructuralPartialEq for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::BinaryErrorRates
@@ -1733,6 +1752,8 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::UnitSummary [a
 impl core::marker::Sync for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Sync for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Sync for antecedent_stats::faer_scope::FaerScope [auto]
+impl core::marker::Sync for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Sync for antecedent_stats::gram::GramLayoutError [auto]
 impl core::marker::Sync for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -1957,6 +1978,8 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::UnitSummary [
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Unpin for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Unpin for antecedent_stats::faer_scope::FaerScope [auto]
+impl core::marker::Unpin for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Unpin for antecedent_stats::gram::GramLayoutError [auto]
 impl core::marker::Unpin for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -2181,6 +2204,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::AttainableP [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_scope::FaerScope [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::GramLayoutError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -2405,6 +2430,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::AttainableP [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_scope::FaerScope [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::GramLayoutError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::BinaryErrorRates [auto]
@@ -3644,6 +3671,12 @@ pub fn <antecedent_stats::adaptive_inference::UnitAssignment>::const fn is_adapt
 pub fn <antecedent_stats::adaptive_inference::WeightScheme>::const fn as_str(self) -> &'static str
 pub fn <antecedent_stats::dcor::DistanceY<'a>>::fn correlate(&self, x: &[f64]) -> f64
 pub fn <antecedent_stats::dcor::DistanceY<'a>>::fn new(y: &'a [f64]) -> Self
+pub fn <antecedent_stats::faer_scope::FaerScope>::const fn scratch_budget(self) -> u64
+pub fn <antecedent_stats::faer_scope::FaerScope>::const fn try_new(workers: u32, scratch_budget: u64) -> core::result::Result<Self, antecedent_stats::faer_scope::FaerScopeError>
+pub fn <antecedent_stats::faer_scope::FaerScope>::const fn workers(self) -> u32
+pub fn <antecedent_stats::faer_scope::FaerScope>::fn admit_scratch(self, required: dyn_stack::stack_req::StackReq) -> core::result::Result<u64, antecedent_stats::faer_scope::FaerScopeError>
+pub fn <antecedent_stats::faer_scope::FaerScope>::fn parallelism(self) -> faer::Par
+pub fn <antecedent_stats::faer_scope::FaerScope>::fn scratch_buffer(self, required: dyn_stack::stack_req::StackReq) -> core::result::Result<dyn_stack::mem::MemBuffer, antecedent_stats::faer_scope::FaerScopeError>
 pub fn <antecedent_stats::gram::ColumnMajorDesign<'a>>::const fn ncols(self) -> usize
 pub fn <antecedent_stats::gram::ColumnMajorDesign<'a>>::const fn nrows(self) -> usize
 pub fn <antecedent_stats::gram::ColumnMajorDesign<'a>>::const fn x(self) -> &'a [f64]
@@ -3897,6 +3930,7 @@ pub mod antecedent_stats::design
 pub mod antecedent_stats::divergence
 pub mod antecedent_stats::error
 pub mod antecedent_stats::faer_backend
+pub mod antecedent_stats::faer_scope
 pub mod antecedent_stats::fdr
 pub mod antecedent_stats::fit_counts
 pub mod antecedent_stats::gam
@@ -4100,6 +4134,8 @@ pub struct antecedent_stats::adaptive_inference::StopFractions
 pub struct antecedent_stats::adaptive_inference::TerminalAtom
 pub struct antecedent_stats::dcor::DistanceY has private fields
 pub struct antecedent_stats::dcor::DistanceY<'a>
+pub struct antecedent_stats::faer_scope::FaerScope
+pub struct antecedent_stats::faer_scope::FaerScope has private fields
 pub struct antecedent_stats::gram::ColumnMajorDesign has private fields
 pub struct antecedent_stats::gram::ColumnMajorDesign<'a>
 pub struct antecedent_stats::gram::DesignRow has private fields
@@ -4773,6 +4809,9 @@ pub variant antecedent_stats::adaptive_inference::WithinUnitCorrelation::Compoun
 pub variant antecedent_stats::ci::AttainableP::AnalyticOrBlockShuffle
 pub variant antecedent_stats::ci::AttainableP::NonparametricPermutation
 pub variant antecedent_stats::ci::AttainableP::Zero
+pub variant antecedent_stats::faer_scope::FaerScopeError::ScratchOverBudget { required_bytes: u64, budget_bytes: u64 }
+pub variant antecedent_stats::faer_scope::FaerScopeError::ScratchOverflow
+pub variant antecedent_stats::faer_scope::FaerScopeError::ZeroWorkers
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::ConfusionIllConditioned { condition: f64, maximum: f64 }
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::EmptyLatentCategory
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::InsufficientReplicates(&'static str)
