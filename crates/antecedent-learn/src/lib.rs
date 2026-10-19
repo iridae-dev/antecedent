@@ -39,6 +39,7 @@ pub mod logistic;
 #[cfg(feature = "ml-neural")]
 pub mod neural;
 pub mod posterior_prediction;
+pub mod recipes;
 pub mod ridge;
 pub mod spec;
 mod streams;

@@ -3,6 +3,7 @@
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_learn::FittedEffectError
 #[non_exhaustive] pub enum antecedent_learn::LearnError
+#[non_exhaustive] pub enum antecedent_learn::recipes::RecipeError
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::FiniteJoint [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_learn::FiniteJoint [auto]
 impl antecedent_learn::FittedPredictor for antecedent_learn::PortablePredictor
@@ -50,6 +51,15 @@ impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Diagnostic
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Options
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Prior
+impl core::clone::Clone for antecedent_learn::recipes::AcceptedProvider
+impl core::clone::Clone for antecedent_learn::recipes::BoundaryUse
+impl core::clone::Clone for antecedent_learn::recipes::InferenceSite
+impl core::clone::Clone for antecedent_learn::recipes::LikelihoodRole
+impl core::clone::Clone for antecedent_learn::recipes::PredictionOnlyBoundary
+impl core::clone::Clone for antecedent_learn::recipes::Recipe
+impl core::clone::Clone for antecedent_learn::recipes::RecipeError
+impl core::clone::Clone for antecedent_learn::recipes::RecipeKind
+impl core::clone::Clone for antecedent_learn::recipes::StudyDefault
 impl core::clone::Clone for antecedent_learn::transported_effect::FeatureOverlap
 impl core::clone::Clone for antecedent_learn::transported_effect::OverlapAssessment
 impl core::clone::Clone for antecedent_learn::transported_effect::SelectionShiftDeclaration
@@ -69,6 +79,15 @@ impl core::cmp::Eq for antecedent_learn::PolynomialBasis
 impl core::cmp::Eq for antecedent_learn::PosteriorPredictionProvenance
 impl core::cmp::Eq for antecedent_learn::PredictionTask
 impl core::cmp::Eq for antecedent_learn::SupportReport
+impl core::cmp::Eq for antecedent_learn::recipes::AcceptedProvider
+impl core::cmp::Eq for antecedent_learn::recipes::BoundaryUse
+impl core::cmp::Eq for antecedent_learn::recipes::InferenceSite
+impl core::cmp::Eq for antecedent_learn::recipes::LikelihoodRole
+impl core::cmp::Eq for antecedent_learn::recipes::PredictionOnlyBoundary
+impl core::cmp::Eq for antecedent_learn::recipes::Recipe
+impl core::cmp::Eq for antecedent_learn::recipes::RecipeError
+impl core::cmp::Eq for antecedent_learn::recipes::RecipeKind
+impl core::cmp::Eq for antecedent_learn::recipes::StudyDefault
 impl core::cmp::Eq for antecedent_learn::transported_effect::SelectionShiftDeclaration
 impl core::cmp::Eq for antecedent_learn::transported_effect::TransportRefusal
 impl core::cmp::Eq for antecedent_learn::transported_effect::TransportedInference
@@ -108,6 +127,15 @@ impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Diagnost
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Options
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Prior
+impl core::cmp::PartialEq for antecedent_learn::recipes::AcceptedProvider
+impl core::cmp::PartialEq for antecedent_learn::recipes::BoundaryUse
+impl core::cmp::PartialEq for antecedent_learn::recipes::InferenceSite
+impl core::cmp::PartialEq for antecedent_learn::recipes::LikelihoodRole
+impl core::cmp::PartialEq for antecedent_learn::recipes::PredictionOnlyBoundary
+impl core::cmp::PartialEq for antecedent_learn::recipes::Recipe
+impl core::cmp::PartialEq for antecedent_learn::recipes::RecipeError
+impl core::cmp::PartialEq for antecedent_learn::recipes::RecipeKind
+impl core::cmp::PartialEq for antecedent_learn::recipes::StudyDefault
 impl core::cmp::PartialEq for antecedent_learn::transported_effect::FeatureOverlap
 impl core::cmp::PartialEq for antecedent_learn::transported_effect::OverlapAssessment
 impl core::cmp::PartialEq for antecedent_learn::transported_effect::SelectionShiftDeclaration
@@ -132,9 +160,11 @@ impl core::default::Default for antecedent_learn::NuisanceDiagnostics
 impl core::default::Default for antecedent_learn::RidgeSpec
 impl core::default::Default for antecedent_learn::nested_markov_bayesian::Options
 impl core::default::Default for antecedent_learn::nested_markov_bayesian::Prior
+impl core::default::Default for antecedent_learn::recipes::PredictionOnlyBoundary
 impl core::error::Error for antecedent_learn::FittedEffectError
 impl core::error::Error for antecedent_learn::LearnError
 impl core::error::Error for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::error::Error for antecedent_learn::recipes::RecipeError
 impl core::error::Error for antecedent_learn::transported_effect::TransportRefusal
 impl core::fmt::Debug for antecedent_learn::BasisRegressionPosterior
 impl core::fmt::Debug for antecedent_learn::BasisTargetPopulation
@@ -178,6 +208,15 @@ impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Diagnostics
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Options
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Prior
+impl core::fmt::Debug for antecedent_learn::recipes::AcceptedProvider
+impl core::fmt::Debug for antecedent_learn::recipes::BoundaryUse
+impl core::fmt::Debug for antecedent_learn::recipes::InferenceSite
+impl core::fmt::Debug for antecedent_learn::recipes::LikelihoodRole
+impl core::fmt::Debug for antecedent_learn::recipes::PredictionOnlyBoundary
+impl core::fmt::Debug for antecedent_learn::recipes::Recipe
+impl core::fmt::Debug for antecedent_learn::recipes::RecipeError
+impl core::fmt::Debug for antecedent_learn::recipes::RecipeKind
+impl core::fmt::Debug for antecedent_learn::recipes::StudyDefault
 impl core::fmt::Debug for antecedent_learn::transported_effect::FeatureOverlap
 impl core::fmt::Debug for antecedent_learn::transported_effect::OverlapAssessment
 impl core::fmt::Debug for antecedent_learn::transported_effect::SelectionShiftDeclaration
@@ -189,7 +228,18 @@ impl core::fmt::Debug for antecedent_learn::transported_effect::TransportedReque
 impl core::fmt::Display for antecedent_learn::FittedEffectError
 impl core::fmt::Display for antecedent_learn::LearnError
 impl core::fmt::Display for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::fmt::Display for antecedent_learn::recipes::InferenceSite
+impl core::fmt::Display for antecedent_learn::recipes::RecipeError
+impl core::fmt::Display for antecedent_learn::recipes::RecipeKind
 impl core::fmt::Display for antecedent_learn::transported_effect::TransportRefusal
+impl core::hash::Hash for antecedent_learn::recipes::AcceptedProvider
+impl core::hash::Hash for antecedent_learn::recipes::BoundaryUse
+impl core::hash::Hash for antecedent_learn::recipes::InferenceSite
+impl core::hash::Hash for antecedent_learn::recipes::LikelihoodRole
+impl core::hash::Hash for antecedent_learn::recipes::PredictionOnlyBoundary
+impl core::hash::Hash for antecedent_learn::recipes::Recipe
+impl core::hash::Hash for antecedent_learn::recipes::RecipeKind
+impl core::hash::Hash for antecedent_learn::recipes::StudyDefault
 impl core::marker::Copy for antecedent_learn::BasisTargetPopulation
 impl core::marker::Copy for antecedent_learn::BayesianBasisGComputation
 impl core::marker::Copy for antecedent_learn::BayesianBasisSpec
@@ -212,6 +262,14 @@ impl core::marker::Copy for antecedent_learn::PredictionTask
 impl core::marker::Copy for antecedent_learn::RidgeLogisticLearner
 impl core::marker::Copy for antecedent_learn::RidgeSpec
 impl core::marker::Copy for antecedent_learn::SupportReport
+impl core::marker::Copy for antecedent_learn::recipes::AcceptedProvider
+impl core::marker::Copy for antecedent_learn::recipes::BoundaryUse
+impl core::marker::Copy for antecedent_learn::recipes::InferenceSite
+impl core::marker::Copy for antecedent_learn::recipes::LikelihoodRole
+impl core::marker::Copy for antecedent_learn::recipes::PredictionOnlyBoundary
+impl core::marker::Copy for antecedent_learn::recipes::Recipe
+impl core::marker::Copy for antecedent_learn::recipes::RecipeKind
+impl core::marker::Copy for antecedent_learn::recipes::StudyDefault
 impl core::marker::Copy for antecedent_learn::transported_effect::TransportedInference
 impl core::marker::Copy for antecedent_learn::transported_effect::TransportedRequest
 impl core::marker::Freeze for antecedent_learn::BasisRegressionPosterior [auto]
@@ -257,6 +315,15 @@ impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Diagnost
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Freeze for antecedent_learn::recipes::AcceptedProvider [auto]
+impl core::marker::Freeze for antecedent_learn::recipes::BoundaryUse [auto]
+impl core::marker::Freeze for antecedent_learn::recipes::InferenceSite [auto]
+impl core::marker::Freeze for antecedent_learn::recipes::LikelihoodRole [auto]
+impl core::marker::Freeze for antecedent_learn::recipes::PredictionOnlyBoundary [auto]
+impl core::marker::Freeze for antecedent_learn::recipes::Recipe [auto]
+impl core::marker::Freeze for antecedent_learn::recipes::RecipeError [auto]
+impl core::marker::Freeze for antecedent_learn::recipes::RecipeKind [auto]
+impl core::marker::Freeze for antecedent_learn::recipes::StudyDefault [auto]
 impl core::marker::Freeze for antecedent_learn::transported_effect::FeatureOverlap [auto]
 impl core::marker::Freeze for antecedent_learn::transported_effect::OverlapAssessment [auto]
 impl core::marker::Freeze for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
@@ -308,6 +375,15 @@ impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Diagnostic
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Send for antecedent_learn::recipes::AcceptedProvider [auto]
+impl core::marker::Send for antecedent_learn::recipes::BoundaryUse [auto]
+impl core::marker::Send for antecedent_learn::recipes::InferenceSite [auto]
+impl core::marker::Send for antecedent_learn::recipes::LikelihoodRole [auto]
+impl core::marker::Send for antecedent_learn::recipes::PredictionOnlyBoundary [auto]
+impl core::marker::Send for antecedent_learn::recipes::Recipe [auto]
+impl core::marker::Send for antecedent_learn::recipes::RecipeError [auto]
+impl core::marker::Send for antecedent_learn::recipes::RecipeKind [auto]
+impl core::marker::Send for antecedent_learn::recipes::StudyDefault [auto]
 impl core::marker::Send for antecedent_learn::transported_effect::FeatureOverlap [auto]
 impl core::marker::Send for antecedent_learn::transported_effect::OverlapAssessment [auto]
 impl core::marker::Send for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
@@ -351,6 +427,15 @@ impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayes
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Options
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Posterior
 impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Prior
+impl core::marker::StructuralPartialEq for antecedent_learn::recipes::AcceptedProvider
+impl core::marker::StructuralPartialEq for antecedent_learn::recipes::BoundaryUse
+impl core::marker::StructuralPartialEq for antecedent_learn::recipes::InferenceSite
+impl core::marker::StructuralPartialEq for antecedent_learn::recipes::LikelihoodRole
+impl core::marker::StructuralPartialEq for antecedent_learn::recipes::PredictionOnlyBoundary
+impl core::marker::StructuralPartialEq for antecedent_learn::recipes::Recipe
+impl core::marker::StructuralPartialEq for antecedent_learn::recipes::RecipeError
+impl core::marker::StructuralPartialEq for antecedent_learn::recipes::RecipeKind
+impl core::marker::StructuralPartialEq for antecedent_learn::recipes::StudyDefault
 impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::FeatureOverlap
 impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::OverlapAssessment
 impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::SelectionShiftDeclaration
@@ -402,6 +487,15 @@ impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Diagnostic
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Sync for antecedent_learn::recipes::AcceptedProvider [auto]
+impl core::marker::Sync for antecedent_learn::recipes::BoundaryUse [auto]
+impl core::marker::Sync for antecedent_learn::recipes::InferenceSite [auto]
+impl core::marker::Sync for antecedent_learn::recipes::LikelihoodRole [auto]
+impl core::marker::Sync for antecedent_learn::recipes::PredictionOnlyBoundary [auto]
+impl core::marker::Sync for antecedent_learn::recipes::Recipe [auto]
+impl core::marker::Sync for antecedent_learn::recipes::RecipeError [auto]
+impl core::marker::Sync for antecedent_learn::recipes::RecipeKind [auto]
+impl core::marker::Sync for antecedent_learn::recipes::StudyDefault [auto]
 impl core::marker::Sync for antecedent_learn::transported_effect::FeatureOverlap [auto]
 impl core::marker::Sync for antecedent_learn::transported_effect::OverlapAssessment [auto]
 impl core::marker::Sync for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
@@ -453,6 +547,15 @@ impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Diagnosti
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Unpin for antecedent_learn::recipes::AcceptedProvider [auto]
+impl core::marker::Unpin for antecedent_learn::recipes::BoundaryUse [auto]
+impl core::marker::Unpin for antecedent_learn::recipes::InferenceSite [auto]
+impl core::marker::Unpin for antecedent_learn::recipes::LikelihoodRole [auto]
+impl core::marker::Unpin for antecedent_learn::recipes::PredictionOnlyBoundary [auto]
+impl core::marker::Unpin for antecedent_learn::recipes::Recipe [auto]
+impl core::marker::Unpin for antecedent_learn::recipes::RecipeError [auto]
+impl core::marker::Unpin for antecedent_learn::recipes::RecipeKind [auto]
+impl core::marker::Unpin for antecedent_learn::recipes::StudyDefault [auto]
 impl core::marker::Unpin for antecedent_learn::transported_effect::FeatureOverlap [auto]
 impl core::marker::Unpin for antecedent_learn::transported_effect::OverlapAssessment [auto]
 impl core::marker::Unpin for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
@@ -503,6 +606,15 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::AcceptedProvider [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::BoundaryUse [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::InferenceSite [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::LikelihoodRole [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::PredictionOnlyBoundary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::Recipe [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::RecipeError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::RecipeKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::StudyDefault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::FeatureOverlap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::OverlapAssessment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
@@ -553,6 +665,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_ba
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Posterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::AcceptedProvider [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::BoundaryUse [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::InferenceSite [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::LikelihoodRole [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::PredictionOnlyBoundary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::Recipe [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::RecipeError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::RecipeKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::StudyDefault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::FeatureOverlap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::OverlapAssessment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
@@ -587,6 +708,15 @@ impl<'a> core::clone::Clone for antecedent_learn::DesignView<'a>
 impl<'a> core::clone::Clone for antecedent_learn::KnownVarianceBasisSpec<'a>
 impl<'a> core::clone::Clone for antecedent_learn::RowSelection<'a>
 impl<'a> core::clone::Clone for antecedent_learn::TargetView<'a>
+impl<'a> core::clone::Clone for antecedent_learn::recipes::BoundRecipe<'a>
+impl<'a> core::clone::Clone for antecedent_learn::recipes::CoherentComponent<'a>
+impl<'a> core::clone::Clone for antecedent_learn::recipes::PredictionAttachment<'a>
+impl<'a> core::cmp::Eq for antecedent_learn::recipes::BoundRecipe<'a>
+impl<'a> core::cmp::Eq for antecedent_learn::recipes::CoherentComponent<'a>
+impl<'a> core::cmp::Eq for antecedent_learn::recipes::PredictionAttachment<'a>
+impl<'a> core::cmp::PartialEq for antecedent_learn::recipes::BoundRecipe<'a>
+impl<'a> core::cmp::PartialEq for antecedent_learn::recipes::CoherentComponent<'a>
+impl<'a> core::cmp::PartialEq for antecedent_learn::recipes::PredictionAttachment<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::BasisData<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::BasisDesign<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::DenseDesign<'a>
@@ -594,6 +724,12 @@ impl<'a> core::fmt::Debug for antecedent_learn::DesignView<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::KnownVarianceBasisSpec<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::RowSelection<'a>
 impl<'a> core::fmt::Debug for antecedent_learn::TargetView<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::recipes::BoundRecipe<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::recipes::CoherentComponent<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::recipes::PredictionAttachment<'a>
+impl<'a> core::hash::Hash for antecedent_learn::recipes::BoundRecipe<'a>
+impl<'a> core::hash::Hash for antecedent_learn::recipes::CoherentComponent<'a>
+impl<'a> core::hash::Hash for antecedent_learn::recipes::PredictionAttachment<'a>
 impl<'a> core::marker::Copy for antecedent_learn::BasisData<'a>
 impl<'a> core::marker::Copy for antecedent_learn::BasisDesign<'a>
 impl<'a> core::marker::Copy for antecedent_learn::DenseDesign<'a>
@@ -601,6 +737,9 @@ impl<'a> core::marker::Copy for antecedent_learn::DesignView<'a>
 impl<'a> core::marker::Copy for antecedent_learn::KnownVarianceBasisSpec<'a>
 impl<'a> core::marker::Copy for antecedent_learn::RowSelection<'a>
 impl<'a> core::marker::Copy for antecedent_learn::TargetView<'a>
+impl<'a> core::marker::Copy for antecedent_learn::recipes::BoundRecipe<'a>
+impl<'a> core::marker::Copy for antecedent_learn::recipes::CoherentComponent<'a>
+impl<'a> core::marker::Copy for antecedent_learn::recipes::PredictionAttachment<'a>
 impl<'a> core::marker::Freeze for antecedent_learn::BasisData<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::BasisDesign<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::DenseDesign<'a> [auto]
@@ -608,6 +747,9 @@ impl<'a> core::marker::Freeze for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::recipes::BoundRecipe<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::recipes::CoherentComponent<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::BasisData<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::BasisDesign<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::DenseDesign<'a> [auto]
@@ -615,6 +757,12 @@ impl<'a> core::marker::Send for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Send for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::recipes::BoundRecipe<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::recipes::CoherentComponent<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_learn::recipes::BoundRecipe<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_learn::recipes::CoherentComponent<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_learn::recipes::PredictionAttachment<'a>
 impl<'a> core::marker::Sync for antecedent_learn::BasisData<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::BasisDesign<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::DenseDesign<'a> [auto]
@@ -622,6 +770,9 @@ impl<'a> core::marker::Sync for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::recipes::BoundRecipe<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::recipes::CoherentComponent<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::BasisData<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::BasisDesign<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::DenseDesign<'a> [auto]
@@ -629,6 +780,9 @@ impl<'a> core::marker::Unpin for antecedent_learn::DesignView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::recipes::BoundRecipe<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::recipes::CoherentComponent<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BasisData<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BasisDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::DenseDesign<'a> [auto]
@@ -636,6 +790,9 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::DesignVie
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::BoundRecipe<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::CoherentComponent<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::BasisData<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::BasisDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::DenseDesign<'a> [auto]
@@ -643,6 +800,9 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::DesignView<'
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::RowSelection<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::BoundRecipe<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::CoherentComponent<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::recipes::PredictionAttachment<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::EffectSupport
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::ElasticNetSpec where antecedent_learn::ElasticNetSpec: core::default::Default
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::FeatureRange
@@ -663,11 +823,20 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_b
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_bayesian::Posterior
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_bayesian::Prior
 pub const <antecedent_learn::EffectSupport>::VERSION: u32
+pub const <antecedent_learn::recipes::RecipeKind>::ALL: [Self; 5]
 pub const antecedent_learn::BASIS_MAX_DEGREE: usize
 pub const antecedent_learn::nested_markov_bayesian::COORDINATES: [&str; 14]
 pub const antecedent_learn::nested_markov_bayesian::METHOD: &str
 pub const antecedent_learn::nested_markov_bayesian::OUTPUTS: usize
 pub const antecedent_learn::nested_markov_bayesian::RNG: &str
+pub const antecedent_learn::recipes::BIND_MODEL_PROVIDER: &str
+pub const antecedent_learn::recipes::DECLARE_REQUIRED_CAPABILITIES: &str
+pub const antecedent_learn::recipes::KEEP_PREDICTION_BOUNDARY: &str
+pub const antecedent_learn::recipes::NAME_COMPONENT_INFERENCE: &str
+pub const antecedent_learn::recipes::NAME_RECIPE_INFERENCE: &str
+pub const antecedent_learn::recipes::NAME_STUDY_DEFAULT: &str
+pub const antecedent_learn::recipes::SELECT_DECLARED_INFERENCE: &str
+pub const antecedent_learn::recipes::SELECT_STUDY_DEFAULT: &str
 pub const antecedent_learn::transported_effect::SELECTION_SHIFT_ASSUMPTION: &str
 pub const antecedent_learn::transported_effect::TRANSPORTED_POINT_SCOPE: &str
 pub const antecedent_learn::transported_effect::TRANSPORT_WEIGHT_SUM_TOLERANCE: f64
@@ -678,6 +847,9 @@ pub enum antecedent_learn::PredictionMap
 pub enum antecedent_learn::PredictionNode
 pub enum antecedent_learn::PredictionTask
 pub enum antecedent_learn::nested_markov_bayesian::BayesianRefusal
+pub enum antecedent_learn::recipes::BoundaryUse
+pub enum antecedent_learn::recipes::InferenceSite
+pub enum antecedent_learn::recipes::RecipeKind
 pub enum antecedent_learn::transported_effect::TransportedInference
 pub enum antecedent_learn::transported_effect::TransportedRequest
 pub field antecedent_learn::BasisData::covariates_colmajor: &'a [f64]
@@ -886,6 +1058,41 @@ pub fn <antecedent_learn::TargetView<'a>>::const fn is_empty(self) -> bool
 pub fn <antecedent_learn::TargetView<'a>>::const fn len(self) -> usize
 pub fn <antecedent_learn::TargetView<'a>>::const fn new(values: &'a [f64]) -> Self
 pub fn <antecedent_learn::TargetView<'a>>::const fn values(self) -> &'a [f64]
+pub fn <antecedent_learn::recipes::AcceptedProvider>::const fn provider(self) -> antecedent_core::provider_capability::ProviderId
+pub fn <antecedent_learn::recipes::AcceptedProvider>::const fn recipe(self) -> antecedent_learn::recipes::Recipe
+pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn component(self) -> &'a str
+pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn inference(self) -> antecedent_core::scientific_target::InferenceSelection
+pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn provider(self) -> antecedent_core::provider_capability::ProviderId
+pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn recipe(self) -> antecedent_learn::recipes::Recipe
+pub fn <antecedent_learn::recipes::BoundRecipe<'a>>::const fn rows(self) -> &'a [u64]
+pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::const fn declared(self) -> core::option::Option<antecedent_core::scientific_target::InferenceSelection>
+pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::const fn name(self) -> &'a str
+pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::const fn resolve(self, study: antecedent_learn::recipes::StudyDefault) -> antecedent_core::scientific_target::InferenceSelection
+pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::const fn rows(self) -> &'a [u64]
+pub fn <antecedent_learn::recipes::CoherentComponent<'a>>::fn new(name: &'a str, inference: core::option::Option<antecedent_core::scientific_target::InferenceSelection>, rows: &'a [u64]) -> core::result::Result<Self, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::LikelihoodRole>::const fn provider(self) -> antecedent_core::provider_capability::ProviderId
+pub fn <antecedent_learn::recipes::LikelihoodRole>::const fn recipe(self) -> antecedent_learn::recipes::Recipe
+pub fn <antecedent_learn::recipes::PredictionAttachment<'a>>::const fn as_likelihood(self) -> core::result::Result<antecedent_learn::recipes::LikelihoodRole, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::PredictionAttachment<'a>>::const fn role(self) -> antecedent_core::provider_capability::ProviderCapability
+pub fn <antecedent_learn::recipes::PredictionAttachment<'a>>::const fn rows(self) -> &'a [u64]
+pub fn <antecedent_learn::recipes::PredictionAttachment<'a>>::const fn use_as(self) -> antecedent_learn::recipes::BoundaryUse
+pub fn <antecedent_learn::recipes::PredictionOnlyBoundary>::const fn as_likelihood(self) -> core::result::Result<antecedent_learn::recipes::LikelihoodRole, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::PredictionOnlyBoundary>::const fn capability(self) -> antecedent_core::provider_capability::ProviderCapability
+pub fn <antecedent_learn::recipes::PredictionOnlyBoundary>::const fn new() -> Self
+pub fn <antecedent_learn::recipes::Recipe>::const fn inference(self) -> antecedent_core::scientific_target::InferenceSelection
+pub fn <antecedent_learn::recipes::Recipe>::const fn kind(self) -> antecedent_learn::recipes::RecipeKind
+pub fn <antecedent_learn::recipes::Recipe>::const fn new(kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::InferenceSelection) -> core::result::Result<Self, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::Recipe>::const fn required_capabilities(self) -> &'static [antecedent_core::provider_capability::ProviderCapability]
+pub fn <antecedent_learn::recipes::Recipe>::const fn uses_likelihood(self) -> bool
+pub fn <antecedent_learn::recipes::Recipe>::fn accept_as_likelihood(&self, provider: &antecedent_core::provider_capability::ProviderDeclaration) -> core::result::Result<antecedent_learn::recipes::LikelihoodRole, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::Recipe>::fn accept_provider(&self, provider: &antecedent_core::provider_capability::ProviderDeclaration) -> core::result::Result<antecedent_learn::recipes::AcceptedProvider, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::Recipe>::fn attach_prediction_boundary<'a>(&self, rows: &'a [u64]) -> core::result::Result<antecedent_learn::recipes::PredictionAttachment<'a>, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::Recipe>::fn bind<'a>(&self, component: &'a antecedent_learn::recipes::CoherentComponent<'a>, study: antecedent_learn::recipes::StudyDefault, provider: &antecedent_core::provider_capability::ProviderDeclaration) -> core::result::Result<antecedent_learn::recipes::BoundRecipe<'a>, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::RecipeKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_learn::recipes::RecipeKind>::const fn for_component(self, component: &antecedent_learn::recipes::CoherentComponent<'_>, study: antecedent_learn::recipes::StudyDefault) -> core::result::Result<antecedent_learn::recipes::Recipe, antecedent_learn::recipes::RecipeError>
+pub fn <antecedent_learn::recipes::RecipeKind>::const fn supports(self, inference: antecedent_core::scientific_target::InferenceSelection) -> bool
+pub fn <antecedent_learn::recipes::StudyDefault>::const fn inference(self) -> antecedent_core::scientific_target::InferenceSelection
+pub fn <antecedent_learn::recipes::StudyDefault>::const fn new(inference: antecedent_core::scientific_target::InferenceSelection) -> core::result::Result<Self, antecedent_learn::recipes::RecipeError>
 pub fn <antecedent_learn::transported_effect::OverlapAssessment>::fn any_disjoint(&self) -> bool
 pub fn <antecedent_learn::transported_effect::OverlapAssessment>::fn fully_covered(&self) -> bool
 pub fn <antecedent_learn::transported_effect::SelectionShiftDeclaration>::fn new(source_population: &str, target_population: &str, selection_node: &str, selection_children: &[&str], effect_modifiers: &[&str]) -> Self
@@ -926,6 +1133,7 @@ pub mod antecedent_learn::logistic
 pub mod antecedent_learn::nested_markov_bayesian
 pub mod antecedent_learn::portable
 pub mod antecedent_learn::posterior_prediction
+pub mod antecedent_learn::recipes
 pub mod antecedent_learn::ridge
 pub mod antecedent_learn::spec
 pub mod antecedent_learn::transform
@@ -979,6 +1187,22 @@ pub struct antecedent_learn::nested_markov_bayesian::Diagnostics
 pub struct antecedent_learn::nested_markov_bayesian::Options
 pub struct antecedent_learn::nested_markov_bayesian::Posterior
 pub struct antecedent_learn::nested_markov_bayesian::Prior
+pub struct antecedent_learn::recipes::AcceptedProvider
+pub struct antecedent_learn::recipes::AcceptedProvider has private fields
+pub struct antecedent_learn::recipes::BoundRecipe has private fields
+pub struct antecedent_learn::recipes::BoundRecipe<'a>
+pub struct antecedent_learn::recipes::CoherentComponent has private fields
+pub struct antecedent_learn::recipes::CoherentComponent<'a>
+pub struct antecedent_learn::recipes::LikelihoodRole
+pub struct antecedent_learn::recipes::LikelihoodRole has private fields
+pub struct antecedent_learn::recipes::PredictionAttachment has private fields
+pub struct antecedent_learn::recipes::PredictionAttachment<'a>
+pub struct antecedent_learn::recipes::PredictionOnlyBoundary
+pub struct antecedent_learn::recipes::PredictionOnlyBoundary has private fields
+pub struct antecedent_learn::recipes::Recipe
+pub struct antecedent_learn::recipes::Recipe has private fields
+pub struct antecedent_learn::recipes::StudyDefault
+pub struct antecedent_learn::recipes::StudyDefault has private fields
 pub struct antecedent_learn::transported_effect::FeatureOverlap
 pub struct antecedent_learn::transported_effect::OverlapAssessment
 pub struct antecedent_learn::transported_effect::SelectionShiftDeclaration
@@ -1083,6 +1307,27 @@ pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Budget(&'
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Invalid(&'static str)
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Nonconvergence
 pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Numerical(&'static str)
+pub variant antecedent_learn::recipes::BoundaryUse::Nuisance
+pub variant antecedent_learn::recipes::BoundaryUse::PlugInMean
+pub variant antecedent_learn::recipes::InferenceSite::Component
+pub variant antecedent_learn::recipes::InferenceSite::Recipe
+pub variant antecedent_learn::recipes::InferenceSite::StudyDefault
+pub variant antecedent_learn::recipes::RecipeError::BlankComponentName
+pub variant antecedent_learn::recipes::RecipeError::DuplicateRow { label: alloc::string::String, row: u64 }
+pub variant antecedent_learn::recipes::RecipeError::EmptyRows { label: alloc::string::String }
+pub variant antecedent_learn::recipes::RecipeError::InferenceMismatch { component: alloc::string::String, declared: core::option::Option<antecedent_core::scientific_target::InferenceSelection>, study_default: antecedent_core::scientific_target::InferenceSelection, resolved: antecedent_core::scientific_target::InferenceSelection, kind: antecedent_learn::recipes::RecipeKind, recipe_inference: antecedent_core::scientific_target::InferenceSelection, next_attempt: &'static str }
+pub variant antecedent_learn::recipes::RecipeError::InferenceNotNamed { site: antecedent_learn::recipes::InferenceSite, next_attempt: &'static str }
+pub variant antecedent_learn::recipes::RecipeError::MissingCapability { provider: antecedent_core::provider_capability::ProviderId, provider_name: alloc::string::String, capability: antecedent_core::provider_capability::ProviderCapability, legal_next: core::option::Option<antecedent_core::provider_capability::ProviderCapability>, next_attempt: &'static str }
+pub variant antecedent_learn::recipes::RecipeError::NotALikelihood { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::InferenceSelection }
+pub variant antecedent_learn::recipes::RecipeError::PredictionBoundaryAsLikelihood { capability: antecedent_core::provider_capability::ProviderCapability, next_attempt: &'static str }
+pub variant antecedent_learn::recipes::RecipeError::PredictionBoundaryRefused { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::InferenceSelection, next_attempt: &'static str }
+pub variant antecedent_learn::recipes::RecipeError::PredictionOnlyAsLikelihood { provider: antecedent_core::provider_capability::ProviderId, provider_name: alloc::string::String, kind: antecedent_learn::recipes::RecipeKind, next_attempt: &'static str }
+pub variant antecedent_learn::recipes::RecipeError::UnsupportedRealization { kind: antecedent_learn::recipes::RecipeKind, inference: antecedent_core::scientific_target::InferenceSelection, supported: &'static str }
+pub variant antecedent_learn::recipes::RecipeKind::FiniteDiscrete
+pub variant antecedent_learn::recipes::RecipeKind::GComputation
+pub variant antecedent_learn::recipes::RecipeKind::Glm
+pub variant antecedent_learn::recipes::RecipeKind::LinearGaussian
+pub variant antecedent_learn::recipes::RecipeKind::OrthogonalScore
 pub variant antecedent_learn::transported_effect::TransportedInference::PointOnly
 pub variant antecedent_learn::transported_effect::TransportedRequest::Interval
 pub variant antecedent_learn::transported_effect::TransportedRequest::Law
