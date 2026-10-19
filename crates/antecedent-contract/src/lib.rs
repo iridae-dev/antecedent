@@ -32,6 +32,7 @@ pub mod external;
 pub mod external_binding;
 pub mod external_refusal;
 pub mod interface_contract;
+pub mod joint_alignment;
 pub mod joint_law_rule;
 pub mod measurement;
 pub mod mechanism_composition;
@@ -100,6 +101,11 @@ pub use external_binding::{
 pub use external_refusal::{
     ExternalRefusal, StructuredRefusal, capability_from_name, capability_name, probe_from_name,
     probe_name,
+};
+pub use joint_alignment::{
+    AlignedLaw, JointAlignment, JointAlignmentError, JointAlignmentRequest, JointAxis,
+    JointAxisKind, JointConsumer, JointCovariance, LawArray, LawCoupling, MassAccount, MassFate,
+    NextAttempt as JointNextAttempt,
 };
 pub use joint_law_rule::{
     ASSUMPTION_RANGE_LABEL, ComposedCoordinate, ComposedIntervalPlan, CoverageRecord,

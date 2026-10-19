@@ -1,6 +1,7 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_contract::AlignedLaw
 #[non_exhaustive] pub enum antecedent_contract::ClaimDomainAxis
 #[non_exhaustive] pub enum antecedent_contract::ClaimKind
 #[non_exhaustive] pub enum antecedent_contract::ClaimOperation
@@ -13,6 +14,12 @@
 #[non_exhaustive] pub enum antecedent_contract::EvidenceOperator
 #[non_exhaustive] pub enum antecedent_contract::FactorDisclosure
 #[non_exhaustive] pub enum antecedent_contract::HostOperation
+#[non_exhaustive] pub enum antecedent_contract::JointAxisKind
+#[non_exhaustive] pub enum antecedent_contract::JointConsumer
+#[non_exhaustive] pub enum antecedent_contract::JointCovariance
+#[non_exhaustive] pub enum antecedent_contract::JointNextAttempt
+#[non_exhaustive] pub enum antecedent_contract::LawCoupling
+#[non_exhaustive] pub enum antecedent_contract::MassFate
 #[non_exhaustive] pub enum antecedent_contract::ObligationKind
 #[non_exhaustive] pub enum antecedent_contract::ObligationScope
 #[non_exhaustive] pub enum antecedent_contract::OperationKind
@@ -86,6 +93,7 @@
 impl core::clone::Clone for antecedent_contract::AcceptanceReport
 impl core::clone::Clone for antecedent_contract::AdmissionBasis
 impl core::clone::Clone for antecedent_contract::AdmissionCoordinate
+impl core::clone::Clone for antecedent_contract::AlignedLaw
 impl core::clone::Clone for antecedent_contract::AssumptionSlot
 impl core::clone::Clone for antecedent_contract::AttestedEvidence
 impl core::clone::Clone for antecedent_contract::AxisInterval
@@ -174,12 +182,24 @@ impl core::clone::Clone for antecedent_contract::IdentificationSlot
 impl core::clone::Clone for antecedent_contract::InferenceBasis
 impl core::clone::Clone for antecedent_contract::InputAlignment
 impl core::clone::Clone for antecedent_contract::InputRole
+impl core::clone::Clone for antecedent_contract::JointAlignment
+impl core::clone::Clone for antecedent_contract::JointAlignmentError
+impl core::clone::Clone for antecedent_contract::JointAlignmentRequest
+impl core::clone::Clone for antecedent_contract::JointAxis
+impl core::clone::Clone for antecedent_contract::JointAxisKind
+impl core::clone::Clone for antecedent_contract::JointConsumer
+impl core::clone::Clone for antecedent_contract::JointCovariance
+impl core::clone::Clone for antecedent_contract::JointNextAttempt
 impl core::clone::Clone for antecedent_contract::KernelSelection
 impl core::clone::Clone for antecedent_contract::LatentCauseDeclaration
+impl core::clone::Clone for antecedent_contract::LawArray
+impl core::clone::Clone for antecedent_contract::LawCoupling
 impl core::clone::Clone for antecedent_contract::LawProviderContract
 impl core::clone::Clone for antecedent_contract::LayerEffect
 impl core::clone::Clone for antecedent_contract::LicensedNeighbor
 impl core::clone::Clone for antecedent_contract::LogicalAnalysisPlanRecord
+impl core::clone::Clone for antecedent_contract::MassAccount
+impl core::clone::Clone for antecedent_contract::MassFate
 impl core::clone::Clone for antecedent_contract::MeasuredIndicator
 impl core::clone::Clone for antecedent_contract::MechanismCompositionDeclaration
 impl core::clone::Clone for antecedent_contract::MechanismCompositionPlan
@@ -416,6 +436,7 @@ impl core::clone::Clone for antecedent_contract::transport_revalidation::Transpo
 impl core::cmp::Eq for antecedent_contract::AcceptanceReport
 impl core::cmp::Eq for antecedent_contract::AdmissionBasis
 impl core::cmp::Eq for antecedent_contract::AdmissionCoordinate
+impl core::cmp::Eq for antecedent_contract::AlignedLaw
 impl core::cmp::Eq for antecedent_contract::AssumptionSlot
 impl core::cmp::Eq for antecedent_contract::BlockedOperation
 impl core::cmp::Eq for antecedent_contract::BoundTrustLevel
@@ -481,11 +502,23 @@ impl core::cmp::Eq for antecedent_contract::HostOperation
 impl core::cmp::Eq for antecedent_contract::InferenceBasis
 impl core::cmp::Eq for antecedent_contract::InputAlignment
 impl core::cmp::Eq for antecedent_contract::InputRole
+impl core::cmp::Eq for antecedent_contract::JointAlignment
+impl core::cmp::Eq for antecedent_contract::JointAlignmentError
+impl core::cmp::Eq for antecedent_contract::JointAlignmentRequest
+impl core::cmp::Eq for antecedent_contract::JointAxis
+impl core::cmp::Eq for antecedent_contract::JointAxisKind
+impl core::cmp::Eq for antecedent_contract::JointConsumer
+impl core::cmp::Eq for antecedent_contract::JointCovariance
+impl core::cmp::Eq for antecedent_contract::JointNextAttempt
 impl core::cmp::Eq for antecedent_contract::KernelSelection
 impl core::cmp::Eq for antecedent_contract::LatentCauseDeclaration
+impl core::cmp::Eq for antecedent_contract::LawArray
+impl core::cmp::Eq for antecedent_contract::LawCoupling
 impl core::cmp::Eq for antecedent_contract::LayerEffect
 impl core::cmp::Eq for antecedent_contract::LicensedNeighbor
 impl core::cmp::Eq for antecedent_contract::LogicalAnalysisPlanRecord
+impl core::cmp::Eq for antecedent_contract::MassAccount
+impl core::cmp::Eq for antecedent_contract::MassFate
 impl core::cmp::Eq for antecedent_contract::MechanismCompositionDeclaration
 impl core::cmp::Eq for antecedent_contract::MechanismCompositionPlan
 impl core::cmp::Eq for antecedent_contract::MechanismDeclaration
@@ -660,12 +693,20 @@ impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportRea
 impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportRevalidation
 impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportScene
 impl core::cmp::Ord for antecedent_contract::AdmissionCoordinate
+impl core::cmp::Ord for antecedent_contract::AlignedLaw
 impl core::cmp::Ord for antecedent_contract::CompositionStage
 impl core::cmp::Ord for antecedent_contract::DependenceSourceId
 impl core::cmp::Ord for antecedent_contract::EffectId
 impl core::cmp::Ord for antecedent_contract::EvidenceObligationKind
 impl core::cmp::Ord for antecedent_contract::InferenceBasis
 impl core::cmp::Ord for antecedent_contract::InputRole
+impl core::cmp::Ord for antecedent_contract::JointAxis
+impl core::cmp::Ord for antecedent_contract::JointAxisKind
+impl core::cmp::Ord for antecedent_contract::JointConsumer
+impl core::cmp::Ord for antecedent_contract::JointCovariance
+impl core::cmp::Ord for antecedent_contract::JointNextAttempt
+impl core::cmp::Ord for antecedent_contract::LawCoupling
+impl core::cmp::Ord for antecedent_contract::MassFate
 impl core::cmp::Ord for antecedent_contract::MechanismOriginKind
 impl core::cmp::Ord for antecedent_contract::ObservationOperation
 impl core::cmp::Ord for antecedent_contract::PlannedParent
@@ -714,6 +755,7 @@ impl core::cmp::Ord for antecedent_contract::transport_revalidation::TransportRe
 impl core::cmp::PartialEq for antecedent_contract::AcceptanceReport
 impl core::cmp::PartialEq for antecedent_contract::AdmissionBasis
 impl core::cmp::PartialEq for antecedent_contract::AdmissionCoordinate
+impl core::cmp::PartialEq for antecedent_contract::AlignedLaw
 impl core::cmp::PartialEq for antecedent_contract::AssumptionSlot
 impl core::cmp::PartialEq for antecedent_contract::AttestedEvidence
 impl core::cmp::PartialEq for antecedent_contract::AxisInterval
@@ -802,12 +844,24 @@ impl core::cmp::PartialEq for antecedent_contract::IdentificationSlot
 impl core::cmp::PartialEq for antecedent_contract::InferenceBasis
 impl core::cmp::PartialEq for antecedent_contract::InputAlignment
 impl core::cmp::PartialEq for antecedent_contract::InputRole
+impl core::cmp::PartialEq for antecedent_contract::JointAlignment
+impl core::cmp::PartialEq for antecedent_contract::JointAlignmentError
+impl core::cmp::PartialEq for antecedent_contract::JointAlignmentRequest
+impl core::cmp::PartialEq for antecedent_contract::JointAxis
+impl core::cmp::PartialEq for antecedent_contract::JointAxisKind
+impl core::cmp::PartialEq for antecedent_contract::JointConsumer
+impl core::cmp::PartialEq for antecedent_contract::JointCovariance
+impl core::cmp::PartialEq for antecedent_contract::JointNextAttempt
 impl core::cmp::PartialEq for antecedent_contract::KernelSelection
 impl core::cmp::PartialEq for antecedent_contract::LatentCauseDeclaration
+impl core::cmp::PartialEq for antecedent_contract::LawArray
+impl core::cmp::PartialEq for antecedent_contract::LawCoupling
 impl core::cmp::PartialEq for antecedent_contract::LawProviderContract
 impl core::cmp::PartialEq for antecedent_contract::LayerEffect
 impl core::cmp::PartialEq for antecedent_contract::LicensedNeighbor
 impl core::cmp::PartialEq for antecedent_contract::LogicalAnalysisPlanRecord
+impl core::cmp::PartialEq for antecedent_contract::MassAccount
+impl core::cmp::PartialEq for antecedent_contract::MassFate
 impl core::cmp::PartialEq for antecedent_contract::MeasuredIndicator
 impl core::cmp::PartialEq for antecedent_contract::MechanismCompositionDeclaration
 impl core::cmp::PartialEq for antecedent_contract::MechanismCompositionPlan
@@ -1040,12 +1094,20 @@ impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::Trans
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportRevalidation
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportScene
 impl core::cmp::PartialOrd for antecedent_contract::AdmissionCoordinate
+impl core::cmp::PartialOrd for antecedent_contract::AlignedLaw
 impl core::cmp::PartialOrd for antecedent_contract::CompositionStage
 impl core::cmp::PartialOrd for antecedent_contract::DependenceSourceId
 impl core::cmp::PartialOrd for antecedent_contract::EffectId
 impl core::cmp::PartialOrd for antecedent_contract::EvidenceObligationKind
 impl core::cmp::PartialOrd for antecedent_contract::InferenceBasis
 impl core::cmp::PartialOrd for antecedent_contract::InputRole
+impl core::cmp::PartialOrd for antecedent_contract::JointAxis
+impl core::cmp::PartialOrd for antecedent_contract::JointAxisKind
+impl core::cmp::PartialOrd for antecedent_contract::JointConsumer
+impl core::cmp::PartialOrd for antecedent_contract::JointCovariance
+impl core::cmp::PartialOrd for antecedent_contract::JointNextAttempt
+impl core::cmp::PartialOrd for antecedent_contract::LawCoupling
+impl core::cmp::PartialOrd for antecedent_contract::MassFate
 impl core::cmp::PartialOrd for antecedent_contract::MechanismOriginKind
 impl core::cmp::PartialOrd for antecedent_contract::ObservationOperation
 impl core::cmp::PartialOrd for antecedent_contract::PlannedParent
@@ -1106,6 +1168,7 @@ impl core::error::Error for antecedent_contract::EvidenceEffectError
 impl core::error::Error for antecedent_contract::EvidenceEnvelopeError
 impl core::error::Error for antecedent_contract::EvidenceObligationError
 impl core::error::Error for antecedent_contract::EvidencePortError
+impl core::error::Error for antecedent_contract::JointAlignmentError
 impl core::error::Error for antecedent_contract::ProvenanceError
 impl core::error::Error for antecedent_contract::adaptive_design::AdaptiveContractError
 impl core::error::Error for antecedent_contract::composition_verification::GraphError
@@ -1114,6 +1177,7 @@ impl core::error::Error for antecedent_contract::evidence_ledger::LedgerError
 impl core::fmt::Debug for antecedent_contract::AcceptanceReport
 impl core::fmt::Debug for antecedent_contract::AdmissionBasis
 impl core::fmt::Debug for antecedent_contract::AdmissionCoordinate
+impl core::fmt::Debug for antecedent_contract::AlignedLaw
 impl core::fmt::Debug for antecedent_contract::AssumptionSlot
 impl core::fmt::Debug for antecedent_contract::AttestedEvidence
 impl core::fmt::Debug for antecedent_contract::AxisInterval
@@ -1202,12 +1266,24 @@ impl core::fmt::Debug for antecedent_contract::IdentificationSlot
 impl core::fmt::Debug for antecedent_contract::InferenceBasis
 impl core::fmt::Debug for antecedent_contract::InputAlignment
 impl core::fmt::Debug for antecedent_contract::InputRole
+impl core::fmt::Debug for antecedent_contract::JointAlignment
+impl core::fmt::Debug for antecedent_contract::JointAlignmentError
+impl core::fmt::Debug for antecedent_contract::JointAlignmentRequest
+impl core::fmt::Debug for antecedent_contract::JointAxis
+impl core::fmt::Debug for antecedent_contract::JointAxisKind
+impl core::fmt::Debug for antecedent_contract::JointConsumer
+impl core::fmt::Debug for antecedent_contract::JointCovariance
+impl core::fmt::Debug for antecedent_contract::JointNextAttempt
 impl core::fmt::Debug for antecedent_contract::KernelSelection
 impl core::fmt::Debug for antecedent_contract::LatentCauseDeclaration
+impl core::fmt::Debug for antecedent_contract::LawArray
+impl core::fmt::Debug for antecedent_contract::LawCoupling
 impl core::fmt::Debug for antecedent_contract::LawProviderContract
 impl core::fmt::Debug for antecedent_contract::LayerEffect
 impl core::fmt::Debug for antecedent_contract::LicensedNeighbor
 impl core::fmt::Debug for antecedent_contract::LogicalAnalysisPlanRecord
+impl core::fmt::Debug for antecedent_contract::MassAccount
+impl core::fmt::Debug for antecedent_contract::MassFate
 impl core::fmt::Debug for antecedent_contract::MeasuredIndicator
 impl core::fmt::Debug for antecedent_contract::MechanismCompositionDeclaration
 impl core::fmt::Debug for antecedent_contract::MechanismCompositionPlan
@@ -1450,6 +1526,10 @@ impl core::fmt::Display for antecedent_contract::EvidenceEnvelopeError
 impl core::fmt::Display for antecedent_contract::EvidenceObligationError
 impl core::fmt::Display for antecedent_contract::EvidenceOperator
 impl core::fmt::Display for antecedent_contract::EvidencePortError
+impl core::fmt::Display for antecedent_contract::JointAlignmentError
+impl core::fmt::Display for antecedent_contract::JointAxis
+impl core::fmt::Display for antecedent_contract::JointAxisKind
+impl core::fmt::Display for antecedent_contract::JointNextAttempt
 impl core::fmt::Display for antecedent_contract::ProvenanceError
 impl core::fmt::Display for antecedent_contract::SharedFactor
 impl core::fmt::Display for antecedent_contract::SharedFactorId
@@ -1462,6 +1542,7 @@ impl core::fmt::Display for antecedent_contract::evidence_ledger::OperationId
 impl core::fmt::Display for antecedent_contract::evidence_ledger::ResultId
 impl core::fmt::Display for antecedent_contract::evidence_ledger::SourceId
 impl core::hash::Hash for antecedent_contract::AdmissionCoordinate
+impl core::hash::Hash for antecedent_contract::AlignedLaw
 impl core::hash::Hash for antecedent_contract::BufferMaterialization
 impl core::hash::Hash for antecedent_contract::ClaimDomainAxis
 impl core::hash::Hash for antecedent_contract::ClaimKind
@@ -1485,7 +1566,16 @@ impl core::hash::Hash for antecedent_contract::FactorDisclosure
 impl core::hash::Hash for antecedent_contract::HostOperation
 impl core::hash::Hash for antecedent_contract::InferenceBasis
 impl core::hash::Hash for antecedent_contract::InputRole
+impl core::hash::Hash for antecedent_contract::JointAxis
+impl core::hash::Hash for antecedent_contract::JointAxisKind
+impl core::hash::Hash for antecedent_contract::JointConsumer
+impl core::hash::Hash for antecedent_contract::JointCovariance
+impl core::hash::Hash for antecedent_contract::JointNextAttempt
 impl core::hash::Hash for antecedent_contract::KernelSelection
+impl core::hash::Hash for antecedent_contract::LawArray
+impl core::hash::Hash for antecedent_contract::LawCoupling
+impl core::hash::Hash for antecedent_contract::MassAccount
+impl core::hash::Hash for antecedent_contract::MassFate
 impl core::hash::Hash for antecedent_contract::MechanismOriginKind
 impl core::hash::Hash for antecedent_contract::ObligationKind
 impl core::hash::Hash for antecedent_contract::ObligationScope
@@ -1561,6 +1651,7 @@ impl core::hash::Hash for antecedent_contract::provider_transport::TransportedIn
 impl core::hash::Hash for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::hash::Hash for antecedent_contract::transport_revalidation::TransportReason
 impl core::marker::Copy for antecedent_contract::AdmissionCoordinate
+impl core::marker::Copy for antecedent_contract::AlignedLaw
 impl core::marker::Copy for antecedent_contract::AxisInterval
 impl core::marker::Copy for antecedent_contract::BoundTrustLevel
 impl core::marker::Copy for antecedent_contract::BufferMaterialization
@@ -1589,7 +1680,14 @@ impl core::marker::Copy for antecedent_contract::FactorDisclosure
 impl core::marker::Copy for antecedent_contract::HostOperation
 impl core::marker::Copy for antecedent_contract::InferenceBasis
 impl core::marker::Copy for antecedent_contract::InputRole
+impl core::marker::Copy for antecedent_contract::JointAxisKind
+impl core::marker::Copy for antecedent_contract::JointConsumer
+impl core::marker::Copy for antecedent_contract::JointCovariance
+impl core::marker::Copy for antecedent_contract::JointNextAttempt
 impl core::marker::Copy for antecedent_contract::KernelSelection
+impl core::marker::Copy for antecedent_contract::LawCoupling
+impl core::marker::Copy for antecedent_contract::MassAccount
+impl core::marker::Copy for antecedent_contract::MassFate
 impl core::marker::Copy for antecedent_contract::MechanismOriginKind
 impl core::marker::Copy for antecedent_contract::NumericalAdmission
 impl core::marker::Copy for antecedent_contract::ObligationKind
@@ -1683,6 +1781,7 @@ impl core::marker::Copy for antecedent_contract::transport_revalidation::SceneCl
 impl core::marker::Freeze for antecedent_contract::AcceptanceReport [auto]
 impl core::marker::Freeze for antecedent_contract::AdmissionBasis [auto]
 impl core::marker::Freeze for antecedent_contract::AdmissionCoordinate [auto]
+impl core::marker::Freeze for antecedent_contract::AlignedLaw [auto]
 impl core::marker::Freeze for antecedent_contract::AssumptionSlot [auto]
 impl core::marker::Freeze for antecedent_contract::AttestedEvidence [auto]
 impl core::marker::Freeze for antecedent_contract::AxisInterval [auto]
@@ -1771,12 +1870,24 @@ impl core::marker::Freeze for antecedent_contract::IdentificationSlot [auto]
 impl core::marker::Freeze for antecedent_contract::InferenceBasis [auto]
 impl core::marker::Freeze for antecedent_contract::InputAlignment [auto]
 impl core::marker::Freeze for antecedent_contract::InputRole [auto]
+impl core::marker::Freeze for antecedent_contract::JointAlignment [auto]
+impl core::marker::Freeze for antecedent_contract::JointAlignmentError [auto]
+impl core::marker::Freeze for antecedent_contract::JointAlignmentRequest [auto]
+impl core::marker::Freeze for antecedent_contract::JointAxis [auto]
+impl core::marker::Freeze for antecedent_contract::JointAxisKind [auto]
+impl core::marker::Freeze for antecedent_contract::JointConsumer [auto]
+impl core::marker::Freeze for antecedent_contract::JointCovariance [auto]
+impl core::marker::Freeze for antecedent_contract::JointNextAttempt [auto]
 impl core::marker::Freeze for antecedent_contract::KernelSelection [auto]
 impl core::marker::Freeze for antecedent_contract::LatentCauseDeclaration [auto]
+impl core::marker::Freeze for antecedent_contract::LawArray [auto]
+impl core::marker::Freeze for antecedent_contract::LawCoupling [auto]
 impl core::marker::Freeze for antecedent_contract::LawProviderContract [auto]
 impl core::marker::Freeze for antecedent_contract::LayerEffect [auto]
 impl core::marker::Freeze for antecedent_contract::LicensedNeighbor [auto]
 impl core::marker::Freeze for antecedent_contract::LogicalAnalysisPlanRecord [auto]
+impl core::marker::Freeze for antecedent_contract::MassAccount [auto]
+impl core::marker::Freeze for antecedent_contract::MassFate [auto]
 impl core::marker::Freeze for antecedent_contract::MeasuredIndicator [auto]
 impl core::marker::Freeze for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::marker::Freeze for antecedent_contract::MechanismCompositionPlan [auto]
@@ -2013,6 +2124,7 @@ impl core::marker::Freeze for antecedent_contract::transport_revalidation::Trans
 impl core::marker::Send for antecedent_contract::AcceptanceReport [auto]
 impl core::marker::Send for antecedent_contract::AdmissionBasis [auto]
 impl core::marker::Send for antecedent_contract::AdmissionCoordinate [auto]
+impl core::marker::Send for antecedent_contract::AlignedLaw [auto]
 impl core::marker::Send for antecedent_contract::AssumptionSlot [auto]
 impl core::marker::Send for antecedent_contract::AttestedEvidence [auto]
 impl core::marker::Send for antecedent_contract::AxisInterval [auto]
@@ -2101,12 +2213,24 @@ impl core::marker::Send for antecedent_contract::IdentificationSlot [auto]
 impl core::marker::Send for antecedent_contract::InferenceBasis [auto]
 impl core::marker::Send for antecedent_contract::InputAlignment [auto]
 impl core::marker::Send for antecedent_contract::InputRole [auto]
+impl core::marker::Send for antecedent_contract::JointAlignment [auto]
+impl core::marker::Send for antecedent_contract::JointAlignmentError [auto]
+impl core::marker::Send for antecedent_contract::JointAlignmentRequest [auto]
+impl core::marker::Send for antecedent_contract::JointAxis [auto]
+impl core::marker::Send for antecedent_contract::JointAxisKind [auto]
+impl core::marker::Send for antecedent_contract::JointConsumer [auto]
+impl core::marker::Send for antecedent_contract::JointCovariance [auto]
+impl core::marker::Send for antecedent_contract::JointNextAttempt [auto]
 impl core::marker::Send for antecedent_contract::KernelSelection [auto]
 impl core::marker::Send for antecedent_contract::LatentCauseDeclaration [auto]
+impl core::marker::Send for antecedent_contract::LawArray [auto]
+impl core::marker::Send for antecedent_contract::LawCoupling [auto]
 impl core::marker::Send for antecedent_contract::LawProviderContract [auto]
 impl core::marker::Send for antecedent_contract::LayerEffect [auto]
 impl core::marker::Send for antecedent_contract::LicensedNeighbor [auto]
 impl core::marker::Send for antecedent_contract::LogicalAnalysisPlanRecord [auto]
+impl core::marker::Send for antecedent_contract::MassAccount [auto]
+impl core::marker::Send for antecedent_contract::MassFate [auto]
 impl core::marker::Send for antecedent_contract::MeasuredIndicator [auto]
 impl core::marker::Send for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::marker::Send for antecedent_contract::MechanismCompositionPlan [auto]
@@ -2343,6 +2467,7 @@ impl core::marker::Send for antecedent_contract::transport_revalidation::Transpo
 impl core::marker::StructuralPartialEq for antecedent_contract::AcceptanceReport
 impl core::marker::StructuralPartialEq for antecedent_contract::AdmissionBasis
 impl core::marker::StructuralPartialEq for antecedent_contract::AdmissionCoordinate
+impl core::marker::StructuralPartialEq for antecedent_contract::AlignedLaw
 impl core::marker::StructuralPartialEq for antecedent_contract::AssumptionSlot
 impl core::marker::StructuralPartialEq for antecedent_contract::AttestedEvidence
 impl core::marker::StructuralPartialEq for antecedent_contract::AxisInterval
@@ -2431,12 +2556,24 @@ impl core::marker::StructuralPartialEq for antecedent_contract::IdentificationSl
 impl core::marker::StructuralPartialEq for antecedent_contract::InferenceBasis
 impl core::marker::StructuralPartialEq for antecedent_contract::InputAlignment
 impl core::marker::StructuralPartialEq for antecedent_contract::InputRole
+impl core::marker::StructuralPartialEq for antecedent_contract::JointAlignment
+impl core::marker::StructuralPartialEq for antecedent_contract::JointAlignmentError
+impl core::marker::StructuralPartialEq for antecedent_contract::JointAlignmentRequest
+impl core::marker::StructuralPartialEq for antecedent_contract::JointAxis
+impl core::marker::StructuralPartialEq for antecedent_contract::JointAxisKind
+impl core::marker::StructuralPartialEq for antecedent_contract::JointConsumer
+impl core::marker::StructuralPartialEq for antecedent_contract::JointCovariance
+impl core::marker::StructuralPartialEq for antecedent_contract::JointNextAttempt
 impl core::marker::StructuralPartialEq for antecedent_contract::KernelSelection
 impl core::marker::StructuralPartialEq for antecedent_contract::LatentCauseDeclaration
+impl core::marker::StructuralPartialEq for antecedent_contract::LawArray
+impl core::marker::StructuralPartialEq for antecedent_contract::LawCoupling
 impl core::marker::StructuralPartialEq for antecedent_contract::LawProviderContract
 impl core::marker::StructuralPartialEq for antecedent_contract::LayerEffect
 impl core::marker::StructuralPartialEq for antecedent_contract::LicensedNeighbor
 impl core::marker::StructuralPartialEq for antecedent_contract::LogicalAnalysisPlanRecord
+impl core::marker::StructuralPartialEq for antecedent_contract::MassAccount
+impl core::marker::StructuralPartialEq for antecedent_contract::MassFate
 impl core::marker::StructuralPartialEq for antecedent_contract::MeasuredIndicator
 impl core::marker::StructuralPartialEq for antecedent_contract::MechanismCompositionDeclaration
 impl core::marker::StructuralPartialEq for antecedent_contract::MechanismCompositionPlan
@@ -2671,6 +2808,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::transport_revali
 impl core::marker::Sync for antecedent_contract::AcceptanceReport [auto]
 impl core::marker::Sync for antecedent_contract::AdmissionBasis [auto]
 impl core::marker::Sync for antecedent_contract::AdmissionCoordinate [auto]
+impl core::marker::Sync for antecedent_contract::AlignedLaw [auto]
 impl core::marker::Sync for antecedent_contract::AssumptionSlot [auto]
 impl core::marker::Sync for antecedent_contract::AttestedEvidence [auto]
 impl core::marker::Sync for antecedent_contract::AxisInterval [auto]
@@ -2759,12 +2897,24 @@ impl core::marker::Sync for antecedent_contract::IdentificationSlot [auto]
 impl core::marker::Sync for antecedent_contract::InferenceBasis [auto]
 impl core::marker::Sync for antecedent_contract::InputAlignment [auto]
 impl core::marker::Sync for antecedent_contract::InputRole [auto]
+impl core::marker::Sync for antecedent_contract::JointAlignment [auto]
+impl core::marker::Sync for antecedent_contract::JointAlignmentError [auto]
+impl core::marker::Sync for antecedent_contract::JointAlignmentRequest [auto]
+impl core::marker::Sync for antecedent_contract::JointAxis [auto]
+impl core::marker::Sync for antecedent_contract::JointAxisKind [auto]
+impl core::marker::Sync for antecedent_contract::JointConsumer [auto]
+impl core::marker::Sync for antecedent_contract::JointCovariance [auto]
+impl core::marker::Sync for antecedent_contract::JointNextAttempt [auto]
 impl core::marker::Sync for antecedent_contract::KernelSelection [auto]
 impl core::marker::Sync for antecedent_contract::LatentCauseDeclaration [auto]
+impl core::marker::Sync for antecedent_contract::LawArray [auto]
+impl core::marker::Sync for antecedent_contract::LawCoupling [auto]
 impl core::marker::Sync for antecedent_contract::LawProviderContract [auto]
 impl core::marker::Sync for antecedent_contract::LayerEffect [auto]
 impl core::marker::Sync for antecedent_contract::LicensedNeighbor [auto]
 impl core::marker::Sync for antecedent_contract::LogicalAnalysisPlanRecord [auto]
+impl core::marker::Sync for antecedent_contract::MassAccount [auto]
+impl core::marker::Sync for antecedent_contract::MassFate [auto]
 impl core::marker::Sync for antecedent_contract::MeasuredIndicator [auto]
 impl core::marker::Sync for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::marker::Sync for antecedent_contract::MechanismCompositionPlan [auto]
@@ -3001,6 +3151,7 @@ impl core::marker::Sync for antecedent_contract::transport_revalidation::Transpo
 impl core::marker::Unpin for antecedent_contract::AcceptanceReport [auto]
 impl core::marker::Unpin for antecedent_contract::AdmissionBasis [auto]
 impl core::marker::Unpin for antecedent_contract::AdmissionCoordinate [auto]
+impl core::marker::Unpin for antecedent_contract::AlignedLaw [auto]
 impl core::marker::Unpin for antecedent_contract::AssumptionSlot [auto]
 impl core::marker::Unpin for antecedent_contract::AttestedEvidence [auto]
 impl core::marker::Unpin for antecedent_contract::AxisInterval [auto]
@@ -3089,12 +3240,24 @@ impl core::marker::Unpin for antecedent_contract::IdentificationSlot [auto]
 impl core::marker::Unpin for antecedent_contract::InferenceBasis [auto]
 impl core::marker::Unpin for antecedent_contract::InputAlignment [auto]
 impl core::marker::Unpin for antecedent_contract::InputRole [auto]
+impl core::marker::Unpin for antecedent_contract::JointAlignment [auto]
+impl core::marker::Unpin for antecedent_contract::JointAlignmentError [auto]
+impl core::marker::Unpin for antecedent_contract::JointAlignmentRequest [auto]
+impl core::marker::Unpin for antecedent_contract::JointAxis [auto]
+impl core::marker::Unpin for antecedent_contract::JointAxisKind [auto]
+impl core::marker::Unpin for antecedent_contract::JointConsumer [auto]
+impl core::marker::Unpin for antecedent_contract::JointCovariance [auto]
+impl core::marker::Unpin for antecedent_contract::JointNextAttempt [auto]
 impl core::marker::Unpin for antecedent_contract::KernelSelection [auto]
 impl core::marker::Unpin for antecedent_contract::LatentCauseDeclaration [auto]
+impl core::marker::Unpin for antecedent_contract::LawArray [auto]
+impl core::marker::Unpin for antecedent_contract::LawCoupling [auto]
 impl core::marker::Unpin for antecedent_contract::LawProviderContract [auto]
 impl core::marker::Unpin for antecedent_contract::LayerEffect [auto]
 impl core::marker::Unpin for antecedent_contract::LicensedNeighbor [auto]
 impl core::marker::Unpin for antecedent_contract::LogicalAnalysisPlanRecord [auto]
+impl core::marker::Unpin for antecedent_contract::MassAccount [auto]
+impl core::marker::Unpin for antecedent_contract::MassFate [auto]
 impl core::marker::Unpin for antecedent_contract::MeasuredIndicator [auto]
 impl core::marker::Unpin for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::marker::Unpin for antecedent_contract::MechanismCompositionPlan [auto]
@@ -3331,6 +3494,7 @@ impl core::marker::Unpin for antecedent_contract::transport_revalidation::Transp
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::AcceptanceReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::AdmissionBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::AdmissionCoordinate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::AlignedLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::AssumptionSlot [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::AttestedEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::AxisInterval [auto]
@@ -3419,12 +3583,24 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::Identifica
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::InferenceBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::InputAlignment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::InputRole [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointAlignment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointAlignmentError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointAlignmentRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointAxisKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointConsumer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointCovariance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::JointNextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::KernelSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LatentCauseDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LawArray [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LawCoupling [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LawProviderContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LayerEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LicensedNeighbor [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::LogicalAnalysisPlanRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MassAccount [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MassFate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MeasuredIndicator [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::MechanismCompositionPlan [auto]
@@ -3661,6 +3837,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::AcceptanceReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::AdmissionBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::AdmissionCoordinate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::AlignedLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::AssumptionSlot [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::AttestedEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::AxisInterval [auto]
@@ -3749,12 +3926,24 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::Identificatio
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::InferenceBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::InputAlignment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::InputRole [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointAlignment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointAlignmentError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointAlignmentRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointAxisKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointConsumer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointCovariance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::JointNextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::KernelSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LatentCauseDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LawArray [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LawCoupling [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LawProviderContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LayerEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LicensedNeighbor [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::LogicalAnalysisPlanRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MassAccount [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MassFate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MeasuredIndicator [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MechanismCompositionDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::MechanismCompositionPlan [auto]
@@ -4054,12 +4243,19 @@ impl<T> core::marker::Sync for antecedent_contract::SlotAvailability<T> where T:
 impl<T> core::marker::Unpin for antecedent_contract::SlotAvailability<T> where T: core::marker::Unpin [auto]
 impl<T> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SlotAvailability<T> where T: core::panic::unwind_safe::RefUnwindSafe [auto]
 impl<T> core::panic::unwind_safe::UnwindSafe for antecedent_contract::SlotAvailability<T> where T: core::panic::unwind_safe::UnwindSafe [auto]
+pub const <antecedent_contract::AlignedLaw>::ALL: [Self; 2]
 pub const <antecedent_contract::BoundExternalClaim>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_contract::ColumnClaim>::DTYPE: &'static str
 pub const <antecedent_contract::EffectNextAttempt>::PHRASE: &'static str
 pub const <antecedent_contract::EvidenceObligationKind>::ALL: [Self; 9]
 pub const <antecedent_contract::EvidenceOperator>::ALL: [Self; 9]
 pub const <antecedent_contract::EvidencePort>::ALL: [Self; 10]
+pub const <antecedent_contract::JointAxisKind>::ALL: [Self; 7]
+pub const <antecedent_contract::JointConsumer>::ALL: [Self; 3]
+pub const <antecedent_contract::JointCovariance>::ALL: [Self; 2]
+pub const <antecedent_contract::JointNextAttempt>::ALL: [Self; 4]
+pub const <antecedent_contract::LawCoupling>::ALL: [Self; 4]
+pub const <antecedent_contract::MassFate>::ALL: [Self; 2]
 pub const <antecedent_contract::SharedFactorKind>::ALL: [Self; 7]
 pub const <antecedent_contract::UncertaintyAxis>::ALL: [Self; 7]
 pub const <antecedent_contract::adaptive_design::AssignmentFamily>::ALL: &'static [Self]
@@ -5037,6 +5233,8 @@ pub fn <antecedent_contract::AcceptanceReport>::fn accepts_as_claim(&self) -> bo
 pub fn <antecedent_contract::AcceptanceReport>::fn accepts_as_verified_program(&self) -> bool
 pub fn <antecedent_contract::AcceptanceReport>::fn new(recognized: bool, verified_references: bool, unresolved: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, supported_operations: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, restriction: core::option::Option<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_contract::AcceptanceReport>::fn opaque_storage() -> Self
+pub fn <antecedent_contract::AlignedLaw>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::AlignedLaw>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::AssumptionSlot>::fn new(obligations: impl core::convert::Into<alloc::sync::Arc<[antecedent_contract::ObligationRecord]>>) -> Self
 pub fn <antecedent_contract::AxisInterval>::const fn axis(self) -> antecedent_contract::UncertaintyAxis
 pub fn <antecedent_contract::AxisInterval>::const fn lower(self) -> f64
@@ -5232,9 +5430,53 @@ pub fn <antecedent_contract::InferenceBasis>::const fn as_str(self) -> &'static 
 pub fn <antecedent_contract::InferenceBasis>::fn from_origins(origins: &[antecedent_contract::MechanismOriginKind]) -> Self
 pub fn <antecedent_contract::InputRole>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::InputRole>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::JointAlignment>::const fn covariance(&self) -> antecedent_contract::JointCovariance
+pub fn <antecedent_contract::JointAlignment>::const fn has_covariance_cross_terms(&self) -> bool
+pub fn <antecedent_contract::JointAlignment>::const fn is_measured_joint(&self) -> bool
+pub fn <antecedent_contract::JointAlignment>::const fn is_product(&self) -> bool
+pub fn <antecedent_contract::JointAlignment>::const fn law(&self) -> antecedent_contract::AlignedLaw
+pub fn <antecedent_contract::JointAlignment>::const fn mass(&self) -> antecedent_contract::MassAccount
+pub fn <antecedent_contract::JointAlignment>::fn axis_id(&self, kind: antecedent_contract::JointAxisKind) -> core::option::Option<&str>
+pub fn <antecedent_contract::JointAlignment>::fn consumers(&self) -> &[antecedent_contract::JointConsumer]
+pub fn <antecedent_contract::JointAlignment>::fn shared_axes(&self) -> &[antecedent_contract::JointAxis]
+pub fn <antecedent_contract::JointAlignmentError>::const fn code(&self) -> &'static str
+pub fn <antecedent_contract::JointAlignmentError>::const fn detail(&self) -> &'static str
+pub fn <antecedent_contract::JointAlignmentError>::const fn next_attempt(&self) -> antecedent_contract::JointNextAttempt
+pub fn <antecedent_contract::JointAlignmentError>::fn message(&self) -> &str
+pub fn <antecedent_contract::JointAlignmentRequest>::const fn coupling(&self) -> antecedent_contract::LawCoupling
+pub fn <antecedent_contract::JointAlignmentRequest>::fn align(&self) -> core::result::Result<antecedent_contract::JointAlignment, antecedent_contract::JointAlignmentError>
+pub fn <antecedent_contract::JointAlignmentRequest>::fn arrays(&self) -> &[antecedent_contract::LawArray]
+pub fn <antecedent_contract::JointAlignmentRequest>::fn try_new(arrays: alloc::vec::Vec<antecedent_contract::LawArray>, coupling: antecedent_contract::LawCoupling) -> core::result::Result<Self, antecedent_contract::JointAlignmentError>
+pub fn <antecedent_contract::JointAxis>::const fn kind(&self) -> antecedent_contract::JointAxisKind
+pub fn <antecedent_contract::JointAxis>::fn id(&self) -> &str
+pub fn <antecedent_contract::JointAxis>::fn try_new(kind: antecedent_contract::JointAxisKind, id: &str) -> core::result::Result<Self, antecedent_contract::JointAlignmentError>
+pub fn <antecedent_contract::JointAxisKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::JointAxisKind>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::JointConsumer>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::JointConsumer>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::JointCovariance>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::JointCovariance>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::JointNextAttempt>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::JointNextAttempt>::const fn sentence(self) -> &'static str
+pub fn <antecedent_contract::JointNextAttempt>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::LawArray>::const fn consumer(&self) -> antecedent_contract::JointConsumer
+pub fn <antecedent_contract::LawArray>::const fn is_empty(&self) -> bool
+pub fn <antecedent_contract::LawArray>::const fn len(&self) -> usize
+pub fn <antecedent_contract::LawArray>::const fn mass(&self) -> antecedent_contract::MassAccount
+pub fn <antecedent_contract::LawArray>::fn axes(&self) -> &[antecedent_contract::JointAxis]
+pub fn <antecedent_contract::LawArray>::fn label(&self) -> &str
+pub fn <antecedent_contract::LawArray>::fn try_new(label: &str, len: usize, axes: &[antecedent_contract::JointAxis], mass: antecedent_contract::MassAccount, consumer: antecedent_contract::JointConsumer) -> core::result::Result<Self, antecedent_contract::JointAlignmentError>
+pub fn <antecedent_contract::LawCoupling>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::LawCoupling>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::LayerEffect>::fn new(layer: antecedent_contract::SemanticLayer, effects: impl core::iter::traits::collect::IntoIterator<Item = antecedent_contract::TransformEffect>) -> Self
 pub fn <antecedent_contract::LayerEffect>::fn union(&self, other: &Self) -> Self
 pub fn <antecedent_contract::LicensedNeighbor>::fn new(coordinate: impl core::convert::Into<alloc::sync::Arc<str>>, changed: impl core::convert::Into<alloc::sync::Arc<[antecedent_contract::PremiseChange]>>, required_action: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_contract::MassAccount>::const fn failed(self) -> antecedent_contract::MassFate
+pub fn <antecedent_contract::MassAccount>::const fn new(failed: antecedent_contract::MassFate, unidentified: antecedent_contract::MassFate) -> Self
+pub fn <antecedent_contract::MassAccount>::const fn retained() -> Self
+pub fn <antecedent_contract::MassAccount>::const fn unidentified(self) -> antecedent_contract::MassFate
+pub fn <antecedent_contract::MassFate>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::MassFate>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::MechanismCompositionPlan>::fn check_contrast_uncertainty(&self, outcome: &str, arm_interventions: &[alloc::vec::Vec<alloc::string::String>]) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::MechanismCompositionPlan>::fn identity_hex(&self) -> alloc::string::String
 pub fn <antecedent_contract::MechanismCompositionPlan>::fn is_multilinear_in_parameters(&self, outcome: &str, intervened: &[&str]) -> bool
@@ -5816,6 +6058,7 @@ pub mod antecedent_contract::external
 pub mod antecedent_contract::external_binding
 pub mod antecedent_contract::external_refusal
 pub mod antecedent_contract::interface_contract
+pub mod antecedent_contract::joint_alignment
 pub mod antecedent_contract::joint_law_rule
 pub mod antecedent_contract::measurement
 pub mod antecedent_contract::mechanism_composition
@@ -5890,10 +6133,22 @@ pub struct antecedent_contract::ExternalProgramClaim
 pub struct antecedent_contract::ExternalRefusal
 pub struct antecedent_contract::ExternalResponse
 pub struct antecedent_contract::ExternalResultHeader
+pub struct antecedent_contract::JointAlignment
+pub struct antecedent_contract::JointAlignment has private fields
+pub struct antecedent_contract::JointAlignmentError
+pub struct antecedent_contract::JointAlignmentError has private fields
+pub struct antecedent_contract::JointAlignmentRequest
+pub struct antecedent_contract::JointAlignmentRequest has private fields
+pub struct antecedent_contract::JointAxis
+pub struct antecedent_contract::JointAxis has private fields
 pub struct antecedent_contract::LatentCauseDeclaration
+pub struct antecedent_contract::LawArray
+pub struct antecedent_contract::LawArray has private fields
 pub struct antecedent_contract::LawProviderContract
 pub struct antecedent_contract::LayerEffect
 pub struct antecedent_contract::LogicalAnalysisPlanRecord
+pub struct antecedent_contract::MassAccount
+pub struct antecedent_contract::MassAccount has private fields
 pub struct antecedent_contract::MeasuredIndicator
 pub struct antecedent_contract::MechanismCompositionDeclaration
 pub struct antecedent_contract::MechanismCompositionPlan
@@ -6171,6 +6426,19 @@ pub use antecedent_contract::external_refusal::StructuredRefusal = antecedent_co
 pub use antecedent_contract::external_refusal::capability_from_name = antecedent_contract::capability_from_name
 pub use antecedent_contract::external_refusal::capability_name = antecedent_contract::capability_name
 pub use antecedent_contract::external_values_digest = antecedent_contract::external_binding::external_values_digest
+pub use antecedent_contract::joint_alignment::AlignedLaw = antecedent_contract::AlignedLaw
+pub use antecedent_contract::joint_alignment::JointAlignment = antecedent_contract::JointAlignment
+pub use antecedent_contract::joint_alignment::JointAlignmentError = antecedent_contract::JointAlignmentError
+pub use antecedent_contract::joint_alignment::JointAlignmentRequest = antecedent_contract::JointAlignmentRequest
+pub use antecedent_contract::joint_alignment::JointAxis = antecedent_contract::JointAxis
+pub use antecedent_contract::joint_alignment::JointAxisKind = antecedent_contract::JointAxisKind
+pub use antecedent_contract::joint_alignment::JointConsumer = antecedent_contract::JointConsumer
+pub use antecedent_contract::joint_alignment::JointCovariance = antecedent_contract::JointCovariance
+pub use antecedent_contract::joint_alignment::LawArray = antecedent_contract::LawArray
+pub use antecedent_contract::joint_alignment::LawCoupling = antecedent_contract::LawCoupling
+pub use antecedent_contract::joint_alignment::MassAccount = antecedent_contract::MassAccount
+pub use antecedent_contract::joint_alignment::MassFate = antecedent_contract::MassFate
+pub use antecedent_contract::joint_alignment::NextAttempt = antecedent_contract::JointNextAttempt
 pub use antecedent_contract::joint_law_rule::ASSUMPTION_RANGE_LABEL = antecedent_contract::ASSUMPTION_RANGE_LABEL
 pub use antecedent_contract::joint_law_rule::ComposedCoordinate = antecedent_contract::ComposedCoordinate
 pub use antecedent_contract::joint_law_rule::ComposedIntervalPlan = antecedent_contract::ComposedIntervalPlan
@@ -6293,6 +6561,8 @@ pub variant antecedent_contract::AdmissionBasis::DeclaredInvariance { assumption
 pub variant antecedent_contract::AdmissionBasis::SelectionDiagram { targets: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_contract::AdmissionCoordinate::Population
 pub variant antecedent_contract::AdmissionCoordinate::Regime
+pub variant antecedent_contract::AlignedLaw::DeclaredProduct
+pub variant antecedent_contract::AlignedLaw::MeasuredJoint
 pub variant antecedent_contract::BoundTrustLevel::ExactRequestVerified
 pub variant antecedent_contract::BoundTrustLevel::ExternallyAttested
 pub variant antecedent_contract::BufferMaterialization::Borrowed
@@ -6476,9 +6746,31 @@ pub variant antecedent_contract::InputRole::SourceSampling
 pub variant antecedent_contract::InputRole::TargetSampling
 pub variant antecedent_contract::InputRole::TransportFunctional
 pub variant antecedent_contract::InputRole::TransportedInterval
+pub variant antecedent_contract::JointAxisKind::BootstrapReplicate
+pub variant antecedent_contract::JointAxisKind::CounterfactualWorld
+pub variant antecedent_contract::JointAxisKind::GraphAtom
+pub variant antecedent_contract::JointAxisKind::History
+pub variant antecedent_contract::JointAxisKind::Outcome
+pub variant antecedent_contract::JointAxisKind::ParameterDraw
+pub variant antecedent_contract::JointAxisKind::Trajectory
+pub variant antecedent_contract::JointConsumer::Contrast
+pub variant antecedent_contract::JointConsumer::Coordinate
+pub variant antecedent_contract::JointConsumer::ResponseSurface
+pub variant antecedent_contract::JointCovariance::CrossTerms
+pub variant antecedent_contract::JointCovariance::NotMeasured
+pub variant antecedent_contract::JointNextAttempt::DeclareProductLaw
+pub variant antecedent_contract::JointNextAttempt::DeclareSharedAxes
+pub variant antecedent_contract::JointNextAttempt::RepairDeclaration
+pub variant antecedent_contract::JointNextAttempt::RetainDroppedMass
 pub variant antecedent_contract::KernelSelection::DenseBackend
 pub variant antecedent_contract::KernelSelection::PortableOptimized
 pub variant antecedent_contract::KernelSelection::Scalar
+pub variant antecedent_contract::LawCoupling::DeclaredProduct
+pub variant antecedent_contract::LawCoupling::Marginal
+pub variant antecedent_contract::LawCoupling::MeasuredJoint
+pub variant antecedent_contract::LawCoupling::UndeclaredProduct
+pub variant antecedent_contract::MassFate::Dropped
+pub variant antecedent_contract::MassFate::Retained
 pub variant antecedent_contract::MechanismOriginKind::Declared
 pub variant antecedent_contract::MechanismOriginKind::ExternalBinding
 pub variant antecedent_contract::MechanismOriginKind::Fitted
