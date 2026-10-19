@@ -64,6 +64,7 @@
 #[non_exhaustive] pub enum antecedent_core::measurement_model::MeasurementModelError
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ParameterEvidence
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ParameterUncertainty
+#[non_exhaustive] pub enum antecedent_core::parallel_axis::ParallelPlanError
 #[non_exhaustive] pub enum antecedent_core::query::ExperimentFamily
 #[non_exhaustive] pub enum antecedent_core::query::GraphAssumptionSet
 #[non_exhaustive] pub enum antecedent_core::query::TransportDistributionFamily
@@ -441,6 +442,10 @@ impl core::clone::Clone for antecedent_core::measurement_model::PosteriorReferen
 impl core::clone::Clone for antecedent_core::measurement_model::RepresentationMapping
 impl core::clone::Clone for antecedent_core::measurement_model::RepresentationVersion
 impl core::clone::Clone for antecedent_core::measurement_model::VarianceComponent
+impl core::clone::Clone for antecedent_core::parallel_axis::ParallelAxis
+impl core::clone::Clone for antecedent_core::parallel_axis::ParallelPlanError
+impl core::clone::Clone for antecedent_core::parallel_axis::SerialInner
+impl core::clone::Clone for antecedent_core::parallel_axis::WorkerCap
 impl core::clone::Clone for antecedent_core::query::ComputationLimits
 impl core::clone::Clone for antecedent_core::query::ExperimentFamily
 impl core::clone::Clone for antecedent_core::query::GraphAssumptionSet
@@ -772,6 +777,9 @@ impl core::cmp::Eq for antecedent_core::measurement_model::ParameterUncertainty
 impl core::cmp::Eq for antecedent_core::measurement_model::PosteriorReference
 impl core::cmp::Eq for antecedent_core::measurement_model::RepresentationMapping
 impl core::cmp::Eq for antecedent_core::measurement_model::RepresentationVersion
+impl core::cmp::Eq for antecedent_core::parallel_axis::ParallelAxis
+impl core::cmp::Eq for antecedent_core::parallel_axis::ParallelPlanError
+impl core::cmp::Eq for antecedent_core::parallel_axis::SerialInner
 impl core::cmp::Eq for antecedent_core::query::ComputationLimits
 impl core::cmp::Eq for antecedent_core::query::ExperimentFamily
 impl core::cmp::Eq for antecedent_core::query::GraphAssumptionSet
@@ -1197,6 +1205,9 @@ impl core::cmp::PartialEq for antecedent_core::measurement_model::PosteriorRefer
 impl core::cmp::PartialEq for antecedent_core::measurement_model::RepresentationMapping
 impl core::cmp::PartialEq for antecedent_core::measurement_model::RepresentationVersion
 impl core::cmp::PartialEq for antecedent_core::measurement_model::VarianceComponent
+impl core::cmp::PartialEq for antecedent_core::parallel_axis::ParallelAxis
+impl core::cmp::PartialEq for antecedent_core::parallel_axis::ParallelPlanError
+impl core::cmp::PartialEq for antecedent_core::parallel_axis::SerialInner
 impl core::cmp::PartialEq for antecedent_core::query::ComputationLimits
 impl core::cmp::PartialEq for antecedent_core::query::ExperimentFamily
 impl core::cmp::PartialEq for antecedent_core::query::GraphAssumptionSet
@@ -1344,6 +1355,7 @@ impl core::error::Error for antecedent_core::TemporalIndexError
 impl core::error::Error for antecedent_core::ToleranceError
 impl core::error::Error for antecedent_core::execution::AdmissionError
 impl core::error::Error for antecedent_core::inspect::InspectionRefusal
+impl core::error::Error for antecedent_core::parallel_axis::ParallelPlanError
 impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
 impl core::error::Error for antecedent_core::value::InterventionValueError
 impl core::fmt::Debug for antecedent_core::AdaptiveBootstrapBudget
@@ -1710,6 +1722,11 @@ impl core::fmt::Debug for antecedent_core::measurement_model::PosteriorReference
 impl core::fmt::Debug for antecedent_core::measurement_model::RepresentationMapping
 impl core::fmt::Debug for antecedent_core::measurement_model::RepresentationVersion
 impl core::fmt::Debug for antecedent_core::measurement_model::VarianceComponent
+impl core::fmt::Debug for antecedent_core::parallel_axis::ParallelAxis
+impl core::fmt::Debug for antecedent_core::parallel_axis::ParallelPlan
+impl core::fmt::Debug for antecedent_core::parallel_axis::ParallelPlanError
+impl core::fmt::Debug for antecedent_core::parallel_axis::SerialInner
+impl core::fmt::Debug for antecedent_core::parallel_axis::WorkerCap
 impl core::fmt::Debug for antecedent_core::query::ComputationLimits
 impl core::fmt::Debug for antecedent_core::query::ExperimentFamily
 impl core::fmt::Debug for antecedent_core::query::GraphAssumptionSet
@@ -1821,6 +1838,8 @@ impl core::fmt::Display for antecedent_core::VariableId
 impl core::fmt::Display for antecedent_core::VarianceRule
 impl core::fmt::Display for antecedent_core::execution::AdmissionError
 impl core::fmt::Display for antecedent_core::inspect::InspectionRefusal
+impl core::fmt::Display for antecedent_core::parallel_axis::ParallelAxis
+impl core::fmt::Display for antecedent_core::parallel_axis::ParallelPlanError
 impl core::fmt::Display for antecedent_core::recalc::ChangedDependency
 impl core::fmt::Display for antecedent_core::recalc::RefusalReason
 impl core::fmt::Display for antecedent_core::recalc::Stage
@@ -2064,6 +2083,8 @@ impl core::hash::Hash for antecedent_core::measurement_model::ParameterEvidence
 impl core::hash::Hash for antecedent_core::measurement_model::PosteriorReference
 impl core::hash::Hash for antecedent_core::measurement_model::RepresentationMapping
 impl core::hash::Hash for antecedent_core::measurement_model::RepresentationVersion
+impl core::hash::Hash for antecedent_core::parallel_axis::ParallelAxis
+impl core::hash::Hash for antecedent_core::parallel_axis::SerialInner
 impl core::hash::Hash for antecedent_core::query::ComputationLimits
 impl core::hash::Hash for antecedent_core::query::ExperimentFamily
 impl core::hash::Hash for antecedent_core::query::GraphAssumptionSet
@@ -2250,6 +2271,9 @@ impl core::marker::Copy for antecedent_core::measurement_model::MeasurementInfer
 impl core::marker::Copy for antecedent_core::measurement_model::MeasurementKind
 impl core::marker::Copy for antecedent_core::measurement_model::MeasurementRoute
 impl core::marker::Copy for antecedent_core::measurement_model::ParameterUncertainty
+impl core::marker::Copy for antecedent_core::parallel_axis::ParallelAxis
+impl core::marker::Copy for antecedent_core::parallel_axis::ParallelPlanError
+impl core::marker::Copy for antecedent_core::parallel_axis::SerialInner
 impl core::marker::Copy for antecedent_core::query::ComputationLimits
 impl core::marker::Copy for antecedent_core::query::ExperimentFamily
 impl core::marker::Copy for antecedent_core::query::GraphAssumptionSet
@@ -2649,6 +2673,11 @@ impl core::marker::Freeze for antecedent_core::measurement_model::PosteriorRefer
 impl core::marker::Freeze for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::marker::Freeze for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::marker::Freeze for antecedent_core::parallel_axis::ParallelPlan [auto]
+impl core::marker::Freeze for antecedent_core::parallel_axis::ParallelPlanError [auto]
+impl core::marker::Freeze for antecedent_core::parallel_axis::SerialInner [auto]
+impl core::marker::Freeze for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::marker::Freeze for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Freeze for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Freeze for antecedent_core::query::GraphAssumptionSet [auto]
@@ -3054,6 +3083,11 @@ impl core::marker::Send for antecedent_core::measurement_model::PosteriorReferen
 impl core::marker::Send for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::marker::Send for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Send for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::marker::Send for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::marker::Send for antecedent_core::parallel_axis::ParallelPlan [auto]
+impl core::marker::Send for antecedent_core::parallel_axis::ParallelPlanError [auto]
+impl core::marker::Send for antecedent_core::parallel_axis::SerialInner [auto]
+impl core::marker::Send for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::marker::Send for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Send for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Send for antecedent_core::query::GraphAssumptionSet [auto]
@@ -3442,6 +3476,9 @@ impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::P
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::RepresentationMapping
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::RepresentationVersion
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::VarianceComponent
+impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::ParallelAxis
+impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::ParallelPlanError
+impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::SerialInner
 impl core::marker::StructuralPartialEq for antecedent_core::query::ComputationLimits
 impl core::marker::StructuralPartialEq for antecedent_core::query::ExperimentFamily
 impl core::marker::StructuralPartialEq for antecedent_core::query::GraphAssumptionSet
@@ -3847,6 +3884,11 @@ impl core::marker::Sync for antecedent_core::measurement_model::PosteriorReferen
 impl core::marker::Sync for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::marker::Sync for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::marker::Sync for antecedent_core::parallel_axis::ParallelPlan [auto]
+impl core::marker::Sync for antecedent_core::parallel_axis::ParallelPlanError [auto]
+impl core::marker::Sync for antecedent_core::parallel_axis::SerialInner [auto]
+impl core::marker::Sync for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::marker::Sync for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Sync for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Sync for antecedent_core::query::GraphAssumptionSet [auto]
@@ -4252,6 +4294,11 @@ impl core::marker::Unpin for antecedent_core::measurement_model::PosteriorRefere
 impl core::marker::Unpin for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::marker::Unpin for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::marker::Unpin for antecedent_core::parallel_axis::ParallelPlan [auto]
+impl core::marker::Unpin for antecedent_core::parallel_axis::ParallelPlanError [auto]
+impl core::marker::Unpin for antecedent_core::parallel_axis::SerialInner [auto]
+impl core::marker::Unpin for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::marker::Unpin for antecedent_core::query::ComputationLimits [auto]
 impl core::marker::Unpin for antecedent_core::query::ExperimentFamily [auto]
 impl core::marker::Unpin for antecedent_core::query::GraphAssumptionSet [auto]
@@ -4658,6 +4705,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_mo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::ParallelPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::ParallelPlanError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::SerialInner [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::ComputationLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::ExperimentFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::query::GraphAssumptionSet [auto]
@@ -5062,6 +5114,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::RepresentationMapping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::VarianceComponent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::ParallelAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::ParallelPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::ParallelPlanError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::SerialInner [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::ComputationLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::ExperimentFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::query::GraphAssumptionSet [auto]
@@ -5302,6 +5359,7 @@ pub enum antecedent_core::VarianceRule
 pub enum antecedent_core::execution_attempt::Operation
 pub enum antecedent_core::measurement_model::MeasurementParameters
 pub enum antecedent_core::measurement_model::MeasurementRoute
+pub enum antecedent_core::parallel_axis::ParallelAxis
 pub enum antecedent_core::query::OutcomeGuarantee
 pub enum antecedent_core::recalc::Boundary
 pub enum antecedent_core::recalc::ChangeKind
@@ -6831,6 +6889,18 @@ pub fn <antecedent_core::measurement_model::MeasurementRoute>::fn from_name(name
 pub fn <antecedent_core::measurement_model::ParameterUncertainty>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::measurement_model::ParameterUncertainty>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::measurement_model::RepresentationMapping>::fn carries_intervention_meaning(&self) -> bool
+pub fn <antecedent_core::parallel_axis::ParallelAxis>::const fn all() -> [Self; 6]
+pub fn <antecedent_core::parallel_axis::ParallelAxis>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::parallel_axis::ParallelPlan>::const fn axis(&self) -> antecedent_core::parallel_axis::ParallelAxis
+pub fn <antecedent_core::parallel_axis::ParallelPlan>::const fn serial_inner(&self) -> antecedent_core::parallel_axis::SerialInner
+pub fn <antecedent_core::parallel_axis::ParallelPlan>::const fn workers(&self) -> u32
+pub fn <antecedent_core::parallel_axis::ParallelPlan>::fn choose(&self, axis: antecedent_core::parallel_axis::ParallelAxis) -> core::result::Result<antecedent_core::parallel_axis::ParallelAxis, antecedent_core::parallel_axis::ParallelPlanError>
+pub fn <antecedent_core::parallel_axis::ParallelPlan>::fn new(axis: antecedent_core::parallel_axis::ParallelAxis, workers: u32, cap: &antecedent_core::parallel_axis::WorkerCap) -> core::result::Result<Self, antecedent_core::parallel_axis::ParallelPlanError>
+pub fn <antecedent_core::parallel_axis::SerialInner>::const fn outer_axis(self) -> antecedent_core::parallel_axis::ParallelAxis
+pub fn <antecedent_core::parallel_axis::SerialInner>::const fn workers(self) -> u32
+pub fn <antecedent_core::parallel_axis::WorkerCap>::const fn limit(&self) -> u32
+pub fn <antecedent_core::parallel_axis::WorkerCap>::fn new(limit: u32) -> Self
+pub fn <antecedent_core::parallel_axis::WorkerCap>::fn reserved(&self) -> u32
 pub fn <antecedent_core::query::ExperimentFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::query::GraphAssumptionSet>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::query::OutcomeGuarantee>::const fn as_str(self) -> &'static str
@@ -6949,6 +7019,7 @@ pub mod antecedent_core::intervention
 pub mod antecedent_core::measurement_model
 pub mod antecedent_core::node
 pub mod antecedent_core::operator
+pub mod antecedent_core::parallel_axis
 pub mod antecedent_core::physical_operator
 pub mod antecedent_core::provider_capability
 pub mod antecedent_core::query
@@ -7319,6 +7390,12 @@ pub struct antecedent_core::measurement_model::PosteriorReference
 pub struct antecedent_core::measurement_model::RepresentationMapping
 pub struct antecedent_core::measurement_model::RepresentationVersion
 pub struct antecedent_core::measurement_model::VarianceComponent
+pub struct antecedent_core::parallel_axis::ParallelPlan
+pub struct antecedent_core::parallel_axis::ParallelPlan has private fields
+pub struct antecedent_core::parallel_axis::SerialInner
+pub struct antecedent_core::parallel_axis::SerialInner has private fields
+pub struct antecedent_core::parallel_axis::WorkerCap
+pub struct antecedent_core::parallel_axis::WorkerCap has private fields
 pub struct antecedent_core::query::ComputationLimits
 pub struct antecedent_core::query::TheoremReference
 pub struct antecedent_core::recalc::Branch
@@ -8431,6 +8508,16 @@ pub variant antecedent_core::measurement_model::ParameterEvidence::ValidationSam
 pub variant antecedent_core::measurement_model::ParameterUncertainty::DeclaredExact
 pub variant antecedent_core::measurement_model::ParameterUncertainty::NotPropagated
 pub variant antecedent_core::measurement_model::ParameterUncertainty::Propagated
+pub variant antecedent_core::parallel_axis::ParallelAxis::Chain
+pub variant antecedent_core::parallel_axis::ParallelAxis::Fold
+pub variant antecedent_core::parallel_axis::ParallelAxis::GraphTest
+pub variant antecedent_core::parallel_axis::ParallelAxis::NumericalKernel
+pub variant antecedent_core::parallel_axis::ParallelAxis::Replicate
+pub variant antecedent_core::parallel_axis::ParallelAxis::Study
+pub variant antecedent_core::parallel_axis::ParallelPlanError::ConcurrentCap { workers: u32, reserved: u32, cap: u32 }
+pub variant antecedent_core::parallel_axis::ParallelPlanError::SecondAxis { held: antecedent_core::parallel_axis::ParallelAxis, requested: antecedent_core::parallel_axis::ParallelAxis }
+pub variant antecedent_core::parallel_axis::ParallelPlanError::WorkersAboveCap { workers: u32, cap: u32 }
+pub variant antecedent_core::parallel_axis::ParallelPlanError::ZeroWorkers
 pub variant antecedent_core::query::ExperimentFamily::SuppliedCatalog
 pub variant antecedent_core::query::ExperimentFamily::TheoremExperiments
 pub variant antecedent_core::query::GraphAssumptionSet::SemiMarkovianSelectionAdmg

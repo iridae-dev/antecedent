@@ -56,6 +56,7 @@ pub mod measurement_model;
 pub(crate) mod measurement_record;
 pub mod node;
 pub mod operator;
+pub mod parallel_axis;
 pub mod physical_operator;
 pub mod provider_capability;
 pub mod query;
