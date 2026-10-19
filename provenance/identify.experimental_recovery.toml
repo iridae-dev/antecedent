@@ -18,6 +18,7 @@ implementation_deviations = [
  "Coverage is the pair condition: for each ordered pair (from, into), some experiment clamps from while into stays passive. A missed pair returns that incoming row as an unresolved direction and does not build K.",
  "When the pair condition holds, a declared column rank below the row width returns the unresolved directions and leaves the recovery goal open.",
  "Observational equilibrium least squares is refused and names hyttinen_eberhardt_hoyer.fully_observed_clamp_experiment as the next attempt. Prior regularization is not this recipe.",
+ "A finite-sample condition number, a sample full-column rank, and a uniqueness restriction are recorded on the design. None of them fills an unresolved direction or certifies physical dynamical stability. A uniqueness restriction offered as that stability certificate is refused.",
 ]
 
 upstream_implementations_observed = []

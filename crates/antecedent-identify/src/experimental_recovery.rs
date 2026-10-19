@@ -25,7 +25,19 @@
 //!   target fails it, the whole incoming row is one unresolved direction.
 //! - **Rank.** When every pair into a target holds, generic experimental effects
 //!   give that row full column rank. A declared column rank below the row width
-//!   names the unresolved directions and leaves the recovery goal open.
+//!   names the unresolved directions and leaves the recovery goal open. The
+//!   Moore-Penrose completion of that block is not applied.
+//! - **Finite-sample conditioning.** A declared sample rank or finite condition
+//!   number of the constraint matrix is not the population rank. Sampling error
+//!   can make an underdetermined system look full rank (Hyttinen, Eberhardt, and
+//!   Hoyer, JMLR 2012, Section 4.2). That declaration does not recover a
+//!   coordinate, and it does not open a row the population rank already closes.
+//! - **Uniqueness restrictions.** A minimum-norm completion, a background zero,
+//!   or faithfulness selects one matrix in an open solution set (Section 4.1,
+//!   step 4, and Section 4.2). The selection is not applied. It is not physical
+//!   dynamical stability, and physical dynamical stability does not select the
+//!   unresolved directions. Weak stability remains invertibility of `I − U K`
+//!   (Definition 6), which is not a stability certificate either.
 //!
 //! Observational equilibrium regression and prior regularization are not this
 //! recipe. A latent-variable expansion is an optional later attempt, recorded as
@@ -124,13 +136,56 @@ pub enum WeakStability {
 ///
 /// Asymptotic stability requires every eigenvalue of every `U K` to have modulus
 /// strictly less than one. A contraction bound such as `ρ(|K|) < 1` is the same
-/// kind of certificate. Declaring it does not declare [`WeakStability`].
+/// kind of certificate. Declaring it does not declare [`WeakStability`], and it
+/// does not select unresolved coefficient directions.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum PhysicalDynamicalStability {
     /// A physical dynamical-stability certificate was declared.
     Declared,
     /// No physical dynamical-stability certificate was declared.
     NotDeclared,
+}
+
+/// Declared numerical condition of the estimated constraint matrix.
+///
+/// This is a property of a finite sample. It is not the population column rank
+/// of a [`DeclaredEquationRank`], not a [`UniquenessRestriction`], and not
+/// [`PhysicalDynamicalStability`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum FiniteSampleConditioning {
+    /// No sample rank or condition number was declared.
+    NotDeclared,
+    /// The sample constraint matrix was declared full column rank.
+    ///
+    /// Sampling error can give that rank when the population system is
+    /// underdetermined. The declaration does not recover a coefficient.
+    SampleFullColumnRank,
+    /// A finite condition number of the sample constraints was declared.
+    ///
+    /// A finite number is not a rank deficiency, and it is not a uniqueness
+    /// restriction. No numeric condition number is stored: `f64` is not `Eq`.
+    FiniteConditionNumber,
+}
+
+/// An extra assumption offered to select one mechanism matrix.
+///
+/// The assumption names a way to pick a point in an open solution set. This
+/// recipe records it and does not apply it. Applying it would fill unresolved
+/// directions. It does not certify [`WeakStability`] or
+/// [`PhysicalDynamicalStability`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum UniquenessRestriction {
+    /// No extra restriction was offered.
+    NotOffered,
+    /// Minimum-norm completion of the constraint system.
+    ///
+    /// This is the Moore-Penrose solution of an underdetermined block. It
+    /// returns a value on every coordinate, including the nullspace.
+    MinimumNormCompletion,
+    /// A known zero on a coordinate the experiments leave unresolved.
+    BackgroundZero,
+    /// Faithfulness, offered as a further constraint on the open directions.
+    Faithfulness,
 }
 
 /// Declared column rank of the constraint block for one equation.
@@ -163,6 +218,10 @@ pub struct ClampExperimentSet {
     pub weak_stability: WeakStability,
     /// Physical dynamical stability declaration, recorded separately.
     pub physical_dynamical_stability: PhysicalDynamicalStability,
+    /// Finite-sample condition of the constraint matrix, recorded separately.
+    pub finite_sample_conditioning: FiniteSampleConditioning,
+    /// Uniqueness restriction offered for the open directions, not applied.
+    pub uniqueness_restriction: UniquenessRestriction,
     /// Non-generic rank declarations. Empty means generic rank.
     pub equation_ranks: Vec<DeclaredEquationRank>,
 }
@@ -229,7 +288,9 @@ pub struct UnresolvedDirection {
 /// Coefficient coordinates this recipe can and cannot recover.
 ///
 /// `recoverable` and the supports of `unresolved` name coordinates. Neither
-/// stores a mechanism value.
+/// stores a mechanism value. [`Self::finite_sample_conditioning`] and
+/// [`Self::uniqueness_restriction`] are the declarations that were offered.
+/// They do not move a coordinate between the two lists.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoefficientRecovery {
     /// Recipe that produced the report.
@@ -238,10 +299,17 @@ pub struct CoefficientRecovery {
     pub recoverable: Vec<DirectCoefficient>,
     /// Unresolved directions. Empty only when the coefficient goal is closed.
     pub unresolved: Vec<UnresolvedDirection>,
+    /// Finite-sample condition offered with the design. Not applied.
+    pub finite_sample_conditioning: FiniteSampleConditioning,
+    /// Uniqueness restriction offered with the design. Not applied.
+    pub uniqueness_restriction: UniquenessRestriction,
 }
 
 impl CoefficientRecovery {
     /// Whether every direct coefficient is recoverable.
+    ///
+    /// Finite-sample conditioning and a uniqueness restriction do not close the
+    /// goal. A closed goal is coverage plus population rank.
     #[must_use]
     pub fn goal_closed(&self) -> bool {
         self.unresolved.is_empty()
@@ -266,6 +334,11 @@ pub enum RefusalReason {
     WeakStabilityNotDeclared,
     /// Physical dynamical stability was offered in place of weak stability.
     PhysicalDynamicalStabilityIsNotWeakStability,
+    /// A uniqueness restriction was offered in place of weak stability.
+    ///
+    /// The restriction selects a mechanism. It does not certify invertibility
+    /// of `I − U K`, and it does not certify physical dynamical stability.
+    UniquenessRestrictionIsNotAStabilityCertificate,
     /// The clamp declaration is not a well-formed experiment set.
     DesignFault(DesignFault),
 }
@@ -398,7 +471,9 @@ impl ExperimentalRecoveryDecision {
 /// Judge `design` against the minimum clamp-experiment recipe.
 ///
 /// The function inspects declarations only. It does not estimate experimental
-/// effects, invert a constraint matrix, or complete `K`.
+/// effects, invert a constraint matrix, or complete `K`. A finite-sample rank
+/// or condition number is not read as the population rank. A uniqueness
+/// restriction is not applied, and it is not a physical-stability certificate.
 #[must_use]
 pub fn decide_experimental_recovery(design: &ExperimentDesign) -> ExperimentalRecoveryDecision {
     match &design.attempt {
@@ -455,19 +530,27 @@ fn decide_clamp_set(
         RegimeAssumption::Dependent => return refuse(RefusalReason::DependentRegimes),
         RegimeAssumption::Independent => {}
     }
-    match (set.weak_stability, set.physical_dynamical_stability) {
-        (WeakStability::NotDeclared, PhysicalDynamicalStability::Declared) => {
-            return refuse(RefusalReason::PhysicalDynamicalStabilityIsNotWeakStability);
-        }
-        (WeakStability::NotDeclared, PhysicalDynamicalStability::NotDeclared) => {
-            return refuse(RefusalReason::WeakStabilityNotDeclared);
-        }
-        (
-            WeakStability::InvertibilityDeclared,
-            PhysicalDynamicalStability::Declared | PhysicalDynamicalStability::NotDeclared,
-        ) => {}
+    if set.weak_stability == WeakStability::NotDeclared {
+        return refuse(stability_stand_in(set));
     }
     recover(&node_set, set)
+}
+
+fn stability_stand_in(set: &ClampExperimentSet) -> RefusalReason {
+    match (set.physical_dynamical_stability, set.uniqueness_restriction) {
+        (PhysicalDynamicalStability::Declared, _) => {
+            RefusalReason::PhysicalDynamicalStabilityIsNotWeakStability
+        }
+        (PhysicalDynamicalStability::NotDeclared, UniquenessRestriction::NotOffered) => {
+            RefusalReason::WeakStabilityNotDeclared
+        }
+        (
+            PhysicalDynamicalStability::NotDeclared,
+            UniquenessRestriction::MinimumNormCompletion
+            | UniquenessRestriction::BackgroundZero
+            | UniquenessRestriction::Faithfulness,
+        ) => RefusalReason::UniquenessRestrictionIsNotAStabilityCertificate,
+    }
 }
 
 fn validated_nodes(nodes: &[VariableId]) -> Result<BTreeSet<VariableId>, DesignFault> {
@@ -599,7 +682,15 @@ fn recover(nodes: &BTreeSet<VariableId>, set: &ClampExperimentSet) -> Experiment
         }
         recoverable.extend(incoming(nodes, *target));
     }
-    let recovery = CoefficientRecovery { recipe: CLAMP_EXPERIMENT_RECIPE, recoverable, unresolved };
+    // Coverage and the declared population rank decide the coordinates.
+    // The sample condition and the uniqueness restriction are copied and not applied.
+    let recovery = CoefficientRecovery {
+        recipe: CLAMP_EXPERIMENT_RECIPE,
+        recoverable,
+        unresolved,
+        finite_sample_conditioning: set.finite_sample_conditioning,
+        uniqueness_restriction: set.uniqueness_restriction,
+    };
     if recovery.goal_closed() {
         return ExperimentalRecoveryDecision::Recovered(recovery);
     }
@@ -676,9 +767,10 @@ mod tests {
     use super::{
         CLAMP_EXPERIMENT_RECIPE, ClampExogeneity, ClampExperimentSet, DeclaredClampExperiment,
         DeclaredEquationRank, DeclaredNoiseLaw, DesignFault, DirectCoefficient, ExperimentDesign,
-        ExperimentalRecoveryDecision, LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt,
-        NotThisRecipe, PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability, RecoveryAttempt,
-        RefusalReason, RegimeAssumption, UnresolvedReason, WeakStability,
+        ExperimentalRecoveryDecision, FiniteSampleConditioning,
+        LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt, NotThisRecipe,
+        PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability, RecoveryAttempt, RefusalReason,
+        RegimeAssumption, UniquenessRestriction, UnresolvedReason, WeakStability,
         decide_experimental_recovery,
     };
     use antecedent_core::VariableId;
@@ -716,6 +808,8 @@ mod tests {
                 regimes: RegimeAssumption::Independent,
                 weak_stability: WeakStability::InvertibilityDeclared,
                 physical_dynamical_stability: PhysicalDynamicalStability::NotDeclared,
+                finite_sample_conditioning: FiniteSampleConditioning::NotDeclared,
+                uniqueness_restriction: UniquenessRestriction::NotOffered,
                 equation_ranks,
             }),
         }
@@ -972,6 +1066,223 @@ mod tests {
             refusal.reason,
             RefusalReason::DesignFault(DesignFault::ExperimentDoesNotPartition { experiment: 0 })
         );
+    }
+
+    fn deficient_into_zero() -> DeclaredEquationRank {
+        DeclaredEquationRank {
+            target: node(0),
+            column_rank: 0,
+            nullspace: vec![vec![coefficient(0, 1)], vec![coefficient(0, 2)]],
+        }
+    }
+
+    fn one_passive_experiment() -> Vec<DeclaredClampExperiment> {
+        vec![DeclaredClampExperiment {
+            clamped: vec![node(1), node(2)],
+            passive: vec![node(0)],
+            exogeneity: ClampExogeneity::RandomizedIntervention,
+        }]
+    }
+
+    #[test]
+    fn sample_full_column_rank_does_not_recover_a_weak_design() {
+        let nodes = three();
+        let mut design = clamp_design(nodes, one_passive_experiment(), Vec::new());
+        clamp_set_mut(&mut design).finite_sample_conditioning =
+            FiniteSampleConditioning::SampleFullColumnRank;
+        let decision = decide_experimental_recovery(&design);
+        let ExperimentalRecoveryDecision::Partial(recovery) = decision else {
+            panic!("a sample full rank must not close an under-covered row");
+        };
+        assert!(!recovery.goal_closed());
+        assert_eq!(
+            recovery.finite_sample_conditioning,
+            FiniteSampleConditioning::SampleFullColumnRank
+        );
+        assert_eq!(recovery.uniqueness_restriction, UniquenessRestriction::NotOffered);
+        assert_eq!(recovery.recoverable, vec![coefficient(0, 1), coefficient(0, 2)]);
+        assert_eq!(recovery.unresolved.len(), 2);
+        assert!(recovery.unresolved.iter().all(|direction| {
+            matches!(direction.reason, UnresolvedReason::IncompletePairCoverage { .. })
+        }));
+        assert!(!recovery.recoverable.contains(&coefficient(1, 0)));
+        assert!(!recovery.recoverable.contains(&coefficient(2, 0)));
+    }
+
+    #[test]
+    fn sample_full_column_rank_does_not_license_a_rank_on_an_uncovered_row() {
+        let nodes = three();
+        let ranks = vec![DeclaredEquationRank {
+            target: node(1),
+            column_rank: 2,
+            nullspace: Vec::new(),
+        }];
+        let mut design = clamp_design(nodes, one_passive_experiment(), ranks);
+        clamp_set_mut(&mut design).finite_sample_conditioning =
+            FiniteSampleConditioning::SampleFullColumnRank;
+        let decision = decide_experimental_recovery(&design);
+        let ExperimentalRecoveryDecision::Refused(refusal) = decision else {
+            panic!("sample rank must not turn an uncovered row into a rank solve");
+        };
+        assert_eq!(
+            refusal.reason,
+            RefusalReason::DesignFault(DesignFault::RankDeclarationOnUncoveredTarget)
+        );
+    }
+
+    #[test]
+    fn finite_condition_number_does_not_fill_a_rank_deficient_row() {
+        let nodes = three();
+        let mut design =
+            clamp_design(nodes.clone(), all_but_one(&nodes), vec![deficient_into_zero()]);
+        clamp_set_mut(&mut design).finite_sample_conditioning =
+            FiniteSampleConditioning::FiniteConditionNumber;
+        let decision = decide_experimental_recovery(&design);
+        let ExperimentalRecoveryDecision::Partial(recovery) = decision else {
+            panic!("a finite condition number must not fill a nullspace");
+        };
+        assert!(!recovery.goal_closed());
+        assert_eq!(
+            recovery.finite_sample_conditioning,
+            FiniteSampleConditioning::FiniteConditionNumber
+        );
+        assert_eq!(
+            recovery.recoverable,
+            vec![coefficient(1, 0), coefficient(1, 2), coefficient(2, 0), coefficient(2, 1)]
+        );
+        assert_eq!(recovery.unresolved.len(), 2);
+        assert_eq!(recovery.unresolved[0].support, vec![coefficient(0, 1)]);
+        assert_eq!(recovery.unresolved[1].support, vec![coefficient(0, 2)]);
+        assert!(recovery.unresolved.iter().all(|direction| {
+            direction.reason
+                == UnresolvedReason::DeficientConstraintRank {
+                    target: node(0),
+                    column_rank: 0,
+                    width: 2,
+                }
+        }));
+    }
+
+    #[test]
+    fn finite_condition_number_does_not_open_a_covered_full_rank_design() {
+        let nodes = three();
+        let mut design = clamp_design(nodes.clone(), all_but_one(&nodes), Vec::new());
+        clamp_set_mut(&mut design).finite_sample_conditioning =
+            FiniteSampleConditioning::FiniteConditionNumber;
+        let decision = decide_experimental_recovery(&design);
+        let ExperimentalRecoveryDecision::Recovered(recovery) = decision else {
+            panic!("a finite condition number is not a rank deficiency");
+        };
+        assert!(recovery.goal_closed());
+        assert!(recovery.unresolved.is_empty());
+        assert_eq!(recovery.recoverable.len(), 6);
+        assert_eq!(
+            recovery.finite_sample_conditioning,
+            FiniteSampleConditioning::FiniteConditionNumber
+        );
+    }
+
+    #[test]
+    fn physical_stability_does_not_resolve_rank_deficiency() {
+        let nodes = three();
+        let mut design =
+            clamp_design(nodes.clone(), all_but_one(&nodes), vec![deficient_into_zero()]);
+        clamp_set_mut(&mut design).physical_dynamical_stability =
+            PhysicalDynamicalStability::Declared;
+        let decision = decide_experimental_recovery(&design);
+        let ExperimentalRecoveryDecision::Partial(recovery) = decision else {
+            panic!("physical stability must not select the nullspace");
+        };
+        assert!(!recovery.goal_closed());
+        assert_eq!(recovery.uniqueness_restriction, UniquenessRestriction::NotOffered);
+        assert_eq!(recovery.unresolved.len(), 2);
+        assert!(!recovery.recoverable.contains(&coefficient(0, 1)));
+        assert!(!recovery.recoverable.contains(&coefficient(0, 2)));
+    }
+
+    #[test]
+    fn uniqueness_restriction_is_not_a_stability_certificate() {
+        for restriction in [
+            UniquenessRestriction::MinimumNormCompletion,
+            UniquenessRestriction::BackgroundZero,
+            UniquenessRestriction::Faithfulness,
+        ] {
+            let nodes = three();
+            let mut design = clamp_design(nodes.clone(), all_but_one(&nodes), Vec::new());
+            {
+                let set = clamp_set_mut(&mut design);
+                set.weak_stability = WeakStability::NotDeclared;
+                set.uniqueness_restriction = restriction;
+            }
+            let decision = decide_experimental_recovery(&design);
+            assert!(decision.coefficient_recovery().is_none());
+            let ExperimentalRecoveryDecision::Refused(refusal) = decision else {
+                panic!("a uniqueness restriction must not stand in for invertibility");
+            };
+            assert_eq!(
+                refusal.reason,
+                RefusalReason::UniquenessRestrictionIsNotAStabilityCertificate
+            );
+            assert_eq!(refusal.next_attempt, NextAttempt::ClampExperimentRecipe);
+        }
+
+        let nodes = three();
+        let mut design = clamp_design(nodes.clone(), all_but_one(&nodes), Vec::new());
+        {
+            let set = clamp_set_mut(&mut design);
+            set.weak_stability = WeakStability::NotDeclared;
+            set.physical_dynamical_stability = PhysicalDynamicalStability::Declared;
+            set.uniqueness_restriction = UniquenessRestriction::MinimumNormCompletion;
+        }
+        let decision = decide_experimental_recovery(&design);
+        let ExperimentalRecoveryDecision::Refused(refusal) = decision else {
+            panic!("physical stability stays a distinct refusal");
+        };
+        assert_eq!(refusal.reason, RefusalReason::PhysicalDynamicalStabilityIsNotWeakStability);
+
+        let nodes = three();
+        let mut design = clamp_design(nodes.clone(), all_but_one(&nodes), Vec::new());
+        clamp_set_mut(&mut design).uniqueness_restriction =
+            UniquenessRestriction::MinimumNormCompletion;
+        let decision = decide_experimental_recovery(&design);
+        let ExperimentalRecoveryDecision::Recovered(recovery) = decision else {
+            panic!("a restriction on a closed design is not a stability certificate");
+        };
+        assert!(recovery.goal_closed());
+        assert_eq!(
+            recovery.uniqueness_restriction,
+            UniquenessRestriction::MinimumNormCompletion
+        );
+        assert_eq!(
+            clamp_set_mut(&mut design).physical_dynamical_stability,
+            PhysicalDynamicalStability::NotDeclared
+        );
+    }
+
+    #[test]
+    fn minimum_norm_and_background_zero_do_not_fill_rank_deficiency() {
+        for restriction in [
+            UniquenessRestriction::MinimumNormCompletion,
+            UniquenessRestriction::BackgroundZero,
+            UniquenessRestriction::Faithfulness,
+        ] {
+            let nodes = three();
+            let mut design =
+                clamp_design(nodes.clone(), all_but_one(&nodes), vec![deficient_into_zero()]);
+            clamp_set_mut(&mut design).uniqueness_restriction = restriction;
+            let decision = decide_experimental_recovery(&design);
+            let ExperimentalRecoveryDecision::Partial(recovery) = decision else {
+                panic!("a uniqueness restriction must not fill the nullspace");
+            };
+            assert!(!recovery.goal_closed());
+            assert_eq!(recovery.uniqueness_restriction, restriction);
+            assert_eq!(
+                recovery.recoverable,
+                vec![coefficient(1, 0), coefficient(1, 2), coefficient(2, 0), coefficient(2, 1)]
+            );
+            assert_eq!(recovery.unresolved[0].support, vec![coefficient(0, 1)]);
+            assert_eq!(recovery.unresolved[1].support, vec![coefficient(0, 2)]);
+        }
     }
 
     fn clamp_set_mut(design: &mut ExperimentDesign) -> &mut ClampExperimentSet {
