@@ -27,6 +27,7 @@ impl antecedent_identify::Identifier<antecedent_graph::dag::Dag> for antecedent_
 impl antecedent_identify::Identifier<antecedent_graph::dag::Dag> for antecedent_identify::FrontDoorIdentifier
 impl antecedent_identify::Identifier<antecedent_graph::dag::Dag> for antecedent_identify::IdIdentifier
 impl antecedent_identify::Identifier<antecedent_graph::dag::Dag> for antecedent_identify::InstrumentalVariableIdentifier
+impl core::clone::Clone for antecedent_identify::AcceptedRegimeContract
 impl core::clone::Clone for antecedent_identify::AdjustmentSearchConfig
 impl core::clone::Clone for antecedent_identify::AssembledFunctionalObligation
 impl core::clone::Clone for antecedent_identify::AutoIdentifier
@@ -93,6 +94,7 @@ impl core::clone::Clone for antecedent_identify::CounterfactualTransportWitnessC
 impl core::clone::Clone for antecedent_identify::DeclaredClampExperiment
 impl core::clone::Clone for antecedent_identify::DeclaredEquationRank
 impl core::clone::Clone for antecedent_identify::DeclaredNoiseLaw
+impl core::clone::Clone for antecedent_identify::DependencePremise
 impl core::clone::Clone for antecedent_identify::DerivationStep
 impl core::clone::Clone for antecedent_identify::DerivationTrace
 impl core::clone::Clone for antecedent_identify::DesignFault
@@ -100,6 +102,7 @@ impl core::clone::Clone for antecedent_identify::DirectCoefficient
 impl core::clone::Clone for antecedent_identify::EfficientBackdoorIdentifier
 impl core::clone::Clone for antecedent_identify::EstimandClaim
 impl core::clone::Clone for antecedent_identify::ExperimentDesign
+impl core::clone::Clone for antecedent_identify::ExperimentRegime
 impl core::clone::Clone for antecedent_identify::ExperimentalRecoveryDecision
 impl core::clone::Clone for antecedent_identify::FrontDoorIdentifier
 impl core::clone::Clone for antecedent_identify::FrontDoorSearchConfig
@@ -149,6 +152,7 @@ impl core::clone::Clone for antecedent_identify::MzTransportObstruction
 impl core::clone::Clone for antecedent_identify::MzTransportQuery
 impl core::clone::Clone for antecedent_identify::MzTransportRoute
 impl core::clone::Clone for antecedent_identify::NextAttempt
+impl core::clone::Clone for antecedent_identify::NextRegimeAttempt
 impl core::clone::Clone for antecedent_identify::NotCertifiedCertificate
 impl core::clone::Clone for antecedent_identify::NotThisRecipe
 impl core::clone::Clone for antecedent_identify::ObservationRecoveryQuery
@@ -156,6 +160,7 @@ impl core::clone::Clone for antecedent_identify::PartiallyObserved
 impl core::clone::Clone for antecedent_identify::PathSpecificIdentifier
 impl core::clone::Clone for antecedent_identify::PhysicalDynamicalStability
 impl core::clone::Clone for antecedent_identify::PopulationFactor
+impl core::clone::Clone for antecedent_identify::PopulationId
 impl core::clone::Clone for antecedent_identify::PreparedAdmg
 impl core::clone::Clone for antecedent_identify::PreparedAutoGraph
 impl core::clone::Clone for antecedent_identify::PreparedIdentificationGraph
@@ -177,11 +182,17 @@ impl core::clone::Clone for antecedent_identify::RecoveryReceiptRecord
 impl core::clone::Clone for antecedent_identify::RecoveryWitness
 impl core::clone::Clone for antecedent_identify::RefusalReason
 impl core::clone::Clone for antecedent_identify::RegimeAssumption
+impl core::clone::Clone for antecedent_identify::RegimeContract
+impl core::clone::Clone for antecedent_identify::RegimeContractDecision
+impl core::clone::Clone for antecedent_identify::RegimeIntervention
+impl core::clone::Clone for antecedent_identify::RegimeRefusal
+impl core::clone::Clone for antecedent_identify::RegimeRefusalReason
 impl core::clone::Clone for antecedent_identify::RequiredFactor
 impl core::clone::Clone for antecedent_identify::ResponseIdentifier
 impl core::clone::Clone for antecedent_identify::SharpRdConfig
 impl core::clone::Clone for antecedent_identify::SharpRdIdentifier
 impl core::clone::Clone for antecedent_identify::SidLimits
+impl core::clone::Clone for antecedent_identify::SourceIdentity
 impl core::clone::Clone for antecedent_identify::StudyBaseFailure
 impl core::clone::Clone for antecedent_identify::StudyFactor
 impl core::clone::Clone for antecedent_identify::StudyPlan
@@ -207,6 +218,7 @@ impl core::clone::Clone for antecedent_identify::TransportIdentifier
 impl core::clone::Clone for antecedent_identify::TwoSourceZTransportComponent
 impl core::clone::Clone for antecedent_identify::TwoSourceZTransportDecision
 impl core::clone::Clone for antecedent_identify::TwoSourceZTransportQuery
+impl core::clone::Clone for antecedent_identify::UnitMask
 impl core::clone::Clone for antecedent_identify::UnresolvedDirection
 impl core::clone::Clone for antecedent_identify::UnresolvedObligation
 impl core::clone::Clone for antecedent_identify::UnresolvedReason
@@ -312,6 +324,7 @@ impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec
 impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::TemporalSlots
 impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::UnrolledSequence
+impl core::cmp::Eq for antecedent_identify::AcceptedRegimeContract
 impl core::cmp::Eq for antecedent_identify::AssembledFunctionalObligation
 impl core::cmp::Eq for antecedent_identify::ChainPartial
 impl core::cmp::Eq for antecedent_identify::ChainRecoveryDetail
@@ -352,12 +365,14 @@ impl core::cmp::Eq for antecedent_identify::CounterfactualTransportWitnessCheck
 impl core::cmp::Eq for antecedent_identify::DeclaredClampExperiment
 impl core::cmp::Eq for antecedent_identify::DeclaredEquationRank
 impl core::cmp::Eq for antecedent_identify::DeclaredNoiseLaw
+impl core::cmp::Eq for antecedent_identify::DependencePremise
 impl core::cmp::Eq for antecedent_identify::DerivationStep
 impl core::cmp::Eq for antecedent_identify::DerivationTrace
 impl core::cmp::Eq for antecedent_identify::DesignFault
 impl core::cmp::Eq for antecedent_identify::DirectCoefficient
 impl core::cmp::Eq for antecedent_identify::EstimandClaim
 impl core::cmp::Eq for antecedent_identify::ExperimentDesign
+impl core::cmp::Eq for antecedent_identify::ExperimentRegime
 impl core::cmp::Eq for antecedent_identify::ExperimentalRecoveryDecision
 impl core::cmp::Eq for antecedent_identify::GraphFeature
 impl core::cmp::Eq for antecedent_identify::HedgeCertificate
@@ -386,12 +401,14 @@ impl core::cmp::Eq for antecedent_identify::MzStageRecord
 impl core::cmp::Eq for antecedent_identify::MzTransportDerivationRecord
 impl core::cmp::Eq for antecedent_identify::MzTransportRoute
 impl core::cmp::Eq for antecedent_identify::NextAttempt
+impl core::cmp::Eq for antecedent_identify::NextRegimeAttempt
 impl core::cmp::Eq for antecedent_identify::NotCertifiedCertificate
 impl core::cmp::Eq for antecedent_identify::NotThisRecipe
 impl core::cmp::Eq for antecedent_identify::ObservationRecoveryQuery
 impl core::cmp::Eq for antecedent_identify::PartiallyObserved
 impl core::cmp::Eq for antecedent_identify::PhysicalDynamicalStability
 impl core::cmp::Eq for antecedent_identify::PopulationFactor
+impl core::cmp::Eq for antecedent_identify::PopulationId
 impl core::cmp::Eq for antecedent_identify::RecipeRefusal
 impl core::cmp::Eq for antecedent_identify::RecoveredEffectRecord
 impl core::cmp::Eq for antecedent_identify::RecoveryAttempt
@@ -405,7 +422,13 @@ impl core::cmp::Eq for antecedent_identify::RecoveryReceiptRecord
 impl core::cmp::Eq for antecedent_identify::RecoveryWitness
 impl core::cmp::Eq for antecedent_identify::RefusalReason
 impl core::cmp::Eq for antecedent_identify::RegimeAssumption
+impl core::cmp::Eq for antecedent_identify::RegimeContract
+impl core::cmp::Eq for antecedent_identify::RegimeContractDecision
+impl core::cmp::Eq for antecedent_identify::RegimeIntervention
+impl core::cmp::Eq for antecedent_identify::RegimeRefusal
+impl core::cmp::Eq for antecedent_identify::RegimeRefusalReason
 impl core::cmp::Eq for antecedent_identify::RequiredFactor
+impl core::cmp::Eq for antecedent_identify::SourceIdentity
 impl core::cmp::Eq for antecedent_identify::StudyBaseFailure
 impl core::cmp::Eq for antecedent_identify::StudyFactor
 impl core::cmp::Eq for antecedent_identify::StudyPlanLimits
@@ -419,6 +442,7 @@ impl core::cmp::Eq for antecedent_identify::StudySubsetRecord
 impl core::cmp::Eq for antecedent_identify::TransportCertificate
 impl core::cmp::Eq for antecedent_identify::TransportFormula
 impl core::cmp::Eq for antecedent_identify::TransportIdentification
+impl core::cmp::Eq for antecedent_identify::UnitMask
 impl core::cmp::Eq for antecedent_identify::UnresolvedDirection
 impl core::cmp::Eq for antecedent_identify::UnresolvedObligation
 impl core::cmp::Eq for antecedent_identify::UnresolvedReason
@@ -472,12 +496,15 @@ impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::TemporalSlot
 impl core::cmp::Ord for antecedent_identify::CounterfactualLevel
 impl core::cmp::Ord for antecedent_identify::CounterfactualSymbol
 impl core::cmp::Ord for antecedent_identify::DirectCoefficient
+impl core::cmp::Ord for antecedent_identify::PopulationId
+impl core::cmp::Ord for antecedent_identify::SourceIdentity
 impl core::cmp::Ord for antecedent_identify::counterfactual_id::CfSymbol
 impl core::cmp::Ord for antecedent_identify::counterfactual_id::CfValue
 impl core::cmp::Ord for antecedent_identify::cross_world::CounterfactualNode
 impl core::cmp::Ord for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::cmp::Ord for antecedent_identify::sid::scenario_invariance::SourceInvariance
 impl core::cmp::Ord for antecedent_identify::sid::scenario_invariance::TargetFactor
+impl core::cmp::PartialEq for antecedent_identify::AcceptedRegimeContract
 impl core::cmp::PartialEq for antecedent_identify::AssembledFunctionalObligation
 impl core::cmp::PartialEq for antecedent_identify::BinaryIvLaw
 impl core::cmp::PartialEq for antecedent_identify::ChainPartial
@@ -522,12 +549,14 @@ impl core::cmp::PartialEq for antecedent_identify::CounterfactualTransportWitnes
 impl core::cmp::PartialEq for antecedent_identify::DeclaredClampExperiment
 impl core::cmp::PartialEq for antecedent_identify::DeclaredEquationRank
 impl core::cmp::PartialEq for antecedent_identify::DeclaredNoiseLaw
+impl core::cmp::PartialEq for antecedent_identify::DependencePremise
 impl core::cmp::PartialEq for antecedent_identify::DerivationStep
 impl core::cmp::PartialEq for antecedent_identify::DerivationTrace
 impl core::cmp::PartialEq for antecedent_identify::DesignFault
 impl core::cmp::PartialEq for antecedent_identify::DirectCoefficient
 impl core::cmp::PartialEq for antecedent_identify::EstimandClaim
 impl core::cmp::PartialEq for antecedent_identify::ExperimentDesign
+impl core::cmp::PartialEq for antecedent_identify::ExperimentRegime
 impl core::cmp::PartialEq for antecedent_identify::ExperimentalRecoveryDecision
 impl core::cmp::PartialEq for antecedent_identify::GraphFeature
 impl core::cmp::PartialEq for antecedent_identify::HedgeCertificate
@@ -559,12 +588,14 @@ impl core::cmp::PartialEq for antecedent_identify::MzTransportDerivationRecord
 impl core::cmp::PartialEq for antecedent_identify::MzTransportQuery
 impl core::cmp::PartialEq for antecedent_identify::MzTransportRoute
 impl core::cmp::PartialEq for antecedent_identify::NextAttempt
+impl core::cmp::PartialEq for antecedent_identify::NextRegimeAttempt
 impl core::cmp::PartialEq for antecedent_identify::NotCertifiedCertificate
 impl core::cmp::PartialEq for antecedent_identify::NotThisRecipe
 impl core::cmp::PartialEq for antecedent_identify::ObservationRecoveryQuery
 impl core::cmp::PartialEq for antecedent_identify::PartiallyObserved
 impl core::cmp::PartialEq for antecedent_identify::PhysicalDynamicalStability
 impl core::cmp::PartialEq for antecedent_identify::PopulationFactor
+impl core::cmp::PartialEq for antecedent_identify::PopulationId
 impl core::cmp::PartialEq for antecedent_identify::ProbabilityMass
 impl core::cmp::PartialEq for antecedent_identify::RecipeRefusal
 impl core::cmp::PartialEq for antecedent_identify::RecoveredEffectRecord
@@ -579,8 +610,14 @@ impl core::cmp::PartialEq for antecedent_identify::RecoveryReceiptRecord
 impl core::cmp::PartialEq for antecedent_identify::RecoveryWitness
 impl core::cmp::PartialEq for antecedent_identify::RefusalReason
 impl core::cmp::PartialEq for antecedent_identify::RegimeAssumption
+impl core::cmp::PartialEq for antecedent_identify::RegimeContract
+impl core::cmp::PartialEq for antecedent_identify::RegimeContractDecision
+impl core::cmp::PartialEq for antecedent_identify::RegimeIntervention
+impl core::cmp::PartialEq for antecedent_identify::RegimeRefusal
+impl core::cmp::PartialEq for antecedent_identify::RegimeRefusalReason
 impl core::cmp::PartialEq for antecedent_identify::RequiredFactor
 impl core::cmp::PartialEq for antecedent_identify::SharpRdConfig
+impl core::cmp::PartialEq for antecedent_identify::SourceIdentity
 impl core::cmp::PartialEq for antecedent_identify::StudyBaseFailure
 impl core::cmp::PartialEq for antecedent_identify::StudyFactor
 impl core::cmp::PartialEq for antecedent_identify::StudyPlan
@@ -598,6 +635,7 @@ impl core::cmp::PartialEq for antecedent_identify::TransportCertificate
 impl core::cmp::PartialEq for antecedent_identify::TransportFormula
 impl core::cmp::PartialEq for antecedent_identify::TransportIdentification
 impl core::cmp::PartialEq for antecedent_identify::TwoSourceZTransportQuery
+impl core::cmp::PartialEq for antecedent_identify::UnitMask
 impl core::cmp::PartialEq for antecedent_identify::UnresolvedDirection
 impl core::cmp::PartialEq for antecedent_identify::UnresolvedObligation
 impl core::cmp::PartialEq for antecedent_identify::UnresolvedReason
@@ -677,6 +715,8 @@ impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::Tempo
 impl core::cmp::PartialOrd for antecedent_identify::CounterfactualLevel
 impl core::cmp::PartialOrd for antecedent_identify::CounterfactualSymbol
 impl core::cmp::PartialOrd for antecedent_identify::DirectCoefficient
+impl core::cmp::PartialOrd for antecedent_identify::PopulationId
+impl core::cmp::PartialOrd for antecedent_identify::SourceIdentity
 impl core::cmp::PartialOrd for antecedent_identify::counterfactual_id::CfSymbol
 impl core::cmp::PartialOrd for antecedent_identify::counterfactual_id::CfValue
 impl core::cmp::PartialOrd for antecedent_identify::cross_world::CounterfactualNode
@@ -715,6 +755,7 @@ impl core::default::Default for antecedent_identify::StudyPlanLimits
 impl core::default::Default for antecedent_identify::TemporalBackdoorIdentifier
 impl core::default::Default for antecedent_identify::TemporalMediationIdentifier
 impl core::default::Default for antecedent_identify::TransportIdentifier
+impl core::default::Default for antecedent_identify::UnitMask
 impl core::default::Default for antecedent_identify::sid::temporal_sequence::HistoryLattice
 impl core::error::Error for antecedent_identify::ChainRecoveryError
 impl core::error::Error for antecedent_identify::IdentificationError
@@ -727,6 +768,7 @@ impl core::error::Error for antecedent_identify::sid::scenario_invariance::Invar
 impl core::error::Error for antecedent_identify::sid::scenarios::ScenarioSetRefusal
 impl core::error::Error for antecedent_identify::sid::temporal_sequence::TemporalRefusal
 impl core::error::Error for antecedent_identify::sid::temporal_sequence::TemporalSequenceError
+impl core::fmt::Debug for antecedent_identify::AcceptedRegimeContract
 impl core::fmt::Debug for antecedent_identify::AdjustmentSearchConfig
 impl core::fmt::Debug for antecedent_identify::AssembledFunctionalObligation
 impl core::fmt::Debug for antecedent_identify::AutoIdentifier
@@ -793,6 +835,7 @@ impl core::fmt::Debug for antecedent_identify::CounterfactualTransportWitnessChe
 impl core::fmt::Debug for antecedent_identify::DeclaredClampExperiment
 impl core::fmt::Debug for antecedent_identify::DeclaredEquationRank
 impl core::fmt::Debug for antecedent_identify::DeclaredNoiseLaw
+impl core::fmt::Debug for antecedent_identify::DependencePremise
 impl core::fmt::Debug for antecedent_identify::DerivationStep
 impl core::fmt::Debug for antecedent_identify::DerivationTrace
 impl core::fmt::Debug for antecedent_identify::DesignFault
@@ -800,6 +843,7 @@ impl core::fmt::Debug for antecedent_identify::DirectCoefficient
 impl core::fmt::Debug for antecedent_identify::EfficientBackdoorIdentifier
 impl core::fmt::Debug for antecedent_identify::EstimandClaim
 impl core::fmt::Debug for antecedent_identify::ExperimentDesign
+impl core::fmt::Debug for antecedent_identify::ExperimentRegime
 impl core::fmt::Debug for antecedent_identify::ExperimentalRecoveryDecision
 impl core::fmt::Debug for antecedent_identify::FrontDoorIdentifier
 impl core::fmt::Debug for antecedent_identify::FrontDoorSearchConfig
@@ -849,6 +893,7 @@ impl core::fmt::Debug for antecedent_identify::MzTransportObstruction
 impl core::fmt::Debug for antecedent_identify::MzTransportQuery
 impl core::fmt::Debug for antecedent_identify::MzTransportRoute
 impl core::fmt::Debug for antecedent_identify::NextAttempt
+impl core::fmt::Debug for antecedent_identify::NextRegimeAttempt
 impl core::fmt::Debug for antecedent_identify::NotCertifiedCertificate
 impl core::fmt::Debug for antecedent_identify::NotThisRecipe
 impl core::fmt::Debug for antecedent_identify::ObservationRecoveryQuery
@@ -856,6 +901,7 @@ impl core::fmt::Debug for antecedent_identify::PartiallyObserved
 impl core::fmt::Debug for antecedent_identify::PathSpecificIdentifier
 impl core::fmt::Debug for antecedent_identify::PhysicalDynamicalStability
 impl core::fmt::Debug for antecedent_identify::PopulationFactor
+impl core::fmt::Debug for antecedent_identify::PopulationId
 impl core::fmt::Debug for antecedent_identify::PreparedAdmg
 impl core::fmt::Debug for antecedent_identify::PreparedAutoGraph
 impl core::fmt::Debug for antecedent_identify::PreparedIdentificationGraph
@@ -877,11 +923,17 @@ impl core::fmt::Debug for antecedent_identify::RecoveryReceiptRecord
 impl core::fmt::Debug for antecedent_identify::RecoveryWitness
 impl core::fmt::Debug for antecedent_identify::RefusalReason
 impl core::fmt::Debug for antecedent_identify::RegimeAssumption
+impl core::fmt::Debug for antecedent_identify::RegimeContract
+impl core::fmt::Debug for antecedent_identify::RegimeContractDecision
+impl core::fmt::Debug for antecedent_identify::RegimeIntervention
+impl core::fmt::Debug for antecedent_identify::RegimeRefusal
+impl core::fmt::Debug for antecedent_identify::RegimeRefusalReason
 impl core::fmt::Debug for antecedent_identify::RequiredFactor
 impl core::fmt::Debug for antecedent_identify::ResponseIdentifier
 impl core::fmt::Debug for antecedent_identify::SharpRdConfig
 impl core::fmt::Debug for antecedent_identify::SharpRdIdentifier
 impl core::fmt::Debug for antecedent_identify::SidLimits
+impl core::fmt::Debug for antecedent_identify::SourceIdentity
 impl core::fmt::Debug for antecedent_identify::StudyBaseFailure
 impl core::fmt::Debug for antecedent_identify::StudyFactor
 impl core::fmt::Debug for antecedent_identify::StudyPlan
@@ -907,6 +959,7 @@ impl core::fmt::Debug for antecedent_identify::TransportIdentifier
 impl core::fmt::Debug for antecedent_identify::TwoSourceZTransportComponent
 impl core::fmt::Debug for antecedent_identify::TwoSourceZTransportDecision
 impl core::fmt::Debug for antecedent_identify::TwoSourceZTransportQuery
+impl core::fmt::Debug for antecedent_identify::UnitMask
 impl core::fmt::Debug for antecedent_identify::UnresolvedDirection
 impl core::fmt::Debug for antecedent_identify::UnresolvedObligation
 impl core::fmt::Debug for antecedent_identify::UnresolvedReason
@@ -1015,7 +1068,11 @@ impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::TemporalS
 impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::UnrolledSequence
 impl core::fmt::Display for antecedent_identify::ChainRecoveryError
 impl core::fmt::Display for antecedent_identify::IdentificationError
+impl core::fmt::Display for antecedent_identify::NextRegimeAttempt
 impl core::fmt::Display for antecedent_identify::RecoveryError
+impl core::fmt::Display for antecedent_identify::RegimeRefusal
+impl core::fmt::Display for antecedent_identify::RegimeRefusalReason
+impl core::fmt::Display for antecedent_identify::SourceIdentity
 impl core::fmt::Display for antecedent_identify::StudyPlanRefusal
 impl core::fmt::Display for antecedent_identify::counterfactual_id::CounterfactualIdRefusal
 impl core::fmt::Display for antecedent_identify::discovered_transport::DiscoveredTransportError
@@ -1031,6 +1088,7 @@ impl core::hash::Hash for antecedent_identify::ClampExogeneity
 impl core::hash::Hash for antecedent_identify::CounterfactualLevel
 impl core::hash::Hash for antecedent_identify::CounterfactualSymbol
 impl core::hash::Hash for antecedent_identify::DeclaredNoiseLaw
+impl core::hash::Hash for antecedent_identify::DependencePremise
 impl core::hash::Hash for antecedent_identify::DesignFault
 impl core::hash::Hash for antecedent_identify::DirectCoefficient
 impl core::hash::Hash for antecedent_identify::IdentificationBudget
@@ -1038,13 +1096,18 @@ impl core::hash::Hash for antecedent_identify::IdentificationClaimClass
 impl core::hash::Hash for antecedent_identify::IdentificationOutcome
 impl core::hash::Hash for antecedent_identify::MixedRule
 impl core::hash::Hash for antecedent_identify::NextAttempt
+impl core::hash::Hash for antecedent_identify::NextRegimeAttempt
 impl core::hash::Hash for antecedent_identify::NotThisRecipe
 impl core::hash::Hash for antecedent_identify::PartiallyObserved
 impl core::hash::Hash for antecedent_identify::PhysicalDynamicalStability
+impl core::hash::Hash for antecedent_identify::PopulationId
 impl core::hash::Hash for antecedent_identify::RecipeRefusal
 impl core::hash::Hash for antecedent_identify::RecoveryDetail
 impl core::hash::Hash for antecedent_identify::RefusalReason
 impl core::hash::Hash for antecedent_identify::RegimeAssumption
+impl core::hash::Hash for antecedent_identify::RegimeRefusal
+impl core::hash::Hash for antecedent_identify::RegimeRefusalReason
+impl core::hash::Hash for antecedent_identify::SourceIdentity
 impl core::hash::Hash for antecedent_identify::WeakStability
 impl core::hash::Hash for antecedent_identify::counterfactual_id::CfSymbol
 impl core::hash::Hash for antecedent_identify::counterfactual_id::CfValue
@@ -1062,6 +1125,7 @@ impl core::marker::Copy for antecedent_identify::CounterfactualLevel
 impl core::marker::Copy for antecedent_identify::CounterfactualMovedAtom
 impl core::marker::Copy for antecedent_identify::CounterfactualSymbol
 impl core::marker::Copy for antecedent_identify::DeclaredNoiseLaw
+impl core::marker::Copy for antecedent_identify::DependencePremise
 impl core::marker::Copy for antecedent_identify::DesignFault
 impl core::marker::Copy for antecedent_identify::DirectCoefficient
 impl core::marker::Copy for antecedent_identify::IdentificationBudget
@@ -1070,17 +1134,22 @@ impl core::marker::Copy for antecedent_identify::IdentificationOutcome
 impl core::marker::Copy for antecedent_identify::MixedRule
 impl core::marker::Copy for antecedent_identify::MixedSearchSummary
 impl core::marker::Copy for antecedent_identify::NextAttempt
+impl core::marker::Copy for antecedent_identify::NextRegimeAttempt
 impl core::marker::Copy for antecedent_identify::NotThisRecipe
 impl core::marker::Copy for antecedent_identify::PartiallyObserved
 impl core::marker::Copy for antecedent_identify::PhysicalDynamicalStability
+impl core::marker::Copy for antecedent_identify::PopulationId
 impl core::marker::Copy for antecedent_identify::ProbabilityMass
 impl core::marker::Copy for antecedent_identify::RecipeRefusal
 impl core::marker::Copy for antecedent_identify::RecoveryDetail
 impl core::marker::Copy for antecedent_identify::RecoveryLimits
 impl core::marker::Copy for antecedent_identify::RefusalReason
 impl core::marker::Copy for antecedent_identify::RegimeAssumption
+impl core::marker::Copy for antecedent_identify::RegimeRefusal
+impl core::marker::Copy for antecedent_identify::RegimeRefusalReason
 impl core::marker::Copy for antecedent_identify::SharpRdConfig
 impl core::marker::Copy for antecedent_identify::SidLimits
+impl core::marker::Copy for antecedent_identify::SourceIdentity
 impl core::marker::Copy for antecedent_identify::StudyPlanLimits
 impl core::marker::Copy for antecedent_identify::WeakStability
 impl core::marker::Copy for antecedent_identify::ZTransportBudgetKind
@@ -1095,6 +1164,7 @@ impl core::marker::Copy for antecedent_identify::sid::Rule
 impl core::marker::Copy for antecedent_identify::sid::scenarios::ScenarioDecisionLimits
 impl core::marker::Copy for antecedent_identify::sid::temporal_sequence::MechanismAssumption
 impl core::marker::Copy for antecedent_identify::sid::temporal_sequence::TemporalDecisionLimits
+impl core::marker::Freeze for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Freeze for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::marker::Freeze for antecedent_identify::AssembledFunctionalObligation [auto]
 impl core::marker::Freeze for antecedent_identify::AutoIdentifier [auto]
@@ -1161,6 +1231,7 @@ impl core::marker::Freeze for antecedent_identify::CounterfactualTransportWitnes
 impl core::marker::Freeze for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::marker::Freeze for antecedent_identify::DeclaredEquationRank [auto]
 impl core::marker::Freeze for antecedent_identify::DeclaredNoiseLaw [auto]
+impl core::marker::Freeze for antecedent_identify::DependencePremise [auto]
 impl core::marker::Freeze for antecedent_identify::DerivationStep [auto]
 impl core::marker::Freeze for antecedent_identify::DerivationTrace [auto]
 impl core::marker::Freeze for antecedent_identify::DesignFault [auto]
@@ -1168,6 +1239,7 @@ impl core::marker::Freeze for antecedent_identify::DirectCoefficient [auto]
 impl core::marker::Freeze for antecedent_identify::EfficientBackdoorIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::EstimandClaim [auto]
 impl core::marker::Freeze for antecedent_identify::ExperimentDesign [auto]
+impl core::marker::Freeze for antecedent_identify::ExperimentRegime [auto]
 impl core::marker::Freeze for antecedent_identify::ExperimentalRecoveryDecision [auto]
 impl core::marker::Freeze for antecedent_identify::FrontDoorIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::FrontDoorSearchConfig [auto]
@@ -1217,6 +1289,7 @@ impl core::marker::Freeze for antecedent_identify::MzTransportObstruction [auto]
 impl core::marker::Freeze for antecedent_identify::MzTransportQuery [auto]
 impl core::marker::Freeze for antecedent_identify::MzTransportRoute [auto]
 impl core::marker::Freeze for antecedent_identify::NextAttempt [auto]
+impl core::marker::Freeze for antecedent_identify::NextRegimeAttempt [auto]
 impl core::marker::Freeze for antecedent_identify::NotCertifiedCertificate [auto]
 impl core::marker::Freeze for antecedent_identify::NotThisRecipe [auto]
 impl core::marker::Freeze for antecedent_identify::ObservationRecoveryQuery [auto]
@@ -1224,6 +1297,7 @@ impl core::marker::Freeze for antecedent_identify::PartiallyObserved [auto]
 impl core::marker::Freeze for antecedent_identify::PathSpecificIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::PhysicalDynamicalStability [auto]
 impl core::marker::Freeze for antecedent_identify::PopulationFactor [auto]
+impl core::marker::Freeze for antecedent_identify::PopulationId [auto]
 impl core::marker::Freeze for antecedent_identify::PreparedAdmg [auto]
 impl core::marker::Freeze for antecedent_identify::PreparedAutoGraph [auto]
 impl core::marker::Freeze for antecedent_identify::PreparedIdentificationGraph [auto]
@@ -1245,11 +1319,17 @@ impl core::marker::Freeze for antecedent_identify::RecoveryReceiptRecord [auto]
 impl core::marker::Freeze for antecedent_identify::RecoveryWitness [auto]
 impl core::marker::Freeze for antecedent_identify::RefusalReason [auto]
 impl core::marker::Freeze for antecedent_identify::RegimeAssumption [auto]
+impl core::marker::Freeze for antecedent_identify::RegimeContract [auto]
+impl core::marker::Freeze for antecedent_identify::RegimeContractDecision [auto]
+impl core::marker::Freeze for antecedent_identify::RegimeIntervention [auto]
+impl core::marker::Freeze for antecedent_identify::RegimeRefusal [auto]
+impl core::marker::Freeze for antecedent_identify::RegimeRefusalReason [auto]
 impl core::marker::Freeze for antecedent_identify::RequiredFactor [auto]
 impl core::marker::Freeze for antecedent_identify::ResponseIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::SharpRdConfig [auto]
 impl core::marker::Freeze for antecedent_identify::SharpRdIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::SidLimits [auto]
+impl core::marker::Freeze for antecedent_identify::SourceIdentity [auto]
 impl core::marker::Freeze for antecedent_identify::StudyBaseFailure [auto]
 impl core::marker::Freeze for antecedent_identify::StudyFactor [auto]
 impl core::marker::Freeze for antecedent_identify::StudyPlan [auto]
@@ -1275,6 +1355,7 @@ impl core::marker::Freeze for antecedent_identify::TransportIdentifier [auto]
 impl core::marker::Freeze for antecedent_identify::TwoSourceZTransportComponent [auto]
 impl core::marker::Freeze for antecedent_identify::TwoSourceZTransportDecision [auto]
 impl core::marker::Freeze for antecedent_identify::TwoSourceZTransportQuery [auto]
+impl core::marker::Freeze for antecedent_identify::UnitMask [auto]
 impl core::marker::Freeze for antecedent_identify::UnresolvedDirection [auto]
 impl core::marker::Freeze for antecedent_identify::UnresolvedObligation [auto]
 impl core::marker::Freeze for antecedent_identify::UnresolvedReason [auto]
@@ -1381,6 +1462,7 @@ impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::Tempo
 impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::marker::Send for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Send for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::marker::Send for antecedent_identify::AssembledFunctionalObligation [auto]
 impl core::marker::Send for antecedent_identify::AutoIdentifier [auto]
@@ -1447,6 +1529,7 @@ impl core::marker::Send for antecedent_identify::CounterfactualTransportWitnessC
 impl core::marker::Send for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::marker::Send for antecedent_identify::DeclaredEquationRank [auto]
 impl core::marker::Send for antecedent_identify::DeclaredNoiseLaw [auto]
+impl core::marker::Send for antecedent_identify::DependencePremise [auto]
 impl core::marker::Send for antecedent_identify::DerivationStep [auto]
 impl core::marker::Send for antecedent_identify::DerivationTrace [auto]
 impl core::marker::Send for antecedent_identify::DesignFault [auto]
@@ -1454,6 +1537,7 @@ impl core::marker::Send for antecedent_identify::DirectCoefficient [auto]
 impl core::marker::Send for antecedent_identify::EfficientBackdoorIdentifier [auto]
 impl core::marker::Send for antecedent_identify::EstimandClaim [auto]
 impl core::marker::Send for antecedent_identify::ExperimentDesign [auto]
+impl core::marker::Send for antecedent_identify::ExperimentRegime [auto]
 impl core::marker::Send for antecedent_identify::ExperimentalRecoveryDecision [auto]
 impl core::marker::Send for antecedent_identify::FrontDoorIdentifier [auto]
 impl core::marker::Send for antecedent_identify::FrontDoorSearchConfig [auto]
@@ -1503,6 +1587,7 @@ impl core::marker::Send for antecedent_identify::MzTransportObstruction [auto]
 impl core::marker::Send for antecedent_identify::MzTransportQuery [auto]
 impl core::marker::Send for antecedent_identify::MzTransportRoute [auto]
 impl core::marker::Send for antecedent_identify::NextAttempt [auto]
+impl core::marker::Send for antecedent_identify::NextRegimeAttempt [auto]
 impl core::marker::Send for antecedent_identify::NotCertifiedCertificate [auto]
 impl core::marker::Send for antecedent_identify::NotThisRecipe [auto]
 impl core::marker::Send for antecedent_identify::ObservationRecoveryQuery [auto]
@@ -1510,6 +1595,7 @@ impl core::marker::Send for antecedent_identify::PartiallyObserved [auto]
 impl core::marker::Send for antecedent_identify::PathSpecificIdentifier [auto]
 impl core::marker::Send for antecedent_identify::PhysicalDynamicalStability [auto]
 impl core::marker::Send for antecedent_identify::PopulationFactor [auto]
+impl core::marker::Send for antecedent_identify::PopulationId [auto]
 impl core::marker::Send for antecedent_identify::PreparedAdmg [auto]
 impl core::marker::Send for antecedent_identify::PreparedAutoGraph [auto]
 impl core::marker::Send for antecedent_identify::PreparedIdentificationGraph [auto]
@@ -1531,11 +1617,17 @@ impl core::marker::Send for antecedent_identify::RecoveryReceiptRecord [auto]
 impl core::marker::Send for antecedent_identify::RecoveryWitness [auto]
 impl core::marker::Send for antecedent_identify::RefusalReason [auto]
 impl core::marker::Send for antecedent_identify::RegimeAssumption [auto]
+impl core::marker::Send for antecedent_identify::RegimeContract [auto]
+impl core::marker::Send for antecedent_identify::RegimeContractDecision [auto]
+impl core::marker::Send for antecedent_identify::RegimeIntervention [auto]
+impl core::marker::Send for antecedent_identify::RegimeRefusal [auto]
+impl core::marker::Send for antecedent_identify::RegimeRefusalReason [auto]
 impl core::marker::Send for antecedent_identify::RequiredFactor [auto]
 impl core::marker::Send for antecedent_identify::ResponseIdentifier [auto]
 impl core::marker::Send for antecedent_identify::SharpRdConfig [auto]
 impl core::marker::Send for antecedent_identify::SharpRdIdentifier [auto]
 impl core::marker::Send for antecedent_identify::SidLimits [auto]
+impl core::marker::Send for antecedent_identify::SourceIdentity [auto]
 impl core::marker::Send for antecedent_identify::StudyBaseFailure [auto]
 impl core::marker::Send for antecedent_identify::StudyFactor [auto]
 impl core::marker::Send for antecedent_identify::StudyPlan [auto]
@@ -1561,6 +1653,7 @@ impl core::marker::Send for antecedent_identify::TransportIdentifier [auto]
 impl core::marker::Send for antecedent_identify::TwoSourceZTransportComponent [auto]
 impl core::marker::Send for antecedent_identify::TwoSourceZTransportDecision [auto]
 impl core::marker::Send for antecedent_identify::TwoSourceZTransportQuery [auto]
+impl core::marker::Send for antecedent_identify::UnitMask [auto]
 impl core::marker::Send for antecedent_identify::UnresolvedDirection [auto]
 impl core::marker::Send for antecedent_identify::UnresolvedObligation [auto]
 impl core::marker::Send for antecedent_identify::UnresolvedReason [auto]
@@ -1667,6 +1760,7 @@ impl core::marker::Send for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::marker::Send for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Send for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Send for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::marker::StructuralPartialEq for antecedent_identify::AcceptedRegimeContract
 impl core::marker::StructuralPartialEq for antecedent_identify::BinaryIvLaw
 impl core::marker::StructuralPartialEq for antecedent_identify::ChainPartial
 impl core::marker::StructuralPartialEq for antecedent_identify::ChainRecoveryDetail
@@ -1709,12 +1803,14 @@ impl core::marker::StructuralPartialEq for antecedent_identify::CounterfactualTr
 impl core::marker::StructuralPartialEq for antecedent_identify::DeclaredClampExperiment
 impl core::marker::StructuralPartialEq for antecedent_identify::DeclaredEquationRank
 impl core::marker::StructuralPartialEq for antecedent_identify::DeclaredNoiseLaw
+impl core::marker::StructuralPartialEq for antecedent_identify::DependencePremise
 impl core::marker::StructuralPartialEq for antecedent_identify::DerivationStep
 impl core::marker::StructuralPartialEq for antecedent_identify::DerivationTrace
 impl core::marker::StructuralPartialEq for antecedent_identify::DesignFault
 impl core::marker::StructuralPartialEq for antecedent_identify::DirectCoefficient
 impl core::marker::StructuralPartialEq for antecedent_identify::EstimandClaim
 impl core::marker::StructuralPartialEq for antecedent_identify::ExperimentDesign
+impl core::marker::StructuralPartialEq for antecedent_identify::ExperimentRegime
 impl core::marker::StructuralPartialEq for antecedent_identify::ExperimentalRecoveryDecision
 impl core::marker::StructuralPartialEq for antecedent_identify::GraphFeature
 impl core::marker::StructuralPartialEq for antecedent_identify::HedgeCertificate
@@ -1746,12 +1842,14 @@ impl core::marker::StructuralPartialEq for antecedent_identify::MzTransportDeriv
 impl core::marker::StructuralPartialEq for antecedent_identify::MzTransportQuery
 impl core::marker::StructuralPartialEq for antecedent_identify::MzTransportRoute
 impl core::marker::StructuralPartialEq for antecedent_identify::NextAttempt
+impl core::marker::StructuralPartialEq for antecedent_identify::NextRegimeAttempt
 impl core::marker::StructuralPartialEq for antecedent_identify::NotCertifiedCertificate
 impl core::marker::StructuralPartialEq for antecedent_identify::NotThisRecipe
 impl core::marker::StructuralPartialEq for antecedent_identify::ObservationRecoveryQuery
 impl core::marker::StructuralPartialEq for antecedent_identify::PartiallyObserved
 impl core::marker::StructuralPartialEq for antecedent_identify::PhysicalDynamicalStability
 impl core::marker::StructuralPartialEq for antecedent_identify::PopulationFactor
+impl core::marker::StructuralPartialEq for antecedent_identify::PopulationId
 impl core::marker::StructuralPartialEq for antecedent_identify::ProbabilityMass
 impl core::marker::StructuralPartialEq for antecedent_identify::RecipeRefusal
 impl core::marker::StructuralPartialEq for antecedent_identify::RecoveredEffectRecord
@@ -1766,8 +1864,14 @@ impl core::marker::StructuralPartialEq for antecedent_identify::RecoveryReceiptR
 impl core::marker::StructuralPartialEq for antecedent_identify::RecoveryWitness
 impl core::marker::StructuralPartialEq for antecedent_identify::RefusalReason
 impl core::marker::StructuralPartialEq for antecedent_identify::RegimeAssumption
+impl core::marker::StructuralPartialEq for antecedent_identify::RegimeContract
+impl core::marker::StructuralPartialEq for antecedent_identify::RegimeContractDecision
+impl core::marker::StructuralPartialEq for antecedent_identify::RegimeIntervention
+impl core::marker::StructuralPartialEq for antecedent_identify::RegimeRefusal
+impl core::marker::StructuralPartialEq for antecedent_identify::RegimeRefusalReason
 impl core::marker::StructuralPartialEq for antecedent_identify::RequiredFactor
 impl core::marker::StructuralPartialEq for antecedent_identify::SharpRdConfig
+impl core::marker::StructuralPartialEq for antecedent_identify::SourceIdentity
 impl core::marker::StructuralPartialEq for antecedent_identify::StudyBaseFailure
 impl core::marker::StructuralPartialEq for antecedent_identify::StudyFactor
 impl core::marker::StructuralPartialEq for antecedent_identify::StudyPlan
@@ -1785,6 +1889,7 @@ impl core::marker::StructuralPartialEq for antecedent_identify::TransportCertifi
 impl core::marker::StructuralPartialEq for antecedent_identify::TransportFormula
 impl core::marker::StructuralPartialEq for antecedent_identify::TransportIdentification
 impl core::marker::StructuralPartialEq for antecedent_identify::TwoSourceZTransportQuery
+impl core::marker::StructuralPartialEq for antecedent_identify::UnitMask
 impl core::marker::StructuralPartialEq for antecedent_identify::UnresolvedDirection
 impl core::marker::StructuralPartialEq for antecedent_identify::UnresolvedObligation
 impl core::marker::StructuralPartialEq for antecedent_identify::UnresolvedReason
@@ -1859,6 +1964,7 @@ impl core::marker::StructuralPartialEq for antecedent_identify::sid::temporal_se
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::temporal_sequence::TemporalDecisionLimits
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::temporal_sequence::TemporalRefusal
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::temporal_sequence::TemporalSlots
+impl core::marker::Sync for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Sync for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::marker::Sync for antecedent_identify::AssembledFunctionalObligation [auto]
 impl core::marker::Sync for antecedent_identify::AutoIdentifier [auto]
@@ -1925,6 +2031,7 @@ impl core::marker::Sync for antecedent_identify::CounterfactualTransportWitnessC
 impl core::marker::Sync for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::marker::Sync for antecedent_identify::DeclaredEquationRank [auto]
 impl core::marker::Sync for antecedent_identify::DeclaredNoiseLaw [auto]
+impl core::marker::Sync for antecedent_identify::DependencePremise [auto]
 impl core::marker::Sync for antecedent_identify::DerivationStep [auto]
 impl core::marker::Sync for antecedent_identify::DerivationTrace [auto]
 impl core::marker::Sync for antecedent_identify::DesignFault [auto]
@@ -1932,6 +2039,7 @@ impl core::marker::Sync for antecedent_identify::DirectCoefficient [auto]
 impl core::marker::Sync for antecedent_identify::EfficientBackdoorIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::EstimandClaim [auto]
 impl core::marker::Sync for antecedent_identify::ExperimentDesign [auto]
+impl core::marker::Sync for antecedent_identify::ExperimentRegime [auto]
 impl core::marker::Sync for antecedent_identify::ExperimentalRecoveryDecision [auto]
 impl core::marker::Sync for antecedent_identify::FrontDoorIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::FrontDoorSearchConfig [auto]
@@ -1981,6 +2089,7 @@ impl core::marker::Sync for antecedent_identify::MzTransportObstruction [auto]
 impl core::marker::Sync for antecedent_identify::MzTransportQuery [auto]
 impl core::marker::Sync for antecedent_identify::MzTransportRoute [auto]
 impl core::marker::Sync for antecedent_identify::NextAttempt [auto]
+impl core::marker::Sync for antecedent_identify::NextRegimeAttempt [auto]
 impl core::marker::Sync for antecedent_identify::NotCertifiedCertificate [auto]
 impl core::marker::Sync for antecedent_identify::NotThisRecipe [auto]
 impl core::marker::Sync for antecedent_identify::ObservationRecoveryQuery [auto]
@@ -1988,6 +2097,7 @@ impl core::marker::Sync for antecedent_identify::PartiallyObserved [auto]
 impl core::marker::Sync for antecedent_identify::PathSpecificIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::PhysicalDynamicalStability [auto]
 impl core::marker::Sync for antecedent_identify::PopulationFactor [auto]
+impl core::marker::Sync for antecedent_identify::PopulationId [auto]
 impl core::marker::Sync for antecedent_identify::PreparedAdmg [auto]
 impl core::marker::Sync for antecedent_identify::PreparedAutoGraph [auto]
 impl core::marker::Sync for antecedent_identify::PreparedIdentificationGraph [auto]
@@ -2009,11 +2119,17 @@ impl core::marker::Sync for antecedent_identify::RecoveryReceiptRecord [auto]
 impl core::marker::Sync for antecedent_identify::RecoveryWitness [auto]
 impl core::marker::Sync for antecedent_identify::RefusalReason [auto]
 impl core::marker::Sync for antecedent_identify::RegimeAssumption [auto]
+impl core::marker::Sync for antecedent_identify::RegimeContract [auto]
+impl core::marker::Sync for antecedent_identify::RegimeContractDecision [auto]
+impl core::marker::Sync for antecedent_identify::RegimeIntervention [auto]
+impl core::marker::Sync for antecedent_identify::RegimeRefusal [auto]
+impl core::marker::Sync for antecedent_identify::RegimeRefusalReason [auto]
 impl core::marker::Sync for antecedent_identify::RequiredFactor [auto]
 impl core::marker::Sync for antecedent_identify::ResponseIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::SharpRdConfig [auto]
 impl core::marker::Sync for antecedent_identify::SharpRdIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::SidLimits [auto]
+impl core::marker::Sync for antecedent_identify::SourceIdentity [auto]
 impl core::marker::Sync for antecedent_identify::StudyBaseFailure [auto]
 impl core::marker::Sync for antecedent_identify::StudyFactor [auto]
 impl core::marker::Sync for antecedent_identify::StudyPlan [auto]
@@ -2039,6 +2155,7 @@ impl core::marker::Sync for antecedent_identify::TransportIdentifier [auto]
 impl core::marker::Sync for antecedent_identify::TwoSourceZTransportComponent [auto]
 impl core::marker::Sync for antecedent_identify::TwoSourceZTransportDecision [auto]
 impl core::marker::Sync for antecedent_identify::TwoSourceZTransportQuery [auto]
+impl core::marker::Sync for antecedent_identify::UnitMask [auto]
 impl core::marker::Sync for antecedent_identify::UnresolvedDirection [auto]
 impl core::marker::Sync for antecedent_identify::UnresolvedObligation [auto]
 impl core::marker::Sync for antecedent_identify::UnresolvedReason [auto]
@@ -2145,6 +2262,7 @@ impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::marker::Unpin for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Unpin for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::marker::Unpin for antecedent_identify::AssembledFunctionalObligation [auto]
 impl core::marker::Unpin for antecedent_identify::AutoIdentifier [auto]
@@ -2211,6 +2329,7 @@ impl core::marker::Unpin for antecedent_identify::CounterfactualTransportWitness
 impl core::marker::Unpin for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::marker::Unpin for antecedent_identify::DeclaredEquationRank [auto]
 impl core::marker::Unpin for antecedent_identify::DeclaredNoiseLaw [auto]
+impl core::marker::Unpin for antecedent_identify::DependencePremise [auto]
 impl core::marker::Unpin for antecedent_identify::DerivationStep [auto]
 impl core::marker::Unpin for antecedent_identify::DerivationTrace [auto]
 impl core::marker::Unpin for antecedent_identify::DesignFault [auto]
@@ -2218,6 +2337,7 @@ impl core::marker::Unpin for antecedent_identify::DirectCoefficient [auto]
 impl core::marker::Unpin for antecedent_identify::EfficientBackdoorIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::EstimandClaim [auto]
 impl core::marker::Unpin for antecedent_identify::ExperimentDesign [auto]
+impl core::marker::Unpin for antecedent_identify::ExperimentRegime [auto]
 impl core::marker::Unpin for antecedent_identify::ExperimentalRecoveryDecision [auto]
 impl core::marker::Unpin for antecedent_identify::FrontDoorIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::FrontDoorSearchConfig [auto]
@@ -2267,6 +2387,7 @@ impl core::marker::Unpin for antecedent_identify::MzTransportObstruction [auto]
 impl core::marker::Unpin for antecedent_identify::MzTransportQuery [auto]
 impl core::marker::Unpin for antecedent_identify::MzTransportRoute [auto]
 impl core::marker::Unpin for antecedent_identify::NextAttempt [auto]
+impl core::marker::Unpin for antecedent_identify::NextRegimeAttempt [auto]
 impl core::marker::Unpin for antecedent_identify::NotCertifiedCertificate [auto]
 impl core::marker::Unpin for antecedent_identify::NotThisRecipe [auto]
 impl core::marker::Unpin for antecedent_identify::ObservationRecoveryQuery [auto]
@@ -2274,6 +2395,7 @@ impl core::marker::Unpin for antecedent_identify::PartiallyObserved [auto]
 impl core::marker::Unpin for antecedent_identify::PathSpecificIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::PhysicalDynamicalStability [auto]
 impl core::marker::Unpin for antecedent_identify::PopulationFactor [auto]
+impl core::marker::Unpin for antecedent_identify::PopulationId [auto]
 impl core::marker::Unpin for antecedent_identify::PreparedAdmg [auto]
 impl core::marker::Unpin for antecedent_identify::PreparedAutoGraph [auto]
 impl core::marker::Unpin for antecedent_identify::PreparedIdentificationGraph [auto]
@@ -2295,11 +2417,17 @@ impl core::marker::Unpin for antecedent_identify::RecoveryReceiptRecord [auto]
 impl core::marker::Unpin for antecedent_identify::RecoveryWitness [auto]
 impl core::marker::Unpin for antecedent_identify::RefusalReason [auto]
 impl core::marker::Unpin for antecedent_identify::RegimeAssumption [auto]
+impl core::marker::Unpin for antecedent_identify::RegimeContract [auto]
+impl core::marker::Unpin for antecedent_identify::RegimeContractDecision [auto]
+impl core::marker::Unpin for antecedent_identify::RegimeIntervention [auto]
+impl core::marker::Unpin for antecedent_identify::RegimeRefusal [auto]
+impl core::marker::Unpin for antecedent_identify::RegimeRefusalReason [auto]
 impl core::marker::Unpin for antecedent_identify::RequiredFactor [auto]
 impl core::marker::Unpin for antecedent_identify::ResponseIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::SharpRdConfig [auto]
 impl core::marker::Unpin for antecedent_identify::SharpRdIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::SidLimits [auto]
+impl core::marker::Unpin for antecedent_identify::SourceIdentity [auto]
 impl core::marker::Unpin for antecedent_identify::StudyBaseFailure [auto]
 impl core::marker::Unpin for antecedent_identify::StudyFactor [auto]
 impl core::marker::Unpin for antecedent_identify::StudyPlan [auto]
@@ -2325,6 +2453,7 @@ impl core::marker::Unpin for antecedent_identify::TransportIdentifier [auto]
 impl core::marker::Unpin for antecedent_identify::TwoSourceZTransportComponent [auto]
 impl core::marker::Unpin for antecedent_identify::TwoSourceZTransportDecision [auto]
 impl core::marker::Unpin for antecedent_identify::TwoSourceZTransportQuery [auto]
+impl core::marker::Unpin for antecedent_identify::UnitMask [auto]
 impl core::marker::Unpin for antecedent_identify::UnresolvedDirection [auto]
 impl core::marker::Unpin for antecedent_identify::UnresolvedObligation [auto]
 impl core::marker::Unpin for antecedent_identify::UnresolvedReason [auto]
@@ -2431,6 +2560,7 @@ impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::Tempor
 impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AssembledFunctionalObligation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AutoIdentifier [auto]
@@ -2497,6 +2627,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::Counterfac
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DeclaredEquationRank [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DeclaredNoiseLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DependencePremise [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DerivationStep [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DerivationTrace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DesignFault [auto]
@@ -2504,6 +2635,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::DirectCoef
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::EfficientBackdoorIdentifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::EstimandClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ExperimentDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ExperimentRegime [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ExperimentalRecoveryDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::FrontDoorIdentifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::FrontDoorSearchConfig [auto]
@@ -2553,6 +2685,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::MzTranspor
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::MzTransportQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::MzTransportRoute [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::NextAttempt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::NextRegimeAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::NotCertifiedCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::NotThisRecipe [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ObservationRecoveryQuery [auto]
@@ -2560,6 +2693,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PartiallyO
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PathSpecificIdentifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PhysicalDynamicalStability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PopulationFactor [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PopulationId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PreparedAdmg [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PreparedAutoGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PreparedIdentificationGraph [auto]
@@ -2581,11 +2715,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RecoveryRe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RecoveryWitness [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RefusalReason [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RegimeAssumption [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RegimeContract [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RegimeContractDecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RegimeIntervention [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RegimeRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RegimeRefusalReason [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RequiredFactor [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ResponseIdentifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::SharpRdConfig [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::SharpRdIdentifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::SidLimits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::SourceIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::StudyBaseFailure [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::StudyFactor [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::StudyPlan [auto]
@@ -2611,6 +2751,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TransportI
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TwoSourceZTransportComponent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TwoSourceZTransportDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::TwoSourceZTransportQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::UnitMask [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::UnresolvedDirection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::UnresolvedObligation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::UnresolvedReason [auto]
@@ -2717,6 +2858,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::tempo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AssembledFunctionalObligation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AutoIdentifier [auto]
@@ -2783,6 +2925,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::Counterfactua
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DeclaredClampExperiment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DeclaredEquationRank [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DeclaredNoiseLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DependencePremise [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DerivationStep [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DerivationTrace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DesignFault [auto]
@@ -2790,6 +2933,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::DirectCoeffic
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::EfficientBackdoorIdentifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::EstimandClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ExperimentDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ExperimentRegime [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ExperimentalRecoveryDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::FrontDoorIdentifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::FrontDoorSearchConfig [auto]
@@ -2839,6 +2983,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::MzTransportOb
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::MzTransportQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::MzTransportRoute [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::NextAttempt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::NextRegimeAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::NotCertifiedCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::NotThisRecipe [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ObservationRecoveryQuery [auto]
@@ -2846,6 +2991,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PartiallyObse
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PathSpecificIdentifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PhysicalDynamicalStability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PopulationFactor [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PopulationId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PreparedAdmg [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PreparedAutoGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PreparedIdentificationGraph [auto]
@@ -2867,11 +3013,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RecoveryRecei
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RecoveryWitness [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RefusalReason [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RegimeAssumption [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RegimeContract [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RegimeContractDecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RegimeIntervention [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RegimeRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RegimeRefusalReason [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RequiredFactor [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ResponseIdentifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::SharpRdConfig [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::SharpRdIdentifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::SidLimits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::SourceIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::StudyBaseFailure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::StudyFactor [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::StudyPlan [auto]
@@ -2897,6 +3049,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TransportIden
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TwoSourceZTransportComponent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TwoSourceZTransportDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::TwoSourceZTransportQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::UnitMask [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::UnresolvedDirection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::UnresolvedObligation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::UnresolvedReason [auto]
@@ -3206,6 +3359,7 @@ pub const antecedent_identify::RECOVERY_MAX_FULLY_OBSERVED: usize
 pub const antecedent_identify::RECOVERY_MAX_OBSERVED_CELLS: usize
 pub const antecedent_identify::RECOVERY_MAX_PARTIALLY_OBSERVED: usize
 pub const antecedent_identify::RECOVERY_RULE_VERSION: &str
+pub const antecedent_identify::REPAIR_MASK_OR_PREMISE: &str
 pub const antecedent_identify::STUDY_PLAN_DEFAULT_LIMITS: antecedent_core::search::SearchLimits
 pub const antecedent_identify::STUDY_PLAN_MAX_CANDIDATES: usize
 pub const antecedent_identify::STUDY_PLAN_MAX_PROPOSALS: usize
@@ -3262,6 +3416,7 @@ pub enum antecedent_identify::CounterfactualItemSource
 pub enum antecedent_identify::CounterfactualLevel
 pub enum antecedent_identify::CounterfactualTransportDecision
 pub enum antecedent_identify::DeclaredNoiseLaw
+pub enum antecedent_identify::DependencePremise
 pub enum antecedent_identify::DesignFault
 pub enum antecedent_identify::ExperimentalRecoveryDecision
 pub enum antecedent_identify::IdentificationClaimClass
@@ -3271,6 +3426,7 @@ pub enum antecedent_identify::MixedSourceDecision
 pub enum antecedent_identify::MzTransportDecision
 pub enum antecedent_identify::MzTransportRoute
 pub enum antecedent_identify::NextAttempt
+pub enum antecedent_identify::NextRegimeAttempt
 pub enum antecedent_identify::NotThisRecipe
 pub enum antecedent_identify::PhysicalDynamicalStability
 pub enum antecedent_identify::RecoveryAttempt
@@ -3278,6 +3434,8 @@ pub enum antecedent_identify::RecoveryDecision
 pub enum antecedent_identify::RecoveryDetail
 pub enum antecedent_identify::RefusalReason
 pub enum antecedent_identify::RegimeAssumption
+pub enum antecedent_identify::RegimeContractDecision
+pub enum antecedent_identify::RegimeRefusalReason
 pub enum antecedent_identify::StudyPlanRoute
 pub enum antecedent_identify::StudyPlanStop
 pub enum antecedent_identify::StudyProposalDerivation
@@ -3491,6 +3649,11 @@ pub field antecedent_identify::EstimandClaim::required_assumptions: antecedent_c
 pub field antecedent_identify::EstimandClaim::status: antecedent_core::identification::IdentificationStatus
 pub field antecedent_identify::ExperimentDesign::attempt: antecedent_identify::RecoveryAttempt
 pub field antecedent_identify::ExperimentDesign::nodes: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_identify::ExperimentRegime::population: antecedent_identify::PopulationId
+pub field antecedent_identify::ExperimentRegime::premise: antecedent_identify::DependencePremise
+pub field antecedent_identify::ExperimentRegime::source: antecedent_identify::SourceIdentity
+pub field antecedent_identify::ExperimentRegime::targets: alloc::vec::Vec<antecedent_identify::RegimeIntervention>
+pub field antecedent_identify::ExperimentRegime::units: alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub field antecedent_identify::FrontDoorIdentifier::config: antecedent_identify::FrontDoorSearchConfig
 pub field antecedent_identify::FrontDoorSearchConfig::max_mediator_set_size: usize
 pub field antecedent_identify::FrontDoorSearchConfig::max_results: usize
@@ -3714,6 +3877,12 @@ pub field antecedent_identify::RecoveryReceiptRecord::operations_limit: usize
 pub field antecedent_identify::RecoveryWitness::edge: (u32, u32)
 pub field antecedent_identify::RecoveryWitness::first: alloc::vec::Vec<antecedent_identify::WitnessMechanism>
 pub field antecedent_identify::RecoveryWitness::second: alloc::vec::Vec<antecedent_identify::WitnessMechanism>
+pub field antecedent_identify::RegimeContract::mask: antecedent_identify::UnitMask
+pub field antecedent_identify::RegimeContract::regimes: alloc::vec::Vec<antecedent_identify::ExperimentRegime>
+pub field antecedent_identify::RegimeIntervention::unit: antecedent_core::ids::VariableId
+pub field antecedent_identify::RegimeIntervention::value: antecedent_core::value::Value
+pub field antecedent_identify::RegimeRefusal::next_attempt: antecedent_identify::NextRegimeAttempt
+pub field antecedent_identify::RegimeRefusal::reason: antecedent_identify::RegimeRefusalReason
 pub field antecedent_identify::ResponseIdentifier::backdoor: antecedent_identify::BackdoorIdentifier
 pub field antecedent_identify::ScheduleContrast::active_level: &'a antecedent_core::value::Value
 pub field antecedent_identify::ScheduleContrast::control_level: &'a antecedent_core::value::Value
@@ -3795,6 +3964,7 @@ pub field antecedent_identify::TwoSourceZTransportQuery::outcomes: alloc::sync::
 pub field antecedent_identify::TwoSourceZTransportQuery::sources: [antecedent_identify::ZTransportSourceSpec; 2]
 pub field antecedent_identify::TwoSourceZTransportQuery::target: alloc::sync::Arc<str>
 pub field antecedent_identify::TwoSourceZTransportQuery::treatments: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_identify::UnitMask::dropped: alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub field antecedent_identify::UnresolvedDirection::reason: antecedent_identify::UnresolvedReason
 pub field antecedent_identify::UnresolvedDirection::support: alloc::vec::Vec<antecedent_identify::DirectCoefficient>
 pub field antecedent_identify::ValidatedMixedSourceQuery::exclusions: alloc::vec::Vec<antecedent_identify::MixedExclusion>
@@ -4109,6 +4279,8 @@ pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::covariates
 pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::outcome: antecedent_core::ids::VariableId
 pub field antecedent_identify::sid::temporal_sequence::UnrolledSequence::admg: antecedent_graph::admg::Admg
 pub field antecedent_identify::sid::temporal_sequence::UnrolledSequence::slots: antecedent_identify::sid::temporal_sequence::TemporalSlots
+pub fn <antecedent_identify::AcceptedRegimeContract>::const fn mask(&self) -> &antecedent_identify::UnitMask
+pub fn <antecedent_identify::AcceptedRegimeContract>::fn regimes(&self) -> &[antecedent_identify::ExperimentRegime]
 pub fn <antecedent_identify::AdjustmentSearchConfig>::fn exceeds_history_lag(&self, id: antecedent_core::ids::VariableId) -> bool
 pub fn <antecedent_identify::AssembledFunctionalObligation>::const fn claim_class(&self) -> antecedent_identify::IdentificationClaimClass
 pub fn <antecedent_identify::AssembledFunctionalObligation>::const fn is_identified_claim(&self) -> bool
@@ -4354,6 +4526,7 @@ pub fn <antecedent_identify::MzTransportObstruction>::fn sources(&self) -> alloc
 pub fn <antecedent_identify::MzTransportQuery>::fn canonical(&self) -> Self
 pub fn <antecedent_identify::MzTransportQuery>::fn source_query(&self, source: &antecedent_identify::ZTransportSourceSpec) -> antecedent_identify::ZTransportQuery
 pub fn <antecedent_identify::NextAttempt>::const fn name(self) -> &'static str
+pub fn <antecedent_identify::NextRegimeAttempt>::const fn name(self) -> &'static str
 pub fn <antecedent_identify::NotThisRecipe>::const fn name(self) -> &'static str
 pub fn <antecedent_identify::ObservationRecoveryQuery>::fn canonical(&self) -> Self
 pub fn <antecedent_identify::ObservationRecoveryQuery>::fn observed(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
@@ -4362,6 +4535,8 @@ pub fn <antecedent_identify::PathSpecificIdentifier>::fn identify(&self, prepare
 pub fn <antecedent_identify::PathSpecificIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::PathSpecificIdentifier>::fn prepare(&self, graph: &antecedent_graph::admg::Admg) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::PathSpecificIdentifier>::fn prepare_dag(&self, graph: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_identify::PreparedAdmg, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::PopulationId>::const fn from_raw(raw: u32) -> Self
+pub fn <antecedent_identify::PopulationId>::const fn raw(self) -> u32
 pub fn <antecedent_identify::PreparedAdmg>::fn admg(&self) -> &antecedent_graph::admg::Admg
 pub fn <antecedent_identify::PreparedAdmg>::fn ancestors_bar_x(&self, seeds: &antecedent_graph::workspace::BitSet, active: &antecedent_graph::workspace::BitSet, intervene: &antecedent_graph::workspace::BitSet, ws: &mut antecedent_graph::workspace::GraphWorkspace) -> antecedent_graph::workspace::BitSet
 pub fn <antecedent_identify::PreparedAdmg>::fn ancestors_within(&mut self, seeds: &antecedent_graph::workspace::BitSet, active: &antecedent_graph::workspace::BitSet, ws: &mut antecedent_graph::workspace::GraphWorkspace) -> antecedent_graph::workspace::BitSet
@@ -4397,6 +4572,7 @@ pub fn <antecedent_identify::RecoveryDetail>::const fn detail(self) -> &'static 
 pub fn <antecedent_identify::RecoveryDetail>::const fn reason_code(self) -> &'static str
 pub fn <antecedent_identify::RecoveryError>::const fn reason_code(&self) -> &'static str
 pub fn <antecedent_identify::RecoveryError>::fn new(detail: antecedent_identify::RecoveryDetail, message: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_identify::RegimeContractDecision>::const fn accepted(&self) -> core::option::Option<&antecedent_identify::AcceptedRegimeContract>
 pub fn <antecedent_identify::RequiredFactor>::fn name(&self) -> &str
 pub fn <antecedent_identify::RequiredFactor>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>, variables: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>) -> Self
 pub fn <antecedent_identify::RequiredFactor>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
@@ -4408,6 +4584,8 @@ pub fn <antecedent_identify::SharpRdConfig>::fn target_population(&self) -> ante
 pub fn <antecedent_identify::SharpRdIdentifier>::const fn new(config: antecedent_identify::SharpRdConfig) -> Self
 pub fn <antecedent_identify::SharpRdIdentifier>::fn identify(&self, query: antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::SharpRdIdentifier>::fn identify_on(&self, graph: &antecedent_graph::dag::Dag, query: antecedent_core::query::CausalQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::SourceIdentity>::const fn from_raw(raw: u64) -> Self
+pub fn <antecedent_identify::SourceIdentity>::const fn raw(self) -> u64
 pub fn <antecedent_identify::StudyPlan>::const fn receipt(&self) -> core::option::Option<&antecedent_core::search::SearchReceipt>
 pub fn <antecedent_identify::StudyPlan>::fn status(&self) -> core::option::Option<(&'static str, &'static str)>
 pub fn <antecedent_identify::StudyPlanLimits>::const fn for_route(route: &antecedent_identify::StudyPlanRoute) -> Self
@@ -4600,6 +4778,7 @@ pub fn antecedent_identify::discovered_transport::transport_across_pag(request: 
 pub fn antecedent_identify::discovered_transport_temporal::transport_across_temporal_class(request: &antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::envelope::search_truncated(result: &antecedent_identify::IdentificationResult) -> bool
 pub fn antecedent_identify::execution_counts::count_checked_identifications<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
+pub fn antecedent_identify::experiment_regime::validate_regime_contract(contract: &antecedent_identify::RegimeContract) -> antecedent_identify::RegimeContractDecision
 pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_catalog_transport_selection_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_catalog_transport_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
@@ -4660,6 +4839,7 @@ pub mod antecedent_identify::efficient
 pub mod antecedent_identify::envelope
 pub mod antecedent_identify::error
 pub mod antecedent_identify::execution_counts
+pub mod antecedent_identify::experiment_regime
 pub mod antecedent_identify::experimental_recovery
 pub mod antecedent_identify::frontdoor
 pub mod antecedent_identify::generalized
@@ -4686,6 +4866,8 @@ pub mod antecedent_identify::temporal_generalized
 pub mod antecedent_identify::temporal_mediation
 pub mod antecedent_identify::tiered
 pub mod antecedent_identify::transport
+pub struct antecedent_identify::AcceptedRegimeContract
+pub struct antecedent_identify::AcceptedRegimeContract has private fields
 pub struct antecedent_identify::AdjustmentSearchConfig
 pub struct antecedent_identify::AssembledFunctionalObligation
 pub struct antecedent_identify::AssembledFunctionalObligation has private fields
@@ -4758,6 +4940,7 @@ pub struct antecedent_identify::DirectCoefficient
 pub struct antecedent_identify::EfficientBackdoorIdentifier
 pub struct antecedent_identify::EstimandClaim
 pub struct antecedent_identify::ExperimentDesign
+pub struct antecedent_identify::ExperimentRegime
 pub struct antecedent_identify::FrontDoorIdentifier
 pub struct antecedent_identify::FrontDoorSearchConfig
 pub struct antecedent_identify::GeneralizedAdjustmentConfig
@@ -4806,6 +4989,8 @@ pub struct antecedent_identify::ObservationRecoveryQuery
 pub struct antecedent_identify::PartiallyObserved
 pub struct antecedent_identify::PathSpecificIdentifier
 pub struct antecedent_identify::PopulationFactor
+pub struct antecedent_identify::PopulationId
+pub struct antecedent_identify::PopulationId has private fields
 pub struct antecedent_identify::PreparedAdmg
 pub struct antecedent_identify::PreparedAdmg has private fields
 pub struct antecedent_identify::PreparedAutoGraph
@@ -4826,12 +5011,17 @@ pub struct antecedent_identify::RecoveryLimits
 pub struct antecedent_identify::RecoveryMarginRecord
 pub struct antecedent_identify::RecoveryReceiptRecord
 pub struct antecedent_identify::RecoveryWitness
+pub struct antecedent_identify::RegimeContract
+pub struct antecedent_identify::RegimeIntervention
+pub struct antecedent_identify::RegimeRefusal
 pub struct antecedent_identify::RequiredFactor
 pub struct antecedent_identify::RequiredFactor has private fields
 pub struct antecedent_identify::ResponseIdentifier
 pub struct antecedent_identify::ScheduleContrast<'a>
 pub struct antecedent_identify::SharpRdIdentifier
 pub struct antecedent_identify::SidLimits
+pub struct antecedent_identify::SourceIdentity
+pub struct antecedent_identify::SourceIdentity has private fields
 pub struct antecedent_identify::StoredRecovery<'a>
 pub struct antecedent_identify::StudyBaseFailure
 pub struct antecedent_identify::StudyFactor
@@ -4850,6 +5040,7 @@ pub struct antecedent_identify::TransportCertificate
 pub struct antecedent_identify::TransportIdentifier
 pub struct antecedent_identify::TwoSourceZTransportComponent
 pub struct antecedent_identify::TwoSourceZTransportQuery
+pub struct antecedent_identify::UnitMask
 pub struct antecedent_identify::UnresolvedDirection
 pub struct antecedent_identify::UnresolvedObligation
 pub struct antecedent_identify::UnresolvedObligation has private fields
@@ -4976,6 +5167,19 @@ pub use antecedent_identify::envelope::ProbabilityMass = antecedent_identify::Pr
 pub use antecedent_identify::envelope::carries_identified_mass = antecedent_identify::carries_identified_mass
 pub use antecedent_identify::error::IdentificationBudget = antecedent_identify::IdentificationBudget
 pub use antecedent_identify::error::IdentificationError = antecedent_identify::IdentificationError
+pub use antecedent_identify::experiment_regime::AcceptedRegimeContract = antecedent_identify::AcceptedRegimeContract
+pub use antecedent_identify::experiment_regime::DependencePremise = antecedent_identify::DependencePremise
+pub use antecedent_identify::experiment_regime::ExperimentRegime = antecedent_identify::ExperimentRegime
+pub use antecedent_identify::experiment_regime::NextRegimeAttempt = antecedent_identify::NextRegimeAttempt
+pub use antecedent_identify::experiment_regime::PopulationId = antecedent_identify::PopulationId
+pub use antecedent_identify::experiment_regime::REPAIR_MASK_OR_PREMISE = antecedent_identify::REPAIR_MASK_OR_PREMISE
+pub use antecedent_identify::experiment_regime::RegimeContract = antecedent_identify::RegimeContract
+pub use antecedent_identify::experiment_regime::RegimeContractDecision = antecedent_identify::RegimeContractDecision
+pub use antecedent_identify::experiment_regime::RegimeIntervention = antecedent_identify::RegimeIntervention
+pub use antecedent_identify::experiment_regime::RegimeRefusal = antecedent_identify::RegimeRefusal
+pub use antecedent_identify::experiment_regime::RegimeRefusalReason = antecedent_identify::RegimeRefusalReason
+pub use antecedent_identify::experiment_regime::SourceIdentity = antecedent_identify::SourceIdentity
+pub use antecedent_identify::experiment_regime::UnitMask = antecedent_identify::UnitMask
 pub use antecedent_identify::experimental_recovery::CLAMP_EXPERIMENT_RECIPE = antecedent_identify::CLAMP_EXPERIMENT_RECIPE
 pub use antecedent_identify::experimental_recovery::ClampExogeneity = antecedent_identify::ClampExogeneity
 pub use antecedent_identify::experimental_recovery::ClampExperimentSet = antecedent_identify::ClampExperimentSet
@@ -5267,6 +5471,7 @@ pub use antecedent_identify::transport::TransportIdentification = antecedent_ide
 pub use antecedent_identify::transport::TransportIdentifier = antecedent_identify::TransportIdentifier
 pub use antecedent_identify::validate_mixed_source_query = antecedent_identify::sid::validate_mixed_source_query
 pub use antecedent_identify::validate_mz_transport_query = antecedent_identify::sid::validate_mz_transport_query
+pub use antecedent_identify::validate_regime_contract = antecedent_identify::experiment_regime::validate_regime_contract
 pub use antecedent_identify::validate_z_experiment_family = antecedent_identify::sid::validate_z_experiment_family
 pub use antecedent_identify::validate_z_transport_query = antecedent_identify::sid::validate_z_transport_query
 pub use antecedent_identify::verify_chain_witness = antecedent_identify::recovery_chain::verify_chain_witness
@@ -5322,6 +5527,8 @@ pub variant antecedent_identify::CounterfactualTransportDecision::UnsupportedSco
 pub variant antecedent_identify::DeclaredNoiseLaw::IndependentGaussian
 pub variant antecedent_identify::DeclaredNoiseLaw::LatentConfounding
 pub variant antecedent_identify::DeclaredNoiseLaw::Undeclared
+pub variant antecedent_identify::DependencePremise::Dependence
+pub variant antecedent_identify::DependencePremise::Independence
 pub variant antecedent_identify::DesignFault::DiagonalCoefficient
 pub variant antecedent_identify::DesignFault::DuplicateCoefficientInDirection
 pub variant antecedent_identify::DesignFault::DuplicateDirection
@@ -5395,6 +5602,7 @@ pub variant antecedent_identify::MzTransportRoute::Combined { populations: alloc
 pub variant antecedent_identify::MzTransportRoute::SingleSource { population: alloc::sync::Arc<str> }
 pub variant antecedent_identify::MzTransportRoute::TargetOnly
 pub variant antecedent_identify::NextAttempt::ClampExperimentRecipe
+pub variant antecedent_identify::NextRegimeAttempt::RepairMaskOrPremise
 pub variant antecedent_identify::NotThisRecipe::LatentVariableExpansion
 pub variant antecedent_identify::NotThisRecipe::PriorRegularization
 pub variant antecedent_identify::PhysicalDynamicalStability::Declared
@@ -5426,6 +5634,17 @@ pub variant antecedent_identify::RefusalReason::PhysicalDynamicalStabilityIsNotW
 pub variant antecedent_identify::RefusalReason::WeakStabilityNotDeclared
 pub variant antecedent_identify::RegimeAssumption::Dependent
 pub variant antecedent_identify::RegimeAssumption::Independent
+pub variant antecedent_identify::RegimeContractDecision::Accepted(antecedent_identify::AcceptedRegimeContract)
+pub variant antecedent_identify::RegimeContractDecision::Refused(antecedent_identify::RegimeRefusal)
+pub variant antecedent_identify::RegimeRefusalReason::DuplicateInterventionTarget { regime: usize, unit: antecedent_core::ids::VariableId }
+pub variant antecedent_identify::RegimeRefusalReason::DuplicateSamplingUnit { regime: usize, unit: antecedent_core::ids::VariableId }
+pub variant antecedent_identify::RegimeRefusalReason::EmptySamplingUnits { regime: usize }
+pub variant antecedent_identify::RegimeRefusalReason::IndependenceContradictedBySharedSource { left: usize, right: usize, source: antecedent_identify::SourceIdentity }
+pub variant antecedent_identify::RegimeRefusalReason::MaskDropsTargetedUnit { regime: usize, unit: antecedent_core::ids::VariableId }
+pub variant antecedent_identify::RegimeRefusalReason::MaskDropsUnknownUnit { unit: antecedent_core::ids::VariableId }
+pub variant antecedent_identify::RegimeRefusalReason::NoRegime
+pub variant antecedent_identify::RegimeRefusalReason::NonConcreteInterventionValue { regime: usize, unit: antecedent_core::ids::VariableId }
+pub variant antecedent_identify::RegimeRefusalReason::TargetOutsideUnits { regime: usize, unit: antecedent_core::ids::VariableId }
 pub variant antecedent_identify::StudyPlanRoute::Mixed(antecedent_identify::MixedSourceQuery)
 pub variant antecedent_identify::StudyPlanRoute::Mz(antecedent_identify::MzTransportQuery)
 pub variant antecedent_identify::StudyPlanStop::Budget(antecedent_core::search::SearchReceipt)

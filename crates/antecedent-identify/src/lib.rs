@@ -30,6 +30,7 @@ pub mod envelope;
 pub mod error;
 /// Actual finite identification checker counters.
 pub mod execution_counts;
+pub mod experiment_regime;
 pub mod experimental_recovery;
 pub mod frontdoor;
 pub mod generalized;
@@ -197,6 +198,11 @@ pub use envelope::{
     carries_identified_mass, search_truncated,
 };
 pub use error::{IdentificationBudget, IdentificationError};
+pub use experiment_regime::{
+    AcceptedRegimeContract, DependencePremise, ExperimentRegime, NextRegimeAttempt, PopulationId,
+    REPAIR_MASK_OR_PREMISE, RegimeContract, RegimeContractDecision, RegimeIntervention,
+    RegimeRefusal, RegimeRefusalReason, SourceIdentity, UnitMask, validate_regime_contract,
+};
 pub use experimental_recovery::{
     CLAMP_EXPERIMENT_RECIPE, ClampExogeneity, ClampExperimentSet, CoefficientRecovery,
     DeclaredClampExperiment, DeclaredEquationRank, DeclaredNoiseLaw, DesignFault,
