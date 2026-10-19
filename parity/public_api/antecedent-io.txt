@@ -33,6 +33,7 @@
 #[non_exhaustive] pub enum antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 #[non_exhaustive] pub enum antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactError
 #[non_exhaustive] pub enum antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
+#[non_exhaustive] pub enum antecedent_io::stream_artifact::StreamArtifactError
 #[non_exhaustive] pub enum antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_io::ModelBundle [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_io::ModelBundle [auto]
@@ -292,6 +293,11 @@ impl core::clone::Clone for antecedent_io::scenario_covariance_artifact::ScoreTe
 impl core::clone::Clone for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire
 impl core::clone::Clone for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits
 impl core::clone::Clone for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+impl core::clone::Clone for antecedent_io::stream_artifact::DevicePayload
+impl core::clone::Clone for antecedent_io::stream_artifact::Producer
+impl core::clone::Clone for antecedent_io::stream_artifact::StreamArtifactError
+impl core::clone::Clone for antecedent_io::stream_artifact::StreamBounds
+impl core::clone::Clone for antecedent_io::stream_artifact::StreamMetadata
 impl core::clone::Clone for antecedent_io::temporal_initial_state_artifact::ContributionWire
 impl core::clone::Clone for antecedent_io::temporal_initial_state_artifact::FixedResultWire
 impl core::clone::Clone for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire
@@ -441,6 +447,12 @@ impl core::cmp::Eq for antecedent_io::sampled_recovery_artifact::SampledRecovery
 impl core::cmp::Eq for antecedent_io::sampled_recovery_artifact::SampledRecoveryExpectation
 impl core::cmp::Eq for antecedent_io::scenario_covariance_artifact::RowTableWire
 impl core::cmp::Eq for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
+impl core::cmp::Eq for antecedent_io::stream_artifact::DevicePayload
+impl core::cmp::Eq for antecedent_io::stream_artifact::Producer
+impl core::cmp::Eq for antecedent_io::stream_artifact::StreamArtifact<'_>
+impl core::cmp::Eq for antecedent_io::stream_artifact::StreamArtifactError
+impl core::cmp::Eq for antecedent_io::stream_artifact::StreamBounds
+impl core::cmp::Eq for antecedent_io::stream_artifact::StreamMetadata
 impl core::cmp::Eq for antecedent_io::temporal_initial_state_artifact::TemporalPremisesWire
 impl core::cmp::Eq for antecedent_io::temporal_refresh_artifact::ReceiptWire
 impl core::cmp::Eq for antecedent_io::temporal_refresh_artifact::WindowIdentityWire
@@ -667,6 +679,12 @@ impl core::cmp::PartialEq for antecedent_io::scenario_covariance_artifact::RowTa
 impl core::cmp::PartialEq for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
 impl core::cmp::PartialEq for antecedent_io::scenario_covariance_artifact::ScoreTermWire
 impl core::cmp::PartialEq for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+impl core::cmp::PartialEq for antecedent_io::stream_artifact::DevicePayload
+impl core::cmp::PartialEq for antecedent_io::stream_artifact::Producer
+impl core::cmp::PartialEq for antecedent_io::stream_artifact::StreamArtifact<'_>
+impl core::cmp::PartialEq for antecedent_io::stream_artifact::StreamArtifactError
+impl core::cmp::PartialEq for antecedent_io::stream_artifact::StreamBounds
+impl core::cmp::PartialEq for antecedent_io::stream_artifact::StreamMetadata
 impl core::cmp::PartialEq for antecedent_io::temporal_initial_state_artifact::ContributionWire
 impl core::cmp::PartialEq for antecedent_io::temporal_initial_state_artifact::FixedResultWire
 impl core::cmp::PartialEq for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire
@@ -764,6 +782,7 @@ impl core::default::Default for antecedent_io::sampled_recovery_artifact::Sample
 impl core::default::Default for antecedent_io::sampled_recovery_artifact::SampledRecoveryExpectation
 impl core::default::Default for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits
 impl core::default::Default for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits
+impl core::default::Default for antecedent_io::stream_artifact::StreamBounds
 impl core::default::Default for antecedent_io::temporal_initial_state_artifact::TemporalInitialStateConsumeLimits
 impl core::default::Default for antecedent_io::temporal_interval_artifact::TemporalIntervalConsumeLimits
 impl core::default::Default for antecedent_io::temporal_transport_artifact::TemporalTransportConsumeLimits
@@ -786,6 +805,7 @@ impl core::error::Error for antecedent_io::recovery_chain_artifact::RecoveryChai
 impl core::error::Error for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::error::Error for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactError
 impl core::error::Error for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
+impl core::error::Error for antecedent_io::stream_artifact::StreamArtifactError
 impl core::error::Error for antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
 impl core::fmt::Debug for antecedent_io::CandidateSelectionWire
 impl core::fmt::Debug for antecedent_io::ClipSensitivityWire
@@ -1049,6 +1069,11 @@ impl core::fmt::Debug for antecedent_io::scenario_covariance_artifact::ScoreTerm
 impl core::fmt::Debug for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire
 impl core::fmt::Debug for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits
 impl core::fmt::Debug for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+impl core::fmt::Debug for antecedent_io::stream_artifact::DevicePayload
+impl core::fmt::Debug for antecedent_io::stream_artifact::Producer
+impl core::fmt::Debug for antecedent_io::stream_artifact::StreamArtifactError
+impl core::fmt::Debug for antecedent_io::stream_artifact::StreamBounds
+impl core::fmt::Debug for antecedent_io::stream_artifact::StreamMetadata
 impl core::fmt::Debug for antecedent_io::temporal_initial_state_artifact::ContributionWire
 impl core::fmt::Debug for antecedent_io::temporal_initial_state_artifact::FixedResultWire
 impl core::fmt::Debug for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire
@@ -1132,6 +1157,7 @@ impl core::fmt::Display for antecedent_io::recovery_chain_artifact::RecoveryChai
 impl core::fmt::Display for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::fmt::Display for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactError
 impl core::fmt::Display for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
+impl core::fmt::Display for antecedent_io::stream_artifact::StreamArtifactError
 impl core::fmt::Display for antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
 impl core::marker::Copy for antecedent_io::PosteriorPayload
 impl core::marker::Copy for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits
@@ -1166,6 +1192,10 @@ impl core::marker::Copy for antecedent_io::sampled_counterfactual_transport_arti
 impl core::marker::Copy for antecedent_io::sampled_recovery_artifact::SampledRecoveryConsumeLimits
 impl core::marker::Copy for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits
 impl core::marker::Copy for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits
+impl core::marker::Copy for antecedent_io::stream_artifact::DevicePayload
+impl core::marker::Copy for antecedent_io::stream_artifact::Producer
+impl core::marker::Copy for antecedent_io::stream_artifact::StreamArtifactError
+impl core::marker::Copy for antecedent_io::stream_artifact::StreamBounds
 impl core::marker::Copy for antecedent_io::temporal_initial_state_artifact::TemporalInitialStateConsumeLimits
 impl core::marker::Copy for antecedent_io::temporal_interval_artifact::TemporalIntervalConsumeLimits
 impl core::marker::Copy for antecedent_io::temporal_transport_artifact::TemporalTransportConsumeLimits
@@ -1441,6 +1471,11 @@ impl core::marker::Freeze for antecedent_io::smoothed_dose_artifact::ConsumedSmo
 impl core::marker::Freeze for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::marker::Freeze for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::marker::Freeze for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::marker::Freeze for antecedent_io::stream_artifact::Producer [auto]
+impl core::marker::Freeze for antecedent_io::stream_artifact::StreamArtifactError [auto]
+impl core::marker::Freeze for antecedent_io::stream_artifact::StreamBounds [auto]
+impl core::marker::Freeze for antecedent_io::stream_artifact::StreamMetadata [auto]
 impl core::marker::Freeze for antecedent_io::temporal_initial_state_artifact::ContributionWire [auto]
 impl core::marker::Freeze for antecedent_io::temporal_initial_state_artifact::FixedResultWire [auto]
 impl core::marker::Freeze for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire [auto]
@@ -1778,6 +1813,11 @@ impl core::marker::Send for antecedent_io::smoothed_dose_artifact::ConsumedSmoot
 impl core::marker::Send for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::marker::Send for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::marker::Send for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::marker::Send for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::marker::Send for antecedent_io::stream_artifact::Producer [auto]
+impl core::marker::Send for antecedent_io::stream_artifact::StreamArtifactError [auto]
+impl core::marker::Send for antecedent_io::stream_artifact::StreamBounds [auto]
+impl core::marker::Send for antecedent_io::stream_artifact::StreamMetadata [auto]
 impl core::marker::Send for antecedent_io::temporal_initial_state_artifact::ContributionWire [auto]
 impl core::marker::Send for antecedent_io::temporal_initial_state_artifact::FixedResultWire [auto]
 impl core::marker::Send for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire [auto]
@@ -2062,6 +2102,11 @@ impl core::marker::StructuralPartialEq for antecedent_io::scenario_covariance_ar
 impl core::marker::StructuralPartialEq for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io::scenario_covariance_artifact::ScoreTermWire
 impl core::marker::StructuralPartialEq for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::DevicePayload
+impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::Producer
+impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::StreamArtifactError
+impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::StreamBounds
+impl core::marker::StructuralPartialEq for antecedent_io::stream_artifact::StreamMetadata
 impl core::marker::StructuralPartialEq for antecedent_io::temporal_initial_state_artifact::ContributionWire
 impl core::marker::StructuralPartialEq for antecedent_io::temporal_initial_state_artifact::FixedResultWire
 impl core::marker::StructuralPartialEq for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire
@@ -2386,6 +2431,11 @@ impl core::marker::Sync for antecedent_io::smoothed_dose_artifact::ConsumedSmoot
 impl core::marker::Sync for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::marker::Sync for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::marker::Sync for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::marker::Sync for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::marker::Sync for antecedent_io::stream_artifact::Producer [auto]
+impl core::marker::Sync for antecedent_io::stream_artifact::StreamArtifactError [auto]
+impl core::marker::Sync for antecedent_io::stream_artifact::StreamBounds [auto]
+impl core::marker::Sync for antecedent_io::stream_artifact::StreamMetadata [auto]
 impl core::marker::Sync for antecedent_io::temporal_initial_state_artifact::ContributionWire [auto]
 impl core::marker::Sync for antecedent_io::temporal_initial_state_artifact::FixedResultWire [auto]
 impl core::marker::Sync for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire [auto]
@@ -2723,6 +2773,11 @@ impl core::marker::Unpin for antecedent_io::smoothed_dose_artifact::ConsumedSmoo
 impl core::marker::Unpin for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::marker::Unpin for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::marker::Unpin for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::marker::Unpin for antecedent_io::stream_artifact::Producer [auto]
+impl core::marker::Unpin for antecedent_io::stream_artifact::StreamArtifactError [auto]
+impl core::marker::Unpin for antecedent_io::stream_artifact::StreamBounds [auto]
+impl core::marker::Unpin for antecedent_io::stream_artifact::StreamMetadata [auto]
 impl core::marker::Unpin for antecedent_io::temporal_initial_state_artifact::ContributionWire [auto]
 impl core::marker::Unpin for antecedent_io::temporal_initial_state_artifact::FixedResultWire [auto]
 impl core::marker::Unpin for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire [auto]
@@ -3059,6 +3114,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_ar
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::Producer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::StreamArtifactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::StreamBounds [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::StreamMetadata [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::temporal_initial_state_artifact::ContributionWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::temporal_initial_state_artifact::FixedResultWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire [auto]
@@ -3395,6 +3455,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artif
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::DevicePayload [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::Producer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::StreamArtifactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::StreamBounds [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::StreamMetadata [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::temporal_initial_state_artifact::ContributionWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::temporal_initial_state_artifact::FixedResultWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::temporal_initial_state_artifact::InitialStateLawWire [auto]
@@ -3714,11 +3779,21 @@ impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io::ModelBundleEnc
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
 impl<'a> core::clone::Clone for antecedent_io::ModelBundleEncode<'a>
 impl<'a> core::clone::Clone for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
+impl<'a> core::clone::Clone for antecedent_io::stream_artifact::CpuPayload<'a>
+impl<'a> core::clone::Clone for antecedent_io::stream_artifact::PayloadSource<'a>
+impl<'a> core::clone::Clone for antecedent_io::stream_artifact::StreamArtifact<'a>
 impl<'a> core::clone::Clone for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
+impl<'a> core::cmp::Eq for antecedent_io::stream_artifact::CpuPayload<'a>
+impl<'a> core::cmp::PartialEq for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::fmt::Debug for antecedent_io::ModelBundleEncode<'a>
 impl<'a> core::fmt::Debug for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
+impl<'a> core::fmt::Debug for antecedent_io::stream_artifact::CpuPayload<'a>
+impl<'a> core::fmt::Debug for antecedent_io::stream_artifact::PayloadSource<'a>
+impl<'a> core::fmt::Debug for antecedent_io::stream_artifact::StreamArtifact<'a>
 impl<'a> core::fmt::Debug for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
 impl<'a> core::marker::Copy for antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'a>
+impl<'a> core::marker::Copy for antecedent_io::stream_artifact::CpuPayload<'a>
+impl<'a> core::marker::Copy for antecedent_io::stream_artifact::PayloadSource<'a>
 impl<'a> core::marker::Copy for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a>
 impl<'a> core::marker::Freeze for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
@@ -3729,6 +3804,9 @@ impl<'a> core::marker::Freeze for antecedent_io::mz_transport_artifact::MzTransp
 impl<'a> core::marker::Freeze for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
@@ -3739,7 +3817,11 @@ impl<'a> core::marker::Send for antecedent_io::mz_transport_artifact::MzTranspor
 impl<'a> core::marker::Send for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_io::stream_artifact::CpuPayload<'a>
 impl<'a> core::marker::Sync for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
@@ -3749,6 +3831,9 @@ impl<'a> core::marker::Sync for antecedent_io::mz_transport_artifact::MzTranspor
 impl<'a> core::marker::Sync for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::ModelBundleEncode<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
@@ -3759,6 +3844,9 @@ impl<'a> core::marker::Unpin for antecedent_io::mz_transport_artifact::MzTranspo
 impl<'a> core::marker::Unpin for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
@@ -3767,6 +3855,9 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mixed_source
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactInput<'a> [auto]
@@ -3775,6 +3866,9 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mixed_source_ar
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::mz_transport_artifact::MzTransportArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_artifact::RecoveryArtifactInput<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::CpuPayload<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::PayloadSource<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::stream_artifact::StreamArtifact<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io::temporal_refresh_artifact::RefreshInputs<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::CandidateSelectionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::ClipSensitivityWire
@@ -4023,6 +4117,10 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::vector_treatment_a
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::vector_treatment_artifact::WaldWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::z_transport_artifact::ZTransportArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::z_transport_artifact::ZTransportPointWire
+pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_DECOMPRESSED_BYTES: u64
+pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_RETAINED_BYTES: u64
+pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_SECTIONS: u32
+pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_SECTION_BYTES: u64
 pub const antecedent_io::adaptive_inference_result_artifact::ADAPTIVE_INFERENCE_CALIBRATION: &str
 pub const antecedent_io::adaptive_inference_result_artifact::ADAPTIVE_INFERENCE_RESULT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::adaptive_inference_result_artifact::ADAPTIVE_INFERENCE_RESULT_ARTIFACT_VERSION: u16
@@ -4165,6 +4263,8 @@ pub const antecedent_io::scenario_covariance_artifact::SCENARIO_COVARIANCE_ARTIF
 pub const antecedent_io::scenario_covariance_artifact::SCENARIO_COVARIANCE_ARTIFACT_VERSION: u32
 pub const antecedent_io::smoothed_dose_artifact::SMOOTHED_DOSE_ARTIFACT_FEATURE: &str
 pub const antecedent_io::smoothed_dose_artifact::SMOOTHED_DOSE_ARTIFACT_VERSION: u32
+pub const antecedent_io::stream_artifact::STREAM_ARTIFACT_MAGIC: [u8; 8]
+pub const antecedent_io::stream_artifact::STREAM_ARTIFACT_VERSION: u16
 pub const antecedent_io::temporal_initial_state_artifact::TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE: &str
 pub const antecedent_io::temporal_initial_state_artifact::TEMPORAL_INITIAL_STATE_ARTIFACT_KIND: &str
 pub const antecedent_io::temporal_initial_state_artifact::TEMPORAL_INITIAL_STATE_ARTIFACT_VERSION: u32
@@ -4203,6 +4303,10 @@ pub enum antecedent_io::model_codes::VaryingBlockCode
 pub enum antecedent_io::nested_markov_bayesian_artifact::BayesianFunctional
 pub enum antecedent_io::scenario_covariance_artifact::CovarianceMethodWire
 pub enum antecedent_io::scenario_covariance_artifact::FunctionalWire
+pub enum antecedent_io::stream_artifact::CpuPayload<'a>
+pub enum antecedent_io::stream_artifact::DevicePayload
+pub enum antecedent_io::stream_artifact::PayloadSource<'a>
+pub enum antecedent_io::stream_artifact::Producer
 pub enum antecedent_io::transport_grid_wire::GridPointWire
 pub field antecedent_io::CandidateSelectionWire::disjoint: bool
 pub field antecedent_io::CandidateSelectionWire::estimate_rows: alloc::vec::Vec<u64>
@@ -5891,6 +5995,13 @@ pub field antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire::kernel: 
 pub field antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire::outcome: u32
 pub field antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire::source_population: alloc::string::String
 pub field antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire::target_population: alloc::string::String
+pub field antecedent_io::stream_artifact::StreamBounds::max_decompressed_bytes: u64
+pub field antecedent_io::stream_artifact::StreamBounds::max_retained_bytes: u64
+pub field antecedent_io::stream_artifact::StreamBounds::max_section_bytes: u64
+pub field antecedent_io::stream_artifact::StreamBounds::max_sections: u32
+pub field antecedent_io::stream_artifact::StreamMetadata::artifact_id: alloc::string::String
+pub field antecedent_io::stream_artifact::StreamMetadata::device: antecedent_io::stream_artifact::DevicePayload
+pub field antecedent_io::stream_artifact::StreamMetadata::producer: antecedent_io::stream_artifact::Producer
 pub field antecedent_io::temporal_initial_state_artifact::ContributionWire::mass: f64
 pub field antecedent_io::temporal_initial_state_artifact::ContributionWire::response: f64
 pub field antecedent_io::temporal_initial_state_artifact::ContributionWire::state: u32
@@ -6645,6 +6756,14 @@ pub fn <antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire>::fn rep
 pub fn <antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire>::fn verify(&self, limits: antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::transport::TransportIdentification, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire>::fn from_query(query: &antecedent_core::query::smoothed_dose::SmoothedDoseTransportQuery) -> Self
 pub fn <antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire>::fn to_query(&self) -> core::result::Result<antecedent_core::query::smoothed_dose::SmoothedDoseTransportQuery, antecedent_estimate::error::EstimationError>
+pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn borrowed_payload(&self) -> core::option::Option<&'a [u8]>
+pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn consume_on_cpu(&self) -> core::result::Result<antecedent_io::stream_artifact::CpuPayload<'_>, antecedent_io::stream_artifact::StreamArtifactError>
+pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn encode(metadata: &antecedent_io::stream_artifact::StreamMetadata, payload: antecedent_io::stream_artifact::PayloadSource<'_>, bounds: &antecedent_io::stream_artifact::StreamBounds) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::stream_artifact::StreamArtifactError>
+pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn metadata(&self) -> &antecedent_io::stream_artifact::StreamMetadata
+pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn open(stream: &'a [u8], bounds: &antecedent_io::stream_artifact::StreamBounds, cancel: &antecedent_core::execution::CancellationToken, shared_payload: core::option::Option<&alloc::sync::Arc<[u8]>>) -> core::result::Result<Self, antecedent_io::stream_artifact::StreamArtifactError>
+pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn payload(&self) -> core::option::Option<&[u8]>
+pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn read_metadata(stream: &[u8], bounds: &antecedent_io::stream_artifact::StreamBounds, cancel: &antecedent_core::execution::CancellationToken) -> core::result::Result<antecedent_io::stream_artifact::StreamMetadata, antecedent_io::stream_artifact::StreamArtifactError>
+pub fn <antecedent_io::stream_artifact::StreamArtifact<'a>>::fn shared_payload(&self) -> core::option::Option<&alloc::sync::Arc<[u8]>>
 pub fn <antecedent_io::temporal_initial_state_artifact::InitialStateLawWire>::fn check_digest(&self, law: &antecedent_estimate::temporal_initial_state::InitialStateLaw) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn <antecedent_io::temporal_initial_state_artifact::InitialStateLawWire>::fn from_law(law: &antecedent_estimate::temporal_initial_state::InitialStateLaw) -> Self
 pub fn <antecedent_io::temporal_initial_state_artifact::InitialStateLawWire>::fn to_law_unchecked(&self) -> core::result::Result<antecedent_estimate::temporal_initial_state::InitialStateLaw, antecedent_io_core::error::IoError>
@@ -6769,6 +6888,7 @@ pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::overlap_declaration_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, bindings: &[(antecedent_estimate::counterfactual_transport_sampled::counts::SampledTableKey, antecedent_contract::evidence_ledger::ids::SourceId)]) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::overlap::OverlapDeclaration, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, request: &antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest, variable_names: &[alloc::string::String], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire, antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate), antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
+pub fn antecedent_io::stream_artifact::encode_compressed(metadata: &antecedent_io::stream_artifact::StreamMetadata, logical: &[u8], bounds: &antecedent_io::stream_artifact::StreamBounds) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::stream_artifact::StreamArtifactError>
 pub fn antecedent_io::temporal_refresh_artifact::expected_receipt(old: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, new: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, interval_invalidated: bool) -> antecedent_estimate::temporal_refresh::RefreshReceipt
 pub fn antecedent_io::temporal_refresh_artifact::panel_digest_hex(panel: &antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel) -> alloc::string::String
 pub fn antecedent_io::transport_effect_from_wire(value: &antecedent_io_core::transport_interference_wire::TransportEffectEstimateWire) -> core::result::Result<antecedent_estimate::transport::TransportEffectEstimate, antecedent_io_core::error::IoError>
@@ -6814,6 +6934,7 @@ pub mod antecedent_io::sampled_recovery_artifact
 pub mod antecedent_io::scenario_covariance_artifact
 pub mod antecedent_io::sensitivity_artifact
 pub mod antecedent_io::smoothed_dose_artifact
+pub mod antecedent_io::stream_artifact
 pub mod antecedent_io::temporal_initial_state_artifact
 pub mod antecedent_io::temporal_interval_artifact
 pub mod antecedent_io::temporal_refresh_artifact
@@ -7082,6 +7203,10 @@ pub struct antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactInput<'a>
 pub struct antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactWire
 pub struct antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits
 pub struct antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire
+pub struct antecedent_io::stream_artifact::StreamArtifact has private fields
+pub struct antecedent_io::stream_artifact::StreamArtifact<'a>
+pub struct antecedent_io::stream_artifact::StreamBounds
+pub struct antecedent_io::stream_artifact::StreamMetadata
 pub struct antecedent_io::temporal_initial_state_artifact::ContributionWire
 pub struct antecedent_io::temporal_initial_state_artifact::FixedResultWire
 pub struct antecedent_io::temporal_initial_state_artifact::InitialStateLawWire
@@ -7954,6 +8079,28 @@ pub variant antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtif
 pub variant antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError::PremisesMismatch
 pub variant antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError::ReplayMismatch
 pub variant antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io::stream_artifact::CpuPayload::Absent
+pub variant antecedent_io::stream_artifact::CpuPayload::Bytes(&'a [u8])
+pub variant antecedent_io::stream_artifact::DevicePayload::Absent
+pub variant antecedent_io::stream_artifact::DevicePayload::LivePointer { device_id: u32, address: u64, bytes: u64 }
+pub variant antecedent_io::stream_artifact::DevicePayload::Materialized
+pub variant antecedent_io::stream_artifact::PayloadSource::Absent
+pub variant antecedent_io::stream_artifact::PayloadSource::Shared(&'a alloc::sync::Arc<[u8]>)
+pub variant antecedent_io::stream_artifact::PayloadSource::Stored(&'a [u8])
+pub variant antecedent_io::stream_artifact::Producer::Accelerator
+pub variant antecedent_io::stream_artifact::Producer::Cpu
+pub variant antecedent_io::stream_artifact::StreamArtifactError::Cancelled
+pub variant antecedent_io::stream_artifact::StreamArtifactError::ChecksumMismatch { section: &'static str }
+pub variant antecedent_io::stream_artifact::StreamArtifactError::Decompress
+pub variant antecedent_io::stream_artifact::StreamArtifactError::DecompressionBound { limit: u64 }
+pub variant antecedent_io::stream_artifact::StreamArtifactError::LiveDevicePointer
+pub variant antecedent_io::stream_artifact::StreamArtifactError::Malformed(&'static str)
+pub variant antecedent_io::stream_artifact::StreamArtifactError::NewerFormat { version: u16 }
+pub variant antecedent_io::stream_artifact::StreamArtifactError::RetainedOutput { limit: u64 }
+pub variant antecedent_io::stream_artifact::StreamArtifactError::SectionBound { limit: u64 }
+pub variant antecedent_io::stream_artifact::StreamArtifactError::TooManySections { limit: u32 }
+pub variant antecedent_io::stream_artifact::StreamArtifactError::Truncated
+pub variant antecedent_io::stream_artifact::StreamArtifactError::UnsupportedFormat { version: u16 }
 pub variant antecedent_io::transport_grid_wire::GridPointWire::Exact(alloc::vec::Vec<u8>)
 pub variant antecedent_io::transport_grid_wire::GridPointWire::Statistical(alloc::vec::Vec<u8>)
 pub variant antecedent_io::transport_grid_wire::GridPointWire::Unavailable(antecedent_io::transport_grid_wire::TransportGridFailureWire)

@@ -363,6 +363,8 @@ pub mod recovery_chain_artifact;
 pub mod sensitivity_artifact;
 /// Smoothed dose-response transport grid artifact verification.
 pub mod smoothed_dose_artifact;
+/// Checksummed stream artifact: bounds, cheap metadata, and shared payloads.
+pub mod stream_artifact;
 /// Joint vector-treatment artifact (`vector_treatment_v1`) and its recomputing consumer.
 pub mod vector_treatment_artifact;
 
