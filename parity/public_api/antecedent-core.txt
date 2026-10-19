@@ -75,6 +75,7 @@
 #[non_exhaustive] pub enum antecedent_core::recalc::CalibrationInput
 #[non_exhaustive] pub enum antecedent_core::recalc::CouplingInput
 #[non_exhaustive] pub enum antecedent_core::recalc::ProviderStandingInput
+#[non_exhaustive] pub enum antecedent_core::scratch_pool::ScratchPoolError
 #[non_exhaustive] pub enum antecedent_core::search_budget::SearchBudgetError
 #[non_exhaustive] pub enum antecedent_core::value::InterventionValueError
 #[non_exhaustive] pub struct antecedent_core::AverageEffectQuery
@@ -491,6 +492,10 @@ impl core::clone::Clone for antecedent_core::recalc::StageEntry
 impl core::clone::Clone for antecedent_core::recalc::StageIdentities
 impl core::clone::Clone for antecedent_core::recalc::StageIdentity
 impl core::clone::Clone for antecedent_core::recalc::StageStatus
+impl core::clone::Clone for antecedent_core::scratch_pool::ScratchFull
+impl core::clone::Clone for antecedent_core::scratch_pool::ScratchKind
+impl core::clone::Clone for antecedent_core::scratch_pool::ScratchPool
+impl core::clone::Clone for antecedent_core::scratch_pool::ScratchPoolError
 impl core::clone::Clone for antecedent_core::search_budget::AdmittedExactSearch
 impl core::clone::Clone for antecedent_core::search_budget::ApproximationEvidence
 impl core::clone::Clone for antecedent_core::search_budget::ExactGraphSearch
@@ -837,6 +842,9 @@ impl core::cmp::Eq for antecedent_core::recalc::StageEntry
 impl core::cmp::Eq for antecedent_core::recalc::StageIdentities
 impl core::cmp::Eq for antecedent_core::recalc::StageIdentity
 impl core::cmp::Eq for antecedent_core::recalc::StageStatus
+impl core::cmp::Eq for antecedent_core::scratch_pool::ScratchFull
+impl core::cmp::Eq for antecedent_core::scratch_pool::ScratchKind
+impl core::cmp::Eq for antecedent_core::scratch_pool::ScratchPoolError
 impl core::cmp::Eq for antecedent_core::search_budget::AdmittedExactSearch
 impl core::cmp::Eq for antecedent_core::search_budget::ApproximationEvidence
 impl core::cmp::Eq for antecedent_core::search_budget::ExactGraphSearch
@@ -1277,6 +1285,9 @@ impl core::cmp::PartialEq for antecedent_core::recalc::StageEntry
 impl core::cmp::PartialEq for antecedent_core::recalc::StageIdentities
 impl core::cmp::PartialEq for antecedent_core::recalc::StageIdentity
 impl core::cmp::PartialEq for antecedent_core::recalc::StageStatus
+impl core::cmp::PartialEq for antecedent_core::scratch_pool::ScratchFull
+impl core::cmp::PartialEq for antecedent_core::scratch_pool::ScratchKind
+impl core::cmp::PartialEq for antecedent_core::scratch_pool::ScratchPoolError
 impl core::cmp::PartialEq for antecedent_core::search_budget::AdmittedExactSearch
 impl core::cmp::PartialEq for antecedent_core::search_budget::ApproximationEvidence
 impl core::cmp::PartialEq for antecedent_core::search_budget::ExactGraphSearch
@@ -1402,6 +1413,8 @@ impl core::error::Error for antecedent_core::execution::AdmissionError
 impl core::error::Error for antecedent_core::execution_facts::ExecutionFactError
 impl core::error::Error for antecedent_core::inspect::InspectionRefusal
 impl core::error::Error for antecedent_core::parallel_axis::ParallelPlanError
+impl core::error::Error for antecedent_core::scratch_pool::ScratchFull
+impl core::error::Error for antecedent_core::scratch_pool::ScratchPoolError
 impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
 impl core::error::Error for antecedent_core::value::InterventionValueError
 impl core::fmt::Debug for antecedent_core::AdaptiveBootstrapBudget
@@ -1815,6 +1828,11 @@ impl core::fmt::Debug for antecedent_core::recalc::StageEntry
 impl core::fmt::Debug for antecedent_core::recalc::StageIdentities
 impl core::fmt::Debug for antecedent_core::recalc::StageIdentity
 impl core::fmt::Debug for antecedent_core::recalc::StageStatus
+impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchFull
+impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchGuard
+impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchKind
+impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchPool
+impl core::fmt::Debug for antecedent_core::scratch_pool::ScratchPoolError
 impl core::fmt::Debug for antecedent_core::search_budget::AdmittedExactSearch
 impl core::fmt::Debug for antecedent_core::search_budget::ApproximationEvidence
 impl core::fmt::Debug for antecedent_core::search_budget::ExactGraphSearch
@@ -1909,6 +1927,9 @@ impl core::fmt::Display for antecedent_core::recalc::RefusalReason
 impl core::fmt::Display for antecedent_core::recalc::Stage
 impl core::fmt::Display for antecedent_core::recalc::StageIdentity
 impl core::fmt::Display for antecedent_core::recalc::StageStatus
+impl core::fmt::Display for antecedent_core::scratch_pool::ScratchFull
+impl core::fmt::Display for antecedent_core::scratch_pool::ScratchKind
+impl core::fmt::Display for antecedent_core::scratch_pool::ScratchPoolError
 impl core::fmt::Display for antecedent_core::search_budget::MatchingDistance
 impl core::fmt::Display for antecedent_core::search_budget::SearchBudgetError
 impl core::fmt::Display for antecedent_core::search_budget::SearchFamily
@@ -2170,6 +2191,7 @@ impl core::hash::Hash for antecedent_core::recalc::Branch
 impl core::hash::Hash for antecedent_core::recalc::Revalidation
 impl core::hash::Hash for antecedent_core::recalc::Stage
 impl core::hash::Hash for antecedent_core::recalc::StageIdentity
+impl core::hash::Hash for antecedent_core::scratch_pool::ScratchKind
 impl core::hash::Hash for antecedent_core::search_budget::AdmittedExactSearch
 impl core::hash::Hash for antecedent_core::search_budget::ApproximationEvidence
 impl core::hash::Hash for antecedent_core::search_budget::ExactGraphSearch
@@ -2381,6 +2403,9 @@ impl core::marker::Copy for antecedent_core::recalc::Stage
 impl core::marker::Copy for antecedent_core::recalc::StageEntry
 impl core::marker::Copy for antecedent_core::recalc::StageIdentity
 impl core::marker::Copy for antecedent_core::recalc::StageStatus
+impl core::marker::Copy for antecedent_core::scratch_pool::ScratchFull
+impl core::marker::Copy for antecedent_core::scratch_pool::ScratchKind
+impl core::marker::Copy for antecedent_core::scratch_pool::ScratchPoolError
 impl core::marker::Copy for antecedent_core::search_budget::AdmittedExactSearch
 impl core::marker::Copy for antecedent_core::search_budget::ApproximationEvidence
 impl core::marker::Copy for antecedent_core::search_budget::ExactGraphSearch
@@ -2803,6 +2828,11 @@ impl core::marker::Freeze for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchFull [auto]
+impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchGuard [auto]
+impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchKind [auto]
+impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchPool [auto]
+impl core::marker::Freeze for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::marker::Freeze for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::marker::Freeze for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::marker::Freeze for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -3227,6 +3257,11 @@ impl core::marker::Send for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Send for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Send for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Send for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Send for antecedent_core::scratch_pool::ScratchFull [auto]
+impl core::marker::Send for antecedent_core::scratch_pool::ScratchGuard [auto]
+impl core::marker::Send for antecedent_core::scratch_pool::ScratchKind [auto]
+impl core::marker::Send for antecedent_core::scratch_pool::ScratchPool [auto]
+impl core::marker::Send for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::marker::Send for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::marker::Send for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::marker::Send for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -3630,6 +3665,9 @@ impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageEntry
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageIdentities
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageIdentity
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::StageStatus
+impl core::marker::StructuralPartialEq for antecedent_core::scratch_pool::ScratchFull
+impl core::marker::StructuralPartialEq for antecedent_core::scratch_pool::ScratchKind
+impl core::marker::StructuralPartialEq for antecedent_core::scratch_pool::ScratchPoolError
 impl core::marker::StructuralPartialEq for antecedent_core::search_budget::AdmittedExactSearch
 impl core::marker::StructuralPartialEq for antecedent_core::search_budget::ApproximationEvidence
 impl core::marker::StructuralPartialEq for antecedent_core::search_budget::ExactGraphSearch
@@ -4054,6 +4092,11 @@ impl core::marker::Sync for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Sync for antecedent_core::scratch_pool::ScratchFull [auto]
+impl core::marker::Sync for antecedent_core::scratch_pool::ScratchGuard [auto]
+impl core::marker::Sync for antecedent_core::scratch_pool::ScratchKind [auto]
+impl core::marker::Sync for antecedent_core::scratch_pool::ScratchPool [auto]
+impl core::marker::Sync for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::marker::Sync for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::marker::Sync for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::marker::Sync for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -4478,6 +4521,11 @@ impl core::marker::Unpin for antecedent_core::recalc::StageEntry [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageStatus [auto]
+impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchFull [auto]
+impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchGuard [auto]
+impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchKind [auto]
+impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchPool [auto]
+impl core::marker::Unpin for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::marker::Unpin for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::marker::Unpin for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::marker::Unpin for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -4494,6 +4542,7 @@ impl core::marker::Unpin for antecedent_core::value::InterventionValueError [aut
 impl core::ops::drop::Drop for antecedent_core::device_reservation::DeviceReservationLease
 impl core::ops::drop::Drop for antecedent_core::execution::AdmissionLease
 impl core::ops::drop::Drop for antecedent_core::execution_attempt::OperationGuard
+impl core::ops::drop::Drop for antecedent_core::scratch_pool::ScratchGuard
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdmittedBytes [auto]
@@ -4904,6 +4953,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageE
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageIdentities [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchFull [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchGuard [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchPool [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -5327,6 +5381,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageEntr
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIdentities [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchFull [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchGuard [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchPool [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scratch_pool::ScratchPoolError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::AdmittedExactSearch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::ApproximationEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::ExactGraphSearch [auto]
@@ -5418,6 +5477,7 @@ pub const <antecedent_core::TransportOutcomeKind>::LEGACY_IDENTIFICATION_SPELLIN
 pub const <antecedent_core::measurement_model::MeasurementKind>::ALL: [Self; 6]
 pub const <antecedent_core::measurement_model::MeasurementRoute>::ALL: [Self; 5]
 pub const <antecedent_core::recalc::StageIdentity>::ABSENT: Self
+pub const <antecedent_core::scratch_pool::ScratchKind>::ALL: [Self; 5]
 pub const antecedent_core::ARCH_SIMD_COMPILED: bool
 pub const antecedent_core::ASSUMPTION_BRANCH_TAG: &str
 pub const antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES: u64
@@ -5552,6 +5612,7 @@ pub enum antecedent_core::recalc::RetargetSupport
 pub enum antecedent_core::recalc::Revalidation
 pub enum antecedent_core::recalc::Stage
 pub enum antecedent_core::recalc::StageStatus
+pub enum antecedent_core::scratch_pool::ScratchKind
 pub enum antecedent_core::search_budget::MatchingDistance
 pub enum antecedent_core::search_budget::NumericalMode
 pub enum antecedent_core::search_budget::SearchFamily
@@ -7019,7 +7080,7 @@ pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn
 pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn new(device_bytes: u64, spill_bytes: u64) -> Self
 pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn spill_bytes(self) -> u64
 pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn try_product(device_count: u64, device_width: u64, spill_count: u64, spill_width: u64) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
-pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::fn try_sum(device_parts: &[u64], spill_parts: &[u64]) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
+pub fn <antecedent_core::device_reservation::DeviceReservationRequest>::const fn try_sum(device_parts: &[u64], spill_parts: &[u64]) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
 pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child(&self, threads: u32, bytes: u64) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child_product(&self, threads: u32, count: u64, width: u64) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child_request(&self, request: antecedent_core::execution::AdmissionRequest) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
@@ -7207,6 +7268,20 @@ pub fn <antecedent_core::recalc::StageIdentity>::fn revalidation_since(&self, re
 pub fn <antecedent_core::recalc::StageIdentity>::fn to_hex(&self) -> alloc::string::String
 pub fn <antecedent_core::recalc::StageStatus>::const fn revalidation(&self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_core::recalc::StageStatus>::const fn tag(&self) -> &'static str
+pub fn <antecedent_core::scratch_pool::ScratchFull>::const fn capacity(self) -> u64
+pub fn <antecedent_core::scratch_pool::ScratchFull>::const fn kind(self) -> antecedent_core::scratch_pool::ScratchKind
+pub fn <antecedent_core::scratch_pool::ScratchFull>::const fn live(self) -> u64
+pub fn <antecedent_core::scratch_pool::ScratchGuard>::fn bytes(&self) -> u64
+pub fn <antecedent_core::scratch_pool::ScratchGuard>::fn kind(&self) -> antecedent_core::scratch_pool::ScratchKind
+pub fn <antecedent_core::scratch_pool::ScratchKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::scratch_pool::ScratchPool>::fn accounted_bytes(&self) -> u64
+pub fn <antecedent_core::scratch_pool::ScratchPool>::fn bounded(kind: antecedent_core::scratch_pool::ScratchKind, capacity_buffers: u64, bytes_per_buffer: u64) -> core::result::Result<Self, antecedent_core::scratch_pool::ScratchPoolError>
+pub fn <antecedent_core::scratch_pool::ScratchPool>::fn bytes_per_buffer(&self) -> u64
+pub fn <antecedent_core::scratch_pool::ScratchPool>::fn capacity_buffers(&self) -> u64
+pub fn <antecedent_core::scratch_pool::ScratchPool>::fn kind(&self) -> antecedent_core::scratch_pool::ScratchKind
+pub fn <antecedent_core::scratch_pool::ScratchPool>::fn live(&self) -> u64
+pub fn <antecedent_core::scratch_pool::ScratchPool>::fn peak_live(&self) -> u64
+pub fn <antecedent_core::scratch_pool::ScratchPool>::fn try_acquire(&self) -> core::result::Result<antecedent_core::scratch_pool::ScratchGuard, antecedent_core::scratch_pool::ScratchFull>
 pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn family(self) -> antecedent_core::search_budget::SearchFamily
 pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn memory_bytes(self) -> u64
 pub fn <antecedent_core::search_budget::AdmittedExactSearch>::const fn work(self) -> u64
@@ -7282,6 +7357,7 @@ pub mod antecedent_core::route_memory
 pub mod antecedent_core::sampling_design
 pub mod antecedent_core::schema
 pub mod antecedent_core::scientific_target
+pub mod antecedent_core::scratch_pool
 pub mod antecedent_core::search
 pub mod antecedent_core::search_budget
 pub mod antecedent_core::temporal
@@ -7681,6 +7757,12 @@ pub struct antecedent_core::recalc::StageIdentities
 pub struct antecedent_core::recalc::StageIdentities has private fields
 pub struct antecedent_core::recalc::StageIdentity
 pub struct antecedent_core::recalc::StageIdentity has private fields
+pub struct antecedent_core::scratch_pool::ScratchFull
+pub struct antecedent_core::scratch_pool::ScratchFull has private fields
+pub struct antecedent_core::scratch_pool::ScratchGuard
+pub struct antecedent_core::scratch_pool::ScratchGuard has private fields
+pub struct antecedent_core::scratch_pool::ScratchPool
+pub struct antecedent_core::scratch_pool::ScratchPool has private fields
 pub struct antecedent_core::search_budget::AdmittedExactSearch
 pub struct antecedent_core::search_budget::AdmittedExactSearch has private fields
 pub struct antecedent_core::search_budget::ApproximationEvidence
@@ -8870,6 +8952,13 @@ pub variant antecedent_core::recalc::Stage::Utility
 pub variant antecedent_core::recalc::StageStatus::Recomputed { because: antecedent_core::recalc::ChangedDependency }
 pub variant antecedent_core::recalc::StageStatus::Refused { reason: antecedent_core::recalc::RefusalReason }
 pub variant antecedent_core::recalc::StageStatus::Reused { dependency: antecedent_core::recalc::Stage }
+pub variant antecedent_core::scratch_pool::ScratchKind::Draw
+pub variant antecedent_core::scratch_pool::ScratchKind::Fold
+pub variant antecedent_core::scratch_pool::ScratchKind::Grid
+pub variant antecedent_core::scratch_pool::ScratchKind::Replicate
+pub variant antecedent_core::scratch_pool::ScratchKind::Row
+pub variant antecedent_core::scratch_pool::ScratchPoolError::ByteProductOverflow { kind: antecedent_core::scratch_pool::ScratchKind, capacity_buffers: u64, bytes_per_buffer: u64 }
+pub variant antecedent_core::scratch_pool::ScratchPoolError::ZeroCapacity { kind: antecedent_core::scratch_pool::ScratchKind }
 pub variant antecedent_core::search_budget::MatchingDistance::Absolute
 pub variant antecedent_core::search_budget::MatchingDistance::Euclidean
 pub variant antecedent_core::search_budget::NumericalMode::Approximation(antecedent_core::search_budget::ApproximationEvidence)

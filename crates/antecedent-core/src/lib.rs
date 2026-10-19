@@ -70,6 +70,7 @@ pub mod route_memory;
 pub mod sampling_design;
 pub mod schema;
 pub mod scientific_target;
+pub mod scratch_pool;
 pub mod search;
 pub use search::{
     DEFAULT_SEARCH_MEMORY_BYTES, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
