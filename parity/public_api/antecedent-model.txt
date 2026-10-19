@@ -7,6 +7,7 @@
 #[non_exhaustive] pub enum antecedent_model::ModelError
 #[non_exhaustive] pub enum antecedent_model::compose::CompositionError
 #[non_exhaustive] pub enum antecedent_model::discretized_scm::DiscretizationMethod
+#[non_exhaustive] pub enum antecedent_model::history_operators::HistoryOperatorError
 #[non_exhaustive] pub enum antecedent_model::observation_query::ObservationQueryError
 #[non_exhaustive] pub enum antecedent_model::observation_query::UnreachableBound
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CompiledCausalModel [auto]
@@ -146,6 +147,17 @@ impl core::clone::Clone for antecedent_model::discretized_scm::ParadigmCell
 impl core::clone::Clone for antecedent_model::discretized_scm::ParityRoute
 impl core::clone::Clone for antecedent_model::discretized_scm::ParityRow
 impl core::clone::Clone for antecedent_model::discretized_scm_artifact::ArtifactRefusal
+impl core::clone::Clone for antecedent_model::history_operators::ActionTiming
+impl core::clone::Clone for antecedent_model::history_operators::CensoringAssignmentWeight
+impl core::clone::Clone for antecedent_model::history_operators::HistoryConstruction
+impl core::clone::Clone for antecedent_model::history_operators::HistoryOperatorError
+impl core::clone::Clone for antecedent_model::history_operators::Horizon
+impl core::clone::Clone for antecedent_model::history_operators::OperatorFrame
+impl core::clone::Clone for antecedent_model::history_operators::PolicyEvaluation
+impl core::clone::Clone for antecedent_model::history_operators::SequentialRegression
+impl core::clone::Clone for antecedent_model::history_operators::TrajectoryReduction
+impl core::clone::Clone for antecedent_model::history_operators::Transition
+impl core::clone::Clone for antecedent_model::history_operators::WeightRole
 impl core::clone::Clone for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::clone::Clone for antecedent_model::mechanism_transport::MechanismRole
 impl core::clone::Clone for antecedent_model::mechanism_transport::MechanismTransportRequest
@@ -218,6 +230,15 @@ impl core::cmp::Eq for antecedent_model::discretized_scm::InferenceParadigm
 impl core::cmp::Eq for antecedent_model::discretized_scm::ParadigmCell
 impl core::cmp::Eq for antecedent_model::discretized_scm::ParityRoute
 impl core::cmp::Eq for antecedent_model::discretized_scm::ParityRow
+impl core::cmp::Eq for antecedent_model::history_operators::ActionTiming
+impl core::cmp::Eq for antecedent_model::history_operators::HistoryConstruction
+impl core::cmp::Eq for antecedent_model::history_operators::Horizon
+impl core::cmp::Eq for antecedent_model::history_operators::OperatorFrame
+impl core::cmp::Eq for antecedent_model::history_operators::PolicyEvaluation
+impl core::cmp::Eq for antecedent_model::history_operators::SequentialRegression
+impl core::cmp::Eq for antecedent_model::history_operators::TrajectoryReduction
+impl core::cmp::Eq for antecedent_model::history_operators::Transition
+impl core::cmp::Eq for antecedent_model::history_operators::WeightRole
 impl core::cmp::Eq for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::cmp::Eq for antecedent_model::mechanism_transport::MechanismRole
 impl core::cmp::Eq for antecedent_model::observation_query::Direction
@@ -323,6 +344,17 @@ impl core::cmp::PartialEq for antecedent_model::discretized_scm::ParadigmCell
 impl core::cmp::PartialEq for antecedent_model::discretized_scm::ParityRoute
 impl core::cmp::PartialEq for antecedent_model::discretized_scm::ParityRow
 impl core::cmp::PartialEq for antecedent_model::discretized_scm_artifact::ArtifactRefusal
+impl core::cmp::PartialEq for antecedent_model::history_operators::ActionTiming
+impl core::cmp::PartialEq for antecedent_model::history_operators::CensoringAssignmentWeight
+impl core::cmp::PartialEq for antecedent_model::history_operators::HistoryConstruction
+impl core::cmp::PartialEq for antecedent_model::history_operators::HistoryOperatorError
+impl core::cmp::PartialEq for antecedent_model::history_operators::Horizon
+impl core::cmp::PartialEq for antecedent_model::history_operators::OperatorFrame
+impl core::cmp::PartialEq for antecedent_model::history_operators::PolicyEvaluation
+impl core::cmp::PartialEq for antecedent_model::history_operators::SequentialRegression
+impl core::cmp::PartialEq for antecedent_model::history_operators::TrajectoryReduction
+impl core::cmp::PartialEq for antecedent_model::history_operators::Transition
+impl core::cmp::PartialEq for antecedent_model::history_operators::WeightRole
 impl core::cmp::PartialEq for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::cmp::PartialEq for antecedent_model::mechanism_transport::MechanismRole
 impl core::cmp::PartialEq for antecedent_model::mechanism_transport::MechanismTransportRequest
@@ -374,6 +406,7 @@ impl core::error::Error for antecedent_model::LinearSolutionError
 impl core::error::Error for antecedent_model::ModelError
 impl core::error::Error for antecedent_model::compose::CompositionError
 impl core::error::Error for antecedent_model::discretized_scm_artifact::ArtifactRefusal
+impl core::error::Error for antecedent_model::history_operators::HistoryOperatorError
 impl core::error::Error for antecedent_model::observation_query::ObservationQueryError
 impl core::fmt::Debug for antecedent_model::BasisTerm
 impl core::fmt::Debug for antecedent_model::CompiledCausalModel
@@ -497,6 +530,17 @@ impl core::fmt::Debug for antecedent_model::discretized_scm::ParadigmCell
 impl core::fmt::Debug for antecedent_model::discretized_scm::ParityRoute
 impl core::fmt::Debug for antecedent_model::discretized_scm::ParityRow
 impl core::fmt::Debug for antecedent_model::discretized_scm_artifact::ArtifactRefusal
+impl core::fmt::Debug for antecedent_model::history_operators::ActionTiming
+impl core::fmt::Debug for antecedent_model::history_operators::CensoringAssignmentWeight
+impl core::fmt::Debug for antecedent_model::history_operators::HistoryConstruction
+impl core::fmt::Debug for antecedent_model::history_operators::HistoryOperatorError
+impl core::fmt::Debug for antecedent_model::history_operators::Horizon
+impl core::fmt::Debug for antecedent_model::history_operators::OperatorFrame
+impl core::fmt::Debug for antecedent_model::history_operators::PolicyEvaluation
+impl core::fmt::Debug for antecedent_model::history_operators::SequentialRegression
+impl core::fmt::Debug for antecedent_model::history_operators::TrajectoryReduction
+impl core::fmt::Debug for antecedent_model::history_operators::Transition
+impl core::fmt::Debug for antecedent_model::history_operators::WeightRole
 impl core::fmt::Debug for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::fmt::Debug for antecedent_model::mechanism_transport::MechanismRole
 impl core::fmt::Debug for antecedent_model::mechanism_transport::MechanismTransportRequest
@@ -521,6 +565,8 @@ impl core::fmt::Display for antecedent_model::LinearSolutionError
 impl core::fmt::Display for antecedent_model::ModelError
 impl core::fmt::Display for antecedent_model::compose::CompositionError
 impl core::fmt::Display for antecedent_model::discretized_scm_artifact::ArtifactRefusal
+impl core::fmt::Display for antecedent_model::history_operators::HistoryOperatorError
+impl core::fmt::Display for antecedent_model::history_operators::WeightRole
 impl core::fmt::Display for antecedent_model::observation_query::ObservationQueryError
 impl core::hash::Hash for antecedent_model::BasisTerm
 impl core::hash::Hash for antecedent_model::GraphFalsificationOutcome
@@ -538,6 +584,8 @@ impl core::hash::Hash for antecedent_model::compose::CoherenceKind
 impl core::hash::Hash for antecedent_model::discretized_scm::DiscretizationMethod
 impl core::hash::Hash for antecedent_model::discretized_scm::InferenceParadigm
 impl core::hash::Hash for antecedent_model::discretized_scm::ParityRoute
+impl core::hash::Hash for antecedent_model::history_operators::Horizon
+impl core::hash::Hash for antecedent_model::history_operators::WeightRole
 impl core::hash::Hash for antecedent_model::mechanism_transport::MechanismRole
 impl core::hash::Hash for antecedent_model::observation_query::Direction
 impl core::hash::Hash for antecedent_model::observation_query::UnreachableBound
@@ -570,6 +618,8 @@ impl core::marker::Copy for antecedent_model::discretized_scm::InferenceParadigm
 impl core::marker::Copy for antecedent_model::discretized_scm::ParadigmCell
 impl core::marker::Copy for antecedent_model::discretized_scm::ParityRoute
 impl core::marker::Copy for antecedent_model::discretized_scm::ParityRow
+impl core::marker::Copy for antecedent_model::history_operators::Horizon
+impl core::marker::Copy for antecedent_model::history_operators::WeightRole
 impl core::marker::Copy for antecedent_model::mechanism_transport::MechanismRole
 impl core::marker::Copy for antecedent_model::observation_query::BetaBernoulli
 impl core::marker::Copy for antecedent_model::observation_query::Direction
@@ -698,6 +748,17 @@ impl core::marker::Freeze for antecedent_model::discretized_scm::ParadigmCell [a
 impl core::marker::Freeze for antecedent_model::discretized_scm::ParityRoute [auto]
 impl core::marker::Freeze for antecedent_model::discretized_scm::ParityRow [auto]
 impl core::marker::Freeze for antecedent_model::discretized_scm_artifact::ArtifactRefusal [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::ActionTiming [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::Horizon [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::OperatorFrame [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::SequentialRegression [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::TrajectoryReduction [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::Transition [auto]
+impl core::marker::Freeze for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Freeze for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::marker::Freeze for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::marker::Freeze for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -838,6 +899,17 @@ impl core::marker::Send for antecedent_model::discretized_scm::ParadigmCell [aut
 impl core::marker::Send for antecedent_model::discretized_scm::ParityRoute [auto]
 impl core::marker::Send for antecedent_model::discretized_scm::ParityRow [auto]
 impl core::marker::Send for antecedent_model::discretized_scm_artifact::ArtifactRefusal [auto]
+impl core::marker::Send for antecedent_model::history_operators::ActionTiming [auto]
+impl core::marker::Send for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::marker::Send for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::marker::Send for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::marker::Send for antecedent_model::history_operators::Horizon [auto]
+impl core::marker::Send for antecedent_model::history_operators::OperatorFrame [auto]
+impl core::marker::Send for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::marker::Send for antecedent_model::history_operators::SequentialRegression [auto]
+impl core::marker::Send for antecedent_model::history_operators::TrajectoryReduction [auto]
+impl core::marker::Send for antecedent_model::history_operators::Transition [auto]
+impl core::marker::Send for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Send for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::marker::Send for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::marker::Send for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -945,6 +1017,17 @@ impl core::marker::StructuralPartialEq for antecedent_model::discretized_scm::Pa
 impl core::marker::StructuralPartialEq for antecedent_model::discretized_scm::ParityRoute
 impl core::marker::StructuralPartialEq for antecedent_model::discretized_scm::ParityRow
 impl core::marker::StructuralPartialEq for antecedent_model::discretized_scm_artifact::ArtifactRefusal
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::ActionTiming
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::CensoringAssignmentWeight
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::HistoryConstruction
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::HistoryOperatorError
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::Horizon
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::OperatorFrame
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::PolicyEvaluation
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::SequentialRegression
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::TrajectoryReduction
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::Transition
+impl core::marker::StructuralPartialEq for antecedent_model::history_operators::WeightRole
 impl core::marker::StructuralPartialEq for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::marker::StructuralPartialEq for antecedent_model::mechanism_transport::MechanismRole
 impl core::marker::StructuralPartialEq for antecedent_model::mechanism_transport::MechanismTransportRequest
@@ -1084,6 +1167,17 @@ impl core::marker::Sync for antecedent_model::discretized_scm::ParadigmCell [aut
 impl core::marker::Sync for antecedent_model::discretized_scm::ParityRoute [auto]
 impl core::marker::Sync for antecedent_model::discretized_scm::ParityRow [auto]
 impl core::marker::Sync for antecedent_model::discretized_scm_artifact::ArtifactRefusal [auto]
+impl core::marker::Sync for antecedent_model::history_operators::ActionTiming [auto]
+impl core::marker::Sync for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::marker::Sync for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::marker::Sync for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::marker::Sync for antecedent_model::history_operators::Horizon [auto]
+impl core::marker::Sync for antecedent_model::history_operators::OperatorFrame [auto]
+impl core::marker::Sync for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::marker::Sync for antecedent_model::history_operators::SequentialRegression [auto]
+impl core::marker::Sync for antecedent_model::history_operators::TrajectoryReduction [auto]
+impl core::marker::Sync for antecedent_model::history_operators::Transition [auto]
+impl core::marker::Sync for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Sync for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::marker::Sync for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::marker::Sync for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -1224,6 +1318,17 @@ impl core::marker::Unpin for antecedent_model::discretized_scm::ParadigmCell [au
 impl core::marker::Unpin for antecedent_model::discretized_scm::ParityRoute [auto]
 impl core::marker::Unpin for antecedent_model::discretized_scm::ParityRow [auto]
 impl core::marker::Unpin for antecedent_model::discretized_scm_artifact::ArtifactRefusal [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::ActionTiming [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::Horizon [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::OperatorFrame [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::SequentialRegression [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::TrajectoryReduction [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::Transition [auto]
+impl core::marker::Unpin for antecedent_model::history_operators::WeightRole [auto]
 impl core::marker::Unpin for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::marker::Unpin for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::marker::Unpin for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -1356,6 +1461,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::discretized_s
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::discretized_scm::ParityRoute [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::discretized_scm::ParityRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::discretized_scm_artifact::ArtifactRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::ActionTiming [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::Horizon [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::OperatorFrame [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::SequentialRegression [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::TrajectoryReduction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::Transition [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::history_operators::WeightRole [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -1488,6 +1604,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::discretized_scm:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::discretized_scm::ParityRoute [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::discretized_scm::ParityRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::discretized_scm_artifact::ArtifactRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::ActionTiming [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::CensoringAssignmentWeight [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::HistoryConstruction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::HistoryOperatorError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::Horizon [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::OperatorFrame [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::PolicyEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::SequentialRegression [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::TrajectoryReduction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::Transition [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::history_operators::WeightRole [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -1698,6 +1825,7 @@ pub enum antecedent_model::compose::UncertaintyMeaning
 pub enum antecedent_model::discretized_scm::InferenceParadigm
 pub enum antecedent_model::discretized_scm::ParadigmCell
 pub enum antecedent_model::discretized_scm::ParityRoute
+pub enum antecedent_model::history_operators::WeightRole
 pub enum antecedent_model::mechanism_transport::MechanismRole
 pub enum antecedent_model::observation_query::Direction
 pub field antecedent_model::CompiledCausalModel::graph: alloc::sync::Arc<antecedent_graph::dag::Dag>
@@ -2234,6 +2362,36 @@ pub fn <antecedent_model::discretized_scm::DiscretizedLinearGaussian>::fn uncert
 pub fn <antecedent_model::discretized_scm::DiscretizedLinearGaussian>::fn variables(&self) -> alloc::vec::Vec<&str>
 pub fn <antecedent_model::discretized_scm::InferenceParadigm>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::discretized_scm::ParityRoute>::const fn as_str(self) -> &'static str
+pub fn <antecedent_model::history_operators::ActionTiming>::const fn at_ns(&self) -> u64
+pub fn <antecedent_model::history_operators::ActionTiming>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
+pub fn <antecedent_model::history_operators::ActionTiming>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, at_ns: u64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn assignment(&self) -> f64
+pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn censoring(&self) -> f64
+pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
+pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, censoring: f64, assignment: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::HistoryConstruction>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
+pub fn <antecedent_model::history_operators::HistoryConstruction>::const fn history(&self) -> antecedent_core::scientific_target::HistoryWindow
+pub fn <antecedent_model::history_operators::HistoryConstruction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, history: antecedent_core::scientific_target::HistoryWindow) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::Horizon>::const fn end_ns(self) -> u64
+pub fn <antecedent_model::history_operators::Horizon>::const fn ending_at(end_ns: u64) -> Self
+pub fn <antecedent_model::history_operators::OperatorFrame>::const fn cadence(&self) -> &antecedent_data::temporal::TimeIndex
+pub fn <antecedent_model::history_operators::OperatorFrame>::const fn horizon(&self) -> antecedent_model::history_operators::Horizon
+pub fn <antecedent_model::history_operators::OperatorFrame>::const fn initial_law(&self) -> &antecedent_core::scientific_target::InitialLaw
+pub fn <antecedent_model::history_operators::OperatorFrame>::const fn interval_ns(&self) -> u64
+pub fn <antecedent_model::history_operators::OperatorFrame>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::PolicyEvaluation>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
+pub fn <antecedent_model::history_operators::PolicyEvaluation>::fn policy(&self) -> &str
+pub fn <antecedent_model::history_operators::PolicyEvaluation>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, policy: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::SequentialRegression>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
+pub fn <antecedent_model::history_operators::SequentialRegression>::fn outcome(&self) -> &str
+pub fn <antecedent_model::history_operators::SequentialRegression>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, outcome: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::TrajectoryReduction>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
+pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn functional(&self) -> &str
+pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, functional: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::Transition>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
+pub fn <antecedent_model::history_operators::Transition>::const fn step_ns(&self) -> u64
+pub fn <antecedent_model::history_operators::Transition>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::WeightRole>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::mechanism_transport::MechanismRole>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::mechanism_transport::TransportedLinearGaussian>::fn dispositions(&self) -> &[antecedent_model::mechanism_transport::MechanismDisposition]
 pub fn <antecedent_model::mechanism_transport::TransportedLinearGaussian>::fn identity(&self) -> [u8; 32]
@@ -2324,6 +2482,7 @@ pub mod antecedent_model::do_sampler
 pub mod antecedent_model::error
 pub mod antecedent_model::evaluate
 pub mod antecedent_model::falsify
+pub mod antecedent_model::history_operators
 pub mod antecedent_model::lgssm
 pub mod antecedent_model::linear_solution
 pub mod antecedent_model::mechanism
@@ -2441,6 +2600,24 @@ pub struct antecedent_model::discretized_scm::DiscretizedLinearGaussian
 pub struct antecedent_model::discretized_scm::DiscretizedLinearGaussian has private fields
 pub struct antecedent_model::discretized_scm::ParityRow
 pub struct antecedent_model::discretized_scm_artifact::ArtifactRefusal
+pub struct antecedent_model::history_operators::ActionTiming
+pub struct antecedent_model::history_operators::ActionTiming has private fields
+pub struct antecedent_model::history_operators::CensoringAssignmentWeight
+pub struct antecedent_model::history_operators::CensoringAssignmentWeight has private fields
+pub struct antecedent_model::history_operators::HistoryConstruction
+pub struct antecedent_model::history_operators::HistoryConstruction has private fields
+pub struct antecedent_model::history_operators::Horizon
+pub struct antecedent_model::history_operators::Horizon has private fields
+pub struct antecedent_model::history_operators::OperatorFrame
+pub struct antecedent_model::history_operators::OperatorFrame has private fields
+pub struct antecedent_model::history_operators::PolicyEvaluation
+pub struct antecedent_model::history_operators::PolicyEvaluation has private fields
+pub struct antecedent_model::history_operators::SequentialRegression
+pub struct antecedent_model::history_operators::SequentialRegression has private fields
+pub struct antecedent_model::history_operators::TrajectoryReduction
+pub struct antecedent_model::history_operators::TrajectoryReduction has private fields
+pub struct antecedent_model::history_operators::Transition
+pub struct antecedent_model::history_operators::Transition has private fields
 pub struct antecedent_model::mechanism_transport::MechanismDisposition
 pub struct antecedent_model::mechanism_transport::MechanismTransportRequest
 pub struct antecedent_model::mechanism_transport::TransportedFunctionalUncertainty
@@ -2820,6 +2997,15 @@ pub variant antecedent_model::discretized_scm::ParityRoute::TransportedCohortDec
 pub variant antecedent_model::discretized_scm::ParityRoute::TransportedPolicy
 pub variant antecedent_model::discretized_scm::ParityRoute::TransportedSynthesis
 pub variant antecedent_model::discretized_scm::ParityRoute::WholePathUncertainty
+pub variant antecedent_model::history_operators::HistoryOperatorError::ActionMissesCadence { at_ns: u64, interval_ns: u64 }
+pub variant antecedent_model::history_operators::HistoryOperatorError::CadenceSpanOverflow { interval_ns: u64, ticks: u64 }
+pub variant antecedent_model::history_operators::HistoryOperatorError::CadenceUncountable
+pub variant antecedent_model::history_operators::HistoryOperatorError::EmptyName { field: &'static str }
+pub variant antecedent_model::history_operators::HistoryOperatorError::HorizonCrossesCadence { end_ns: u64, interval_ns: core::option::Option<u64>, declared_ticks: core::option::Option<u64> }
+pub variant antecedent_model::history_operators::HistoryOperatorError::MissingInitialLaw
+pub variant antecedent_model::history_operators::HistoryOperatorError::NonFiniteWeight { role: antecedent_model::history_operators::WeightRole, value: f64 }
+pub variant antecedent_model::history_operators::WeightRole::Assignment
+pub variant antecedent_model::history_operators::WeightRole::Censoring
 pub variant antecedent_model::mechanism_transport::MechanismRole::NativeInTarget
 pub variant antecedent_model::mechanism_transport::MechanismRole::Transported
 pub variant antecedent_model::observation_query::Direction::Lower

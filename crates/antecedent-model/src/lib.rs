@@ -19,6 +19,7 @@ pub mod do_sampler;
 pub mod error;
 pub mod evaluate;
 pub mod falsify;
+pub mod history_operators;
 pub mod lgssm;
 pub mod linear_solution;
 pub mod mechanism;
