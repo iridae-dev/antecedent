@@ -47,6 +47,7 @@ pub mod provider_verification;
 pub mod quantity;
 pub mod reasoning;
 pub mod response_coordinates;
+pub mod rewrite_legality;
 pub mod support_labels;
 pub mod transform;
 pub mod transport_result;

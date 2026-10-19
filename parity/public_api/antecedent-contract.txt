@@ -66,6 +66,13 @@
 #[non_exhaustive] pub enum antecedent_contract::evidence_ledger::SynthesisKind
 #[non_exhaustive] pub enum antecedent_contract::measurement::LatentPosteriorTrust
 #[non_exhaustive] pub enum antecedent_contract::measurement::MeasurementOperation
+#[non_exhaustive] pub enum antecedent_contract::rewrite_legality::NextAttempt
+#[non_exhaustive] pub enum antecedent_contract::rewrite_legality::NuisanceEffect
+#[non_exhaustive] pub enum antecedent_contract::rewrite_legality::PreparationEffect
+#[non_exhaustive] pub enum antecedent_contract::rewrite_legality::PreservationAxis
+#[non_exhaustive] pub enum antecedent_contract::rewrite_legality::PushdownEffect
+#[non_exhaustive] pub enum antecedent_contract::rewrite_legality::SummaryEffect
+#[non_exhaustive] pub enum antecedent_contract::rewrite_legality::TileEffect
 #[non_exhaustive] pub enum antecedent_contract::transport_revalidation::TransportReason
 #[non_exhaustive] pub struct antecedent_contract::AcceptanceReport
 #[non_exhaustive] pub struct antecedent_contract::AssumptionSlot
@@ -90,6 +97,11 @@
 #[non_exhaustive] pub struct antecedent_contract::UncertaintyComponent
 #[non_exhaustive] pub struct antecedent_contract::UncertaintySlot
 #[non_exhaustive] pub struct antecedent_contract::bridge::BridgedClaim
+impl antecedent_contract::rewrite_legality::RewriteKind for antecedent_contract::rewrite_legality::ColumnFilterPushdown
+impl antecedent_contract::rewrite_legality::RewriteKind for antecedent_contract::rewrite_legality::NuisanceReuse
+impl antecedent_contract::rewrite_legality::RewriteKind for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
+impl antecedent_contract::rewrite_legality::RewriteKind for antecedent_contract::rewrite_legality::SufficientStatistics
+impl antecedent_contract::rewrite_legality::RewriteKind for antecedent_contract::rewrite_legality::TiledEvaluation
 impl core::clone::Clone for antecedent_contract::AcceptanceReport
 impl core::clone::Clone for antecedent_contract::AdmissionBasis
 impl core::clone::Clone for antecedent_contract::AdmissionCoordinate
@@ -424,6 +436,20 @@ impl core::clone::Clone for antecedent_contract::provider_transport::SourceTrust
 impl core::clone::Clone for antecedent_contract::provider_transport::TransportedClaimOffer
 impl core::clone::Clone for antecedent_contract::provider_transport::TransportedHandoff
 impl core::clone::Clone for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::clone::Clone for antecedent_contract::rewrite_legality::ColumnFilterPushdown
+impl core::clone::Clone for antecedent_contract::rewrite_legality::NextAttempt
+impl core::clone::Clone for antecedent_contract::rewrite_legality::NuisanceEffect
+impl core::clone::Clone for antecedent_contract::rewrite_legality::NuisanceReuse
+impl core::clone::Clone for antecedent_contract::rewrite_legality::PreparationEffect
+impl core::clone::Clone for antecedent_contract::rewrite_legality::PreservationAxis
+impl core::clone::Clone for antecedent_contract::rewrite_legality::PreservedIdentities
+impl core::clone::Clone for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::clone::Clone for antecedent_contract::rewrite_legality::RewriteRefusal
+impl core::clone::Clone for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
+impl core::clone::Clone for antecedent_contract::rewrite_legality::SufficientStatistics
+impl core::clone::Clone for antecedent_contract::rewrite_legality::SummaryEffect
+impl core::clone::Clone for antecedent_contract::rewrite_legality::TileEffect
+impl core::clone::Clone for antecedent_contract::rewrite_legality::TiledEvaluation
 impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneCalibration
 impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneClaim
 impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -683,6 +709,20 @@ impl core::cmp::Eq for antecedent_contract::measurement::MeasurementRouteCard
 impl core::cmp::Eq for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedHandoff
 impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::ColumnFilterPushdown
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::NextAttempt
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::NuisanceEffect
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::NuisanceReuse
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::PreparationEffect
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::PreservationAxis
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::PreservedIdentities
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::RewriteRefusal
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::SufficientStatistics
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::SummaryEffect
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::TileEffect
+impl core::cmp::Eq for antecedent_contract::rewrite_legality::TiledEvaluation
 impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneCalibration
 impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneClaim
 impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -750,6 +790,8 @@ impl core::cmp::Ord for antecedent_contract::evidence_ledger::ResultId
 impl core::cmp::Ord for antecedent_contract::evidence_ledger::SourceId
 impl core::cmp::Ord for antecedent_contract::evidence_ledger::SourceKind
 impl core::cmp::Ord for antecedent_contract::interface_contract::ContractOperation
+impl core::cmp::Ord for antecedent_contract::rewrite_legality::NextAttempt
+impl core::cmp::Ord for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::cmp::Ord for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::cmp::Ord for antecedent_contract::transport_revalidation::TransportReason
 impl core::cmp::PartialEq for antecedent_contract::AcceptanceReport
@@ -1084,6 +1126,20 @@ impl core::cmp::PartialEq for antecedent_contract::provider_transport::SourceTru
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedClaimOffer
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedHandoff
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::ColumnFilterPushdown
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::NextAttempt
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::NuisanceEffect
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::NuisanceReuse
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PreparationEffect
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PreservationAxis
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PreservedIdentities
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::RewriteRefusal
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::SufficientStatistics
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::SummaryEffect
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::TileEffect
+impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::TiledEvaluation
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneCalibration
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneClaim
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -1151,6 +1207,8 @@ impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::ResultId
 impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::SourceId
 impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::SourceKind
 impl core::cmp::PartialOrd for antecedent_contract::interface_contract::ContractOperation
+impl core::cmp::PartialOrd for antecedent_contract::rewrite_legality::NextAttempt
+impl core::cmp::PartialOrd for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::cmp::PartialOrd for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::cmp::PartialOrd for antecedent_contract::transport_revalidation::TransportReason
 impl core::convert::AsRef<str> for antecedent_contract::DependenceSourceId
@@ -1174,6 +1232,7 @@ impl core::error::Error for antecedent_contract::adaptive_design::AdaptiveContra
 impl core::error::Error for antecedent_contract::composition_verification::GraphError
 impl core::error::Error for antecedent_contract::composition_verification::ViewError
 impl core::error::Error for antecedent_contract::evidence_ledger::LedgerError
+impl core::error::Error for antecedent_contract::rewrite_legality::RewriteRefusal
 impl core::fmt::Debug for antecedent_contract::AcceptanceReport
 impl core::fmt::Debug for antecedent_contract::AdmissionBasis
 impl core::fmt::Debug for antecedent_contract::AdmissionCoordinate
@@ -1508,6 +1567,20 @@ impl core::fmt::Debug for antecedent_contract::provider_transport::SourceTrustRe
 impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedClaimOffer
 impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedHandoff
 impl core::fmt::Debug for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::ColumnFilterPushdown
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::NextAttempt
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::NuisanceEffect
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::NuisanceReuse
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::PreparationEffect
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::PreservationAxis
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::PreservedIdentities
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::RewriteRefusal
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::SufficientStatistics
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::SummaryEffect
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::TileEffect
+impl core::fmt::Debug for antecedent_contract::rewrite_legality::TiledEvaluation
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneCalibration
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneClaim
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -1541,6 +1614,9 @@ impl core::fmt::Display for antecedent_contract::evidence_ledger::ObservationId
 impl core::fmt::Display for antecedent_contract::evidence_ledger::OperationId
 impl core::fmt::Display for antecedent_contract::evidence_ledger::ResultId
 impl core::fmt::Display for antecedent_contract::evidence_ledger::SourceId
+impl core::fmt::Display for antecedent_contract::rewrite_legality::NextAttempt
+impl core::fmt::Display for antecedent_contract::rewrite_legality::PreservationAxis
+impl core::fmt::Display for antecedent_contract::rewrite_legality::RewriteRefusal
 impl core::hash::Hash for antecedent_contract::AdmissionCoordinate
 impl core::hash::Hash for antecedent_contract::AlignedLaw
 impl core::hash::Hash for antecedent_contract::BufferMaterialization
@@ -1648,6 +1724,13 @@ impl core::hash::Hash for antecedent_contract::interface_contract::UncertaintyPa
 impl core::hash::Hash for antecedent_contract::measurement::MeasurementOperation
 impl core::hash::Hash for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::hash::Hash for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::hash::Hash for antecedent_contract::rewrite_legality::NextAttempt
+impl core::hash::Hash for antecedent_contract::rewrite_legality::NuisanceEffect
+impl core::hash::Hash for antecedent_contract::rewrite_legality::PreparationEffect
+impl core::hash::Hash for antecedent_contract::rewrite_legality::PreservationAxis
+impl core::hash::Hash for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::hash::Hash for antecedent_contract::rewrite_legality::SummaryEffect
+impl core::hash::Hash for antecedent_contract::rewrite_legality::TileEffect
 impl core::hash::Hash for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::hash::Hash for antecedent_contract::transport_revalidation::TransportReason
 impl core::marker::Copy for antecedent_contract::AdmissionCoordinate
@@ -1777,6 +1860,13 @@ impl core::marker::Copy for antecedent_contract::measurement::MeasurementOperati
 impl core::marker::Copy for antecedent_contract::measurement::MeasurementRouteCard
 impl core::marker::Copy for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::marker::Copy for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::marker::Copy for antecedent_contract::rewrite_legality::NextAttempt
+impl core::marker::Copy for antecedent_contract::rewrite_legality::NuisanceEffect
+impl core::marker::Copy for antecedent_contract::rewrite_legality::PreparationEffect
+impl core::marker::Copy for antecedent_contract::rewrite_legality::PreservationAxis
+impl core::marker::Copy for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::marker::Copy for antecedent_contract::rewrite_legality::SummaryEffect
+impl core::marker::Copy for antecedent_contract::rewrite_legality::TileEffect
 impl core::marker::Copy for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::marker::Freeze for antecedent_contract::AcceptanceReport [auto]
 impl core::marker::Freeze for antecedent_contract::AdmissionBasis [auto]
@@ -2112,6 +2202,20 @@ impl core::marker::Freeze for antecedent_contract::provider_transport::SourceTru
 impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::marker::Freeze for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::NextAttempt [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::PreparationEffect [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::PreservationAxis [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::SummaryEffect [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::TileEffect [auto]
+impl core::marker::Freeze for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
 impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -2455,6 +2559,20 @@ impl core::marker::Send for antecedent_contract::provider_transport::SourceTrust
 impl core::marker::Send for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::marker::Send for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::marker::Send for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::NextAttempt [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::PreparationEffect [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::PreservationAxis [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::SummaryEffect [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::TileEffect [auto]
+impl core::marker::Send for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
 impl core::marker::Send for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::marker::Send for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::marker::Send for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -2796,6 +2914,20 @@ impl core::marker::StructuralPartialEq for antecedent_contract::provider_transpo
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedClaimOffer
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedHandoff
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::TransportedInputPolicy
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::ColumnFilterPushdown
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::NextAttempt
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::NuisanceEffect
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::NuisanceReuse
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PreparationEffect
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PreservationAxis
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PreservedIdentities
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::PushdownEffect
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::RewriteRefusal
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::SharedRowDesignPreparation
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::SufficientStatistics
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::SummaryEffect
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::TileEffect
+impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::TiledEvaluation
 impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneCalibration
 impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneClaim
 impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -3139,6 +3271,20 @@ impl core::marker::Sync for antecedent_contract::provider_transport::SourceTrust
 impl core::marker::Sync for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::marker::Sync for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::marker::Sync for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::NextAttempt [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::PreparationEffect [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::PreservationAxis [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::SummaryEffect [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::TileEffect [auto]
+impl core::marker::Sync for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
 impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -3482,6 +3628,20 @@ impl core::marker::Unpin for antecedent_contract::provider_transport::SourceTrus
 impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::marker::Unpin for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::NextAttempt [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::PreparationEffect [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::PreservationAxis [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::SummaryEffect [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::TileEffect [auto]
+impl core::marker::Unpin for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
 impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -3825,6 +3985,20 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_t
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::NextAttempt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PreparationEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PreservationAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::SummaryEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::TileEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -4168,6 +4342,20 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_tran
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedClaimOffer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedHandoff [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::TransportedInputPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::ColumnFilterPushdown [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::NextAttempt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::NuisanceEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::NuisanceReuse [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PreparationEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PreservationAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PreservedIdentities [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::PushdownEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::RewriteRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::SharedRowDesignPreparation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::SufficientStatistics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::SummaryEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::TileEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -4278,6 +4466,13 @@ pub const <antecedent_contract::interface_contract::ContractOperation>::ALL: [Se
 pub const <antecedent_contract::interface_contract::UncertaintyMeaning>::ALL_MEANINGS: [antecedent_contract::DistributionMeaning; 7]
 pub const <antecedent_contract::interface_contract::UncertaintyParadigm>::ALL: [Self; 4]
 pub const <antecedent_contract::provider_transport::TransportedHandoff>::STANDING: &'static str
+pub const <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::NAME: &'static str
+pub const <antecedent_contract::rewrite_legality::NextAttempt>::ALL: [Self; 7]
+pub const <antecedent_contract::rewrite_legality::NuisanceReuse>::NAME: &'static str
+pub const <antecedent_contract::rewrite_legality::PreservationAxis>::ALL: [Self; 6]
+pub const <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::NAME: &'static str
+pub const <antecedent_contract::rewrite_legality::SufficientStatistics>::NAME: &'static str
+pub const <antecedent_contract::rewrite_legality::TiledEvaluation>::NAME: &'static str
 pub const antecedent_contract::ASSUMPTION_RANGE_LABEL: &str
 pub const antecedent_contract::EFFECT_IDENTITY_VERSION: u64
 pub const antecedent_contract::JOINT_LAW_STAGE: &str
@@ -5911,6 +6106,47 @@ pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn s
 pub fn <antecedent_contract::provider_transport::TransportedHandoff>::const fn transport(&self) -> &antecedent_contract::evidence_ledger::TransportIdentity
 pub fn <antecedent_contract::provider_transport::TransportedInputPolicy>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::provider_transport::TransportedInputPolicy>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::const fn cohort(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::const fn effect(&self) -> antecedent_contract::rewrite_legality::PushdownEffect
+pub fn <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::const fn new(cohort: antecedent_contract::rewrite_legality::PreservedIdentities, pushed: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::PushdownEffect) -> Self
+pub fn <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::const fn pushed(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::NextAttempt>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::rewrite_legality::NextAttempt>::const fn sentence(self) -> &'static str
+pub fn <antecedent_contract::rewrite_legality::NextAttempt>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::rewrite_legality::NuisanceEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
+pub fn <antecedent_contract::rewrite_legality::NuisanceReuse>::const fn consumer(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::NuisanceReuse>::const fn effect(&self) -> antecedent_contract::rewrite_legality::NuisanceEffect
+pub fn <antecedent_contract::rewrite_legality::NuisanceReuse>::const fn fit(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::NuisanceReuse>::const fn new(fit: antecedent_contract::rewrite_legality::PreservedIdentities, consumer: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::NuisanceEffect) -> Self
+pub fn <antecedent_contract::rewrite_legality::PreparationEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
+pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::const fn next_attempt(self) -> antecedent_contract::rewrite_legality::NextAttempt
+pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::const fn phrase(self) -> &'static str
+pub fn <antecedent_contract::rewrite_legality::PreservationAxis>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::rewrite_legality::PreservedIdentities>::fn identity(&self, axis: antecedent_contract::rewrite_legality::PreservationAxis) -> &str
+pub fn <antecedent_contract::rewrite_legality::PreservedIdentities>::fn try_new(sample_selection: &str, folds: &str, population: &str, history: &str, dependence: &str, uncertainty: &str) -> core::result::Result<Self, antecedent_contract::rewrite_legality::RewriteRefusal>
+pub fn <antecedent_contract::rewrite_legality::PushdownEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
+pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn axis(&self) -> antecedent_contract::rewrite_legality::PreservationAxis
+pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn code(&self) -> &'static str
+pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn detail(&self) -> &'static str
+pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn kind(&self) -> core::option::Option<&'static str>
+pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::const fn next_attempt(&self) -> antecedent_contract::rewrite_legality::NextAttempt
+pub fn <antecedent_contract::rewrite_legality::RewriteRefusal>::fn message(&self) -> &str
+pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::const fn effect(&self) -> antecedent_contract::rewrite_legality::PreparationEffect
+pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::const fn left(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::const fn new(preparation: antecedent_contract::rewrite_legality::PreservedIdentities, left: antecedent_contract::rewrite_legality::PreservedIdentities, right: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::PreparationEffect) -> Self
+pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::const fn preparation(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::const fn right(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::SufficientStatistics>::const fn effect(&self) -> antecedent_contract::rewrite_legality::SummaryEffect
+pub fn <antecedent_contract::rewrite_legality::SufficientStatistics>::const fn new(rows: antecedent_contract::rewrite_legality::PreservedIdentities, summary: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::SummaryEffect) -> Self
+pub fn <antecedent_contract::rewrite_legality::SufficientStatistics>::const fn rows(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::SufficientStatistics>::const fn summary(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::SummaryEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
+pub fn <antecedent_contract::rewrite_legality::TileEffect>::const fn defect(self) -> core::option::Option<(antecedent_contract::rewrite_legality::PreservationAxis, &'static str)>
+pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn effect(&self) -> antecedent_contract::rewrite_legality::TileEffect
+pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn full(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn new(full: antecedent_contract::rewrite_legality::PreservedIdentities, tile: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::TileEffect) -> Self
+pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn tile(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
 pub fn <antecedent_contract::transport_revalidation::SceneClaim>::fn new(key: impl core::convert::Into<alloc::string::String>, kind: antecedent_contract::transport_revalidation::SceneClaimKind, identity: antecedent_core::identity::SemanticDigest, quantity: antecedent_core::identity::SemanticDigest) -> Self
 pub fn <antecedent_contract::transport_revalidation::TransportClaimRevalidation>::const fn graph_claim(&self) -> &antecedent_contract::composition_verification::ClaimRevalidation
 pub fn <antecedent_contract::transport_revalidation::TransportClaimRevalidation>::fn calibration_withdrawn(&self) -> bool
@@ -6073,6 +6309,7 @@ pub mod antecedent_contract::provider_verification
 pub mod antecedent_contract::quantity
 pub mod antecedent_contract::reasoning
 pub mod antecedent_contract::response_coordinates
+pub mod antecedent_contract::rewrite_legality
 pub mod antecedent_contract::support_labels
 pub mod antecedent_contract::transform
 pub mod antecedent_contract::transport_result
@@ -6291,6 +6528,20 @@ pub struct antecedent_contract::provider_transport::ProviderTransportSource
 pub struct antecedent_contract::provider_transport::TransportedClaimOffer
 pub struct antecedent_contract::provider_transport::TransportedHandoff
 pub struct antecedent_contract::provider_transport::TransportedHandoff has private fields
+pub struct antecedent_contract::rewrite_legality::ColumnFilterPushdown
+pub struct antecedent_contract::rewrite_legality::ColumnFilterPushdown has private fields
+pub struct antecedent_contract::rewrite_legality::NuisanceReuse
+pub struct antecedent_contract::rewrite_legality::NuisanceReuse has private fields
+pub struct antecedent_contract::rewrite_legality::PreservedIdentities
+pub struct antecedent_contract::rewrite_legality::PreservedIdentities has private fields
+pub struct antecedent_contract::rewrite_legality::RewriteRefusal
+pub struct antecedent_contract::rewrite_legality::RewriteRefusal has private fields
+pub struct antecedent_contract::rewrite_legality::SharedRowDesignPreparation
+pub struct antecedent_contract::rewrite_legality::SharedRowDesignPreparation has private fields
+pub struct antecedent_contract::rewrite_legality::SufficientStatistics
+pub struct antecedent_contract::rewrite_legality::SufficientStatistics has private fields
+pub struct antecedent_contract::rewrite_legality::TiledEvaluation
+pub struct antecedent_contract::rewrite_legality::TiledEvaluation has private fields
 pub struct antecedent_contract::transport_revalidation::SceneClaim
 pub struct antecedent_contract::transport_revalidation::SceneSource
 pub struct antecedent_contract::transport_revalidation::SceneTarget
@@ -6299,6 +6550,9 @@ pub struct antecedent_contract::transport_revalidation::TransportClaimRevalidati
 pub struct antecedent_contract::transport_revalidation::TransportRevalidation
 pub struct antecedent_contract::transport_revalidation::TransportRevalidation has private fields
 pub struct antecedent_contract::transport_revalidation::TransportScene
+pub trait antecedent_contract::rewrite_legality::RewriteKind: seal::Sealed
+pub trait fn fn antecedent_contract::rewrite_legality::RewriteKind::check(&self) -> core::result::Result<(), antecedent_contract::rewrite_legality::RewriteRefusal>
+pub trait fn fn antecedent_contract::rewrite_legality::RewriteKind::name(&self) -> &'static str
 pub type antecedent_contract::ArtifactId = alloc::sync::Arc<str>
 pub type antecedent_contract::StructuredRefusal = antecedent_contract::ExternalRefusal
 pub type antecedent_contract::bridge::BridgeRefusal = antecedent_contract::ExternalRefusal
@@ -7251,6 +7505,54 @@ pub variant antecedent_contract::provider_transport::SourceTrustRequirement::Att
 pub variant antecedent_contract::provider_transport::SourceTrustRequirement::ExactRequestVerified
 pub variant antecedent_contract::provider_transport::TransportedInputPolicy::AcceptsTransported
 pub variant antecedent_contract::provider_transport::TransportedInputPolicy::NativeTargetOnly
+pub variant antecedent_contract::rewrite_legality::NextAttempt::NamePreservedIdentity
+pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainDependence
+pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainFolds
+pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainHistory
+pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainPopulation
+pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainSampleSelection
+pub variant antecedent_contract::rewrite_legality::NextAttempt::RetainUncertainty
+pub variant antecedent_contract::rewrite_legality::NuisanceEffect::Certified
+pub variant antecedent_contract::rewrite_legality::NuisanceEffect::ChangesEstimationSample
+pub variant antecedent_contract::rewrite_legality::NuisanceEffect::DropsSharedFactor
+pub variant antecedent_contract::rewrite_legality::NuisanceEffect::FitOnOtherHistory
+pub variant antecedent_contract::rewrite_legality::NuisanceEffect::FitOnOtherPopulation
+pub variant antecedent_contract::rewrite_legality::NuisanceEffect::ReplacesUncertainty
+pub variant antecedent_contract::rewrite_legality::NuisanceEffect::TrainsOnEvaluationFold
+pub variant antecedent_contract::rewrite_legality::PreparationEffect::MixesDependence
+pub variant antecedent_contract::rewrite_legality::PreparationEffect::MixesFolds
+pub variant antecedent_contract::rewrite_legality::PreparationEffect::MixesHistories
+pub variant antecedent_contract::rewrite_legality::PreparationEffect::MixesPopulations
+pub variant antecedent_contract::rewrite_legality::PreparationEffect::MixesSamples
+pub variant antecedent_contract::rewrite_legality::PreparationEffect::MixesUncertainty
+pub variant antecedent_contract::rewrite_legality::PreparationEffect::Shared
+pub variant antecedent_contract::rewrite_legality::PreservationAxis::Dependence
+pub variant antecedent_contract::rewrite_legality::PreservationAxis::Folds
+pub variant antecedent_contract::rewrite_legality::PreservationAxis::History
+pub variant antecedent_contract::rewrite_legality::PreservationAxis::Population
+pub variant antecedent_contract::rewrite_legality::PreservationAxis::SampleSelection
+pub variant antecedent_contract::rewrite_legality::PreservationAxis::Uncertainty
+pub variant antecedent_contract::rewrite_legality::PushdownEffect::CutsHistory
+pub variant antecedent_contract::rewrite_legality::PushdownEffect::Declared
+pub variant antecedent_contract::rewrite_legality::PushdownEffect::DropsDependenceFactor
+pub variant antecedent_contract::rewrite_legality::PushdownEffect::DropsUncertainty
+pub variant antecedent_contract::rewrite_legality::PushdownEffect::OmitsRequiredColumn
+pub variant antecedent_contract::rewrite_legality::PushdownEffect::ReassignsFolds
+pub variant antecedent_contract::rewrite_legality::PushdownEffect::UndeclaredPopulationCut
+pub variant antecedent_contract::rewrite_legality::SummaryEffect::CollapsesHistory
+pub variant antecedent_contract::rewrite_legality::SummaryEffect::DropsCluster
+pub variant antecedent_contract::rewrite_legality::SummaryEffect::DropsSamplingLaw
+pub variant antecedent_contract::rewrite_legality::SummaryEffect::EvictsRow
+pub variant antecedent_contract::rewrite_legality::SummaryEffect::MarginalizesPopulation
+pub variant antecedent_contract::rewrite_legality::SummaryEffect::PoolsFolds
+pub variant antecedent_contract::rewrite_legality::SummaryEffect::Sufficient
+pub variant antecedent_contract::rewrite_legality::TileEffect::CutsHorizon
+pub variant antecedent_contract::rewrite_legality::TileEffect::DropsCrossTerms
+pub variant antecedent_contract::rewrite_legality::TileEffect::DropsFailedDraws
+pub variant antecedent_contract::rewrite_legality::TileEffect::DropsRows
+pub variant antecedent_contract::rewrite_legality::TileEffect::Faithful
+pub variant antecedent_contract::rewrite_legality::TileEffect::RetargetsPopulation
+pub variant antecedent_contract::rewrite_legality::TileEffect::SplitsFold
 pub variant antecedent_contract::transport_revalidation::SceneCalibration::Held { record: antecedent_core::identity::SemanticDigest, established_at_target: antecedent_core::identity::SemanticDigest }
 pub variant antecedent_contract::transport_revalidation::SceneCalibration::Inherited { from: alloc::string::String, record: antecedent_core::identity::SemanticDigest, established_at_target: antecedent_core::identity::SemanticDigest }
 pub variant antecedent_contract::transport_revalidation::SceneCalibration::PointOnly
