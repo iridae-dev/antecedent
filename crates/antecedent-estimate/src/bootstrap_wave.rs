@@ -181,25 +181,29 @@ mod tests {
     use std::sync::Mutex;
 
     use antecedent_core::ExecutionContext;
-    use antecedent_data::{GlobalId, ResamplingPlan, fill_resample_index_batch};
+    use antecedent_data::ResamplingPlan;
 
     use super::*;
     use crate::util::{bootstrap_se, finalize_bootstrap_se};
 
     fn reference_ids(n: usize, replicates: usize, seed: u64, stream_base: u64) -> Vec<u64> {
         let ctx = ExecutionContext::for_tests(seed);
-        let mut full = vec![GlobalId::new(0); n * replicates];
-        fill_resample_index_batch(
-            ResamplingPlan::IidBootstrap,
-            n,
-            replicates,
-            None,
-            &ctx,
-            stream_base,
-            &mut full,
-        )
-        .unwrap();
-        full.into_iter().map(GlobalId::get).collect()
+        let mut row = Vec::new();
+        let mut full = Vec::with_capacity(n * replicates);
+        for replicate in 0..replicates {
+            antecedent_data::resample::fill_resample_index_replicate(
+                ResamplingPlan::IidBootstrap,
+                n,
+                None,
+                &ctx,
+                stream_base,
+                u64::try_from(replicate).unwrap(),
+                &mut row,
+            )
+            .unwrap();
+            full.extend(row.iter().map(|id| id.get()));
+        }
+        full
     }
 
     fn as_rows(flat: &[u64], n: usize) -> Vec<Vec<usize>> {

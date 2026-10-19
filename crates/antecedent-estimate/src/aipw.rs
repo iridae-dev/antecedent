@@ -56,6 +56,7 @@
 
 use std::borrow::Cow;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
@@ -71,6 +72,7 @@ use antecedent_stats::{
 };
 
 use crate::adjustment::EffectEstimate;
+use crate::bootstrap_wave::retained_index_slots;
 use crate::cluster_dml_aipw::ClusterDml;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
@@ -1360,11 +1362,13 @@ impl AipwAte {
 
     /// Unit-resample bootstrap of the penalized cross-fitted contrast.
     ///
-    /// Every replicate draws `n` rows with replacement (copies keep their unit identity, so a
-    /// unit is never in a training set and in its own validation fold) and re-runs the whole
-    /// pipeline on the resample under `nuisance`: the arm-stratified unit fold plan, each
-    /// fold's inner-CV penalty (and lasso support) selection and every nuisance fit. The
-    /// penalties each successful replicate selected are recorded in replicate order, so the
+    /// Every replicate draws `n` rows with replacement into a reused buffer (copies keep their
+    /// unit identity, so a unit is never in a training set and in its own validation fold) and
+    /// re-runs the whole pipeline on the resample under `nuisance`: the arm-stratified unit
+    /// fold plan, each fold's inner-CV penalty (and lasso support) selection and every nuisance
+    /// fit. Replicate `r` is drawn from [`antecedent_core::StreamDomain::Resample`] at
+    /// [`PENALIZED_BOOTSTRAP_STREAM`] `^ r`, the same stream as the old replicate-major batch.
+    /// The penalties each successful replicate selected are recorded in replicate order, so the
     /// record replays from the seed under any thread count. A replicate that fails softly
     /// (a fold missing an arm, a failed fit, a boundary propensity) is counted, never
     /// replaced; a cancelled one stops the loop and is reported as a stop.
@@ -1375,68 +1379,33 @@ impl AipwAte {
         nuisance: PropensityNuisance,
         point: EffectEstimate,
     ) -> Result<EffectEstimate, EstimationError> {
-        enum Replicate {
-            Done(f64, Vec<f64>),
-            Failed,
-            Cancelled,
-        }
         let base = penalized_bootstrap_base(problem, ctx.rng.master_seed(), nuisance);
         let n = base.nrows;
         let n_rep = self.bootstrap_replicates as usize;
-        let len = n.checked_mul(n_rep).ok_or_else(|| {
-            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
-        })?;
-        if u64::try_from(n.saturating_sub(1)).is_err() {
-            return Err(EstimationError::data_msg(
-                "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
-            ));
-        }
-        let mut indexes = vec![antecedent_data::GlobalId::new(0); len];
-        let planned = antecedent_data::fill_resample_index_batch(
-            antecedent_data::ResamplingPlan::IidBootstrap,
-            n,
-            n_rep,
-            None,
-            ctx,
-            PENALIZED_BOOTSTRAP_STREAM,
-            &mut indexes,
-        );
-        let outcomes: Vec<Replicate> = match planned {
-            Ok(()) => ctx.map_indexed(n_rep, |r, inner| {
-                if inner.cancellation.is_cancelled() {
-                    return Ok::<_, EstimationError>(Replicate::Cancelled);
-                }
-                let idx: Vec<usize> = indexes[r * n..(r + 1) * n]
-                    .iter()
-                    .map(|i| usize::try_from(i.get()).expect("row id"))
-                    .collect();
-                let p = resampled_problem(&base, &idx, None);
-                Ok(match self.crossfit_table(&p, false, inner, None) {
-                    Ok((table, fit)) => match table.summarize(None) {
-                        Ok(summary) => {
-                            let ate = summary.means[1] - summary.means[0];
-                            if ate.is_finite() {
-                                let lambdas = fit.selections.iter().map(|s| s.lambda).collect();
-                                Replicate::Done(ate, lambdas)
-                            } else {
-                                Replicate::Failed
-                            }
-                        }
-                        Err(_) => Replicate::Failed,
-                    },
-                    Err(_) if inner.cancellation.is_cancelled() => Replicate::Cancelled,
-                    Err(_) => Replicate::Failed,
-                })
-            })?,
-            Err(antecedent_data::DataError::Cancelled) => vec![Replicate::Cancelled],
-            Err(error) => return Err(error.into()),
+        let outcomes = if ctx.cancellation.is_cancelled() {
+            vec![PenalizedDraw::Cancelled]
+        } else if n == 0 || n_rep == 0 {
+            return Err(EstimationError::Data(antecedent_data::DataError::InvalidArgument {
+                message: "batch resample needs n > 0 and n_replicates > 0".into(),
+            }));
+        } else {
+            let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
+            retained_index_slots(n, threads)?;
+            if u64::try_from(n.saturating_sub(1)).is_err() {
+                return Err(EstimationError::data_msg(
+                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                ));
+            }
+            map_penalized_replicates(ctx, n_rep, |r, inner, ids, idx| {
+                self.penalized_replicate(&base, ctx, inner, n, r, (ids, idx))
+            })?
         };
         let mut ates = Vec::with_capacity(n_rep);
         let mut penalties = Vec::with_capacity(n_rep);
         let (mut attempted, mut cancelled) = (0u32, false);
         for (r, outcome) in outcomes.into_iter().enumerate() {
             match outcome {
-                Replicate::Done(ate, lambdas) => {
+                PenalizedDraw::Done(ate, lambdas) => {
                     attempted += 1;
                     ates.push(ate);
                     penalties.push(ReplicatePenalties {
@@ -1444,8 +1413,8 @@ impl AipwAte {
                         lambdas,
                     });
                 }
-                Replicate::Failed => attempted += 1,
-                Replicate::Cancelled => cancelled = true,
+                PenalizedDraw::Failed => attempted += 1,
+                PenalizedDraw::Cancelled => cancelled = true,
             }
         }
         let boot = crate::util::finalize_bootstrap_se_ex(&ates, attempted, cancelled, false);
@@ -1467,6 +1436,51 @@ impl AipwAte {
         let mut estimate = point.with_bootstrap(Some(boot));
         estimate.diagnostics.penalized = Some(Box::new(report));
         Ok(estimate)
+    }
+
+    /// One penalized refit on the rows drawn for replicate `r`.
+    ///
+    /// Indexes are written into the caller's buffers. `outer` is the stream the batch used;
+    /// `inner` is the context that evaluates the replicate (serial when the pool is parallel).
+    fn penalized_replicate(
+        &self,
+        base: &PreparedPropensityProblem,
+        outer: &ExecutionContext,
+        inner: &ExecutionContext,
+        n: usize,
+        replicate: usize,
+        indexes: (&mut Vec<antecedent_data::GlobalId>, &mut Vec<usize>),
+    ) -> Result<PenalizedDraw, EstimationError> {
+        let (ids, idx) = indexes;
+        if inner.cancellation.is_cancelled() {
+            return Ok(PenalizedDraw::Cancelled);
+        }
+        let replicate = u64::try_from(replicate)
+            .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds u64"))?;
+        match fill_penalized_bootstrap_indexes(n, replicate, outer, ids, idx) {
+            Ok(()) => {}
+            Err(EstimationError::Data(antecedent_data::DataError::Cancelled)) => {
+                return Ok(PenalizedDraw::Cancelled);
+            }
+            Err(error) => return Err(error),
+        }
+        let p = resampled_problem(base, idx, None);
+        Ok(match self.crossfit_table(&p, false, inner, None) {
+            Ok((table, fit)) => match table.summarize(None) {
+                Ok(summary) => {
+                    let ate = summary.means[1] - summary.means[0];
+                    if ate.is_finite() {
+                        let lambdas = fit.selections.iter().map(|s| s.lambda).collect();
+                        PenalizedDraw::Done(ate, lambdas)
+                    } else {
+                        PenalizedDraw::Failed
+                    }
+                }
+                Err(_) => PenalizedDraw::Failed,
+            },
+            Err(_) if inner.cancellation.is_cancelled() => PenalizedDraw::Cancelled,
+            Err(_) => PenalizedDraw::Failed,
+        })
     }
 
     #[expect(
@@ -1607,8 +1621,116 @@ impl AipwAte {
     }
 }
 
+/// One penalized-bootstrap replicate after its indexes have been drawn.
+enum PenalizedDraw {
+    Done(f64, Vec<f64>),
+    Failed,
+    Cancelled,
+}
+
 /// Stream tag of the penalized refit bootstrap's resample plan.
 const PENALIZED_BOOTSTRAP_STREAM: u64 = 0xA1D7_0001;
+
+/// Draw replicate `replicate` into reused buffers on the penalized bootstrap stream.
+///
+/// `ids` and `idx` end at length `n`. The indexes match row `replicate` of
+/// [`antecedent_data::fill_resample_index_batch`] for an IID plan at
+/// [`PENALIZED_BOOTSTRAP_STREAM`].
+fn fill_penalized_bootstrap_indexes(
+    n: usize,
+    replicate: u64,
+    ctx: &ExecutionContext,
+    ids: &mut Vec<antecedent_data::GlobalId>,
+    idx: &mut Vec<usize>,
+) -> Result<(), EstimationError> {
+    antecedent_data::resample::fill_resample_index_replicate(
+        antecedent_data::ResamplingPlan::IidBootstrap,
+        n,
+        None,
+        ctx,
+        PENALIZED_BOOTSTRAP_STREAM,
+        replicate,
+        ids,
+    )?;
+    idx.clear();
+    idx.try_reserve_exact(ids.len()).map_err(|e| {
+        EstimationError::data_msg(format!("bootstrap index allocation failed: {e}"))
+    })?;
+    for id in ids.iter() {
+        idx.push(usize::try_from(id.get()).expect("row id"));
+    }
+    Ok(())
+}
+
+/// Evaluate penalized replicates with one index buffer per worker.
+///
+/// Serial contexts pass `ctx` through. A parallel context passes
+/// [`ExecutionContext::serial_inner`] and stops scheduling indexes above the first error,
+/// matching [`ExecutionContext::map_indexed`].
+fn map_penalized_replicates<F>(
+    ctx: &ExecutionContext,
+    n_rep: usize,
+    f: F,
+) -> Result<Vec<PenalizedDraw>, EstimationError>
+where
+    F: Fn(
+            usize,
+            &ExecutionContext,
+            &mut Vec<antecedent_data::GlobalId>,
+            &mut Vec<usize>,
+        ) -> Result<PenalizedDraw, EstimationError>
+        + Sync,
+{
+    if n_rep == 0 {
+        return Ok(Vec::new());
+    }
+    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
+    if threads == 1 {
+        let mut ids = Vec::new();
+        let mut idx = Vec::new();
+        return (0..n_rep).map(|r| f(r, ctx, &mut ids, &mut idx)).collect();
+    }
+    let inner = ctx.serial_inner();
+    let mut slots: Vec<Option<Result<PenalizedDraw, EstimationError>>> =
+        (0..n_rep).map(|_| None).collect();
+    let first_failure = AtomicUsize::new(usize::MAX);
+    std::thread::scope(|scope| {
+        let f = &f;
+        let inner = &inner;
+        let first_failure = &first_failure;
+        let mut rest = slots.as_mut_slice();
+        let mut start = 0usize;
+        for t in 0..threads {
+            let take = rest.len().div_ceil(threads - t);
+            let (mine, next) = rest.split_at_mut(take);
+            let begin = start;
+            scope.spawn(move || {
+                let mut ids = Vec::new();
+                let mut idx = Vec::new();
+                for (k, slot) in mine.iter_mut().enumerate() {
+                    let index = begin + k;
+                    if first_failure.load(Ordering::Relaxed) < index {
+                        break;
+                    }
+                    let outcome = f(index, inner, &mut ids, &mut idx);
+                    if outcome.is_err() {
+                        first_failure.fetch_min(index, Ordering::Relaxed);
+                    }
+                    *slot = Some(outcome);
+                }
+            });
+            rest = next;
+            start += take;
+            if rest.is_empty() {
+                break;
+            }
+        }
+    });
+    slots
+        .into_iter()
+        .map(|slot| slot.expect("every index below the first error was filled"))
+        .collect()
+}
 
 /// The problem a penalized refit bootstrap resamples.
 ///
@@ -2710,6 +2832,50 @@ mod tests {
         };
         assert_eq!(bits(&a), bits(&b));
         assert_eq!(fit_a.selections, fit_b.selections);
+    }
+
+    /// Per-replicate draws on the penalized stream match the replicate-major batch.
+    #[test]
+    fn penalized_bootstrap_indexes_match_the_batch_stream() {
+        let n = 9usize;
+        let replicates = 6usize;
+        let ctx = ExecutionContext::for_tests(23);
+        let mut batch = vec![antecedent_data::GlobalId::new(0); n * replicates];
+        antecedent_data::fill_resample_index_batch(
+            antecedent_data::ResamplingPlan::IidBootstrap,
+            n,
+            replicates,
+            None,
+            &ctx,
+            super::PENALIZED_BOOTSTRAP_STREAM,
+            &mut batch,
+        )
+        .unwrap();
+        let mut ids = Vec::new();
+        let mut idx = Vec::new();
+        let (mut held_ids, mut held_idx) = (0usize, 0usize);
+        for replicate in 0..replicates {
+            super::fill_penalized_bootstrap_indexes(
+                n,
+                u64::try_from(replicate).unwrap(),
+                &ctx,
+                &mut ids,
+                &mut idx,
+            )
+            .unwrap();
+            let expect: Vec<usize> = batch[replicate * n..(replicate + 1) * n]
+                .iter()
+                .map(|id| usize::try_from(id.get()).unwrap())
+                .collect();
+            assert_eq!(idx, expect);
+            if replicate == 0 {
+                held_ids = ids.capacity();
+                held_idx = idx.capacity();
+            } else {
+                assert_eq!(ids.capacity(), held_ids);
+                assert_eq!(idx.capacity(), held_idx);
+            }
+        }
     }
 
     /// The refit bootstrap clones only to install a different fold seed or propensity.

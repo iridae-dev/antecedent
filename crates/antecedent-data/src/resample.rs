@@ -473,6 +473,10 @@ pub(crate) fn fill_resample_weights(
     Ok(())
 }
 
+fn resample_rng(ctx: &ExecutionContext, stream_base: u64, replicate: u64) -> CausalRng {
+    ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate)
+}
+
 fn checked_batch_len(n: usize, n_replicates: usize) -> Result<usize, DataError> {
     if n == 0 || n_replicates == 0 {
         return Err(DataError::InvalidArgument {
@@ -491,13 +495,61 @@ fn check_resampling_cancelled(ctx: &ExecutionContext) -> Result<(), DataError> {
     Ok(())
 }
 
+/// Fill `out` with one replicate's row indexes, reusing the buffer.
+///
+/// The draw is `ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate)`, the same
+/// stream as row `replicate` of [`fill_resample_index_batch`]. `out` is cleared first. Index
+/// plans other than cluster bootstrap write `n` ids. A cluster bootstrap writes one copy of
+/// each drawn cluster's rows, so unequal clusters change `out.len()` and a cluster drawn `k`
+/// times contributes `k` separate copies under its original row ids.
+///
+/// # Errors
+///
+/// Cancellation, `n == 0`, a weight plan, a clustered plan without matching `cluster_ids`, or
+/// a row id that does not fit in [`GlobalId`].
+pub fn fill_resample_index_replicate(
+    plan: ResamplingPlan,
+    n: usize,
+    cluster_ids: Option<&[u32]>,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    replicate: u64,
+    out: &mut Vec<GlobalId>,
+) -> Result<(), DataError> {
+    check_resampling_cancelled(ctx)?;
+    let clusters = prepare_clusters(plan, n, cluster_ids)?;
+    let mut rng = resample_rng(ctx, stream_base, replicate);
+    fill_indexes_prepared(plan, n, clusters.as_ref(), &mut rng, out)
+}
+
+/// Fill `out` with one Bayesian-bootstrap weight replicate, reusing the buffer.
+///
+/// The draw is `ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate)`, the same
+/// stream as one row of a replicate-major Bayesian-bootstrap weight batch. Weights sum to `n`.
+///
+/// # Errors
+///
+/// Cancellation, `n == 0`, a non-weight plan, or a non-positive weight sum.
+pub fn fill_resample_weight_replicate(
+    plan: ResamplingPlan,
+    n: usize,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    replicate: u64,
+    out: &mut Vec<f64>,
+) -> Result<(), DataError> {
+    check_resampling_cancelled(ctx)?;
+    let mut rng = resample_rng(ctx, stream_base, replicate);
+    fill_resample_weights(plan, n, &mut rng, out)
+}
+
 /// Fill `out` (`len = n * n_replicates`, replicate-major) with index plans under one
 /// [`ExecutionContext`].
 ///
 /// Each replicate uses `ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate_id)`
-/// so results are independent of scheduling order under [`antecedent_core::Determinism::Strict`].
-/// When `max_threads > 1` and `n_replicates ≥ 2`, fills run in a bounded
-/// `std::thread::scope` pool.
+/// ([`fill_resample_index_replicate`]) so results are independent of scheduling order under
+/// [`antecedent_core::Determinism::Strict`]. When `max_threads > 1` and `n_replicates ≥ 2`,
+/// fills run in a bounded `std::thread::scope` pool.
 ///
 /// # Errors
 ///
@@ -553,7 +605,7 @@ pub fn fill_resample_index_batch(
     }
     let clusters = prepare_clusters(plan, n, cluster_ids)?;
     fill_replicate_rows(ctx, n, n_replicates, out, |r, scratch| {
-        let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ r as u64);
+        let mut rng = resample_rng(ctx, stream_base, r as u64);
         fill_indexes_prepared(plan, n, clusters.as_ref(), &mut rng, scratch)
     })
 }
@@ -587,7 +639,7 @@ pub(crate) fn fill_resample_weight_batch(
         });
     }
     fill_replicate_rows(ctx, n, n_replicates, out, |r, scratch| {
-        let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ r as u64);
+        let mut rng = resample_rng(ctx, stream_base, r as u64);
         fill_resample_weights(plan, n, &mut rng, scratch)
     })
 }
@@ -828,7 +880,8 @@ fn apply_row_map(data: &TimeSeriesData, row_map: &[GlobalId]) -> Result<TimeSeri
 #[cfg(test)]
 mod tests {
     use antecedent_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
+        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+        VariableId,
     };
 
     use super::*;
@@ -1125,7 +1178,6 @@ mod tests {
 
     #[test]
     fn index_batch_shape_and_strict_determinism() {
-        use antecedent_core::ExecutionContext;
         let ctx = ExecutionContext::for_tests(42);
         let n = 20usize;
         let b = 8usize;
@@ -1157,7 +1209,6 @@ mod tests {
 
     #[test]
     fn weight_batch_rows_sum_to_n() {
-        use antecedent_core::ExecutionContext;
         let ctx = ExecutionContext::for_tests(7);
         let n = 15usize;
         let b = 4usize;
@@ -1309,5 +1360,192 @@ mod tests {
         );
         assert_eq!(indexes, [GlobalId::new(7)]);
         assert!((weights[0] - 0.7).abs() < 1e-12);
+    }
+
+    /// One reused buffer, filled per replicate, matches the replicate-major batch row.
+    fn assert_reused_indexes_match_batch(
+        plan: ResamplingPlan,
+        n: usize,
+        replicates: usize,
+        cluster_ids: Option<&[u32]>,
+        seed: u64,
+        stream_base: u64,
+        threads: u32,
+    ) {
+        let ctx = if threads == 1 {
+            ExecutionContext::for_tests(seed)
+        } else {
+            ExecutionContext::production(seed, threads)
+        };
+        let mut batch = vec![GlobalId::new(0); n * replicates];
+        fill_resample_index_batch(
+            plan,
+            n,
+            replicates,
+            cluster_ids,
+            &ctx,
+            stream_base,
+            &mut batch,
+        )
+        .unwrap();
+        let mut reused = Vec::new();
+        let mut held = 0usize;
+        for replicate in 0..replicates {
+            fill_resample_index_replicate(
+                plan,
+                n,
+                cluster_ids,
+                &ctx,
+                stream_base,
+                replicate as u64,
+                &mut reused,
+            )
+            .unwrap();
+            let start = replicate * n;
+            assert_eq!(reused.as_slice(), &batch[start..start + n]);
+            if replicate == 0 {
+                held = reused.capacity();
+            } else {
+                assert_eq!(reused.capacity(), held);
+            }
+        }
+    }
+
+    #[test]
+    fn bounded_iid_indexes_match_the_batch() {
+        assert_reused_indexes_match_batch(
+            ResamplingPlan::IidBootstrap,
+            20,
+            8,
+            None,
+            42,
+            0xDEAD,
+            1,
+        );
+        assert_reused_indexes_match_batch(
+            ResamplingPlan::IidBootstrap,
+            20,
+            8,
+            None,
+            42,
+            0xDEAD,
+            4,
+        );
+    }
+
+    #[test]
+    fn bounded_block_indexes_match_the_batch() {
+        let plans = [
+            ResamplingPlan::MovingBlock { length: 3 },
+            ResamplingPlan::CircularBlock { length: 4 },
+            ResamplingPlan::StationaryBlock { expected_length: 2.5 },
+        ];
+        for plan in plans {
+            assert_reused_indexes_match_batch(plan, 24, 6, None, 5, 0xB10C, 1);
+        }
+    }
+
+    #[test]
+    fn bounded_permutation_indexes_match_the_batch() {
+        assert_reused_indexes_match_batch(
+            ResamplingPlan::Permutation(PermutationScheme::Full),
+            16,
+            5,
+            None,
+            3,
+            0x5EED,
+            1,
+        );
+        let ids = [0u32, 0, 1, 1, 1];
+        assert_reused_indexes_match_batch(
+            ResamplingPlan::Permutation(PermutationScheme::WithinCluster),
+            5,
+            7,
+            Some(&ids),
+            3,
+            0x5EED,
+            1,
+        );
+    }
+
+    #[test]
+    fn bounded_bayesian_weights_match_the_batch() {
+        let ctx = ExecutionContext::for_tests(7);
+        let n = 15usize;
+        let replicates = 4usize;
+        let stream_base = 0xBEEF_u64;
+        let mut batch = vec![0.0; n * replicates];
+        fill_resample_weight_batch(
+            ResamplingPlan::BayesianBootstrap,
+            n,
+            replicates,
+            &ctx,
+            stream_base,
+            &mut batch,
+        )
+        .unwrap();
+        let mut reused = Vec::new();
+        let mut held = 0usize;
+        for replicate in 0..replicates {
+            fill_resample_weight_replicate(
+                ResamplingPlan::BayesianBootstrap,
+                n,
+                &ctx,
+                stream_base,
+                replicate as u64,
+                &mut reused,
+            )
+            .unwrap();
+            let row = &batch[replicate * n..(replicate + 1) * n];
+            assert_eq!(reused.len(), n);
+            for (got, expect) in reused.iter().zip(row) {
+                assert!((got - expect).abs() < 1e-12);
+            }
+            if replicate == 0 {
+                held = reused.capacity();
+            } else {
+                assert_eq!(reused.capacity(), held);
+            }
+        }
+    }
+
+    #[test]
+    fn bounded_equal_cluster_indexes_match_the_batch() {
+        let ids = [0u32, 0, 1, 1, 2, 2];
+        let plan = ResamplingPlan::ClusterBootstrap { cluster: VariableId::from_raw(0) };
+        assert_reused_indexes_match_batch(plan, ids.len(), 9, Some(&ids), 11, 0xC1, 1);
+    }
+
+    #[test]
+    fn bounded_cluster_replicate_keeps_variable_length_and_repeated_copies() {
+        let plan = ResamplingPlan::ClusterBootstrap { cluster: VariableId::from_raw(0) };
+        let ids = [0u32, 1, 1, 1];
+        let ctx = ExecutionContext::for_tests(42);
+        let mut reused = Vec::new();
+        let mut saw_repeat = false;
+        let mut saw_variable = false;
+        for replicate in 0..64u64 {
+            fill_resample_index_replicate(plan, 4, Some(&ids), &ctx, 11, replicate, &mut reused)
+                .unwrap();
+            let mut cursor = 0;
+            let (mut copies0, mut copies1) = (0usize, 0usize);
+            while cursor < reused.len() {
+                if reused[cursor].get() == 0 {
+                    copies0 += 1;
+                    cursor += 1;
+                } else {
+                    let got: Vec<u64> =
+                        reused[cursor..cursor + 3].iter().map(|id| id.get()).collect();
+                    assert_eq!(got, [1, 2, 3]);
+                    copies1 += 1;
+                    cursor += 3;
+                }
+            }
+            assert_eq!(copies0 + copies1, 2, "a replicate draws G whole clusters");
+            saw_repeat |= copies0 == 2 || copies1 == 2;
+            saw_variable |= reused.len() != 4;
+        }
+        assert!(saw_repeat, "a repeated cluster must stay two copies");
+        assert!(saw_variable, "unequal clusters change the replicate length");
     }
 }
