@@ -1,0 +1,24 @@
+feature_id = "model.scc_compile"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Foundations of Structural Causal Models with Cycles and Latent Variables", doi = "10.48550/arXiv.1611.06221", sections = ["Section 2.2: solvability of a cyclic structural model. This module solves a specified linear equilibrium. It does not certify unique solvability for every intervention subset."] },
+ { title = "Learning Linear Cyclic Causal Models with Latent Variables", sections = ["JMLR 13 (2012), Section 2: the linear equilibrium x = Kx + c + ε and weak stability as invertibility. This module solves a specified model. It does not run the paper's estimator."] },
+]
+
+implementation_deviations = [
+ "Each strongly connected component of the free support is one square block I − K_SS, scheduled sources before sinks. The block is overwritten by a Gauss–Jordan solve. (I − K)^{-1} is not formed and is not stored.",
+ "A nonzero diagonal is refused and names the next attempt. It is not normalized.",
+ "Disturbance covariance between components is kept. A hard clamp substitutes constants and leaves the free block its marginal disturbance covariance.",
+ "A singular or non-finite block is a refusal. The result stays NotMarkedUnidentified. Physical stability is unclaimed. No iterative solver is recorded.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-model/src/scc_compile.rs)",
+]

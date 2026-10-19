@@ -1,7 +1,8 @@
 //! Solution contracts for a specified linear equilibrium SCM.
 //!
 //! The structural model is `X = KX + c + ε`. `K[i, j]` is variable `j`'s direct
-//! mechanism into variable `i`. This initial family requires a zero diagonal;
+//! mechanism into variable `i`. This initial family requires a zero diagonal.
+//! A nonzero diagonal is refused and names [`NONZERO_DIAGONAL_NEXT_ATTEMPT`]:
 //! a later normalization would have to transform the intercept and the noise
 //! law with it, and this module does not do that.
 //!
@@ -49,6 +50,15 @@ use thiserror::Error;
 /// Factor or solve this operator; do not treat the string as an inverse.
 pub const FREE_BLOCK_EQUATION: &str = "(I - K_FF) X_F = K_FH a + c_F + ε_F";
 
+/// Next attempt when a structural diagonal is nonzero.
+///
+/// Rescaling that equation by itself would leave the intercept and the noise
+/// law in the old coordinate. This family does not do that rescaling.
+pub const NONZERO_DIAGONAL_NEXT_ATTEMPT: &str = concat!(
+    "normalize the structural equation only by transforming the intercept and the noise law ",
+    "with the diagonal",
+);
+
 /// A computed upper bound must sit at least this far below one before
 /// `ρ(|K|) < 1` is treated as established. The gap absorbs a rounding-low
 /// Collatz–Wielandt ratio so a bound that merely grazes one is not admitted.
@@ -68,10 +78,12 @@ pub enum LinearSolutionError {
         message: &'static str,
     },
     /// `K[node, node]` is nonzero. This family does not rescale that equation.
-    #[error("linear SCM requires a zero diagonal at node {node}")]
+    #[error("linear SCM requires a zero diagonal at node {node}; next attempt: {next_attempt}")]
     NonzeroDiagonal {
         /// Variable whose structural self-coefficient is nonzero.
         node: usize,
+        /// [`NONZERO_DIAGONAL_NEXT_ATTEMPT`].
+        next_attempt: &'static str,
     },
     /// A structural coefficient is NaN or infinite.
     #[error("non-finite structural coefficient into {into_node} from {from_node}")]
@@ -168,7 +180,10 @@ impl LinearStructuralMap {
                     reason = "zero diagonal is an exact structural constraint of this family"
                 )]
                 if i == j && value != 0.0 {
-                    return Err(LinearSolutionError::NonzeroDiagonal { node: i });
+                    return Err(LinearSolutionError::NonzeroDiagonal {
+                        node: i,
+                        next_attempt: NONZERO_DIAGONAL_NEXT_ATTEMPT,
+                    });
                 }
             }
         }
@@ -784,7 +799,8 @@ fn abs_matvec(coefficients: &[f64], n: usize, vector: &[f64], out: &mut [f64]) {
 mod tests {
     use super::{
         Conditioning, ConsistencyWitness, FamilyCertificate, HardClamp, IdentificationStatus,
-        LinearSolutionError, LinearStructuralMap, NextAttempt, PhysicalStability,
+        LinearSolutionError, LinearStructuralMap, NONZERO_DIAGONAL_NEXT_ATTEMPT, NextAttempt,
+        PhysicalStability,
         SolverConvergence, Uniqueness, assess,
     };
 
@@ -969,9 +985,22 @@ mod tests {
     #[test]
     fn nonzero_diagonal_non_finite_entries_and_bad_clamps_are_refused() {
         let diagonal = LinearStructuralMap::try_new(vec![0.2, 0.0, 0.0, 0.0], vec![0.0, 0.0]);
-        assert_eq!(diagonal, Err(LinearSolutionError::NonzeroDiagonal { node: 0 }));
+        assert_eq!(
+            diagonal,
+            Err(LinearSolutionError::NonzeroDiagonal {
+                node: 0,
+                next_attempt: NONZERO_DIAGONAL_NEXT_ATTEMPT,
+            })
+        );
+        assert!(diagonal.unwrap_err().to_string().contains(NONZERO_DIAGONAL_NEXT_ATTEMPT));
         let negative = LinearStructuralMap::try_new(vec![0.0, 1.0, 0.0, -0.2], vec![0.0, 0.0]);
-        assert_eq!(negative, Err(LinearSolutionError::NonzeroDiagonal { node: 1 }));
+        assert_eq!(
+            negative,
+            Err(LinearSolutionError::NonzeroDiagonal {
+                node: 1,
+                next_attempt: NONZERO_DIAGONAL_NEXT_ATTEMPT,
+            })
+        );
         let infinite =
             LinearStructuralMap::try_new(vec![0.0, f64::INFINITY, 0.0, 0.0], vec![0.0, 0.0]);
         assert!(matches!(

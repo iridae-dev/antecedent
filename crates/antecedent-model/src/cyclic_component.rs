@@ -14,6 +14,11 @@
 //! This module does not evaluate the bound, does not issue a new certificate,
 //! and does not sample. The component's own source id is not evidence that
 //! its solution holds.
+//!
+//! [`SCC_COMPILE_ATTEMPT`] names the compilation of that contract: factor each
+//! free block of the admitted component and keep cross-block disturbance
+//! covariance. Naming the attempt does not compile the block and does not
+//! identify the model.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -35,6 +40,16 @@ pub const CYCLE_GATE_NEXT_ATTEMPT: &str = concat!(
 /// This is a reference to [`crate::linear_solution::FamilyCertificate`].
 /// Carrying the name does not admit the bound and does not compute a radius.
 pub const FAMILY_BOUND_REFERENCE: &str = "ρ(|K|) < 1";
+
+/// Next attempt after a cyclic model is admitted as one component.
+///
+/// The attempt is compilation of the named free-block equation. This constant
+/// does not factor a block, does not admit `ρ(|K|) < 1`, and does not identify
+/// the model.
+pub const SCC_COMPILE_ATTEMPT: &str = concat!(
+    "compile the admitted component by strongly connected components, factor each free block, ",
+    "and keep the cross-block disturbance covariance",
+);
 
 /// One component and the components that must precede it.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -316,6 +331,17 @@ impl CyclicComponent {
     #[must_use]
     pub const fn solve_contract(&self) -> SolveContractName {
         self.solve
+    }
+
+    /// Compilation attempt for this admitted component.
+    ///
+    /// The value is [`SCC_COMPILE_ATTEMPT`]. The component's solve contract is
+    /// the explicit free-block equation. This does not factor a block and does
+    /// not identify the model.
+    #[must_use]
+    pub fn scc_compile_attempt(&self) -> &'static str {
+        debug_assert!(self.solve.is_explicit());
+        SCC_COMPILE_ATTEMPT
     }
 
     /// Whether `evidence` may certify this component.

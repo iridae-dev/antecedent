@@ -32,6 +32,7 @@ pub mod overlay;
 pub mod program;
 pub mod registry;
 pub mod sample;
+pub mod scc_compile;
 pub mod temporal_rollout;
 pub mod tree;
 

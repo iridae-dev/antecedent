@@ -11,6 +11,7 @@
 #[non_exhaustive] pub enum antecedent_model::information_time::InformationRefusal
 #[non_exhaustive] pub enum antecedent_model::observation_query::ObservationQueryError
 #[non_exhaustive] pub enum antecedent_model::observation_query::UnreachableBound
+#[non_exhaustive] pub enum antecedent_model::scc_compile::SccCompileError
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CompiledCausalModel [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CompiledMechanismStore [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::InvertibleStructuralCausalModel [auto]
@@ -184,6 +185,12 @@ impl core::clone::Clone for antecedent_model::observation_query::RequiredBayesFa
 impl core::clone::Clone for antecedent_model::observation_query::SignalLevelOutcome
 impl core::clone::Clone for antecedent_model::observation_query::ThresholdCrossing
 impl core::clone::Clone for antecedent_model::observation_query::UnreachableBound
+impl core::clone::Clone for antecedent_model::scc_compile::AdmissionCost
+impl core::clone::Clone for antecedent_model::scc_compile::BlockDiagnostic
+impl core::clone::Clone for antecedent_model::scc_compile::CompileBudget
+impl core::clone::Clone for antecedent_model::scc_compile::CompiledEquilibrium
+impl core::clone::Clone for antecedent_model::scc_compile::GaussianDisturbance
+impl core::clone::Clone for antecedent_model::scc_compile::SccCompileError
 impl core::cmp::Eq for antecedent_model::BasisTerm
 impl core::cmp::Eq for antecedent_model::ComponentDependency
 impl core::cmp::Eq for antecedent_model::ComponentOrder
@@ -258,6 +265,9 @@ impl core::cmp::Eq for antecedent_model::mechanism_transport::MechanismDispositi
 impl core::cmp::Eq for antecedent_model::mechanism_transport::MechanismRole
 impl core::cmp::Eq for antecedent_model::observation_query::Direction
 impl core::cmp::Eq for antecedent_model::observation_query::UnreachableBound
+impl core::cmp::Eq for antecedent_model::scc_compile::AdmissionCost
+impl core::cmp::Eq for antecedent_model::scc_compile::CompileBudget
+impl core::cmp::Eq for antecedent_model::scc_compile::SccCompileError
 impl core::cmp::Ord for antecedent_model::compose::CoherenceKind
 impl core::cmp::Ord for antecedent_model::compose::ContextCoordinate
 impl core::cmp::Ord for antecedent_model::compose::MechanismFamily
@@ -395,6 +405,12 @@ impl core::cmp::PartialEq for antecedent_model::observation_query::RequiredBayes
 impl core::cmp::PartialEq for antecedent_model::observation_query::SignalLevelOutcome
 impl core::cmp::PartialEq for antecedent_model::observation_query::ThresholdCrossing
 impl core::cmp::PartialEq for antecedent_model::observation_query::UnreachableBound
+impl core::cmp::PartialEq for antecedent_model::scc_compile::AdmissionCost
+impl core::cmp::PartialEq for antecedent_model::scc_compile::BlockDiagnostic
+impl core::cmp::PartialEq for antecedent_model::scc_compile::CompileBudget
+impl core::cmp::PartialEq for antecedent_model::scc_compile::CompiledEquilibrium
+impl core::cmp::PartialEq for antecedent_model::scc_compile::GaussianDisturbance
+impl core::cmp::PartialEq for antecedent_model::scc_compile::SccCompileError
 impl core::cmp::PartialOrd for antecedent_model::compose::CoherenceKind
 impl core::cmp::PartialOrd for antecedent_model::compose::ContextCoordinate
 impl core::cmp::PartialOrd for antecedent_model::compose::MechanismFamily
@@ -433,6 +449,7 @@ impl core::error::Error for antecedent_model::discretized_scm_artifact::Artifact
 impl core::error::Error for antecedent_model::history_operators::HistoryOperatorError
 impl core::error::Error for antecedent_model::information_time::InformationRefusal
 impl core::error::Error for antecedent_model::observation_query::ObservationQueryError
+impl core::error::Error for antecedent_model::scc_compile::SccCompileError
 impl core::fmt::Debug for antecedent_model::BasisTerm
 impl core::fmt::Debug for antecedent_model::CompiledCausalModel
 impl core::fmt::Debug for antecedent_model::CompiledMechanismStore
@@ -591,6 +608,12 @@ impl core::fmt::Debug for antecedent_model::observation_query::RequiredBayesFact
 impl core::fmt::Debug for antecedent_model::observation_query::SignalLevelOutcome
 impl core::fmt::Debug for antecedent_model::observation_query::ThresholdCrossing
 impl core::fmt::Debug for antecedent_model::observation_query::UnreachableBound
+impl core::fmt::Debug for antecedent_model::scc_compile::AdmissionCost
+impl core::fmt::Debug for antecedent_model::scc_compile::BlockDiagnostic
+impl core::fmt::Debug for antecedent_model::scc_compile::CompileBudget
+impl core::fmt::Debug for antecedent_model::scc_compile::CompiledEquilibrium
+impl core::fmt::Debug for antecedent_model::scc_compile::GaussianDisturbance
+impl core::fmt::Debug for antecedent_model::scc_compile::SccCompileError
 impl core::fmt::Display for antecedent_model::CycleGateError
 impl core::fmt::Display for antecedent_model::CyclicComponentError
 impl core::fmt::Display for antecedent_model::LinearSolutionError
@@ -601,6 +624,7 @@ impl core::fmt::Display for antecedent_model::history_operators::HistoryOperator
 impl core::fmt::Display for antecedent_model::history_operators::WeightRole
 impl core::fmt::Display for antecedent_model::information_time::InformationRefusal
 impl core::fmt::Display for antecedent_model::observation_query::ObservationQueryError
+impl core::fmt::Display for antecedent_model::scc_compile::SccCompileError
 impl core::hash::Hash for antecedent_model::BasisTerm
 impl core::hash::Hash for antecedent_model::GraphFalsificationOutcome
 impl core::hash::Hash for antecedent_model::GraphUninformativeReason
@@ -673,6 +697,8 @@ impl core::marker::Copy for antecedent_model::observation_query::Direction
 impl core::marker::Copy for antecedent_model::observation_query::EvidenceRequirement
 impl core::marker::Copy for antecedent_model::observation_query::RequiredBayesFactor
 impl core::marker::Copy for antecedent_model::observation_query::UnreachableBound
+impl core::marker::Copy for antecedent_model::scc_compile::AdmissionCost
+impl core::marker::Copy for antecedent_model::scc_compile::CompileBudget
 impl core::marker::Freeze for antecedent_model::BasisTerm [auto]
 impl core::marker::Freeze for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Freeze for antecedent_model::CompiledMechanismStore [auto]
@@ -831,6 +857,12 @@ impl core::marker::Freeze for antecedent_model::observation_query::RequiredBayes
 impl core::marker::Freeze for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::marker::Freeze for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::marker::Freeze for antecedent_model::scc_compile::AdmissionCost [auto]
+impl core::marker::Freeze for antecedent_model::scc_compile::BlockDiagnostic [auto]
+impl core::marker::Freeze for antecedent_model::scc_compile::CompileBudget [auto]
+impl core::marker::Freeze for antecedent_model::scc_compile::CompiledEquilibrium [auto]
+impl core::marker::Freeze for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Freeze for antecedent_model::scc_compile::SccCompileError [auto]
 impl core::marker::Send for antecedent_model::BasisTerm [auto]
 impl core::marker::Send for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Send for antecedent_model::CompiledMechanismStore [auto]
@@ -989,6 +1021,12 @@ impl core::marker::Send for antecedent_model::observation_query::RequiredBayesFa
 impl core::marker::Send for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::marker::Send for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::marker::Send for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::marker::Send for antecedent_model::scc_compile::AdmissionCost [auto]
+impl core::marker::Send for antecedent_model::scc_compile::BlockDiagnostic [auto]
+impl core::marker::Send for antecedent_model::scc_compile::CompileBudget [auto]
+impl core::marker::Send for antecedent_model::scc_compile::CompiledEquilibrium [auto]
+impl core::marker::Send for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Send for antecedent_model::scc_compile::SccCompileError [auto]
 impl core::marker::StructuralPartialEq for antecedent_model::BasisTerm
 impl core::marker::StructuralPartialEq for antecedent_model::ComponentDependency
 impl core::marker::StructuralPartialEq for antecedent_model::ComponentOrder
@@ -1113,6 +1151,12 @@ impl core::marker::StructuralPartialEq for antecedent_model::observation_query::
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::SignalLevelOutcome
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::ThresholdCrossing
 impl core::marker::StructuralPartialEq for antecedent_model::observation_query::UnreachableBound
+impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::AdmissionCost
+impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::BlockDiagnostic
+impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::CompileBudget
+impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::CompiledEquilibrium
+impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::GaussianDisturbance
+impl core::marker::StructuralPartialEq for antecedent_model::scc_compile::SccCompileError
 impl core::marker::Sync for antecedent_model::BasisTerm [auto]
 impl core::marker::Sync for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Sync for antecedent_model::CompiledMechanismStore [auto]
@@ -1271,6 +1315,12 @@ impl core::marker::Sync for antecedent_model::observation_query::RequiredBayesFa
 impl core::marker::Sync for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::marker::Sync for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::marker::Sync for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::marker::Sync for antecedent_model::scc_compile::AdmissionCost [auto]
+impl core::marker::Sync for antecedent_model::scc_compile::BlockDiagnostic [auto]
+impl core::marker::Sync for antecedent_model::scc_compile::CompileBudget [auto]
+impl core::marker::Sync for antecedent_model::scc_compile::CompiledEquilibrium [auto]
+impl core::marker::Sync for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Sync for antecedent_model::scc_compile::SccCompileError [auto]
 impl core::marker::Unpin for antecedent_model::BasisTerm [auto]
 impl core::marker::Unpin for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Unpin for antecedent_model::CompiledMechanismStore [auto]
@@ -1429,6 +1479,12 @@ impl core::marker::Unpin for antecedent_model::observation_query::RequiredBayesF
 impl core::marker::Unpin for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::marker::Unpin for antecedent_model::scc_compile::AdmissionCost [auto]
+impl core::marker::Unpin for antecedent_model::scc_compile::BlockDiagnostic [auto]
+impl core::marker::Unpin for antecedent_model::scc_compile::CompileBudget [auto]
+impl core::marker::Unpin for antecedent_model::scc_compile::CompiledEquilibrium [auto]
+impl core::marker::Unpin for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::marker::Unpin for antecedent_model::scc_compile::SccCompileError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::BasisTerm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ComponentDependency [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ComponentOrder [auto]
@@ -1579,6 +1635,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_q
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::AdmissionCost [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::BlockDiagnostic [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::CompileBudget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::CompiledEquilibrium [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::scc_compile::SccCompileError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::BasisTerm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ComponentDependency [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ComponentOrder [auto]
@@ -1729,6 +1791,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_quer
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::SignalLevelOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::observation_query::UnreachableBound [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::AdmissionCost [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::BlockDiagnostic [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::CompileBudget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::CompiledEquilibrium [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::GaussianDisturbance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::scc_compile::SccCompileError [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ModelView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::NodeEvaluation<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_model::ModelView<'a> [auto]
@@ -1837,6 +1905,7 @@ pub const antecedent_model::compose::MAX_LEVELS_PER_VARIABLE: usize
 pub const antecedent_model::compose::MAX_PARENTS_PER_MECHANISM: usize
 pub const antecedent_model::compose::MAX_SAMPLE_CELLS: usize
 pub const antecedent_model::compose::MECHANISM_DESCRIPTOR_VERSION: u32
+pub const antecedent_model::cyclic_component::SCC_COMPILE_ATTEMPT: &str
 pub const antecedent_model::discretized_scm::BRIDGE_CALIBRATION: &str
 pub const antecedent_model::discretized_scm::BRIDGE_ERROR_SCOPE: &str
 pub const antecedent_model::discretized_scm::BRIDGE_INFERENCE: &str
@@ -1865,6 +1934,7 @@ pub const antecedent_model::discretized_scm_artifact::DETAIL_NOT_EXPORTABLE: &st
 pub const antecedent_model::discretized_scm_artifact::DETAIL_REDERIVATION_REFUSED: &str
 pub const antecedent_model::discretized_scm_artifact::DETAIL_VERSION_UNSUPPORTED: &str
 pub const antecedent_model::discretized_scm_artifact::DISCRETIZED_SCM_ARTIFACT_VERSION: u32
+pub const antecedent_model::linear_solution::NONZERO_DIAGONAL_NEXT_ATTEMPT: &str
 pub const antecedent_model::mechanism_transport::DETAIL_DIAGRAM_SOURCE_MISMATCH: &str
 pub const antecedent_model::mechanism_transport::DETAIL_DIAGRAM_TARGET_MISMATCH: &str
 pub const antecedent_model::mechanism_transport::DETAIL_DUPLICATE_MECHANISM: &str
@@ -2262,6 +2332,12 @@ pub field antecedent_model::observation_query::ThresholdCrossing::direction: ant
 pub field antecedent_model::observation_query::ThresholdCrossing::levels: alloc::vec::Vec<antecedent_model::observation_query::SignalLevelOutcome>
 pub field antecedent_model::observation_query::ThresholdCrossing::outcome_level: alloc::string::String
 pub field antecedent_model::observation_query::ThresholdCrossing::threshold: f64
+pub field antecedent_model::scc_compile::BlockDiagnostic::exact: bool
+pub field antecedent_model::scc_compile::BlockDiagnostic::kappa_inf: f64
+pub field antecedent_model::scc_compile::BlockDiagnostic::members: alloc::vec::Vec<usize>
+pub field antecedent_model::scc_compile::BlockDiagnostic::residual_inf: f64
+pub field antecedent_model::scc_compile::CompileBudget::max_bytes: u64
+pub field antecedent_model::scc_compile::CompileBudget::max_work: u64
 pub fn <antecedent_model::CompiledCausalModel>::fn compile(graph: antecedent_graph::dag::Dag) -> core::result::Result<Self, antecedent_model::ModelError>
 pub fn <antecedent_model::CompiledCausalModel>::fn dense_of(&self, var: antecedent_core::ids::VariableId) -> core::option::Option<antecedent_graph::types::DenseNodeId>
 pub fn <antecedent_model::CompiledCausalModel>::fn gather_for(&self, child: antecedent_graph::types::DenseNodeId) -> core::option::Option<&antecedent_model::ParentGatherPlan>
@@ -2275,6 +2351,7 @@ pub fn <antecedent_model::CyclicComponent>::const fn solve_contract(&self) -> an
 pub fn <antecedent_model::CyclicComponent>::fn certifying_evidence(&self) -> &[alloc::string::String]
 pub fn <antecedent_model::CyclicComponent>::fn evidence_may_certify(&self, evidence: &str) -> bool
 pub fn <antecedent_model::CyclicComponent>::fn id(&self) -> &str
+pub fn <antecedent_model::CyclicComponent>::fn scc_compile_attempt(&self) -> &'static str
 pub fn <antecedent_model::CyclicComponent>::fn source_id(&self) -> &str
 pub fn <antecedent_model::CyclicComponent>::fn try_new(id: &str, source_id: &str, certifying_evidence: &[&str], solve: antecedent_model::SolveContractName) -> core::result::Result<Self, antecedent_model::CyclicComponentError>
 pub fn <antecedent_model::FamilyCertificate>::fn identification(&self) -> antecedent_model::IdentificationStatus
@@ -2521,6 +2598,24 @@ pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn new(hypothese
 pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn observation_levels(&self) -> &[alloc::string::String]
 pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn posterior(&self, observations: &[&str]) -> core::result::Result<antecedent_model::observation_query::BayesPosterior, antecedent_model::observation_query::ObservationQueryError>
 pub fn <antecedent_model::observation_query::FiniteBayesModel>::fn prior(&self) -> &[f64]
+pub fn <antecedent_model::scc_compile::AdmissionCost>::const fn bytes(self) -> u64
+pub fn <antecedent_model::scc_compile::AdmissionCost>::const fn work(self) -> u64
+pub fn <antecedent_model::scc_compile::CompileBudget>::const fn unlimited() -> Self
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::const fn admission(&self) -> antecedent_model::scc_compile::AdmissionCost
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::const fn compile_attempt(&self) -> &'static str
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::const fn free_block_equation(&self) -> &'static str
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::const fn identification(&self) -> antecedent_model::IdentificationStatus
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::const fn physical_stability(&self) -> antecedent_model::PhysicalStability
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::const fn residual_inf(&self) -> f64
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::const fn solver(&self) -> antecedent_model::SolverConvergence
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::fn blocks(&self) -> &[antecedent_model::scc_compile::BlockDiagnostic]
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::fn component_id(&self) -> &str
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::fn covariance(&self) -> &[f64]
+pub fn <antecedent_model::scc_compile::CompiledEquilibrium>::fn mean(&self) -> &[f64]
+pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn covariance(&self) -> &[f64]
+pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn dimension(&self) -> usize
+pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn mean(&self) -> &[f64]
+pub fn <antecedent_model::scc_compile::GaussianDisturbance>::fn try_new(mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_model::scc_compile::SccCompileError>
 pub fn antecedent_model::apply_node_program(program: &antecedent_model::NodeProgram, values: &mut antecedent_model::ValueBatchMut<'_>, node: usize, scratch: &mut alloc::vec::Vec<f64>, ctx: core::option::Option<&antecedent_core::execution::ExecutionContext>) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::assess(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::SolutionAssessment, antecedent_model::LinearSolutionError>
 pub fn antecedent_model::basis::column_moments(columns: &[&[f64]], n_rows: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
@@ -2574,6 +2669,8 @@ pub fn antecedent_model::sample::sample_stochastic(policy: &antecedent_core::int
 pub fn antecedent_model::sample::sample_with_overlay(view: &antecedent_model::ModelView<'_>, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<antecedent_model::ValueBatch, antecedent_model::ModelError>
 pub fn antecedent_model::sample::sample_with_overlay_into(view: &antecedent_model::ModelView<'_>, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, ws: &mut antecedent_model::MechanismWorkspace, values: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::sample::soft_to_slot(soft: &antecedent_core::intervention::MechanismOverride, n_parents: usize) -> core::result::Result<antecedent_model::MechanismSlot, antecedent_model::ModelError>
+pub fn antecedent_model::scc_compile::compile_gaussian_equilibrium(component: &antecedent_model::CyclicComponent, model: &antecedent_model::LinearStructuralMap, disturbance: &antecedent_model::scc_compile::GaussianDisturbance, clamp: &antecedent_model::HardClamp, clamp_values: &[f64], budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::scc_compile::CompiledEquilibrium, antecedent_model::scc_compile::SccCompileError>
+pub fn antecedent_model::scc_compile::gaussian_equilibrium_admission(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::scc_compile::AdmissionCost, antecedent_model::scc_compile::SccCompileError>
 pub mod antecedent_model::basis
 pub mod antecedent_model::batch
 pub mod antecedent_model::compile
@@ -2603,6 +2700,7 @@ pub mod antecedent_model::overlay
 pub mod antecedent_model::program
 pub mod antecedent_model::registry
 pub mod antecedent_model::sample
+pub mod antecedent_model::scc_compile
 pub mod antecedent_model::temporal_rollout
 pub mod antecedent_model::tree
 pub struct antecedent_model::CompiledCausalModel
@@ -2750,6 +2848,14 @@ pub struct antecedent_model::observation_query::MeasuredConditional
 pub struct antecedent_model::observation_query::RequiredBayesFactor
 pub struct antecedent_model::observation_query::SignalLevelOutcome
 pub struct antecedent_model::observation_query::ThresholdCrossing
+pub struct antecedent_model::scc_compile::AdmissionCost
+pub struct antecedent_model::scc_compile::AdmissionCost has private fields
+pub struct antecedent_model::scc_compile::BlockDiagnostic
+pub struct antecedent_model::scc_compile::CompileBudget
+pub struct antecedent_model::scc_compile::CompiledEquilibrium
+pub struct antecedent_model::scc_compile::CompiledEquilibrium has private fields
+pub struct antecedent_model::scc_compile::GaussianDisturbance
+pub struct antecedent_model::scc_compile::GaussianDisturbance has private fields
 pub trait antecedent_model::DynamicMechanism: core::marker::Send + core::marker::Sync
 pub trait fn fn antecedent_model::DynamicMechanism::evaluate_column(&self, parents: antecedent_model::ParentBatch<'_>, noise: &[f64], output: &mut [f64], workspace: &mut antecedent_model::MechanismWorkspace) -> core::result::Result<(), antecedent_model::ModelError>
 pub trait fn fn antecedent_model::DynamicMechanism::infer_noise_column(&self, value: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError> {default}
@@ -2961,7 +3067,7 @@ pub variant antecedent_model::LinearSolutionError::ClampOutOfRange { node: usize
 pub variant antecedent_model::LinearSolutionError::DuplicateClamp { node: usize }
 pub variant antecedent_model::LinearSolutionError::NonFiniteCoefficient { into_node: usize, from_node: usize }
 pub variant antecedent_model::LinearSolutionError::NonFiniteIntercept { node: usize }
-pub variant antecedent_model::LinearSolutionError::NonzeroDiagonal { node: usize }
+pub variant antecedent_model::LinearSolutionError::NonzeroDiagonal { node: usize, next_attempt: &'static str }
 pub variant antecedent_model::LinearSolutionError::Shape { message: &'static str }
 pub variant antecedent_model::MechanismFamily::Bvar
 pub variant antecedent_model::MechanismFamily::Constant
@@ -3154,3 +3260,15 @@ pub variant antecedent_model::observation_query::ObservationQueryError::ZeroProb
 pub variant antecedent_model::observation_query::UnreachableBound::NoObservationCrosses
 pub variant antecedent_model::observation_query::UnreachableBound::ObservationBudget { max_observations: u64 }
 pub variant antecedent_model::observation_query::UnreachableBound::SignalDoesNotMove
+pub variant antecedent_model::scc_compile::SccCompileError::AsymmetricCovariance { row: usize, column: usize }
+pub variant antecedent_model::scc_compile::SccCompileError::Budget { resource: &'static str, requested: u64, limit: u64 }
+pub variant antecedent_model::scc_compile::SccCompileError::ClampDimension { clamp: usize, model: usize }
+pub variant antecedent_model::scc_compile::SccCompileError::ClampValues { nodes: usize, values: usize }
+pub variant antecedent_model::scc_compile::SccCompileError::DisturbanceDimension { disturbance: usize, model: usize }
+pub variant antecedent_model::scc_compile::SccCompileError::NonFiniteClamp { node: usize }
+pub variant antecedent_model::scc_compile::SccCompileError::NonFiniteDisturbanceCovariance { row: usize, column: usize }
+pub variant antecedent_model::scc_compile::SccCompileError::NonFiniteDisturbanceMean { node: usize }
+pub variant antecedent_model::scc_compile::SccCompileError::NonFiniteEquilibrium
+pub variant antecedent_model::scc_compile::SccCompileError::NotPositiveSemidefinite { index: usize }
+pub variant antecedent_model::scc_compile::SccCompileError::Shape { message: &'static str }
+pub variant antecedent_model::scc_compile::SccCompileError::SingularBlock { members: alloc::vec::Vec<usize> }
