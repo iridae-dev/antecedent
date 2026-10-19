@@ -5,6 +5,10 @@
 //! graph-algorithm, Arrow, or Python crates. Inference-independent scientific targets live in
 //! [`scientific_target`] and do not replace [`CausalQuery`].
 //!
+//! Operator contracts in [`operator`] type an effect on a target: which graph the
+//! edge belongs to, the data roles it reads and writes, and whether frozen-fit
+//! reuse is allowed.
+//!
 //! # Names at the boundary, IDs on the hot path
 //!
 //! Human-readable names live in [`CausalSchema`]. Hot-path APIs take
@@ -49,6 +53,7 @@ pub mod intervention;
 pub mod measurement_model;
 pub(crate) mod measurement_record;
 pub mod node;
+pub mod operator;
 pub mod query;
 pub mod reason_code;
 pub mod recalc;
@@ -100,6 +105,10 @@ pub use intervention::{
     SequencedIntervention, StochasticPolicy, TemporalPolicy,
 };
 pub use node::NodeRef;
+pub use operator::{
+    EvidenceClaims, FrozenFitReuse, Operator, OperatorDeclaration, OperatorEffect, OperatorError,
+    OperatorGraph, OperatorPorts, OperatorRole,
+};
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
     AttributionComponents, AverageEffectQuery, CatalogDistribution, CausalQuery, CausalQueryKind,
