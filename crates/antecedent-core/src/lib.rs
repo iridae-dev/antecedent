@@ -54,6 +54,7 @@ pub mod measurement_model;
 pub(crate) mod measurement_record;
 pub mod node;
 pub mod operator;
+pub mod physical_operator;
 pub mod provider_capability;
 pub mod query;
 pub mod reason_code;
@@ -110,6 +111,13 @@ pub use node::NodeRef;
 pub use operator::{
     EvidenceClaims, FrozenFitReuse, Operator, OperatorDeclaration, OperatorEffect, OperatorError,
     OperatorGraph, OperatorPorts, OperatorRole,
+};
+pub use physical_operator::DeclaredTolerance as PhysicalTolerance;
+pub use physical_operator::{
+    AdmittedBytes, ByteEstimateKind, ByteEstimates, CancellationPoint, CancellationPoints,
+    ComputeCapability, DesignDependencyId, DeviceName, NumericalPolicy, PhysicalDependencies,
+    PhysicalEffect, PhysicalOperator, PhysicalOperatorBuilder, PhysicalOperatorError,
+    SourceDependencyId,
 };
 pub use provider_capability::{
     CapabilityRequest, CapabilitySet, CompiledCapabilityRequest, FailedCapabilityAttempt,
