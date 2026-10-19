@@ -1,0 +1,962 @@
+# Predecessor checksums for the published 2.4.1 tag and the 2.4.0 historical control.
+# sha256 values are of file bytes. Wheel and crate bytes are not stored in this repository.
+# Registries queried 2026-10-19T09:18:33Z. No benchmark timings are recorded.
+#
+# Status: the annotated tag, GitHub Release, and PyPI wheels for 2.4.1 are published.
+# Performance numbers are not frozen (B06 and B08 still open).
+
+status = "published_predecessor"
+performance = "not_frozen"
+
+[source.v2_4_1]
+tag = "v2.4.1"
+tag_object = "9016d22561b053bc207648fa051989b0df32d0eb"
+tag_message = "Antecedent 2.4.1"
+commit = "17e415cde000ef1923904b55a77d9badef8a2f3e"
+subject = "release: Prepare Antecedent 2.4.1 with calibrated inference and transport workflows (#68)"
+remote_tag = "origin refs/tags/v2.4.1 matches the local annotated tag object"
+github_release = "https://github.com/iridae-dev/antecedent/releases/tag/v2.4.1"
+github_release_created_at = "2026-10-19T08:42:05Z"
+github_target_commitish = "main"
+github_release_draft = false
+github_release_prerelease = false
+pypi = "https://pypi.org/pypi/antecedent/2.4.1/json"
+pypi_sdist = "absent"
+source_archive_url = "https://github.com/iridae-dev/antecedent/archive/refs/tags/v2.4.1.tar.gz"
+source_archive_sha256 = "not_recorded"
+
+[source.v2_4_0]
+tag = "v2.4.0"
+tag_object = "5a984d1fae66fe2e83cd06caf2908efd0758146c"
+tag_message = "Antecedent 2.4.0"
+commit = "5a05c03897a2e68ad93edff132433707e7f12dcc"
+subject = "Merge pull request #64 from iridae-dev/2.4.0"
+remote_tag = "origin refs/tags/v2.4.0 matches the local annotated tag object"
+github_release = "https://github.com/iridae-dev/antecedent/releases/tag/v2.4.0"
+github_release_created_at = "2026-10-16T09:24:20Z"
+github_target_commitish = "main"
+github_release_draft = false
+github_release_prerelease = false
+pypi = "https://pypi.org/pypi/antecedent/2.4.0/json"
+pypi_sdist = "absent"
+source_archive_url = "https://github.com/iridae-dev/antecedent/archive/refs/tags/v2.4.0.tar.gz"
+source_archive_sha256 = "not_recorded"
+role = "historical_control"
+
+[versions.v2_4_1]
+workspace_package = "2.4.1"
+python_project = "2.4.1"
+python_project_name = "antecedent"
+python_manifest = "python/pyproject.toml"
+# Every crates.io-publishable crate uses version.workspace = true.
+# publish = false at this tag: antecedent-py (python/Cargo.toml), antecedent-test-support, antecedent-fuzz (version 0.0.0, not workspace.package).
+
+[versions.v2_4_0]
+workspace_package = "2.4.0"
+python_project = "2.4.0"
+
+# Lockfile sha256 at the peeled tag. python/uv.lock is the only Python lockfile.
+# No poetry.lock, Pipfile.lock, or pdm.lock is in either tagged tree.
+
+[[lockfile]]
+version = "2.4.0"
+path = "Cargo.lock"
+bytes = 115940
+sha256 = "3c8029d2b76fe089fb2269342c781d6afa66ab82b7c7e5e5f4479aed76250493"
+
+[[lockfile]]
+version = "2.4.0"
+path = "python/uv.lock"
+bytes = 211666
+sha256 = "bf1fcc3c867247197faf3f2e23c8f6acde02327f5e254de2253bad32562e683a"
+
+[[lockfile]]
+version = "2.4.0"
+path = "fuzz/Cargo.lock"
+bytes = 48643
+sha256 = "764d7c401850267c5b1ccec4e2e2d9d0fa63ef31f9e8eac8def906b2c6b9b1a2"
+
+[[lockfile]]
+version = "2.4.1"
+path = "Cargo.lock"
+bytes = 115961
+sha256 = "3b8beb46168ca4c166049882cc0d80f1a682198e8f5aa0ef4523a63074ddd342"
+
+[[lockfile]]
+version = "2.4.1"
+path = "python/uv.lock"
+bytes = 211666
+sha256 = "05042a60015561c43870492b2310a4110a77c9a22702ea7f042a2bb168757531"
+
+[[lockfile]]
+version = "2.4.1"
+path = "fuzz/Cargo.lock"
+bytes = 48643
+sha256 = "764d7c401850267c5b1ccec4e2e2d9d0fa63ef31f9e8eac8def906b2c6b9b1a2"
+
+# Support snapshots and calibration files at v2.4.1. Content sha256; files stay in place.
+
+[[tree_file]]
+path = "parity/support_licensed.toml"
+bytes = 2004230
+sha256 = "12c2b8fb4214dc0c3e17c93221fb43b2d3e4618cc57b05d6d2023807cc30415c"
+role = "support_snapshot"
+
+[[tree_file]]
+path = "parity/support_closed.toml"
+bytes = 14061
+sha256 = "6f14cc385858dd7cb46f165c1d7c8a65756eb485c147e3617ec3e04091199b68"
+role = "support_snapshot"
+
+[[tree_file]]
+path = "parity/support_n_a.toml"
+bytes = 4516
+sha256 = "92e224536868b3883868a2c212785d8047f81ae28bf972784efa861c9173ec13"
+role = "support_snapshot"
+
+[[tree_file]]
+path = "parity/support_graphless.toml"
+bytes = 46951
+sha256 = "6d85112f30b012a540ee9654c64bfedd130930e004eb50a13bc3d6dc2df0a1d1"
+role = "support_snapshot"
+
+[[tree_file]]
+path = "parity/licensed_routes.toml"
+bytes = 110743
+sha256 = "123cf4411220f067a933f4a7ee29f24d1478e9ba66f842a8f1b7d618a5a83ad2"
+role = "support_snapshot"
+
+[[tree_file]]
+path = "parity/claims.toml"
+bytes = 1724
+sha256 = "6edad5dba75c4d254b2f949d0dd4c712b5a660ef447b228d4ba968b123ca2777"
+role = "support_snapshot"
+
+[[tree_file]]
+path = "parity/coverage_records.toml"
+bytes = 2737690
+sha256 = "bfc0b086459d6aa700657d8f41768d86ad92aab4ee73591919c5dc24894e8cd1"
+role = "calibration_evidence"
+
+[[tree_file]]
+path = "parity/release_snapshots/v2.2.0.toml"
+bytes = 27048
+sha256 = "0d9c6a2a79be058b175065f809e341efa6fecf0a5ce35a07e8caddf67ff1d278"
+role = "release_snapshot"
+
+[[tree_file]]
+path = "parity/release_snapshots/v2.3.0.toml"
+bytes = 63045
+sha256 = "76486a313d79e545ec0957d8fec28edf8128b728a7c5c4c8f5806406053428d4"
+role = "release_snapshot"
+
+[[tree_file]]
+path = "parity/release_snapshots/v2.4.0.toml"
+bytes = 221256
+sha256 = "a533eddc360360b42a5c85bd0bd2797dc51ea641a22cc7f201ccd0ecc49cde12"
+role = "release_snapshot"
+
+[[tree_file]]
+path = "parity/release_snapshots/v2.4.1.toml"
+bytes = 209896
+sha256 = "6e1bdceee10e7c0713bb55be6f45c40622d8993e17286da9a00294616407c08b"
+role = "release_snapshot"
+
+[[tree_file]]
+path = "docs/artifacts.md"
+bytes = 18769
+sha256 = "e93d09eb785cde544268ee342282b52f76b60dc5d085b1b30cf8a7a456422781"
+note = "docs/artifacts/ directory is absent. This markdown file is the in-tree artifact document."
+
+[evidence_listing]
+method = "sha256 of lines '{blob_bytes}  {path}\n' from git ls-tree -r -l v2.4.1^{} PREFIX, path order as ls-tree emits it. Listing checksum only; file contents are not copied and were not individually hashed here."
+calibration_replay_evidence = "parity/calibration_replay_evidence"
+calibration_replay_evidence_files = 176
+calibration_replay_evidence_listing_sha256 = "1af05ebddc8c2368149f9bd4efbfb74d37f2420215e85788339c42c9c9567161"
+recipe_evidence = "parity/recipe_evidence"
+recipe_evidence_files = 55
+recipe_evidence_listing_sha256 = "e075f4d476ccbf0188c6af5b82733ff10a1e2f96badc9106dbd4bc3b215c33bb"
+
+[fixtures]
+directory = "parity/fixtures"
+files = 21
+docs_artifacts_directory = "absent"
+index_method = "sha256 of lines '{file_sha256}  {bytes}  {path}\n' in git ls-tree --name-only order, trailing newline"
+index_sha256 = "d8fd4a11ed592c5b0bfc38376c1b757b42ac8d1c204e4dee1bf73c91d52c37ef"
+
+[[fixture]]
+path = "parity/fixtures/.gitkeep"
+bytes = 129
+sha256 = "3f2e2fc1205a8e54a64eb7e8681a1b0989c5f3b6966d96c3118ce52f6cfb9f29"
+
+[[fixture]]
+path = "parity/fixtures/conditional_ipcw.toml"
+bytes = 281
+sha256 = "0a9db16313f5fe32e87393bcde8f2b699ebcbbb1bcef856d4153fbc571a97ace"
+
+[[fixture]]
+path = "parity/fixtures/discovery_ci_stats.toml"
+bytes = 249
+sha256 = "1ddb421b5383c1d0f394f4db7cbdd2fdc5411758289f919b7c16bdd84689e241"
+
+[[fixture]]
+path = "parity/fixtures/discovery_lpcmci_chain.toml"
+bytes = 188
+sha256 = "d486e3ec88f761b9f3cae74262af10389fbe4e501c35b168f4deec5e62587f9d"
+
+[[fixture]]
+path = "parity/fixtures/discovery_masked_mci_lag1.toml"
+bytes = 255
+sha256 = "98a8339a9be91bd67d800e771de3d61f7319fcb56bc32f7f999c0d28dd4ababd"
+
+[[fixture]]
+path = "parity/fixtures/discovery_notears_chain.toml"
+bytes = 326
+sha256 = "2ed0d397256a325f0cdb3b453f420bfcd9f266c33de3cf2b766fc2bdfe329d03"
+
+[[fixture]]
+path = "parity/fixtures/discovery_pcmci_lag1.toml"
+bytes = 352
+sha256 = "d4d04043d0eda2acb93c4bb91c8bcbfef1a4d2f0d9ab1ccb36187da76780e8d9"
+
+[[fixture]]
+path = "parity/fixtures/discovery_pcmci_plus_lag0.toml"
+bytes = 204
+sha256 = "6fdb2416c81de777f1c55ca9e1f1924d6ceb3b981ea91c346c763475e4fd4d75"
+
+[[fixture]]
+path = "parity/fixtures/discovery_vector_vars_pcmci.toml"
+bytes = 219
+sha256 = "80da9bccf51b5f24283b112e1f2eed8c15bff717b0058ceac3ec4133ae9a5eb0"
+
+[[fixture]]
+path = "parity/fixtures/estimate_identify_general_id_backdoor.toml"
+bytes = 346
+sha256 = "36898224235b0fa039840402d951801a626585d1759ca8d6322e18940f739fea"
+
+[[fixture]]
+path = "parity/fixtures/estimate_identify_general_id_frontdoor.toml"
+bytes = 266
+sha256 = "21d0483d7d391a8622809d6608185d0c33ee427dffd3dc81a82f028603c28fc7"
+
+[[fixture]]
+path = "parity/fixtures/estimate_identify_general_id_hedge.toml"
+bytes = 284
+sha256 = "23935b5c38067bdc6a83759ac636c71de69146e4114842123262c60922c1cec2"
+
+[[fixture]]
+path = "parity/fixtures/estimate_linear_gaussian_ate.toml"
+bytes = 539
+sha256 = "7883f0f23e6cb9c0407908598a67efde83bd1cb077c97755c7997a5745a3e030"
+
+[[fixture]]
+path = "parity/fixtures/estimate_noisy_estimators.toml"
+bytes = 449
+sha256 = "4ca6ac382f7d627e3997e8c1652e614acb10a9cc43cd2abe3554b8e4961446c1"
+
+[[fixture]]
+path = "parity/fixtures/response_binary_iv_balke_pearl.toml"
+bytes = 313
+sha256 = "c9aec1aa4fa2d7c1590ecf49dd903c2695da953329db7d042c23d152f4eedb76"
+
+[[fixture]]
+path = "parity/fixtures/response_observation_primitives.toml"
+bytes = 435
+sha256 = "f5d16f4c65d99c16e83038e11549c9391aaad6e70c8055a1fb08a73ceb8e46d1"
+
+[[fixture]]
+path = "parity/fixtures/response_randomized_interference.toml"
+bytes = 413
+sha256 = "9816393d75441b5edcfd768ac21f648797b2dc4aefdbbcce705cce73c7dc70ae"
+
+[[fixture]]
+path = "parity/fixtures/response_trial_transport.toml"
+bytes = 342
+sha256 = "32009ccac7077cddef77702a5a961fb840cbc4cbbcf3939365baa8d4f64bb4a1"
+
+[[fixture]]
+path = "parity/fixtures/response_two_point_curve_average_effect.toml"
+bytes = 385
+sha256 = "bddc394272482a7bf741e7d2d6b3ecd107a6210dafc6b94d3adf1de2ef454c29"
+
+[[fixture]]
+path = "parity/fixtures/temporal_observation.toml"
+bytes = 426
+sha256 = "e720599ab948be645a1f484a768d3f88adceba3f2c475c9f9c9bf3e72ebba863"
+
+[[fixture]]
+path = "parity/fixtures/temporal_observed_response.toml"
+bytes = 437
+sha256 = "f1e4f2139cc29144cb0bbba4f1400ce7dec6b1f51b0c79026e0d3d8753b8a013"
+
+# PyPI sha256 matches the GitHub Release asset digest and size for every wheel.
+# Wheels were not downloaded into the repository.
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp311-cp311-macosx_11_0_arm64.whl"
+bytes = 38904518
+sha256 = "c4064bc3a3e9d47e10a61a807d85e56343e33e9d5bf64e987adde6946dc9e54e"
+pypi_url = "https://files.pythonhosted.org/packages/c6/61/b145af8e783bd87b4a9e2003902d9cb0641e6ac1f3442d7ac2d0f26e3405/antecedent-2.4.1-cp311-cp311-macosx_11_0_arm64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp311-cp311-macosx_11_0_arm64.whl"
+pypi_upload_time = "2026-10-19T08:53:34.596092Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+bytes = 41192185
+sha256 = "6b70e573009813b0073e74e90822b4000fcdca23dc7705df5c752837d08c7094"
+pypi_url = "https://files.pythonhosted.org/packages/f4/3b/6fdbaad4c5ccfaaab6b89572c515a4ba782be85a01330e0657b477e1143c/antecedent-2.4.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+pypi_upload_time = "2026-10-19T08:53:38.229204Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+bytes = 44127985
+sha256 = "40a4ff082dac7d5fe872da2dda5dd004fa8c0f71ea66a9b55886070288073451"
+pypi_url = "https://files.pythonhosted.org/packages/9e/17/226bc6c591aae52f50cfaf513910a4f2352b2fc2782e98a4b19722ef4f07/antecedent-2.4.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+pypi_upload_time = "2026-10-19T08:53:41.623222Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp311-cp311-win_amd64.whl"
+bytes = 42271057
+sha256 = "ec8f4850cea40abf8ea6e6c3a97e76bb69ff9c76e4146aa4aec0d03317d10cd2"
+pypi_url = "https://files.pythonhosted.org/packages/e6/52/08a47d11ea2a48abb923610bc849340b07ef77f0f9bc6b24dec2600bb95b/antecedent-2.4.1-cp311-cp311-win_amd64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp311-cp311-win_amd64.whl"
+pypi_upload_time = "2026-10-19T08:53:45.118562Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp312-cp312-macosx_11_0_arm64.whl"
+bytes = 38773568
+sha256 = "323f2ecdf950d1a206abcbe1f4c0948e31257fac72e4b7c6bf7db8d26abca1fb"
+pypi_url = "https://files.pythonhosted.org/packages/40/81/470b33d894bc30fb762d3f35662b20a69a44fc15443a9ce86b7c495658e6/antecedent-2.4.1-cp312-cp312-macosx_11_0_arm64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp312-cp312-macosx_11_0_arm64.whl"
+pypi_upload_time = "2026-10-19T08:53:48.124532Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+bytes = 41171302
+sha256 = "31d737ec3fc7e8d8034837308e099ed03a73de6c9dd7883d4def925f0b92e7e3"
+pypi_url = "https://files.pythonhosted.org/packages/b0/2e/32ca06ebba8ffb32704c414b825fc194d5d1e99fa1de0a600d8a0681ffe4/antecedent-2.4.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+pypi_upload_time = "2026-10-19T08:53:51.175817Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+bytes = 44097619
+sha256 = "7650fe6003846e2c3d78097f51347955bdfc5a69740ef7cc71d4bd44e1e28b7e"
+pypi_url = "https://files.pythonhosted.org/packages/f4/80/6ede629e93a385fed6b8cfe6c43326cbdc759e8182ef40eb20d44a8dac42/antecedent-2.4.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+pypi_upload_time = "2026-10-19T08:53:55.121171Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp312-cp312-win_amd64.whl"
+bytes = 42182005
+sha256 = "55aca52524b3ba96f656e001d28dd9e820afdd506af949dbdfc970bfa4d8baee"
+pypi_url = "https://files.pythonhosted.org/packages/6a/f2/e913d47abd01ce254afd2c8d5e31525bbbc30e89b7c5a4dbe23543ea9b06/antecedent-2.4.1-cp312-cp312-win_amd64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp312-cp312-win_amd64.whl"
+pypi_upload_time = "2026-10-19T08:53:58.921311Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp313-cp313-macosx_11_0_arm64.whl"
+bytes = 38765576
+sha256 = "dbd3aef1597df35bab283e15268d027768cd66e3856cc1ac84d95567fea0b980"
+pypi_url = "https://files.pythonhosted.org/packages/27/c0/8549059c597555ac2372960448e49a7ff6a764d731aaa692a8f1cbf4afa5/antecedent-2.4.1-cp313-cp313-macosx_11_0_arm64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp313-cp313-macosx_11_0_arm64.whl"
+pypi_upload_time = "2026-10-19T08:54:02.042960Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+bytes = 41155991
+sha256 = "9ee965d117f9e8d8a87b23558583c26b8683da601695246a1ee3f93d9cbc78e6"
+pypi_url = "https://files.pythonhosted.org/packages/3c/23/36b5baa31581f55a54b582b2391d3590fcb50680b27f4f3db7e2a8c10bf6/antecedent-2.4.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+pypi_upload_time = "2026-10-19T08:54:05.922369Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+bytes = 44068461
+sha256 = "5e05d06ccbdee2b8b220d0e7a613ddf1b9be64596964341ef335fb7b8901c85c"
+pypi_url = "https://files.pythonhosted.org/packages/10/16/3bf7bac817b95d9b7ff1282be28e83613d7e6087c1e3731c081b4b4bc9d8/antecedent-2.4.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+pypi_upload_time = "2026-10-19T08:54:09.833762Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp313-cp313-win_amd64.whl"
+bytes = 42179457
+sha256 = "51a4fda559c3ed774ebe3337d4c052cb6fa0d38f03a67846cc42cdfe2278e883"
+pypi_url = "https://files.pythonhosted.org/packages/ea/21/cbcdd4faf75f2f1d51f330ca3ca91050e13aacdb1f0177f7f54a88bfcb3e/antecedent-2.4.1-cp313-cp313-win_amd64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp313-cp313-win_amd64.whl"
+pypi_upload_time = "2026-10-19T08:54:13.422888Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp314-cp314-macosx_11_0_arm64.whl"
+bytes = 38764623
+sha256 = "8608d42991a66f67c2f71ebde309e710beaa692863cbddd45c15d24d235d20a5"
+pypi_url = "https://files.pythonhosted.org/packages/05/88/7becdcfff0ec19868aad1606606c30ed703ec8ef5c8633ab5db7ebb0e7a0/antecedent-2.4.1-cp314-cp314-macosx_11_0_arm64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp314-cp314-macosx_11_0_arm64.whl"
+pypi_upload_time = "2026-10-19T08:54:16.876295Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+bytes = 41137450
+sha256 = "cdf7d074d911822de5bf47e5963083bfbcd3cccb571234b7b12e57421f005761"
+pypi_url = "https://files.pythonhosted.org/packages/ed/b1/41278188e92878dbb05860f22f154e2441ed386e1bb08aa354fa36cf044b/antecedent-2.4.1-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+pypi_upload_time = "2026-10-19T08:54:20.272720Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+bytes = 44103972
+sha256 = "8b7dee4fccc65668ef1fc5e0aeb2fe1cd6ab6c23d8313f3eb53ef12129796cda"
+pypi_url = "https://files.pythonhosted.org/packages/f5/c7/8ba3755c5141bc6107f607489dcb919d726ce52a58ee93762de542f5d462/antecedent-2.4.1-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+pypi_upload_time = "2026-10-19T08:54:23.647794Z"
+
+[[wheel]]
+version = "2.4.1"
+filename = "antecedent-2.4.1-cp314-cp314-win_amd64.whl"
+bytes = 42171455
+sha256 = "aebbff4526978632f405330bcffb39eee2783ec73ef88c2ce0f44838e1bd88e7"
+pypi_url = "https://files.pythonhosted.org/packages/20/9a/be38dd83a1861b485a7254c6be17c6bbe297cd492bc3c670f27b5429aeb6/antecedent-2.4.1-cp314-cp314-win_amd64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/antecedent-2.4.1-cp314-cp314-win_amd64.whl"
+pypi_upload_time = "2026-10-19T08:54:26.905763Z"
+
+[[github_asset]]
+version = "2.4.1"
+filename = "docs.tar.gz"
+bytes = 42355293
+sha256 = "218a72adf1a315c92bad64d97d4446526b063c60fe9f1cf8914292255278c5b1"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.1/docs.tar.gz"
+note = "GitHub Release asset. Not a PyPI distribution. Not downloaded into the repository."
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp311-cp311-macosx_11_0_arm64.whl"
+bytes = 36326051
+sha256 = "4e4418d77c6929df780f463dde67368424d28bd0fdac3d664be0287f43afceb2"
+pypi_url = "https://files.pythonhosted.org/packages/97/87/d72f24e50b492e28b97c8652d30508cdd449f6238b283153259f2367a704/antecedent-2.4.0-cp311-cp311-macosx_11_0_arm64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp311-cp311-macosx_11_0_arm64.whl"
+pypi_upload_time = "2026-10-16T09:29:49.228923Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+bytes = 38344003
+sha256 = "1e88580e0dcbdd3c684732d639982465a8afc7edd0aeb0437b95e9af1b099434"
+pypi_url = "https://files.pythonhosted.org/packages/01/61/a28cc3b7c2b731c87e9ade3aaf5fed7f863ef1a57ca0e34e4b86c8c4dc7c/antecedent-2.4.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+pypi_upload_time = "2026-10-16T09:29:54.099153Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+bytes = 40950466
+sha256 = "cf0b644cce8cc9bc6afdb7d873e569e679f2e99611f1087cdd2abfdfaaff5189"
+pypi_url = "https://files.pythonhosted.org/packages/17/31/e57634b3302ae108bcb5f04080ff2bca6fe29848c65a10845febd2ad1ea8/antecedent-2.4.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+pypi_upload_time = "2026-10-16T09:29:59.060119Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp311-cp311-win_amd64.whl"
+bytes = 39814033
+sha256 = "25fe77b872e090a804696fe939d46e45b5dbd6ef64eeb65636ff3774b7b163d9"
+pypi_url = "https://files.pythonhosted.org/packages/54/51/d184a7e899c2fc08f144fc87be84d7338ebb37b6ae93a38895acabb93d7e/antecedent-2.4.0-cp311-cp311-win_amd64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp311-cp311-win_amd64.whl"
+pypi_upload_time = "2026-10-16T09:30:04.377202Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp312-cp312-macosx_11_0_arm64.whl"
+bytes = 36215225
+sha256 = "c9cee6d336ed39b32382d958fed8c7f7357fbc5766b8117f6643899877fec492"
+pypi_url = "https://files.pythonhosted.org/packages/98/9b/b6b3b09bcdc440deebfcc69314d5c1371fdfbb1ae891190b2ec63f596177/antecedent-2.4.0-cp312-cp312-macosx_11_0_arm64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp312-cp312-macosx_11_0_arm64.whl"
+pypi_upload_time = "2026-10-16T09:30:09.139550Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+bytes = 38324627
+sha256 = "eea46ab4257dfb29812ccafabaf96e5328e3db4aa598889cf98a50d2f4d10f84"
+pypi_url = "https://files.pythonhosted.org/packages/50/6b/2f058c3ec54d37ee3739de496218702b9494b899dd561c4b1a9d0248400e/antecedent-2.4.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+pypi_upload_time = "2026-10-16T09:30:14.534887Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+bytes = 40931554
+sha256 = "05de952bc8057e67c26179cdf7576a1a8315d94a99cedd010c8fa3925ae7c7a5"
+pypi_url = "https://files.pythonhosted.org/packages/12/bf/a851be8a591832305aa096e52383c77a9f4f33c8341dd4e7dd4cb6bdf277/antecedent-2.4.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+pypi_upload_time = "2026-10-16T09:30:19.329744Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp312-cp312-win_amd64.whl"
+bytes = 39743481
+sha256 = "19426e0f316f7eed3588f4cf9ca6ca864aef87c871f0aeadf120fb5a999b8788"
+pypi_url = "https://files.pythonhosted.org/packages/ec/22/5584d2de46eae6c41fab6ff5037b5e90624381a294f0b8bc1e232ac19300/antecedent-2.4.0-cp312-cp312-win_amd64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp312-cp312-win_amd64.whl"
+pypi_upload_time = "2026-10-16T09:30:24.031991Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp313-cp313-macosx_11_0_arm64.whl"
+bytes = 36227629
+sha256 = "dcec405f685b281a47fa06746388fe257efd7f1edaee487cc31411ac50ec4593"
+pypi_url = "https://files.pythonhosted.org/packages/f3/50/b3ef6e1a70fb8d60f7761814beaf5c5295ebc4293f2a2dbead4a2a15f139/antecedent-2.4.0-cp313-cp313-macosx_11_0_arm64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp313-cp313-macosx_11_0_arm64.whl"
+pypi_upload_time = "2026-10-16T09:30:29.064996Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+bytes = 38319477
+sha256 = "ac110c349d1f4396dbd513300bc08455becb584e689f8e09b070ffd645f10ead"
+pypi_url = "https://files.pythonhosted.org/packages/05/d6/c2a4896a8d97a9398b6580781ac121bd512b6701a3852983f64108c32344/antecedent-2.4.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+pypi_upload_time = "2026-10-16T09:30:33.998152Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+bytes = 40940596
+sha256 = "30766705e3aa58898ef556b8008beeecf795b5803d9f6c8b1d4873ad0beab716"
+pypi_url = "https://files.pythonhosted.org/packages/b7/a2/ae4a912843f72b3f4894ece1c944da174328a95bb18f604cfa8f693c02d7/antecedent-2.4.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+pypi_upload_time = "2026-10-16T09:30:38.684779Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp313-cp313-win_amd64.whl"
+bytes = 39748074
+sha256 = "429a70f46007d079c8320fa1d1e7701e6d3ba6fd2ac42ec3d184a0ee4e1bc383"
+pypi_url = "https://files.pythonhosted.org/packages/bd/ea/ba6487c59b30af5aae7e515d96ac2cab1352b093efcac688fc8e908df8f1/antecedent-2.4.0-cp313-cp313-win_amd64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp313-cp313-win_amd64.whl"
+pypi_upload_time = "2026-10-16T09:30:43.811077Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp314-cp314-macosx_11_0_arm64.whl"
+bytes = 36235020
+sha256 = "b3fb385f1df2793d78acdfd5657c3e5e5559736fa917899379276793b5d67f81"
+pypi_url = "https://files.pythonhosted.org/packages/9b/a4/5e7d1b19738c079b347db46a76452ab8068ed420ead7aaed7dde4209faef/antecedent-2.4.0-cp314-cp314-macosx_11_0_arm64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp314-cp314-macosx_11_0_arm64.whl"
+pypi_upload_time = "2026-10-16T09:30:48.310430Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+bytes = 38312263
+sha256 = "0a83df4674e461c8ab099ed75c2fc6b8d6d0fd1e3a078d2d839a95e5a6e49a0a"
+pypi_url = "https://files.pythonhosted.org/packages/d3/fa/68314d2c5171ae4beffeef978b87fcecff74dc6fb6bd2e1b8d89828f3c92/antecedent-2.4.0-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+pypi_upload_time = "2026-10-16T09:30:53.060664Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+bytes = 40925702
+sha256 = "aa5a7c222214df680bba28300f438255f1f88b23af5dfabd8342f98f2ee17d8e"
+pypi_url = "https://files.pythonhosted.org/packages/9b/04/b903f10762a9776090e5c150c91737ef65331cc2f1040952a1dd0bbf24a8/antecedent-2.4.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+pypi_upload_time = "2026-10-16T09:30:57.805912Z"
+
+[[wheel]]
+version = "2.4.0"
+filename = "antecedent-2.4.0-cp314-cp314-win_amd64.whl"
+bytes = 39765941
+sha256 = "32e07b2090de637ff4f706bc6a54bc5a4203f3d74c4ca3ef7edef5aa0a564a94"
+pypi_url = "https://files.pythonhosted.org/packages/5a/17/32f4900aa332a9a915bc20d8d6d555bcbe00a79249a5915d2a1e5224a79a/antecedent-2.4.0-cp314-cp314-win_amd64.whl"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/antecedent-2.4.0-cp314-cp314-win_amd64.whl"
+pypi_upload_time = "2026-10-16T09:31:02.604022Z"
+
+[[github_asset]]
+version = "2.4.0"
+filename = "docs.tar.gz"
+bytes = 39593463
+sha256 = "ed5800e869deb22625956891aa632f60caba6c8f0c39918741cf77fcba6fcf97"
+github_url = "https://github.com/iridae-dev/antecedent/releases/download/v2.4.0/docs.tar.gz"
+note = "GitHub Release asset. Not a PyPI distribution. Not downloaded into the repository."
+
+# Tree version is workspace.package.version. Registry checksum is crates.io version.checksum (sha256 of the .crate).
+# Download URL is https://crates.io plus the API dl_path. .crate files were not downloaded.
+
+[[crate]]
+name = "antecedent"
+manifest = "crates/antecedent/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T11:00:25.740903Z"
+crates_io_2_4_0_checksum = "d405202788162a7c3a938bc4539b2ac617488563f7d2dd22c4e2e25ae43a15fd"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent/2.4.0/download"
+
+[[crate]]
+name = "antecedent-attribution"
+manifest = "crates/antecedent-attribution/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T09:15:24.834236Z"
+crates_io_2_4_1_checksum = "92f8cbf7a1945acb1688a92277bed42fbd2a0cca8e4af553985dc4ba8810f9ab"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-attribution/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:37:48.862047Z"
+crates_io_2_4_0_checksum = "1cd1c3ed433153857639ddae14fe4001dd0a437b50dea341bd4b709cf8a7903a"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-attribution/2.4.0/download"
+
+[[crate]]
+name = "antecedent-contract"
+manifest = "crates/antecedent-contract/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T08:56:08.407023Z"
+crates_io_2_4_1_checksum = "faf2aa0a529e3fe065f9cbc0bb8ae7cf7abd3afe633b0eeadc34f67a48a9dd1d"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-contract/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T09:32:47.120590Z"
+crates_io_2_4_0_checksum = "4f9e902b199d671bda7200986bfb148b07c59cc05e879617c844fdd84a417639"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-contract/2.4.0/download"
+
+[[crate]]
+name = "antecedent-core"
+manifest = "crates/antecedent-core/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T08:54:57.018936Z"
+crates_io_2_4_1_checksum = "7d4fc290c27b4ce5b74c41fc6d6adc342008c9754dafeb74141201409dfce5d8"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-core/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T09:31:35.630615Z"
+crates_io_2_4_0_checksum = "37eab17e8c9ab233be3f0e6c7471d423fec15fa6a5c44f3ddbc0419290655253"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-core/2.4.0/download"
+
+[[crate]]
+name = "antecedent-counterfactual"
+manifest = "crates/antecedent-counterfactual/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T09:13:13.959467Z"
+crates_io_2_4_1_checksum = "e51db5844c7c3b43425c9289e42eddb2d8abe698a727afa21bce43428952134c"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-counterfactual/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:35:43.517059Z"
+crates_io_2_4_0_checksum = "82c95db45d915dc4f64621d6a99b61d64853344b9ff574ad5c2e2a03f0ef9d17"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-counterfactual/2.4.0/download"
+
+[[crate]]
+name = "antecedent-data"
+manifest = "crates/antecedent-data/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T09:00:55.982772Z"
+crates_io_2_4_1_checksum = "34a6bdc2865735428e03e49bdd70eef34440998d25cad743c62426d8aca7a0f5"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-data/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T09:37:34.599543Z"
+crates_io_2_4_0_checksum = "046da85ba26d257ecc6e811498e76a8089ce2f14483ff6a4a7df88cc3b1742d8"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-data/2.4.0/download"
+
+[[crate]]
+name = "antecedent-design"
+manifest = "crates/antecedent-design/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:47:29.354570Z"
+crates_io_2_4_0_checksum = "6f63bb8f6fb667c6607c16ceedcd71d49ac60df667f5e0a2bf1927fe4ac06c51"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-design/2.4.0/download"
+
+[[crate]]
+name = "antecedent-discovery"
+manifest = "crates/antecedent-discovery/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:41:45.772336Z"
+crates_io_2_4_0_checksum = "53f9b41c44ec081d474d0b0153b5cd88461daf28924b96ae179154f8ea8c1eb8"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-discovery/2.4.0/download"
+
+[[crate]]
+name = "antecedent-estimate"
+manifest = "crates/antecedent-estimate/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:50:28.432986Z"
+crates_io_2_4_0_checksum = "0b360aaf9b6cb0f4295dbdaebb7e3f77c0c259b403f7be1ab05dc2f1ad02b42c"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-estimate/2.4.0/download"
+
+[[crate]]
+name = "antecedent-expr"
+manifest = "crates/antecedent-expr/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T08:57:17.173142Z"
+crates_io_2_4_1_checksum = "0863d0e27e5716b22fdd4a08bdeea83a3bafce14315984bc04eb3df803c95308"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-expr/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T09:33:55.661968Z"
+crates_io_2_4_0_checksum = "0923dc9103cb54ae161715f6b1d99ed00a29d837be4ad9fbae3aed281df78036"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-expr/2.4.0/download"
+
+[[crate]]
+name = "antecedent-graph"
+manifest = "crates/antecedent-graph/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T08:58:25.407685Z"
+crates_io_2_4_1_checksum = "03d00a6e6d461a855f85c33d7ea32c19e391610eb23220425c5f0c0d7182ed59"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-graph/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T09:35:03.814912Z"
+crates_io_2_4_0_checksum = "2ecc603cbf7a4cdfe054f5f5db8d1e60dd4ab59b36f57dc90ef0cef617b7bf1c"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-graph/2.4.0/download"
+
+[[crate]]
+name = "antecedent-identify"
+manifest = "crates/antecedent-identify/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T09:02:29.511766Z"
+crates_io_2_4_1_checksum = "235e708452f249ef51abe2582babe351029101bebcbe79ca7e6ee1c5e41d63f4"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-identify/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T09:39:09.145686Z"
+crates_io_2_4_0_checksum = "6c2433e2c9bcb2c4e567b9005f1baaaa03a3fd15e79367b0dfec747a90f50cbd"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-identify/2.4.0/download"
+
+[[crate]]
+name = "antecedent-io"
+manifest = "crates/antecedent-io/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:56:42.701408Z"
+crates_io_2_4_0_checksum = "a84e0cb439cd4c2beda45f3abbb82a25eb53e7569fddbcfd1308d979e9f267bb"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-io/2.4.0/download"
+
+[[crate]]
+name = "antecedent-io-core"
+manifest = "crates/antecedent-io-core/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:44:32.878746Z"
+crates_io_2_4_0_checksum = "056c231deb84e789008bb04cd875d369cc6a460c7d3c4bbeb6fb32136c81beb1"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-io-core/2.4.0/download"
+
+[[crate]]
+name = "antecedent-kernels"
+manifest = "crates/antecedent-kernels/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T08:59:33.206148Z"
+crates_io_2_4_1_checksum = "a98e2386b6b63166428ca4241db02906dbc89ba0d2cc0d4b7e8a511416814421"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-kernels/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T09:36:11.652233Z"
+crates_io_2_4_0_checksum = "44ec98108918d164aba290fe666b33e0d35b549edce6bd9283c905d9dbdc205d"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-kernels/2.4.0/download"
+
+[[crate]]
+name = "antecedent-learn"
+manifest = "crates/antecedent-learn/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T09:08:56.515414Z"
+crates_io_2_4_1_checksum = "6cd91352dd9e4f423ef69bcff176015de1e3512e70d274e9d1d193c1cdc2974f"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-learn/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:31:34.005240Z"
+crates_io_2_4_0_checksum = "87645f64b14291c45536595c3ce54faf93813c1a0bb476d4bfbe540d7323e81f"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-learn/2.4.0/download"
+
+[[crate]]
+name = "antecedent-learn-burn"
+manifest = "crates/antecedent-learn-burn/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T09:03:57.457486Z"
+crates_io_2_4_1_checksum = "d617d33aaabc96c062de60210a0719492192e2600b4f933ce880d15667fd6568"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-learn-burn/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T09:40:38.178401Z"
+crates_io_2_4_0_checksum = "b5c1247672acb662c4b46c11fc1f0635fed127ebb9e7722c61c698b606b511b7"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-learn-burn/2.4.0/download"
+
+[[crate]]
+name = "antecedent-model"
+manifest = "crates/antecedent-model/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T09:11:03.651161Z"
+crates_io_2_4_1_checksum = "29e839524ee2456f6d6136248d836727c6c243ad46c44347f2e99ff41d5a20d5"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-model/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:33:38.491403Z"
+crates_io_2_4_0_checksum = "f85a3b0419ab6aad0ec4e038b9d4f54129574218e578e8d7e8b8c9035388ec62"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-model/2.4.0/download"
+
+[[crate]]
+name = "antecedent-prob"
+manifest = "crates/antecedent-prob/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T09:05:05.739958Z"
+crates_io_2_4_1_checksum = "9e2478bed9701d1954be57d1f6c58d75ed440d41e5e84b433fabac1ef54ee113"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-prob/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T09:41:47.426328Z"
+crates_io_2_4_0_checksum = "9f7be09ec47a7787cc6903cf1319d86f86d3fa4c7f039d1c982f4e8eb7091ec7"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-prob/2.4.0/download"
+
+[[crate]]
+name = "antecedent-state"
+manifest = "crates/antecedent-state/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T09:17:18.949491Z"
+crates_io_2_4_1_checksum = "e902bb10e3e4a1916d603dd1b00e19c1a3df7b767ca159bcdd14af19f43d4a9f"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-state/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:39:42.154393Z"
+crates_io_2_4_0_checksum = "92a42d27178f97fb204f259f1626c48025cac78c1e446e274e1cc8493ea36f61"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-state/2.4.0/download"
+
+[[crate]]
+name = "antecedent-stats"
+manifest = "crates/antecedent-stats/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_max_version = "2.4.1"
+crates_io_2_4_1 = "present"
+crates_io_2_4_1_yanked = false
+crates_io_2_4_1_created_at = "2026-10-19T09:06:59.115531Z"
+crates_io_2_4_1_checksum = "85a1c0d9f73eac598ff1db7784db679c8dc6489c588ba9f98b1c49c48ffef37e"
+crates_io_2_4_1_download = "https://crates.io/api/v1/crates/antecedent-stats/2.4.1/download"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:29:37.151532Z"
+crates_io_2_4_0_checksum = "ffa8599fbb62597f4555f83b8bc6791a71404926676b010d1b310d83e2d2a2f3"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-stats/2.4.0/download"
+
+[[crate]]
+name = "antecedent-validate"
+manifest = "crates/antecedent-validate/Cargo.toml"
+tree_version_2_4_1 = "2.4.1"
+tree_version_2_4_0 = "2.4.0"
+crates_io_2_4_0 = "present"
+crates_io_2_4_0_yanked = false
+crates_io_2_4_0_created_at = "2026-10-16T10:53:28.638470Z"
+crates_io_2_4_0_checksum = "578f68d1e8e0bba0a304f86fd6cb28e805f08a809633ca68913723c870b84814"
+crates_io_2_4_0_download = "https://crates.io/api/v1/crates/antecedent-validate/2.4.0/download"
+
+[[unpublished_crate]]
+name = "antecedent-py"
+manifest = "python/Cargo.toml"
+tree_version = "2.4.1"
+publish = false
+
+[[unpublished_crate]]
+name = "antecedent-test-support"
+manifest = "crates/antecedent-test-support/Cargo.toml"
+tree_version = "2.4.1"
+publish = false
+
+[[unpublished_crate]]
+name = "antecedent-fuzz"
+manifest = "fuzz/Cargo.toml"
+tree_version = "0.0.0"
+publish = false
+note = "Own version field, not workspace.package.version."
+
+[generators]
+bench_targets = "python3 scripts/bench_targets.py"
+bench_regression = "python3 scripts/bench_regression.py [CRITERION_DIR]"
+bench_regression_base = "cargo bench ... --save-baseline base"
+bench_regression_head = "cargo bench ... --baseline base"
+criterion_smoke = "cargo bench --workspace --exclude antecedent-py --exclude antecedent-learn-burn --bench '*' -- --test"
+criterion_smoke_source = "scripts/gate_release.sh"
+neural_crossfit = "cargo run --release -q -p antecedent-learn --features ml-neural --example neural_crossfit_benchmark"
+neural_crossfit_source = "benches/baselines/neural_crossfit.md and parity/accelerator_decision.md; example registered in crates/antecedent-learn/Cargo.toml. Not defined under scripts/."
+timings = "not_recorded"
