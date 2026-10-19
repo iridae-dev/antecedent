@@ -1,9 +1,10 @@
 //! Claim, external-evidence and program-binding contracts built on `antecedent-core`.
 //!
 //! `antecedent-contract` owns the portable claim envelope and its composition
-//! rules, the external provider contracts and their verification and binding
-//! to a checked program, evidence obligations, composition provenance, the
-//! reasoning view, the capability report and the physical-plan records. No
+//! rules, the evidence envelope, the external provider contracts and their
+//! verification and binding to a checked program, evidence obligations,
+//! composition provenance, the reasoning view, the capability report and the
+//! physical-plan records. No
 //! estimator, identifier or statistics crate consumes these; they sit between
 //! the shared vocabulary in `antecedent-core` and the facade, artifact and
 //! validation layers.
@@ -21,6 +22,7 @@ pub mod capability;
 pub mod claim;
 pub mod composition_provenance;
 pub mod composition_verification;
+pub mod evidence_envelope;
 pub mod evidence_ledger;
 pub mod evidence_obligation;
 pub mod external;
@@ -58,6 +60,10 @@ pub use claim::{
 };
 pub use composition_provenance::{
     CompositionLink, CompositionStage, MAX_CHAIN_LINKS, ProvenanceChain, ProvenanceChainError,
+};
+pub use evidence_envelope::{
+    AxisInterval, EvidenceBinding, EvidenceCalibration, EvidenceEnvelope, EvidenceEnvelopeError,
+    EvidenceOrigins, EvidenceSupport, UncertaintyAxes, UncertaintyAxis, WorldTime,
 };
 pub use evidence_obligation::{
     EvidenceObligation, EvidenceObligationError, EvidenceObligationKind, EvidenceObligationSpec,
