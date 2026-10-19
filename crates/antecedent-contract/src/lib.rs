@@ -25,6 +25,7 @@ pub mod composition_verification;
 pub mod evidence_envelope;
 pub mod evidence_ledger;
 pub mod evidence_obligation;
+pub mod evidence_ports;
 pub mod external;
 pub mod external_binding;
 pub mod external_refusal;
@@ -70,6 +71,7 @@ pub use evidence_obligation::{
     EvidenceOffer, MAX_OBLIGATION_COORDINATES, ObligationProvenance, ObligationRegime,
     unresolved_assumption_obligations,
 };
+pub use evidence_ports::{DecisionRequest, EvidencePort, EvidencePortError};
 pub use external::{
     EvidenceProviderContract, ExternalCapability, ExternalCapabilityRequest, ExternalContractError,
     ExternalEvidenceKind, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,

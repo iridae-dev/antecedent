@@ -107,6 +107,7 @@ impl core::clone::Clone for antecedent_contract::CompositionStage
 impl core::clone::Clone for antecedent_contract::ConsumerProfile
 impl core::clone::Clone for antecedent_contract::CoverageRecord
 impl core::clone::Clone for antecedent_contract::DataClassification
+impl core::clone::Clone for antecedent_contract::DecisionRequest
 impl core::clone::Clone for antecedent_contract::DependenceDeclaration
 impl core::clone::Clone for antecedent_contract::DerivedClaim
 impl core::clone::Clone for antecedent_contract::DerivedClaimOutcome
@@ -124,6 +125,8 @@ impl core::clone::Clone for antecedent_contract::EvidenceObligationKind
 impl core::clone::Clone for antecedent_contract::EvidenceObligationSpec
 impl core::clone::Clone for antecedent_contract::EvidenceOffer
 impl core::clone::Clone for antecedent_contract::EvidenceOrigins
+impl core::clone::Clone for antecedent_contract::EvidencePort
+impl core::clone::Clone for antecedent_contract::EvidencePortError
 impl core::clone::Clone for antecedent_contract::EvidenceProviderContract
 impl core::clone::Clone for antecedent_contract::EvidenceSupport
 impl core::clone::Clone for antecedent_contract::ExecutionContract
@@ -405,6 +408,7 @@ impl core::cmp::Eq for antecedent_contract::CompositionLink
 impl core::cmp::Eq for antecedent_contract::CompositionStage
 impl core::cmp::Eq for antecedent_contract::ConsumerProfile
 impl core::cmp::Eq for antecedent_contract::DataClassification
+impl core::cmp::Eq for antecedent_contract::DecisionRequest
 impl core::cmp::Eq for antecedent_contract::DependenceDeclaration
 impl core::cmp::Eq for antecedent_contract::DistributionMeaning
 impl core::cmp::Eq for antecedent_contract::DomainStatus
@@ -419,6 +423,8 @@ impl core::cmp::Eq for antecedent_contract::EvidenceObligationKind
 impl core::cmp::Eq for antecedent_contract::EvidenceObligationSpec
 impl core::cmp::Eq for antecedent_contract::EvidenceOffer
 impl core::cmp::Eq for antecedent_contract::EvidenceOrigins
+impl core::cmp::Eq for antecedent_contract::EvidencePort
+impl core::cmp::Eq for antecedent_contract::EvidencePortError
 impl core::cmp::Eq for antecedent_contract::EvidenceSupport
 impl core::cmp::Eq for antecedent_contract::ExecutionContract
 impl core::cmp::Eq for antecedent_contract::ExecutionPerformanceRecord
@@ -684,6 +690,7 @@ impl core::cmp::PartialEq for antecedent_contract::CompositionStage
 impl core::cmp::PartialEq for antecedent_contract::ConsumerProfile
 impl core::cmp::PartialEq for antecedent_contract::CoverageRecord
 impl core::cmp::PartialEq for antecedent_contract::DataClassification
+impl core::cmp::PartialEq for antecedent_contract::DecisionRequest
 impl core::cmp::PartialEq for antecedent_contract::DependenceDeclaration
 impl core::cmp::PartialEq for antecedent_contract::DerivedClaim
 impl core::cmp::PartialEq for antecedent_contract::DerivedClaimOutcome
@@ -701,6 +708,8 @@ impl core::cmp::PartialEq for antecedent_contract::EvidenceObligationKind
 impl core::cmp::PartialEq for antecedent_contract::EvidenceObligationSpec
 impl core::cmp::PartialEq for antecedent_contract::EvidenceOffer
 impl core::cmp::PartialEq for antecedent_contract::EvidenceOrigins
+impl core::cmp::PartialEq for antecedent_contract::EvidencePort
+impl core::cmp::PartialEq for antecedent_contract::EvidencePortError
 impl core::cmp::PartialEq for antecedent_contract::EvidenceProviderContract
 impl core::cmp::PartialEq for antecedent_contract::EvidenceSupport
 impl core::cmp::PartialEq for antecedent_contract::ExecutionContract
@@ -1016,6 +1025,7 @@ impl core::default::Default for antecedent_contract::evidence_ledger::EvidenceLe
 impl core::default::Default for antecedent_contract::evidence_ledger::OperationEffect
 impl core::error::Error for antecedent_contract::EvidenceEnvelopeError
 impl core::error::Error for antecedent_contract::EvidenceObligationError
+impl core::error::Error for antecedent_contract::EvidencePortError
 impl core::error::Error for antecedent_contract::ProvenanceError
 impl core::error::Error for antecedent_contract::adaptive_design::AdaptiveContractError
 impl core::error::Error for antecedent_contract::composition_verification::GraphError
@@ -1050,6 +1060,7 @@ impl core::fmt::Debug for antecedent_contract::CompositionStage
 impl core::fmt::Debug for antecedent_contract::ConsumerProfile
 impl core::fmt::Debug for antecedent_contract::CoverageRecord
 impl core::fmt::Debug for antecedent_contract::DataClassification
+impl core::fmt::Debug for antecedent_contract::DecisionRequest
 impl core::fmt::Debug for antecedent_contract::DependenceDeclaration
 impl core::fmt::Debug for antecedent_contract::DerivedClaim
 impl core::fmt::Debug for antecedent_contract::DerivedClaimOutcome
@@ -1067,6 +1078,8 @@ impl core::fmt::Debug for antecedent_contract::EvidenceObligationKind
 impl core::fmt::Debug for antecedent_contract::EvidenceObligationSpec
 impl core::fmt::Debug for antecedent_contract::EvidenceOffer
 impl core::fmt::Debug for antecedent_contract::EvidenceOrigins
+impl core::fmt::Debug for antecedent_contract::EvidencePort
+impl core::fmt::Debug for antecedent_contract::EvidencePortError
 impl core::fmt::Debug for antecedent_contract::EvidenceProviderContract
 impl core::fmt::Debug for antecedent_contract::EvidenceSupport
 impl core::fmt::Debug for antecedent_contract::ExecutionContract
@@ -1330,6 +1343,7 @@ impl core::fmt::Debug for antecedent_contract::transport_revalidation::Transport
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportScene
 impl core::fmt::Display for antecedent_contract::EvidenceEnvelopeError
 impl core::fmt::Display for antecedent_contract::EvidenceObligationError
+impl core::fmt::Display for antecedent_contract::EvidencePortError
 impl core::fmt::Display for antecedent_contract::ProvenanceError
 impl core::fmt::Display for antecedent_contract::adaptive_design::AdaptiveContractError
 impl core::fmt::Display for antecedent_contract::composition_verification::GraphError
@@ -1346,10 +1360,12 @@ impl core::hash::Hash for antecedent_contract::ClaimKind
 impl core::hash::Hash for antecedent_contract::ClaimOperation
 impl core::hash::Hash for antecedent_contract::CompositionStage
 impl core::hash::Hash for antecedent_contract::DataClassification
+impl core::hash::Hash for antecedent_contract::DecisionRequest
 impl core::hash::Hash for antecedent_contract::DistributionMeaning
 impl core::hash::Hash for antecedent_contract::DomainStatus
 impl core::hash::Hash for antecedent_contract::EvidenceDependence
 impl core::hash::Hash for antecedent_contract::EvidenceObligationKind
+impl core::hash::Hash for antecedent_contract::EvidencePort
 impl core::hash::Hash for antecedent_contract::ExternalCapability
 impl core::hash::Hash for antecedent_contract::HostOperation
 impl core::hash::Hash for antecedent_contract::InferenceBasis
@@ -1435,11 +1451,14 @@ impl core::marker::Copy for antecedent_contract::ClaimKind
 impl core::marker::Copy for antecedent_contract::ClaimOperation
 impl core::marker::Copy for antecedent_contract::CompositionStage
 impl core::marker::Copy for antecedent_contract::DataClassification
+impl core::marker::Copy for antecedent_contract::DecisionRequest
 impl core::marker::Copy for antecedent_contract::DistributionMeaning
 impl core::marker::Copy for antecedent_contract::DomainStatus
 impl core::marker::Copy for antecedent_contract::EvidenceDependence
 impl core::marker::Copy for antecedent_contract::EvidenceEnvelopeError
 impl core::marker::Copy for antecedent_contract::EvidenceObligationKind
+impl core::marker::Copy for antecedent_contract::EvidencePort
+impl core::marker::Copy for antecedent_contract::EvidencePortError
 impl core::marker::Copy for antecedent_contract::ExternalCapability
 impl core::marker::Copy for antecedent_contract::ExternalEvidenceKind
 impl core::marker::Copy for antecedent_contract::ExternalPosteriorKind
@@ -1564,6 +1583,7 @@ impl core::marker::Freeze for antecedent_contract::CompositionStage [auto]
 impl core::marker::Freeze for antecedent_contract::ConsumerProfile [auto]
 impl core::marker::Freeze for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Freeze for antecedent_contract::DataClassification [auto]
+impl core::marker::Freeze for antecedent_contract::DecisionRequest [auto]
 impl core::marker::Freeze for antecedent_contract::DependenceDeclaration [auto]
 impl core::marker::Freeze for antecedent_contract::DerivedClaim [auto]
 impl core::marker::Freeze for antecedent_contract::DerivedClaimOutcome [auto]
@@ -1581,6 +1601,8 @@ impl core::marker::Freeze for antecedent_contract::EvidenceObligationKind [auto]
 impl core::marker::Freeze for antecedent_contract::EvidenceObligationSpec [auto]
 impl core::marker::Freeze for antecedent_contract::EvidenceOffer [auto]
 impl core::marker::Freeze for antecedent_contract::EvidenceOrigins [auto]
+impl core::marker::Freeze for antecedent_contract::EvidencePort [auto]
+impl core::marker::Freeze for antecedent_contract::EvidencePortError [auto]
 impl core::marker::Freeze for antecedent_contract::EvidenceProviderContract [auto]
 impl core::marker::Freeze for antecedent_contract::EvidenceSupport [auto]
 impl core::marker::Freeze for antecedent_contract::ExecutionContract [auto]
@@ -1871,6 +1893,7 @@ impl core::marker::Send for antecedent_contract::CompositionStage [auto]
 impl core::marker::Send for antecedent_contract::ConsumerProfile [auto]
 impl core::marker::Send for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Send for antecedent_contract::DataClassification [auto]
+impl core::marker::Send for antecedent_contract::DecisionRequest [auto]
 impl core::marker::Send for antecedent_contract::DependenceDeclaration [auto]
 impl core::marker::Send for antecedent_contract::DerivedClaim [auto]
 impl core::marker::Send for antecedent_contract::DerivedClaimOutcome [auto]
@@ -1888,6 +1911,8 @@ impl core::marker::Send for antecedent_contract::EvidenceObligationKind [auto]
 impl core::marker::Send for antecedent_contract::EvidenceObligationSpec [auto]
 impl core::marker::Send for antecedent_contract::EvidenceOffer [auto]
 impl core::marker::Send for antecedent_contract::EvidenceOrigins [auto]
+impl core::marker::Send for antecedent_contract::EvidencePort [auto]
+impl core::marker::Send for antecedent_contract::EvidencePortError [auto]
 impl core::marker::Send for antecedent_contract::EvidenceProviderContract [auto]
 impl core::marker::Send for antecedent_contract::EvidenceSupport [auto]
 impl core::marker::Send for antecedent_contract::ExecutionContract [auto]
@@ -2178,6 +2203,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::CompositionStage
 impl core::marker::StructuralPartialEq for antecedent_contract::ConsumerProfile
 impl core::marker::StructuralPartialEq for antecedent_contract::CoverageRecord
 impl core::marker::StructuralPartialEq for antecedent_contract::DataClassification
+impl core::marker::StructuralPartialEq for antecedent_contract::DecisionRequest
 impl core::marker::StructuralPartialEq for antecedent_contract::DependenceDeclaration
 impl core::marker::StructuralPartialEq for antecedent_contract::DerivedClaim
 impl core::marker::StructuralPartialEq for antecedent_contract::DerivedClaimOutcome
@@ -2195,6 +2221,8 @@ impl core::marker::StructuralPartialEq for antecedent_contract::EvidenceObligati
 impl core::marker::StructuralPartialEq for antecedent_contract::EvidenceObligationSpec
 impl core::marker::StructuralPartialEq for antecedent_contract::EvidenceOffer
 impl core::marker::StructuralPartialEq for antecedent_contract::EvidenceOrigins
+impl core::marker::StructuralPartialEq for antecedent_contract::EvidencePort
+impl core::marker::StructuralPartialEq for antecedent_contract::EvidencePortError
 impl core::marker::StructuralPartialEq for antecedent_contract::EvidenceProviderContract
 impl core::marker::StructuralPartialEq for antecedent_contract::EvidenceSupport
 impl core::marker::StructuralPartialEq for antecedent_contract::ExecutionContract
@@ -2483,6 +2511,7 @@ impl core::marker::Sync for antecedent_contract::CompositionStage [auto]
 impl core::marker::Sync for antecedent_contract::ConsumerProfile [auto]
 impl core::marker::Sync for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Sync for antecedent_contract::DataClassification [auto]
+impl core::marker::Sync for antecedent_contract::DecisionRequest [auto]
 impl core::marker::Sync for antecedent_contract::DependenceDeclaration [auto]
 impl core::marker::Sync for antecedent_contract::DerivedClaim [auto]
 impl core::marker::Sync for antecedent_contract::DerivedClaimOutcome [auto]
@@ -2500,6 +2529,8 @@ impl core::marker::Sync for antecedent_contract::EvidenceObligationKind [auto]
 impl core::marker::Sync for antecedent_contract::EvidenceObligationSpec [auto]
 impl core::marker::Sync for antecedent_contract::EvidenceOffer [auto]
 impl core::marker::Sync for antecedent_contract::EvidenceOrigins [auto]
+impl core::marker::Sync for antecedent_contract::EvidencePort [auto]
+impl core::marker::Sync for antecedent_contract::EvidencePortError [auto]
 impl core::marker::Sync for antecedent_contract::EvidenceProviderContract [auto]
 impl core::marker::Sync for antecedent_contract::EvidenceSupport [auto]
 impl core::marker::Sync for antecedent_contract::ExecutionContract [auto]
@@ -2790,6 +2821,7 @@ impl core::marker::Unpin for antecedent_contract::CompositionStage [auto]
 impl core::marker::Unpin for antecedent_contract::ConsumerProfile [auto]
 impl core::marker::Unpin for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Unpin for antecedent_contract::DataClassification [auto]
+impl core::marker::Unpin for antecedent_contract::DecisionRequest [auto]
 impl core::marker::Unpin for antecedent_contract::DependenceDeclaration [auto]
 impl core::marker::Unpin for antecedent_contract::DerivedClaim [auto]
 impl core::marker::Unpin for antecedent_contract::DerivedClaimOutcome [auto]
@@ -2807,6 +2839,8 @@ impl core::marker::Unpin for antecedent_contract::EvidenceObligationKind [auto]
 impl core::marker::Unpin for antecedent_contract::EvidenceObligationSpec [auto]
 impl core::marker::Unpin for antecedent_contract::EvidenceOffer [auto]
 impl core::marker::Unpin for antecedent_contract::EvidenceOrigins [auto]
+impl core::marker::Unpin for antecedent_contract::EvidencePort [auto]
+impl core::marker::Unpin for antecedent_contract::EvidencePortError [auto]
 impl core::marker::Unpin for antecedent_contract::EvidenceProviderContract [auto]
 impl core::marker::Unpin for antecedent_contract::EvidenceSupport [auto]
 impl core::marker::Unpin for antecedent_contract::ExecutionContract [auto]
@@ -3097,6 +3131,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::Compositio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ConsumerProfile [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CoverageRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DataClassification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DecisionRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DependenceDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DerivedClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DerivedClaimOutcome [auto]
@@ -3114,6 +3149,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EvidenceOb
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EvidenceObligationSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EvidenceOffer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EvidenceOrigins [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EvidencePort [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EvidencePortError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EvidenceProviderContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::EvidenceSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ExecutionContract [auto]
@@ -3404,6 +3441,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CompositionSt
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ConsumerProfile [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CoverageRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DataClassification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DecisionRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DependenceDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DerivedClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DerivedClaimOutcome [auto]
@@ -3421,6 +3459,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EvidenceOblig
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EvidenceObligationSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EvidenceOffer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EvidenceOrigins [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EvidencePort [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EvidencePortError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EvidenceProviderContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::EvidenceSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ExecutionContract [auto]
@@ -3751,6 +3791,7 @@ impl<T> core::panic::unwind_safe::UnwindSafe for antecedent_contract::SlotAvaila
 pub const <antecedent_contract::BoundExternalClaim>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_contract::ColumnClaim>::DTYPE: &'static str
 pub const <antecedent_contract::EvidenceObligationKind>::ALL: [Self; 9]
+pub const <antecedent_contract::EvidencePort>::ALL: [Self; 10]
 pub const <antecedent_contract::UncertaintyAxis>::ALL: [Self; 7]
 pub const <antecedent_contract::adaptive_design::AssignmentFamily>::ALL: &'static [Self]
 pub const <antecedent_contract::adaptive_design::InferenceParadigm>::ALL: &'static [Self]
@@ -3846,10 +3887,12 @@ pub enum antecedent_contract::BufferMaterialization
 pub enum antecedent_contract::ColumnSupport
 pub enum antecedent_contract::CompositionStage
 pub enum antecedent_contract::DataClassification
+pub enum antecedent_contract::DecisionRequest
 pub enum antecedent_contract::DependenceDeclaration
 pub enum antecedent_contract::DistributionMeaning
 pub enum antecedent_contract::EquivalenceScope
 pub enum antecedent_contract::EvidenceCalibration
+pub enum antecedent_contract::EvidencePort
 pub enum antecedent_contract::ExternalBindingError
 pub enum antecedent_contract::ExternalCapability
 pub enum antecedent_contract::ExternalContractError
@@ -4057,6 +4100,12 @@ pub field antecedent_contract::EvidenceOrigins::prior: core::option::Option<allo
 pub field antecedent_contract::EvidenceOrigins::selection: core::option::Option<alloc::sync::Arc<str>>
 pub field antecedent_contract::EvidenceOrigins::source: core::option::Option<alloc::sync::Arc<str>>
 pub field antecedent_contract::EvidenceOrigins::training: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_contract::EvidencePortError::code: &'static str
+pub field antecedent_contract::EvidencePortError::detail: &'static str
+pub field antecedent_contract::EvidencePortError::legal_ports: &'static [antecedent_contract::EvidencePort]
+pub field antecedent_contract::EvidencePortError::message: &'static str
+pub field antecedent_contract::EvidencePortError::request: antecedent_contract::DecisionRequest
+pub field antecedent_contract::EvidencePortError::source_port: antecedent_contract::EvidencePort
 pub field antecedent_contract::EvidenceProviderContract::capabilities: alloc::vec::Vec<antecedent_contract::ExternalCapability>
 pub field antecedent_contract::EvidenceProviderContract::factor_id: alloc::string::String
 pub field antecedent_contract::EvidenceProviderContract::identity: antecedent_contract::ProviderObjectIdentity
@@ -4776,6 +4825,9 @@ pub fn <antecedent_contract::ConsumerProfile>::fn forwarding() -> Self
 pub fn <antecedent_contract::ConsumerProfile>::fn full() -> Self
 pub fn <antecedent_contract::ConsumerProfile>::fn restricted() -> Self
 pub fn <antecedent_contract::ConsumerProfile>::fn understands(&self, feature: &str) -> bool
+pub fn <antecedent_contract::DecisionRequest>::const fn admits(self, port: antecedent_contract::EvidencePort) -> bool
+pub fn <antecedent_contract::DecisionRequest>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::DecisionRequest>::const fn legal_ports(self) -> &'static [antecedent_contract::EvidencePort]
 pub fn <antecedent_contract::DistributionMeaning>::const fn answers_interventional_outcome_threshold(self) -> bool
 pub fn <antecedent_contract::DomainStatus>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::DomainStatus>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -4796,6 +4848,11 @@ pub fn <antecedent_contract::EvidenceObligationError>::fn wrong_contract(message
 pub fn <antecedent_contract::EvidenceObligationKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::EvidenceObligationKind>::const fn satisfiable_by_study(self) -> bool
 pub fn <antecedent_contract::EvidenceObligationKind>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::EvidencePort>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::EvidencePort>::const fn try_coerce(self, request: antecedent_contract::DecisionRequest) -> core::result::Result<Self, antecedent_contract::EvidencePortError>
+pub fn <antecedent_contract::EvidencePort>::const fn uncertainty_axis(self) -> core::option::Option<antecedent_contract::UncertaintyAxis>
+pub fn <antecedent_contract::EvidencePort>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::EvidencePortError>::const fn refusal(self) -> (&'static str, &'static str, &'static str)
 pub fn <antecedent_contract::ExecutionContract>::fn contract_digest(&self) -> alloc::string::String
 pub fn <antecedent_contract::ExternalBindingError>::fn to_refusal(&self, contract: &antecedent_contract::CheckedCausalContract, result: &antecedent_contract::ExternalResult) -> antecedent_contract::ExternalRefusal
 pub fn <antecedent_contract::ExternalContractError>::fn to_refusal(&self) -> antecedent_contract::ExternalRefusal
@@ -5397,6 +5454,7 @@ pub mod antecedent_contract::composition_verification
 pub mod antecedent_contract::evidence_envelope
 pub mod antecedent_contract::evidence_ledger
 pub mod antecedent_contract::evidence_obligation
+pub mod antecedent_contract::evidence_ports
 pub mod antecedent_contract::external
 pub mod antecedent_contract::external_binding
 pub mod antecedent_contract::external_refusal
@@ -5442,6 +5500,7 @@ pub struct antecedent_contract::EvidenceObligationError
 pub struct antecedent_contract::EvidenceObligationSpec
 pub struct antecedent_contract::EvidenceOffer
 pub struct antecedent_contract::EvidenceOrigins
+pub struct antecedent_contract::EvidencePortError
 pub struct antecedent_contract::EvidenceProviderContract
 pub struct antecedent_contract::EvidenceSupport
 pub struct antecedent_contract::ExecutionContract
@@ -5660,6 +5719,9 @@ pub use antecedent_contract::evidence_obligation::EvidenceOffer = antecedent_con
 pub use antecedent_contract::evidence_obligation::MAX_OBLIGATION_COORDINATES = antecedent_contract::MAX_OBLIGATION_COORDINATES
 pub use antecedent_contract::evidence_obligation::ObligationProvenance = antecedent_contract::ObligationProvenance
 pub use antecedent_contract::evidence_obligation::ObligationRegime = antecedent_contract::ObligationRegime
+pub use antecedent_contract::evidence_ports::DecisionRequest = antecedent_contract::DecisionRequest
+pub use antecedent_contract::evidence_ports::EvidencePort = antecedent_contract::EvidencePort
+pub use antecedent_contract::evidence_ports::EvidencePortError = antecedent_contract::EvidencePortError
 pub use antecedent_contract::external::EvidenceProviderContract = antecedent_contract::EvidenceProviderContract
 pub use antecedent_contract::external::ExternalCapability = antecedent_contract::ExternalCapability
 pub use antecedent_contract::external::ExternalCapabilityRequest = antecedent_contract::ExternalCapabilityRequest
@@ -5860,6 +5922,8 @@ pub variant antecedent_contract::DataClassification::MultiEnvironment
 pub variant antecedent_contract::DataClassification::Panel
 pub variant antecedent_contract::DataClassification::Tabular
 pub variant antecedent_contract::DataClassification::Temporal
+pub variant antecedent_contract::DecisionRequest::IndividualOutcomeRisk
+pub variant antecedent_contract::DecisionRequest::ParameterPosterior
 pub variant antecedent_contract::DependenceDeclaration::AlignedJointLaw { law_id: alloc::string::String }
 pub variant antecedent_contract::DependenceDeclaration::CrossCovariance
 pub variant antecedent_contract::DependenceDeclaration::IndependentByDesign { justification: alloc::string::String }
@@ -5897,6 +5961,16 @@ pub variant antecedent_contract::EvidenceObligationKind::ObserveEnvironment
 pub variant antecedent_contract::EvidenceObligationKind::ObservePopulation
 pub variant antecedent_contract::EvidenceObligationKind::ProvideConditionalLaw
 pub variant antecedent_contract::EvidenceObligationKind::ProvideJointLaw
+pub variant antecedent_contract::EvidencePort::ConfidenceRegion
+pub variant antecedent_contract::EvidencePort::CovarianceInfluence
+pub variant antecedent_contract::EvidencePort::IdentifiedSet
+pub variant antecedent_contract::EvidencePort::InterventionalLaw
+pub variant antecedent_contract::EvidencePort::Likelihood
+pub variant antecedent_contract::EvidencePort::Mean
+pub variant antecedent_contract::EvidencePort::ParameterPosterior
+pub variant antecedent_contract::EvidencePort::PredictiveLaw
+pub variant antecedent_contract::EvidencePort::SamplingLaw
+pub variant antecedent_contract::EvidencePort::Scenario
 pub variant antecedent_contract::ExternalBindingError::ColumnQuantities(usize)
 pub variant antecedent_contract::ExternalBindingError::ColumnSupportLength { rows: usize, supplied: usize }
 pub variant antecedent_contract::ExternalBindingError::ContractNotIdentified(antecedent_core::identification::IdentificationStatus)
