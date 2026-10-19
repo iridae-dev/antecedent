@@ -1,0 +1,39 @@
+# D09 Polars scope. Direct Arrow remains the preparation path.
+# The candidate crate was inspected and not linked. This file stores no timings.
+
+schema = 1
+item = "D09"
+decision = "direct_arrow"
+preparation_path = "direct_arrow"
+polars_feature = "polars = []"
+dependency_added = false
+polars_internal_contract_backend = false
+workspace_rust = "1.85"
+inspected = "2026-10-19"
+why = "crates.io polars 0.55.2 (tag rs-0.55.2, published 2026-08-06) is the current stable Rust crate. Its crate Cargo.toml and workspace Cargo.toml declare no rust-version, and crates.io publishes no rust_version for any polars release. The tag rust-toolchain.toml channel is nightly-2026-04-01. That is not evidence the crate builds on workspace Rust 1.85, so it was not linked. Latency, RSS, spill, build, MSRV, and wheel were not measured."
+
+[candidate]
+crate = "polars"
+version = "0.55.2"
+published = "2026-08-06"
+tag = "rs-0.55.2"
+crates_io_max_stable = "0.55.2"
+crate_manifest = "https://github.com/pola-rs/polars/blob/rs-0.55.2/crates/polars/Cargo.toml"
+workspace_manifest = "https://github.com/pola-rs/polars/blob/rs-0.55.2/Cargo.toml"
+rust_toolchain = "https://github.com/pola-rs/polars/blob/rs-0.55.2/rust-toolchain.toml"
+
+[msrv]
+crate_cargo_toml_rust_version = "absent"
+workspace_cargo_toml_rust_version = "absent"
+crates_io_rust_version = "absent"
+rust_toolchain_channel = "nightly-2026-04-01"
+builds_on_workspace_rust = "not_shown"
+not_linked_because = "unavailable_rust_version"
+
+[measurements]
+latency = "not_measured"
+rss = "not_measured"
+spill = "not_measured"
+build = "not_measured"
+msrv = "not_measured"
+wheel = "not_measured"

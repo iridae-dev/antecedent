@@ -1,9 +1,11 @@
 //! Prototype Rust Polars seam behind the internal source and design contracts.
 //!
 //! The optional `polars` feature is off by default. Arrow stays the default
-//! feature. This repository does not pin a Polars crate version, so this module
-//! does not depend on Polars and does not resolve one. Nothing here opens a
-//! Parquet file or builds a Polars plan.
+//! feature. D09 inspected crates.io `polars` 0.55.2 and did not link it: that
+//! release's `Cargo.toml` declares no `rust-version`, so it is not shown to
+//! build on Rust 1.85. The record is `parity/polars_decision/decision.toml`.
+//! This module does not depend on Polars. Nothing here opens a Parquet file
+//! or builds a Polars plan.
 //!
 //! The three jobs are a wide-Parquet adjusted effect, panel and
 //! multi-environment temporal preparation that borrows lag windows, and a
@@ -34,7 +36,7 @@ use crate::table::TableView;
 /// Enabling the feature compiles this module. It does not select a crate.
 pub const POLARS_FEATURE_ON_BY_DEFAULT: bool = false;
 
-/// No `polars` crate version in this repository was linked.
+/// No `polars` crate was linked. D09 inspected `0.55.2` and left it unresolved.
 pub const POLARS_CRATE_RESOLVED: bool = false;
 
 /// Where an adjusted-effect interval is computed.
@@ -52,7 +54,7 @@ pub const NULL_DISTINCT_REFUSAL: &str =
 /// Why this seam does not call Polars.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PolarsResolution {
-    /// This repository does not name a Polars crate version.
+    /// `polars` 0.55.2 was inspected and not linked.
     Unresolved,
 }
 
@@ -777,6 +779,22 @@ mod tests {
         assert!(manifest.contains("\npolars = []\n"), "{manifest}");
         assert!(!manifest.contains("polars = {"), "{manifest}");
         assert_eq!(PolarsResolution::current(), PolarsResolution::Unresolved);
+        let decision = include_str!("../../../parity/polars_decision/decision.toml");
+        for needle in [
+            "preparation_path = \"direct_arrow\"",
+            "polars_feature = \"polars = []\"",
+            "dependency_added = false",
+            "version = \"0.55.2\"",
+            "not_linked_because = \"unavailable_rust_version\"",
+            "latency = \"not_measured\"",
+            "rss = \"not_measured\"",
+            "spill = \"not_measured\"",
+            "build = \"not_measured\"",
+            "msrv = \"not_measured\"",
+            "wheel = \"not_measured\"",
+        ] {
+            assert!(decision.contains(needle), "{needle} missing from the Polars decision");
+        }
     }
 
     #[test]

@@ -6,7 +6,9 @@
 //! Arrow type, so it builds with `--no-default-features`.
 //!
 //! Polars is not a dependency and is not a backend of the internal contract.
-//! Nothing here selects a default backend.
+//! D09 left the feature empty (`polars = []`). See
+//! `parity/polars_decision/decision.toml`. Nothing here selects a default
+//! backend.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -79,6 +81,34 @@ mod tests {
         assert!(!line_names_polars_crate("polars-arrow = \"1\""));
         let feature_only = "[features]\ndefault = [\"arrow\"]\npolars = []\n";
         assert!(!declares_polars_crate(feature_only));
+    }
+
+    #[test]
+    fn decision_record_keeps_direct_arrow_and_an_unlinked_polars_crate() {
+        let decision = include_str!("../../../parity/polars_decision/decision.toml");
+        for needle in [
+            "item = \"D09\"",
+            "preparation_path = \"direct_arrow\"",
+            "polars_feature = \"polars = []\"",
+            "dependency_added = false",
+            "version = \"0.55.2\"",
+            "crate_cargo_toml_rust_version = \"absent\"",
+            "workspace_cargo_toml_rust_version = \"absent\"",
+            "not_linked_because = \"unavailable_rust_version\"",
+            "latency = \"not_measured\"",
+            "rss = \"not_measured\"",
+            "spill = \"not_measured\"",
+            "build = \"not_measured\"",
+            "msrv = \"not_measured\"",
+            "wheel = \"not_measured\"",
+        ] {
+            assert!(
+                decision.contains(needle),
+                "{needle} missing from the Polars decision"
+            );
+        }
+        assert!(!declares_polars_crate(DATA_CARGO));
+        assert!(!declares_polars_crate(WORKSPACE_CARGO));
     }
 
     fn declares_polars_crate(manifest: &str) -> bool {

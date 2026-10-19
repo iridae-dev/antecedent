@@ -26,8 +26,11 @@ arrow = [
     "arrow-array/ffi",
     "arrow-schema/ffi",
 ]
-# Optional prototype seam. Off by default. Not a crate dependency: this
-# repository pins no Polars version, and Polars is not an internal-contract backend.
+# Optional prototype seam. Off by default. Not a crate dependency.
+# D09 inspected crates.io polars 0.55.2 and did not link it. That release's
+# Cargo.toml declares no rust-version, so it is not shown to build on Rust
+# 1.85. The record is parity/polars_decision/decision.toml. Polars is not an
+# internal-contract backend.
 polars = []
 
 [dependencies]
