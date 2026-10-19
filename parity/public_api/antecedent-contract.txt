@@ -4,10 +4,13 @@
 #[non_exhaustive] pub enum antecedent_contract::ClaimDomainAxis
 #[non_exhaustive] pub enum antecedent_contract::ClaimKind
 #[non_exhaustive] pub enum antecedent_contract::ClaimOperation
+#[non_exhaustive] pub enum antecedent_contract::CovarianceTerms
+#[non_exhaustive] pub enum antecedent_contract::DependenceStatus
 #[non_exhaustive] pub enum antecedent_contract::DerivedClaimOutcome
 #[non_exhaustive] pub enum antecedent_contract::DomainStatus
 #[non_exhaustive] pub enum antecedent_contract::EvidenceDependence
 #[non_exhaustive] pub enum antecedent_contract::EvidenceObligationKind
+#[non_exhaustive] pub enum antecedent_contract::FactorDisclosure
 #[non_exhaustive] pub enum antecedent_contract::HostOperation
 #[non_exhaustive] pub enum antecedent_contract::ObligationKind
 #[non_exhaustive] pub enum antecedent_contract::ObligationScope
@@ -16,6 +19,7 @@
 #[non_exhaustive] pub enum antecedent_contract::ProvenanceError
 #[non_exhaustive] pub enum antecedent_contract::SemanticApplicability
 #[non_exhaustive] pub enum antecedent_contract::SemanticLayer
+#[non_exhaustive] pub enum antecedent_contract::SharedFactorKind
 #[non_exhaustive] pub enum antecedent_contract::SlotAvailability<T>
 #[non_exhaustive] pub enum antecedent_contract::TransformEffect
 #[non_exhaustive] pub enum antecedent_contract::TransformIntent
@@ -105,10 +109,17 @@ impl core::clone::Clone for antecedent_contract::ComposedIntervalPlan
 impl core::clone::Clone for antecedent_contract::CompositionLink
 impl core::clone::Clone for antecedent_contract::CompositionStage
 impl core::clone::Clone for antecedent_contract::ConsumerProfile
+impl core::clone::Clone for antecedent_contract::CovarianceCombination
+impl core::clone::Clone for antecedent_contract::CovarianceTerms
 impl core::clone::Clone for antecedent_contract::CoverageRecord
 impl core::clone::Clone for antecedent_contract::DataClassification
 impl core::clone::Clone for antecedent_contract::DecisionRequest
+impl core::clone::Clone for antecedent_contract::DependenceContract
 impl core::clone::Clone for antecedent_contract::DependenceDeclaration
+impl core::clone::Clone for antecedent_contract::DependenceError
+impl core::clone::Clone for antecedent_contract::DependenceSource
+impl core::clone::Clone for antecedent_contract::DependenceSourceId
+impl core::clone::Clone for antecedent_contract::DependenceStatus
 impl core::clone::Clone for antecedent_contract::DerivedClaim
 impl core::clone::Clone for antecedent_contract::DerivedClaimOutcome
 impl core::clone::Clone for antecedent_contract::DistributionMeaning
@@ -149,6 +160,7 @@ impl core::clone::Clone for antecedent_contract::ExternalScientificObject
 impl core::clone::Clone for antecedent_contract::ExternalTrustState
 impl core::clone::Clone for antecedent_contract::ExternalUncertaintyMeaning
 impl core::clone::Clone for antecedent_contract::ExternalVerificationError
+impl core::clone::Clone for antecedent_contract::FactorDisclosure
 impl core::clone::Clone for antecedent_contract::HandoffReceipt
 impl core::clone::Clone for antecedent_contract::HostOperation
 impl core::clone::Clone for antecedent_contract::IdentificationSlot
@@ -213,6 +225,10 @@ impl core::clone::Clone for antecedent_contract::ScientificQuantity
 impl core::clone::Clone for antecedent_contract::SemanticApplicability
 impl core::clone::Clone for antecedent_contract::SemanticLayer
 impl core::clone::Clone for antecedent_contract::SharedEvidenceRef
+impl core::clone::Clone for antecedent_contract::SharedFactor
+impl core::clone::Clone for antecedent_contract::SharedFactorId
+impl core::clone::Clone for antecedent_contract::SharedFactorKind
+impl core::clone::Clone for antecedent_contract::SharedFactorSets
 impl core::clone::Clone for antecedent_contract::SignalProviderContract
 impl core::clone::Clone for antecedent_contract::SlotProvenance
 impl core::clone::Clone for antecedent_contract::SlotValue
@@ -407,9 +423,16 @@ impl core::cmp::Eq for antecedent_contract::ComposedCoordinate
 impl core::cmp::Eq for antecedent_contract::CompositionLink
 impl core::cmp::Eq for antecedent_contract::CompositionStage
 impl core::cmp::Eq for antecedent_contract::ConsumerProfile
+impl core::cmp::Eq for antecedent_contract::CovarianceCombination
+impl core::cmp::Eq for antecedent_contract::CovarianceTerms
 impl core::cmp::Eq for antecedent_contract::DataClassification
 impl core::cmp::Eq for antecedent_contract::DecisionRequest
+impl core::cmp::Eq for antecedent_contract::DependenceContract
 impl core::cmp::Eq for antecedent_contract::DependenceDeclaration
+impl core::cmp::Eq for antecedent_contract::DependenceError
+impl core::cmp::Eq for antecedent_contract::DependenceSource
+impl core::cmp::Eq for antecedent_contract::DependenceSourceId
+impl core::cmp::Eq for antecedent_contract::DependenceStatus
 impl core::cmp::Eq for antecedent_contract::DistributionMeaning
 impl core::cmp::Eq for antecedent_contract::DomainStatus
 impl core::cmp::Eq for antecedent_contract::EquivalenceScope
@@ -437,6 +460,7 @@ impl core::cmp::Eq for antecedent_contract::ExternalPosteriorKind
 impl core::cmp::Eq for antecedent_contract::ExternalRefusal
 impl core::cmp::Eq for antecedent_contract::ExternalUncertaintyMeaning
 impl core::cmp::Eq for antecedent_contract::ExternalVerificationError
+impl core::cmp::Eq for antecedent_contract::FactorDisclosure
 impl core::cmp::Eq for antecedent_contract::HandoffReceipt
 impl core::cmp::Eq for antecedent_contract::HostOperation
 impl core::cmp::Eq for antecedent_contract::InferenceBasis
@@ -488,6 +512,10 @@ impl core::cmp::Eq for antecedent_contract::ScientificQuantity
 impl core::cmp::Eq for antecedent_contract::SemanticApplicability
 impl core::cmp::Eq for antecedent_contract::SemanticLayer
 impl core::cmp::Eq for antecedent_contract::SharedEvidenceRef
+impl core::cmp::Eq for antecedent_contract::SharedFactor
+impl core::cmp::Eq for antecedent_contract::SharedFactorId
+impl core::cmp::Eq for antecedent_contract::SharedFactorKind
+impl core::cmp::Eq for antecedent_contract::SharedFactorSets
 impl core::cmp::Eq for antecedent_contract::SlotProvenance
 impl core::cmp::Eq for antecedent_contract::SupportSlot
 impl core::cmp::Eq for antecedent_contract::TransformEffect
@@ -616,6 +644,7 @@ impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportRev
 impl core::cmp::Eq for antecedent_contract::transport_revalidation::TransportScene
 impl core::cmp::Ord for antecedent_contract::AdmissionCoordinate
 impl core::cmp::Ord for antecedent_contract::CompositionStage
+impl core::cmp::Ord for antecedent_contract::DependenceSourceId
 impl core::cmp::Ord for antecedent_contract::EvidenceObligationKind
 impl core::cmp::Ord for antecedent_contract::InferenceBasis
 impl core::cmp::Ord for antecedent_contract::InputRole
@@ -626,6 +655,9 @@ impl core::cmp::Ord for antecedent_contract::PropagationClass
 impl core::cmp::Ord for antecedent_contract::PropagationOperation
 impl core::cmp::Ord for antecedent_contract::PropagationRoute
 impl core::cmp::Ord for antecedent_contract::SemanticLayer
+impl core::cmp::Ord for antecedent_contract::SharedFactor
+impl core::cmp::Ord for antecedent_contract::SharedFactorId
+impl core::cmp::Ord for antecedent_contract::SharedFactorKind
 impl core::cmp::Ord for antecedent_contract::SlotProvenance
 impl core::cmp::Ord for antecedent_contract::TransformEffect
 impl core::cmp::Ord for antecedent_contract::adaptive_design::AssignmentFamily
@@ -688,10 +720,17 @@ impl core::cmp::PartialEq for antecedent_contract::ComposedIntervalPlan
 impl core::cmp::PartialEq for antecedent_contract::CompositionLink
 impl core::cmp::PartialEq for antecedent_contract::CompositionStage
 impl core::cmp::PartialEq for antecedent_contract::ConsumerProfile
+impl core::cmp::PartialEq for antecedent_contract::CovarianceCombination
+impl core::cmp::PartialEq for antecedent_contract::CovarianceTerms
 impl core::cmp::PartialEq for antecedent_contract::CoverageRecord
 impl core::cmp::PartialEq for antecedent_contract::DataClassification
 impl core::cmp::PartialEq for antecedent_contract::DecisionRequest
+impl core::cmp::PartialEq for antecedent_contract::DependenceContract
 impl core::cmp::PartialEq for antecedent_contract::DependenceDeclaration
+impl core::cmp::PartialEq for antecedent_contract::DependenceError
+impl core::cmp::PartialEq for antecedent_contract::DependenceSource
+impl core::cmp::PartialEq for antecedent_contract::DependenceSourceId
+impl core::cmp::PartialEq for antecedent_contract::DependenceStatus
 impl core::cmp::PartialEq for antecedent_contract::DerivedClaim
 impl core::cmp::PartialEq for antecedent_contract::DerivedClaimOutcome
 impl core::cmp::PartialEq for antecedent_contract::DistributionMeaning
@@ -732,6 +771,7 @@ impl core::cmp::PartialEq for antecedent_contract::ExternalScientificObject
 impl core::cmp::PartialEq for antecedent_contract::ExternalTrustState
 impl core::cmp::PartialEq for antecedent_contract::ExternalUncertaintyMeaning
 impl core::cmp::PartialEq for antecedent_contract::ExternalVerificationError
+impl core::cmp::PartialEq for antecedent_contract::FactorDisclosure
 impl core::cmp::PartialEq for antecedent_contract::HandoffReceipt
 impl core::cmp::PartialEq for antecedent_contract::HostOperation
 impl core::cmp::PartialEq for antecedent_contract::IdentificationSlot
@@ -796,6 +836,10 @@ impl core::cmp::PartialEq for antecedent_contract::ScientificQuantity
 impl core::cmp::PartialEq for antecedent_contract::SemanticApplicability
 impl core::cmp::PartialEq for antecedent_contract::SemanticLayer
 impl core::cmp::PartialEq for antecedent_contract::SharedEvidenceRef
+impl core::cmp::PartialEq for antecedent_contract::SharedFactor
+impl core::cmp::PartialEq for antecedent_contract::SharedFactorId
+impl core::cmp::PartialEq for antecedent_contract::SharedFactorKind
+impl core::cmp::PartialEq for antecedent_contract::SharedFactorSets
 impl core::cmp::PartialEq for antecedent_contract::SignalProviderContract
 impl core::cmp::PartialEq for antecedent_contract::SlotProvenance
 impl core::cmp::PartialEq for antecedent_contract::SlotValue
@@ -971,6 +1015,7 @@ impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::Trans
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportScene
 impl core::cmp::PartialOrd for antecedent_contract::AdmissionCoordinate
 impl core::cmp::PartialOrd for antecedent_contract::CompositionStage
+impl core::cmp::PartialOrd for antecedent_contract::DependenceSourceId
 impl core::cmp::PartialOrd for antecedent_contract::EvidenceObligationKind
 impl core::cmp::PartialOrd for antecedent_contract::InferenceBasis
 impl core::cmp::PartialOrd for antecedent_contract::InputRole
@@ -981,6 +1026,9 @@ impl core::cmp::PartialOrd for antecedent_contract::PropagationClass
 impl core::cmp::PartialOrd for antecedent_contract::PropagationOperation
 impl core::cmp::PartialOrd for antecedent_contract::PropagationRoute
 impl core::cmp::PartialOrd for antecedent_contract::SemanticLayer
+impl core::cmp::PartialOrd for antecedent_contract::SharedFactor
+impl core::cmp::PartialOrd for antecedent_contract::SharedFactorId
+impl core::cmp::PartialOrd for antecedent_contract::SharedFactorKind
 impl core::cmp::PartialOrd for antecedent_contract::SlotProvenance
 impl core::cmp::PartialOrd for antecedent_contract::TransformEffect
 impl core::cmp::PartialOrd for antecedent_contract::adaptive_design::AssignmentFamily
@@ -1016,6 +1064,8 @@ impl core::cmp::PartialOrd for antecedent_contract::evidence_ledger::SourceKind
 impl core::cmp::PartialOrd for antecedent_contract::interface_contract::ContractOperation
 impl core::cmp::PartialOrd for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::cmp::PartialOrd for antecedent_contract::transport_revalidation::TransportReason
+impl core::convert::AsRef<str> for antecedent_contract::DependenceSourceId
+impl core::convert::AsRef<str> for antecedent_contract::SharedFactorId
 impl core::convert::From<antecedent_contract::composition_verification::GraphError> for antecedent_contract::composition_verification::ViewError
 impl core::default::Default for antecedent_contract::CalibrationView
 impl core::default::Default for antecedent_contract::ExecutionPerformanceRecord
@@ -1023,6 +1073,7 @@ impl core::default::Default for antecedent_contract::ProvenanceGraph
 impl core::default::Default for antecedent_contract::composition_verification::CompositionGraph
 impl core::default::Default for antecedent_contract::evidence_ledger::EvidenceLedger
 impl core::default::Default for antecedent_contract::evidence_ledger::OperationEffect
+impl core::error::Error for antecedent_contract::DependenceError
 impl core::error::Error for antecedent_contract::EvidenceEnvelopeError
 impl core::error::Error for antecedent_contract::EvidenceObligationError
 impl core::error::Error for antecedent_contract::EvidencePortError
@@ -1058,10 +1109,17 @@ impl core::fmt::Debug for antecedent_contract::ComposedIntervalPlan
 impl core::fmt::Debug for antecedent_contract::CompositionLink
 impl core::fmt::Debug for antecedent_contract::CompositionStage
 impl core::fmt::Debug for antecedent_contract::ConsumerProfile
+impl core::fmt::Debug for antecedent_contract::CovarianceCombination
+impl core::fmt::Debug for antecedent_contract::CovarianceTerms
 impl core::fmt::Debug for antecedent_contract::CoverageRecord
 impl core::fmt::Debug for antecedent_contract::DataClassification
 impl core::fmt::Debug for antecedent_contract::DecisionRequest
+impl core::fmt::Debug for antecedent_contract::DependenceContract
 impl core::fmt::Debug for antecedent_contract::DependenceDeclaration
+impl core::fmt::Debug for antecedent_contract::DependenceError
+impl core::fmt::Debug for antecedent_contract::DependenceSource
+impl core::fmt::Debug for antecedent_contract::DependenceSourceId
+impl core::fmt::Debug for antecedent_contract::DependenceStatus
 impl core::fmt::Debug for antecedent_contract::DerivedClaim
 impl core::fmt::Debug for antecedent_contract::DerivedClaimOutcome
 impl core::fmt::Debug for antecedent_contract::DistributionMeaning
@@ -1102,6 +1160,7 @@ impl core::fmt::Debug for antecedent_contract::ExternalScientificObject
 impl core::fmt::Debug for antecedent_contract::ExternalTrustState
 impl core::fmt::Debug for antecedent_contract::ExternalUncertaintyMeaning
 impl core::fmt::Debug for antecedent_contract::ExternalVerificationError
+impl core::fmt::Debug for antecedent_contract::FactorDisclosure
 impl core::fmt::Debug for antecedent_contract::HandoffReceipt
 impl core::fmt::Debug for antecedent_contract::HostOperation
 impl core::fmt::Debug for antecedent_contract::IdentificationSlot
@@ -1166,6 +1225,10 @@ impl core::fmt::Debug for antecedent_contract::ScientificQuantity
 impl core::fmt::Debug for antecedent_contract::SemanticApplicability
 impl core::fmt::Debug for antecedent_contract::SemanticLayer
 impl core::fmt::Debug for antecedent_contract::SharedEvidenceRef
+impl core::fmt::Debug for antecedent_contract::SharedFactor
+impl core::fmt::Debug for antecedent_contract::SharedFactorId
+impl core::fmt::Debug for antecedent_contract::SharedFactorKind
+impl core::fmt::Debug for antecedent_contract::SharedFactorSets
 impl core::fmt::Debug for antecedent_contract::SignalProviderContract
 impl core::fmt::Debug for antecedent_contract::SlotProvenance
 impl core::fmt::Debug for antecedent_contract::SlotValue
@@ -1341,10 +1404,14 @@ impl core::fmt::Debug for antecedent_contract::transport_revalidation::Transport
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportReason
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportRevalidation
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportScene
+impl core::fmt::Display for antecedent_contract::DependenceError
+impl core::fmt::Display for antecedent_contract::DependenceSourceId
 impl core::fmt::Display for antecedent_contract::EvidenceEnvelopeError
 impl core::fmt::Display for antecedent_contract::EvidenceObligationError
 impl core::fmt::Display for antecedent_contract::EvidencePortError
 impl core::fmt::Display for antecedent_contract::ProvenanceError
+impl core::fmt::Display for antecedent_contract::SharedFactor
+impl core::fmt::Display for antecedent_contract::SharedFactorId
 impl core::fmt::Display for antecedent_contract::adaptive_design::AdaptiveContractError
 impl core::fmt::Display for antecedent_contract::composition_verification::GraphError
 impl core::fmt::Display for antecedent_contract::composition_verification::ViewError
@@ -1359,14 +1426,18 @@ impl core::hash::Hash for antecedent_contract::ClaimDomainAxis
 impl core::hash::Hash for antecedent_contract::ClaimKind
 impl core::hash::Hash for antecedent_contract::ClaimOperation
 impl core::hash::Hash for antecedent_contract::CompositionStage
+impl core::hash::Hash for antecedent_contract::CovarianceTerms
 impl core::hash::Hash for antecedent_contract::DataClassification
 impl core::hash::Hash for antecedent_contract::DecisionRequest
+impl core::hash::Hash for antecedent_contract::DependenceSourceId
+impl core::hash::Hash for antecedent_contract::DependenceStatus
 impl core::hash::Hash for antecedent_contract::DistributionMeaning
 impl core::hash::Hash for antecedent_contract::DomainStatus
 impl core::hash::Hash for antecedent_contract::EvidenceDependence
 impl core::hash::Hash for antecedent_contract::EvidenceObligationKind
 impl core::hash::Hash for antecedent_contract::EvidencePort
 impl core::hash::Hash for antecedent_contract::ExternalCapability
+impl core::hash::Hash for antecedent_contract::FactorDisclosure
 impl core::hash::Hash for antecedent_contract::HostOperation
 impl core::hash::Hash for antecedent_contract::InferenceBasis
 impl core::hash::Hash for antecedent_contract::InputRole
@@ -1388,6 +1459,9 @@ impl core::hash::Hash for antecedent_contract::RequestedReading
 impl core::hash::Hash for antecedent_contract::ScientificQuantity
 impl core::hash::Hash for antecedent_contract::SemanticApplicability
 impl core::hash::Hash for antecedent_contract::SemanticLayer
+impl core::hash::Hash for antecedent_contract::SharedFactor
+impl core::hash::Hash for antecedent_contract::SharedFactorId
+impl core::hash::Hash for antecedent_contract::SharedFactorKind
 impl core::hash::Hash for antecedent_contract::SlotProvenance
 impl core::hash::Hash for antecedent_contract::TransformEffect
 impl core::hash::Hash for antecedent_contract::TransformIntent
@@ -1450,8 +1524,10 @@ impl core::marker::Copy for antecedent_contract::ClaimDomainAxis
 impl core::marker::Copy for antecedent_contract::ClaimKind
 impl core::marker::Copy for antecedent_contract::ClaimOperation
 impl core::marker::Copy for antecedent_contract::CompositionStage
+impl core::marker::Copy for antecedent_contract::CovarianceTerms
 impl core::marker::Copy for antecedent_contract::DataClassification
 impl core::marker::Copy for antecedent_contract::DecisionRequest
+impl core::marker::Copy for antecedent_contract::DependenceStatus
 impl core::marker::Copy for antecedent_contract::DistributionMeaning
 impl core::marker::Copy for antecedent_contract::DomainStatus
 impl core::marker::Copy for antecedent_contract::EvidenceDependence
@@ -1462,6 +1538,7 @@ impl core::marker::Copy for antecedent_contract::EvidencePortError
 impl core::marker::Copy for antecedent_contract::ExternalCapability
 impl core::marker::Copy for antecedent_contract::ExternalEvidenceKind
 impl core::marker::Copy for antecedent_contract::ExternalPosteriorKind
+impl core::marker::Copy for antecedent_contract::FactorDisclosure
 impl core::marker::Copy for antecedent_contract::HostOperation
 impl core::marker::Copy for antecedent_contract::InferenceBasis
 impl core::marker::Copy for antecedent_contract::InputRole
@@ -1481,6 +1558,7 @@ impl core::marker::Copy for antecedent_contract::QuantityRole
 impl core::marker::Copy for antecedent_contract::RequestedReading
 impl core::marker::Copy for antecedent_contract::SemanticApplicability
 impl core::marker::Copy for antecedent_contract::SemanticLayer
+impl core::marker::Copy for antecedent_contract::SharedFactorKind
 impl core::marker::Copy for antecedent_contract::SlotProvenance
 impl core::marker::Copy for antecedent_contract::TransformEffect
 impl core::marker::Copy for antecedent_contract::TransformIntent
@@ -1581,10 +1659,17 @@ impl core::marker::Freeze for antecedent_contract::ComposedIntervalPlan [auto]
 impl core::marker::Freeze for antecedent_contract::CompositionLink [auto]
 impl core::marker::Freeze for antecedent_contract::CompositionStage [auto]
 impl core::marker::Freeze for antecedent_contract::ConsumerProfile [auto]
+impl core::marker::Freeze for antecedent_contract::CovarianceCombination [auto]
+impl core::marker::Freeze for antecedent_contract::CovarianceTerms [auto]
 impl core::marker::Freeze for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Freeze for antecedent_contract::DataClassification [auto]
 impl core::marker::Freeze for antecedent_contract::DecisionRequest [auto]
+impl core::marker::Freeze for antecedent_contract::DependenceContract [auto]
 impl core::marker::Freeze for antecedent_contract::DependenceDeclaration [auto]
+impl core::marker::Freeze for antecedent_contract::DependenceError [auto]
+impl core::marker::Freeze for antecedent_contract::DependenceSource [auto]
+impl core::marker::Freeze for antecedent_contract::DependenceSourceId [auto]
+impl core::marker::Freeze for antecedent_contract::DependenceStatus [auto]
 impl core::marker::Freeze for antecedent_contract::DerivedClaim [auto]
 impl core::marker::Freeze for antecedent_contract::DerivedClaimOutcome [auto]
 impl core::marker::Freeze for antecedent_contract::DistributionMeaning [auto]
@@ -1625,6 +1710,7 @@ impl core::marker::Freeze for antecedent_contract::ExternalScientificObject [aut
 impl core::marker::Freeze for antecedent_contract::ExternalTrustState [auto]
 impl core::marker::Freeze for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::marker::Freeze for antecedent_contract::ExternalVerificationError [auto]
+impl core::marker::Freeze for antecedent_contract::FactorDisclosure [auto]
 impl core::marker::Freeze for antecedent_contract::HandoffReceipt [auto]
 impl core::marker::Freeze for antecedent_contract::HostOperation [auto]
 impl core::marker::Freeze for antecedent_contract::IdentificationSlot [auto]
@@ -1689,6 +1775,10 @@ impl core::marker::Freeze for antecedent_contract::ScientificQuantity [auto]
 impl core::marker::Freeze for antecedent_contract::SemanticApplicability [auto]
 impl core::marker::Freeze for antecedent_contract::SemanticLayer [auto]
 impl core::marker::Freeze for antecedent_contract::SharedEvidenceRef [auto]
+impl core::marker::Freeze for antecedent_contract::SharedFactor [auto]
+impl core::marker::Freeze for antecedent_contract::SharedFactorId [auto]
+impl core::marker::Freeze for antecedent_contract::SharedFactorKind [auto]
+impl core::marker::Freeze for antecedent_contract::SharedFactorSets [auto]
 impl core::marker::Freeze for antecedent_contract::SignalProviderContract [auto]
 impl core::marker::Freeze for antecedent_contract::SlotProvenance [auto]
 impl core::marker::Freeze for antecedent_contract::SlotValue [auto]
@@ -1891,10 +1981,17 @@ impl core::marker::Send for antecedent_contract::ComposedIntervalPlan [auto]
 impl core::marker::Send for antecedent_contract::CompositionLink [auto]
 impl core::marker::Send for antecedent_contract::CompositionStage [auto]
 impl core::marker::Send for antecedent_contract::ConsumerProfile [auto]
+impl core::marker::Send for antecedent_contract::CovarianceCombination [auto]
+impl core::marker::Send for antecedent_contract::CovarianceTerms [auto]
 impl core::marker::Send for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Send for antecedent_contract::DataClassification [auto]
 impl core::marker::Send for antecedent_contract::DecisionRequest [auto]
+impl core::marker::Send for antecedent_contract::DependenceContract [auto]
 impl core::marker::Send for antecedent_contract::DependenceDeclaration [auto]
+impl core::marker::Send for antecedent_contract::DependenceError [auto]
+impl core::marker::Send for antecedent_contract::DependenceSource [auto]
+impl core::marker::Send for antecedent_contract::DependenceSourceId [auto]
+impl core::marker::Send for antecedent_contract::DependenceStatus [auto]
 impl core::marker::Send for antecedent_contract::DerivedClaim [auto]
 impl core::marker::Send for antecedent_contract::DerivedClaimOutcome [auto]
 impl core::marker::Send for antecedent_contract::DistributionMeaning [auto]
@@ -1935,6 +2032,7 @@ impl core::marker::Send for antecedent_contract::ExternalScientificObject [auto]
 impl core::marker::Send for antecedent_contract::ExternalTrustState [auto]
 impl core::marker::Send for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::marker::Send for antecedent_contract::ExternalVerificationError [auto]
+impl core::marker::Send for antecedent_contract::FactorDisclosure [auto]
 impl core::marker::Send for antecedent_contract::HandoffReceipt [auto]
 impl core::marker::Send for antecedent_contract::HostOperation [auto]
 impl core::marker::Send for antecedent_contract::IdentificationSlot [auto]
@@ -1999,6 +2097,10 @@ impl core::marker::Send for antecedent_contract::ScientificQuantity [auto]
 impl core::marker::Send for antecedent_contract::SemanticApplicability [auto]
 impl core::marker::Send for antecedent_contract::SemanticLayer [auto]
 impl core::marker::Send for antecedent_contract::SharedEvidenceRef [auto]
+impl core::marker::Send for antecedent_contract::SharedFactor [auto]
+impl core::marker::Send for antecedent_contract::SharedFactorId [auto]
+impl core::marker::Send for antecedent_contract::SharedFactorKind [auto]
+impl core::marker::Send for antecedent_contract::SharedFactorSets [auto]
 impl core::marker::Send for antecedent_contract::SignalProviderContract [auto]
 impl core::marker::Send for antecedent_contract::SlotProvenance [auto]
 impl core::marker::Send for antecedent_contract::SlotValue [auto]
@@ -2201,10 +2303,17 @@ impl core::marker::StructuralPartialEq for antecedent_contract::ComposedInterval
 impl core::marker::StructuralPartialEq for antecedent_contract::CompositionLink
 impl core::marker::StructuralPartialEq for antecedent_contract::CompositionStage
 impl core::marker::StructuralPartialEq for antecedent_contract::ConsumerProfile
+impl core::marker::StructuralPartialEq for antecedent_contract::CovarianceCombination
+impl core::marker::StructuralPartialEq for antecedent_contract::CovarianceTerms
 impl core::marker::StructuralPartialEq for antecedent_contract::CoverageRecord
 impl core::marker::StructuralPartialEq for antecedent_contract::DataClassification
 impl core::marker::StructuralPartialEq for antecedent_contract::DecisionRequest
+impl core::marker::StructuralPartialEq for antecedent_contract::DependenceContract
 impl core::marker::StructuralPartialEq for antecedent_contract::DependenceDeclaration
+impl core::marker::StructuralPartialEq for antecedent_contract::DependenceError
+impl core::marker::StructuralPartialEq for antecedent_contract::DependenceSource
+impl core::marker::StructuralPartialEq for antecedent_contract::DependenceSourceId
+impl core::marker::StructuralPartialEq for antecedent_contract::DependenceStatus
 impl core::marker::StructuralPartialEq for antecedent_contract::DerivedClaim
 impl core::marker::StructuralPartialEq for antecedent_contract::DerivedClaimOutcome
 impl core::marker::StructuralPartialEq for antecedent_contract::DistributionMeaning
@@ -2245,6 +2354,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::ExternalScientif
 impl core::marker::StructuralPartialEq for antecedent_contract::ExternalTrustState
 impl core::marker::StructuralPartialEq for antecedent_contract::ExternalUncertaintyMeaning
 impl core::marker::StructuralPartialEq for antecedent_contract::ExternalVerificationError
+impl core::marker::StructuralPartialEq for antecedent_contract::FactorDisclosure
 impl core::marker::StructuralPartialEq for antecedent_contract::HandoffReceipt
 impl core::marker::StructuralPartialEq for antecedent_contract::HostOperation
 impl core::marker::StructuralPartialEq for antecedent_contract::IdentificationSlot
@@ -2309,6 +2419,10 @@ impl core::marker::StructuralPartialEq for antecedent_contract::ScientificQuanti
 impl core::marker::StructuralPartialEq for antecedent_contract::SemanticApplicability
 impl core::marker::StructuralPartialEq for antecedent_contract::SemanticLayer
 impl core::marker::StructuralPartialEq for antecedent_contract::SharedEvidenceRef
+impl core::marker::StructuralPartialEq for antecedent_contract::SharedFactor
+impl core::marker::StructuralPartialEq for antecedent_contract::SharedFactorId
+impl core::marker::StructuralPartialEq for antecedent_contract::SharedFactorKind
+impl core::marker::StructuralPartialEq for antecedent_contract::SharedFactorSets
 impl core::marker::StructuralPartialEq for antecedent_contract::SignalProviderContract
 impl core::marker::StructuralPartialEq for antecedent_contract::SlotProvenance
 impl core::marker::StructuralPartialEq for antecedent_contract::SlotValue
@@ -2509,10 +2623,17 @@ impl core::marker::Sync for antecedent_contract::ComposedIntervalPlan [auto]
 impl core::marker::Sync for antecedent_contract::CompositionLink [auto]
 impl core::marker::Sync for antecedent_contract::CompositionStage [auto]
 impl core::marker::Sync for antecedent_contract::ConsumerProfile [auto]
+impl core::marker::Sync for antecedent_contract::CovarianceCombination [auto]
+impl core::marker::Sync for antecedent_contract::CovarianceTerms [auto]
 impl core::marker::Sync for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Sync for antecedent_contract::DataClassification [auto]
 impl core::marker::Sync for antecedent_contract::DecisionRequest [auto]
+impl core::marker::Sync for antecedent_contract::DependenceContract [auto]
 impl core::marker::Sync for antecedent_contract::DependenceDeclaration [auto]
+impl core::marker::Sync for antecedent_contract::DependenceError [auto]
+impl core::marker::Sync for antecedent_contract::DependenceSource [auto]
+impl core::marker::Sync for antecedent_contract::DependenceSourceId [auto]
+impl core::marker::Sync for antecedent_contract::DependenceStatus [auto]
 impl core::marker::Sync for antecedent_contract::DerivedClaim [auto]
 impl core::marker::Sync for antecedent_contract::DerivedClaimOutcome [auto]
 impl core::marker::Sync for antecedent_contract::DistributionMeaning [auto]
@@ -2553,6 +2674,7 @@ impl core::marker::Sync for antecedent_contract::ExternalScientificObject [auto]
 impl core::marker::Sync for antecedent_contract::ExternalTrustState [auto]
 impl core::marker::Sync for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::marker::Sync for antecedent_contract::ExternalVerificationError [auto]
+impl core::marker::Sync for antecedent_contract::FactorDisclosure [auto]
 impl core::marker::Sync for antecedent_contract::HandoffReceipt [auto]
 impl core::marker::Sync for antecedent_contract::HostOperation [auto]
 impl core::marker::Sync for antecedent_contract::IdentificationSlot [auto]
@@ -2617,6 +2739,10 @@ impl core::marker::Sync for antecedent_contract::ScientificQuantity [auto]
 impl core::marker::Sync for antecedent_contract::SemanticApplicability [auto]
 impl core::marker::Sync for antecedent_contract::SemanticLayer [auto]
 impl core::marker::Sync for antecedent_contract::SharedEvidenceRef [auto]
+impl core::marker::Sync for antecedent_contract::SharedFactor [auto]
+impl core::marker::Sync for antecedent_contract::SharedFactorId [auto]
+impl core::marker::Sync for antecedent_contract::SharedFactorKind [auto]
+impl core::marker::Sync for antecedent_contract::SharedFactorSets [auto]
 impl core::marker::Sync for antecedent_contract::SignalProviderContract [auto]
 impl core::marker::Sync for antecedent_contract::SlotProvenance [auto]
 impl core::marker::Sync for antecedent_contract::SlotValue [auto]
@@ -2819,10 +2945,17 @@ impl core::marker::Unpin for antecedent_contract::ComposedIntervalPlan [auto]
 impl core::marker::Unpin for antecedent_contract::CompositionLink [auto]
 impl core::marker::Unpin for antecedent_contract::CompositionStage [auto]
 impl core::marker::Unpin for antecedent_contract::ConsumerProfile [auto]
+impl core::marker::Unpin for antecedent_contract::CovarianceCombination [auto]
+impl core::marker::Unpin for antecedent_contract::CovarianceTerms [auto]
 impl core::marker::Unpin for antecedent_contract::CoverageRecord [auto]
 impl core::marker::Unpin for antecedent_contract::DataClassification [auto]
 impl core::marker::Unpin for antecedent_contract::DecisionRequest [auto]
+impl core::marker::Unpin for antecedent_contract::DependenceContract [auto]
 impl core::marker::Unpin for antecedent_contract::DependenceDeclaration [auto]
+impl core::marker::Unpin for antecedent_contract::DependenceError [auto]
+impl core::marker::Unpin for antecedent_contract::DependenceSource [auto]
+impl core::marker::Unpin for antecedent_contract::DependenceSourceId [auto]
+impl core::marker::Unpin for antecedent_contract::DependenceStatus [auto]
 impl core::marker::Unpin for antecedent_contract::DerivedClaim [auto]
 impl core::marker::Unpin for antecedent_contract::DerivedClaimOutcome [auto]
 impl core::marker::Unpin for antecedent_contract::DistributionMeaning [auto]
@@ -2863,6 +2996,7 @@ impl core::marker::Unpin for antecedent_contract::ExternalScientificObject [auto
 impl core::marker::Unpin for antecedent_contract::ExternalTrustState [auto]
 impl core::marker::Unpin for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::marker::Unpin for antecedent_contract::ExternalVerificationError [auto]
+impl core::marker::Unpin for antecedent_contract::FactorDisclosure [auto]
 impl core::marker::Unpin for antecedent_contract::HandoffReceipt [auto]
 impl core::marker::Unpin for antecedent_contract::HostOperation [auto]
 impl core::marker::Unpin for antecedent_contract::IdentificationSlot [auto]
@@ -2927,6 +3061,10 @@ impl core::marker::Unpin for antecedent_contract::ScientificQuantity [auto]
 impl core::marker::Unpin for antecedent_contract::SemanticApplicability [auto]
 impl core::marker::Unpin for antecedent_contract::SemanticLayer [auto]
 impl core::marker::Unpin for antecedent_contract::SharedEvidenceRef [auto]
+impl core::marker::Unpin for antecedent_contract::SharedFactor [auto]
+impl core::marker::Unpin for antecedent_contract::SharedFactorId [auto]
+impl core::marker::Unpin for antecedent_contract::SharedFactorKind [auto]
+impl core::marker::Unpin for antecedent_contract::SharedFactorSets [auto]
 impl core::marker::Unpin for antecedent_contract::SignalProviderContract [auto]
 impl core::marker::Unpin for antecedent_contract::SlotProvenance [auto]
 impl core::marker::Unpin for antecedent_contract::SlotValue [auto]
@@ -3129,10 +3267,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ComposedIn
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CompositionLink [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CompositionStage [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ConsumerProfile [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CovarianceCombination [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CovarianceTerms [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CoverageRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DataClassification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DecisionRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DependenceContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DependenceDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DependenceError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DependenceSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DependenceSourceId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DependenceStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DerivedClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DerivedClaimOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::DistributionMeaning [auto]
@@ -3173,6 +3318,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ExternalSc
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ExternalTrustState [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ExternalVerificationError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::FactorDisclosure [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::HandoffReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::HostOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::IdentificationSlot [auto]
@@ -3237,6 +3383,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::Scientific
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SemanticApplicability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SemanticLayer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SharedEvidenceRef [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SharedFactor [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SharedFactorId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SharedFactorKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SharedFactorSets [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SignalProviderContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SlotProvenance [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SlotValue [auto]
@@ -3439,10 +3589,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ComposedInter
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CompositionLink [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CompositionStage [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ConsumerProfile [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CovarianceCombination [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CovarianceTerms [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CoverageRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DataClassification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DecisionRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DependenceContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DependenceDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DependenceError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DependenceSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DependenceSourceId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DependenceStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DerivedClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DerivedClaimOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::DistributionMeaning [auto]
@@ -3483,6 +3640,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ExternalScien
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ExternalTrustState [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ExternalVerificationError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::FactorDisclosure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::HandoffReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::HostOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::IdentificationSlot [auto]
@@ -3547,6 +3705,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ScientificQua
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::SemanticApplicability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::SemanticLayer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::SharedEvidenceRef [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::SharedFactor [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::SharedFactorId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::SharedFactorKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::SharedFactorSets [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::SignalProviderContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::SlotProvenance [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::SlotValue [auto]
@@ -3792,6 +3954,7 @@ pub const <antecedent_contract::BoundExternalClaim>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_contract::ColumnClaim>::DTYPE: &'static str
 pub const <antecedent_contract::EvidenceObligationKind>::ALL: [Self; 9]
 pub const <antecedent_contract::EvidencePort>::ALL: [Self; 10]
+pub const <antecedent_contract::SharedFactorKind>::ALL: [Self; 7]
 pub const <antecedent_contract::UncertaintyAxis>::ALL: [Self; 7]
 pub const <antecedent_contract::adaptive_design::AssignmentFamily>::ALL: &'static [Self]
 pub const <antecedent_contract::adaptive_design::InferenceParadigm>::ALL: &'static [Self]
@@ -4825,9 +4988,33 @@ pub fn <antecedent_contract::ConsumerProfile>::fn forwarding() -> Self
 pub fn <antecedent_contract::ConsumerProfile>::fn full() -> Self
 pub fn <antecedent_contract::ConsumerProfile>::fn restricted() -> Self
 pub fn <antecedent_contract::ConsumerProfile>::fn understands(&self, feature: &str) -> bool
+pub fn <antecedent_contract::CovarianceCombination>::const fn requires_cross_terms(&self) -> bool
+pub fn <antecedent_contract::CovarianceCombination>::const fn terms(&self) -> antecedent_contract::CovarianceTerms
+pub fn <antecedent_contract::CovarianceCombination>::fn factors(&self) -> &[antecedent_contract::SharedFactor]
 pub fn <antecedent_contract::DecisionRequest>::const fn admits(self, port: antecedent_contract::EvidencePort) -> bool
 pub fn <antecedent_contract::DecisionRequest>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::DecisionRequest>::const fn legal_ports(self) -> &'static [antecedent_contract::EvidencePort]
+pub fn <antecedent_contract::DependenceContract>::const fn is_dependent(&self) -> bool
+pub fn <antecedent_contract::DependenceContract>::const fn is_independent(&self) -> bool
+pub fn <antecedent_contract::DependenceContract>::const fn is_unknown(&self) -> bool
+pub fn <antecedent_contract::DependenceContract>::const fn status(&self) -> antecedent_contract::DependenceStatus
+pub fn <antecedent_contract::DependenceContract>::fn assess(sources: &[antecedent_contract::DependenceSource]) -> Self
+pub fn <antecedent_contract::DependenceContract>::fn covariance_combination(&self) -> core::result::Result<antecedent_contract::CovarianceCombination, antecedent_contract::DependenceError>
+pub fn <antecedent_contract::DependenceContract>::fn shared_factors(&self) -> &[antecedent_contract::SharedFactor]
+pub fn <antecedent_contract::DependenceContract>::fn try_claim_independent(sources: &[antecedent_contract::DependenceSource]) -> core::result::Result<Self, antecedent_contract::DependenceError>
+pub fn <antecedent_contract::DependenceContract>::fn unknown_sources(&self) -> &[antecedent_contract::DependenceSourceId]
+pub fn <antecedent_contract::DependenceError>::const fn code(&self) -> &'static str
+pub fn <antecedent_contract::DependenceError>::const fn detail(&self) -> &'static str
+pub fn <antecedent_contract::DependenceError>::const fn next_contract(&self) -> core::option::Option<&antecedent_contract::DependenceContract>
+pub fn <antecedent_contract::DependenceError>::fn into_contract(self) -> core::option::Option<antecedent_contract::DependenceContract>
+pub fn <antecedent_contract::DependenceError>::fn message(&self) -> &str
+pub fn <antecedent_contract::DependenceError>::fn refusal(&self) -> (&'static str, &'static str, &str)
+pub fn <antecedent_contract::DependenceSource>::const fn disclosure(&self) -> antecedent_contract::FactorDisclosure
+pub fn <antecedent_contract::DependenceSource>::const fn factors(&self) -> &antecedent_contract::SharedFactorSets
+pub fn <antecedent_contract::DependenceSource>::const fn id(&self) -> &antecedent_contract::DependenceSourceId
+pub fn <antecedent_contract::DependenceSource>::fn try_declared(id: impl core::convert::AsRef<str>, factors: antecedent_contract::SharedFactorSets) -> core::result::Result<Self, antecedent_contract::DependenceError>
+pub fn <antecedent_contract::DependenceSource>::fn try_with_unknown_overlap(id: impl core::convert::AsRef<str>, known: antecedent_contract::SharedFactorSets) -> core::result::Result<Self, antecedent_contract::DependenceError>
+pub fn <antecedent_contract::DependenceSourceId>::fn as_str(&self) -> &str
 pub fn <antecedent_contract::DistributionMeaning>::const fn answers_interventional_outcome_threshold(self) -> bool
 pub fn <antecedent_contract::DomainStatus>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::DomainStatus>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -4978,6 +5165,15 @@ pub fn <antecedent_contract::SemanticLayer>::const fn as_str(self) -> &'static s
 pub fn <antecedent_contract::SharedEvidenceRef>::fn forwarded_duplicate(left: antecedent_core::identity::SemanticDigest, right: antecedent_core::identity::SemanticDigest) -> bool
 pub fn <antecedent_contract::SharedEvidenceRef>::fn from_claim(claim: &antecedent_contract::ClaimEnvelope) -> Self
 pub fn <antecedent_contract::SharedEvidenceRef>::fn same_source(&self, other: &Self) -> bool
+pub fn <antecedent_contract::SharedFactor>::const fn id(&self) -> &antecedent_contract::SharedFactorId
+pub fn <antecedent_contract::SharedFactor>::const fn kind(&self) -> antecedent_contract::SharedFactorKind
+pub fn <antecedent_contract::SharedFactorId>::fn as_str(&self) -> &str
+pub fn <antecedent_contract::SharedFactorKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::SharedFactorKind>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::SharedFactorSets>::const fn empty() -> Self
+pub fn <antecedent_contract::SharedFactorSets>::fn ids(&self, kind: antecedent_contract::SharedFactorKind) -> &alloc::collections::btree::set::BTreeSet<antecedent_contract::SharedFactorId>
+pub fn <antecedent_contract::SharedFactorSets>::fn is_empty(&self) -> bool
+pub fn <antecedent_contract::SharedFactorSets>::fn try_insert(&mut self, kind: antecedent_contract::SharedFactorKind, id: impl core::convert::AsRef<str>) -> core::result::Result<(), antecedent_contract::DependenceError>
 pub fn <antecedent_contract::SlotAvailability<T>>::const fn as_ref(&self) -> core::option::Option<&T>
 pub fn <antecedent_contract::SlotAvailability<T>>::const fn is_available(&self) -> bool
 pub fn <antecedent_contract::SlotAvailability<T>>::fn label(&self, available: impl core::ops::function::FnOnce(&T) -> alloc::string::String) -> alloc::string::String
@@ -5451,6 +5647,7 @@ pub mod antecedent_contract::capability
 pub mod antecedent_contract::claim
 pub mod antecedent_contract::composition_provenance
 pub mod antecedent_contract::composition_verification
+pub mod antecedent_contract::dependence
 pub mod antecedent_contract::evidence_envelope
 pub mod antecedent_contract::evidence_ledger
 pub mod antecedent_contract::evidence_obligation
@@ -5490,7 +5687,17 @@ pub struct antecedent_contract::ColumnClaim has private fields
 pub struct antecedent_contract::ComposedCoordinate
 pub struct antecedent_contract::ComposedIntervalPlan
 pub struct antecedent_contract::CompositionLink
+pub struct antecedent_contract::CovarianceCombination
+pub struct antecedent_contract::CovarianceCombination has private fields
 pub struct antecedent_contract::CoverageRecord
+pub struct antecedent_contract::DependenceContract
+pub struct antecedent_contract::DependenceContract has private fields
+pub struct antecedent_contract::DependenceError
+pub struct antecedent_contract::DependenceError has private fields
+pub struct antecedent_contract::DependenceSource
+pub struct antecedent_contract::DependenceSource has private fields
+pub struct antecedent_contract::DependenceSourceId
+pub struct antecedent_contract::DependenceSourceId has private fields
 pub struct antecedent_contract::EvidenceBinding
 pub struct antecedent_contract::EvidenceEnvelope
 pub struct antecedent_contract::EvidenceEnvelope has private fields
@@ -5552,6 +5759,12 @@ pub struct antecedent_contract::QuantityCondition
 pub struct antecedent_contract::ResponseCoordinateLabels<'a>
 pub struct antecedent_contract::ResponseCoordinateSkeleton
 pub struct antecedent_contract::ScientificQuantity
+pub struct antecedent_contract::SharedFactor
+pub struct antecedent_contract::SharedFactor has private fields
+pub struct antecedent_contract::SharedFactorId
+pub struct antecedent_contract::SharedFactorId has private fields
+pub struct antecedent_contract::SharedFactorSets
+pub struct antecedent_contract::SharedFactorSets has private fields
 pub struct antecedent_contract::SignalProviderContract
 pub struct antecedent_contract::TransportAdmission
 pub struct antecedent_contract::TransportGridFailure
@@ -5700,6 +5913,18 @@ pub use antecedent_contract::composition_provenance::MAX_CHAIN_LINKS = anteceden
 pub use antecedent_contract::composition_provenance::ProvenanceChain = antecedent_contract::ProvenanceChain
 pub use antecedent_contract::composition_provenance::ProvenanceChainError = antecedent_contract::ProvenanceChainError
 pub use antecedent_contract::composition_verification::Revalidation = crate::evidence_ledger::Revalidation
+pub use antecedent_contract::dependence::CovarianceCombination = antecedent_contract::CovarianceCombination
+pub use antecedent_contract::dependence::CovarianceTerms = antecedent_contract::CovarianceTerms
+pub use antecedent_contract::dependence::DependenceContract = antecedent_contract::DependenceContract
+pub use antecedent_contract::dependence::DependenceError = antecedent_contract::DependenceError
+pub use antecedent_contract::dependence::DependenceSource = antecedent_contract::DependenceSource
+pub use antecedent_contract::dependence::DependenceSourceId = antecedent_contract::DependenceSourceId
+pub use antecedent_contract::dependence::DependenceStatus = antecedent_contract::DependenceStatus
+pub use antecedent_contract::dependence::FactorDisclosure = antecedent_contract::FactorDisclosure
+pub use antecedent_contract::dependence::SharedFactor = antecedent_contract::SharedFactor
+pub use antecedent_contract::dependence::SharedFactorId = antecedent_contract::SharedFactorId
+pub use antecedent_contract::dependence::SharedFactorKind = antecedent_contract::SharedFactorKind
+pub use antecedent_contract::dependence::SharedFactorSets = antecedent_contract::SharedFactorSets
 pub use antecedent_contract::evidence_envelope::AxisInterval = antecedent_contract::AxisInterval
 pub use antecedent_contract::evidence_envelope::EvidenceBinding = antecedent_contract::EvidenceBinding
 pub use antecedent_contract::evidence_envelope::EvidenceCalibration = antecedent_contract::EvidenceCalibration
@@ -5917,6 +6142,8 @@ pub variant antecedent_contract::CompositionStage::ExternalProvider
 pub variant antecedent_contract::CompositionStage::SensitivityInput
 pub variant antecedent_contract::CompositionStage::StudyRankingProvider
 pub variant antecedent_contract::CompositionStage::Transformation
+pub variant antecedent_contract::CovarianceTerms::CrossTerms
+pub variant antecedent_contract::CovarianceTerms::Diagonal
 pub variant antecedent_contract::DataClassification::Event
 pub variant antecedent_contract::DataClassification::MultiEnvironment
 pub variant antecedent_contract::DataClassification::Panel
@@ -5928,6 +6155,9 @@ pub variant antecedent_contract::DependenceDeclaration::AlignedJointLaw { law_id
 pub variant antecedent_contract::DependenceDeclaration::CrossCovariance
 pub variant antecedent_contract::DependenceDeclaration::IndependentByDesign { justification: alloc::string::String }
 pub variant antecedent_contract::DependenceDeclaration::Unknown
+pub variant antecedent_contract::DependenceStatus::Dependent
+pub variant antecedent_contract::DependenceStatus::Independent
+pub variant antecedent_contract::DependenceStatus::Unknown
 pub variant antecedent_contract::DerivedClaimOutcome::Comparison(antecedent_contract::ClaimCompatibility)
 pub variant antecedent_contract::DerivedClaimOutcome::Derived(alloc::boxed::Box<antecedent_contract::DerivedClaim>)
 pub variant antecedent_contract::DerivedClaimOutcome::Refused { restriction: alloc::sync::Arc<str>, parents: alloc::sync::Arc<[antecedent_core::identity::SemanticDigest]>, compatibility: core::option::Option<antecedent_contract::ClaimCompatibility> }
@@ -6032,6 +6262,8 @@ pub variant antecedent_contract::ExternalVerificationError::FailedProbe(antecede
 pub variant antecedent_contract::ExternalVerificationError::InvalidProbe(antecedent_contract::VerificationProbeKind)
 pub variant antecedent_contract::ExternalVerificationError::MissingProbe(antecedent_contract::VerificationProbeKind)
 pub variant antecedent_contract::ExternalVerificationError::Request { index: usize, cause: alloc::boxed::Box<antecedent_contract::ExternalVerificationError> }
+pub variant antecedent_contract::FactorDisclosure::Complete
+pub variant antecedent_contract::FactorDisclosure::UnknownOverlap
 pub variant antecedent_contract::HostOperation::AcceptClaim
 pub variant antecedent_contract::HostOperation::ApplyTransform
 pub variant antecedent_contract::HostOperation::CheckCompatibility
@@ -6154,6 +6386,13 @@ pub variant antecedent_contract::SemanticLayer::Program
 pub variant antecedent_contract::SemanticLayer::Results
 pub variant antecedent_contract::SemanticLayer::Support
 pub variant antecedent_contract::SemanticLayer::Target
+pub variant antecedent_contract::SharedFactorKind::Cluster
+pub variant antecedent_contract::SharedFactorKind::Disturbance
+pub variant antecedent_contract::SharedFactorKind::Model
+pub variant antecedent_contract::SharedFactorKind::Parameter
+pub variant antecedent_contract::SharedFactorKind::Period
+pub variant antecedent_contract::SharedFactorKind::Prior
+pub variant antecedent_contract::SharedFactorKind::Row
 pub variant antecedent_contract::SlotAvailability::Available(T)
 pub variant antecedent_contract::SlotAvailability::Unavailable { reason: alloc::sync::Arc<str> }
 pub variant antecedent_contract::SlotProvenance::Assigned

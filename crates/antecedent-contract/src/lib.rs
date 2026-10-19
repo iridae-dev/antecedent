@@ -22,6 +22,7 @@ pub mod capability;
 pub mod claim;
 pub mod composition_provenance;
 pub mod composition_verification;
+pub mod dependence;
 pub mod evidence_envelope;
 pub mod evidence_ledger;
 pub mod evidence_obligation;
@@ -61,6 +62,11 @@ pub use claim::{
 };
 pub use composition_provenance::{
     CompositionLink, CompositionStage, MAX_CHAIN_LINKS, ProvenanceChain, ProvenanceChainError,
+};
+pub use dependence::{
+    CovarianceCombination, CovarianceTerms, DependenceContract, DependenceError, DependenceSource,
+    DependenceSourceId, DependenceStatus, FactorDisclosure, SharedFactor, SharedFactorId,
+    SharedFactorKind, SharedFactorSets,
 };
 pub use evidence_envelope::{
     AxisInterval, EvidenceBinding, EvidenceCalibration, EvidenceEnvelope, EvidenceEnvelopeError,
