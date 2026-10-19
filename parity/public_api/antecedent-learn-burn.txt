@@ -4,6 +4,9 @@
 impl core::clone::Clone for antecedent_learn_burn::LearnBurnError
 impl core::clone::Clone for antecedent_learn_burn::MlpSpec
 impl core::clone::Clone for antecedent_learn_burn::TrainedMlp
+impl core::clone::Clone for antecedent_learn_burn::accelerator_probe::ProbeStage
+impl core::clone::Clone for antecedent_learn_burn::accelerator_probe::SmallFoldProbe
+impl core::clone::Clone for antecedent_learn_burn::accelerator_probe::StageClocks
 impl core::clone::Clone for antecedent_learn_burn::device::CacheEntry
 impl core::clone::Clone for antecedent_learn_burn::device::CacheKey
 impl core::clone::Clone for antecedent_learn_burn::device::CacheLifetime
@@ -25,6 +28,8 @@ impl core::clone::Clone for antecedent_learn_burn::device::RngLease
 impl core::clone::Clone for antecedent_learn_burn::device::RngLockScope
 impl core::clone::Clone for antecedent_learn_burn::device::RuntimeOwnership
 impl core::clone::Clone for antecedent_learn_burn::device::TransferStep
+impl core::cmp::Eq for antecedent_learn_burn::accelerator_probe::ProbeStage
+impl core::cmp::Eq for antecedent_learn_burn::accelerator_probe::StageClocks
 impl core::cmp::Eq for antecedent_learn_burn::device::CacheEntry
 impl core::cmp::Eq for antecedent_learn_burn::device::CacheKey
 impl core::cmp::Eq for antecedent_learn_burn::device::CacheLifetime
@@ -39,6 +44,8 @@ impl core::cmp::Eq for antecedent_learn_burn::device::RngLease
 impl core::cmp::Eq for antecedent_learn_burn::device::RngLockScope
 impl core::cmp::Eq for antecedent_learn_burn::device::RuntimeOwnership
 impl core::cmp::Eq for antecedent_learn_burn::device::TransferStep
+impl core::cmp::PartialEq for antecedent_learn_burn::accelerator_probe::ProbeStage
+impl core::cmp::PartialEq for antecedent_learn_burn::accelerator_probe::StageClocks
 impl core::cmp::PartialEq for antecedent_learn_burn::device::CacheEntry
 impl core::cmp::PartialEq for antecedent_learn_burn::device::CacheKey
 impl core::cmp::PartialEq for antecedent_learn_burn::device::CacheLifetime
@@ -61,6 +68,9 @@ impl core::error::Error for antecedent_learn_burn::device::DeviceError
 impl core::fmt::Debug for antecedent_learn_burn::LearnBurnError
 impl core::fmt::Debug for antecedent_learn_burn::MlpSpec
 impl core::fmt::Debug for antecedent_learn_burn::TrainedMlp
+impl core::fmt::Debug for antecedent_learn_burn::accelerator_probe::ProbeStage
+impl core::fmt::Debug for antecedent_learn_burn::accelerator_probe::SmallFoldProbe
+impl core::fmt::Debug for antecedent_learn_burn::accelerator_probe::StageClocks
 impl core::fmt::Debug for antecedent_learn_burn::device::CacheEntry
 impl core::fmt::Debug for antecedent_learn_burn::device::CacheKey
 impl core::fmt::Debug for antecedent_learn_burn::device::CacheLifetime
@@ -87,6 +97,8 @@ impl core::fmt::Debug for antecedent_learn_burn::device::TransferStep
 impl core::fmt::Display for antecedent_learn_burn::LearnBurnError
 impl core::fmt::Display for antecedent_learn_burn::device::DeviceError
 impl core::marker::Copy for antecedent_learn_burn::MlpSpec
+impl core::marker::Copy for antecedent_learn_burn::accelerator_probe::ProbeStage
+impl core::marker::Copy for antecedent_learn_burn::accelerator_probe::StageClocks
 impl core::marker::Copy for antecedent_learn_burn::device::CacheEntry
 impl core::marker::Copy for antecedent_learn_burn::device::CacheKey
 impl core::marker::Copy for antecedent_learn_burn::device::CacheLifetime
@@ -105,6 +117,9 @@ impl core::marker::Copy for antecedent_learn_burn::device::TransferStep
 impl core::marker::Freeze for antecedent_learn_burn::LearnBurnError [auto]
 impl core::marker::Freeze for antecedent_learn_burn::MlpSpec [auto]
 impl core::marker::Freeze for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Freeze for antecedent_learn_burn::accelerator_probe::ProbeStage [auto]
+impl core::marker::Freeze for antecedent_learn_burn::accelerator_probe::SmallFoldProbe [auto]
+impl core::marker::Freeze for antecedent_learn_burn::accelerator_probe::StageClocks [auto]
 impl core::marker::Freeze for antecedent_learn_burn::device::CacheEntry [auto]
 impl core::marker::Freeze for antecedent_learn_burn::device::CacheKey [auto]
 impl core::marker::Freeze for antecedent_learn_burn::device::CacheLifetime [auto]
@@ -131,6 +146,9 @@ impl core::marker::Freeze for antecedent_learn_burn::device::TransferStep [auto]
 impl core::marker::Send for antecedent_learn_burn::LearnBurnError [auto]
 impl core::marker::Send for antecedent_learn_burn::MlpSpec [auto]
 impl core::marker::Send for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Send for antecedent_learn_burn::accelerator_probe::ProbeStage [auto]
+impl core::marker::Send for antecedent_learn_burn::accelerator_probe::SmallFoldProbe [auto]
+impl core::marker::Send for antecedent_learn_burn::accelerator_probe::StageClocks [auto]
 impl core::marker::Send for antecedent_learn_burn::device::CacheEntry [auto]
 impl core::marker::Send for antecedent_learn_burn::device::CacheKey [auto]
 impl core::marker::Send for antecedent_learn_burn::device::CacheLifetime [auto]
@@ -154,6 +172,8 @@ impl core::marker::Send for antecedent_learn_burn::device::RngLease [auto]
 impl core::marker::Send for antecedent_learn_burn::device::RngLockScope [auto]
 impl core::marker::Send for antecedent_learn_burn::device::RuntimeOwnership [auto]
 impl core::marker::Send for antecedent_learn_burn::device::TransferStep [auto]
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::accelerator_probe::ProbeStage
+impl core::marker::StructuralPartialEq for antecedent_learn_burn::accelerator_probe::StageClocks
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::CacheEntry
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::CacheKey
 impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::CacheLifetime
@@ -172,6 +192,9 @@ impl core::marker::StructuralPartialEq for antecedent_learn_burn::device::Transf
 impl core::marker::Sync for antecedent_learn_burn::LearnBurnError [auto]
 impl core::marker::Sync for antecedent_learn_burn::MlpSpec [auto]
 impl core::marker::Sync for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Sync for antecedent_learn_burn::accelerator_probe::ProbeStage [auto]
+impl core::marker::Sync for antecedent_learn_burn::accelerator_probe::SmallFoldProbe [auto]
+impl core::marker::Sync for antecedent_learn_burn::accelerator_probe::StageClocks [auto]
 impl core::marker::Sync for antecedent_learn_burn::device::CacheEntry [auto]
 impl core::marker::Sync for antecedent_learn_burn::device::CacheKey [auto]
 impl core::marker::Sync for antecedent_learn_burn::device::CacheLifetime [auto]
@@ -198,6 +221,9 @@ impl core::marker::Sync for antecedent_learn_burn::device::TransferStep [auto]
 impl core::marker::Unpin for antecedent_learn_burn::LearnBurnError [auto]
 impl core::marker::Unpin for antecedent_learn_burn::MlpSpec [auto]
 impl core::marker::Unpin for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Unpin for antecedent_learn_burn::accelerator_probe::ProbeStage [auto]
+impl core::marker::Unpin for antecedent_learn_burn::accelerator_probe::SmallFoldProbe [auto]
+impl core::marker::Unpin for antecedent_learn_burn::accelerator_probe::StageClocks [auto]
 impl core::marker::Unpin for antecedent_learn_burn::device::CacheEntry [auto]
 impl core::marker::Unpin for antecedent_learn_burn::device::CacheKey [auto]
 impl core::marker::Unpin for antecedent_learn_burn::device::CacheLifetime [auto]
@@ -224,6 +250,9 @@ impl core::marker::Unpin for antecedent_learn_burn::device::TransferStep [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::LearnBurnError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::MlpSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::TrainedMlp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::accelerator_probe::ProbeStage [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::accelerator_probe::SmallFoldProbe [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::accelerator_probe::StageClocks [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::CacheEntry [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::CacheKey [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::CacheLifetime [auto]
@@ -250,6 +279,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::device::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::LearnBurnError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::MlpSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::TrainedMlp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::accelerator_probe::ProbeStage [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::accelerator_probe::SmallFoldProbe [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::accelerator_probe::StageClocks [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::CacheEntry [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::CacheKey [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::CacheLifetime [auto]
@@ -273,9 +305,19 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::Rng
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::RngLockScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::RuntimeOwnership [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::device::TransferStep [auto]
+pub const antecedent_learn_burn::accelerator_probe::EPOCHS: usize
+pub const antecedent_learn_burn::accelerator_probe::FOLD_COLS: usize
+pub const antecedent_learn_burn::accelerator_probe::FOLD_ROWS: usize
+pub const antecedent_learn_burn::accelerator_probe::HIDDEN: usize
+pub const antecedent_learn_burn::accelerator_probe::LEARNING_RATE: f64
+pub const antecedent_learn_burn::accelerator_probe::PREDICT_ROWS: usize
+pub const antecedent_learn_burn::accelerator_probe::SEED: u64
+pub const antecedent_learn_burn::accelerator_probe::STAGES: [antecedent_learn_burn::accelerator_probe::ProbeStage; 7]
+pub const antecedent_learn_burn::accelerator_probe::TRAIN_ROWS: usize
 pub const fn antecedent_learn_burn::device::candidate_description() -> antecedent_learn_burn::device::CandidateDescription
 pub const fn antecedent_learn_burn::device::record_host_loss(epoch: usize, loss: f32) -> core::result::Result<antecedent_learn_burn::device::EpochLoss, antecedent_learn_burn::LearnBurnError>
 pub enum antecedent_learn_burn::LearnBurnError
+pub enum antecedent_learn_burn::accelerator_probe::ProbeStage
 pub enum antecedent_learn_burn::device::CacheLifetime
 pub enum antecedent_learn_burn::device::DeviceError
 pub enum antecedent_learn_burn::device::DeviceOwner
@@ -291,6 +333,18 @@ pub field antecedent_learn_burn::MlpSpec::epochs: usize
 pub field antecedent_learn_burn::MlpSpec::hidden: usize
 pub field antecedent_learn_burn::MlpSpec::learning_rate: f64
 pub field antecedent_learn_burn::MlpSpec::seed: u64
+pub field antecedent_learn_burn::accelerator_probe::SmallFoldProbe::assembled: alloc::vec::Vec<f64>
+pub field antecedent_learn_burn::accelerator_probe::SmallFoldProbe::backend: antecedent_learn_burn::device::LearnerBackend
+pub field antecedent_learn_burn::accelerator_probe::SmallFoldProbe::clocks: antecedent_learn_burn::accelerator_probe::StageClocks
+pub field antecedent_learn_burn::accelerator_probe::SmallFoldProbe::loss_sync: antecedent_learn_burn::device::LossSync
+pub field antecedent_learn_burn::accelerator_probe::SmallFoldProbe::predict_rows: alloc::vec::Vec<usize>
+pub field antecedent_learn_burn::accelerator_probe::StageClocks::assemble: core::time::Duration
+pub field antecedent_learn_burn::accelerator_probe::StageClocks::download: core::time::Duration
+pub field antecedent_learn_burn::accelerator_probe::StageClocks::fit: core::time::Duration
+pub field antecedent_learn_burn::accelerator_probe::StageClocks::predict: core::time::Duration
+pub field antecedent_learn_burn::accelerator_probe::StageClocks::prepare: core::time::Duration
+pub field antecedent_learn_burn::accelerator_probe::StageClocks::synchronize: core::time::Duration
+pub field antecedent_learn_burn::accelerator_probe::StageClocks::upload: core::time::Duration
 pub field antecedent_learn_burn::device::CacheEntry::generation: u64
 pub field antecedent_learn_burn::device::CacheEntry::key: antecedent_learn_burn::device::CacheKey
 pub field antecedent_learn_burn::device::CacheEntry::lifetime: antecedent_learn_burn::device::CacheLifetime
@@ -339,6 +393,7 @@ pub field antecedent_learn_burn::device::RuntimeOwnership::cache: antecedent_lea
 pub field antecedent_learn_burn::device::RuntimeOwnership::device: antecedent_learn_burn::device::DeviceOwner
 pub field antecedent_learn_burn::device::RuntimeOwnership::model: antecedent_learn_burn::device::ModelOwner
 pub fn <antecedent_learn_burn::TrainedMlp>::fn predict(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, out: &mut [f64]) -> core::result::Result<(), antecedent_learn_burn::LearnBurnError>
+pub fn <antecedent_learn_burn::accelerator_probe::StageClocks>::const fn elapsed(self, stage: antecedent_learn_burn::accelerator_probe::ProbeStage) -> core::time::Duration
 pub fn <antecedent_learn_burn::device::DeviceRuntime>::const fn cpu() -> Self
 pub fn <antecedent_learn_burn::device::DeviceRuntime>::fn cached_model(&mut self, key: antecedent_learn_burn::device::CacheKey, fit: impl core::ops::function::FnOnce() -> core::result::Result<antecedent_learn_burn::TrainedMlp, antecedent_learn_burn::LearnBurnError>) -> core::result::Result<antecedent_learn_burn::device::CachedFit, antecedent_learn_burn::device::DeviceError>
 pub fn <antecedent_learn_burn::device::DeviceRuntime>::fn invalidate(&mut self)
@@ -348,14 +403,18 @@ pub fn <antecedent_learn_burn::device::LeaseScheduler>::const fn new() -> Self
 pub fn <antecedent_learn_burn::device::LeaseScheduler>::fn acquire(&mut self, fold: u32, seed: u64) -> core::result::Result<antecedent_learn_burn::device::RngLease, antecedent_learn_burn::device::DeviceError>
 pub fn <antecedent_learn_burn::device::LeaseScheduler>::fn release(&mut self, lease: antecedent_learn_burn::device::RngLease) -> core::result::Result<(), antecedent_learn_burn::device::DeviceError>
 pub fn <antecedent_learn_burn::device::PortableFit>::fn predict(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, out: &mut [f64]) -> core::result::Result<(), antecedent_learn_burn::LearnBurnError>
+pub fn antecedent_learn_burn::accelerator_probe::probe_small_fold() -> core::result::Result<antecedent_learn_burn::accelerator_probe::SmallFoldProbe, antecedent_learn_burn::LearnBurnError>
 pub fn antecedent_learn_burn::device::cache_key(fold: &antecedent_learn_burn::device::FoldSpec) -> antecedent_learn_burn::device::CacheKey
 pub fn antecedent_learn_burn::device::orchestrate_cpu(runtime: &mut antecedent_learn_burn::device::DeviceRuntime, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], folds: &[antecedent_learn_burn::device::FoldSpec]) -> core::result::Result<antecedent_learn_burn::device::Orchestration, antecedent_learn_burn::device::DeviceError>
 pub fn antecedent_learn_burn::device::transfer_plan(epochs: usize) -> alloc::vec::Vec<antecedent_learn_burn::device::TransferStep>
 pub fn antecedent_learn_burn::train(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], spec: &antecedent_learn_burn::MlpSpec) -> core::result::Result<antecedent_learn_burn::TrainedMlp, antecedent_learn_burn::LearnBurnError>
+pub mod antecedent_learn_burn::accelerator_probe
 pub mod antecedent_learn_burn::device
 pub struct antecedent_learn_burn::MlpSpec
 pub struct antecedent_learn_burn::TrainedMlp
 pub struct antecedent_learn_burn::TrainedMlp has private fields
+pub struct antecedent_learn_burn::accelerator_probe::SmallFoldProbe
+pub struct antecedent_learn_burn::accelerator_probe::StageClocks
 pub struct antecedent_learn_burn::device::CacheEntry
 pub struct antecedent_learn_burn::device::CacheKey
 pub struct antecedent_learn_burn::device::CachedFit
@@ -387,6 +446,13 @@ pub variant antecedent_learn_burn::LearnBurnError::PredictShape
 pub variant antecedent_learn_burn::LearnBurnError::ShapeMismatch
 pub variant antecedent_learn_burn::LearnBurnError::Weight(alloc::string::String)
 pub variant antecedent_learn_burn::LearnBurnError::WeightShape
+pub variant antecedent_learn_burn::accelerator_probe::ProbeStage::Assemble
+pub variant antecedent_learn_burn::accelerator_probe::ProbeStage::Download
+pub variant antecedent_learn_burn::accelerator_probe::ProbeStage::Fit
+pub variant antecedent_learn_burn::accelerator_probe::ProbeStage::Predict
+pub variant antecedent_learn_burn::accelerator_probe::ProbeStage::Prepare
+pub variant antecedent_learn_burn::accelerator_probe::ProbeStage::Synchronize
+pub variant antecedent_learn_burn::accelerator_probe::ProbeStage::Upload
 pub variant antecedent_learn_burn::device::CacheLifetime::NotCached
 pub variant antecedent_learn_burn::device::CacheLifetime::Runtime
 pub variant antecedent_learn_burn::device::DeviceError::Backend(antecedent_learn_burn::LearnBurnError)

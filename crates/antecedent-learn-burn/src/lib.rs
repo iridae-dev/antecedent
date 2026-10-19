@@ -16,6 +16,7 @@ use burn::optim::{AdamConfig, GradientsParams, Optimizer};
 use burn::tensor::activation::{relu, sigmoid};
 use burn::tensor::{Tensor, TensorData, backend::Backend};
 
+pub mod accelerator_probe;
 pub mod device;
 
 type TrainBackend = Autodiff<NdArray<f32>>;

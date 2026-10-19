@@ -1,13 +1,17 @@
 # Accelerator decision
 
-The accelerator lane remains deferred. No accelerator row is licensed, and the CPU wheel remains the available backend. `antecedent-learn`'s `ml-neural` feature selects only the Burn `NdArray<f32>` CPU adapter; the repository has no GPU/WGPU backend or host-device transfer path to compare against it. A material whole-workload GPU gain has therefore not been measured. This is an unmet start condition, not a negative GPU performance result.
+G03 stays deferred. The opt-in `wgpu` feature compiles Burn's WGPU path beside the default `NdArray<f32>` wheel, and it is not promoted. `probe_wgpu_small_fold` returns `NotLinked::StageBoundariesPrivate` and does not read a clock: `fit_portable_wgpu` fuses prepare, upload, fit, synchronize, and download, so those stages are not separately public. No same-host staged comparison against the frozen threshold was taken. This is a feasibility deferral, not a negative GPU result. G04–G06 stay closed.
 
-On 2026-10-06, at `4fb13e25` plus documentation-only changes, the representative existing benchmark ran with:
+The frozen threshold is 2× the G01 CPU control in `parity/cpu_control/protocol.toml`: commit `420bab394`, Apple M1 Max, backend `burn_ndarray_cpu`, cold total 140.046 ms, warm total 142.703 ms. This decision does not repeat that control.
+
+One release-profile run of `probe_small_fold` on this host timed a different workload: 32 rows, 4 columns, 24 training rows, hidden width 8, 4 epochs, seed 11, `NdArray<f32>`. Those clocks do not enter the 2× comparison.
 
 ```text
-cargo run --release -q -p antecedent-learn --features ml-neural --example neural_crossfit_benchmark
-rows=4000 cols=8 folds=3 hidden=16 epochs=20 fold_plan_ms=0.127 propensity_fit_predict_ms=120.727 outcome_fit_predict_ms=265.609 total_ms=386.463
-backend=burn_ndarray_cpu gpu_transfer_ms=unmeasured gpu_end_to_end_gain=unmeasured
+prepare_ns=13625
+upload_ns=79625
+fit_ns=1687418
+predict_ns=2208
+synchronize_ns=15167
+download_ns=18167
+assemble_ns=125
 ```
-
-The run includes fold planning and complete fold fit/predict passes in the CPU adapter. It is a single development-host timing, not a controlled comparison with the earlier baseline's 150.797 ms run, whose measured commit and exact chip were not recorded. The current host reports an Apple M1 Max with a Metal-capable GPU, but Antecedent has no backend using that device. The accelerator lane may start only after a candidate backend measures end-to-end gain including transfer, fold orchestration, prediction ordering and repeatability against a same-host CPU run, followed by its separate distribution and replay gates. No other cell depends on opening the accelerator lane.
