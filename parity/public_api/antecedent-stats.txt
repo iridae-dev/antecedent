@@ -272,6 +272,7 @@ impl core::clone::Clone for antecedent_stats::measurement_error::ObservedClassSu
 impl core::clone::Clone for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::clone::Clone for antecedent_stats::measurement_error::ValidationSummary
 impl core::clone::Clone for antecedent_stats::measurement_error::VarianceComponents
+impl core::clone::Clone for antecedent_stats::solver_workspace::QrScopeDurations
 impl core::clone::Clone for antecedent_stats::synthesis::GaussianStudyEstimate
 impl core::clone::Clone for antecedent_stats::synthesis_transport::SummaryOrigin
 impl core::clone::Clone for antecedent_stats::synthesis_transport::TransportAwareSummary
@@ -797,6 +798,7 @@ impl core::fmt::Debug for antecedent_stats::measurement_error::ObservedClassSumm
 impl core::fmt::Debug for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::fmt::Debug for antecedent_stats::measurement_error::ValidationSummary
 impl core::fmt::Debug for antecedent_stats::measurement_error::VarianceComponents
+impl core::fmt::Debug for antecedent_stats::solver_workspace::QrScopeDurations
 impl core::fmt::Debug for antecedent_stats::synthesis::GaussianStudyEstimate
 impl core::fmt::Debug for antecedent_stats::synthesis_transport::SummaryOrigin
 impl core::fmt::Debug for antecedent_stats::synthesis_transport::TransportAwareSummary
@@ -944,6 +946,7 @@ impl core::marker::Copy for antecedent_stats::measurement_error::CorrectedPropor
 impl core::marker::Copy for antecedent_stats::measurement_error::CorrectedRiskDifference
 impl core::marker::Copy for antecedent_stats::measurement_error::ObservedClassSummary
 impl core::marker::Copy for antecedent_stats::measurement_error::TwoByTwoCounts
+impl core::marker::Copy for antecedent_stats::solver_workspace::QrScopeDurations
 impl core::marker::Freeze for antecedent_stats::AdditiveDesign [auto]
 impl core::marker::Freeze for antecedent_stats::BasisKind [auto]
 impl core::marker::Freeze for antecedent_stats::BayesFactorCi [auto]
@@ -1171,6 +1174,8 @@ impl core::marker::Freeze for antecedent_stats::measurement_error::ObservedClass
 impl core::marker::Freeze for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Freeze for antecedent_stats::solver_workspace::QrScopeDurations [auto]
+impl core::marker::Freeze for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::marker::Freeze for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::marker::Freeze for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::marker::Freeze for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
@@ -1405,6 +1410,8 @@ impl core::marker::Send for antecedent_stats::measurement_error::ObservedClassSu
 impl core::marker::Send for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Send for antecedent_stats::solver_workspace::QrScopeDurations [auto]
+impl core::marker::Send for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::marker::Send for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::marker::Send for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::marker::Send for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
@@ -1832,6 +1839,8 @@ impl core::marker::Sync for antecedent_stats::measurement_error::ObservedClassSu
 impl core::marker::Sync for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Sync for antecedent_stats::solver_workspace::QrScopeDurations [auto]
+impl core::marker::Sync for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::marker::Sync for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::marker::Sync for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::marker::Sync for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
@@ -2066,6 +2075,8 @@ impl core::marker::Unpin for antecedent_stats::measurement_error::ObservedClassS
 impl core::marker::Unpin for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::marker::Unpin for antecedent_stats::solver_workspace::QrScopeDurations [auto]
+impl core::marker::Unpin for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::marker::Unpin for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::marker::Unpin for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::marker::Unpin for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
@@ -2300,6 +2311,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_e
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::solver_workspace::QrScopeDurations [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
@@ -2534,6 +2547,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_erro
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::VarianceComponents [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::solver_workspace::QrScopeDurations [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::solver_workspace::SolverWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::synthesis::GaussianStudyEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::synthesis_transport::SummaryOrigin [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::synthesis_transport::TransportAwareSummary [auto]
@@ -3547,6 +3562,8 @@ pub field antecedent_stats::measurement_error::VarianceComponents::units: usize
 pub field antecedent_stats::measurement_error::VarianceComponents::within_df: f64
 pub field antecedent_stats::measurement_error::VarianceComponents::within_variance: f64
 pub field antecedent_stats::measurement_error::VarianceComponents::within_variance_estimate_variance: f64
+pub field antecedent_stats::solver_workspace::QrScopeDurations::parallel: core::time::Duration
+pub field antecedent_stats::solver_workspace::QrScopeDurations::serial: core::time::Duration
 pub field antecedent_stats::synthesis::GaussianStudyEstimate::degrees_of_freedom: usize
 pub field antecedent_stats::synthesis::GaussianStudyEstimate::estimate: f64
 pub field antecedent_stats::synthesis::GaussianStudyEstimate::variance: f64
@@ -3846,6 +3863,19 @@ pub fn <antecedent_stats::measurement_error::ErrorVariance>::fn from_validation(
 pub fn <antecedent_stats::measurement_error::ErrorVariance>::fn known(variance: f64, standard_error: f64) -> core::result::Result<Self, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::measurement_error::LinearMoments>::fn accumulate(data: &antecedent_stats::measurement_error::LinearErrorData<'_>, error: &antecedent_stats::measurement_error::ErrorVariance, reliability_floor: f64) -> core::result::Result<Self, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::measurement_error::LinearMoments>::fn solve(&self) -> core::result::Result<antecedent_stats::measurement_error::CorrectedLinear, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::const fn gather_writes(&self) -> u64
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::const fn layout_copies(&self) -> u64
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::const fn new(scope: antecedent_stats::faer_scope::FaerScope) -> Self
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::const fn peak_bytes(&self) -> u64
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::const fn scratch_allocations(&self) -> u64
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::const fn scratch_copies(&self) -> u64
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::const fn used_min_norm_fallback(&self) -> bool
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::fn design_bytes(&self) -> u64
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::fn equilibration_bytes(&self) -> u64
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::fn gather_selected(&mut self, source_colmajor: &[f64], source_rows: usize, ncols: usize, outcome: &[f64], selected: &[usize]) -> core::result::Result<(), antecedent_stats::StatsError>
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::fn retained_bytes(&self) -> u64
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::fn solve(&mut self) -> core::result::Result<antecedent_stats::LeastSquaresFit, antecedent_stats::StatsError>
+pub fn <antecedent_stats::solver_workspace::SolverWorkspace>::fn solve_full_rank(&mut self) -> core::result::Result<antecedent_stats::LeastSquaresFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::accumulate_xtx_xty_row(row: &[f64], y: f64, xtx: &mut [f64], xty: &mut [f64])
 pub fn antecedent_stats::adaptive_inference::adaptive_scores(arms: usize, assigned: &[usize], probabilities: &[f64], outcomes: &[f64], prior: antecedent_stats::adaptive_inference::OutcomeModelPrior, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::admit(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, paradigm: antecedent_stats::adaptive_inference::UncertaintyParadigm) -> core::result::Result<antecedent_stats::adaptive_inference::EstimandStatement, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
@@ -4046,6 +4076,7 @@ pub fn antecedent_stats::random_effects_reml(estimates: &[f64], variances: &[f64
 pub fn antecedent_stats::regularized::ridge_gram_inverse(x_colmajor: &[f64], nrows: usize, ncols: usize, lambda: f64) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_stats::StatsError>
 pub fn antecedent_stats::response::silverman_bandwidth(x: &[f64]) -> core::result::Result<f64, antecedent_stats::StatsError>
 pub fn antecedent_stats::response::silverman_normal_reference_factor(n: usize, dim: usize) -> core::result::Result<f64, antecedent_stats::StatsError>
+pub fn antecedent_stats::solver_workspace::qr_serial_and_parallel_durations(design: &[f64], nrows: usize, ncols: usize, wide: antecedent_stats::faer_scope::FaerScope) -> core::result::Result<antecedent_stats::solver_workspace::QrScopeDurations, antecedent_stats::StatsError>
 pub fn antecedent_stats::special::gauss_legendre(n: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
 pub fn antecedent_stats::special::student_t_ppf(p: f64, df: f64) -> f64
 pub fn antecedent_stats::special::student_t_sf(t: f64, df: f64) -> f64
@@ -4097,6 +4128,7 @@ pub mod antecedent_stats::propensity
 pub mod antecedent_stats::quantile
 pub mod antecedent_stats::regularized
 pub mod antecedent_stats::response
+pub mod antecedent_stats::solver_workspace
 pub mod antecedent_stats::special
 pub mod antecedent_stats::synthesis
 pub mod antecedent_stats::synthesis_transport
@@ -4318,6 +4350,9 @@ pub struct antecedent_stats::measurement_error::ObservedClassSummary
 pub struct antecedent_stats::measurement_error::TwoByTwoCounts
 pub struct antecedent_stats::measurement_error::ValidationSummary
 pub struct antecedent_stats::measurement_error::VarianceComponents
+pub struct antecedent_stats::solver_workspace::QrScopeDurations
+pub struct antecedent_stats::solver_workspace::SolverWorkspace
+pub struct antecedent_stats::solver_workspace::SolverWorkspace has private fields
 pub struct antecedent_stats::synthesis::GaussianStudyEstimate
 pub struct antecedent_stats::synthesis_transport::TransportAwareSummary
 pub struct antecedent_stats::synthesis_transport::TransportedBorrowing

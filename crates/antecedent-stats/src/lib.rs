@@ -38,6 +38,7 @@ pub mod regularized;
 pub mod response;
 #[path = "ci/sparse_discrete.rs"]
 mod sparse_discrete;
+pub mod solver_workspace;
 pub mod special;
 pub use sparse_discrete::SparseDiscreteCi;
 pub mod synthesis;

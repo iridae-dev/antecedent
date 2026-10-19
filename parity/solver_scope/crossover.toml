@@ -1,0 +1,54 @@
+# Serial versus parallel column-pivoted QR. Means of five release-profile runs
+# after one warmup, from qr_serial_and_parallel_durations. Serial is one worker.
+# Parallel is available_parallelism on this host (10). This is not a promotion threshold.
+
+schema = 1
+item = "N04"
+host = "Apple M1 Max, arm64, 10 hardware threads"
+profile = "release"
+repetitions = 5
+warmup = 1
+
+# serial_ns is the one-worker scope. parallel_ns is the 10-worker scope.
+# Serial is the faster mean except at 32x8 and by 333 ns at 128x16.
+[[design]]
+rows = 32
+cols = 8
+serial_ns = 3575
+parallel_ns = 1983
+
+[[design]]
+rows = 64
+cols = 16
+serial_ns = 7783
+parallel_ns = 8025
+
+[[design]]
+rows = 128
+cols = 16
+serial_ns = 13766
+parallel_ns = 13433
+
+[[design]]
+rows = 256
+cols = 32
+serial_ns = 71858
+parallel_ns = 75358
+
+[[design]]
+rows = 512
+cols = 32
+serial_ns = 143891
+parallel_ns = 149233
+
+[[design]]
+rows = 1024
+cols = 64
+serial_ns = 1087458
+parallel_ns = 1490175
+
+[[design]]
+rows = 2048
+cols = 64
+serial_ns = 1872483
+parallel_ns = 2858591
