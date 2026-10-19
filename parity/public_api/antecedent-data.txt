@@ -44,6 +44,8 @@ impl antecedent_data::TableView for antecedent_data::TabularData
 impl antecedent_data::TableView for antecedent_data::TimeSeriesData
 impl core::clone::Clone for antecedent_data::ArrowLoadResult
 impl core::clone::Clone for antecedent_data::BooleanColumn
+impl core::clone::Clone for antecedent_data::BorrowError
+impl core::clone::Clone for antecedent_data::CalendarSpan
 impl core::clone::Clone for antecedent_data::CategoricalColumn
 impl core::clone::Clone for antecedent_data::CategoryCode
 impl core::clone::Clone for antecedent_data::CategoryDomain
@@ -51,6 +53,7 @@ impl core::clone::Clone for antecedent_data::CategoryLevel
 impl core::clone::Clone for antecedent_data::Contrast
 impl core::clone::Clone for antecedent_data::ContrastMatrix
 impl core::clone::Clone for antecedent_data::DataError
+impl core::clone::Clone for antecedent_data::DeclaredSplit
 impl core::clone::Clone for antecedent_data::DiscoveryEstimationSplit
 impl core::clone::Clone for antecedent_data::DiscreteColumn
 impl core::clone::Clone for antecedent_data::DropReason
@@ -66,6 +69,7 @@ impl core::clone::Clone for antecedent_data::GroupAccounting
 impl core::clone::Clone for antecedent_data::IdRemap
 impl core::clone::Clone for antecedent_data::Int64Column
 impl core::clone::Clone for antecedent_data::LagMap
+impl core::clone::Clone for antecedent_data::LagRefusal
 impl core::clone::Clone for antecedent_data::LaggedColumn
 impl core::clone::Clone for antecedent_data::LaggedFrame
 impl core::clone::Clone for antecedent_data::LaggedFrameOptions
@@ -82,8 +86,10 @@ impl core::clone::Clone for antecedent_data::OwnedColumn
 impl core::clone::Clone for antecedent_data::OwnedColumnarStorage
 impl core::clone::Clone for antecedent_data::PanelData
 impl core::clone::Clone for antecedent_data::PanelUnit
+impl core::clone::Clone for antecedent_data::PanelWindow
 impl core::clone::Clone for antecedent_data::PermutationScheme
 impl core::clone::Clone for antecedent_data::PooledLaggedFrame
+impl core::clone::Clone for antecedent_data::PopulationUnit
 impl core::clone::Clone for antecedent_data::ReferencePointPolicy
 impl core::clone::Clone for antecedent_data::ResamplingPlan
 impl core::clone::Clone for antecedent_data::RowAccounting
@@ -95,18 +101,25 @@ impl core::clone::Clone for antecedent_data::TimeRange
 impl core::clone::Clone for antecedent_data::TimeSeriesData
 impl core::clone::Clone for antecedent_data::TimestampColumn
 impl core::clone::Clone for antecedent_data::UnitAccounting
+impl core::clone::Clone for antecedent_data::UnitPartition
 impl core::clone::Clone for antecedent_data::UnknownCategoryPolicy
 impl core::clone::Clone for antecedent_data::ValidityBitmap
 impl core::clone::Clone for antecedent_data::VectorVariableGroups
+impl core::clone::Clone for antecedent_data::WindowBoundary
+impl core::clone::Clone for antecedent_data::WindowChunk
+impl core::clone::Clone for antecedent_data::WindowNextAttempt
 impl core::clone::Clone for antecedent_data::global_index::ChunkIndex
 impl core::clone::Clone for antecedent_data::global_index::GlobalId
 impl core::clone::Clone for antecedent_data::global_index::GlobalIndexError
 impl core::cmp::Eq for antecedent_data::BooleanColumn
+impl core::cmp::Eq for antecedent_data::BorrowError
+impl core::cmp::Eq for antecedent_data::CalendarSpan
 impl core::cmp::Eq for antecedent_data::CategoricalColumn
 impl core::cmp::Eq for antecedent_data::CategoryCode
 impl core::cmp::Eq for antecedent_data::CategoryDomain
 impl core::cmp::Eq for antecedent_data::CategoryLevel
 impl core::cmp::Eq for antecedent_data::DataError
+impl core::cmp::Eq for antecedent_data::DeclaredSplit
 impl core::cmp::Eq for antecedent_data::DiscoveryEstimationSplit
 impl core::cmp::Eq for antecedent_data::DropReason
 impl core::cmp::Eq for antecedent_data::DropSummary
@@ -115,13 +128,16 @@ impl core::cmp::Eq for antecedent_data::EnvHoldoutSplit
 impl core::cmp::Eq for antecedent_data::GroupAccounting
 impl core::cmp::Eq for antecedent_data::Int64Column
 impl core::cmp::Eq for antecedent_data::LagMap
+impl core::cmp::Eq for antecedent_data::LagRefusal
 impl core::cmp::Eq for antecedent_data::LaggedColumn
 impl core::cmp::Eq for antecedent_data::LaggedFrameOptions
 impl core::cmp::Eq for antecedent_data::MaskPolicy
 impl core::cmp::Eq for antecedent_data::MissingCell
 impl core::cmp::Eq for antecedent_data::MissingDeclaration
 impl core::cmp::Eq for antecedent_data::MissingPolicy
+impl core::cmp::Eq for antecedent_data::PanelWindow
 impl core::cmp::Eq for antecedent_data::PermutationScheme
+impl core::cmp::Eq for antecedent_data::PopulationUnit
 impl core::cmp::Eq for antecedent_data::ReferencePointPolicy
 impl core::cmp::Eq for antecedent_data::RowAccounting
 impl core::cmp::Eq for antecedent_data::SamplingRegularity
@@ -130,9 +146,13 @@ impl core::cmp::Eq for antecedent_data::TimeIndex
 impl core::cmp::Eq for antecedent_data::TimeRange
 impl core::cmp::Eq for antecedent_data::TimestampColumn
 impl core::cmp::Eq for antecedent_data::UnitAccounting
+impl core::cmp::Eq for antecedent_data::UnitPartition
 impl core::cmp::Eq for antecedent_data::UnknownCategoryPolicy
 impl core::cmp::Eq for antecedent_data::ValidityBitmap
 impl core::cmp::Eq for antecedent_data::VectorVariableGroups
+impl core::cmp::Eq for antecedent_data::WindowBoundary
+impl core::cmp::Eq for antecedent_data::WindowChunk
+impl core::cmp::Eq for antecedent_data::WindowNextAttempt
 impl core::cmp::Eq for antecedent_data::global_index::ChunkIndex
 impl core::cmp::Eq for antecedent_data::global_index::GlobalId
 impl core::cmp::Eq for antecedent_data::global_index::GlobalIndexError
@@ -140,6 +160,8 @@ impl core::cmp::Ord for antecedent_data::CategoryCode
 impl core::cmp::Ord for antecedent_data::global_index::ChunkIndex
 impl core::cmp::Ord for antecedent_data::global_index::GlobalId
 impl core::cmp::PartialEq for antecedent_data::BooleanColumn
+impl core::cmp::PartialEq for antecedent_data::BorrowError
+impl core::cmp::PartialEq for antecedent_data::CalendarSpan
 impl core::cmp::PartialEq for antecedent_data::CategoricalColumn
 impl core::cmp::PartialEq for antecedent_data::CategoryCode
 impl core::cmp::PartialEq for antecedent_data::CategoryDomain
@@ -147,6 +169,7 @@ impl core::cmp::PartialEq for antecedent_data::CategoryLevel
 impl core::cmp::PartialEq for antecedent_data::Contrast
 impl core::cmp::PartialEq for antecedent_data::ContrastMatrix
 impl core::cmp::PartialEq for antecedent_data::DataError
+impl core::cmp::PartialEq for antecedent_data::DeclaredSplit
 impl core::cmp::PartialEq for antecedent_data::DiscoveryEstimationSplit
 impl core::cmp::PartialEq for antecedent_data::DiscreteColumn
 impl core::cmp::PartialEq for antecedent_data::DropReason
@@ -159,6 +182,7 @@ impl core::cmp::PartialEq for antecedent_data::Float64Column
 impl core::cmp::PartialEq for antecedent_data::GroupAccounting
 impl core::cmp::PartialEq for antecedent_data::Int64Column
 impl core::cmp::PartialEq for antecedent_data::LagMap
+impl core::cmp::PartialEq for antecedent_data::LagRefusal
 impl core::cmp::PartialEq for antecedent_data::LaggedColumn
 impl core::cmp::PartialEq for antecedent_data::LaggedFrameOptions
 impl core::cmp::PartialEq for antecedent_data::MaskPolicy
@@ -166,7 +190,9 @@ impl core::cmp::PartialEq for antecedent_data::MissingCell
 impl core::cmp::PartialEq for antecedent_data::MissingDeclaration
 impl core::cmp::PartialEq for antecedent_data::MissingPolicy
 impl core::cmp::PartialEq for antecedent_data::NetworkEdge
+impl core::cmp::PartialEq for antecedent_data::PanelWindow
 impl core::cmp::PartialEq for antecedent_data::PermutationScheme
+impl core::cmp::PartialEq for antecedent_data::PopulationUnit
 impl core::cmp::PartialEq for antecedent_data::ReferencePointPolicy
 impl core::cmp::PartialEq for antecedent_data::ResamplingPlan
 impl core::cmp::PartialEq for antecedent_data::RowAccounting
@@ -176,9 +202,13 @@ impl core::cmp::PartialEq for antecedent_data::TimeIndex
 impl core::cmp::PartialEq for antecedent_data::TimeRange
 impl core::cmp::PartialEq for antecedent_data::TimestampColumn
 impl core::cmp::PartialEq for antecedent_data::UnitAccounting
+impl core::cmp::PartialEq for antecedent_data::UnitPartition
 impl core::cmp::PartialEq for antecedent_data::UnknownCategoryPolicy
 impl core::cmp::PartialEq for antecedent_data::ValidityBitmap
 impl core::cmp::PartialEq for antecedent_data::VectorVariableGroups
+impl core::cmp::PartialEq for antecedent_data::WindowBoundary
+impl core::cmp::PartialEq for antecedent_data::WindowChunk
+impl core::cmp::PartialEq for antecedent_data::WindowNextAttempt
 impl core::cmp::PartialEq for antecedent_data::global_index::ChunkIndex
 impl core::cmp::PartialEq for antecedent_data::global_index::GlobalId
 impl core::cmp::PartialEq for antecedent_data::global_index::GlobalIndexError
@@ -202,10 +232,14 @@ impl core::default::Default for antecedent_data::TimeDummyEncoding
 impl core::default::Default for antecedent_data::UnitAccounting
 impl core::default::Default for antecedent_data::ValidityBitmap
 impl core::default::Default for antecedent_data::VectorVariableGroups
+impl core::error::Error for antecedent_data::BorrowError
 impl core::error::Error for antecedent_data::DataError
+impl core::error::Error for antecedent_data::LagRefusal
 impl core::error::Error for antecedent_data::global_index::GlobalIndexError
 impl core::fmt::Debug for antecedent_data::ArrowLoadResult
 impl core::fmt::Debug for antecedent_data::BooleanColumn
+impl core::fmt::Debug for antecedent_data::BorrowError
+impl core::fmt::Debug for antecedent_data::CalendarSpan
 impl core::fmt::Debug for antecedent_data::CategoricalColumn
 impl core::fmt::Debug for antecedent_data::CategoryCode
 impl core::fmt::Debug for antecedent_data::CategoryDomain
@@ -213,6 +247,7 @@ impl core::fmt::Debug for antecedent_data::CategoryLevel
 impl core::fmt::Debug for antecedent_data::Contrast
 impl core::fmt::Debug for antecedent_data::ContrastMatrix
 impl core::fmt::Debug for antecedent_data::DataError
+impl core::fmt::Debug for antecedent_data::DeclaredSplit
 impl core::fmt::Debug for antecedent_data::DiscoveryEstimationSplit
 impl core::fmt::Debug for antecedent_data::DiscreteColumn
 impl core::fmt::Debug for antecedent_data::DropReason
@@ -228,6 +263,7 @@ impl core::fmt::Debug for antecedent_data::GroupAccounting
 impl core::fmt::Debug for antecedent_data::IdRemap
 impl core::fmt::Debug for antecedent_data::Int64Column
 impl core::fmt::Debug for antecedent_data::LagMap
+impl core::fmt::Debug for antecedent_data::LagRefusal
 impl core::fmt::Debug for antecedent_data::LaggedColumn
 impl core::fmt::Debug for antecedent_data::LaggedFrame
 impl core::fmt::Debug for antecedent_data::LaggedFrameOptions
@@ -244,8 +280,10 @@ impl core::fmt::Debug for antecedent_data::OwnedColumn
 impl core::fmt::Debug for antecedent_data::OwnedColumnarStorage
 impl core::fmt::Debug for antecedent_data::PanelData
 impl core::fmt::Debug for antecedent_data::PanelUnit
+impl core::fmt::Debug for antecedent_data::PanelWindow
 impl core::fmt::Debug for antecedent_data::PermutationScheme
 impl core::fmt::Debug for antecedent_data::PooledLaggedFrame
+impl core::fmt::Debug for antecedent_data::PopulationUnit
 impl core::fmt::Debug for antecedent_data::ReferencePointPolicy
 impl core::fmt::Debug for antecedent_data::ResamplingPlan
 impl core::fmt::Debug for antecedent_data::RowAccounting
@@ -257,14 +295,22 @@ impl core::fmt::Debug for antecedent_data::TimeRange
 impl core::fmt::Debug for antecedent_data::TimeSeriesData
 impl core::fmt::Debug for antecedent_data::TimestampColumn
 impl core::fmt::Debug for antecedent_data::UnitAccounting
+impl core::fmt::Debug for antecedent_data::UnitPartition
 impl core::fmt::Debug for antecedent_data::UnknownCategoryPolicy
 impl core::fmt::Debug for antecedent_data::ValidityBitmap
 impl core::fmt::Debug for antecedent_data::VectorVariableGroups
+impl core::fmt::Debug for antecedent_data::WindowBoundary
+impl core::fmt::Debug for antecedent_data::WindowChunk
+impl core::fmt::Debug for antecedent_data::WindowNextAttempt
 impl core::fmt::Debug for antecedent_data::global_index::ChunkIndex
 impl core::fmt::Debug for antecedent_data::global_index::GlobalId
 impl core::fmt::Debug for antecedent_data::global_index::GlobalIndexError
+impl core::fmt::Display for antecedent_data::BorrowError
 impl core::fmt::Display for antecedent_data::DataError
+impl core::fmt::Display for antecedent_data::LagRefusal
+impl core::fmt::Display for antecedent_data::PopulationUnit
 impl core::fmt::Display for antecedent_data::global_index::GlobalIndexError
+impl core::hash::Hash for antecedent_data::CalendarSpan
 impl core::hash::Hash for antecedent_data::CategoryCode
 impl core::hash::Hash for antecedent_data::DiscoveryEstimationSplit
 impl core::hash::Hash for antecedent_data::DropReason
@@ -274,12 +320,15 @@ impl core::hash::Hash for antecedent_data::MaskPolicy
 impl core::hash::Hash for antecedent_data::MissingDeclaration
 impl core::hash::Hash for antecedent_data::MissingPolicy
 impl core::hash::Hash for antecedent_data::PermutationScheme
+impl core::hash::Hash for antecedent_data::PopulationUnit
 impl core::hash::Hash for antecedent_data::ReferencePointPolicy
 impl core::hash::Hash for antecedent_data::TimeDummyEncoding
 impl core::hash::Hash for antecedent_data::TimeRange
 impl core::hash::Hash for antecedent_data::UnknownCategoryPolicy
+impl core::hash::Hash for antecedent_data::WindowBoundary
 impl core::hash::Hash for antecedent_data::global_index::ChunkIndex
 impl core::hash::Hash for antecedent_data::global_index::GlobalId
+impl core::marker::Copy for antecedent_data::CalendarSpan
 impl core::marker::Copy for antecedent_data::CategoryCode
 impl core::marker::Copy for antecedent_data::DiscoveryEstimationSplit
 impl core::marker::Copy for antecedent_data::DropReason
@@ -291,18 +340,22 @@ impl core::marker::Copy for antecedent_data::MaskPolicy
 impl core::marker::Copy for antecedent_data::MissingPolicy
 impl core::marker::Copy for antecedent_data::NetworkEdge
 impl core::marker::Copy for antecedent_data::PermutationScheme
+impl core::marker::Copy for antecedent_data::PopulationUnit
 impl core::marker::Copy for antecedent_data::ReferencePointPolicy
 impl core::marker::Copy for antecedent_data::ResamplingPlan
 impl core::marker::Copy for antecedent_data::TimeDummyEncoding
 impl core::marker::Copy for antecedent_data::TimeRange
 impl core::marker::Copy for antecedent_data::UnitAccounting
 impl core::marker::Copy for antecedent_data::UnknownCategoryPolicy
+impl core::marker::Copy for antecedent_data::WindowBoundary
 impl core::marker::Copy for antecedent_data::global_index::ChunkIndex
 impl core::marker::Copy for antecedent_data::global_index::GlobalId
 impl core::marker::Copy for antecedent_data::global_index::GlobalIndexError
 impl core::marker::Freeze for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Freeze for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Freeze for antecedent_data::BooleanColumn [auto]
+impl core::marker::Freeze for antecedent_data::BorrowError [auto]
+impl core::marker::Freeze for antecedent_data::CalendarSpan [auto]
 impl core::marker::Freeze for antecedent_data::CategoricalColumn [auto]
 impl core::marker::Freeze for antecedent_data::CategoryCode [auto]
 impl core::marker::Freeze for antecedent_data::CategoryDomain [auto]
@@ -310,6 +363,7 @@ impl core::marker::Freeze for antecedent_data::CategoryLevel [auto]
 impl core::marker::Freeze for antecedent_data::Contrast [auto]
 impl core::marker::Freeze for antecedent_data::ContrastMatrix [auto]
 impl core::marker::Freeze for antecedent_data::DataError [auto]
+impl core::marker::Freeze for antecedent_data::DeclaredSplit [auto]
 impl core::marker::Freeze for antecedent_data::DiscoveryEstimationSplit [auto]
 impl core::marker::Freeze for antecedent_data::DiscreteColumn [auto]
 impl core::marker::Freeze for antecedent_data::DropReason [auto]
@@ -325,6 +379,7 @@ impl core::marker::Freeze for antecedent_data::GroupAccounting [auto]
 impl core::marker::Freeze for antecedent_data::IdRemap [auto]
 impl core::marker::Freeze for antecedent_data::Int64Column [auto]
 impl core::marker::Freeze for antecedent_data::LagMap [auto]
+impl core::marker::Freeze for antecedent_data::LagRefusal [auto]
 impl core::marker::Freeze for antecedent_data::LaggedColumn [auto]
 impl core::marker::Freeze for antecedent_data::LaggedFrame [auto]
 impl core::marker::Freeze for antecedent_data::LaggedFrameOptions [auto]
@@ -341,8 +396,10 @@ impl core::marker::Freeze for antecedent_data::OwnedColumn [auto]
 impl core::marker::Freeze for antecedent_data::OwnedColumnarStorage [auto]
 impl core::marker::Freeze for antecedent_data::PanelData [auto]
 impl core::marker::Freeze for antecedent_data::PanelUnit [auto]
+impl core::marker::Freeze for antecedent_data::PanelWindow [auto]
 impl core::marker::Freeze for antecedent_data::PermutationScheme [auto]
 impl core::marker::Freeze for antecedent_data::PooledLaggedFrame [auto]
+impl core::marker::Freeze for antecedent_data::PopulationUnit [auto]
 impl core::marker::Freeze for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Freeze for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Freeze for antecedent_data::RowAccounting [auto]
@@ -354,15 +411,21 @@ impl core::marker::Freeze for antecedent_data::TimeRange [auto]
 impl core::marker::Freeze for antecedent_data::TimeSeriesData [auto]
 impl core::marker::Freeze for antecedent_data::TimestampColumn [auto]
 impl core::marker::Freeze for antecedent_data::UnitAccounting [auto]
+impl core::marker::Freeze for antecedent_data::UnitPartition [auto]
 impl core::marker::Freeze for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Freeze for antecedent_data::ValidityBitmap [auto]
 impl core::marker::Freeze for antecedent_data::VectorVariableGroups [auto]
+impl core::marker::Freeze for antecedent_data::WindowBoundary [auto]
+impl core::marker::Freeze for antecedent_data::WindowChunk [auto]
+impl core::marker::Freeze for antecedent_data::WindowNextAttempt [auto]
 impl core::marker::Freeze for antecedent_data::global_index::ChunkIndex [auto]
 impl core::marker::Freeze for antecedent_data::global_index::GlobalId [auto]
 impl core::marker::Freeze for antecedent_data::global_index::GlobalIndexError [auto]
 impl core::marker::Send for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Send for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Send for antecedent_data::BooleanColumn [auto]
+impl core::marker::Send for antecedent_data::BorrowError [auto]
+impl core::marker::Send for antecedent_data::CalendarSpan [auto]
 impl core::marker::Send for antecedent_data::CategoricalColumn [auto]
 impl core::marker::Send for antecedent_data::CategoryCode [auto]
 impl core::marker::Send for antecedent_data::CategoryDomain [auto]
@@ -370,6 +433,7 @@ impl core::marker::Send for antecedent_data::CategoryLevel [auto]
 impl core::marker::Send for antecedent_data::Contrast [auto]
 impl core::marker::Send for antecedent_data::ContrastMatrix [auto]
 impl core::marker::Send for antecedent_data::DataError [auto]
+impl core::marker::Send for antecedent_data::DeclaredSplit [auto]
 impl core::marker::Send for antecedent_data::DiscoveryEstimationSplit [auto]
 impl core::marker::Send for antecedent_data::DiscreteColumn [auto]
 impl core::marker::Send for antecedent_data::DropReason [auto]
@@ -385,6 +449,7 @@ impl core::marker::Send for antecedent_data::GroupAccounting [auto]
 impl core::marker::Send for antecedent_data::IdRemap [auto]
 impl core::marker::Send for antecedent_data::Int64Column [auto]
 impl core::marker::Send for antecedent_data::LagMap [auto]
+impl core::marker::Send for antecedent_data::LagRefusal [auto]
 impl core::marker::Send for antecedent_data::LaggedColumn [auto]
 impl core::marker::Send for antecedent_data::LaggedFrame [auto]
 impl core::marker::Send for antecedent_data::LaggedFrameOptions [auto]
@@ -401,8 +466,10 @@ impl core::marker::Send for antecedent_data::OwnedColumn [auto]
 impl core::marker::Send for antecedent_data::OwnedColumnarStorage [auto]
 impl core::marker::Send for antecedent_data::PanelData [auto]
 impl core::marker::Send for antecedent_data::PanelUnit [auto]
+impl core::marker::Send for antecedent_data::PanelWindow [auto]
 impl core::marker::Send for antecedent_data::PermutationScheme [auto]
 impl core::marker::Send for antecedent_data::PooledLaggedFrame [auto]
+impl core::marker::Send for antecedent_data::PopulationUnit [auto]
 impl core::marker::Send for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Send for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Send for antecedent_data::RowAccounting [auto]
@@ -414,13 +481,19 @@ impl core::marker::Send for antecedent_data::TimeRange [auto]
 impl core::marker::Send for antecedent_data::TimeSeriesData [auto]
 impl core::marker::Send for antecedent_data::TimestampColumn [auto]
 impl core::marker::Send for antecedent_data::UnitAccounting [auto]
+impl core::marker::Send for antecedent_data::UnitPartition [auto]
 impl core::marker::Send for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Send for antecedent_data::ValidityBitmap [auto]
 impl core::marker::Send for antecedent_data::VectorVariableGroups [auto]
+impl core::marker::Send for antecedent_data::WindowBoundary [auto]
+impl core::marker::Send for antecedent_data::WindowChunk [auto]
+impl core::marker::Send for antecedent_data::WindowNextAttempt [auto]
 impl core::marker::Send for antecedent_data::global_index::ChunkIndex [auto]
 impl core::marker::Send for antecedent_data::global_index::GlobalId [auto]
 impl core::marker::Send for antecedent_data::global_index::GlobalIndexError [auto]
 impl core::marker::StructuralPartialEq for antecedent_data::BooleanColumn
+impl core::marker::StructuralPartialEq for antecedent_data::BorrowError
+impl core::marker::StructuralPartialEq for antecedent_data::CalendarSpan
 impl core::marker::StructuralPartialEq for antecedent_data::CategoricalColumn
 impl core::marker::StructuralPartialEq for antecedent_data::CategoryCode
 impl core::marker::StructuralPartialEq for antecedent_data::CategoryDomain
@@ -428,6 +501,7 @@ impl core::marker::StructuralPartialEq for antecedent_data::CategoryLevel
 impl core::marker::StructuralPartialEq for antecedent_data::Contrast
 impl core::marker::StructuralPartialEq for antecedent_data::ContrastMatrix
 impl core::marker::StructuralPartialEq for antecedent_data::DataError
+impl core::marker::StructuralPartialEq for antecedent_data::DeclaredSplit
 impl core::marker::StructuralPartialEq for antecedent_data::DiscoveryEstimationSplit
 impl core::marker::StructuralPartialEq for antecedent_data::DiscreteColumn
 impl core::marker::StructuralPartialEq for antecedent_data::DropReason
@@ -439,6 +513,7 @@ impl core::marker::StructuralPartialEq for antecedent_data::Float64Column
 impl core::marker::StructuralPartialEq for antecedent_data::GroupAccounting
 impl core::marker::StructuralPartialEq for antecedent_data::Int64Column
 impl core::marker::StructuralPartialEq for antecedent_data::LagMap
+impl core::marker::StructuralPartialEq for antecedent_data::LagRefusal
 impl core::marker::StructuralPartialEq for antecedent_data::LaggedColumn
 impl core::marker::StructuralPartialEq for antecedent_data::LaggedFrameOptions
 impl core::marker::StructuralPartialEq for antecedent_data::MaskPolicy
@@ -446,7 +521,9 @@ impl core::marker::StructuralPartialEq for antecedent_data::MissingCell
 impl core::marker::StructuralPartialEq for antecedent_data::MissingDeclaration
 impl core::marker::StructuralPartialEq for antecedent_data::MissingPolicy
 impl core::marker::StructuralPartialEq for antecedent_data::NetworkEdge
+impl core::marker::StructuralPartialEq for antecedent_data::PanelWindow
 impl core::marker::StructuralPartialEq for antecedent_data::PermutationScheme
+impl core::marker::StructuralPartialEq for antecedent_data::PopulationUnit
 impl core::marker::StructuralPartialEq for antecedent_data::ReferencePointPolicy
 impl core::marker::StructuralPartialEq for antecedent_data::ResamplingPlan
 impl core::marker::StructuralPartialEq for antecedent_data::RowAccounting
@@ -456,13 +533,19 @@ impl core::marker::StructuralPartialEq for antecedent_data::TimeIndex
 impl core::marker::StructuralPartialEq for antecedent_data::TimeRange
 impl core::marker::StructuralPartialEq for antecedent_data::TimestampColumn
 impl core::marker::StructuralPartialEq for antecedent_data::UnitAccounting
+impl core::marker::StructuralPartialEq for antecedent_data::UnitPartition
 impl core::marker::StructuralPartialEq for antecedent_data::UnknownCategoryPolicy
 impl core::marker::StructuralPartialEq for antecedent_data::VectorVariableGroups
+impl core::marker::StructuralPartialEq for antecedent_data::WindowBoundary
+impl core::marker::StructuralPartialEq for antecedent_data::WindowChunk
+impl core::marker::StructuralPartialEq for antecedent_data::WindowNextAttempt
 impl core::marker::StructuralPartialEq for antecedent_data::global_index::ChunkIndex
 impl core::marker::StructuralPartialEq for antecedent_data::global_index::GlobalId
 impl core::marker::StructuralPartialEq for antecedent_data::global_index::GlobalIndexError
 impl core::marker::Sync for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Sync for antecedent_data::BooleanColumn [auto]
+impl core::marker::Sync for antecedent_data::BorrowError [auto]
+impl core::marker::Sync for antecedent_data::CalendarSpan [auto]
 impl core::marker::Sync for antecedent_data::CategoricalColumn [auto]
 impl core::marker::Sync for antecedent_data::CategoryCode [auto]
 impl core::marker::Sync for antecedent_data::CategoryDomain [auto]
@@ -470,6 +553,7 @@ impl core::marker::Sync for antecedent_data::CategoryLevel [auto]
 impl core::marker::Sync for antecedent_data::Contrast [auto]
 impl core::marker::Sync for antecedent_data::ContrastMatrix [auto]
 impl core::marker::Sync for antecedent_data::DataError [auto]
+impl core::marker::Sync for antecedent_data::DeclaredSplit [auto]
 impl core::marker::Sync for antecedent_data::DiscoveryEstimationSplit [auto]
 impl core::marker::Sync for antecedent_data::DiscreteColumn [auto]
 impl core::marker::Sync for antecedent_data::DropReason [auto]
@@ -485,6 +569,7 @@ impl core::marker::Sync for antecedent_data::GroupAccounting [auto]
 impl core::marker::Sync for antecedent_data::IdRemap [auto]
 impl core::marker::Sync for antecedent_data::Int64Column [auto]
 impl core::marker::Sync for antecedent_data::LagMap [auto]
+impl core::marker::Sync for antecedent_data::LagRefusal [auto]
 impl core::marker::Sync for antecedent_data::LaggedColumn [auto]
 impl core::marker::Sync for antecedent_data::LaggedFrame [auto]
 impl core::marker::Sync for antecedent_data::LaggedFrameOptions [auto]
@@ -501,8 +586,10 @@ impl core::marker::Sync for antecedent_data::OwnedColumn [auto]
 impl core::marker::Sync for antecedent_data::OwnedColumnarStorage [auto]
 impl core::marker::Sync for antecedent_data::PanelData [auto]
 impl core::marker::Sync for antecedent_data::PanelUnit [auto]
+impl core::marker::Sync for antecedent_data::PanelWindow [auto]
 impl core::marker::Sync for antecedent_data::PermutationScheme [auto]
 impl core::marker::Sync for antecedent_data::PooledLaggedFrame [auto]
+impl core::marker::Sync for antecedent_data::PopulationUnit [auto]
 impl core::marker::Sync for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Sync for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Sync for antecedent_data::RowAccounting [auto]
@@ -514,15 +601,21 @@ impl core::marker::Sync for antecedent_data::TimeRange [auto]
 impl core::marker::Sync for antecedent_data::TimeSeriesData [auto]
 impl core::marker::Sync for antecedent_data::TimestampColumn [auto]
 impl core::marker::Sync for antecedent_data::UnitAccounting [auto]
+impl core::marker::Sync for antecedent_data::UnitPartition [auto]
 impl core::marker::Sync for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Sync for antecedent_data::ValidityBitmap [auto]
 impl core::marker::Sync for antecedent_data::VectorVariableGroups [auto]
+impl core::marker::Sync for antecedent_data::WindowBoundary [auto]
+impl core::marker::Sync for antecedent_data::WindowChunk [auto]
+impl core::marker::Sync for antecedent_data::WindowNextAttempt [auto]
 impl core::marker::Sync for antecedent_data::global_index::ChunkIndex [auto]
 impl core::marker::Sync for antecedent_data::global_index::GlobalId [auto]
 impl core::marker::Sync for antecedent_data::global_index::GlobalIndexError [auto]
 impl core::marker::Unpin for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Unpin for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Unpin for antecedent_data::BooleanColumn [auto]
+impl core::marker::Unpin for antecedent_data::BorrowError [auto]
+impl core::marker::Unpin for antecedent_data::CalendarSpan [auto]
 impl core::marker::Unpin for antecedent_data::CategoricalColumn [auto]
 impl core::marker::Unpin for antecedent_data::CategoryCode [auto]
 impl core::marker::Unpin for antecedent_data::CategoryDomain [auto]
@@ -530,6 +623,7 @@ impl core::marker::Unpin for antecedent_data::CategoryLevel [auto]
 impl core::marker::Unpin for antecedent_data::Contrast [auto]
 impl core::marker::Unpin for antecedent_data::ContrastMatrix [auto]
 impl core::marker::Unpin for antecedent_data::DataError [auto]
+impl core::marker::Unpin for antecedent_data::DeclaredSplit [auto]
 impl core::marker::Unpin for antecedent_data::DiscoveryEstimationSplit [auto]
 impl core::marker::Unpin for antecedent_data::DiscreteColumn [auto]
 impl core::marker::Unpin for antecedent_data::DropReason [auto]
@@ -545,6 +639,7 @@ impl core::marker::Unpin for antecedent_data::GroupAccounting [auto]
 impl core::marker::Unpin for antecedent_data::IdRemap [auto]
 impl core::marker::Unpin for antecedent_data::Int64Column [auto]
 impl core::marker::Unpin for antecedent_data::LagMap [auto]
+impl core::marker::Unpin for antecedent_data::LagRefusal [auto]
 impl core::marker::Unpin for antecedent_data::LaggedColumn [auto]
 impl core::marker::Unpin for antecedent_data::LaggedFrame [auto]
 impl core::marker::Unpin for antecedent_data::LaggedFrameOptions [auto]
@@ -561,8 +656,10 @@ impl core::marker::Unpin for antecedent_data::OwnedColumn [auto]
 impl core::marker::Unpin for antecedent_data::OwnedColumnarStorage [auto]
 impl core::marker::Unpin for antecedent_data::PanelData [auto]
 impl core::marker::Unpin for antecedent_data::PanelUnit [auto]
+impl core::marker::Unpin for antecedent_data::PanelWindow [auto]
 impl core::marker::Unpin for antecedent_data::PermutationScheme [auto]
 impl core::marker::Unpin for antecedent_data::PooledLaggedFrame [auto]
+impl core::marker::Unpin for antecedent_data::PopulationUnit [auto]
 impl core::marker::Unpin for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Unpin for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Unpin for antecedent_data::RowAccounting [auto]
@@ -574,15 +671,21 @@ impl core::marker::Unpin for antecedent_data::TimeRange [auto]
 impl core::marker::Unpin for antecedent_data::TimeSeriesData [auto]
 impl core::marker::Unpin for antecedent_data::TimestampColumn [auto]
 impl core::marker::Unpin for antecedent_data::UnitAccounting [auto]
+impl core::marker::Unpin for antecedent_data::UnitPartition [auto]
 impl core::marker::Unpin for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::marker::Unpin for antecedent_data::ValidityBitmap [auto]
 impl core::marker::Unpin for antecedent_data::VectorVariableGroups [auto]
+impl core::marker::Unpin for antecedent_data::WindowBoundary [auto]
+impl core::marker::Unpin for antecedent_data::WindowChunk [auto]
+impl core::marker::Unpin for antecedent_data::WindowNextAttempt [auto]
 impl core::marker::Unpin for antecedent_data::global_index::ChunkIndex [auto]
 impl core::marker::Unpin for antecedent_data::global_index::GlobalId [auto]
 impl core::marker::Unpin for antecedent_data::global_index::GlobalIndexError [auto]
 impl core::ops::deref::Deref for antecedent_data::F64Buffer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BooleanColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BorrowError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CalendarSpan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoricalColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoryCode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoryDomain [auto]
@@ -590,6 +693,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoryLevel 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::Contrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ContrastMatrix [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DataError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DeclaredSplit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DiscoveryEstimationSplit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DiscreteColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DropReason [auto]
@@ -601,6 +705,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GroupAccountin
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::IdRemap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::Int64Column [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LagMap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LagRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedFrameOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedSamplePlan [auto]
@@ -610,7 +715,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MissingCell [a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MissingDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MissingPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::NetworkEdge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelWindow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PermutationScheme [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PopulationUnit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ReferencePointPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ResamplingPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::RowAccounting [auto]
@@ -620,14 +727,20 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeIndex [aut
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeRange [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimestampColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnitAccounting [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnitPartition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ValidityBitmap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::VectorVariableGroups [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowBoundary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowChunk [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowNextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::global_index::ChunkIndex [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::global_index::GlobalId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::global_index::GlobalIndexError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BooleanColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BorrowError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CalendarSpan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoricalColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoryCode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoryDomain [auto]
@@ -635,6 +748,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoryLevel [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::Contrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ContrastMatrix [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DataError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DeclaredSplit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DiscoveryEstimationSplit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DiscreteColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DropReason [auto]
@@ -646,6 +760,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::GroupAccounting [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::IdRemap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::Int64Column [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LagMap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LagRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedFrameOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedSamplePlan [auto]
@@ -655,7 +770,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::MissingCell [auto
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::MissingDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::MissingPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::NetworkEdge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelWindow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PermutationScheme [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PopulationUnit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ReferencePointPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ResamplingPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::RowAccounting [auto]
@@ -665,9 +782,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeIndex [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeRange [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimestampColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnitAccounting [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnitPartition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnknownCategoryPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ValidityBitmap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::VectorVariableGroups [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowBoundary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowChunk [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowNextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::global_index::ChunkIndex [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::global_index::GlobalId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::global_index::GlobalIndexError [auto]
@@ -715,14 +836,19 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedPrepare
 pub const <antecedent_data::DiscreteColumn>::MISSING: u32
 pub const <antecedent_data::MissingPolicy>::NAMES: [&'static str; 6]
 pub const antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS: usize
+pub const antecedent_data::LONGER_SPAN_OF_SAME_UNIT: &str
+pub enum antecedent_data::BorrowError
 pub enum antecedent_data::ColumnView<'a>
 pub enum antecedent_data::Contrast
 pub enum antecedent_data::DropReason
 pub enum antecedent_data::OwnedColumn
+pub enum antecedent_data::PopulationUnit
 pub enum antecedent_data::ResamplingPlan
 pub enum antecedent_data::SamplingRegularity
 pub enum antecedent_data::TimeDummyEncoding
 pub enum antecedent_data::UnknownCategoryPolicy
+pub enum antecedent_data::WindowBoundary
+pub enum antecedent_data::WindowNextAttempt
 pub field antecedent_data::ArrowCColumn::name: alloc::string::String
 pub field antecedent_data::ArrowLoadResult::bytes_borrowed: u64
 pub field antecedent_data::ArrowLoadResult::bytes_copied: u64
@@ -829,6 +955,11 @@ pub fn <antecedent_data::ArrowCColumn>::unsafe fn from_ffi(name: impl core::conv
 pub fn <antecedent_data::BooleanColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::BooleanColumn>::fn len(&self) -> usize
 pub fn <antecedent_data::BooleanColumn>::fn new(id: antecedent_core::ids::VariableId, values: impl core::convert::Into<alloc::sync::Arc<[u8]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::BorrowError>::const fn refusal(&self) -> core::option::Option<&antecedent_data::LagRefusal>
+pub fn <antecedent_data::CalendarSpan>::const fn contains(self, time: i64) -> bool
+pub fn <antecedent_data::CalendarSpan>::const fn end(self) -> i64
+pub fn <antecedent_data::CalendarSpan>::const fn start(self) -> i64
+pub fn <antecedent_data::CalendarSpan>::fn try_new(start: i64, end: i64) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::CategoricalColumn>::fn as_view(&self) -> antecedent_data::CategoricalView<'_>
 pub fn <antecedent_data::CategoricalColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::CategoricalColumn>::fn len(&self) -> usize
@@ -844,6 +975,9 @@ pub fn <antecedent_data::ColumnView<'a>>::fn is_empty(self) -> bool
 pub fn <antecedent_data::ColumnView<'a>>::fn len(self) -> usize
 pub fn <antecedent_data::ColumnView<'a>>::fn validity(self) -> &'a antecedent_data::ValidityBitmap
 pub fn <antecedent_data::ContrastMatrix>::fn try_new(n_levels: usize, n_columns: usize, values: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::DeclaredSplit>::const fn rows(&self) -> core::ops::range::Range<usize>
+pub fn <antecedent_data::DeclaredSplit>::fn name(&self) -> &str
+pub fn <antecedent_data::DeclaredSplit>::fn try_new(name: impl core::convert::Into<alloc::sync::Arc<str>>, rows: core::ops::range::Range<usize>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::DiscoveryEstimationSplit>::fn from_fraction(series_len: usize, discovery_frac: f64, gap: usize) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::DiscoveryEstimationSplit>::fn from_sizes(series_len: usize, discovery_len: usize, gap: usize, estimation_len: usize) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::DiscoveryEstimationSplit>::fn try_new(series_len: usize, discovery: antecedent_data::TimeRange, estimation: antecedent_data::TimeRange) -> core::result::Result<Self, antecedent_data::DataError>
@@ -889,6 +1023,10 @@ pub fn <antecedent_data::LagMap>::fn fill_row_indexes(&self, lag: antecedent_cor
 pub fn <antecedent_data::LagMap>::fn new(series_len: usize, max_lag: u32) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::LagMap>::fn row_index(&self, lag: antecedent_core::ids::Lag, sample_i: usize) -> usize
 pub fn <antecedent_data::LagMap>::fn with_reference(series_len: usize, max_lag: u32, reference: antecedent_data::ReferencePointPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LagRefusal>::const fn boundary(&self) -> antecedent_data::WindowBoundary
+pub fn <antecedent_data::LagRefusal>::const fn lag(&self) -> u32
+pub fn <antecedent_data::LagRefusal>::const fn next_attempt(&self) -> &antecedent_data::WindowNextAttempt
+pub fn <antecedent_data::LagRefusal>::const fn target(&self) -> usize
 pub fn <antecedent_data::LaggedFrame>::const fn max_lag(&self) -> u32
 pub fn <antecedent_data::LaggedFrame>::const fn n_effective(&self) -> usize
 pub fn <antecedent_data::LaggedFrame>::fn append_constant_lag_columns(&self, columns: &[(antecedent_core::ids::VariableId, alloc::vec::Vec<f64>)]) -> core::result::Result<Self, antecedent_data::DataError>
@@ -953,8 +1091,17 @@ pub fn <antecedent_data::PanelData>::fn unit(&self, i: usize) -> core::result::R
 pub fn <antecedent_data::PanelData>::fn unit_count(&self) -> usize
 pub fn <antecedent_data::PanelData>::fn units(&self) -> &[antecedent_data::PanelUnit]
 pub fn <antecedent_data::PanelUnitView<'a>>::fn new(unit: &'a antecedent_data::PanelUnit) -> Self
+pub fn <antecedent_data::PanelWindow>::const fn local_rows(&self) -> core::ops::range::Range<usize>
+pub fn <antecedent_data::PanelWindow>::const fn span(&self) -> antecedent_data::CalendarSpan
+pub fn <antecedent_data::PanelWindow>::const fn unit(&self) -> antecedent_data::PopulationUnit
+pub fn <antecedent_data::PanelWindow>::fn borrow_lag(&self, target: usize, lag: u32) -> core::result::Result<usize, antecedent_data::BorrowError>
+pub fn <antecedent_data::PanelWindow>::fn chunk_at(&self, boundary: usize) -> core::result::Result<(antecedent_data::WindowChunk, antecedent_data::WindowChunk), antecedent_data::DataError>
+pub fn <antecedent_data::PanelWindow>::fn eager_rows(&self) -> alloc::vec::Vec<usize>
+pub fn <antecedent_data::PanelWindow>::fn split_name(&self) -> &str
 pub fn <antecedent_data::PooledLaggedFrame>::fn all_variables(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_data::PooledLaggedFrame>::fn is_dummy(&self, v: antecedent_core::ids::VariableId) -> bool
+pub fn <antecedent_data::PopulationUnit>::const fn environment(env_index: u32) -> Self
+pub fn <antecedent_data::PopulationUnit>::const fn panel(unit_id: u32) -> Self
 pub fn <antecedent_data::ReferencePointPolicy>::fn base_and_n(self, series_len: usize, max_lag: u32) -> core::result::Result<(usize, usize), antecedent_data::DataError>
 pub fn <antecedent_data::ResamplingPlan>::const fn is_weight_plan(self) -> bool
 pub fn <antecedent_data::ResamplingPlan>::const fn needs_clusters(self) -> bool
@@ -992,6 +1139,10 @@ pub fn <antecedent_data::TimeSeriesData>::fn with_weights(&self, weights: alloc:
 pub fn <antecedent_data::TimestampColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::TimestampColumn>::fn len(&self) -> usize
 pub fn <antecedent_data::TimestampColumn>::fn new(id: antecedent_core::ids::VariableId, values_ns: impl core::convert::Into<alloc::sync::Arc<[i64]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::UnitPartition>::const fn unit(&self) -> antecedent_data::PopulationUnit
+pub fn <antecedent_data::UnitPartition>::fn row_count(&self) -> usize
+pub fn <antecedent_data::UnitPartition>::fn try_new(unit: antecedent_data::PopulationUnit, calendar: impl core::convert::Into<alloc::sync::Arc<[i64]>>, step: i64, splits: impl core::iter::traits::collect::IntoIterator<Item = antecedent_data::DeclaredSplit>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::UnitPartition>::fn window(&self, split_name: &str, span: antecedent_data::CalendarSpan) -> core::result::Result<antecedent_data::PanelWindow, antecedent_data::DataError>
 pub fn <antecedent_data::ValidityBitmap>::const fn is_empty(&self) -> bool
 pub fn <antecedent_data::ValidityBitmap>::const fn len(&self) -> usize
 pub fn <antecedent_data::ValidityBitmap>::fn all_valid(len: usize) -> Self
@@ -1010,6 +1161,8 @@ pub fn <antecedent_data::VectorVariableGroups>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::VectorVariableGroups>::fn logical_ids(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_data::VectorVariableGroups>::fn secondary_component_ids(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_data::VectorVariableGroups>::fn try_new(groups: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<[antecedent_core::ids::VariableId]>]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::WindowChunk>::const fn local_rows(&self) -> core::ops::range::Range<usize>
+pub fn <antecedent_data::WindowNextAttempt>::const fn name(&self) -> &'static str
 pub fn <antecedent_data::global_index::ChunkIndex>::const fn get(self) -> u32
 pub fn <antecedent_data::global_index::ChunkIndex>::const fn new(local: u32) -> Self
 pub fn <antecedent_data::global_index::GlobalId>::const fn get(self) -> u64
@@ -1051,6 +1204,7 @@ pub mod antecedent_data::missing
 pub mod antecedent_data::multi_env
 pub mod antecedent_data::network
 pub mod antecedent_data::panel
+pub mod antecedent_data::panel_window
 pub mod antecedent_data::pooled_frame
 pub mod antecedent_data::project
 pub mod antecedent_data::reference
@@ -1068,6 +1222,8 @@ pub struct antecedent_data::ArrowCColumn
 pub struct antecedent_data::ArrowCColumn has private fields
 pub struct antecedent_data::ArrowLoadResult
 pub struct antecedent_data::BooleanColumn
+pub struct antecedent_data::CalendarSpan
+pub struct antecedent_data::CalendarSpan has private fields
 pub struct antecedent_data::CategoricalColumn
 pub struct antecedent_data::CategoricalView<'a>
 pub struct antecedent_data::CategoryCode
@@ -1075,6 +1231,8 @@ pub struct antecedent_data::CategoryCode has private fields
 pub struct antecedent_data::CategoryDomain
 pub struct antecedent_data::CategoryLevel
 pub struct antecedent_data::ContrastMatrix
+pub struct antecedent_data::DeclaredSplit
+pub struct antecedent_data::DeclaredSplit has private fields
 pub struct antecedent_data::DiscoveryEstimationSplit
 pub struct antecedent_data::DiscreteColumn
 pub struct antecedent_data::DropSummary
@@ -1095,6 +1253,8 @@ pub struct antecedent_data::IdRemap has private fields
 pub struct antecedent_data::Int64Column
 pub struct antecedent_data::LagMap
 pub struct antecedent_data::LagMap has private fields
+pub struct antecedent_data::LagRefusal
+pub struct antecedent_data::LagRefusal has private fields
 pub struct antecedent_data::LaggedColumn
 pub struct antecedent_data::LaggedFrame
 pub struct antecedent_data::LaggedFrame has private fields
@@ -1118,6 +1278,8 @@ pub struct antecedent_data::PanelData has private fields
 pub struct antecedent_data::PanelUnit
 pub struct antecedent_data::PanelUnitView has private fields
 pub struct antecedent_data::PanelUnitView<'a>
+pub struct antecedent_data::PanelWindow
+pub struct antecedent_data::PanelWindow has private fields
 pub struct antecedent_data::PooledLaggedFrame
 pub struct antecedent_data::RowAccounting
 pub struct antecedent_data::TabularData
@@ -1128,10 +1290,14 @@ pub struct antecedent_data::TimeSeriesData
 pub struct antecedent_data::TimeSeriesData has private fields
 pub struct antecedent_data::TimestampColumn
 pub struct antecedent_data::UnitAccounting
+pub struct antecedent_data::UnitPartition
+pub struct antecedent_data::UnitPartition has private fields
 pub struct antecedent_data::ValidityBitmap
 pub struct antecedent_data::ValidityBitmap has private fields
 pub struct antecedent_data::VectorVariableGroups
 pub struct antecedent_data::VectorVariableGroups has private fields
+pub struct antecedent_data::WindowChunk
+pub struct antecedent_data::WindowChunk has private fields
 pub struct antecedent_data::global_index::ChunkIndex
 pub struct antecedent_data::global_index::ChunkIndex has private fields
 pub struct antecedent_data::global_index::GlobalId
@@ -1195,6 +1361,17 @@ pub use antecedent_data::network::NetworkEdge = antecedent_data::NetworkEdge
 pub use antecedent_data::panel::PanelData = antecedent_data::PanelData
 pub use antecedent_data::panel::PanelUnit = antecedent_data::PanelUnit
 pub use antecedent_data::panel::PanelUnitView = antecedent_data::PanelUnitView
+pub use antecedent_data::panel_window::BorrowError = antecedent_data::BorrowError
+pub use antecedent_data::panel_window::CalendarSpan = antecedent_data::CalendarSpan
+pub use antecedent_data::panel_window::DeclaredSplit = antecedent_data::DeclaredSplit
+pub use antecedent_data::panel_window::LONGER_SPAN_OF_SAME_UNIT = antecedent_data::LONGER_SPAN_OF_SAME_UNIT
+pub use antecedent_data::panel_window::LagRefusal = antecedent_data::LagRefusal
+pub use antecedent_data::panel_window::PanelWindow = antecedent_data::PanelWindow
+pub use antecedent_data::panel_window::PopulationUnit = antecedent_data::PopulationUnit
+pub use antecedent_data::panel_window::UnitPartition = antecedent_data::UnitPartition
+pub use antecedent_data::panel_window::WindowBoundary = antecedent_data::WindowBoundary
+pub use antecedent_data::panel_window::WindowChunk = antecedent_data::WindowChunk
+pub use antecedent_data::panel_window::WindowNextAttempt = antecedent_data::WindowNextAttempt
 pub use antecedent_data::policy_required_text = antecedent_data::missing::policy_required_text
 pub use antecedent_data::pooled_frame::DEFAULT_MAX_TIME_ONE_HOT_LEVELS = antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS
 pub use antecedent_data::pooled_frame::DummyOptions = antecedent_data::DummyOptions
@@ -1237,6 +1414,8 @@ pub use antecedent_data::temporal::TemporalNodeKey = antecedent_core::TemporalNo
 pub use antecedent_data::temporal::TimeIndex = antecedent_data::TimeIndex
 pub use antecedent_data::vector_vars::VectorVariableGroups = antecedent_data::VectorVariableGroups
 pub use antecedent_data::vector_vars::column_blocks_for_frame = antecedent_data::column_blocks_for_frame
+pub variant antecedent_data::BorrowError::Refused(antecedent_data::LagRefusal)
+pub variant antecedent_data::BorrowError::TargetOutsideWindow { target: usize, rows: core::ops::range::Range<usize> }
 pub variant antecedent_data::ColumnView::Boolean(&'a antecedent_data::BooleanColumn)
 pub variant antecedent_data::ColumnView::Categorical(&'a antecedent_data::CategoricalColumn)
 pub variant antecedent_data::ColumnView::FixedVector(&'a antecedent_data::FixedVectorColumn)
@@ -1278,6 +1457,8 @@ pub variant antecedent_data::OwnedColumn::Int64(antecedent_data::Int64Column)
 pub variant antecedent_data::OwnedColumn::Timestamp(antecedent_data::TimestampColumn)
 pub variant antecedent_data::PermutationScheme::Full
 pub variant antecedent_data::PermutationScheme::WithinCluster
+pub variant antecedent_data::PopulationUnit::Environment { env_index: u32 }
+pub variant antecedent_data::PopulationUnit::Panel { unit_id: u32 }
 pub variant antecedent_data::ReferencePointPolicy::AbsoluteOrigin { origin_row: usize }
 pub variant antecedent_data::ReferencePointPolicy::SeriesOrigin
 pub variant antecedent_data::ResamplingPlan::BayesianBootstrap
@@ -1293,3 +1474,9 @@ pub variant antecedent_data::TimeDummyEncoding::IntegerIndex
 pub variant antecedent_data::TimeDummyEncoding::OneHot
 pub variant antecedent_data::UnknownCategoryPolicy::Fail
 pub variant antecedent_data::UnknownCategoryPolicy::MapToOther { other: antecedent_data::CategoryCode }
+pub variant antecedent_data::WindowBoundary::Calendar
+pub variant antecedent_data::WindowBoundary::Split
+pub variant antecedent_data::WindowBoundary::Unit
+pub variant antecedent_data::WindowNextAttempt::LongerSpanOfSameUnit { unit: antecedent_data::PopulationUnit }
+pub variant antecedent_data::WindowNextAttempt::StayInsideCalendarSegment
+pub variant antecedent_data::WindowNextAttempt::StayInsideSplit { name: alloc::sync::Arc<str> }
