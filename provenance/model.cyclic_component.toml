@@ -1,0 +1,24 @@
+feature_id = "model.cyclic_component"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Foundations of Structural Causal Models with Cycles and Latent Variables", doi = "10.48550/arXiv.1611.06221", sections = ["A cyclic model is one component of a feed-forward composition. This module does not implement the paper's solvability theory."] },
+ { title = "Learning Linear Cyclic Causal Models with Latent Variables", sections = ["The component may name the ρ(|K|) < 1 family bound. Carrying that name is not the paper's weak-stability certificate and is not the paper's estimator."] },
+]
+
+implementation_deviations = [
+ "Composition among components stays feed-forward. A cycle among components is refused, and a provenance chain that cites itself is refused. The next attempt is to wrap the cyclic model as one CyclicComponent with an explicit solve contract and to keep its source evidence outside that chain.",
+ "Admission names FREE_BLOCK_EQUATION and the ρ(|K|) < 1 family bound. Those are references to the linear-solution contract. This module does not evaluate the bound, does not form a free-block inverse, and does not issue a new certificate.",
+ "The component's own source id is not evidence that its solution holds. A source id that appears in the certifying evidence is refused.",
+ "The module does not sample, and it does not inherit unique solvability, the simple-SCM certificate, or physical stability.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-model/src/cyclic_component.rs)",
+]

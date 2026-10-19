@@ -1,6 +1,8 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_model::CycleGateError
+#[non_exhaustive] pub enum antecedent_model::CyclicComponentError
 #[non_exhaustive] pub enum antecedent_model::LinearSolutionError
 #[non_exhaustive] pub enum antecedent_model::ModelError
 #[non_exhaustive] pub enum antecedent_model::compose::CompositionError
@@ -26,8 +28,13 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::StructuralCausa
 impl core::clone::Clone for antecedent_model::BasisTerm
 impl core::clone::Clone for antecedent_model::CompiledCausalModel
 impl core::clone::Clone for antecedent_model::CompiledMechanismStore
+impl core::clone::Clone for antecedent_model::ComponentDependency
+impl core::clone::Clone for antecedent_model::ComponentOrder
 impl core::clone::Clone for antecedent_model::Conditioning
 impl core::clone::Clone for antecedent_model::ConsistencyWitness
+impl core::clone::Clone for antecedent_model::CycleGateError
+impl core::clone::Clone for antecedent_model::CyclicComponent
+impl core::clone::Clone for antecedent_model::CyclicComponentError
 impl core::clone::Clone for antecedent_model::DoSampleResult
 impl core::clone::Clone for antecedent_model::FactorDescription
 impl core::clone::Clone for antecedent_model::FamilyCertificate
@@ -72,6 +79,8 @@ impl core::clone::Clone for antecedent_model::PolicySupport
 impl core::clone::Clone for antecedent_model::PredictiveDraws
 impl core::clone::Clone for antecedent_model::ProbabilisticCausalModel
 impl core::clone::Clone for antecedent_model::ProgramKind
+impl core::clone::Clone for antecedent_model::ProvenanceCitation
+impl core::clone::Clone for antecedent_model::ProvenanceOrder
 impl core::clone::Clone for antecedent_model::QueryBlock
 impl core::clone::Clone for antecedent_model::ReplayOutcome
 impl core::clone::Clone for antecedent_model::RouteDecision
@@ -81,6 +90,7 @@ impl core::clone::Clone for antecedent_model::SelectionProvenance
 impl core::clone::Clone for antecedent_model::SelectionRule
 impl core::clone::Clone for antecedent_model::SingularBlock
 impl core::clone::Clone for antecedent_model::SolutionAssessment
+impl core::clone::Clone for antecedent_model::SolveContractName
 impl core::clone::Clone for antecedent_model::SolverConvergence
 impl core::clone::Clone for antecedent_model::StructuralCausalModel
 impl core::clone::Clone for antecedent_model::TemporalPath
@@ -155,6 +165,11 @@ impl core::clone::Clone for antecedent_model::observation_query::SignalLevelOutc
 impl core::clone::Clone for antecedent_model::observation_query::ThresholdCrossing
 impl core::clone::Clone for antecedent_model::observation_query::UnreachableBound
 impl core::cmp::Eq for antecedent_model::BasisTerm
+impl core::cmp::Eq for antecedent_model::ComponentDependency
+impl core::cmp::Eq for antecedent_model::ComponentOrder
+impl core::cmp::Eq for antecedent_model::CycleGateError
+impl core::cmp::Eq for antecedent_model::CyclicComponent
+impl core::cmp::Eq for antecedent_model::CyclicComponentError
 impl core::cmp::Eq for antecedent_model::GraphFalsificationOutcome
 impl core::cmp::Eq for antecedent_model::GraphUninformativeReason
 impl core::cmp::Eq for antecedent_model::HardClamp
@@ -172,12 +187,15 @@ impl core::cmp::Eq for antecedent_model::PolicyRefusal
 impl core::cmp::Eq for antecedent_model::PolicyRoute
 impl core::cmp::Eq for antecedent_model::PolicySupport
 impl core::cmp::Eq for antecedent_model::ProgramKind
+impl core::cmp::Eq for antecedent_model::ProvenanceCitation
+impl core::cmp::Eq for antecedent_model::ProvenanceOrder
 impl core::cmp::Eq for antecedent_model::ReplayOutcome
 impl core::cmp::Eq for antecedent_model::RouteDecision
 impl core::cmp::Eq for antecedent_model::SelectionOptions
 impl core::cmp::Eq for antecedent_model::SelectionPolicy
 impl core::cmp::Eq for antecedent_model::SelectionProvenance
 impl core::cmp::Eq for antecedent_model::SelectionRule
+impl core::cmp::Eq for antecedent_model::SolveContractName
 impl core::cmp::Eq for antecedent_model::SolverConvergence
 impl core::cmp::Eq for antecedent_model::ValidationSplits
 impl core::cmp::Eq for antecedent_model::compose::CoherenceFinding
@@ -216,8 +234,13 @@ impl core::cmp::Ord for antecedent_model::discretized_scm::InferenceParadigm
 impl core::cmp::Ord for antecedent_model::discretized_scm::ParityRoute
 impl core::cmp::Ord for antecedent_model::mechanism_transport::MechanismRole
 impl core::cmp::PartialEq for antecedent_model::BasisTerm
+impl core::cmp::PartialEq for antecedent_model::ComponentDependency
+impl core::cmp::PartialEq for antecedent_model::ComponentOrder
 impl core::cmp::PartialEq for antecedent_model::Conditioning
 impl core::cmp::PartialEq for antecedent_model::ConsistencyWitness
+impl core::cmp::PartialEq for antecedent_model::CycleGateError
+impl core::cmp::PartialEq for antecedent_model::CyclicComponent
+impl core::cmp::PartialEq for antecedent_model::CyclicComponentError
 impl core::cmp::PartialEq for antecedent_model::FactorDescription
 impl core::cmp::PartialEq for antecedent_model::FamilyCertificate
 impl core::cmp::PartialEq for antecedent_model::GraphFalsificationOutcome
@@ -240,6 +263,8 @@ impl core::cmp::PartialEq for antecedent_model::PolicyRefusal
 impl core::cmp::PartialEq for antecedent_model::PolicyRoute
 impl core::cmp::PartialEq for antecedent_model::PolicySupport
 impl core::cmp::PartialEq for antecedent_model::ProgramKind
+impl core::cmp::PartialEq for antecedent_model::ProvenanceCitation
+impl core::cmp::PartialEq for antecedent_model::ProvenanceOrder
 impl core::cmp::PartialEq for antecedent_model::QueryBlock
 impl core::cmp::PartialEq for antecedent_model::ReplayOutcome
 impl core::cmp::PartialEq for antecedent_model::RouteDecision
@@ -249,6 +274,7 @@ impl core::cmp::PartialEq for antecedent_model::SelectionProvenance
 impl core::cmp::PartialEq for antecedent_model::SelectionRule
 impl core::cmp::PartialEq for antecedent_model::SingularBlock
 impl core::cmp::PartialEq for antecedent_model::SolutionAssessment
+impl core::cmp::PartialEq for antecedent_model::SolveContractName
 impl core::cmp::PartialEq for antecedent_model::SolverConvergence
 impl core::cmp::PartialEq for antecedent_model::TreeEnsemble
 impl core::cmp::PartialEq for antecedent_model::Uniqueness
@@ -342,6 +368,8 @@ impl core::default::Default for antecedent_model::NoiseReplayer
 impl core::default::Default for antecedent_model::SelectionOptions
 impl core::default::Default for antecedent_model::ValidationSplits
 impl core::default::Default for antecedent_model::ValueBatch
+impl core::error::Error for antecedent_model::CycleGateError
+impl core::error::Error for antecedent_model::CyclicComponentError
 impl core::error::Error for antecedent_model::LinearSolutionError
 impl core::error::Error for antecedent_model::ModelError
 impl core::error::Error for antecedent_model::compose::CompositionError
@@ -350,8 +378,13 @@ impl core::error::Error for antecedent_model::observation_query::ObservationQuer
 impl core::fmt::Debug for antecedent_model::BasisTerm
 impl core::fmt::Debug for antecedent_model::CompiledCausalModel
 impl core::fmt::Debug for antecedent_model::CompiledMechanismStore
+impl core::fmt::Debug for antecedent_model::ComponentDependency
+impl core::fmt::Debug for antecedent_model::ComponentOrder
 impl core::fmt::Debug for antecedent_model::Conditioning
 impl core::fmt::Debug for antecedent_model::ConsistencyWitness
+impl core::fmt::Debug for antecedent_model::CycleGateError
+impl core::fmt::Debug for antecedent_model::CyclicComponent
+impl core::fmt::Debug for antecedent_model::CyclicComponentError
 impl core::fmt::Debug for antecedent_model::DoSampleResult
 impl core::fmt::Debug for antecedent_model::FactorDescription
 impl core::fmt::Debug for antecedent_model::FamilyCertificate
@@ -397,6 +430,8 @@ impl core::fmt::Debug for antecedent_model::PolicySupport
 impl core::fmt::Debug for antecedent_model::PredictiveDraws
 impl core::fmt::Debug for antecedent_model::ProbabilisticCausalModel
 impl core::fmt::Debug for antecedent_model::ProgramKind
+impl core::fmt::Debug for antecedent_model::ProvenanceCitation
+impl core::fmt::Debug for antecedent_model::ProvenanceOrder
 impl core::fmt::Debug for antecedent_model::QueryBlock
 impl core::fmt::Debug for antecedent_model::ReplayOutcome
 impl core::fmt::Debug for antecedent_model::RouteDecision
@@ -406,6 +441,7 @@ impl core::fmt::Debug for antecedent_model::SelectionProvenance
 impl core::fmt::Debug for antecedent_model::SelectionRule
 impl core::fmt::Debug for antecedent_model::SingularBlock
 impl core::fmt::Debug for antecedent_model::SolutionAssessment
+impl core::fmt::Debug for antecedent_model::SolveContractName
 impl core::fmt::Debug for antecedent_model::SolverConvergence
 impl core::fmt::Debug for antecedent_model::StructuralCausalModel
 impl core::fmt::Debug for antecedent_model::TemporalPath
@@ -479,6 +515,8 @@ impl core::fmt::Debug for antecedent_model::observation_query::RequiredBayesFact
 impl core::fmt::Debug for antecedent_model::observation_query::SignalLevelOutcome
 impl core::fmt::Debug for antecedent_model::observation_query::ThresholdCrossing
 impl core::fmt::Debug for antecedent_model::observation_query::UnreachableBound
+impl core::fmt::Display for antecedent_model::CycleGateError
+impl core::fmt::Display for antecedent_model::CyclicComponentError
 impl core::fmt::Display for antecedent_model::LinearSolutionError
 impl core::fmt::Display for antecedent_model::ModelError
 impl core::fmt::Display for antecedent_model::compose::CompositionError
@@ -518,6 +556,7 @@ impl core::marker::Copy for antecedent_model::ProgramKind
 impl core::marker::Copy for antecedent_model::ReplayOutcome
 impl core::marker::Copy for antecedent_model::SelectionPolicy
 impl core::marker::Copy for antecedent_model::SelectionRule
+impl core::marker::Copy for antecedent_model::SolveContractName
 impl core::marker::Copy for antecedent_model::SolverConvergence
 impl core::marker::Copy for antecedent_model::ValidationSplits
 impl core::marker::Copy for antecedent_model::compose::CoherenceKind
@@ -540,8 +579,13 @@ impl core::marker::Copy for antecedent_model::observation_query::UnreachableBoun
 impl core::marker::Freeze for antecedent_model::BasisTerm [auto]
 impl core::marker::Freeze for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Freeze for antecedent_model::CompiledMechanismStore [auto]
+impl core::marker::Freeze for antecedent_model::ComponentDependency [auto]
+impl core::marker::Freeze for antecedent_model::ComponentOrder [auto]
 impl core::marker::Freeze for antecedent_model::Conditioning [auto]
 impl core::marker::Freeze for antecedent_model::ConsistencyWitness [auto]
+impl core::marker::Freeze for antecedent_model::CycleGateError [auto]
+impl core::marker::Freeze for antecedent_model::CyclicComponent [auto]
+impl core::marker::Freeze for antecedent_model::CyclicComponentError [auto]
 impl core::marker::Freeze for antecedent_model::DoSampleResult [auto]
 impl core::marker::Freeze for antecedent_model::FactorDescription [auto]
 impl core::marker::Freeze for antecedent_model::FamilyCertificate [auto]
@@ -587,6 +631,8 @@ impl core::marker::Freeze for antecedent_model::PolicySupport [auto]
 impl core::marker::Freeze for antecedent_model::PredictiveDraws [auto]
 impl core::marker::Freeze for antecedent_model::ProbabilisticCausalModel [auto]
 impl core::marker::Freeze for antecedent_model::ProgramKind [auto]
+impl core::marker::Freeze for antecedent_model::ProvenanceCitation [auto]
+impl core::marker::Freeze for antecedent_model::ProvenanceOrder [auto]
 impl core::marker::Freeze for antecedent_model::QueryBlock [auto]
 impl core::marker::Freeze for antecedent_model::ReplayOutcome [auto]
 impl core::marker::Freeze for antecedent_model::RouteDecision [auto]
@@ -596,6 +642,7 @@ impl core::marker::Freeze for antecedent_model::SelectionProvenance [auto]
 impl core::marker::Freeze for antecedent_model::SelectionRule [auto]
 impl core::marker::Freeze for antecedent_model::SingularBlock [auto]
 impl core::marker::Freeze for antecedent_model::SolutionAssessment [auto]
+impl core::marker::Freeze for antecedent_model::SolveContractName [auto]
 impl core::marker::Freeze for antecedent_model::SolverConvergence [auto]
 impl core::marker::Freeze for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Freeze for antecedent_model::TemporalPath [auto]
@@ -672,8 +719,13 @@ impl core::marker::Freeze for antecedent_model::observation_query::UnreachableBo
 impl core::marker::Send for antecedent_model::BasisTerm [auto]
 impl core::marker::Send for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Send for antecedent_model::CompiledMechanismStore [auto]
+impl core::marker::Send for antecedent_model::ComponentDependency [auto]
+impl core::marker::Send for antecedent_model::ComponentOrder [auto]
 impl core::marker::Send for antecedent_model::Conditioning [auto]
 impl core::marker::Send for antecedent_model::ConsistencyWitness [auto]
+impl core::marker::Send for antecedent_model::CycleGateError [auto]
+impl core::marker::Send for antecedent_model::CyclicComponent [auto]
+impl core::marker::Send for antecedent_model::CyclicComponentError [auto]
 impl core::marker::Send for antecedent_model::DoSampleResult [auto]
 impl core::marker::Send for antecedent_model::FactorDescription [auto]
 impl core::marker::Send for antecedent_model::FamilyCertificate [auto]
@@ -719,6 +771,8 @@ impl core::marker::Send for antecedent_model::PolicySupport [auto]
 impl core::marker::Send for antecedent_model::PredictiveDraws [auto]
 impl core::marker::Send for antecedent_model::ProbabilisticCausalModel [auto]
 impl core::marker::Send for antecedent_model::ProgramKind [auto]
+impl core::marker::Send for antecedent_model::ProvenanceCitation [auto]
+impl core::marker::Send for antecedent_model::ProvenanceOrder [auto]
 impl core::marker::Send for antecedent_model::QueryBlock [auto]
 impl core::marker::Send for antecedent_model::ReplayOutcome [auto]
 impl core::marker::Send for antecedent_model::RouteDecision [auto]
@@ -728,6 +782,7 @@ impl core::marker::Send for antecedent_model::SelectionProvenance [auto]
 impl core::marker::Send for antecedent_model::SelectionRule [auto]
 impl core::marker::Send for antecedent_model::SingularBlock [auto]
 impl core::marker::Send for antecedent_model::SolutionAssessment [auto]
+impl core::marker::Send for antecedent_model::SolveContractName [auto]
 impl core::marker::Send for antecedent_model::SolverConvergence [auto]
 impl core::marker::Send for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Send for antecedent_model::TemporalPath [auto]
@@ -802,8 +857,13 @@ impl core::marker::Send for antecedent_model::observation_query::SignalLevelOutc
 impl core::marker::Send for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::marker::Send for antecedent_model::observation_query::UnreachableBound [auto]
 impl core::marker::StructuralPartialEq for antecedent_model::BasisTerm
+impl core::marker::StructuralPartialEq for antecedent_model::ComponentDependency
+impl core::marker::StructuralPartialEq for antecedent_model::ComponentOrder
 impl core::marker::StructuralPartialEq for antecedent_model::Conditioning
 impl core::marker::StructuralPartialEq for antecedent_model::ConsistencyWitness
+impl core::marker::StructuralPartialEq for antecedent_model::CycleGateError
+impl core::marker::StructuralPartialEq for antecedent_model::CyclicComponent
+impl core::marker::StructuralPartialEq for antecedent_model::CyclicComponentError
 impl core::marker::StructuralPartialEq for antecedent_model::FactorDescription
 impl core::marker::StructuralPartialEq for antecedent_model::FamilyCertificate
 impl core::marker::StructuralPartialEq for antecedent_model::GraphFalsificationOutcome
@@ -825,6 +885,8 @@ impl core::marker::StructuralPartialEq for antecedent_model::PolicyRefusal
 impl core::marker::StructuralPartialEq for antecedent_model::PolicyRoute
 impl core::marker::StructuralPartialEq for antecedent_model::PolicySupport
 impl core::marker::StructuralPartialEq for antecedent_model::ProgramKind
+impl core::marker::StructuralPartialEq for antecedent_model::ProvenanceCitation
+impl core::marker::StructuralPartialEq for antecedent_model::ProvenanceOrder
 impl core::marker::StructuralPartialEq for antecedent_model::QueryBlock
 impl core::marker::StructuralPartialEq for antecedent_model::ReplayOutcome
 impl core::marker::StructuralPartialEq for antecedent_model::RouteDecision
@@ -834,6 +896,7 @@ impl core::marker::StructuralPartialEq for antecedent_model::SelectionProvenance
 impl core::marker::StructuralPartialEq for antecedent_model::SelectionRule
 impl core::marker::StructuralPartialEq for antecedent_model::SingularBlock
 impl core::marker::StructuralPartialEq for antecedent_model::SolutionAssessment
+impl core::marker::StructuralPartialEq for antecedent_model::SolveContractName
 impl core::marker::StructuralPartialEq for antecedent_model::SolverConvergence
 impl core::marker::StructuralPartialEq for antecedent_model::TreeEnsemble
 impl core::marker::StructuralPartialEq for antecedent_model::Uniqueness
@@ -902,8 +965,13 @@ impl core::marker::StructuralPartialEq for antecedent_model::observation_query::
 impl core::marker::Sync for antecedent_model::BasisTerm [auto]
 impl core::marker::Sync for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Sync for antecedent_model::CompiledMechanismStore [auto]
+impl core::marker::Sync for antecedent_model::ComponentDependency [auto]
+impl core::marker::Sync for antecedent_model::ComponentOrder [auto]
 impl core::marker::Sync for antecedent_model::Conditioning [auto]
 impl core::marker::Sync for antecedent_model::ConsistencyWitness [auto]
+impl core::marker::Sync for antecedent_model::CycleGateError [auto]
+impl core::marker::Sync for antecedent_model::CyclicComponent [auto]
+impl core::marker::Sync for antecedent_model::CyclicComponentError [auto]
 impl core::marker::Sync for antecedent_model::DoSampleResult [auto]
 impl core::marker::Sync for antecedent_model::FactorDescription [auto]
 impl core::marker::Sync for antecedent_model::FamilyCertificate [auto]
@@ -949,6 +1017,8 @@ impl core::marker::Sync for antecedent_model::PolicySupport [auto]
 impl core::marker::Sync for antecedent_model::PredictiveDraws [auto]
 impl core::marker::Sync for antecedent_model::ProbabilisticCausalModel [auto]
 impl core::marker::Sync for antecedent_model::ProgramKind [auto]
+impl core::marker::Sync for antecedent_model::ProvenanceCitation [auto]
+impl core::marker::Sync for antecedent_model::ProvenanceOrder [auto]
 impl core::marker::Sync for antecedent_model::QueryBlock [auto]
 impl core::marker::Sync for antecedent_model::ReplayOutcome [auto]
 impl core::marker::Sync for antecedent_model::RouteDecision [auto]
@@ -958,6 +1028,7 @@ impl core::marker::Sync for antecedent_model::SelectionProvenance [auto]
 impl core::marker::Sync for antecedent_model::SelectionRule [auto]
 impl core::marker::Sync for antecedent_model::SingularBlock [auto]
 impl core::marker::Sync for antecedent_model::SolutionAssessment [auto]
+impl core::marker::Sync for antecedent_model::SolveContractName [auto]
 impl core::marker::Sync for antecedent_model::SolverConvergence [auto]
 impl core::marker::Sync for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Sync for antecedent_model::TemporalPath [auto]
@@ -1034,8 +1105,13 @@ impl core::marker::Sync for antecedent_model::observation_query::UnreachableBoun
 impl core::marker::Unpin for antecedent_model::BasisTerm [auto]
 impl core::marker::Unpin for antecedent_model::CompiledCausalModel [auto]
 impl core::marker::Unpin for antecedent_model::CompiledMechanismStore [auto]
+impl core::marker::Unpin for antecedent_model::ComponentDependency [auto]
+impl core::marker::Unpin for antecedent_model::ComponentOrder [auto]
 impl core::marker::Unpin for antecedent_model::Conditioning [auto]
 impl core::marker::Unpin for antecedent_model::ConsistencyWitness [auto]
+impl core::marker::Unpin for antecedent_model::CycleGateError [auto]
+impl core::marker::Unpin for antecedent_model::CyclicComponent [auto]
+impl core::marker::Unpin for antecedent_model::CyclicComponentError [auto]
 impl core::marker::Unpin for antecedent_model::DoSampleResult [auto]
 impl core::marker::Unpin for antecedent_model::FactorDescription [auto]
 impl core::marker::Unpin for antecedent_model::FamilyCertificate [auto]
@@ -1081,6 +1157,8 @@ impl core::marker::Unpin for antecedent_model::PolicySupport [auto]
 impl core::marker::Unpin for antecedent_model::PredictiveDraws [auto]
 impl core::marker::Unpin for antecedent_model::ProbabilisticCausalModel [auto]
 impl core::marker::Unpin for antecedent_model::ProgramKind [auto]
+impl core::marker::Unpin for antecedent_model::ProvenanceCitation [auto]
+impl core::marker::Unpin for antecedent_model::ProvenanceOrder [auto]
 impl core::marker::Unpin for antecedent_model::QueryBlock [auto]
 impl core::marker::Unpin for antecedent_model::ReplayOutcome [auto]
 impl core::marker::Unpin for antecedent_model::RouteDecision [auto]
@@ -1090,6 +1168,7 @@ impl core::marker::Unpin for antecedent_model::SelectionProvenance [auto]
 impl core::marker::Unpin for antecedent_model::SelectionRule [auto]
 impl core::marker::Unpin for antecedent_model::SingularBlock [auto]
 impl core::marker::Unpin for antecedent_model::SolutionAssessment [auto]
+impl core::marker::Unpin for antecedent_model::SolveContractName [auto]
 impl core::marker::Unpin for antecedent_model::SolverConvergence [auto]
 impl core::marker::Unpin for antecedent_model::StructuralCausalModel [auto]
 impl core::marker::Unpin for antecedent_model::TemporalPath [auto]
@@ -1164,8 +1243,13 @@ impl core::marker::Unpin for antecedent_model::observation_query::SignalLevelOut
 impl core::marker::Unpin for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::marker::Unpin for antecedent_model::observation_query::UnreachableBound [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::BasisTerm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ComponentDependency [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ComponentOrder [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::Conditioning [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ConsistencyWitness [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CycleGateError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CyclicComponent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::CyclicComponentError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::DoSampleResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::FactorDescription [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::FamilyCertificate [auto]
@@ -1206,6 +1290,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::PolicyRoute [
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::PolicySupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::PredictiveDraws [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ProgramKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ProvenanceCitation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ProvenanceOrder [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::QueryBlock [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ReplayOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::RouteDecision [auto]
@@ -1215,6 +1301,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::SelectionProv
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::SelectionRule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::SingularBlock [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::SolutionAssessment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::SolveContractName [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::SolverConvergence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::TemporalPath [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::TreeEnsemble [auto]
@@ -1288,8 +1375,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_q
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::ThresholdCrossing [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::observation_query::UnreachableBound [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::BasisTerm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ComponentDependency [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ComponentOrder [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::Conditioning [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ConsistencyWitness [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::CycleGateError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::CyclicComponent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::CyclicComponentError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::DoSampleResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::FactorDescription [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::FamilyCertificate [auto]
@@ -1330,6 +1422,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::PolicyRoute [aut
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::PolicySupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::PredictiveDraws [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ProgramKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ProvenanceCitation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ProvenanceOrder [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::QueryBlock [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::ReplayOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::RouteDecision [auto]
@@ -1339,6 +1433,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::SelectionProvena
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::SelectionRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::SingularBlock [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::SolutionAssessment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::SolveContractName [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::SolverConvergence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::TemporalPath [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::TreeEnsemble [auto]
@@ -1500,7 +1595,9 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::ParentBatch<
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_model::TemporalPlan<'a> [auto]
 pub const <antecedent_model::compose::CoherenceKind>::ALL: [antecedent_model::compose::CoherenceKind; 15]
 pub const <antecedent_model::discretized_scm::ParityRoute>::ALL: [Self; 15]
+pub const antecedent_model::CYCLE_GATE_NEXT_ATTEMPT: &str
 pub const antecedent_model::DEFAULT_MAX_CI_TESTS: usize
+pub const antecedent_model::FAMILY_BOUND_REFERENCE: &str
 pub const antecedent_model::FREE_BLOCK_EQUATION: &str
 pub const antecedent_model::MAX_GRAPH_PERMUTATIONS: usize
 pub const antecedent_model::NOISE_REPLAY_STREAM_DOMAIN: antecedent_core::execution::StreamDomain
@@ -1609,6 +1706,8 @@ pub field antecedent_model::CompiledCausalModel::node_order: alloc::sync::Arc<[a
 pub field antecedent_model::CompiledCausalModel::output_layout: antecedent_model::ModelOutputLayout
 pub field antecedent_model::CompiledCausalModel::parent_gathers: alloc::sync::Arc<[antecedent_model::ParentGatherPlan]>
 pub field antecedent_model::CompiledMechanismStore::slots: alloc::sync::Arc<[antecedent_model::MechanismSlot]>
+pub field antecedent_model::ComponentDependency::depends_on: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_model::ComponentDependency::name: alloc::string::String
 pub field antecedent_model::ConditionEvidence::nodes: &'a [antecedent_graph::types::DenseNodeId]
 pub field antecedent_model::ConditionEvidence::values: &'a [f64]
 pub field antecedent_model::DoSampleResult::accept_rate: core::option::Option<f64>
@@ -1744,6 +1843,8 @@ pub field antecedent_model::PolicySupport::simulation: antecedent_model::RouteDe
 pub field antecedent_model::PredictiveDraws::n_draws: usize
 pub field antecedent_model::PredictiveDraws::rows_per_draw: usize
 pub field antecedent_model::ProbabilisticCausalModel::compiled: antecedent_model::CompiledCausalModel
+pub field antecedent_model::ProvenanceCitation::artifact: alloc::string::String
+pub field antecedent_model::ProvenanceCitation::cites: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_model::QueryBlock::conditioning: antecedent_model::Conditioning
 pub field antecedent_model::QueryBlock::factor: antecedent_model::FactorDescription
 pub field antecedent_model::QueryBlock::uniqueness: antecedent_model::Uniqueness
@@ -1764,6 +1865,8 @@ pub field antecedent_model::SolutionAssessment::intervened: antecedent_model::Qu
 pub field antecedent_model::SolutionAssessment::original: antecedent_model::QueryBlock
 pub field antecedent_model::SolutionAssessment::physical_stability: antecedent_model::PhysicalStability
 pub field antecedent_model::SolutionAssessment::solver: antecedent_model::SolverConvergence
+pub field antecedent_model::SolveContractName::family_bound: &'static str
+pub field antecedent_model::SolveContractName::free_block_equation: &'static str
 pub field antecedent_model::StructuralCausalModel::compiled: antecedent_model::CompiledCausalModel
 pub field antecedent_model::TemporalPath::n_nodes: usize
 pub field antecedent_model::TemporalPath::n_rows: usize
@@ -1939,6 +2042,13 @@ pub fn <antecedent_model::CompiledCausalModel>::fn with_mechanisms(self, mechani
 pub fn <antecedent_model::CompiledMechanismStore>::fn get(&self, id: antecedent_graph::types::DenseNodeId) -> &antecedent_model::MechanismSlot
 pub fn <antecedent_model::CompiledMechanismStore>::fn vacant(n: usize) -> Self
 pub fn <antecedent_model::CompiledMechanismStore>::fn with_replaced(&self, id: antecedent_graph::types::DenseNodeId, slot: antecedent_model::MechanismSlot) -> core::result::Result<Self, antecedent_model::ModelError>
+pub fn <antecedent_model::ComponentOrder>::fn order(&self) -> &[alloc::string::String]
+pub fn <antecedent_model::CyclicComponent>::const fn solve_contract(&self) -> antecedent_model::SolveContractName
+pub fn <antecedent_model::CyclicComponent>::fn certifying_evidence(&self) -> &[alloc::string::String]
+pub fn <antecedent_model::CyclicComponent>::fn evidence_may_certify(&self, evidence: &str) -> bool
+pub fn <antecedent_model::CyclicComponent>::fn id(&self) -> &str
+pub fn <antecedent_model::CyclicComponent>::fn source_id(&self) -> &str
+pub fn <antecedent_model::CyclicComponent>::fn try_new(id: &str, source_id: &str, certifying_evidence: &[&str], solve: antecedent_model::SolveContractName) -> core::result::Result<Self, antecedent_model::CyclicComponentError>
 pub fn <antecedent_model::FamilyCertificate>::fn identification(&self) -> antecedent_model::IdentificationStatus
 pub fn <antecedent_model::FamilyCertificate>::fn is_admitted(&self) -> bool
 pub fn <antecedent_model::FamilyCertificate>::fn rho_abs_upper(&self) -> f64
@@ -2045,11 +2155,14 @@ pub fn <antecedent_model::ParentGatherPlan>::fn n_parents(&self) -> usize
 pub fn <antecedent_model::PolicyRefusal>::fn into_error(self) -> antecedent_model::ModelError
 pub fn <antecedent_model::PolicySupport>::fn decision(&self, route: antecedent_model::PolicyRoute) -> &antecedent_model::RouteDecision
 pub fn <antecedent_model::ProbabilisticCausalModel>::fn new(compiled: antecedent_model::CompiledCausalModel) -> Self
+pub fn <antecedent_model::ProvenanceOrder>::fn order(&self) -> &[alloc::string::String]
 pub fn <antecedent_model::RouteDecision>::fn assumption(&self) -> core::option::Option<&str>
 pub fn <antecedent_model::RouteDecision>::fn is_licensed(&self) -> bool
 pub fn <antecedent_model::SelectionOptions>::fn constraint_for(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<&antecedent_model::NodeFamilyConstraint>
 pub fn <antecedent_model::SelectionPolicy>::fn select(self, candidates: &[antecedent_model::MechanismCandidate]) -> core::option::Option<antecedent_model::MechanismFamily>
 pub fn <antecedent_model::SelectionRule>::const fn id(self) -> &'static str
+pub fn <antecedent_model::SolveContractName>::const fn explicit() -> Self
+pub fn <antecedent_model::SolveContractName>::fn is_explicit(self) -> bool
 pub fn <antecedent_model::StructuralCausalModel>::fn new(compiled: antecedent_model::CompiledCausalModel) -> Self
 pub fn <antecedent_model::TemporalPath>::fn column(&self, step: usize, node: usize) -> core::result::Result<&[f64], antecedent_model::ModelError>
 pub fn <antecedent_model::TreeEnsemble>::fn learner(&self) -> &str
@@ -2146,6 +2259,8 @@ pub fn antecedent_model::apply_node_program(program: &antecedent_model::NodeProg
 pub fn antecedent_model::assess(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::SolutionAssessment, antecedent_model::LinearSolutionError>
 pub fn antecedent_model::basis::column_moments(columns: &[&[f64]], n_rows: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
 pub fn antecedent_model::basis::spline_knots(columns: &[&[f64]], n_rows: usize, centers: &[f64], scales: &[f64]) -> alloc::vec::Vec<alloc::sync::Arc<[f64]>>
+pub fn antecedent_model::check_component_composition(components: &[antecedent_model::ComponentDependency]) -> core::result::Result<antecedent_model::ComponentOrder, antecedent_model::CycleGateError>
+pub fn antecedent_model::check_provenance_chain(citations: &[antecedent_model::ProvenanceCitation]) -> core::result::Result<antecedent_model::ProvenanceOrder, antecedent_model::CycleGateError>
 pub fn antecedent_model::compose::check_composition(spec: &antecedent_model::compose::ComposedModelSpec) -> alloc::vec::Vec<antecedent_model::compose::CoherenceFinding>
 pub fn antecedent_model::compose::coherence::is_positive_semidefinite(matrix: &[f64], n: usize) -> bool
 pub fn antecedent_model::compose::coherence::parameter_layout(spec: &antecedent_model::compose::ComposedModelSpec) -> alloc::vec::Vec<antecedent_model::compose::ParameterId>
@@ -2202,6 +2317,7 @@ pub mod antecedent_model::compose::descriptor
 pub mod antecedent_model::compose::gaussian
 pub mod antecedent_model::compose::tabular
 pub mod antecedent_model::compose::uncertainty
+pub mod antecedent_model::cyclic_component
 pub mod antecedent_model::discretized_scm
 pub mod antecedent_model::discretized_scm_artifact
 pub mod antecedent_model::do_sampler
@@ -2224,7 +2340,12 @@ pub mod antecedent_model::tree
 pub struct antecedent_model::CompiledCausalModel
 pub struct antecedent_model::CompiledCausalModel has private fields
 pub struct antecedent_model::CompiledMechanismStore
+pub struct antecedent_model::ComponentDependency
+pub struct antecedent_model::ComponentOrder
+pub struct antecedent_model::ComponentOrder has private fields
 pub struct antecedent_model::ConditionEvidence<'a>
+pub struct antecedent_model::CyclicComponent
+pub struct antecedent_model::CyclicComponent has private fields
 pub struct antecedent_model::DoSampleResult
 pub struct antecedent_model::FactorDescription
 pub struct antecedent_model::GraphFalsificationConfig
@@ -2265,12 +2386,16 @@ pub struct antecedent_model::PolicyRefusal
 pub struct antecedent_model::PolicySupport
 pub struct antecedent_model::PredictiveDraws
 pub struct antecedent_model::ProbabilisticCausalModel
+pub struct antecedent_model::ProvenanceCitation
+pub struct antecedent_model::ProvenanceOrder
+pub struct antecedent_model::ProvenanceOrder has private fields
 pub struct antecedent_model::QueryBlock
 pub struct antecedent_model::ReplayOutcome
 pub struct antecedent_model::SelectionOptions
 pub struct antecedent_model::SelectionProvenance
 pub struct antecedent_model::SingularBlock
 pub struct antecedent_model::SolutionAssessment
+pub struct antecedent_model::SolveContractName
 pub struct antecedent_model::StructuralCausalModel
 pub struct antecedent_model::TemporalPath
 pub struct antecedent_model::TemporalPlan<'a>
@@ -2401,6 +2526,18 @@ pub use antecedent_model::compose::parameter_terms = antecedent_model::compose::
 pub use antecedent_model::compose::tabular::ComposedFinite = antecedent_model::compose::ComposedFinite
 pub use antecedent_model::compose::tabular::FiniteLaw = antecedent_model::compose::FiniteLaw
 pub use antecedent_model::compose::uncertainty_findings = antecedent_model::compose::coherence::uncertainty_findings
+pub use antecedent_model::cyclic_component::CYCLE_GATE_NEXT_ATTEMPT = antecedent_model::CYCLE_GATE_NEXT_ATTEMPT
+pub use antecedent_model::cyclic_component::ComponentDependency = antecedent_model::ComponentDependency
+pub use antecedent_model::cyclic_component::ComponentOrder = antecedent_model::ComponentOrder
+pub use antecedent_model::cyclic_component::CycleGateError = antecedent_model::CycleGateError
+pub use antecedent_model::cyclic_component::CyclicComponent = antecedent_model::CyclicComponent
+pub use antecedent_model::cyclic_component::CyclicComponentError = antecedent_model::CyclicComponentError
+pub use antecedent_model::cyclic_component::FAMILY_BOUND_REFERENCE = antecedent_model::FAMILY_BOUND_REFERENCE
+pub use antecedent_model::cyclic_component::ProvenanceCitation = antecedent_model::ProvenanceCitation
+pub use antecedent_model::cyclic_component::ProvenanceOrder = antecedent_model::ProvenanceOrder
+pub use antecedent_model::cyclic_component::SolveContractName = antecedent_model::SolveContractName
+pub use antecedent_model::cyclic_component::check_component_composition = antecedent_model::check_component_composition
+pub use antecedent_model::cyclic_component::check_provenance_chain = antecedent_model::check_provenance_chain
 pub use antecedent_model::do_sampler::DoSampleResult = antecedent_model::DoSampleResult
 pub use antecedent_model::do_sampler::KdeDoSampler = antecedent_model::KdeDoSampler
 pub use antecedent_model::do_sampler::McmcDoSampler = antecedent_model::McmcDoSampler
@@ -2504,6 +2641,20 @@ pub variant antecedent_model::Conditioning::NotEstimated { next_attempt: anteced
 pub variant antecedent_model::Conditioning::Undefined
 pub variant antecedent_model::ConsistencyWitness::LeftNull(alloc::vec::Vec<f64>)
 pub variant antecedent_model::ConsistencyWitness::NotFormed
+pub variant antecedent_model::CycleGateError::ComponentCycle { path: alloc::string::String, next_attempt: &'static str }
+pub variant antecedent_model::CycleGateError::DuplicateArtifact { id: alloc::string::String }
+pub variant antecedent_model::CycleGateError::DuplicateComponent { name: alloc::string::String }
+pub variant antecedent_model::CycleGateError::EmptyArtifact
+pub variant antecedent_model::CycleGateError::EmptyCitation { artifact: alloc::string::String }
+pub variant antecedent_model::CycleGateError::EmptyComponentName
+pub variant antecedent_model::CycleGateError::EmptyDependency { component: alloc::string::String }
+pub variant antecedent_model::CycleGateError::ProvenanceCycle { id: alloc::string::String, path: alloc::string::String, next_attempt: &'static str }
+pub variant antecedent_model::CycleGateError::UnknownComponent { component: alloc::string::String, dependency: alloc::string::String }
+pub variant antecedent_model::CyclicComponentError::EmptyCertifyingEvidence { component: alloc::string::String }
+pub variant antecedent_model::CyclicComponentError::EmptyComponentId
+pub variant antecedent_model::CyclicComponentError::EmptySourceId { component: alloc::string::String }
+pub variant antecedent_model::CyclicComponentError::SolveContractNotExplicit { component: alloc::string::String }
+pub variant antecedent_model::CyclicComponentError::SourceCertifiesItself { component: alloc::string::String, source_id: alloc::string::String }
 pub variant antecedent_model::FamilyCertificate::Admitted { rho_abs_upper: f64 }
 pub variant antecedent_model::FamilyCertificate::Insufficient { rho_abs_upper: f64, next_attempt: antecedent_model::NextAttempt, identification: antecedent_model::IdentificationStatus }
 pub variant antecedent_model::GraphFalsificationOutcome::Incomplete

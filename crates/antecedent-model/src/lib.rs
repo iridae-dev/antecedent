@@ -12,6 +12,7 @@ pub mod basis;
 pub mod batch;
 pub mod compile;
 pub mod compose;
+pub mod cyclic_component;
 pub mod discretized_scm;
 pub mod discretized_scm_artifact;
 pub mod do_sampler;
@@ -40,6 +41,11 @@ pub use compile::{
     CompiledCausalModel, CompiledMechanismStore, DynamicMechanism, InvertibleStructuralCausalModel,
     MechanismSlot, ModelOutputLayout, ParentGatherPlan, ProbabilisticCausalModel,
     StructuralCausalModel,
+};
+pub use cyclic_component::{
+    CYCLE_GATE_NEXT_ATTEMPT, ComponentDependency, ComponentOrder, CycleGateError, CyclicComponent,
+    CyclicComponentError, FAMILY_BOUND_REFERENCE, ProvenanceCitation, ProvenanceOrder,
+    SolveContractName, check_component_composition, check_provenance_chain,
 };
 pub use do_sampler::{
     DoSampleResult, KdeDoSampler, McmcDoSampler, WeightingDoSampler, interventional_mean,
