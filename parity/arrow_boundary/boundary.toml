@@ -1,0 +1,49 @@
+# D13 audit of the Arrow version, the C Data Interface, and the optional Polars
+# feature boundary. Pins are the workspace declarations. This file is an audit
+# record. It is not a timing record.
+
+id = "D13"
+kind = "audit"
+adr = "0004"
+rust = "1.85"
+
+[pins]
+source = "Cargo.toml workspace.dependencies"
+arrow_array = "54"
+arrow_schema = "54"
+arrow_buffer = "54"
+pyo3 = "0.29"
+pyo3_build_config = "0.29"
+polars = "absent"
+
+[features]
+crate = "antecedent-data"
+manifest = "crates/antecedent-data/Cargo.toml"
+arrow = "optional"
+arrow_default = true
+arrow_enables = [
+    "arrow-array",
+    "arrow-schema",
+    "arrow-buffer",
+    "arrow-array/ffi",
+    "arrow-schema/ffi",
+]
+polars_feature = "absent"
+polars_dependency = false
+
+[types]
+policy = "Arrow types stay inside arrow_adapter.rs (ADR 0004)."
+arrow_adapter = "crates/antecedent-data/src/arrow_adapter.rs"
+ffi_module = "crates/antecedent-data/src/arrow_ffi.rs"
+ffi_gate = "arrow"
+backend_specific_types = "internal"
+public_causal_api = "library-owned views"
+boundary_module = "crates/antecedent-data/src/backend_boundary.rs"
+polars_internal_contract_backend = false
+default_backend = "none"
+
+[install]
+rust_feature_builds = "lib tests passed with default features and with --no-default-features"
+wheel = "not_run"
+clean_cpu = "not_run"
+note = "The parent runs the wheel and clean-CPU builds. This change does not, and it does not make a backend the default."

@@ -25,6 +25,7 @@ pub mod aligned_buffer;
 pub mod arrow_adapter;
 #[cfg(feature = "arrow")]
 pub mod arrow_ffi;
+pub mod backend_boundary;
 pub mod buffer;
 pub mod categorical;
 pub mod column;

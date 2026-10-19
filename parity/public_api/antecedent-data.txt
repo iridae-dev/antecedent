@@ -859,6 +859,7 @@ pub const <antecedent_data::DiscreteColumn>::MISSING: u32
 pub const <antecedent_data::MissingPolicy>::NAMES: [&'static str; 6]
 pub const antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS: usize
 pub const antecedent_data::LONGER_SPAN_OF_SAME_UNIT: &str
+pub const antecedent_data::backend_boundary::POLARS_IS_INTERNAL_CONTRACT_BACKEND: bool
 pub enum antecedent_data::BorrowError
 pub enum antecedent_data::ColumnView<'a>
 pub enum antecedent_data::Contrast
@@ -1232,6 +1233,7 @@ pub fn antecedent_data::surrogate::surrogate_phase_randomize(data: &antecedent_d
 pub mod antecedent_data::aligned_buffer
 pub mod antecedent_data::arrow_adapter
 pub mod antecedent_data::arrow_ffi
+pub mod antecedent_data::backend_boundary
 pub mod antecedent_data::buffer
 pub mod antecedent_data::categorical
 pub mod antecedent_data::column
