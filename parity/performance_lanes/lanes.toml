@@ -1,0 +1,172 @@
+# Release lanes registered before optimization.
+# Predecessor tag: v2.4.1. Proposals are goals. This file stores no timings,
+# speedups, or byte measurements. Historical bench timings are a different record.
+# status = "registered_not_measured" means the lane is named and has not been run.
+
+schema = 1
+predecessor_tag = "v2.4.1"
+measured = false
+
+[[lane]]
+id = "first_answer"
+status = "registered_not_measured"
+predecessor = "v2.4.1"
+proposal = "proposed 2-5x faster first answer on selected complete workloads"
+comparison = "frozen same-host v2.4.1"
+timed_section = "The timed section is the complete first answer for that control. Requested uncertainty and diagnostics are inside it. A point estimate by itself does not complete the timed section."
+controls = [
+    "adjustment",
+    "glm",
+    "aipw",
+    "bootstrap",
+    "gaussian_bayes",
+    "nonlinear_bayes",
+    "pc",
+    "fci",
+    "pcmci",
+    "panel",
+    "survival",
+    "policy",
+    "transport",
+    "counterfactual",
+    "decision",
+]
+missing_entry_point = [
+    "nonlinear_bayes",
+    "fci",
+    "survival",
+    "policy",
+]
+measurement_fields = [
+    "peak_rss",
+    "copy_bytes",
+    "source_passes",
+    "fit_count",
+    "test_count",
+    "retained_outputs",
+    "spill_bytes",
+    "threads",
+    "stage_times_ns",
+]
+notes = "Selected complete workloads from the B06 suite whose timed section includes uncertainty or diagnostics."
+
+[lane.envelope]
+ram = "same host as the frozen v2.4.1 control; peak resident set is a required field"
+time = "the control timed section, including requested uncertainty and diagnostics"
+disk = "spill and retained outputs are required fields; this lane adds no disk budget"
+
+[[lane]]
+id = "reuse_throughput"
+status = "registered_not_measured"
+predecessor = "v2.4.1"
+proposal = "proposed 10x throughput for compatible query, retarget, and refresh"
+comparison = "independent v2.4.1 solo call and the existing v2.4.1 prepared/batch API"
+timed_section = "The timed section is compatible query, retarget, and refresh, including the uncertainty those calls already compute. A point estimate by itself does not complete the timed section."
+controls = [
+    "adjustment",
+    "aipw",
+    "prepared_query_families",
+    "refresh",
+    "decision",
+]
+solo_controls = [
+    "adjustment",
+    "aipw",
+]
+prepared_controls = [
+    "prepared_query_families",
+]
+missing_entry_point = [
+    "prepared_query_families",
+]
+measurement_fields = [
+    "peak_rss",
+    "copy_bytes",
+    "source_passes",
+    "fit_count",
+    "test_count",
+    "retained_outputs",
+    "spill_bytes",
+    "threads",
+    "stage_times_ns",
+]
+notes = "Baselines are an independent v2.4.1 solo call and the existing v2.4.1 prepared/batch API. Refresh and utility retarget are the other compatible families."
+
+[lane.envelope]
+ram = "resident set of one independent call plus declared retained prepared state"
+time = "repeated compatible query, retarget, and refresh, against both the solo call and the prepared/batch API"
+disk = "declared retention of prepared state; spill is a required field"
+
+[[lane]]
+id = "row_capacity"
+status = "registered_not_measured"
+predecessor = "v2.4.1"
+proposal = "proposed 10x rows on named fixed-width lanes"
+comparison = "defined v2.4.1 maximum for that fixed-width lane, with complete result requirements"
+timed_section = "The timed section returns the complete v2.4.1 result, including that control's uncertainty. A point estimate by itself does not complete the timed section."
+shape = "fixed-width"
+controls = [
+    "adjustment",
+    "glm",
+    "aipw",
+    "bootstrap",
+    "gaussian_bayes",
+    "panel",
+    "transport",
+    "survival",
+    "policy",
+]
+missing_entry_point = [
+    "survival",
+    "policy",
+]
+measurement_fields = [
+    "peak_rss",
+    "copy_bytes",
+    "source_passes",
+    "fit_count",
+    "test_count",
+    "retained_outputs",
+    "spill_bytes",
+    "threads",
+    "stage_times_ns",
+]
+notes = "Named fixed-width lanes. Encoded width stays at the control. The scale axis is rows. Discovery and graph degree are a different axis."
+
+[lane.envelope]
+ram = "same RAM envelope as the named v2.4.1 control"
+time = "declared time envelope of that same v2.4.1 control"
+disk = "complete results under the v2.4.1 retention requirements; spill is a required field when used"
+
+[[lane]]
+id = "exact_capacity"
+status = "registered_not_measured"
+predecessor = "v2.4.1"
+proposal = "proposed exact 100x on one streaming reduction"
+comparison = "v2.4.1 result and retention requirements for the Gaussian control"
+timed_section = "The timed section is the streaming reduction plus declared diagnostic passes. Result and retention match the v2.4.1 control. A point estimate by itself does not complete the timed section."
+reduction = "one streaming reduction: fixed-width weighted Gaussian and OLS sufficient statistics (X'WX style summaries)"
+diagnostics = "declared diagnostic passes, including robust covariance, leverage, and residual checks"
+applicability = "Gaussian lowering applies to fixed-width weighted Gaussian and OLS likelihoods. Arbitrary nonlinear likelihoods keep their own scans."
+controls = [
+    "glm",
+    "gaussian_bayes",
+]
+missing_entry_point = []
+measurement_fields = [
+    "peak_rss",
+    "copy_bytes",
+    "source_passes",
+    "fit_count",
+    "test_count",
+    "retained_outputs",
+    "spill_bytes",
+    "threads",
+    "stage_times_ns",
+]
+notes = "One streaming reduction. Sufficient statistics are the starting point. Diagnostic passes stay in the physical plan. Result and retention requirements match the v2.4.1 control."
+
+[lane.envelope]
+ram = "fixed RAM ceiling for the reduction and the declared diagnostic state"
+time = "declared time envelope covering the reduction and the diagnostic passes"
+disk = "declared disk for the source scan, spill, and outputs whose retention matches the v2.4.1 control"
