@@ -41,6 +41,7 @@
 pub mod assumption;
 pub mod calibration_basis;
 pub mod callback;
+pub mod cancellation_boundary;
 pub mod diagnostic;
 pub mod device_reservation;
 pub mod error;

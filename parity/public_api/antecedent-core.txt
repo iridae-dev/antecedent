@@ -53,6 +53,7 @@
 #[non_exhaustive] pub enum antecedent_core::TheoremFamily
 #[non_exhaustive] pub enum antecedent_core::TransportSupportCoordinate
 #[non_exhaustive] pub enum antecedent_core::ValueExpr
+#[non_exhaustive] pub enum antecedent_core::cancellation_boundary::BoundaryError
 #[non_exhaustive] pub enum antecedent_core::device_reservation::DeviceReservationError
 #[non_exhaustive] pub enum antecedent_core::execution::AdmissionError
 #[non_exhaustive] pub enum antecedent_core::execution_facts::ExecutionFactError
@@ -409,6 +410,17 @@ impl core::clone::Clone for antecedent_core::WorldCollection
 impl core::clone::Clone for antecedent_core::WorldId
 impl core::clone::Clone for antecedent_core::WorldObservation
 impl core::clone::Clone for antecedent_core::WorldSpec
+impl core::clone::Clone for antecedent_core::cancellation_boundary::Boundary
+impl core::clone::Clone for antecedent_core::cancellation_boundary::BoundaryError
+impl core::clone::Clone for antecedent_core::cancellation_boundary::BoundaryReport
+impl core::clone::Clone for antecedent_core::cancellation_boundary::BoundarySession
+impl core::clone::Clone for antecedent_core::cancellation_boundary::CancelSite
+impl core::clone::Clone for antecedent_core::cancellation_boundary::LeaseId
+impl core::clone::Clone for antecedent_core::cancellation_boundary::PartialResult
+impl core::clone::Clone for antecedent_core::cancellation_boundary::ProviderDisposition
+impl core::clone::Clone for antecedent_core::cancellation_boundary::StopReceipt
+impl core::clone::Clone for antecedent_core::cancellation_boundary::SuccessReceipt
+impl core::clone::Clone for antecedent_core::cancellation_boundary::UninterruptibleAdmission
 impl core::clone::Clone for antecedent_core::device_reservation::DeviceReservationError
 impl core::clone::Clone for antecedent_core::device_reservation::DeviceReservationPool
 impl core::clone::Clone for antecedent_core::device_reservation::DeviceReservationRemainder
@@ -768,6 +780,17 @@ impl core::cmp::Eq for antecedent_core::WorldCollection
 impl core::cmp::Eq for antecedent_core::WorldId
 impl core::cmp::Eq for antecedent_core::WorldObservation
 impl core::cmp::Eq for antecedent_core::WorldSpec
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::Boundary
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::BoundaryError
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::BoundaryReport
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::BoundarySession
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::CancelSite
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::LeaseId
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::PartialResult
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::ProviderDisposition
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::StopReceipt
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::SuccessReceipt
+impl core::cmp::Eq for antecedent_core::cancellation_boundary::UninterruptibleAdmission
 impl core::cmp::Eq for antecedent_core::device_reservation::DeviceReservationError
 impl core::cmp::Eq for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::cmp::Eq for antecedent_core::device_reservation::DeviceReservationRequest
@@ -1206,6 +1229,17 @@ impl core::cmp::PartialEq for antecedent_core::WorldCollection
 impl core::cmp::PartialEq for antecedent_core::WorldId
 impl core::cmp::PartialEq for antecedent_core::WorldObservation
 impl core::cmp::PartialEq for antecedent_core::WorldSpec
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::Boundary
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::BoundaryError
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::BoundaryReport
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::BoundarySession
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::CancelSite
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::LeaseId
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::PartialResult
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::ProviderDisposition
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::StopReceipt
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::SuccessReceipt
+impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::UninterruptibleAdmission
 impl core::cmp::PartialEq for antecedent_core::device_reservation::DeviceReservationError
 impl core::cmp::PartialEq for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::cmp::PartialEq for antecedent_core::device_reservation::DeviceReservationRequest
@@ -1408,6 +1442,7 @@ impl core::error::Error for antecedent_core::SchemaError
 impl core::error::Error for antecedent_core::ScientificTargetError
 impl core::error::Error for antecedent_core::TemporalIndexError
 impl core::error::Error for antecedent_core::ToleranceError
+impl core::error::Error for antecedent_core::cancellation_boundary::BoundaryError
 impl core::error::Error for antecedent_core::device_reservation::DeviceReservationError
 impl core::error::Error for antecedent_core::execution::AdmissionError
 impl core::error::Error for antecedent_core::execution_facts::ExecutionFactError
@@ -1743,6 +1778,17 @@ impl core::fmt::Debug for antecedent_core::WorldCollection
 impl core::fmt::Debug for antecedent_core::WorldId
 impl core::fmt::Debug for antecedent_core::WorldObservation
 impl core::fmt::Debug for antecedent_core::WorldSpec
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::Boundary
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::BoundaryError
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::BoundaryReport
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::BoundarySession
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::CancelSite
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::LeaseId
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::PartialResult
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::ProviderDisposition
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::StopReceipt
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::SuccessReceipt
+impl core::fmt::Debug for antecedent_core::cancellation_boundary::UninterruptibleAdmission
 impl core::fmt::Debug for antecedent_core::device_reservation::DeviceReservationError
 impl core::fmt::Debug for antecedent_core::device_reservation::DeviceReservationLease
 impl core::fmt::Debug for antecedent_core::device_reservation::DeviceReservationPool
@@ -1914,6 +1960,12 @@ impl core::fmt::Display for antecedent_core::ToleranceError
 impl core::fmt::Display for antecedent_core::Value
 impl core::fmt::Display for antecedent_core::VariableId
 impl core::fmt::Display for antecedent_core::VarianceRule
+impl core::fmt::Display for antecedent_core::cancellation_boundary::BoundaryError
+impl core::fmt::Display for antecedent_core::cancellation_boundary::BoundaryReport
+impl core::fmt::Display for antecedent_core::cancellation_boundary::CancelSite
+impl core::fmt::Display for antecedent_core::cancellation_boundary::LeaseId
+impl core::fmt::Display for antecedent_core::cancellation_boundary::ProviderDisposition
+impl core::fmt::Display for antecedent_core::cancellation_boundary::UninterruptibleAdmission
 impl core::fmt::Display for antecedent_core::device_reservation::DeviceReservationError
 impl core::fmt::Display for antecedent_core::execution::AdmissionError
 impl core::fmt::Display for antecedent_core::execution_facts::ExecutionFactError
@@ -2144,6 +2196,17 @@ impl core::hash::Hash for antecedent_core::WorldCollection
 impl core::hash::Hash for antecedent_core::WorldId
 impl core::hash::Hash for antecedent_core::WorldObservation
 impl core::hash::Hash for antecedent_core::WorldSpec
+impl core::hash::Hash for antecedent_core::cancellation_boundary::Boundary
+impl core::hash::Hash for antecedent_core::cancellation_boundary::BoundaryError
+impl core::hash::Hash for antecedent_core::cancellation_boundary::BoundaryReport
+impl core::hash::Hash for antecedent_core::cancellation_boundary::BoundarySession
+impl core::hash::Hash for antecedent_core::cancellation_boundary::CancelSite
+impl core::hash::Hash for antecedent_core::cancellation_boundary::LeaseId
+impl core::hash::Hash for antecedent_core::cancellation_boundary::PartialResult
+impl core::hash::Hash for antecedent_core::cancellation_boundary::ProviderDisposition
+impl core::hash::Hash for antecedent_core::cancellation_boundary::StopReceipt
+impl core::hash::Hash for antecedent_core::cancellation_boundary::SuccessReceipt
+impl core::hash::Hash for antecedent_core::cancellation_boundary::UninterruptibleAdmission
 impl core::hash::Hash for antecedent_core::device_reservation::DeviceReservationError
 impl core::hash::Hash for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::hash::Hash for antecedent_core::device_reservation::DeviceReservationRequest
@@ -2353,6 +2416,17 @@ impl core::marker::Copy for antecedent_core::VarianceRule
 impl core::marker::Copy for antecedent_core::WorkerId
 impl core::marker::Copy for antecedent_core::WorldId
 impl core::marker::Copy for antecedent_core::WorldObservation
+impl core::marker::Copy for antecedent_core::cancellation_boundary::Boundary
+impl core::marker::Copy for antecedent_core::cancellation_boundary::BoundaryError
+impl core::marker::Copy for antecedent_core::cancellation_boundary::BoundaryReport
+impl core::marker::Copy for antecedent_core::cancellation_boundary::BoundarySession
+impl core::marker::Copy for antecedent_core::cancellation_boundary::CancelSite
+impl core::marker::Copy for antecedent_core::cancellation_boundary::LeaseId
+impl core::marker::Copy for antecedent_core::cancellation_boundary::PartialResult
+impl core::marker::Copy for antecedent_core::cancellation_boundary::ProviderDisposition
+impl core::marker::Copy for antecedent_core::cancellation_boundary::StopReceipt
+impl core::marker::Copy for antecedent_core::cancellation_boundary::SuccessReceipt
+impl core::marker::Copy for antecedent_core::cancellation_boundary::UninterruptibleAdmission
 impl core::marker::Copy for antecedent_core::device_reservation::DeviceReservationError
 impl core::marker::Copy for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::marker::Copy for antecedent_core::device_reservation::DeviceReservationRequest
@@ -2745,6 +2819,17 @@ impl core::marker::Freeze for antecedent_core::WorldCollection [auto]
 impl core::marker::Freeze for antecedent_core::WorldId [auto]
 impl core::marker::Freeze for antecedent_core::WorldObservation [auto]
 impl core::marker::Freeze for antecedent_core::WorldSpec [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::Boundary [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::BoundaryError [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::BoundaryReport [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::BoundarySession [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::LeaseId [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::PartialResult [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::StopReceipt [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
+impl core::marker::Freeze for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::DeviceReservationPool [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::DeviceReservationRemainder [auto]
@@ -3172,6 +3257,17 @@ impl core::marker::Send for antecedent_core::WorldCollection [auto]
 impl core::marker::Send for antecedent_core::WorldId [auto]
 impl core::marker::Send for antecedent_core::WorldObservation [auto]
 impl core::marker::Send for antecedent_core::WorldSpec [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::Boundary [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::BoundaryError [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::BoundaryReport [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::BoundarySession [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::LeaseId [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::PartialResult [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::StopReceipt [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
+impl core::marker::Send for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
 impl core::marker::Send for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::marker::Send for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl core::marker::Send for antecedent_core::device_reservation::DeviceReservationPool [auto]
@@ -3586,6 +3682,17 @@ impl core::marker::StructuralPartialEq for antecedent_core::WorldCollection
 impl core::marker::StructuralPartialEq for antecedent_core::WorldId
 impl core::marker::StructuralPartialEq for antecedent_core::WorldObservation
 impl core::marker::StructuralPartialEq for antecedent_core::WorldSpec
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::Boundary
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::BoundaryError
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::BoundaryReport
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::BoundarySession
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::CancelSite
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::LeaseId
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::PartialResult
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::ProviderDisposition
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::StopReceipt
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::SuccessReceipt
+impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::UninterruptibleAdmission
 impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::DeviceReservationError
 impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::DeviceReservationRemainder
 impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::DeviceReservationRequest
@@ -4007,6 +4114,17 @@ impl core::marker::Sync for antecedent_core::WorldCollection [auto]
 impl core::marker::Sync for antecedent_core::WorldId [auto]
 impl core::marker::Sync for antecedent_core::WorldObservation [auto]
 impl core::marker::Sync for antecedent_core::WorldSpec [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::Boundary [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::BoundaryError [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::BoundaryReport [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::BoundarySession [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::LeaseId [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::PartialResult [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::StopReceipt [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
+impl core::marker::Sync for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::DeviceReservationPool [auto]
@@ -4436,6 +4554,17 @@ impl core::marker::Unpin for antecedent_core::WorldCollection [auto]
 impl core::marker::Unpin for antecedent_core::WorldId [auto]
 impl core::marker::Unpin for antecedent_core::WorldObservation [auto]
 impl core::marker::Unpin for antecedent_core::WorldSpec [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::Boundary [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::BoundaryError [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::BoundaryReport [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::BoundarySession [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::LeaseId [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::PartialResult [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::StopReceipt [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
+impl core::marker::Unpin for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::DeviceReservationPool [auto]
@@ -4868,6 +4997,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldCollectio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::Boundary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::BoundaryError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::BoundaryReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::BoundarySession [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::LeaseId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::PartialResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::StopReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::DeviceReservationPool [auto]
@@ -5296,6 +5436,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldCollection [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::Boundary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::BoundaryError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::BoundaryReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::BoundarySession [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::CancelSite [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::LeaseId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::PartialResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::StopReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::SuccessReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::UninterruptibleAdmission [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::DeviceReservationError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::DeviceReservationLease [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::DeviceReservationPool [auto]
@@ -5474,6 +5625,7 @@ pub const <antecedent_core::TemporalResponseSpec>::POLICY_SUSTAINED: &'static st
 pub const <antecedent_core::TransportOutcomeKind>::ALL: [Self; 10]
 pub const <antecedent_core::TransportOutcomeKind>::IDENTIFICATION: [Self; 5]
 pub const <antecedent_core::TransportOutcomeKind>::LEGACY_IDENTIFICATION_SPELLINGS: [(&'static str, Self); 6]
+pub const <antecedent_core::cancellation_boundary::CancelSite>::ALL: [Self; 7]
 pub const <antecedent_core::measurement_model::MeasurementKind>::ALL: [Self; 6]
 pub const <antecedent_core::measurement_model::MeasurementRoute>::ALL: [Self; 5]
 pub const <antecedent_core::recalc::StageIdentity>::ABSENT: Self
@@ -5596,6 +5748,10 @@ pub enum antecedent_core::Value
 pub enum antecedent_core::ValueType
 pub enum antecedent_core::VariableDomain
 pub enum antecedent_core::VarianceRule
+pub enum antecedent_core::cancellation_boundary::BoundaryReport
+pub enum antecedent_core::cancellation_boundary::CancelSite
+pub enum antecedent_core::cancellation_boundary::ProviderDisposition
+pub enum antecedent_core::cancellation_boundary::UninterruptibleAdmission
 pub enum antecedent_core::execution_attempt::Operation
 pub enum antecedent_core::execution_facts::OutputRetention
 pub enum antecedent_core::measurement_model::MeasurementParameters
@@ -7056,6 +7212,57 @@ pub fn <antecedent_core::WorldSpec>::fn intervention_of(&self, variable: anteced
 pub fn <antecedent_core::WorldSpec>::fn interventions(&self) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_core::VariableId, f64)> + '_
 pub fn <antecedent_core::WorldSpec>::fn new(interventions: impl core::iter::traits::collect::IntoIterator<Item = (antecedent_core::VariableId, f64)>, routes: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::EdgeRoute>) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::WorldSpec>::fn routes(&self) -> &[antecedent_core::EdgeRoute]
+pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn latency_bound(self) -> core::time::Duration
+pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn max_call_bytes(self) -> u64
+pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn new(site: antecedent_core::cancellation_boundary::CancelSite, max_call_bytes: u64, latency_bound: core::time::Duration, retain_partial: bool, publish_partial_claim: bool) -> core::result::Result<Self, antecedent_core::cancellation_boundary::BoundaryError>
+pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn open(self, lease: antecedent_core::cancellation_boundary::LeaseId) -> antecedent_core::cancellation_boundary::BoundarySession
+pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn publish_partial_claim(self) -> bool
+pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn retain_partial(self) -> bool
+pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn site(self) -> antecedent_core::cancellation_boundary::CancelSite
+pub fn <antecedent_core::cancellation_boundary::BoundaryReport>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn boundary(self) -> antecedent_core::cancellation_boundary::Boundary
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn enter_provider(&mut self, interruptible: bool, uninterruptible: antecedent_core::cancellation_boundary::UninterruptibleAdmission) -> core::result::Result<antecedent_core::cancellation_boundary::ProviderDisposition, antecedent_core::cancellation_boundary::BoundaryError>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn lease(self) -> antecedent_core::cancellation_boundary::LeaseId
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn lease_recovered(self) -> bool
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn open_spill(&mut self) -> core::result::Result<(), antecedent_core::cancellation_boundary::BoundaryError>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn provider(self) -> core::option::Option<antecedent_core::cancellation_boundary::ProviderDisposition>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn publish_claim(&self) -> core::result::Result<(), antecedent_core::cancellation_boundary::BoundaryError>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn record_call_bytes(&mut self, bytes: u64) -> core::result::Result<(), antecedent_core::cancellation_boundary::BoundaryError>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn record_spill_cleanup(&mut self)
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn recorded_call_bytes(self) -> core::option::Option<u64>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn recorded_elapsed(self) -> core::option::Option<core::time::Duration>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn recover_lease(&mut self)
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn retain_partial_result(&mut self, bytes: u64) -> core::result::Result<antecedent_core::cancellation_boundary::PartialResult, antecedent_core::cancellation_boundary::BoundaryError>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn spill_cleanup_recorded(self) -> bool
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::fn record_elapsed(&mut self, elapsed: core::time::Duration) -> core::result::Result<(), antecedent_core::cancellation_boundary::BoundaryError>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::fn stop(self) -> core::result::Result<antecedent_core::cancellation_boundary::StopReceipt, antecedent_core::cancellation_boundary::BoundaryError>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::fn succeed(self) -> core::result::Result<antecedent_core::cancellation_boundary::SuccessReceipt, antecedent_core::cancellation_boundary::BoundaryError>
+pub fn <antecedent_core::cancellation_boundary::CancelSite>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::cancellation_boundary::LeaseId>::const fn from_raw(raw: u64) -> Self
+pub fn <antecedent_core::cancellation_boundary::LeaseId>::const fn raw(self) -> u64
+pub fn <antecedent_core::cancellation_boundary::PartialResult>::const fn bytes(self) -> u64
+pub fn <antecedent_core::cancellation_boundary::PartialResult>::const fn is_published_claim(self) -> bool
+pub fn <antecedent_core::cancellation_boundary::PartialResult>::const fn site(self) -> antecedent_core::cancellation_boundary::CancelSite
+pub fn <antecedent_core::cancellation_boundary::ProviderDisposition>::const fn admit(interruptible: bool, uninterruptible: antecedent_core::cancellation_boundary::UninterruptibleAdmission) -> Self
+pub fn <antecedent_core::cancellation_boundary::ProviderDisposition>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn call_bytes(self) -> u64
+pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn elapsed(self) -> core::time::Duration
+pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn lease(self) -> antecedent_core::cancellation_boundary::LeaseId
+pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn lease_recovered(self) -> bool
+pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn partial(self) -> core::option::Option<antecedent_core::cancellation_boundary::PartialResult>
+pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn provider(self) -> core::option::Option<antecedent_core::cancellation_boundary::ProviderDisposition>
+pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn published_claim(self) -> bool
+pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn report(self) -> antecedent_core::cancellation_boundary::BoundaryReport
+pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn site(self) -> antecedent_core::cancellation_boundary::CancelSite
+pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn spill_cleaned(self) -> bool
+pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn call_bytes(self) -> u64
+pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn elapsed(self) -> core::time::Duration
+pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn lease(self) -> antecedent_core::cancellation_boundary::LeaseId
+pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn lease_recovered(self) -> bool
+pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn provider(self) -> core::option::Option<antecedent_core::cancellation_boundary::ProviderDisposition>
+pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn site(self) -> antecedent_core::cancellation_boundary::CancelSite
+pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn spill_cleaned(self) -> bool
+pub fn <antecedent_core::cancellation_boundary::UninterruptibleAdmission>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::device_reservation::DeviceReservationLease>::fn acquire_child(&self, device_bytes: u64, spill_bytes: u64, cancelled: bool) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
 pub fn <antecedent_core::device_reservation::DeviceReservationLease>::fn acquire_child_product(&self, device_count: u64, device_width: u64, spill_count: u64, spill_width: u64, cancelled: bool) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
 pub fn <antecedent_core::device_reservation::DeviceReservationLease>::fn acquire_child_request(&self, request: antecedent_core::device_reservation::DeviceReservationRequest, cancelled: bool) -> core::result::Result<Self, antecedent_core::device_reservation::DeviceReservationError>
@@ -7329,6 +7536,7 @@ pub fn antecedent_core::same_intervention_level(left: &antecedent_core::Value, r
 pub mod antecedent_core::assumption
 pub mod antecedent_core::calibration_basis
 pub mod antecedent_core::callback
+pub mod antecedent_core::cancellation_boundary
 pub mod antecedent_core::device_reservation
 pub mod antecedent_core::diagnostic
 pub mod antecedent_core::error
@@ -7677,6 +7885,18 @@ pub struct antecedent_core::WorldId has private fields
 pub struct antecedent_core::WorldObservation
 pub struct antecedent_core::WorldSpec
 pub struct antecedent_core::WorldSpec has private fields
+pub struct antecedent_core::cancellation_boundary::Boundary
+pub struct antecedent_core::cancellation_boundary::Boundary has private fields
+pub struct antecedent_core::cancellation_boundary::BoundarySession
+pub struct antecedent_core::cancellation_boundary::BoundarySession has private fields
+pub struct antecedent_core::cancellation_boundary::LeaseId
+pub struct antecedent_core::cancellation_boundary::LeaseId has private fields
+pub struct antecedent_core::cancellation_boundary::PartialResult
+pub struct antecedent_core::cancellation_boundary::PartialResult has private fields
+pub struct antecedent_core::cancellation_boundary::StopReceipt
+pub struct antecedent_core::cancellation_boundary::StopReceipt has private fields
+pub struct antecedent_core::cancellation_boundary::SuccessReceipt
+pub struct antecedent_core::cancellation_boundary::SuccessReceipt has private fields
 pub struct antecedent_core::device_reservation::DeviceReservationLease
 pub struct antecedent_core::device_reservation::DeviceReservationLease has private fields
 pub struct antecedent_core::device_reservation::DeviceReservationPool
@@ -8786,6 +9006,30 @@ pub variant antecedent_core::VariableDomain::Unspecified
 pub variant antecedent_core::VarianceRule::ClusterRobust
 pub variant antecedent_core::VarianceRule::DependencePreserving
 pub variant antecedent_core::VarianceRule::RowSubjectIid
+pub variant antecedent_core::cancellation_boundary::BoundaryError::CallSizeNotRecorded { site: antecedent_core::cancellation_boundary::CancelSite }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::CallTooLarge { site: antecedent_core::cancellation_boundary::CancelSite, bytes: u64, max_call_bytes: u64 }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::ElapsedNotRecorded { site: antecedent_core::cancellation_boundary::CancelSite }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::LatencyExceeded { site: antecedent_core::cancellation_boundary::CancelSite, elapsed: core::time::Duration, bound: core::time::Duration }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::LeaseNotRecovered { lease: antecedent_core::cancellation_boundary::LeaseId }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::MissingSpillCleanup { site: antecedent_core::cancellation_boundary::CancelSite }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::PartialClaimRefused { site: antecedent_core::cancellation_boundary::CancelSite }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::PartialRetentionRefused { site: antecedent_core::cancellation_boundary::CancelSite }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::ProviderSiteRequired { site: antecedent_core::cancellation_boundary::CancelSite }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::SpillAlreadyOpen { site: antecedent_core::cancellation_boundary::CancelSite }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::UninterruptibleProvider
+pub variant antecedent_core::cancellation_boundary::BoundaryReport::Stopped
+pub variant antecedent_core::cancellation_boundary::CancelSite::Chain
+pub variant antecedent_core::cancellation_boundary::CancelSite::Device
+pub variant antecedent_core::cancellation_boundary::CancelSite::Provider
+pub variant antecedent_core::cancellation_boundary::CancelSite::Resample
+pub variant antecedent_core::cancellation_boundary::CancelSite::Scan
+pub variant antecedent_core::cancellation_boundary::CancelSite::Search
+pub variant antecedent_core::cancellation_boundary::CancelSite::Solver
+pub variant antecedent_core::cancellation_boundary::ProviderDisposition::Interruptible
+pub variant antecedent_core::cancellation_boundary::ProviderDisposition::Isolated
+pub variant antecedent_core::cancellation_boundary::ProviderDisposition::Refused
+pub variant antecedent_core::cancellation_boundary::UninterruptibleAdmission::Isolate
+pub variant antecedent_core::cancellation_boundary::UninterruptibleAdmission::Refuse
 pub variant antecedent_core::device_reservation::DeviceReservationError::Cancelled
 pub variant antecedent_core::device_reservation::DeviceReservationError::ExceedsRemainder { requested_device_bytes: u64, requested_spill_bytes: u64, remaining_device_bytes: u64, remaining_spill_bytes: u64 }
 pub variant antecedent_core::device_reservation::DeviceReservationError::Overflow
