@@ -383,7 +383,20 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_state::StateError [auto
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::StateEvent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::StreamingCovariance [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_state::SuffStatStore [auto]
+impl<'a> core::clone::Clone for antecedent_state::LinearOlsDelta<'a>
+impl<'a> core::fmt::Debug for antecedent_state::LinearOlsDelta<'a>
+impl<'a> core::marker::Copy for antecedent_state::LinearOlsDelta<'a>
+impl<'a> core::marker::Freeze for antecedent_state::LinearOlsDelta<'a> [auto]
+impl<'a> core::marker::Send for antecedent_state::LinearOlsDelta<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_state::LinearOlsDelta<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_state::LinearOlsDelta<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_state::LinearOlsDelta<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_state::LinearOlsDelta<'a> [auto]
+pub const antecedent_state::MERGE_ABS_TOL: f64
+pub const antecedent_state::MERGE_REL_TOL: f64
+pub const fn antecedent_state::merge_within_tolerance(left: f64, right: f64) -> bool
 pub enum antecedent_state::InvalidationTarget
+pub enum antecedent_state::LinearOlsDelta<'a>
 pub enum antecedent_state::ParentSetOp
 pub enum antecedent_state::RetentionPolicy
 pub enum antecedent_state::StateEvent
@@ -506,8 +519,11 @@ pub fn <antecedent_state::InvalidationLog>::fn push(&mut self, at_version: antec
 pub fn <antecedent_state::InvalidationLog>::fn push_input(&mut self, at_version: antecedent_core::ids::StateVersion, target: antecedent_state::InvalidationTarget, reason: impl core::convert::Into<alloc::sync::Arc<str>>, input: antecedent_state::ChangedInput)
 pub fn <antecedent_state::InvalidationLog>::fn query_stale_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> bool
 pub fn <antecedent_state::InvalidationLog>::fn revalidation_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> antecedent_core::recalc::Revalidation
+pub fn <antecedent_state::LinearOlsSuffStats>::const fn is_invalidated(&self) -> bool
 pub fn <antecedent_state::LinearOlsSuffStats>::fn append_batch(&mut self, rows_rowmajor: &[f64], y: &[f64]) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn append_row(&mut self, row: &[f64], y: f64) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::LinearOlsSuffStats>::fn apply_delta(&mut self, delta: antecedent_state::LinearOlsDelta<'_>) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::LinearOlsSuffStats>::fn merge(&mut self, other: &Self) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn new(ncols: usize) -> Self
 pub fn <antecedent_state::LinearOlsSuffStats>::fn residual_variance(&self, beta: &[f64]) -> core::option::Option<f64>
 pub fn <antecedent_state::LinearOlsSuffStats>::fn solve_beta(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_state::StateError>
@@ -537,6 +553,7 @@ pub fn <antecedent_state::StreamingCovariance>::fn append(&mut self, x: &[f64]) 
 pub fn <antecedent_state::StreamingCovariance>::fn dim(&self) -> usize
 pub fn <antecedent_state::StreamingCovariance>::fn m2(&self) -> &[f64]
 pub fn <antecedent_state::StreamingCovariance>::fn mean(&self) -> &[f64]
+pub fn <antecedent_state::StreamingCovariance>::fn merge(&mut self, other: &Self) -> core::result::Result<(), antecedent_state::StateError>
 pub fn <antecedent_state::StreamingCovariance>::fn n(&self) -> u64
 pub fn <antecedent_state::StreamingCovariance>::fn new(dim: usize) -> Self
 pub fn <antecedent_state::StreamingCovariance>::fn sample_covariance(&self) -> core::option::Option<alloc::vec::Vec<f64>>
@@ -633,8 +650,12 @@ pub use antecedent_state::store::ResultStore = antecedent_state::ResultStore
 pub use antecedent_state::store::SuffStatStore = antecedent_state::SuffStatStore
 pub use antecedent_state::suff_stats::LagIndexCacheEntry = antecedent_state::LagIndexCacheEntry
 pub use antecedent_state::suff_stats::LagIndexCacheKey = antecedent_state::LagIndexCacheKey
+pub use antecedent_state::suff_stats::LinearOlsDelta = antecedent_state::LinearOlsDelta
 pub use antecedent_state::suff_stats::LinearOlsSuffStats = antecedent_state::LinearOlsSuffStats
+pub use antecedent_state::suff_stats::MERGE_ABS_TOL = antecedent_state::MERGE_ABS_TOL
+pub use antecedent_state::suff_stats::MERGE_REL_TOL = antecedent_state::MERGE_REL_TOL
 pub use antecedent_state::suff_stats::StreamingCovariance = antecedent_state::StreamingCovariance
+pub use antecedent_state::suff_stats::merge_within_tolerance = antecedent_state::merge_within_tolerance
 pub variant antecedent_state::GraphScoreFamily::GaussianBic
 pub variant antecedent_state::InvalidationTarget::AllResults
 pub variant antecedent_state::InvalidationTarget::GraphScores
@@ -644,6 +665,13 @@ pub variant antecedent_state::InvalidationTarget::Model(antecedent_core::ids::Mo
 pub variant antecedent_state::InvalidationTarget::ParticleFilters
 pub variant antecedent_state::InvalidationTarget::QueryResult(antecedent_core::ids::QueryId)
 pub variant antecedent_state::InvalidationTarget::SuffStat(alloc::sync::Arc<str>)
+pub variant antecedent_state::LinearOlsDelta::AppendRow { row: &'a [f64], y: f64 }
+pub variant antecedent_state::LinearOlsDelta::AppendWindow { window: &'a antecedent_state::LinearOlsSuffStats }
+pub variant antecedent_state::LinearOlsDelta::ColumnInserted
+pub variant antecedent_state::LinearOlsDelta::EvictRow { row: &'a [f64], y: f64 }
+pub variant antecedent_state::LinearOlsDelta::MaskChanged
+pub variant antecedent_state::LinearOlsDelta::RowWeightChanged
+pub variant antecedent_state::LinearOlsDelta::WeightsChanged
 pub variant antecedent_state::ParentSetOp::SetParents { node: u32, parents: alloc::sync::Arc<[u32]> }
 pub variant antecedent_state::RetentionPolicy::BoundedWindow { max_rows: u64 }
 pub variant antecedent_state::RetentionPolicy::RawHistory

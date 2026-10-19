@@ -1,5 +1,10 @@
 //! Incremental sufficient statistics.
 //!
+//! Linear OLS summaries merge in either order. A row or a window summary can be
+//! appended. A weight or mask change clears the summary instead of patching it.
+//! Inserting a column, changing a row weight, or evicting a summarized row is
+//! refused; the next attempt is to recompute from the retained rows.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::similar_names, reason = "xtx / xty")]
@@ -9,7 +14,75 @@ use antecedent_stats::{accumulate_xtx_xty_row, invert_square};
 use crate::error::StateError;
 use crate::retention::RetentionPolicy;
 
+/// Absolute term of the merge-versus-recompute tolerance.
+///
+/// [`merge_within_tolerance`] accepts
+/// `|a - b| <= MERGE_ABS_TOL + MERGE_REL_TOL * max(|a|, |b|)`.
+pub const MERGE_ABS_TOL: f64 = 1e-8;
+
+/// Relative term of the merge-versus-recompute tolerance. See [`MERGE_ABS_TOL`].
+pub const MERGE_REL_TOL: f64 = 1e-9;
+
+/// Next attempt named by every refused summary update.
+const RECOMPUTE_FROM_RETAINED_ROWS: &str = "recompute from the retained rows";
+
+/// Whether `left` and `right` agree closely enough to treat a merge as a recompute.
+///
+/// The bound is [`MERGE_ABS_TOL`] + [`MERGE_REL_TOL`] times the larger magnitude.
+/// Non-finite values do not agree.
+#[must_use = "the merge contract is this comparison"]
+pub const fn merge_within_tolerance(left: f64, right: f64) -> bool {
+    let difference = (left - right).abs();
+    if !difference.is_finite() {
+        return false;
+    }
+    let left_abs = left.abs();
+    let right_abs = right.abs();
+    let scale = if left_abs > right_abs { left_abs } else { right_abs };
+    difference <= MERGE_ABS_TOL + MERGE_REL_TOL * scale
+}
+
+/// One attempted change to a [`LinearOlsSuffStats`] summary.
+#[derive(Clone, Copy, Debug)]
+pub enum LinearOlsDelta<'a> {
+    /// Append one finite unit-weight design row. This is applied.
+    AppendRow {
+        /// Design row, length `ncols`.
+        row: &'a [f64],
+        /// Response.
+        y: f64,
+    },
+    /// Merge a summary of a contiguous window of the same columns. This is applied.
+    AppendWindow {
+        /// Window summary. Column count must match.
+        window: &'a LinearOlsSuffStats,
+    },
+    /// Drop one summarized row.
+    ///
+    /// Refused. There is no exact downdate here: subtracting the row from the Gram
+    /// and reversing the centered scatter are not claimed to match recomputation of
+    /// the retained rows. The summary is left unchanged.
+    EvictRow {
+        /// Design row that would have been removed.
+        row: &'a [f64],
+        /// Response that would have been removed.
+        y: f64,
+    },
+    /// A design column was inserted. Refused; the summary is left unchanged.
+    ColumnInserted,
+    /// The weight of a summarized row changed. The summary is invalidated.
+    RowWeightChanged,
+    /// Observation weights changed. The summary is invalidated.
+    WeightsChanged,
+    /// The row or column mask changed. The summary is invalidated.
+    MaskChanged,
+}
+
 /// Linear OLS sufficient statistics (`XᵀX`, `Xᵀy`, `n`).
+///
+/// Summaries of the same columns merge in either order ([`Self::merge`]). Append a
+/// row or a window with [`Self::apply_delta`]. A weight or mask change invalidates
+/// the summary. An inserted column or an evicted row is refused.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LinearOlsSuffStats {
     /// Number of columns `p`.
@@ -26,6 +99,8 @@ pub struct LinearOlsSuffStats {
     joint: StreamingCovariance,
     /// Retention declaration.
     pub(crate) retention: RetentionPolicy,
+    /// Set when a weight or mask change has cleared this summary.
+    invalidated: bool,
 }
 
 impl LinearOlsSuffStats {
@@ -40,7 +115,14 @@ impl LinearOlsSuffStats {
             yty: 0.0,
             joint: StreamingCovariance::new(ncols.saturating_add(1)),
             retention: RetentionPolicy::SufficientStatisticsOnly,
+            invalidated: false,
         }
+    }
+
+    /// Whether a weight or mask change has cleared this summary.
+    #[must_use = "an invalidated summary must be recomputed from the retained rows"]
+    pub const fn is_invalidated(&self) -> bool {
+        self.invalidated
     }
 
     /// Append one design row and response.
@@ -51,8 +133,12 @@ impl LinearOlsSuffStats {
     ///
     /// # Errors
     ///
-    /// Row length mismatch, or a non-finite entry in the row or the response.
+    /// The summary was invalidated (recompute from the retained rows), the row length
+    /// does not match, or an entry in the row or the response is non-finite.
     pub fn append_row(&mut self, row: &[f64], y: f64) -> Result<(), StateError> {
+        if self.invalidated {
+            return Err(unsupported("summary invalidated"));
+        }
         if row.len() != self.ncols {
             return Err(StateError::Shape(format!(
                 "row len {} != ncols {}",
@@ -101,8 +187,11 @@ impl LinearOlsSuffStats {
     ///
     /// # Errors
     ///
-    /// Singular Gram or empty data.
+    /// The summary was invalidated, there are no observations, or the Gram is singular.
     pub fn solve_beta(&self) -> Result<Vec<f64>, StateError> {
+        if self.invalidated {
+            return Err(unsupported("summary invalidated"));
+        }
         if self.n == 0 {
             return Err(StateError::Numerical("no observations".into()));
         }
@@ -129,8 +218,13 @@ impl LinearOlsSuffStats {
     /// externally supplied coefficients need it. `r̄` is taken as zero when it is below the
     /// round-off of its own evaluation, so a huge offset does not turn rounding noise into
     /// variance.
+    ///
+    /// Returns `None` when a weight or mask change has invalidated this summary.
     #[must_use]
     pub fn residual_variance(&self, beta: &[f64]) -> Option<f64> {
+        if self.invalidated {
+            return None;
+        }
         if beta.len() != self.ncols || usize::try_from(self.n).is_ok_and(|n| n <= self.ncols) {
             return None;
         }
@@ -175,9 +269,157 @@ impl LinearOlsSuffStats {
         }
         Some(sse / (self.n as f64 - p as f64))
     }
+
+    /// Merge `other` into this summary.
+    ///
+    /// Gram terms add. The centered scatter combines with Chan's formula, taking the
+    /// larger count as the base so a shared offset is not cancelled. Merging `A` then
+    /// `B` matches merging `B` then `A`. Both match a summary rebuilt by appending the
+    /// concatenated rows, within [`merge_within_tolerance`].
+    ///
+    /// An invalidated summary is refused. A summary whose scatter count was moved
+    /// without its Gram is refused. Neither case is patched in place.
+    ///
+    /// # Errors
+    ///
+    /// Column-count mismatch, a non-finite summary, an invalidated summary, a scatter
+    /// that does not match the row count, or a count that would overflow.
+    #[must_use = "a refused merge must be recomputed from the retained rows"]
+    pub fn merge(&mut self, other: &Self) -> Result<(), StateError> {
+        if self.invalidated || other.invalidated {
+            return Err(unsupported("summary invalidated"));
+        }
+        if self.ncols != other.ncols {
+            return Err(StateError::Shape(format!("ncols {} != {}", self.ncols, other.ncols)));
+        }
+        if self.xtx.len() != other.xtx.len() || self.xty.len() != other.xty.len() {
+            return Err(StateError::Shape("gram length mismatch".into()));
+        }
+        if !self.scatter_aligned() || !other.scatter_aligned() {
+            return Err(unsupported("summary is out of step with its scatter"));
+        }
+        if !self.entries_finite() || !other.entries_finite() {
+            return Err(unsupported("summary is non-finite"));
+        }
+        if other.n == 0 {
+            return Ok(());
+        }
+        if self.n == 0 {
+            let retention = self.retention;
+            *self = other.clone();
+            self.retention = retention;
+            return Ok(());
+        }
+        let n = self
+            .n
+            .checked_add(other.n)
+            .ok_or_else(|| StateError::Numerical("observation count overflow".into()))?;
+        let joint = self.joint.merged(&other.joint)?;
+        let mut xtx = vec![0.0; self.xtx.len()];
+        for (slot, (left, right)) in xtx.iter_mut().zip(self.xtx.iter().zip(&other.xtx)) {
+            *slot = add_f64(*left, *right);
+        }
+        let mut xty = vec![0.0; self.xty.len()];
+        for (slot, (left, right)) in xty.iter_mut().zip(self.xty.iter().zip(&other.xty)) {
+            *slot = add_f64(*left, *right);
+        }
+        let yty = add_f64(self.yty, other.yty);
+        self.xtx = xtx;
+        self.xty = xty;
+        self.yty = yty;
+        self.n = n;
+        self.joint = joint;
+        Ok(())
+    }
+
+    /// Apply one supported append, or refuse an unsupported window change.
+    ///
+    /// [`LinearOlsDelta::AppendRow`] and [`LinearOlsDelta::AppendWindow`] update the
+    /// summary. Evicting a summarized row or inserting a column is refused and leaves
+    /// the summary unchanged. A weight or mask change, including a change to one row's
+    /// weight, clears the summary instead of patching a term. Every refusal names the
+    /// next attempt: recompute from the retained rows.
+    ///
+    /// # Errors
+    ///
+    /// The delta is unsupported, the summary is already invalidated, or the appended
+    /// row or window is rejected by [`Self::append_row`] or [`Self::merge`].
+    #[must_use = "an unsupported delta must be recomputed from the retained rows"]
+    pub fn apply_delta(&mut self, delta: LinearOlsDelta<'_>) -> Result<(), StateError> {
+        match delta {
+            LinearOlsDelta::AppendRow { row, y } => self.append_row(row, y),
+            LinearOlsDelta::AppendWindow { window } => self.merge(window),
+            LinearOlsDelta::EvictRow { .. } => Err(unsupported("cannot evict a summarized row")),
+            LinearOlsDelta::ColumnInserted => {
+                Err(unsupported("cannot insert a column into a summary"))
+            }
+            LinearOlsDelta::RowWeightChanged => {
+                Err(self.invalidate("a row weight change is not applied in place"))
+            }
+            LinearOlsDelta::WeightsChanged => {
+                Err(self.invalidate("a weight change invalidates the summary"))
+            }
+            LinearOlsDelta::MaskChanged => {
+                Err(self.invalidate("a mask change invalidates the summary"))
+            }
+        }
+    }
+
+    fn scatter_aligned(&self) -> bool {
+        self.joint.n == self.n && self.joint.dim == self.ncols.saturating_add(1)
+    }
+
+    fn entries_finite(&self) -> bool {
+        self.yty.is_finite()
+            && self.xtx.iter().all(|value| value.is_finite())
+            && self.xty.iter().all(|value| value.is_finite())
+            && self.joint.mean.iter().all(|value| value.is_finite())
+            && self.joint.m2.iter().all(|value| value.is_finite())
+    }
+
+    fn invalidate(&mut self, reason: &str) -> StateError {
+        let ncols = self.ncols;
+        let retention = self.retention;
+        *self = Self::new(ncols);
+        self.retention = retention;
+        self.invalidated = true;
+        unsupported(reason)
+    }
 }
 
-/// Streaming mean / covariance (Welford / pairwise updates).
+fn unsupported(reason: &str) -> StateError {
+    StateError::Numerical(format!("{reason}; {RECOMPUTE_FROM_RETAINED_ROWS}"))
+}
+
+/// Add two finite values so `add_f64(a, b)` and `add_f64(b, a)` are the same bits.
+#[allow(
+    clippy::if_same_then_else,
+    reason = "operand order is the recorded bits; a + b and b + a are not the same f64"
+)]
+const fn add_f64(left: f64, right: f64) -> f64 {
+    let left_abs = left.abs().to_bits();
+    let right_abs = right.abs().to_bits();
+    let left_first =
+        left_abs < right_abs || (left_abs == right_abs && left.to_bits() <= right.to_bits());
+    if left_first { left + right } else { right + left }
+}
+
+/// Larger count is the Chan base. Equal counts break the tie on mean bits.
+fn chan_base_is_left(left_n: u64, left_mean: &[f64], right_n: u64, right_mean: &[f64]) -> bool {
+    if left_n != right_n {
+        return left_n > right_n;
+    }
+    for (left, right) in left_mean.iter().zip(right_mean) {
+        let left_bits = left.to_bits();
+        let right_bits = right.to_bits();
+        if left_bits != right_bits {
+            return left_bits < right_bits;
+        }
+    }
+    true
+}
+
+/// Streaming mean / covariance (Welford updates, merged by Chan's formula).
 #[derive(Clone, Debug, PartialEq)]
 pub struct StreamingCovariance {
     /// Dimension.
@@ -256,6 +498,81 @@ impl StreamingCovariance {
         antecedent_kernels::update_scatter(&mut self.mean, &mut self.m2, self.n, x);
         self.n = next_n;
         Ok(())
+    }
+
+    /// Merge `other` into this scatter with Chan's formula.
+    ///
+    /// Merging `A` then `B` matches merging `B` then `A`. Gram entries and means match a
+    /// scatter rebuilt by appending the concatenated rows, within
+    /// [`merge_within_tolerance`]. A centered second moment of a shared large offset
+    /// can also differ by the rounding of that offset: both the one-pass update and
+    /// this merge subtract numbers whose magnitude is the offset. The larger count is
+    /// the base so that offset is not cancelled twice.
+    ///
+    /// # Errors
+    ///
+    /// Dimension mismatch, a non-finite summary, or a count that would overflow.
+    #[must_use = "a refused covariance merge must be recomputed from the retained rows"]
+    pub fn merge(&mut self, other: &Self) -> Result<(), StateError> {
+        let merged = self.merged(other)?;
+        *self = merged;
+        Ok(())
+    }
+
+    fn merged(&self, other: &Self) -> Result<Self, StateError> {
+        if self.dim != other.dim {
+            return Err(StateError::Shape(format!("cov dim {} != {}", self.dim, other.dim)));
+        }
+        if !self.entries_finite() || !other.entries_finite() {
+            return Err(unsupported("covariance summary is non-finite"));
+        }
+        if other.n == 0 {
+            return Ok(self.clone());
+        }
+        if self.n == 0 {
+            let mut out = other.clone();
+            out.retention = self.retention;
+            return Ok(out);
+        }
+        let n = self
+            .n
+            .checked_add(other.n)
+            .ok_or_else(|| StateError::Numerical("covariance count overflow".into()))?;
+        let (base, add) = if chan_base_is_left(self.n, &self.mean, other.n, &other.mean) {
+            (self, other)
+        } else {
+            (other, self)
+        };
+        let n_base = base.n as f64;
+        let n_add = add.n as f64;
+        let n_f = n as f64;
+        let weight = n_add / n_f;
+        let scale = n_base * n_add / n_f;
+        let dim = self.dim;
+        let mut mean = vec![0.0; dim];
+        let mut delta = vec![0.0; dim];
+        let means = mean.iter_mut().zip(&mut delta);
+        let sources = base.mean.iter().zip(&add.mean);
+        for ((slot, gap), (base_mean, add_mean)) in means.zip(sources) {
+            let step = *add_mean - *base_mean;
+            *gap = step;
+            *slot = *base_mean + step * weight;
+        }
+        let mut m2 = vec![0.0; dim * dim];
+        for i in 0..dim {
+            for j in i..dim {
+                let value = add_f64(base.m2[i * dim + j], add.m2[i * dim + j])
+                    + delta[i] * delta[j] * scale;
+                m2[i * dim + j] = value;
+                m2[j * dim + i] = value;
+            }
+        }
+        Ok(Self { dim, n, mean, m2, retention: self.retention })
+    }
+
+    fn entries_finite(&self) -> bool {
+        self.mean.iter().all(|value| value.is_finite())
+            && self.m2.iter().all(|value| value.is_finite())
     }
 
     /// Sample covariance matrix (`n − 1` denominator); `None` if `n < 2`.
@@ -474,5 +791,287 @@ mod tests {
         assert!((cov[1] - cov[2]).abs() < 1e-12, "covariance must be symmetric");
         // Off-diagonal must be non-trivial (catches the old delta[i]*di bug)
         assert!(cov[1].abs() > 1.0);
+    }
+
+    fn batch(rows: &[f64], y: &[f64], ncols: usize) -> LinearOlsSuffStats {
+        let mut stats = LinearOlsSuffStats::new(ncols);
+        stats.append_batch(rows, y).expect("batch");
+        stats
+    }
+
+    fn assert_stats_within_tolerance(left: &LinearOlsSuffStats, right: &LinearOlsSuffStats) {
+        assert_eq!(left.ncols, right.ncols);
+        assert_eq!(left.n, right.n);
+        assert_eq!(left.invalidated, right.invalidated);
+        assert_eq!(left.joint.n, right.joint.n);
+        assert_eq!(left.xtx.len(), right.xtx.len());
+        assert_eq!(left.xty.len(), right.xty.len());
+        assert!(merge_within_tolerance(left.yty, right.yty), "yty {} vs {}", left.yty, right.yty);
+        for (i, (a, b)) in left.xtx.iter().zip(&right.xtx).enumerate() {
+            assert!(merge_within_tolerance(*a, *b), "xtx[{i}] {a} vs {b}");
+        }
+        for (i, (a, b)) in left.xty.iter().zip(&right.xty).enumerate() {
+            assert!(merge_within_tolerance(*a, *b), "xty[{i}] {a} vs {b}");
+        }
+        for (i, (a, b)) in left.joint.mean.iter().zip(&right.joint.mean).enumerate() {
+            assert!(merge_within_tolerance(*a, *b), "mean[{i}] {a} vs {b}");
+        }
+        let dim = left.joint.mean.len();
+        for i in 0..dim {
+            for j in 0..dim {
+                let a = left.joint.m2[i * dim + j];
+                let b = right.joint.m2[i * dim + j];
+                let magnitude = left.joint.mean[i]
+                    .abs()
+                    .max(left.joint.mean[j].abs())
+                    .max(right.joint.mean[i].abs())
+                    .max(right.joint.mean[j].abs());
+                assert!(
+                    moment_within_tolerance(a, b, magnitude),
+                    "m2[{}] {a} vs {b}",
+                    i * dim + j
+                );
+            }
+        }
+    }
+
+    /// [`merge_within_tolerance`], plus the rounding of a shared offset in a centered moment.
+    fn moment_within_tolerance(left: f64, right: f64, magnitude: f64) -> bool {
+        if merge_within_tolerance(left, right) {
+            return true;
+        }
+        let spacing = magnitude.abs() * f64::EPSILON;
+        (left - right).abs() <= spacing * 64.0
+    }
+
+    fn assert_merge_orders(rows: &[f64], y: &[f64], ncols: usize, split: usize) {
+        let left = batch(&rows[..split * ncols], &y[..split], ncols);
+        let right = batch(&rows[split * ncols..], &y[split..], ncols);
+        let mut ab = left.clone();
+        ab.merge(&right).expect("merge ab");
+        let mut ba = right.clone();
+        ba.merge(&left).expect("merge ba");
+        assert_eq!(ab, ba, "merge order at split {split}");
+        let mut via_delta = left.clone();
+        via_delta
+            .apply_delta(LinearOlsDelta::AppendWindow { window: &right })
+            .expect("append window");
+        assert_eq!(via_delta, ab);
+        assert_stats_within_tolerance(&ab, &batch(rows, y, ncols));
+    }
+
+    /// `y = 1e12 + 1 + 2x + eps` on an intercept column. The offset sits in the
+    /// response, so a centred merge has to keep the residual scale.
+    fn offset_design() -> (Vec<f64>, Vec<f64>) {
+        let offset = 1e12;
+        let xs = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+        let eps = [-1.5, 0.5, -0.25, 1.25, -0.75, 0.75];
+        let mut rows = Vec::with_capacity(xs.len() * 2);
+        let mut y = Vec::with_capacity(xs.len());
+        for i in 0..xs.len() {
+            rows.push(1.0);
+            rows.push(xs[i]);
+            y.push(offset + 1.0 + 2.0 * xs[i] + eps[i]);
+        }
+        (rows, y)
+    }
+
+    fn assert_recompute_refusal(err: &StateError) {
+        assert!(err.to_string().contains("recompute from the retained rows"), "{err}");
+    }
+
+    #[test]
+    fn merge_orders_match_each_other_and_full_recompute() {
+        let rows = [1.0, 0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0];
+        let y = [1.0, 3.0, 5.0, 7.0];
+        assert_merge_orders(&rows, &y, 2, 1);
+        assert_merge_orders(&rows, &y, 2, 2);
+        let full = batch(&rows, &y, 2);
+        let mut empty = LinearOlsSuffStats::new(2);
+        empty.merge(&full).expect("merge into empty");
+        assert_eq!(empty, full);
+        let mut restored = full.clone();
+        restored.merge(&LinearOlsSuffStats::new(2)).expect("merge empty");
+        assert_eq!(restored, full);
+
+        let mut widened = full.clone();
+        let snapshot = widened.clone();
+        let err = widened.merge(&LinearOlsSuffStats::new(1)).expect_err("ncols");
+        assert!(matches!(err, StateError::Shape(_)));
+        assert_eq!(widened, snapshot);
+
+        let mut dirty = full.clone();
+        dirty.xtx[0] = f64::NAN;
+        let err = dirty.merge(&full).expect_err("non-finite");
+        assert_recompute_refusal(&err);
+        assert_eq!(dirty.n, full.n);
+        assert_eq!(dirty.xtx[0].to_bits(), f64::NAN.to_bits());
+        assert_eq!(dirty.xty, full.xty);
+    }
+
+    #[test]
+    fn merged_summary_matches_recompute_without_offset_drift() {
+        let (rows, y) = offset_design();
+        let ncols = 2;
+        assert_merge_orders(&rows, &y, ncols, 2);
+        assert_merge_orders(&rows, &y, ncols, 3);
+
+        let mut chained = LinearOlsSuffStats::new(ncols);
+        for i in 0..y.len() {
+            let mut one = LinearOlsSuffStats::new(ncols);
+            one.append_row(&rows[i * ncols..(i + 1) * ncols], y[i]).expect("row");
+            chained.apply_delta(LinearOlsDelta::AppendWindow { window: &one }).expect("window");
+        }
+        let full = batch(&rows, &y, ncols);
+        assert_stats_within_tolerance(&chained, &full);
+        let beta = chained.solve_beta().expect("beta");
+        let beta_full = full.solve_beta().expect("beta");
+        for (got, expected) in beta.iter().zip(&beta_full) {
+            assert!(merge_within_tolerance(*got, *expected), "{got} vs {expected}");
+        }
+        let merged_var = chained.residual_variance(&beta).expect("variance");
+        let full_var = full.residual_variance(&beta_full).expect("variance");
+        let brute = brute_force_sigma2(&rows, &y, ncols, &beta_full);
+        assert!((merged_var - full_var).abs() < 1e-6, "merge {merged_var} full {full_var}");
+        // A shared 1e12 offset rounds the centered moment. The residual scale still
+        // has to match the rows; 1e-6 is the floor when that rounding is negligible.
+        let offset_bound = (1e12 * f64::EPSILON * 64.0) / (y.len() as f64 - ncols as f64);
+        let variance_bound = offset_bound.max(1e-6);
+        assert!(
+            (merged_var - brute).abs() <= variance_bound,
+            "merge {merged_var} brute {brute}"
+        );
+
+        let points = [
+            [1e12 - 2.0, 1.0],
+            [1e12 - 1.0, 2.0],
+            [1e12, 0.0],
+            [1e12 + 1.0, 3.0],
+            [1e12 + 2.0, 1.5],
+        ];
+        let mut left = StreamingCovariance::new(2);
+        let mut right = StreamingCovariance::new(2);
+        let mut full_cov = StreamingCovariance::new(2);
+        for (i, row) in points.iter().enumerate() {
+            full_cov.append(row).expect("cov row");
+            if i < 2 {
+                left.append(row).expect("left");
+            } else {
+                right.append(row).expect("right");
+            }
+        }
+        let mut ab = left.clone();
+        ab.merge(&right).expect("cov merge");
+        let mut ba = right.clone();
+        ba.merge(&left).expect("cov merge");
+        assert_eq!(ab, ba);
+        for (i, (got, expected)) in ab.m2().iter().zip(full_cov.m2()).enumerate() {
+            let dim = ab.mean().len();
+            let row = i / dim;
+            let col = i % dim;
+            let magnitude = ab.mean()[row]
+                .abs()
+                .max(ab.mean()[col].abs())
+                .max(full_cov.mean()[row].abs())
+                .max(full_cov.mean()[col].abs());
+            assert!(
+                moment_within_tolerance(*got, *expected, magnitude),
+                "m2[{i}] {got} vs {expected}"
+            );
+        }
+        for (i, (got, expected)) in ab.mean().iter().zip(full_cov.mean()).enumerate() {
+            assert!(merge_within_tolerance(*got, *expected), "mean[{i}] {got} vs {expected}");
+        }
+        let cov = ab.sample_covariance().expect("sample cov");
+        assert!((cov[0] - 2.5).abs() < 1e-6, "drifted variance {}", cov[0]);
+    }
+
+    #[test]
+    fn weight_and_mask_changes_invalidate_instead_of_patching() {
+        let rows = [1.0, 0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0];
+        let y = [1.0, 3.0, 5.0, 7.0];
+        let live = batch(&rows, &y, 2);
+        for (delta, reason) in [
+            (LinearOlsDelta::WeightsChanged, "a weight change invalidates the summary"),
+            (LinearOlsDelta::MaskChanged, "a mask change invalidates the summary"),
+            (LinearOlsDelta::RowWeightChanged, "a row weight change is not applied in place"),
+        ] {
+            let mut stats = live.clone();
+            let err = stats.apply_delta(delta).expect_err("invalidate");
+            assert_eq!(
+                err,
+                StateError::Numerical(format!("{reason}; recompute from the retained rows"))
+            );
+            assert!(stats.is_invalidated());
+            assert_eq!(stats.n, 0);
+            assert!(stats.xtx.iter().all(|value| value.to_bits() == 0));
+            assert!(stats.xty.iter().all(|value| value.to_bits() == 0));
+            assert_eq!(stats.yty.to_bits(), 0);
+            assert!(stats.residual_variance(&[0.0, 1.0]).is_none());
+            let solve_err = stats.solve_beta().expect_err("invalidated solve");
+            assert_eq!(
+                solve_err,
+                StateError::Numerical(
+                    "summary invalidated; recompute from the retained rows".into()
+                )
+            );
+            let append_err = stats.append_row(&[1.0, 9.0], 4.0).expect_err("append");
+            assert_eq!(append_err, solve_err);
+            assert_eq!(stats.n, 0);
+            let mut other = live.clone();
+            let merge_err = other.merge(&stats).expect_err("merge invalidated");
+            assert_eq!(merge_err, solve_err);
+            assert_eq!(other, live);
+        }
+    }
+
+    #[test]
+    fn column_insert_and_eviction_are_refused_without_a_downdate() {
+        let rows = [1.0, 0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0];
+        let y = [1.0, 3.0, 5.0, 7.0];
+        let full = batch(&rows, &y, 2);
+        let mut stats = full.clone();
+        let err = stats.apply_delta(LinearOlsDelta::ColumnInserted).expect_err("column");
+        assert_eq!(
+            err,
+            StateError::Numerical(
+                "cannot insert a column into a summary; recompute from the retained rows".into()
+            )
+        );
+        assert_eq!(stats, full);
+        assert!(!stats.is_invalidated());
+
+        let err = stats
+            .apply_delta(LinearOlsDelta::EvictRow { row: &rows[..2], y: y[0] })
+            .expect_err("evict");
+        assert_eq!(
+            err,
+            StateError::Numerical(
+                "cannot evict a summarized row; recompute from the retained rows".into()
+            )
+        );
+        assert_eq!(stats, full);
+        let retained = batch(&rows[2..], &y[1..], 2);
+        assert_ne!(stats.n, retained.n);
+        assert!(!merge_within_tolerance(stats.xtx[0], retained.xtx[0]));
+
+        let mut downdated = full.clone();
+        downdated.n = downdated.n.saturating_sub(1);
+        let downdated_before = downdated.clone();
+        let err = downdated.merge(&LinearOlsSuffStats::new(2)).expect_err("partial downdate");
+        assert_recompute_refusal(&err);
+        assert_eq!(downdated, downdated_before);
+    }
+
+    #[test]
+    fn appended_rows_through_delta_match_recompute() {
+        let rows = [1.0, 0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0];
+        let y = [1.0, 3.0, 5.0, 7.0];
+        let mut via_delta = LinearOlsSuffStats::new(2);
+        for i in 0..y.len() {
+            let row = &rows[i * 2..(i + 1) * 2];
+            via_delta.apply_delta(LinearOlsDelta::AppendRow { row, y: y[i] }).expect("append");
+        }
+        assert_eq!(via_delta, batch(&rows, &y, 2));
     }
 }

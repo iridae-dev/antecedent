@@ -35,5 +35,6 @@ pub use store::{
     PublishedLineage, QueryRecord, QueryStore, ResultStore, SuffStatStore,
 };
 pub use suff_stats::{
-    LagIndexCacheEntry, LagIndexCacheKey, LinearOlsSuffStats, StreamingCovariance,
+    LagIndexCacheEntry, LagIndexCacheKey, LinearOlsDelta, LinearOlsSuffStats, MERGE_ABS_TOL,
+    MERGE_REL_TOL, StreamingCovariance, merge_within_tolerance,
 };
