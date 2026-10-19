@@ -983,6 +983,34 @@ pub fn uplift_by_score_bin(
         .collect()
 }
 
+/// Execute policy-value prepared requests through the certified nuisance cache.
+///
+/// Frozen scores stay on their own numeric path. Compatible prepared requests
+/// share one certified policy nuisance.
+///
+/// # Errors
+///
+/// [`crate::nuisance_cache::NuisanceCacheError::WrongFamily`] when a request is not policy.
+#[must_use = "a refused policy subplan is not a certified fit"]
+pub fn execute_certified_policy_value(
+    cache: &mut crate::nuisance_cache::NuisanceCache,
+    requests: &[crate::nuisance_cache::PreparedFamilyRequest],
+    produce: impl FnMut(
+        &crate::nuisance_cache::NuisanceCacheKey,
+        crate::nuisance_cache::NuisanceRole,
+    ) -> Result<
+        Vec<crate::nuisance_cache::BlockedOutOfFoldPredictions>,
+        crate::nuisance_cache::NuisanceCacheError,
+    >,
+) -> Result<crate::nuisance_cache::BatchExecution, crate::nuisance_cache::NuisanceCacheError> {
+    crate::nuisance_cache::execute_family_requests(
+        crate::nuisance_cache::EstimatorFamily::Policy,
+        cache,
+        requests,
+        produce,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     #![cfg_attr(
@@ -994,6 +1022,69 @@ mod tests {
         )
     )]
     use super::*;
+
+    #[test]
+    fn c11_policy_value_calls_the_certified_cache() {
+        use std::cell::Cell;
+
+        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
+        use crate::nuisance_cache::{
+            BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency, EstimatorFamily,
+            FoldAssignment, FoldRow, NuisanceCache, NuisanceCacheKey, NuisanceRole,
+            NumericalDependencies, PredictedRow, PreparedFamilyRequest, ProviderDependency,
+            RequestColumns, TargetDependency, TreatmentDependency,
+        };
+        let mut bytes = [0u8; 32];
+        bytes[0] = 9;
+        let digest = SemanticDigest::from_bytes(bytes);
+        let key = NuisanceCacheKey::new(
+            TargetDependency::new(digest),
+            DesignDependency::new(DesignDependencyId::from_raw(11)),
+            FoldAssignment::try_new(2, &[FoldRow::new(10, 0), FoldRow::new(40, 1)], &[]).unwrap(),
+            TreatmentDependency::try_new("arm", digest).unwrap(),
+            ProviderDependency::new(ProviderId::from_raw(4), digest),
+            NumericalDependencies::try_new(antecedent_core::NumericalPolicy::strict(), &[])
+                .unwrap(),
+        );
+        let prepared = PreparedFamilyRequest::try_new(
+            EstimatorFamily::Policy,
+            RequestColumns::try_new("outcome", "arm", &["z"]).unwrap(),
+            CertifiedSource::new(SourceDependencyId::from_raw(3), digest),
+            key,
+            &[NuisanceRole::Outcome { level: 1 }],
+        )
+        .unwrap();
+        let mut cache = NuisanceCache::new();
+        let calls = Cell::new(0u64);
+        let run = |cache: &mut NuisanceCache, requests: &[PreparedFamilyRequest]| {
+            execute_certified_policy_value(cache, requests, |_, _| {
+                calls.set(calls.get().saturating_add(1));
+                Ok(vec![
+                    BlockedOutOfFoldPredictions::try_new(
+                        0,
+                        &[PredictedRow::try_new(10, 0.2).unwrap()],
+                    )
+                    .unwrap(),
+                    BlockedOutOfFoldPredictions::try_new(
+                        1,
+                        &[PredictedRow::try_new(40, 0.4).unwrap()],
+                    )
+                    .unwrap(),
+                ])
+            })
+        };
+        let first = run(&mut cache, &[prepared.clone(), prepared.clone()]).unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!((first.receipt().scans, first.receipt().fits, first.receipt().hits), (1, 1, 0));
+        calls.set(0);
+        let second = run(&mut cache, &[prepared]).unwrap();
+        assert_eq!(calls.get(), 0);
+        assert_eq!(
+            (second.receipt().scans, second.receipt().fits, second.receipt().hits),
+            (0, 0, 1)
+        );
+        assert_eq!(first.fits()[0], second.fits()[0]);
+    }
 
     #[test]
     #[allow(

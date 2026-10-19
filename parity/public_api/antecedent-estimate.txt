@@ -505,9 +505,13 @@ impl core::clone::Clone for antecedent_estimate::nonlinear_mediation::NonlinearM
 impl core::clone::Clone for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics
 impl core::clone::Clone for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap
 impl core::clone::Clone for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+impl core::clone::Clone for antecedent_estimate::nuisance_cache::BatchExecution
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit
+impl core::clone::Clone for antecedent_estimate::nuisance_cache::CertifiedSource
+impl core::clone::Clone for antecedent_estimate::nuisance_cache::CompiledSubplans
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::DesignDependency
+impl core::clone::Clone for antecedent_estimate::nuisance_cache::EstimatorFamily
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::FoldAssignment
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::FoldRow
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::KeyField
@@ -518,7 +522,11 @@ impl core::clone::Clone for antecedent_estimate::nuisance_cache::NuisanceRole
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::NumericalDependencies
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::NumericalDependency
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::PredictedRow
+impl core::clone::Clone for antecedent_estimate::nuisance_cache::PreparedFamilyRequest
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::ProviderDependency
+impl core::clone::Clone for antecedent_estimate::nuisance_cache::RequestColumns
+impl core::clone::Clone for antecedent_estimate::nuisance_cache::SharedSubplan
+impl core::clone::Clone for antecedent_estimate::nuisance_cache::SubplanReceipt
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::clone::Clone for antecedent_estimate::nuisance_cache::TreatmentDependency
 impl core::clone::Clone for antecedent_estimate::observational_policy::ActionValue
@@ -775,9 +783,13 @@ impl core::cmp::Eq for antecedent_estimate::nested_markov_binary::Regime
 impl core::cmp::Eq for antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional
 impl core::cmp::Eq for antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimand
 impl core::cmp::Eq for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+impl core::cmp::Eq for antecedent_estimate::nuisance_cache::BatchExecution
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit
+impl core::cmp::Eq for antecedent_estimate::nuisance_cache::CertifiedSource
+impl core::cmp::Eq for antecedent_estimate::nuisance_cache::CompiledSubplans
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::DesignDependency
+impl core::cmp::Eq for antecedent_estimate::nuisance_cache::EstimatorFamily
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::FoldAssignment
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::FoldRow
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::KeyField
@@ -787,7 +799,11 @@ impl core::cmp::Eq for antecedent_estimate::nuisance_cache::NuisanceRole
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::NumericalDependencies
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::NumericalDependency
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::PredictedRow
+impl core::cmp::Eq for antecedent_estimate::nuisance_cache::PreparedFamilyRequest
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::ProviderDependency
+impl core::cmp::Eq for antecedent_estimate::nuisance_cache::RequestColumns
+impl core::cmp::Eq for antecedent_estimate::nuisance_cache::SharedSubplan
+impl core::cmp::Eq for antecedent_estimate::nuisance_cache::SubplanReceipt
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::cmp::Eq for antecedent_estimate::nuisance_cache::TreatmentDependency
 impl core::cmp::Eq for antecedent_estimate::observational_policy::PolicyObjective
@@ -824,7 +840,9 @@ impl core::cmp::Ord for antecedent_estimate::ObservationPattern
 impl core::cmp::Ord for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::cmp::Ord for antecedent_estimate::measurement_transport::ErrorParameter
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
+impl core::cmp::Ord for antecedent_estimate::nuisance_cache::CertifiedSource
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::DesignDependency
+impl core::cmp::Ord for antecedent_estimate::nuisance_cache::EstimatorFamily
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::FoldAssignment
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::FoldRow
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::NuisanceCacheKey
@@ -833,6 +851,7 @@ impl core::cmp::Ord for antecedent_estimate::nuisance_cache::NumericalDependenci
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::NumericalDependency
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::PredictedRow
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::ProviderDependency
+impl core::cmp::Ord for antecedent_estimate::nuisance_cache::RequestColumns
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::TreatmentDependency
 impl core::cmp::Ord for antecedent_estimate::temporal_refresh::ObservationPeriod
@@ -1184,9 +1203,13 @@ impl core::cmp::PartialEq for antecedent_estimate::nonlinear_mediation::Nonlinea
 impl core::cmp::PartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics
 impl core::cmp::PartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap
 impl core::cmp::PartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::BatchExecution
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit
+impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::CertifiedSource
+impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::CompiledSubplans
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::DesignDependency
+impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::EstimatorFamily
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::FoldAssignment
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::FoldRow
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::KeyField
@@ -1196,7 +1219,11 @@ impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::NuisanceRole
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::NumericalDependencies
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::NumericalDependency
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::PredictedRow
+impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::PreparedFamilyRequest
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::ProviderDependency
+impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::RequestColumns
+impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::SharedSubplan
+impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::SubplanReceipt
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::cmp::PartialEq for antecedent_estimate::nuisance_cache::TreatmentDependency
 impl core::cmp::PartialEq for antecedent_estimate::observational_policy::ActionValue
@@ -1322,7 +1349,9 @@ impl core::cmp::PartialOrd for antecedent_estimate::ObservationPattern
 impl core::cmp::PartialOrd for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::cmp::PartialOrd for antecedent_estimate::measurement_transport::ErrorParameter
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
+impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::CertifiedSource
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::DesignDependency
+impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::EstimatorFamily
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::FoldAssignment
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::FoldRow
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::NuisanceCacheKey
@@ -1331,6 +1360,7 @@ impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::NumericalDep
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::NumericalDependency
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::PredictedRow
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::ProviderDependency
+impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::RequestColumns
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::TreatmentDependency
 impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::ObservationPeriod
@@ -1421,6 +1451,7 @@ impl core::default::Default for antecedent_estimate::joint_bayesian_transport::F
 impl core::default::Default for antecedent_estimate::nested_markov_binary::FitOptions
 impl core::default::Default for antecedent_estimate::nonlinear_mediation::NonlinearMediationConfig
 impl core::default::Default for antecedent_estimate::nuisance_cache::NuisanceCache
+impl core::default::Default for antecedent_estimate::nuisance_cache::SubplanReceipt
 impl core::default::Default for antecedent_estimate::policy_value::BinaryPolicyLimits
 impl core::default::Default for antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig
 impl core::default::Default for antecedent_estimate::vector_treatment::VectorCovariance
@@ -1878,9 +1909,13 @@ impl core::fmt::Debug for antecedent_estimate::nonlinear_mediation::NonlinearMed
 impl core::fmt::Debug for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics
 impl core::fmt::Debug for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap
 impl core::fmt::Debug for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+impl core::fmt::Debug for antecedent_estimate::nuisance_cache::BatchExecution
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit
+impl core::fmt::Debug for antecedent_estimate::nuisance_cache::CertifiedSource
+impl core::fmt::Debug for antecedent_estimate::nuisance_cache::CompiledSubplans
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::DesignDependency
+impl core::fmt::Debug for antecedent_estimate::nuisance_cache::EstimatorFamily
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::FoldAssignment
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::FoldRow
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::KeyField
@@ -1891,7 +1926,11 @@ impl core::fmt::Debug for antecedent_estimate::nuisance_cache::NuisanceRole
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::NumericalDependencies
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::NumericalDependency
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::PredictedRow
+impl core::fmt::Debug for antecedent_estimate::nuisance_cache::PreparedFamilyRequest
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::ProviderDependency
+impl core::fmt::Debug for antecedent_estimate::nuisance_cache::RequestColumns
+impl core::fmt::Debug for antecedent_estimate::nuisance_cache::SharedSubplan
+impl core::fmt::Debug for antecedent_estimate::nuisance_cache::SubplanReceipt
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::fmt::Debug for antecedent_estimate::nuisance_cache::TreatmentDependency
 impl core::fmt::Debug for antecedent_estimate::observational_policy::ActionValue
@@ -2052,7 +2091,9 @@ impl core::hash::Hash for antecedent_estimate::SampledRecoveryDetail
 impl core::hash::Hash for antecedent_estimate::SelectedOutcomeCorrection
 impl core::hash::Hash for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
+impl core::hash::Hash for antecedent_estimate::nuisance_cache::CertifiedSource
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::DesignDependency
+impl core::hash::Hash for antecedent_estimate::nuisance_cache::EstimatorFamily
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::FoldAssignment
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::FoldRow
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::KeyField
@@ -2062,6 +2103,7 @@ impl core::hash::Hash for antecedent_estimate::nuisance_cache::NumericalDependen
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::NumericalDependency
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::PredictedRow
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::ProviderDependency
+impl core::hash::Hash for antecedent_estimate::nuisance_cache::RequestColumns
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::TreatmentDependency
 impl core::hash::Hash for antecedent_estimate::tiled_prediction::AxisOrder
@@ -2208,12 +2250,15 @@ impl core::marker::Copy for antecedent_estimate::nested_markov_binary::NestedPar
 impl core::marker::Copy for antecedent_estimate::nested_markov_binary::PilotStatus
 impl core::marker::Copy for antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional
 impl core::marker::Copy for antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimand
+impl core::marker::Copy for antecedent_estimate::nuisance_cache::CertifiedSource
 impl core::marker::Copy for antecedent_estimate::nuisance_cache::DesignDependency
+impl core::marker::Copy for antecedent_estimate::nuisance_cache::EstimatorFamily
 impl core::marker::Copy for antecedent_estimate::nuisance_cache::FoldRow
 impl core::marker::Copy for antecedent_estimate::nuisance_cache::KeyField
 impl core::marker::Copy for antecedent_estimate::nuisance_cache::NuisanceRole
 impl core::marker::Copy for antecedent_estimate::nuisance_cache::PredictedRow
 impl core::marker::Copy for antecedent_estimate::nuisance_cache::ProviderDependency
+impl core::marker::Copy for antecedent_estimate::nuisance_cache::SubplanReceipt
 impl core::marker::Copy for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::marker::Copy for antecedent_estimate::observational_policy::ActionValue
 impl core::marker::Copy for antecedent_estimate::observational_policy::PolicyObjective
@@ -2723,9 +2768,13 @@ impl core::marker::Freeze for antecedent_estimate::nonlinear_mediation::Nonlinea
 impl core::marker::Freeze for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::marker::Freeze for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::marker::Freeze for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::marker::Freeze for antecedent_estimate::nuisance_cache::BatchExecution [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit [auto]
+impl core::marker::Freeze for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
+impl core::marker::Freeze for antecedent_estimate::nuisance_cache::CompiledSubplans [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::DesignDependency [auto]
+impl core::marker::Freeze for antecedent_estimate::nuisance_cache::EstimatorFamily [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::FoldAssignment [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::FoldRow [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::KeyField [auto]
@@ -2736,7 +2785,11 @@ impl core::marker::Freeze for antecedent_estimate::nuisance_cache::NuisanceRole 
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::NumericalDependencies [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::NumericalDependency [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::PredictedRow [auto]
+impl core::marker::Freeze for antecedent_estimate::nuisance_cache::PreparedFamilyRequest [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::ProviderDependency [auto]
+impl core::marker::Freeze for antecedent_estimate::nuisance_cache::RequestColumns [auto]
+impl core::marker::Freeze for antecedent_estimate::nuisance_cache::SharedSubplan [auto]
+impl core::marker::Freeze for antecedent_estimate::nuisance_cache::SubplanReceipt [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::TargetDependency [auto]
 impl core::marker::Freeze for antecedent_estimate::nuisance_cache::TreatmentDependency [auto]
 impl core::marker::Freeze for antecedent_estimate::observational_policy::ActionValue [auto]
@@ -3322,9 +3375,13 @@ impl core::marker::Send for antecedent_estimate::nonlinear_mediation::NonlinearM
 impl core::marker::Send for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::marker::Send for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::marker::Send for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::marker::Send for antecedent_estimate::nuisance_cache::BatchExecution [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit [auto]
+impl core::marker::Send for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
+impl core::marker::Send for antecedent_estimate::nuisance_cache::CompiledSubplans [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::DesignDependency [auto]
+impl core::marker::Send for antecedent_estimate::nuisance_cache::EstimatorFamily [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::FoldAssignment [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::FoldRow [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::KeyField [auto]
@@ -3335,7 +3392,11 @@ impl core::marker::Send for antecedent_estimate::nuisance_cache::NuisanceRole [a
 impl core::marker::Send for antecedent_estimate::nuisance_cache::NumericalDependencies [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::NumericalDependency [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::PredictedRow [auto]
+impl core::marker::Send for antecedent_estimate::nuisance_cache::PreparedFamilyRequest [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::ProviderDependency [auto]
+impl core::marker::Send for antecedent_estimate::nuisance_cache::RequestColumns [auto]
+impl core::marker::Send for antecedent_estimate::nuisance_cache::SharedSubplan [auto]
+impl core::marker::Send for antecedent_estimate::nuisance_cache::SubplanReceipt [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::TargetDependency [auto]
 impl core::marker::Send for antecedent_estimate::nuisance_cache::TreatmentDependency [auto]
 impl core::marker::Send for antecedent_estimate::observational_policy::ActionValue [auto]
@@ -3821,9 +3882,13 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_mediat
 impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics
 impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap
 impl core::marker::StructuralPartialEq for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::BatchExecution
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit
+impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::CertifiedSource
+impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::CompiledSubplans
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::DesignDependency
+impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::EstimatorFamily
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::FoldAssignment
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::FoldRow
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::KeyField
@@ -3833,7 +3898,11 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::NumericalDependencies
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::NumericalDependency
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::PredictedRow
+impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::PreparedFamilyRequest
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::ProviderDependency
+impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::RequestColumns
+impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::SharedSubplan
+impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::SubplanReceipt
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::marker::StructuralPartialEq for antecedent_estimate::nuisance_cache::TreatmentDependency
 impl core::marker::StructuralPartialEq for antecedent_estimate::observational_policy::ActionValue
@@ -4402,9 +4471,13 @@ impl core::marker::Sync for antecedent_estimate::nonlinear_mediation::NonlinearM
 impl core::marker::Sync for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::marker::Sync for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::marker::Sync for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::marker::Sync for antecedent_estimate::nuisance_cache::BatchExecution [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit [auto]
+impl core::marker::Sync for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
+impl core::marker::Sync for antecedent_estimate::nuisance_cache::CompiledSubplans [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::DesignDependency [auto]
+impl core::marker::Sync for antecedent_estimate::nuisance_cache::EstimatorFamily [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::FoldAssignment [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::FoldRow [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::KeyField [auto]
@@ -4415,7 +4488,11 @@ impl core::marker::Sync for antecedent_estimate::nuisance_cache::NuisanceRole [a
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::NumericalDependencies [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::NumericalDependency [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::PredictedRow [auto]
+impl core::marker::Sync for antecedent_estimate::nuisance_cache::PreparedFamilyRequest [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::ProviderDependency [auto]
+impl core::marker::Sync for antecedent_estimate::nuisance_cache::RequestColumns [auto]
+impl core::marker::Sync for antecedent_estimate::nuisance_cache::SharedSubplan [auto]
+impl core::marker::Sync for antecedent_estimate::nuisance_cache::SubplanReceipt [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::TargetDependency [auto]
 impl core::marker::Sync for antecedent_estimate::nuisance_cache::TreatmentDependency [auto]
 impl core::marker::Sync for antecedent_estimate::observational_policy::ActionValue [auto]
@@ -5001,9 +5078,13 @@ impl core::marker::Unpin for antecedent_estimate::nonlinear_mediation::Nonlinear
 impl core::marker::Unpin for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::marker::Unpin for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::marker::Unpin for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::marker::Unpin for antecedent_estimate::nuisance_cache::BatchExecution [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit [auto]
+impl core::marker::Unpin for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
+impl core::marker::Unpin for antecedent_estimate::nuisance_cache::CompiledSubplans [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::DesignDependency [auto]
+impl core::marker::Unpin for antecedent_estimate::nuisance_cache::EstimatorFamily [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::FoldAssignment [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::FoldRow [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::KeyField [auto]
@@ -5014,7 +5095,11 @@ impl core::marker::Unpin for antecedent_estimate::nuisance_cache::NuisanceRole [
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::NumericalDependencies [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::NumericalDependency [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::PredictedRow [auto]
+impl core::marker::Unpin for antecedent_estimate::nuisance_cache::PreparedFamilyRequest [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::ProviderDependency [auto]
+impl core::marker::Unpin for antecedent_estimate::nuisance_cache::RequestColumns [auto]
+impl core::marker::Unpin for antecedent_estimate::nuisance_cache::SharedSubplan [auto]
+impl core::marker::Unpin for antecedent_estimate::nuisance_cache::SubplanReceipt [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::TargetDependency [auto]
 impl core::marker::Unpin for antecedent_estimate::nuisance_cache::TreatmentDependency [auto]
 impl core::marker::Unpin for antecedent_estimate::observational_policy::ActionValue [auto]
@@ -5600,9 +5685,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::BatchExecution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::CompiledSubplans [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::DesignDependency [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::EstimatorFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::FoldAssignment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::FoldRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::KeyField [auto]
@@ -5613,7 +5702,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_c
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::NumericalDependencies [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::NumericalDependency [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::PredictedRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::PreparedFamilyRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::ProviderDependency [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::RequestColumns [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::SharedSubplan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::SubplanReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::TargetDependency [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::nuisance_cache::TreatmentDependency [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::observational_policy::ActionValue [auto]
@@ -6198,9 +6291,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_med
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::BatchExecution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::CertifiedNuisanceFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::CertifiedSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::CompiledSubplans [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::DesignDependency [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::EstimatorFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::FoldAssignment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::FoldRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::KeyField [auto]
@@ -6211,7 +6308,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cach
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::NumericalDependencies [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::NumericalDependency [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::PredictedRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::PreparedFamilyRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::ProviderDependency [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::RequestColumns [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::SharedSubplan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::SubplanReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::TargetDependency [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::nuisance_cache::TreatmentDependency [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::observational_policy::ActionValue [auto]
@@ -7114,6 +7215,7 @@ pub enum antecedent_estimate::nested_markov_binary::LikelihoodFitStanding
 pub enum antecedent_estimate::nested_markov_binary::Regime
 pub enum antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional
 pub enum antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimand
+pub enum antecedent_estimate::nuisance_cache::EstimatorFamily
 pub enum antecedent_estimate::observational_policy::KnownPropensity
 pub enum antecedent_estimate::observational_policy::PolicyEvaluation
 pub enum antecedent_estimate::observational_policy::PolicyObjective
@@ -9153,6 +9255,9 @@ pub field antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises::
 pub field antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises::unmeasured_mediator_outcome_confounding: bool
 pub field antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises::unmeasured_treatment_mediator_confounding: bool
 pub field antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises::unmeasured_treatment_outcome_confounding: bool
+pub field antecedent_estimate::nuisance_cache::SubplanReceipt::fits: u64
+pub field antecedent_estimate::nuisance_cache::SubplanReceipt::hits: u64
+pub field antecedent_estimate::nuisance_cache::SubplanReceipt::scans: u64
 pub field antecedent_estimate::observational_policy::ActionValue::level: f64
 pub field antecedent_estimate::observational_policy::ActionValue::policy_share: f64
 pub field antecedent_estimate::observational_policy::ActionValue::propensity_min: f64
@@ -10412,6 +10517,9 @@ pub fn <antecedent_estimate::nested_markov_binary::BinaryCells>::fn new(cells: &
 pub fn <antecedent_estimate::nested_markov_binary::NestedParameters>::fn cell_probabilities(&self) -> [f64; 16]
 pub fn <antecedent_estimate::nested_markov_uncertainty::NestedMarkovUncertainty>::fn calibration_basis(&self, functional: antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn <antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises>::const fn sequentially_ignorable() -> Self
+pub fn <antecedent_estimate::nuisance_cache::BatchExecution>::const fn fits(&self) -> &[antecedent_estimate::nuisance_cache::CertifiedNuisanceFit]
+pub fn <antecedent_estimate::nuisance_cache::BatchExecution>::const fn plans(&self) -> usize
+pub fn <antecedent_estimate::nuisance_cache::BatchExecution>::const fn receipt(&self) -> antecedent_estimate::nuisance_cache::SubplanReceipt
 pub fn <antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>::const fn evaluation_fold(&self) -> u32
 pub fn <antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>::const fn rows(&self) -> &[antecedent_estimate::nuisance_cache::PredictedRow]
 pub fn <antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>::fn try_new(evaluation_fold: u32, rows: &[antecedent_estimate::nuisance_cache::PredictedRow]) -> core::result::Result<Self, antecedent_estimate::nuisance_cache::NuisanceCacheError>
@@ -10419,8 +10527,13 @@ pub fn <antecedent_estimate::nuisance_cache::CertifiedNuisanceFit>::const fn blo
 pub fn <antecedent_estimate::nuisance_cache::CertifiedNuisanceFit>::const fn key(&self) -> &antecedent_estimate::nuisance_cache::NuisanceCacheKey
 pub fn <antecedent_estimate::nuisance_cache::CertifiedNuisanceFit>::const fn role(&self) -> antecedent_estimate::nuisance_cache::NuisanceRole
 pub fn <antecedent_estimate::nuisance_cache::CertifiedNuisanceFit>::fn restore_rows(&self, evaluation_fold: u32, row_ids: &[u64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn <antecedent_estimate::nuisance_cache::CertifiedSource>::const fn content(self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_estimate::nuisance_cache::CertifiedSource>::const fn id(self) -> antecedent_core::physical_operator::SourceDependencyId
+pub fn <antecedent_estimate::nuisance_cache::CertifiedSource>::const fn new(id: antecedent_core::physical_operator::SourceDependencyId, content: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_estimate::nuisance_cache::CompiledSubplans>::const fn plans(&self) -> &[antecedent_estimate::nuisance_cache::SharedSubplan]
 pub fn <antecedent_estimate::nuisance_cache::DesignDependency>::const fn id(self) -> antecedent_core::physical_operator::DesignDependencyId
 pub fn <antecedent_estimate::nuisance_cache::DesignDependency>::const fn new(id: antecedent_core::physical_operator::DesignDependencyId) -> Self
+pub fn <antecedent_estimate::nuisance_cache::EstimatorFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::nuisance_cache::FoldAssignment>::const fn fold_count(&self) -> u32
 pub fn <antecedent_estimate::nuisance_cache::FoldAssignment>::const fn held_out(&self) -> &[u64]
 pub fn <antecedent_estimate::nuisance_cache::FoldAssignment>::const fn rows(&self) -> &[antecedent_estimate::nuisance_cache::FoldRow]
@@ -10454,9 +10567,24 @@ pub fn <antecedent_estimate::nuisance_cache::PredictedRow>::const fn bits(&self)
 pub fn <antecedent_estimate::nuisance_cache::PredictedRow>::const fn row_id(&self) -> u64
 pub fn <antecedent_estimate::nuisance_cache::PredictedRow>::const fn try_new(row_id: u64, value: f64) -> core::result::Result<Self, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn <antecedent_estimate::nuisance_cache::PredictedRow>::const fn value(&self) -> f64
+pub fn <antecedent_estimate::nuisance_cache::PreparedFamilyRequest>::const fn columns(&self) -> &antecedent_estimate::nuisance_cache::RequestColumns
+pub fn <antecedent_estimate::nuisance_cache::PreparedFamilyRequest>::const fn family(&self) -> antecedent_estimate::nuisance_cache::EstimatorFamily
+pub fn <antecedent_estimate::nuisance_cache::PreparedFamilyRequest>::const fn key(&self) -> &antecedent_estimate::nuisance_cache::NuisanceCacheKey
+pub fn <antecedent_estimate::nuisance_cache::PreparedFamilyRequest>::const fn roles(&self) -> &[antecedent_estimate::nuisance_cache::NuisanceRole]
+pub fn <antecedent_estimate::nuisance_cache::PreparedFamilyRequest>::const fn source(&self) -> antecedent_estimate::nuisance_cache::CertifiedSource
+pub fn <antecedent_estimate::nuisance_cache::PreparedFamilyRequest>::fn try_new(family: antecedent_estimate::nuisance_cache::EstimatorFamily, columns: antecedent_estimate::nuisance_cache::RequestColumns, source: antecedent_estimate::nuisance_cache::CertifiedSource, key: antecedent_estimate::nuisance_cache::NuisanceCacheKey, roles: &[antecedent_estimate::nuisance_cache::NuisanceRole]) -> core::result::Result<Self, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn <antecedent_estimate::nuisance_cache::ProviderDependency>::const fn id(self) -> antecedent_core::provider_capability::ProviderId
 pub fn <antecedent_estimate::nuisance_cache::ProviderDependency>::const fn new(id: antecedent_core::provider_capability::ProviderId, version: antecedent_core::identity::SemanticDigest) -> Self
 pub fn <antecedent_estimate::nuisance_cache::ProviderDependency>::const fn version(self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_estimate::nuisance_cache::RequestColumns>::fn covariates(&self) -> &[alloc::string::String]
+pub fn <antecedent_estimate::nuisance_cache::RequestColumns>::fn outcome(&self) -> &str
+pub fn <antecedent_estimate::nuisance_cache::RequestColumns>::fn treatment(&self) -> &str
+pub fn <antecedent_estimate::nuisance_cache::RequestColumns>::fn try_new(outcome: &str, treatment: &str, covariates: &[&str]) -> core::result::Result<Self, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn <antecedent_estimate::nuisance_cache::SharedSubplan>::const fn families(&self) -> &[antecedent_estimate::nuisance_cache::EstimatorFamily]
+pub fn <antecedent_estimate::nuisance_cache::SharedSubplan>::const fn key(&self) -> &antecedent_estimate::nuisance_cache::NuisanceCacheKey
+pub fn <antecedent_estimate::nuisance_cache::SharedSubplan>::const fn members(&self) -> &[usize]
+pub fn <antecedent_estimate::nuisance_cache::SharedSubplan>::const fn roles(&self) -> &[antecedent_estimate::nuisance_cache::NuisanceRole]
+pub fn <antecedent_estimate::nuisance_cache::SharedSubplan>::const fn source(&self) -> antecedent_estimate::nuisance_cache::CertifiedSource
 pub fn <antecedent_estimate::nuisance_cache::TargetDependency>::const fn digest(self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_estimate::nuisance_cache::TargetDependency>::const fn new(digest: antecedent_core::identity::SemanticDigest) -> Self
 pub fn <antecedent_estimate::nuisance_cache::TreatmentDependency>::const fn coding(&self) -> antecedent_core::identity::SemanticDigest
@@ -10599,6 +10727,7 @@ pub fn antecedent_estimate::cell_aipw::cell_minus_control_coefficients(table: &a
 pub fn antecedent_estimate::cell_aipw::cell_minus_control_contrast(table: &antecedent_estimate::ScoreTable, requested_arm: u32) -> core::result::Result<(antecedent_estimate::LinearContrast, alloc::vec::Vec<f64>), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::cell_aipw::contrast_named(table: &antecedent_estimate::ScoreTable, spec: &str) -> core::result::Result<antecedent_estimate::LinearContrast, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::cell_aipw::count_cell_model_fits<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
+pub fn antecedent_estimate::cell_aipw::execute_certified_cell_aipw(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn antecedent_estimate::cell_aipw::family_cell_contrast(table: &antecedent_estimate::ScoreTable, requested_arm: u32, spec: &str) -> core::result::Result<(antecedent_estimate::LinearContrast, alloc::vec::Vec<f64>), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::cell_aipw::interaction_coefficients(table: &antecedent_estimate::ScoreTable) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::cell_aipw::interaction_contrast(table: &antecedent_estimate::ScoreTable) -> core::result::Result<antecedent_estimate::LinearContrast, antecedent_estimate::EstimationError>
@@ -10610,6 +10739,7 @@ pub fn antecedent_estimate::circular_fixed_b_scale(block_length: usize, rows: us
 pub fn antecedent_estimate::clear_simultaneous_band(support: &mut antecedent_core::response::SupportReport)
 pub fn antecedent_estimate::cluster_dml_aipw::cluster_fold_plan(clusters: &[u32], folds: usize, seed: u64) -> core::result::Result<alloc::vec::Vec<u32>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::cluster_dml_aipw::endpoint_components(first: &[u32], second: &[u32]) -> alloc::vec::Vec<u32>
+pub fn antecedent_estimate::cluster_dml_aipw::execute_certified_cluster_dml(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn antecedent_estimate::cluster_dml_aipw::flexible_learner_dependence_refusal(estimator_id: &str, option: &str) -> antecedent_estimate::EstimationError
 pub fn antecedent_estimate::cohort_linear_effect::boundary_calibration_basis(boundary: &str, rows: u64, level: f64) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn antecedent_estimate::cohort_linear_effect::calibration_basis(rows: u64, level: f64) -> antecedent_core::calibration_basis::CalibrationBasis
@@ -10635,6 +10765,7 @@ pub fn antecedent_estimate::counterfactual_transport_sampled::estimate_sampled_c
 pub fn antecedent_estimate::counterfactual_transport_sampled::sampled_transport_interval(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, estimate: &antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate, level: f64) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval, &'static str>
 pub fn antecedent_estimate::cpdag_scenarios::prepare_cpdag_scenarios(decision: antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision, data: antecedent_expr::exact::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::crossfit_aipw::crossfit_binary_scores(problem: &antecedent_estimate::PreparedPropensityProblem, query: &antecedent_core::query::average::AverageEffectQuery, folds: usize, glm_options: &antecedent_stats::glm::GlmOptions, backend: antecedent_stats::faer_backend::FaerBackend) -> core::result::Result<antecedent_estimate::ScoreTable, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::crossfit_aipw::execute_certified_aipw(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn antecedent_estimate::crossfit_influence_se(table: &antecedent_estimate::ScoreTable) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::declared_joint_nuisance(provider: &str) -> core::result::Result<core::option::Option<antecedent_learn::spec::LearnerSpec>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dependence_block_length(structural_span: usize, rows: usize, scores: &[&[f64]]) -> usize
@@ -10646,6 +10777,7 @@ pub fn antecedent_estimate::descriptive_comparison::refuse_transform_interval() 
 pub fn antecedent_estimate::descriptive_comparison::transform_mean_pair(pair: &antecedent_estimate::MeanPair, scales: &[antecedent_estimate::ReportingScale]) -> core::result::Result<antecedent_estimate::ReportingTransform, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::disclose_response_block_bootstrap(support: &mut antecedent_core::response::SupportReport, assumptions: &mut antecedent_core::assumption::AssumptionSet, block: antecedent_estimate::ResponseBlockLength, factor: f64, dispersion: &antecedent_estimate::CellDispersion, completed: usize, refit: &str)
 pub fn antecedent_estimate::dml::count_aipw_score_builds<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
+pub fn antecedent_estimate::dml::execute_certified_dml(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn antecedent_estimate::dose_grid_functional::dose_support_report(dose: &[f64], points: &[f64], bandwidth: f64, minimum_local_ess: f64) -> core::result::Result<antecedent_core::response::SupportReport, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dose_grid_functional::estimate_dose_grid_functional(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>) -> core::result::Result<antecedent_estimate::dose_grid_functional::DoseGridRow, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::dose_grid_functional::estimate_dose_grid_quadratic_mean(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>) -> core::result::Result<antecedent_estimate::dose_grid_functional::DoseGridRow, antecedent_estimate::EstimationError>
@@ -10770,8 +10902,22 @@ pub fn antecedent_estimate::nominal_z_transport_interval(functional: &antecedent
 pub fn antecedent_estimate::nonlinear_mediation::estimate_nonlinear_mediation(input: &antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'_>, premises: &antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises, config: &antecedent_estimate::nonlinear_mediation::NonlinearMediationConfig) -> core::result::Result<antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::normal_equation_scores(matrix: &[f64], rows: usize, cols: usize, outcome: &[f64]) -> core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>
 pub fn antecedent_estimate::normal_equation_scores_of_residuals(matrix: &[f64], rows: usize, cols: usize, residuals: &[f64]) -> alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub fn antecedent_estimate::nuisance_cache::active_folds() -> core::option::Option<antecedent_estimate::nuisance_cache::FoldAssignment>
+pub fn antecedent_estimate::nuisance_cache::blocks_by_fold(row_ids: &[u64], folds: &[u32], values: &[f64]) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn antecedent_estimate::nuisance_cache::certification_requested() -> bool
+pub fn antecedent_estimate::nuisance_cache::compile_shared_subplans(requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest]) -> core::result::Result<antecedent_estimate::nuisance_cache::CompiledSubplans, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn antecedent_estimate::nuisance_cache::execute_compiled_subplans(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, compiled: &antecedent_estimate::nuisance_cache::CompiledSubplans, produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn antecedent_estimate::nuisance_cache::execute_family_requests(expected: antecedent_estimate::nuisance_cache::EstimatorFamily, cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn antecedent_estimate::nuisance_cache::execute_independently(requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn antecedent_estimate::nuisance_cache::record_active_hits(hits: u64)
+pub fn antecedent_estimate::nuisance_cache::record_certified_fits(fits: u64)
+pub fn antecedent_estimate::nuisance_cache::restore_active(role: antecedent_estimate::nuisance_cache::NuisanceRole, evaluation_fold: u32, row_ids: &[u64]) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn antecedent_estimate::nuisance_cache::store_active(role: antecedent_estimate::nuisance_cache::NuisanceRole, blocks: &[antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions]) -> core::result::Result<(), antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn antecedent_estimate::nuisance_cache::store_active_roles(roles: &[(antecedent_estimate::nuisance_cache::NuisanceRole, alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>)]) -> core::result::Result<(), antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn antecedent_estimate::nuisance_cache::with_certified_cache<R>(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, key: &antecedent_estimate::nuisance_cache::NuisanceCacheKey, work: impl core::ops::function::FnOnce() -> R) -> (R, antecedent_estimate::nuisance_cache::SubplanReceipt)
 pub fn antecedent_estimate::observation::temporal_curve_outcome_regressors(query: &antecedent_core::query::response::ResponseQuery, identifications: &[(&antecedent_expr::estimand::IdentifiedEstimand, &antecedent_core::temporal::TemporalIndexer)]) -> core::result::Result<alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::observation::temporal_sequence_outcome_regressors(graph: &antecedent_graph::temporal::TemporalDag, outcome: antecedent_core::ids::VariableId) -> alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>
+pub fn antecedent_estimate::observational_policy::execute_certified_observational_policy(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn antecedent_estimate::percentile_interval(values: &[f64], level: f64) -> core::option::Option<(f64, f64)>
 pub fn antecedent_estimate::plan_from_response_query(query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<core::option::Option<antecedent_estimate::TemporalInterventionPlan>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::policy_value::evaluate_binary_ipw_policy(outcome: &[f64], design: &antecedent_estimate::policy_value::BinaryIpwDesign<'_>, limits: &antecedent_estimate::policy_value::BinaryPolicyLimits) -> core::result::Result<antecedent_estimate::policy_value::BinaryIpwPolicy, &'static str>
@@ -10782,8 +10928,11 @@ pub fn antecedent_estimate::policy_value::evaluate_multi_action_policy_value_sco
 pub fn antecedent_estimate::policy_value::evaluate_policy_value_ipw_scores(outcome: &[f64], design: &antecedent_estimate::policy_value::BinaryPolicyDesign<'_>) -> core::result::Result<antecedent_estimate::policy_value::PolicyValueScores, &'static str>
 pub fn antecedent_estimate::policy_value::evaluate_policy_value_scores(outcome: &[f64], design: &antecedent_estimate::policy_value::BinaryPolicyDesign<'_>, mu0: &[f64], mu1: &[f64]) -> core::result::Result<antecedent_estimate::policy_value::PolicyValueScores, &'static str>
 pub fn antecedent_estimate::policy_value::evaluate_uplift_bins(outcome: &[f64], assignment: &[bool], propensity: &[f64], score_bins: &[usize], bin_count: usize) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::policy_value::UpliftBinScore>, &'static str>
+pub fn antecedent_estimate::policy_value::execute_certified_policy_value(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn antecedent_estimate::policy_value::pointwise_intervals_95(scores: &antecedent_estimate::policy_value::PolicyValueScores, evaluation_rows: usize, policy_matches: usize, reference_matches: usize) -> core::option::Option<antecedent_estimate::policy_value::PolicyValueIntervals95>
 pub fn antecedent_estimate::policy_value::uplift_by_score_bin(outcome: &[f64], assignment: &[bool], score_bin: &[usize], propensity: &[f64], bin_count: usize) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::policy_value::ScoreBinUplift>, &'static str>
+pub fn antecedent_estimate::population_aipw::certified_propensity(cache: &antecedent_estimate::nuisance_cache::NuisanceCache, key: &antecedent_estimate::nuisance_cache::NuisanceCacheKey) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn antecedent_estimate::population_aipw::execute_certified_population_aipw(cache: &mut antecedent_estimate::nuisance_cache::NuisanceCache, requests: &[antecedent_estimate::nuisance_cache::PreparedFamilyRequest], produce: impl core::ops::function::FnMut(&antecedent_estimate::nuisance_cache::NuisanceCacheKey, antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions>, antecedent_estimate::nuisance_cache::NuisanceCacheError>) -> core::result::Result<antecedent_estimate::nuisance_cache::BatchExecution, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn antecedent_estimate::posterior_mean::categorical_treatment_posterior(input: &antecedent_estimate::categorical_treatment::CategoricalTreatmentInput, spec: &antecedent_estimate::categorical_treatment::CategoricalTreatmentSpec, request: antecedent_estimate::posterior_mean::PosteriorRequest) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::posterior_mean::consume_coefficient_posterior(summary: &antecedent_estimate::vector_treatment::DesignSummary, prior_scale: f64) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::posterior_mean::consume_local_quadratic_posterior(gram: [[f64; 3]; 3], rhs: [f64; 3], weight_sum: f64, weighted_rss: f64, prior_scale: f64) -> core::option::Option<(f64, f64)>
@@ -11445,10 +11594,16 @@ pub struct antecedent_estimate::nonlinear_mediation::NonlinearMediationInput<'a>
 pub struct antecedent_estimate::nonlinear_mediation::NonlinearMediationMediatorDiagnostics
 pub struct antecedent_estimate::nonlinear_mediation::NonlinearMediationOverlap
 pub struct antecedent_estimate::nonlinear_mediation::NonlinearMediationPremises
+pub struct antecedent_estimate::nuisance_cache::BatchExecution
+pub struct antecedent_estimate::nuisance_cache::BatchExecution has private fields
 pub struct antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions
 pub struct antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions has private fields
 pub struct antecedent_estimate::nuisance_cache::CertifiedNuisanceFit
 pub struct antecedent_estimate::nuisance_cache::CertifiedNuisanceFit has private fields
+pub struct antecedent_estimate::nuisance_cache::CertifiedSource
+pub struct antecedent_estimate::nuisance_cache::CertifiedSource has private fields
+pub struct antecedent_estimate::nuisance_cache::CompiledSubplans
+pub struct antecedent_estimate::nuisance_cache::CompiledSubplans has private fields
 pub struct antecedent_estimate::nuisance_cache::DesignDependency
 pub struct antecedent_estimate::nuisance_cache::DesignDependency has private fields
 pub struct antecedent_estimate::nuisance_cache::FoldAssignment
@@ -11465,8 +11620,15 @@ pub struct antecedent_estimate::nuisance_cache::NumericalDependency
 pub struct antecedent_estimate::nuisance_cache::NumericalDependency has private fields
 pub struct antecedent_estimate::nuisance_cache::PredictedRow
 pub struct antecedent_estimate::nuisance_cache::PredictedRow has private fields
+pub struct antecedent_estimate::nuisance_cache::PreparedFamilyRequest
+pub struct antecedent_estimate::nuisance_cache::PreparedFamilyRequest has private fields
 pub struct antecedent_estimate::nuisance_cache::ProviderDependency
 pub struct antecedent_estimate::nuisance_cache::ProviderDependency has private fields
+pub struct antecedent_estimate::nuisance_cache::RequestColumns
+pub struct antecedent_estimate::nuisance_cache::RequestColumns has private fields
+pub struct antecedent_estimate::nuisance_cache::SharedSubplan
+pub struct antecedent_estimate::nuisance_cache::SharedSubplan has private fields
+pub struct antecedent_estimate::nuisance_cache::SubplanReceipt
 pub struct antecedent_estimate::nuisance_cache::TargetDependency
 pub struct antecedent_estimate::nuisance_cache::TargetDependency has private fields
 pub struct antecedent_estimate::nuisance_cache::TreatmentDependency
@@ -12366,6 +12528,9 @@ pub variant antecedent_estimate::nested_markov_uncertainty::NestedFisherFunction
 pub variant antecedent_estimate::nested_markov_uncertainty::NestedFisherFunctional::Mean1
 pub variant antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimand::InterventionalEffects
 pub variant antecedent_estimate::nonlinear_mediation::NonlinearMediationEstimand::NaturalEffects
+pub variant antecedent_estimate::nuisance_cache::EstimatorFamily::Aipw
+pub variant antecedent_estimate::nuisance_cache::EstimatorFamily::Dml
+pub variant antecedent_estimate::nuisance_cache::EstimatorFamily::Policy
 pub variant antecedent_estimate::nuisance_cache::KeyField::Design
 pub variant antecedent_estimate::nuisance_cache::KeyField::Folds
 pub variant antecedent_estimate::nuisance_cache::KeyField::Numerical
@@ -12380,6 +12545,8 @@ pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::DuplicateRo
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::EmptyBlock { fold: u32 }
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::EmptyBlocks
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::EmptyFolds
+pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::EmptyRequests
+pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::EmptyRoles
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::EmptyTraining { fold: u32 }
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::FoldOutOfRange { fold: u32, fold_count: u32 }
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::HeldOutLeakage { row_id: u64 }
@@ -12390,8 +12557,10 @@ pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::NonFinitePr
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::RowNotInFold { fold: u32, row_id: u64 }
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::TooFewFolds { fold_count: u32 }
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::TrainingLeakage { fold: u32, row_id: u64 }
+pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::UnalignedPredictions
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::UnknownFold { fold: u32 }
 pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::UnknownRole
+pub variant antecedent_estimate::nuisance_cache::NuisanceCacheError::WrongFamily { request: &'static str, expected: &'static str }
 pub variant antecedent_estimate::nuisance_cache::NuisanceRole::Outcome { level: u64 }
 pub variant antecedent_estimate::nuisance_cache::NuisanceRole::Treatment
 pub variant antecedent_estimate::observational_policy::KnownPropensity::Constant(alloc::sync::Arc<[f64]>)

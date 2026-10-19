@@ -17,9 +17,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, Mutex};
 
-use antecedent_core::{DesignDependencyId, NumericalPolicy, ProviderId, SemanticDigest};
+use antecedent_core::{
+    DesignDependencyId, NumericalPolicy, ProviderId, SemanticDigest, SourceDependencyId,
+};
 use thiserror::Error;
 
 /// Why a certified nuisance was not stored or restored.
@@ -151,6 +154,32 @@ pub enum NuisanceCacheError {
         /// Evaluation-fold row with no stored value.
         row_id: u64,
     },
+    /// A batch named no prepared request.
+    #[error("no prepared request was given; next attempt: pass at least one request")]
+    EmptyRequests,
+    /// A request named no nuisance role.
+    #[error(
+        "a prepared request names no nuisance role; \
+         next attempt: name the treatment or outcome role"
+    )]
+    EmptyRoles,
+    /// A family executor was given another family's request.
+    #[error(
+        "this request is {request} and this executor is {expected}; \
+         next attempt: execute the request with its family"
+    )]
+    WrongFamily {
+        /// Family on the request.
+        request: &'static str,
+        /// Family the executor serves.
+        expected: &'static str,
+    },
+    /// Aligned prediction inputs had different lengths.
+    #[error(
+        "prediction rows, folds, and values differ in length; \
+         next attempt: pass one fold and one value per row"
+    )]
+    UnalignedPredictions,
 }
 
 /// One field of a [`NuisanceCacheKey`].
@@ -871,6 +900,690 @@ impl NuisanceCacheKey {
     }
 }
 
+/// Estimator family that may reuse a certified nuisance.
+///
+/// The family is not a cache-key field. Two requests share a subplan when their
+/// certified source and [`NuisanceCacheKey`] match, including across these families.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum EstimatorFamily {
+    /// Cross-fitted, cell, or population AIPW.
+    Aipw,
+    /// Partially linear or AIPW double machine learning, including cluster DML.
+    Dml,
+    /// Policy value from a certified nuisance.
+    Policy,
+}
+
+impl EstimatorFamily {
+    /// Stable name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Aipw => "aipw",
+            Self::Dml => "dml",
+            Self::Policy => "policy",
+        }
+    }
+}
+
+/// Column names a request mentions.
+///
+/// Names are not a compatibility key. Two requests with the same names and a
+/// different certified source or cache key do not share a subplan.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct RequestColumns {
+    outcome: String,
+    treatment: String,
+    covariates: Box<[String]>,
+}
+
+impl RequestColumns {
+    /// Outcome, treatment, and covariate names.
+    ///
+    /// Stored names are trimmed. Covariate order is kept.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::Blank`] when a name is empty after trimming.
+    #[must_use = "a refused column list is not part of a prepared request"]
+    pub fn try_new(
+        outcome: &str,
+        treatment: &str,
+        covariates: &[&str],
+    ) -> Result<Self, NuisanceCacheError> {
+        let outcome = trim_name(outcome, "outcome column")?;
+        let treatment = trim_name(treatment, "treatment column")?;
+        let mut stored = Vec::with_capacity(covariates.len());
+        for name in covariates {
+            stored.push(trim_name(name, "covariate column")?);
+        }
+        Ok(Self { outcome, treatment, covariates: stored.into_boxed_slice() })
+    }
+
+    /// Trimmed outcome name.
+    #[must_use]
+    pub fn outcome(&self) -> &str {
+        &self.outcome
+    }
+
+    /// Trimmed treatment name.
+    #[must_use]
+    pub fn treatment(&self) -> &str {
+        &self.treatment
+    }
+
+    /// Covariate names, in the order they were given.
+    #[must_use]
+    pub fn covariates(&self) -> &[String] {
+        &self.covariates
+    }
+}
+
+/// Certified source identity.
+///
+/// The id is not the rows. `content` distinguishes two snapshots that reuse an
+/// id. Column names are not this identity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct CertifiedSource {
+    id: SourceDependencyId,
+    content: SemanticDigest,
+}
+
+impl CertifiedSource {
+    /// Source id and content digest.
+    #[must_use]
+    pub const fn new(id: SourceDependencyId, content: SemanticDigest) -> Self {
+        Self { id, content }
+    }
+
+    /// Source id.
+    #[must_use]
+    pub const fn id(self) -> SourceDependencyId {
+        self.id
+    }
+
+    /// Content digest.
+    #[must_use]
+    pub const fn content(self) -> SemanticDigest {
+        self.content
+    }
+}
+
+/// One prepared or batch request.
+///
+/// Compatibility is the certified source plus every [`NuisanceCacheKey`] field.
+/// [`RequestColumns`] are recorded and are not compared.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedFamilyRequest {
+    family: EstimatorFamily,
+    columns: RequestColumns,
+    source: CertifiedSource,
+    key: NuisanceCacheKey,
+    roles: Box<[NuisanceRole]>,
+}
+
+impl PreparedFamilyRequest {
+    /// Assemble a request.
+    ///
+    /// Duplicate roles are kept once. Role order is treatment, then outcome level.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::EmptyRoles`] when `roles` is empty.
+    #[must_use = "a refused request is not compiled into a subplan"]
+    pub fn try_new(
+        family: EstimatorFamily,
+        columns: RequestColumns,
+        source: CertifiedSource,
+        key: NuisanceCacheKey,
+        roles: &[NuisanceRole],
+    ) -> Result<Self, NuisanceCacheError> {
+        if roles.is_empty() {
+            return Err(NuisanceCacheError::EmptyRoles);
+        }
+        Ok(Self { family, columns, source, key, roles: unique_roles(roles) })
+    }
+
+    /// Estimator family.
+    #[must_use]
+    pub const fn family(&self) -> EstimatorFamily {
+        self.family
+    }
+
+    /// Column names. Not a compatibility key.
+    #[must_use]
+    pub const fn columns(&self) -> &RequestColumns {
+        &self.columns
+    }
+
+    /// Certified source.
+    #[must_use]
+    pub const fn source(&self) -> CertifiedSource {
+        self.source
+    }
+
+    /// Certified nuisance key.
+    #[must_use]
+    pub const fn key(&self) -> &NuisanceCacheKey {
+        &self.key
+    }
+
+    /// Nuisance roles this request needs, in role order.
+    #[must_use]
+    pub const fn roles(&self) -> &[NuisanceRole] {
+        &self.roles
+    }
+}
+
+/// Requests that share one certified source and one nuisance key.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SharedSubplan {
+    source: CertifiedSource,
+    key: NuisanceCacheKey,
+    families: Box<[EstimatorFamily]>,
+    members: Box<[usize]>,
+    roles: Box<[NuisanceRole]>,
+}
+
+impl SharedSubplan {
+    /// Certified source scanned once for every member.
+    #[must_use]
+    pub const fn source(&self) -> CertifiedSource {
+        self.source
+    }
+
+    /// Cache key of the shared fit.
+    #[must_use]
+    pub const fn key(&self) -> &NuisanceCacheKey {
+        &self.key
+    }
+
+    /// Families of the members, in first-seen order.
+    #[must_use]
+    pub const fn families(&self) -> &[EstimatorFamily] {
+        &self.families
+    }
+
+    /// Indexes into the request slice that compiled this plan, in input order.
+    #[must_use]
+    pub const fn members(&self) -> &[usize] {
+        &self.members
+    }
+
+    /// Roles fitted once for every member.
+    #[must_use]
+    pub const fn roles(&self) -> &[NuisanceRole] {
+        &self.roles
+    }
+
+    fn accepts(&self, request: &PreparedFamilyRequest) -> bool {
+        self.source == request.source && self.key.mismatch(&request.key).is_none()
+    }
+
+    fn push(&mut self, index: usize, request: &PreparedFamilyRequest) {
+        let mut members = self.members.to_vec();
+        members.push(index);
+        self.members = members.into_boxed_slice();
+        if !self.families.contains(&request.family) {
+            let mut families = self.families.to_vec();
+            families.push(request.family);
+            self.families = families.into_boxed_slice();
+        }
+        self.roles = unique_roles(&[self.roles.as_ref(), request.roles.as_ref()].concat());
+    }
+}
+
+/// Subplans compiled from one prepared or batch request list.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompiledSubplans {
+    plans: Box<[SharedSubplan]>,
+}
+
+impl CompiledSubplans {
+    /// Subplans in first-seen order.
+    #[must_use]
+    pub const fn plans(&self) -> &[SharedSubplan] {
+        &self.plans
+    }
+}
+
+/// Scans, role fits, and certified-cache hits of one execution.
+///
+/// A scan is one certified source read. A fit is one nuisance role computed
+/// for a subplan. Members of a subplan do not multiply either count. A later
+/// execution that only restores certified fits counts hits and no scan or fit.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct SubplanReceipt {
+    /// Certified sources read to compute a missing fit.
+    pub scans: u64,
+    /// Nuisance roles computed.
+    pub fits: u64,
+    /// Nuisance roles restored from the certified cache.
+    pub hits: u64,
+}
+
+/// Certified fits produced for one compiled batch, and the work that produced them.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BatchExecution {
+    plans: usize,
+    fits: Box<[CertifiedNuisanceFit]>,
+    receipt: SubplanReceipt,
+}
+
+impl BatchExecution {
+    /// Number of subplans executed.
+    #[must_use]
+    pub const fn plans(&self) -> usize {
+        self.plans
+    }
+
+    /// Fits in subplan order, and role order within a subplan.
+    #[must_use]
+    pub const fn fits(&self) -> &[CertifiedNuisanceFit] {
+        &self.fits
+    }
+
+    /// Scan, fit, and hit counts.
+    #[must_use]
+    pub const fn receipt(&self) -> SubplanReceipt {
+        self.receipt
+    }
+}
+
+/// Compile requests that share a certified source and nuisance key.
+///
+/// Matching column names are not enough. A different source, or any different
+/// [`NuisanceCacheKey`] field, stays on its own subplan.
+///
+/// # Errors
+///
+/// [`NuisanceCacheError::EmptyRequests`] when `requests` is empty.
+#[must_use = "a refused compilation is not a shared subplan"]
+pub fn compile_shared_subplans(
+    requests: &[PreparedFamilyRequest],
+) -> Result<CompiledSubplans, NuisanceCacheError> {
+    if requests.is_empty() {
+        return Err(NuisanceCacheError::EmptyRequests);
+    }
+    let mut plans: Vec<SharedSubplan> = Vec::new();
+    for (index, request) in requests.iter().enumerate() {
+        if let Some(plan) = plans.iter_mut().find(|plan| plan.accepts(request)) {
+            plan.push(index, request);
+        } else {
+            plans.push(SharedSubplan {
+                source: request.source,
+                key: request.key.clone(),
+                families: Box::new([request.family]),
+                members: Box::new([index]),
+                roles: request.roles.clone(),
+            });
+        }
+    }
+    Ok(CompiledSubplans { plans: plans.into_boxed_slice() })
+}
+
+/// Execute compiled subplans against the certified cache.
+///
+/// The returned execution is the restored or newly stored fits.
+///
+/// A role already stored under the plan's key and source is restored. A miss
+/// calls `produce` once and stores that block. A key already bound to a
+/// different certified source in this batch is a miss and is not written back
+/// over the other source's fit. The second execution of a compatible plan
+/// restores and does not call `produce`.
+///
+/// # Errors
+///
+/// Producer errors, and the store errors of [`NuisanceCache::store_certified`].
+#[must_use = "a refused execution is not a certified fit"]
+pub fn execute_compiled_subplans(
+    cache: &mut NuisanceCache,
+    compiled: &CompiledSubplans,
+    mut produce: impl FnMut(
+        &NuisanceCacheKey,
+        NuisanceRole,
+    ) -> Result<Vec<BlockedOutOfFoldPredictions>, NuisanceCacheError>,
+) -> Result<BatchExecution, NuisanceCacheError> {
+    let mut fits = Vec::new();
+    let mut receipt = SubplanReceipt::default();
+    let mut scanned = BTreeSet::new();
+    let mut bindings: BTreeMap<NuisanceCacheKey, CertifiedSource> = BTreeMap::new();
+    for plan in compiled.plans() {
+        let foreign_source = bindings.get(plan.key()).is_some_and(|bound| bound != &plan.source);
+        let mut missed = false;
+        for &role in plan.roles() {
+            let stored = if foreign_source {
+                None
+            } else {
+                match cache.certified(plan.key(), role) {
+                    Ok(fit) => Some(fit),
+                    Err(NuisanceCacheError::Miss | NuisanceCacheError::UnknownRole) => None,
+                    Err(error) => return Err(error),
+                }
+            };
+            if let Some(fit) = stored {
+                receipt.hits = receipt.hits.saturating_add(1);
+                fits.push(fit);
+                continue;
+            }
+            let blocks = produce(plan.key(), role)?;
+            missed = true;
+            if foreign_source {
+                let prepared = prepare_blocks(plan.key().folds(), &blocks)?;
+                fits.push(CertifiedNuisanceFit {
+                    key: plan.key().clone(),
+                    role,
+                    blocks: prepared,
+                });
+            } else {
+                fits.push(cache.store_certified(plan.key(), role, &blocks)?);
+            }
+            receipt.fits = receipt.fits.saturating_add(1);
+        }
+        if missed && scanned.insert(plan.source) {
+            receipt.scans = receipt.scans.saturating_add(1);
+        }
+        bindings.entry(plan.key().clone()).or_insert(plan.source);
+    }
+    Ok(BatchExecution { plans: compiled.plans().len(), fits: fits.into_boxed_slice(), receipt })
+}
+
+/// Compile `requests` and execute them as one batch.
+///
+/// # Errors
+///
+/// [`NuisanceCacheError::WrongFamily`] when a request is not `expected`.
+/// The compilation and execution errors of [`compile_shared_subplans`] and
+/// [`execute_compiled_subplans`].
+#[must_use = "a refused family execution is not a certified fit"]
+pub fn execute_family_requests(
+    expected: EstimatorFamily,
+    cache: &mut NuisanceCache,
+    requests: &[PreparedFamilyRequest],
+    produce: impl FnMut(
+        &NuisanceCacheKey,
+        NuisanceRole,
+    ) -> Result<Vec<BlockedOutOfFoldPredictions>, NuisanceCacheError>,
+) -> Result<BatchExecution, NuisanceCacheError> {
+    if let Some(request) = requests.iter().find(|request| request.family != expected) {
+        return Err(NuisanceCacheError::WrongFamily {
+            request: request.family.as_str(),
+            expected: expected.as_str(),
+        });
+    }
+    let compiled = compile_shared_subplans(requests)?;
+    execute_compiled_subplans(cache, &compiled, produce)
+}
+
+/// Execute each request on its own empty cache.
+///
+/// The predictions match a shared batch when `produce` is a function of the key
+/// and role. Scan and fit counts are not shared across requests.
+///
+/// # Errors
+///
+/// The errors of [`execute_family_requests`], checked per request. An empty
+/// slice is an empty execution, not [`NuisanceCacheError::EmptyRequests`].
+#[must_use = "a refused independent execution is not a certified fit"]
+pub fn execute_independently(
+    requests: &[PreparedFamilyRequest],
+    mut produce: impl FnMut(
+        &NuisanceCacheKey,
+        NuisanceRole,
+    ) -> Result<Vec<BlockedOutOfFoldPredictions>, NuisanceCacheError>,
+) -> Result<BatchExecution, NuisanceCacheError> {
+    let mut fits = Vec::new();
+    let mut receipt = SubplanReceipt::default();
+    for request in requests {
+        let family = request.family;
+        let mut cache = NuisanceCache::new();
+        let execution = execute_family_requests(
+            family,
+            &mut cache,
+            std::slice::from_ref(request),
+            &mut produce,
+        )?;
+        receipt.scans = receipt.scans.saturating_add(execution.receipt.scans);
+        receipt.fits = receipt.fits.saturating_add(execution.receipt.fits);
+        receipt.hits = receipt.hits.saturating_add(execution.receipt.hits);
+        fits.extend(execution.fits.iter().cloned());
+    }
+    Ok(BatchExecution { plans: requests.len(), fits: fits.into_boxed_slice(), receipt })
+}
+
+/// Group aligned rows into out-of-fold blocks.
+///
+/// `row_ids`, `folds`, and `values` are one prediction in the same order.
+///
+/// # Errors
+///
+/// [`NuisanceCacheError::UnalignedPredictions`] when the slices differ in length.
+/// [`PredictedRow::try_new`] and [`BlockedOutOfFoldPredictions::try_new`] errors.
+#[must_use = "a refused block is not an out-of-fold prediction"]
+pub fn blocks_by_fold(
+    row_ids: &[u64],
+    folds: &[u32],
+    values: &[f64],
+) -> Result<Vec<BlockedOutOfFoldPredictions>, NuisanceCacheError> {
+    if row_ids.len() != folds.len() || folds.len() != values.len() {
+        return Err(NuisanceCacheError::UnalignedPredictions);
+    }
+    let mut grouped: BTreeMap<u32, Vec<PredictedRow>> = BTreeMap::new();
+    for (index, &row_id) in row_ids.iter().enumerate() {
+        grouped
+            .entry(folds[index])
+            .or_default()
+            .push(PredictedRow::try_new(row_id, values[index])?);
+    }
+    let mut blocks = Vec::with_capacity(grouped.len());
+    for (fold, rows) in grouped {
+        blocks.push(BlockedOutOfFoldPredictions::try_new(fold, &rows)?);
+    }
+    Ok(blocks)
+}
+
+fn trim_name(name: &str, field: &'static str) -> Result<String, NuisanceCacheError> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(NuisanceCacheError::Blank { field });
+    }
+    Ok(name.to_owned())
+}
+
+fn unique_roles(roles: &[NuisanceRole]) -> Box<[NuisanceRole]> {
+    let mut roles = roles.to_vec();
+    roles.sort_unstable();
+    roles.dedup();
+    roles.into_boxed_slice()
+}
+
+struct ActiveCertification {
+    cache: Arc<Mutex<NuisanceCache>>,
+    key: NuisanceCacheKey,
+    scans: u64,
+    fits: u64,
+    hits: u64,
+}
+
+std::thread_local! {
+    static CERTIFIED: std::cell::RefCell<Option<ActiveCertification>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+struct CertificationGuard<'a> {
+    destination: &'a mut NuisanceCache,
+    shared: Arc<Mutex<NuisanceCache>>,
+    previous: Option<ActiveCertification>,
+    receipt: SubplanReceipt,
+    finished: bool,
+}
+
+impl CertificationGuard<'_> {
+    fn finish(&mut self) {
+        if self.finished {
+            return;
+        }
+        self.finished = true;
+        let active = CERTIFIED.with(|slot| {
+            let current = slot.borrow_mut().take();
+            *slot.borrow_mut() = self.previous.take();
+            current
+        });
+        if let Some(active) = active {
+            self.receipt =
+                SubplanReceipt { scans: active.scans, fits: active.fits, hits: active.hits };
+        }
+        let mut guard = self.shared.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        *self.destination = std::mem::take(&mut guard);
+    }
+}
+
+impl Drop for CertificationGuard<'_> {
+    fn drop(&mut self) {
+        self.finish();
+    }
+}
+
+/// Run `work` with `cache` and `key` active on this thread.
+///
+/// Estimators consult the cache only inside this scope. An empty cache misses
+/// and the estimator fits as it does with no scope. A panic restores `cache`
+/// and the enclosing scope.
+#[must_use = "the receipt counts scans, fits, and certified hits"]
+pub fn with_certified_cache<R>(
+    cache: &mut NuisanceCache,
+    key: &NuisanceCacheKey,
+    work: impl FnOnce() -> R,
+) -> (R, SubplanReceipt) {
+    let shared = Arc::new(Mutex::new(std::mem::take(cache)));
+    let previous = CERTIFIED.with(|slot| {
+        slot.borrow_mut().replace(ActiveCertification {
+            cache: Arc::clone(&shared),
+            key: key.clone(),
+            scans: 0,
+            fits: 0,
+            hits: 0,
+        })
+    });
+    let mut guard = CertificationGuard {
+        destination: cache,
+        shared,
+        previous,
+        receipt: SubplanReceipt::default(),
+        finished: false,
+    };
+    let result = work();
+    guard.finish();
+    (result, guard.receipt)
+}
+
+/// Whether [`with_certified_cache`] is active on this thread.
+#[must_use]
+pub fn certification_requested() -> bool {
+    CERTIFIED.with(|slot| slot.borrow().is_some())
+}
+
+fn active_cache_and_key() -> Option<(Arc<Mutex<NuisanceCache>>, NuisanceCacheKey)> {
+    CERTIFIED.with(|slot| {
+        slot.borrow().as_ref().map(|active| (Arc::clone(&active.cache), active.key.clone()))
+    })
+}
+
+/// Restore one role from the active certified cache.
+///
+/// `Ok(None)` is an inactive scope, a key miss, or a role that is not stored.
+/// Leakage and fold errors are returned.
+///
+/// # Errors
+///
+/// Restoration errors other than [`NuisanceCacheError::Miss`] and
+/// [`NuisanceCacheError::UnknownRole`].
+pub fn restore_active(
+    role: NuisanceRole,
+    evaluation_fold: u32,
+    row_ids: &[u64],
+) -> Result<Option<Vec<f64>>, NuisanceCacheError> {
+    let Some((cache, key)) = active_cache_and_key() else {
+        return Ok(None);
+    };
+    let guard = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    match guard.restore_rows(&key, role, evaluation_fold, row_ids) {
+        Ok(values) => Ok(Some(values)),
+        Err(NuisanceCacheError::Miss | NuisanceCacheError::UnknownRole) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+/// Store one role in the active certified cache.
+///
+/// An inactive scope stores nothing.
+///
+/// # Errors
+///
+/// The errors of [`NuisanceCache::store_certified`] when a scope is active.
+pub fn store_active(
+    role: NuisanceRole,
+    blocks: &[BlockedOutOfFoldPredictions],
+) -> Result<(), NuisanceCacheError> {
+    let Some((cache, key)) = active_cache_and_key() else {
+        return Ok(());
+    };
+    let mut guard = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    guard.store_certified(&key, role, blocks)?;
+    Ok(())
+}
+
+/// Store roles that were just fitted and count one source scan.
+///
+/// An inactive scope stores nothing and leaves the receipt unchanged.
+///
+/// # Errors
+///
+/// The errors of [`store_active`].
+pub fn store_active_roles(
+    roles: &[(NuisanceRole, Vec<BlockedOutOfFoldPredictions>)],
+) -> Result<(), NuisanceCacheError> {
+    if !certification_requested() {
+        return Ok(());
+    }
+    for (role, blocks) in roles {
+        store_active(*role, blocks)?;
+    }
+    let fits = u64::try_from(roles.len()).unwrap_or(u64::MAX);
+    if fits > 0 {
+        record_active_work(1, fits, 0);
+    }
+    Ok(())
+}
+
+/// Fold assignment of the active certified scope, when one is open.
+#[must_use]
+pub fn active_folds() -> Option<FoldAssignment> {
+    CERTIFIED.with(|slot| slot.borrow().as_ref().map(|active| active.key.folds().clone()))
+}
+
+/// Count certified hits on the active scope.
+pub fn record_active_hits(hits: u64) {
+    record_active_work(0, 0, hits);
+}
+
+/// Count role fits that read the certified source on the active scope.
+pub fn record_certified_fits(fits: u64) {
+    if fits > 0 {
+        record_active_work(1, fits, 0);
+    }
+}
+
+fn record_active_work(scans: u64, fits: u64, hits: u64) {
+    CERTIFIED.with(|slot| {
+        if let Some(active) = slot.borrow_mut().as_mut() {
+            active.scans = active.scans.saturating_add(scans);
+            active.fits = active.fits.saturating_add(fits);
+            active.hits = active.hits.saturating_add(hits);
+        }
+    });
+}
+
 const fn canonical_bits(value: f64) -> u64 {
     let bits = value.to_bits();
     if bits == 0x8000_0000_0000_0000 { 0 } else { bits }
@@ -952,10 +1665,13 @@ mod tests {
     use antecedent_core::{NumericalPolicy, PhysicalTolerance};
 
     use super::{
-        BlockedOutOfFoldPredictions, DesignDependency, DesignDependencyId, FoldAssignment, FoldRow,
-        KeyField, NuisanceCache, NuisanceCacheError, NuisanceCacheKey, NuisanceRole,
-        NumericalDependencies, NumericalDependency, PredictedRow, ProviderDependency, ProviderId,
-        SemanticDigest, TargetDependency, TreatmentDependency,
+        BatchExecution, BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency,
+        DesignDependencyId, EstimatorFamily, FoldAssignment, FoldRow, KeyField, NuisanceCache,
+        NuisanceCacheError, NuisanceCacheKey, NuisanceRole, NumericalDependencies,
+        NumericalDependency, PredictedRow, PreparedFamilyRequest, ProviderDependency, ProviderId,
+        RequestColumns, SemanticDigest, SourceDependencyId, SubplanReceipt, TargetDependency,
+        TreatmentDependency, compile_shared_subplans, execute_compiled_subplans,
+        execute_family_requests,
     };
 
     fn digest(byte: u8) -> SemanticDigest {
@@ -1180,5 +1896,198 @@ mod tests {
             value_bits(&forward),
             [0.25f64.to_bits(), (-1.5f64).to_bits(), 4.0f64.to_bits()]
         );
+    }
+
+    fn columns() -> RequestColumns {
+        RequestColumns::try_new("outcome", "arm", &["z"]).unwrap()
+    }
+
+    fn source(byte: u8) -> CertifiedSource {
+        CertifiedSource::new(SourceDependencyId::from_raw(3), digest(byte))
+    }
+
+    fn predictions_for(key: &NuisanceCacheKey) -> Vec<BlockedOutOfFoldPredictions> {
+        let folds = key.folds();
+        let mut blocks = Vec::new();
+        for fold in 0..folds.fold_count() {
+            let rows: Vec<PredictedRow> = folds
+                .rows()
+                .iter()
+                .filter(|row| row.fold() == fold)
+                .map(|row| {
+                    let value = match row.row_id() {
+                        10 => 0.25,
+                        20 => -1.5,
+                        30 => 4.0,
+                        40 => 0.5,
+                        _ => 0.125,
+                    };
+                    PredictedRow::try_new(row.row_id(), value).unwrap()
+                })
+                .collect();
+            if rows.is_empty() {
+                continue;
+            }
+            blocks.push(BlockedOutOfFoldPredictions::try_new(fold, &rows).unwrap());
+        }
+        blocks
+    }
+
+    fn both_blocks() -> Vec<BlockedOutOfFoldPredictions> {
+        vec![
+            fold_zero_predictions(),
+            BlockedOutOfFoldPredictions::try_new(1, &[PredictedRow::try_new(40, 0.5).unwrap()])
+                .unwrap(),
+        ]
+    }
+
+    fn request(
+        family: EstimatorFamily,
+        source_byte: u8,
+        key: NuisanceCacheKey,
+    ) -> PreparedFamilyRequest {
+        PreparedFamilyRequest::try_new(
+            family,
+            columns(),
+            source(source_byte),
+            key,
+            &[NuisanceRole::Treatment],
+        )
+        .unwrap()
+    }
+
+    fn produce(
+        calls: &std::cell::Cell<u64>,
+    ) -> impl FnMut(
+        &NuisanceCacheKey,
+        NuisanceRole,
+    ) -> Result<Vec<BlockedOutOfFoldPredictions>, NuisanceCacheError> {
+        move |key, _role| {
+            calls.set(calls.get().saturating_add(1));
+            Ok(predictions_for(key))
+        }
+    }
+
+    fn assert_receipt(execution: &BatchExecution, scans: u64, fits: u64, hits: u64) {
+        assert_eq!(execution.receipt(), SubplanReceipt { scans, fits, hits });
+    }
+
+    #[test]
+    fn c11_shared_subplan_reuses_one_fit_and_matches_independent_execution() {
+        let first = request(EstimatorFamily::Aipw, 1, base_key());
+        let second = PreparedFamilyRequest::try_new(
+            EstimatorFamily::Dml,
+            RequestColumns::try_new("other_outcome", "arm", &["z", "w"]).unwrap(),
+            source(1),
+            base_key(),
+            &[NuisanceRole::Treatment, NuisanceRole::Outcome { level: 0 }],
+        )
+        .unwrap();
+        assert_ne!(first.columns(), second.columns());
+        let compiled = compile_shared_subplans(&[first.clone(), second]).unwrap();
+        assert_eq!(compiled.plans().len(), 1, "same certified source and key share one subplan");
+        assert_eq!(compiled.plans()[0].members(), &[0, 1]);
+        assert_eq!(
+            compiled.plans()[0].roles(),
+            &[NuisanceRole::Treatment, NuisanceRole::Outcome { level: 0 }]
+        );
+
+        let calls = std::cell::Cell::new(0u64);
+        let mut cache = NuisanceCache::new();
+        let shared = execute_compiled_subplans(&mut cache, &compiled, produce(&calls)).unwrap();
+        assert_eq!(calls.get(), 2, "each role is fit once for the shared subplan");
+        assert_receipt(&shared, 1, 2, 0);
+        calls.set(0);
+        let again = execute_compiled_subplans(&mut cache, &compiled, produce(&calls)).unwrap();
+        assert_eq!(calls.get(), 0, "a second compatible execution restores the certified fit");
+        assert_receipt(&again, 0, 0, 2);
+        assert_eq!(shared.fits(), again.fits());
+
+        let calls = std::cell::Cell::new(0u64);
+        let requests = [first, request(EstimatorFamily::Aipw, 1, base_key())];
+        let independent = super::execute_independently(&requests, produce(&calls)).unwrap();
+        assert_eq!(calls.get(), 2);
+        assert_receipt(&independent, 2, 2, 0);
+        assert_eq!(&independent.fits()[0], &shared.fits()[0]);
+        assert_eq!(&independent.fits()[1], &shared.fits()[0]);
+    }
+
+    #[test]
+    fn c11_matching_columns_miss_when_a_key_field_or_source_changes() {
+        let base = request(EstimatorFamily::Aipw, 1, base_key());
+        let folds = estimation_folds();
+        let strict = clip(NumericalPolicy::strict(), 1.0);
+        let changed_folds = FoldAssignment::try_new(
+            2,
+            &[FoldRow::new(10, 1), FoldRow::new(20, 0), FoldRow::new(30, 0), FoldRow::new(40, 1)],
+            &[99],
+        )
+        .unwrap();
+        let changed = [
+            (assemble(2, 7, &folds, "arm", 4, &strict), KeyField::Target),
+            (assemble(1, 9, &folds, "arm", 4, &strict), KeyField::Design),
+            (assemble(1, 7, &changed_folds, "arm", 4, &strict), KeyField::Folds),
+            (assemble(1, 7, &folds, "dose", 4, &strict), KeyField::Treatment),
+            (assemble(1, 7, &folds, "arm", 8, &strict), KeyField::Provider),
+            (
+                assemble(1, 7, &folds, "arm", 4, &clip(NumericalPolicy::strict(), 2.0)),
+                KeyField::Numerical,
+            ),
+        ];
+        for (key, field) in changed {
+            let other = request(EstimatorFamily::Aipw, 1, key.clone());
+            assert_eq!(base.columns(), other.columns());
+            assert_eq!(base_key().mismatch(&key), Some(field));
+            let compiled = compile_shared_subplans(&[base.clone(), other]).unwrap();
+            assert_eq!(compiled.plans().len(), 2, "{field:?} is not shared");
+            let calls = std::cell::Cell::new(0u64);
+            let mut cache = NuisanceCache::new();
+            let execution =
+                execute_compiled_subplans(&mut cache, &compiled, produce(&calls)).unwrap();
+            assert_eq!(calls.get(), 2);
+            assert_receipt(&execution, 1, 2, 0);
+            assert!(cache.certified(&key, NuisanceRole::Treatment).is_ok());
+        }
+
+        let other_source = request(EstimatorFamily::Aipw, 2, base_key());
+        assert_eq!(base.columns(), other_source.columns());
+        let compiled = compile_shared_subplans(&[base, other_source]).unwrap();
+        assert_eq!(compiled.plans().len(), 2, "a different certified source is not shared");
+        let calls = std::cell::Cell::new(0u64);
+        let mut cache = NuisanceCache::new();
+        let execution = execute_compiled_subplans(&mut cache, &compiled, produce(&calls)).unwrap();
+        assert_eq!(calls.get(), 2, "the second source does not reuse the first source's fit");
+        assert_receipt(&execution, 2, 2, 0);
+    }
+
+    #[test]
+    fn c11_family_executor_refuses_another_family_and_keeps_leakage() {
+        let prepared = request(EstimatorFamily::Dml, 1, base_key());
+        let error = execute_family_requests(
+            EstimatorFamily::Aipw,
+            &mut NuisanceCache::new(),
+            &[prepared],
+            |_key, _role| Ok(both_blocks()),
+        )
+        .unwrap_err();
+        assert_eq!(error, NuisanceCacheError::WrongFamily { request: "dml", expected: "aipw" });
+
+        let leaked = request(EstimatorFamily::Aipw, 1, base_key());
+        let error = execute_family_requests(
+            EstimatorFamily::Aipw,
+            &mut NuisanceCache::new(),
+            &[leaked],
+            |_key, _role| {
+                Ok(vec![
+                    BlockedOutOfFoldPredictions::try_new(
+                        0,
+                        &[PredictedRow::try_new(40, 1.25).unwrap()],
+                    )
+                    .unwrap(),
+                ])
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error, NuisanceCacheError::TrainingLeakage { fold: 0, row_id: 40 });
     }
 }
