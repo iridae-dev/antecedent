@@ -42,11 +42,15 @@
 #[non_exhaustive] pub enum antecedent_contract::adaptive_design::SpendingKind
 #[non_exhaustive] pub enum antecedent_contract::adaptive_design::StoppingRuleKind
 #[non_exhaustive] pub enum antecedent_contract::adaptive_design::StoppingSpec
+#[non_exhaustive] pub enum antecedent_contract::bridge::AnalyticLaw
 #[non_exhaustive] pub enum antecedent_contract::bridge::AssumptionKind
 #[non_exhaustive] pub enum antecedent_contract::bridge::BridgeKind
 #[non_exhaustive] pub enum antecedent_contract::bridge::BridgeMapping
 #[non_exhaustive] pub enum antecedent_contract::bridge::MappingKind
+#[non_exhaustive] pub enum antecedent_contract::bridge::NonlinearMap
 #[non_exhaustive] pub enum antecedent_contract::bridge::QuantityClass
+#[non_exhaustive] pub enum antecedent_contract::bridge::SourceMappingDependence
+#[non_exhaustive] pub enum antecedent_contract::bridge::SupportMap
 #[non_exhaustive] pub enum antecedent_contract::bridge::ValueKind
 #[non_exhaustive] pub enum antecedent_contract::composition_verification::CalibrationState
 #[non_exhaustive] pub enum antecedent_contract::composition_verification::DependencyKind
@@ -312,6 +316,7 @@ impl core::clone::Clone for antecedent_contract::adaptive_design::SpendingKind
 impl core::clone::Clone for antecedent_contract::adaptive_design::StoppingRuleDeclaration
 impl core::clone::Clone for antecedent_contract::adaptive_design::StoppingRuleKind
 impl core::clone::Clone for antecedent_contract::adaptive_design::StoppingSpec
+impl core::clone::Clone for antecedent_contract::bridge::AnalyticLaw
 impl core::clone::Clone for antecedent_contract::bridge::AppliedMapping
 impl core::clone::Clone for antecedent_contract::bridge::AssumptionKind
 impl core::clone::Clone for antecedent_contract::bridge::BridgeAssumption
@@ -322,14 +327,26 @@ impl core::clone::Clone for antecedent_contract::bridge::BridgeKind
 impl core::clone::Clone for antecedent_contract::bridge::BridgeMapping
 impl core::clone::Clone for antecedent_contract::bridge::BridgeScope
 impl core::clone::Clone for antecedent_contract::bridge::BridgedClaim
+impl core::clone::Clone for antecedent_contract::bridge::EstimandBridge
+impl core::clone::Clone for antecedent_contract::bridge::ExperimentalPrior
+impl core::clone::Clone for antecedent_contract::bridge::ExposureSetting
+impl core::clone::Clone for antecedent_contract::bridge::ImportedExperimentalPrior
 impl core::clone::Clone for antecedent_contract::bridge::Licensing
 impl core::clone::Clone for antecedent_contract::bridge::MappingKind
+impl core::clone::Clone for antecedent_contract::bridge::MappingUncertainty
 impl core::clone::Clone for antecedent_contract::bridge::MeasurementDirection
+impl core::clone::Clone for antecedent_contract::bridge::NonlinearMap
+impl core::clone::Clone for antecedent_contract::bridge::NonlinearMoment
+impl core::clone::Clone for antecedent_contract::bridge::PreservedSupport
+impl core::clone::Clone for antecedent_contract::bridge::PropagatedUncertainty
 impl core::clone::Clone for antecedent_contract::bridge::QuantityClass
+impl core::clone::Clone for antecedent_contract::bridge::SourceMappingDependence
+impl core::clone::Clone for antecedent_contract::bridge::SupportMap
 impl core::clone::Clone for antecedent_contract::bridge::TransportabilityPremise
 impl core::clone::Clone for antecedent_contract::bridge::TrialEffectPair
 impl core::clone::Clone for antecedent_contract::bridge::TrialLevelFit
 impl core::clone::Clone for antecedent_contract::bridge::TrialLevelValidation
+impl core::clone::Clone for antecedent_contract::bridge::ValueInterval
 impl core::clone::Clone for antecedent_contract::bridge::ValueKind
 impl core::clone::Clone for antecedent_contract::callback_protocol::CallbackDeclaration
 impl core::clone::Clone for antecedent_contract::callback_protocol::CallbackDependency
@@ -626,6 +643,7 @@ impl core::cmp::Eq for antecedent_contract::bridge::BridgeScope
 impl core::cmp::Eq for antecedent_contract::bridge::Licensing
 impl core::cmp::Eq for antecedent_contract::bridge::MappingKind
 impl core::cmp::Eq for antecedent_contract::bridge::MeasurementDirection
+impl core::cmp::Eq for antecedent_contract::bridge::NonlinearMap
 impl core::cmp::Eq for antecedent_contract::bridge::QuantityClass
 impl core::cmp::Eq for antecedent_contract::bridge::TransportabilityPremise
 impl core::cmp::Eq for antecedent_contract::bridge::ValueKind
@@ -1003,6 +1021,7 @@ impl core::cmp::PartialEq for antecedent_contract::adaptive_design::SpendingKind
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::StoppingRuleDeclaration
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::StoppingRuleKind
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::StoppingSpec
+impl core::cmp::PartialEq for antecedent_contract::bridge::AnalyticLaw
 impl core::cmp::PartialEq for antecedent_contract::bridge::AppliedMapping
 impl core::cmp::PartialEq for antecedent_contract::bridge::AssumptionKind
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeAssumption
@@ -1013,14 +1032,26 @@ impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeKind
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeMapping
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgeScope
 impl core::cmp::PartialEq for antecedent_contract::bridge::BridgedClaim
+impl core::cmp::PartialEq for antecedent_contract::bridge::EstimandBridge
+impl core::cmp::PartialEq for antecedent_contract::bridge::ExperimentalPrior
+impl core::cmp::PartialEq for antecedent_contract::bridge::ExposureSetting
+impl core::cmp::PartialEq for antecedent_contract::bridge::ImportedExperimentalPrior
 impl core::cmp::PartialEq for antecedent_contract::bridge::Licensing
 impl core::cmp::PartialEq for antecedent_contract::bridge::MappingKind
+impl core::cmp::PartialEq for antecedent_contract::bridge::MappingUncertainty
 impl core::cmp::PartialEq for antecedent_contract::bridge::MeasurementDirection
+impl core::cmp::PartialEq for antecedent_contract::bridge::NonlinearMap
+impl core::cmp::PartialEq for antecedent_contract::bridge::NonlinearMoment
+impl core::cmp::PartialEq for antecedent_contract::bridge::PreservedSupport
+impl core::cmp::PartialEq for antecedent_contract::bridge::PropagatedUncertainty
 impl core::cmp::PartialEq for antecedent_contract::bridge::QuantityClass
+impl core::cmp::PartialEq for antecedent_contract::bridge::SourceMappingDependence
+impl core::cmp::PartialEq for antecedent_contract::bridge::SupportMap
 impl core::cmp::PartialEq for antecedent_contract::bridge::TransportabilityPremise
 impl core::cmp::PartialEq for antecedent_contract::bridge::TrialEffectPair
 impl core::cmp::PartialEq for antecedent_contract::bridge::TrialLevelFit
 impl core::cmp::PartialEq for antecedent_contract::bridge::TrialLevelValidation
+impl core::cmp::PartialEq for antecedent_contract::bridge::ValueInterval
 impl core::cmp::PartialEq for antecedent_contract::bridge::ValueKind
 impl core::cmp::PartialEq for antecedent_contract::callback_protocol::CallbackDeclaration
 impl core::cmp::PartialEq for antecedent_contract::callback_protocol::CallbackDependency
@@ -1443,6 +1474,7 @@ impl core::fmt::Debug for antecedent_contract::adaptive_design::SpendingKind
 impl core::fmt::Debug for antecedent_contract::adaptive_design::StoppingRuleDeclaration
 impl core::fmt::Debug for antecedent_contract::adaptive_design::StoppingRuleKind
 impl core::fmt::Debug for antecedent_contract::adaptive_design::StoppingSpec
+impl core::fmt::Debug for antecedent_contract::bridge::AnalyticLaw
 impl core::fmt::Debug for antecedent_contract::bridge::AppliedMapping
 impl core::fmt::Debug for antecedent_contract::bridge::AssumptionKind
 impl core::fmt::Debug for antecedent_contract::bridge::BridgeAssumption
@@ -1453,14 +1485,26 @@ impl core::fmt::Debug for antecedent_contract::bridge::BridgeKind
 impl core::fmt::Debug for antecedent_contract::bridge::BridgeMapping
 impl core::fmt::Debug for antecedent_contract::bridge::BridgeScope
 impl core::fmt::Debug for antecedent_contract::bridge::BridgedClaim
+impl core::fmt::Debug for antecedent_contract::bridge::EstimandBridge
+impl core::fmt::Debug for antecedent_contract::bridge::ExperimentalPrior
+impl core::fmt::Debug for antecedent_contract::bridge::ExposureSetting
+impl core::fmt::Debug for antecedent_contract::bridge::ImportedExperimentalPrior
 impl core::fmt::Debug for antecedent_contract::bridge::Licensing
 impl core::fmt::Debug for antecedent_contract::bridge::MappingKind
+impl core::fmt::Debug for antecedent_contract::bridge::MappingUncertainty
 impl core::fmt::Debug for antecedent_contract::bridge::MeasurementDirection
+impl core::fmt::Debug for antecedent_contract::bridge::NonlinearMap
+impl core::fmt::Debug for antecedent_contract::bridge::NonlinearMoment
+impl core::fmt::Debug for antecedent_contract::bridge::PreservedSupport
+impl core::fmt::Debug for antecedent_contract::bridge::PropagatedUncertainty
 impl core::fmt::Debug for antecedent_contract::bridge::QuantityClass
+impl core::fmt::Debug for antecedent_contract::bridge::SourceMappingDependence
+impl core::fmt::Debug for antecedent_contract::bridge::SupportMap
 impl core::fmt::Debug for antecedent_contract::bridge::TransportabilityPremise
 impl core::fmt::Debug for antecedent_contract::bridge::TrialEffectPair
 impl core::fmt::Debug for antecedent_contract::bridge::TrialLevelFit
 impl core::fmt::Debug for antecedent_contract::bridge::TrialLevelValidation
+impl core::fmt::Debug for antecedent_contract::bridge::ValueInterval
 impl core::fmt::Debug for antecedent_contract::bridge::ValueKind
 impl core::fmt::Debug for antecedent_contract::callback_protocol::CallbackDeclaration
 impl core::fmt::Debug for antecedent_contract::callback_protocol::CallbackDependency
@@ -1813,15 +1857,20 @@ impl core::marker::Copy for antecedent_contract::adaptive_design::SpendingKind
 impl core::marker::Copy for antecedent_contract::adaptive_design::StoppingRuleDeclaration
 impl core::marker::Copy for antecedent_contract::adaptive_design::StoppingRuleKind
 impl core::marker::Copy for antecedent_contract::adaptive_design::StoppingSpec
+impl core::marker::Copy for antecedent_contract::bridge::AnalyticLaw
 impl core::marker::Copy for antecedent_contract::bridge::AppliedMapping
 impl core::marker::Copy for antecedent_contract::bridge::AssumptionKind
 impl core::marker::Copy for antecedent_contract::bridge::BridgeKind
 impl core::marker::Copy for antecedent_contract::bridge::Licensing
 impl core::marker::Copy for antecedent_contract::bridge::MappingKind
 impl core::marker::Copy for antecedent_contract::bridge::MeasurementDirection
+impl core::marker::Copy for antecedent_contract::bridge::NonlinearMap
+impl core::marker::Copy for antecedent_contract::bridge::NonlinearMoment
 impl core::marker::Copy for antecedent_contract::bridge::QuantityClass
+impl core::marker::Copy for antecedent_contract::bridge::SupportMap
 impl core::marker::Copy for antecedent_contract::bridge::TrialEffectPair
 impl core::marker::Copy for antecedent_contract::bridge::TrialLevelFit
+impl core::marker::Copy for antecedent_contract::bridge::ValueInterval
 impl core::marker::Copy for antecedent_contract::bridge::ValueKind
 impl core::marker::Copy for antecedent_contract::callback_protocol::CallbackKind
 impl core::marker::Copy for antecedent_contract::callback_protocol::CallbackOperation
@@ -2078,6 +2127,7 @@ impl core::marker::Freeze for antecedent_contract::adaptive_design::SpendingKind
 impl core::marker::Freeze for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::StoppingRuleKind [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::StoppingSpec [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::AnalyticLaw [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::AppliedMapping [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::AssumptionKind [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgeAssumption [auto]
@@ -2088,14 +2138,26 @@ impl core::marker::Freeze for antecedent_contract::bridge::BridgeKind [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgeScope [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::BridgedClaim [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::EstimandBridge [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::ExperimentalPrior [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::ExposureSetting [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::Licensing [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::MappingKind [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::MappingUncertainty [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::MeasurementDirection [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::NonlinearMap [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::PreservedSupport [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::PropagatedUncertainty [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::QuantityClass [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::SourceMappingDependence [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::SupportMap [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::TransportabilityPremise [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::TrialEffectPair [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::TrialLevelFit [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::TrialLevelValidation [auto]
+impl core::marker::Freeze for antecedent_contract::bridge::ValueInterval [auto]
 impl core::marker::Freeze for antecedent_contract::bridge::ValueKind [auto]
 impl core::marker::Freeze for antecedent_contract::callback_protocol::CallbackDeclaration [auto]
 impl core::marker::Freeze for antecedent_contract::callback_protocol::CallbackDependency [auto]
@@ -2435,6 +2497,7 @@ impl core::marker::Send for antecedent_contract::adaptive_design::SpendingKind [
 impl core::marker::Send for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::StoppingRuleKind [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::StoppingSpec [auto]
+impl core::marker::Send for antecedent_contract::bridge::AnalyticLaw [auto]
 impl core::marker::Send for antecedent_contract::bridge::AppliedMapping [auto]
 impl core::marker::Send for antecedent_contract::bridge::AssumptionKind [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgeAssumption [auto]
@@ -2445,14 +2508,26 @@ impl core::marker::Send for antecedent_contract::bridge::BridgeKind [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgeScope [auto]
 impl core::marker::Send for antecedent_contract::bridge::BridgedClaim [auto]
+impl core::marker::Send for antecedent_contract::bridge::EstimandBridge [auto]
+impl core::marker::Send for antecedent_contract::bridge::ExperimentalPrior [auto]
+impl core::marker::Send for antecedent_contract::bridge::ExposureSetting [auto]
+impl core::marker::Send for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
 impl core::marker::Send for antecedent_contract::bridge::Licensing [auto]
 impl core::marker::Send for antecedent_contract::bridge::MappingKind [auto]
+impl core::marker::Send for antecedent_contract::bridge::MappingUncertainty [auto]
 impl core::marker::Send for antecedent_contract::bridge::MeasurementDirection [auto]
+impl core::marker::Send for antecedent_contract::bridge::NonlinearMap [auto]
+impl core::marker::Send for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::marker::Send for antecedent_contract::bridge::PreservedSupport [auto]
+impl core::marker::Send for antecedent_contract::bridge::PropagatedUncertainty [auto]
 impl core::marker::Send for antecedent_contract::bridge::QuantityClass [auto]
+impl core::marker::Send for antecedent_contract::bridge::SourceMappingDependence [auto]
+impl core::marker::Send for antecedent_contract::bridge::SupportMap [auto]
 impl core::marker::Send for antecedent_contract::bridge::TransportabilityPremise [auto]
 impl core::marker::Send for antecedent_contract::bridge::TrialEffectPair [auto]
 impl core::marker::Send for antecedent_contract::bridge::TrialLevelFit [auto]
 impl core::marker::Send for antecedent_contract::bridge::TrialLevelValidation [auto]
+impl core::marker::Send for antecedent_contract::bridge::ValueInterval [auto]
 impl core::marker::Send for antecedent_contract::bridge::ValueKind [auto]
 impl core::marker::Send for antecedent_contract::callback_protocol::CallbackDeclaration [auto]
 impl core::marker::Send for antecedent_contract::callback_protocol::CallbackDependency [auto]
@@ -2791,6 +2866,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design:
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::StoppingRuleDeclaration
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::StoppingRuleKind
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::StoppingSpec
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::AnalyticLaw
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::AppliedMapping
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::AssumptionKind
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeAssumption
@@ -2801,14 +2877,26 @@ impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeKi
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeMapping
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgeScope
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::BridgedClaim
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::EstimandBridge
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::ExperimentalPrior
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::ExposureSetting
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::ImportedExperimentalPrior
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::Licensing
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::MappingKind
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::MappingUncertainty
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::MeasurementDirection
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::NonlinearMap
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::NonlinearMoment
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::PreservedSupport
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::PropagatedUncertainty
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::QuantityClass
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::SourceMappingDependence
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::SupportMap
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::TransportabilityPremise
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::TrialEffectPair
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::TrialLevelFit
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::TrialLevelValidation
+impl core::marker::StructuralPartialEq for antecedent_contract::bridge::ValueInterval
 impl core::marker::StructuralPartialEq for antecedent_contract::bridge::ValueKind
 impl core::marker::StructuralPartialEq for antecedent_contract::callback_protocol::CallbackDeclaration
 impl core::marker::StructuralPartialEq for antecedent_contract::callback_protocol::CallbackDependency
@@ -3147,6 +3235,7 @@ impl core::marker::Sync for antecedent_contract::adaptive_design::SpendingKind [
 impl core::marker::Sync for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::StoppingRuleKind [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::StoppingSpec [auto]
+impl core::marker::Sync for antecedent_contract::bridge::AnalyticLaw [auto]
 impl core::marker::Sync for antecedent_contract::bridge::AppliedMapping [auto]
 impl core::marker::Sync for antecedent_contract::bridge::AssumptionKind [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgeAssumption [auto]
@@ -3157,14 +3246,26 @@ impl core::marker::Sync for antecedent_contract::bridge::BridgeKind [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgeScope [auto]
 impl core::marker::Sync for antecedent_contract::bridge::BridgedClaim [auto]
+impl core::marker::Sync for antecedent_contract::bridge::EstimandBridge [auto]
+impl core::marker::Sync for antecedent_contract::bridge::ExperimentalPrior [auto]
+impl core::marker::Sync for antecedent_contract::bridge::ExposureSetting [auto]
+impl core::marker::Sync for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
 impl core::marker::Sync for antecedent_contract::bridge::Licensing [auto]
 impl core::marker::Sync for antecedent_contract::bridge::MappingKind [auto]
+impl core::marker::Sync for antecedent_contract::bridge::MappingUncertainty [auto]
 impl core::marker::Sync for antecedent_contract::bridge::MeasurementDirection [auto]
+impl core::marker::Sync for antecedent_contract::bridge::NonlinearMap [auto]
+impl core::marker::Sync for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::marker::Sync for antecedent_contract::bridge::PreservedSupport [auto]
+impl core::marker::Sync for antecedent_contract::bridge::PropagatedUncertainty [auto]
 impl core::marker::Sync for antecedent_contract::bridge::QuantityClass [auto]
+impl core::marker::Sync for antecedent_contract::bridge::SourceMappingDependence [auto]
+impl core::marker::Sync for antecedent_contract::bridge::SupportMap [auto]
 impl core::marker::Sync for antecedent_contract::bridge::TransportabilityPremise [auto]
 impl core::marker::Sync for antecedent_contract::bridge::TrialEffectPair [auto]
 impl core::marker::Sync for antecedent_contract::bridge::TrialLevelFit [auto]
 impl core::marker::Sync for antecedent_contract::bridge::TrialLevelValidation [auto]
+impl core::marker::Sync for antecedent_contract::bridge::ValueInterval [auto]
 impl core::marker::Sync for antecedent_contract::bridge::ValueKind [auto]
 impl core::marker::Sync for antecedent_contract::callback_protocol::CallbackDeclaration [auto]
 impl core::marker::Sync for antecedent_contract::callback_protocol::CallbackDependency [auto]
@@ -3504,6 +3605,7 @@ impl core::marker::Unpin for antecedent_contract::adaptive_design::SpendingKind 
 impl core::marker::Unpin for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::StoppingRuleKind [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::StoppingSpec [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::AnalyticLaw [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::AppliedMapping [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::AssumptionKind [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgeAssumption [auto]
@@ -3514,14 +3616,26 @@ impl core::marker::Unpin for antecedent_contract::bridge::BridgeKind [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgeScope [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::BridgedClaim [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::EstimandBridge [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::ExperimentalPrior [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::ExposureSetting [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::Licensing [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::MappingKind [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::MappingUncertainty [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::MeasurementDirection [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::NonlinearMap [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::PreservedSupport [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::PropagatedUncertainty [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::QuantityClass [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::SourceMappingDependence [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::SupportMap [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::TransportabilityPremise [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::TrialEffectPair [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::TrialLevelFit [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::TrialLevelValidation [auto]
+impl core::marker::Unpin for antecedent_contract::bridge::ValueInterval [auto]
 impl core::marker::Unpin for antecedent_contract::bridge::ValueKind [auto]
 impl core::marker::Unpin for antecedent_contract::callback_protocol::CallbackDeclaration [auto]
 impl core::marker::Unpin for antecedent_contract::callback_protocol::CallbackDependency [auto]
@@ -3861,6 +3975,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_d
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::StoppingRuleKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::StoppingSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::AnalyticLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::AppliedMapping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::AssumptionKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeAssumption [auto]
@@ -3871,14 +3986,26 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::Br
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeScope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgedClaim [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::EstimandBridge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::ExperimentalPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::ExposureSetting [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::Licensing [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::MappingKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::MappingUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::MeasurementDirection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::NonlinearMap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::PreservedSupport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::PropagatedUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::QuantityClass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::SourceMappingDependence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::SupportMap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::TransportabilityPremise [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::TrialEffectPair [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::TrialLevelFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::TrialLevelValidation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::ValueInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::ValueKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::callback_protocol::CallbackDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::callback_protocol::CallbackDependency [auto]
@@ -4218,6 +4345,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_desi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::StoppingRuleKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::StoppingSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::AnalyticLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::AppliedMapping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::AssumptionKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeAssumption [auto]
@@ -4228,14 +4356,26 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::Bridg
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeMapping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgedClaim [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::EstimandBridge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::ExperimentalPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::ExposureSetting [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::ImportedExperimentalPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::Licensing [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::MappingKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::MappingUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::MeasurementDirection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::NonlinearMap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::NonlinearMoment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::PreservedSupport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::PropagatedUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::QuantityClass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::SourceMappingDependence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::SupportMap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::TransportabilityPremise [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::TrialEffectPair [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::TrialLevelFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::TrialLevelValidation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::ValueInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::ValueKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::callback_protocol::CallbackDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::callback_protocol::CallbackDependency [auto]
@@ -5122,10 +5262,13 @@ pub field antecedent_contract::bridge::BridgeAssumption::id: alloc::string::Stri
 pub field antecedent_contract::bridge::BridgeAssumption::kind: antecedent_contract::bridge::AssumptionKind
 pub field antecedent_contract::bridge::BridgeAssumption::statement: alloc::string::String
 pub field antecedent_contract::bridge::BridgeContract::assumptions: alloc::vec::Vec<antecedent_contract::bridge::BridgeAssumption>
+pub field antecedent_contract::bridge::BridgeContract::estimand_bridge: core::option::Option<antecedent_contract::bridge::EstimandBridge>
 pub field antecedent_contract::bridge::BridgeContract::evidence_scope: antecedent_contract::bridge::BridgeScope
 pub field antecedent_contract::bridge::BridgeContract::kind: antecedent_contract::bridge::BridgeKind
 pub field antecedent_contract::bridge::BridgeContract::mapping: antecedent_contract::bridge::BridgeMapping
+pub field antecedent_contract::bridge::BridgeContract::mapping_uncertainty: core::option::Option<antecedent_contract::bridge::MappingUncertainty>
 pub field antecedent_contract::bridge::BridgeContract::source: antecedent_contract::bridge::BridgeEndpoint
+pub field antecedent_contract::bridge::BridgeContract::source_dependence: core::option::Option<antecedent_contract::bridge::SourceMappingDependence>
 pub field antecedent_contract::bridge::BridgeContract::source_value: antecedent_contract::bridge::ValueKind
 pub field antecedent_contract::bridge::BridgeContract::target: antecedent_contract::bridge::BridgeEndpoint
 pub field antecedent_contract::bridge::BridgeContract::target_value: antecedent_contract::bridge::ValueKind
@@ -5152,8 +5295,50 @@ pub field antecedent_contract::bridge::BridgedClaim::source_value: f64
 pub field antecedent_contract::bridge::BridgedClaim::transported: bool
 pub field antecedent_contract::bridge::BridgedClaim::value: f64
 pub field antecedent_contract::bridge::BridgedClaim::value_kind: antecedent_contract::bridge::ValueKind
+pub field antecedent_contract::bridge::EstimandBridge::experiment: antecedent_contract::bridge::ExposureSetting
+pub field antecedent_contract::bridge::EstimandBridge::experiment_id: alloc::string::String
+pub field antecedent_contract::bridge::EstimandBridge::id: alloc::string::String
+pub field antecedent_contract::bridge::EstimandBridge::recency_delta: f64
+pub field antecedent_contract::bridge::EstimandBridge::recency_units: alloc::string::String
+pub field antecedent_contract::bridge::EstimandBridge::spend_delta: f64
+pub field antecedent_contract::bridge::EstimandBridge::spend_units: alloc::string::String
+pub field antecedent_contract::bridge::EstimandBridge::target: antecedent_contract::bridge::ExposureSetting
+pub field antecedent_contract::bridge::ExperimentalPrior::estimand_bridge: core::option::Option<antecedent_contract::bridge::EstimandBridge>
+pub field antecedent_contract::bridge::ExperimentalPrior::experiment_id: alloc::string::String
+pub field antecedent_contract::bridge::ExperimentalPrior::mapping_uncertainty: core::option::Option<antecedent_contract::bridge::MappingUncertainty>
+pub field antecedent_contract::bridge::ExperimentalPrior::prior_id: alloc::string::String
+pub field antecedent_contract::bridge::ExperimentalPrior::source_dependence: core::option::Option<antecedent_contract::bridge::SourceMappingDependence>
+pub field antecedent_contract::bridge::ExposureSetting::dose: f64
+pub field antecedent_contract::bridge::ExposureSetting::dose_units: alloc::string::String
+pub field antecedent_contract::bridge::ExposureSetting::duration: f64
+pub field antecedent_contract::bridge::ExposureSetting::duration_units: alloc::string::String
+pub field antecedent_contract::bridge::ExposureSetting::exposure_regime: alloc::string::String
+pub field antecedent_contract::bridge::ExposureSetting::population_id: alloc::string::String
+pub field antecedent_contract::bridge::ExposureSetting::time_end: alloc::string::String
+pub field antecedent_contract::bridge::ExposureSetting::time_start: alloc::string::String
+pub field antecedent_contract::bridge::ImportedExperimentalPrior::assumptions: alloc::vec::Vec<antecedent_contract::bridge::BridgeAssumption>
+pub field antecedent_contract::bridge::ImportedExperimentalPrior::estimand_bridge: antecedent_contract::bridge::EstimandBridge
+pub field antecedent_contract::bridge::ImportedExperimentalPrior::experiment_id: alloc::string::String
+pub field antecedent_contract::bridge::ImportedExperimentalPrior::mapping_uncertainty: core::option::Option<antecedent_contract::bridge::MappingUncertainty>
+pub field antecedent_contract::bridge::ImportedExperimentalPrior::prior_id: alloc::string::String
+pub field antecedent_contract::bridge::ImportedExperimentalPrior::source_dependence: core::option::Option<antecedent_contract::bridge::SourceMappingDependence>
 pub field antecedent_contract::bridge::Licensing::direction: antecedent_contract::bridge::MeasurementDirection
 pub field antecedent_contract::bridge::Licensing::transported: bool
+pub field antecedent_contract::bridge::MappingUncertainty::id: alloc::string::String
+pub field antecedent_contract::bridge::MappingUncertainty::intercept_variance: f64
+pub field antecedent_contract::bridge::MappingUncertainty::slope_variance: f64
+pub field antecedent_contract::bridge::NonlinearMoment::expectation: f64
+pub field antecedent_contract::bridge::NonlinearMoment::map: antecedent_contract::bridge::NonlinearMap
+pub field antecedent_contract::bridge::NonlinearMoment::map_of_mean: f64
+pub field antecedent_contract::bridge::PreservedSupport::assumptions: alloc::vec::Vec<antecedent_contract::bridge::BridgeAssumption>
+pub field antecedent_contract::bridge::PreservedSupport::high: f64
+pub field antecedent_contract::bridge::PreservedSupport::low: f64
+pub field antecedent_contract::bridge::PropagatedUncertainty::assumptions: alloc::vec::Vec<antecedent_contract::bridge::BridgeAssumption>
+pub field antecedent_contract::bridge::PropagatedUncertainty::dependence: antecedent_contract::bridge::SourceMappingDependence
+pub field antecedent_contract::bridge::PropagatedUncertainty::mapping_uncertainty: antecedent_contract::bridge::MappingUncertainty
+pub field antecedent_contract::bridge::PropagatedUncertainty::mean: f64
+pub field antecedent_contract::bridge::PropagatedUncertainty::plug_in_mean: f64
+pub field antecedent_contract::bridge::PropagatedUncertainty::variance: f64
 pub field antecedent_contract::bridge::TransportabilityPremise::applies_to: antecedent_contract::bridge::BridgeScope
 pub field antecedent_contract::bridge::TransportabilityPremise::established_in: antecedent_contract::bridge::BridgeScope
 pub field antecedent_contract::bridge::TransportabilityPremise::evidence: core::option::Option<alloc::string::String>
@@ -5170,6 +5355,8 @@ pub field antecedent_contract::bridge::TrialLevelFit::trials: u32
 pub field antecedent_contract::bridge::TrialLevelValidation::min_r_squared: f64
 pub field antecedent_contract::bridge::TrialLevelValidation::min_trials: u32
 pub field antecedent_contract::bridge::TrialLevelValidation::trials: alloc::vec::Vec<antecedent_contract::bridge::TrialEffectPair>
+pub field antecedent_contract::bridge::ValueInterval::high: f64
+pub field antecedent_contract::bridge::ValueInterval::low: f64
 pub field antecedent_contract::callback_protocol::CallbackDeclaration::component: alloc::string::String
 pub field antecedent_contract::callback_protocol::CallbackDeclaration::dependencies: antecedent_contract::callback_protocol::DependencyDeclaration
 pub field antecedent_contract::callback_protocol::CallbackDeclaration::evidence: antecedent_contract::interface_contract::EvidenceBasis
@@ -5840,7 +6027,10 @@ pub fn <antecedent_contract::bridge::AssumptionKind>::fn from_name(name: &str) -
 pub fn <antecedent_contract::bridge::BridgeAssumption>::fn for_measurement_model(id: impl core::convert::Into<alloc::string::String>, model: &antecedent_core::measurement_model::MeasurementModel) -> Self
 pub fn <antecedent_contract::bridge::BridgeContract>::fn check_licensing(&self) -> core::result::Result<antecedent_contract::bridge::Licensing, antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::BridgeContract>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::bridge::BridgeContract>::fn import_experimental_prior(&mut self, prior: &antecedent_contract::bridge::ExperimentalPrior) -> core::result::Result<antecedent_contract::bridge::ImportedExperimentalPrior, antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::BridgeContract>::fn interface_contract(&self, component: impl core::convert::Into<alloc::string::String>, basis: &antecedent_contract::bridge::BridgeInterfaceBasis) -> antecedent_contract::interface_contract::InterfaceContract
+pub fn <antecedent_contract::bridge::BridgeContract>::fn map_support(&self, map: antecedent_contract::bridge::SupportMap, source: antecedent_contract::bridge::ValueInterval) -> core::result::Result<antecedent_contract::bridge::PreservedSupport, antecedent_contract::bridge::BridgeRefusal>
+pub fn <antecedent_contract::bridge::BridgeContract>::fn propagate_affine_uncertainty(&self, source_mean: f64, source_variance: f64) -> core::result::Result<antecedent_contract::bridge::PropagatedUncertainty, antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::BridgeContract>::fn validate(&self) -> core::result::Result<(), antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::BridgeKind>::const fn allowed_mappings(self) -> &'static [antecedent_contract::bridge::MappingKind]
 pub fn <antecedent_contract::bridge::BridgeKind>::const fn as_str(self) -> &'static str
@@ -5860,6 +6050,7 @@ pub fn <antecedent_contract::bridge::BridgedClaim>::fn request_interval(&self) -
 pub fn <antecedent_contract::bridge::BridgedClaim>::fn require_value_kind(&self, requested: antecedent_contract::bridge::ValueKind) -> core::result::Result<(), antecedent_contract::bridge::BridgeRefusal>
 pub fn <antecedent_contract::bridge::MappingKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::bridge::MappingKind>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::bridge::NonlinearMap>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::bridge::QuantityClass>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::bridge::QuantityClass>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::bridge::ValueKind>::const fn as_str(self) -> &'static str
@@ -6170,6 +6361,9 @@ pub fn antecedent_contract::bridge::bridged_claim_id(contract: antecedent_core::
 pub fn antecedent_contract::bridge::derive_bridged_claim(contract: &antecedent_contract::bridge::BridgeContract, source: &antecedent_contract::bridge::BridgeSource<'_>) -> core::result::Result<antecedent_contract::bridge::BridgedClaim, antecedent_contract::bridge::BridgeRefusal>
 pub fn antecedent_contract::bridge::fit_trial_level_linear(validation: &antecedent_contract::bridge::TrialLevelValidation) -> core::result::Result<antecedent_contract::bridge::TrialLevelFit, antecedent_contract::bridge::BridgeRefusal>
 pub fn antecedent_contract::bridge::interval_not_licensed() -> antecedent_contract::bridge::BridgeRefusal
+pub fn antecedent_contract::bridge::nonlinear_expectation(map: antecedent_contract::bridge::NonlinearMap, law: &antecedent_contract::bridge::AnalyticLaw) -> core::result::Result<antecedent_contract::bridge::NonlinearMoment, antecedent_contract::bridge::BridgeRefusal>
+pub fn antecedent_contract::bridge::preserved_support(contract: &antecedent_contract::bridge::BridgeContract, map: antecedent_contract::bridge::SupportMap, source: antecedent_contract::bridge::ValueInterval) -> core::result::Result<antecedent_contract::bridge::PreservedSupport, antecedent_contract::bridge::BridgeRefusal>
+pub fn antecedent_contract::bridge::support_image(map: antecedent_contract::bridge::SupportMap, source: antecedent_contract::bridge::ValueInterval) -> core::result::Result<antecedent_contract::bridge::ValueInterval, antecedent_contract::bridge::BridgeRefusal>
 pub fn antecedent_contract::bridge::wrong_value_kind(requested: antecedent_contract::bridge::ValueKind, held: antecedent_contract::bridge::ValueKind) -> antecedent_contract::bridge::BridgeRefusal
 pub fn antecedent_contract::calibration_refusal() -> antecedent_contract::ExternalRefusal
 pub fn antecedent_contract::callback_protocol::callback_source_declaration(declaration: &antecedent_contract::callback_protocol::CallbackDeclaration, inner_sources: &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::evidence_ledger::SourceId>) -> core::result::Result<antecedent_contract::evidence_ledger::SourceDeclaration, antecedent_contract::callback_protocol::CallbackRefusal>
@@ -6459,11 +6653,20 @@ pub struct antecedent_contract::bridge::BridgeEndpoint
 pub struct antecedent_contract::bridge::BridgeInterfaceBasis
 pub struct antecedent_contract::bridge::BridgeScope
 pub struct antecedent_contract::bridge::BridgeSource<'a>
+pub struct antecedent_contract::bridge::EstimandBridge
+pub struct antecedent_contract::bridge::ExperimentalPrior
+pub struct antecedent_contract::bridge::ExposureSetting
+pub struct antecedent_contract::bridge::ImportedExperimentalPrior
 pub struct antecedent_contract::bridge::Licensing
+pub struct antecedent_contract::bridge::MappingUncertainty
+pub struct antecedent_contract::bridge::NonlinearMoment
+pub struct antecedent_contract::bridge::PreservedSupport
+pub struct antecedent_contract::bridge::PropagatedUncertainty
 pub struct antecedent_contract::bridge::TransportabilityPremise
 pub struct antecedent_contract::bridge::TrialEffectPair
 pub struct antecedent_contract::bridge::TrialLevelFit
 pub struct antecedent_contract::bridge::TrialLevelValidation
+pub struct antecedent_contract::bridge::ValueInterval
 pub struct antecedent_contract::callback_protocol::CallbackDeclaration
 pub struct antecedent_contract::callback_protocol::CallbackDependency
 pub struct antecedent_contract::callback_protocol::CallbackInput
@@ -7232,6 +7435,9 @@ pub variant antecedent_contract::adaptive_design::StoppingSpec::PosteriorExpecte
 pub variant antecedent_contract::adaptive_design::StoppingSpec::PosteriorFutility { margin: f64, threshold: f64 }
 pub variant antecedent_contract::adaptive_design::StoppingSpec::PosteriorProbabilityBest { threshold: f64 }
 pub variant antecedent_contract::adaptive_design::StoppingSpec::ResourceCap { max_units: u32 }
+pub variant antecedent_contract::bridge::AnalyticLaw::MeanOnly { mean: f64 }
+pub variant antecedent_contract::bridge::AnalyticLaw::Normal { mean: f64, variance: f64 }
+pub variant antecedent_contract::bridge::AnalyticLaw::SecondMoment { mean: f64, variance: f64 }
 pub variant antecedent_contract::bridge::AssumptionKind::Additional
 pub variant antecedent_contract::bridge::AssumptionKind::BehavioralLinkage
 pub variant antecedent_contract::bridge::AssumptionKind::Identification
@@ -7255,6 +7461,8 @@ pub variant antecedent_contract::bridge::MappingKind::MeasurementCorrection
 pub variant antecedent_contract::bridge::MappingKind::TrialLevelLinear
 pub variant antecedent_contract::bridge::MeasurementDirection::LatentToMeasured
 pub variant antecedent_contract::bridge::MeasurementDirection::MeasuredToLatent
+pub variant antecedent_contract::bridge::NonlinearMap::Exponential
+pub variant antecedent_contract::bridge::NonlinearMap::Square
 pub variant antecedent_contract::bridge::QuantityClass::CausalQuantity
 pub variant antecedent_contract::bridge::QuantityClass::DecisionUtility
 pub variant antecedent_contract::bridge::QuantityClass::InterventionResponse
@@ -7269,6 +7477,12 @@ pub variant antecedent_contract::bridge::QuantityClass::ScientificEndpoint
 pub variant antecedent_contract::bridge::QuantityClass::StatedPreference
 pub variant antecedent_contract::bridge::QuantityClass::SurrogateEndpoint
 pub variant antecedent_contract::bridge::QuantityClass::TerminalOutcome
+pub variant antecedent_contract::bridge::SourceMappingDependence::Independent { evidence: alloc::string::String }
+pub variant antecedent_contract::bridge::SourceMappingDependence::SlopeCovariance { covariance: f64, evidence: alloc::string::String }
+pub variant antecedent_contract::bridge::SupportMap::Affine { intercept: f64, slope: f64 }
+pub variant antecedent_contract::bridge::SupportMap::Exponential
+pub variant antecedent_contract::bridge::SupportMap::Identity
+pub variant antecedent_contract::bridge::SupportMap::Square
 pub variant antecedent_contract::bridge::ValueKind::IdentifiedSet
 pub variant antecedent_contract::bridge::ValueKind::JointOutcomeLaw
 pub variant antecedent_contract::bridge::ValueKind::Mean

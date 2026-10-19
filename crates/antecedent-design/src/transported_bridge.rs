@@ -228,6 +228,10 @@ impl TransportedSurrogateBridge {
                 evidence: Some(self.validation_evidence.clone()),
             }],
             transport,
+
+            mapping_uncertainty: None,
+            source_dependence: None,
+            estimand_bridge: None,
         })
     }
 

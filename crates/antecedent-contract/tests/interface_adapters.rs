@@ -125,6 +125,10 @@ fn bridge(source_population: &str) -> BridgeContract {
         mapping: BridgeMapping::Identity,
         assumptions: Vec::<BridgeAssumption>::new(),
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 

@@ -21,7 +21,10 @@ use crate::claim::{
 use crate::obligation::{ObligationKind, ObligationRecord, ObligationScope};
 use crate::provenance::{ProvenanceGraph, ProvenanceNode};
 use crate::quantity::{QuantityMismatch, ScientificQuantity};
-use crate::reasoning::{AssumptionSlot, ReasoningView, SlotAvailability};
+use crate::reasoning::{
+    AssumptionSlot, ReasoningView, SlotAvailability, UncertaintyComponent, UncertaintySlot,
+    UncertaintySource,
+};
 
 /// Version word written into every bridged claim identity.
 pub const BRIDGE_CLAIM_IDENTITY_VERSION: u64 = 1;
@@ -188,6 +191,25 @@ pub fn derive_bridged_claim(
     evidence.push(Arc::from(format!("bridge:{}", contract_identity.to_hex())));
     evidence.push(Arc::from(format!("bridge_source:{}", source_claim_id.to_hex())));
     evidence.push(Arc::from(format!("bridge_kind:{}", contract.kind.as_str())));
+    if let Some(uncertainty) = &contract.mapping_uncertainty {
+        evidence.push(Arc::from(format!("mapping_uncertainty:{}", uncertainty.id)));
+    }
+    if let Some(dependence) = &contract.source_dependence {
+        let label = match dependence {
+            super::contract::SourceMappingDependence::Independent { evidence: name } => {
+                format!("source_dependence:independent:{name}")
+            }
+            super::contract::SourceMappingDependence::SlopeCovariance {
+                evidence: name, ..
+            } => {
+                format!("source_dependence:covariance:{name}")
+            }
+        };
+        evidence.push(Arc::from(label));
+    }
+    if let Some(bridge) = &contract.estimand_bridge {
+        evidence.push(Arc::from(format!("estimand_bridge:{}", bridge.id)));
+    }
     let envelope = ClaimEnvelope::new(
         claim_id,
         identities,
@@ -243,12 +265,23 @@ fn bridge_receipt(
     if let Some(premise) = &contract.transport {
         unresolved.push(Arc::from(format!("transportability:{}", premise.id)));
     }
+    let mut retained =
+        vec![Arc::from("claim.envelope"), Arc::from("parents"), Arc::from("provenance")];
+    if contract.mapping_uncertainty.is_some() {
+        retained.push(Arc::from("mapping_uncertainty"));
+    }
+    if contract.source_dependence.is_some() {
+        retained.push(Arc::from("source_dependence"));
+    }
+    if contract.estimand_bridge.is_some() {
+        retained.push(Arc::from("estimand_bridge"));
+    }
     HandoffReceipt::new(
         source_claim_id,
         Some(claim_id),
         "scientific_bridge",
         operation,
-        [Arc::from("claim.envelope"), Arc::from("parents"), Arc::from("provenance")],
+        retained,
         [Arc::from("identification"), Arc::from("support"), Arc::from("uncertainty")],
         unresolved,
         [
@@ -307,9 +340,34 @@ fn bridged_reasoning(contract: &BridgeContract) -> ReasoningView {
     ReasoningView::new(
         SlotAvailability::unavailable("bridge_assumptions_declared"),
         SlotAvailability::unavailable("bridge_support_not_established"),
-        SlotAvailability::unavailable("bridge_uncertainty_not_propagated"),
+        bridged_uncertainty(contract),
         SlotAvailability::Available(AssumptionSlot::new(obligations)),
     )
+}
+
+/// Mapping uncertainty and source dependence stay on the claim when the
+/// contract declares them. Neither declaration is invented when it is absent,
+/// and an absent dependence is recorded as omitted rather than as independence.
+fn bridged_uncertainty(contract: &BridgeContract) -> SlotAvailability<UncertaintySlot> {
+    if contract.mapping_uncertainty.is_none() && contract.source_dependence.is_none() {
+        return SlotAvailability::unavailable("bridge_uncertainty_not_propagated");
+    }
+    let mapping = match &contract.mapping_uncertainty {
+        Some(uncertainty) => UncertaintyComponent::new(
+            UncertaintySource::Parameter,
+            format!("mapping_variance:{}", uncertainty.id),
+            false,
+        ),
+        None => UncertaintyComponent::new(UncertaintySource::Parameter, "mapping_variance", true),
+    };
+    SlotAvailability::Available(UncertaintySlot::new([
+        mapping,
+        UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            "source_dependence",
+            contract.source_dependence.is_none(),
+        ),
+    ]))
 }
 
 impl BridgedClaim {

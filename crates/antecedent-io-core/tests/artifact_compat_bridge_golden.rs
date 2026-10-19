@@ -123,6 +123,10 @@ fn surrogate_contract() -> BridgeContract {
             evidence: Some("meta-analysis:ckd-2024".into()),
         }],
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 

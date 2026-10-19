@@ -132,6 +132,18 @@ pub(super) fn provenance_failed() -> BridgeRefusal {
     invalid("scientific_bridge.provenance", "derive a claim whose identity differs from its source")
 }
 
+pub(super) fn mapping_uncertainty_invalid(field: &str, remedy: &'static str) -> BridgeRefusal {
+    invalid("scientific_bridge.mapping_uncertainty_invalid", remedy).with_offending(field)
+}
+
+pub(super) fn source_dependence_invalid(field: &str, remedy: &'static str) -> BridgeRefusal {
+    invalid("scientific_bridge.source_dependence_invalid", remedy).with_offending(field)
+}
+
+pub(super) fn estimand_bridge_incomplete(field: &str, remedy: &'static str) -> BridgeRefusal {
+    invalid("scientific_bridge.estimand_bridge_incomplete", remedy).with_offending(field)
+}
+
 // -- named substitutions (bridge_substitution_refused, proxy_offered_as_construct) ---------------------
 
 /// The refusal for a bridge whose principal assumption is not declared.
@@ -226,6 +238,57 @@ pub fn wrong_value_kind(requested: ValueKind, held: ValueKind) -> BridgeRefusal 
 
 // -- missing assumptions (bridge_assumption_missing) ---------------------------------------------------
 
+/// Mapping uncertainty was required to propagate and was not declared.
+pub(super) fn mapping_uncertainty_missing() -> BridgeRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("bridge_assumption_missing"),
+        STAGE_BIND,
+        "scientific_bridge.mapping_uncertainty_missing",
+    )
+    .with_offending("mapping_uncertainty")
+    .with_remedy(
+        "declare the variance of the mapping's intercept and slope; an undeclared map is not an exact map",
+    )
+}
+
+/// Source and mapping dependence was required to propagate and was not declared.
+pub(super) fn source_dependence_missing() -> BridgeRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("sampling_dependence_unknown"),
+        STAGE_BIND,
+        "scientific_bridge.source_dependence_missing",
+    )
+    .with_offending("source_dependence")
+    .with_remedy(
+        "declare that the source estimate and the mapping are independent, or declare their covariance; disjoint identities do not establish it",
+    )
+}
+
+/// A source variance that is not a finite non-negative number.
+pub(super) fn source_variance_invalid(supplied: String) -> BridgeRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("scientific_bridge_invalid"),
+        STAGE_DECLARE,
+        "scientific_bridge.source_variance_invalid",
+    )
+    .with_offending("source_variance")
+    .with_supplied(supplied)
+    .with_remedy("state a finite non-negative variance of the source estimate")
+}
+
+/// An experimental prior offered with no estimand bridge.
+pub(super) fn experimental_prior_without_estimand_bridge() -> BridgeRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("bridge_assumption_missing"),
+        STAGE_BIND,
+        "scientific_bridge.experimental_prior_without_estimand_bridge",
+    )
+    .with_offending("estimand_bridge")
+    .with_remedy(
+        "translate the experiment's population, time window, dose, duration and exposure regime into the target, and state the recency and spend differences, before importing its prior",
+    )
+}
+
 /// A required assumption that is not declared.
 pub(super) fn assumption_missing(kind: AssumptionKind) -> BridgeRefusal {
     ExternalRefusal::new(
@@ -273,6 +336,14 @@ pub(super) fn transport_premise_missing(premise: String) -> BridgeRefusal {
 pub(super) fn transport_premise_mismatch(expected: String) -> BridgeRefusal {
     mismatch("scientific_bridge.transport_premise_mismatch", expected, "another transport")
         .with_offending("transportability_premise")
+}
+
+pub(super) fn estimand_bridge_mismatch(expected: String, supplied: String) -> BridgeRefusal {
+    mismatch("scientific_bridge.estimand_bridge_mismatch", expected, supplied)
+        .with_offending("estimand_bridge")
+        .with_remedy(
+            "name the experiment and the target with the same population and exposure regime as the contract's evidence scope and target quantity; time window, dose, duration, recency and spend stay on the bridge",
+        )
 }
 
 pub(super) fn transport_premise_unused() -> BridgeRefusal {
@@ -447,6 +518,44 @@ pub(super) fn outside_attainable_range(
         expected,
         supplied.to_string(),
         remedy,
+    )
+}
+
+pub(super) fn nonlinear_mean_not_expectation(map: &str) -> BridgeRefusal {
+    not_licensed(
+        "scientific_bridge.nonlinear_mean_not_expectation",
+        "E[g(X)]",
+        format!("g(E[X]) via {map}"),
+        "the mean of a nonlinear map is not the map of the mean; supply a second moment for a square, or a normal law for an exponential, and read the expectation of the map",
+    )
+    .with_offending(map)
+}
+
+pub(super) fn nonlinear_law_insufficient(supplied: &str) -> BridgeRefusal {
+    not_licensed(
+        "scientific_bridge.nonlinear_law_insufficient",
+        "normal",
+        supplied,
+        "an exponential expectation is licensed for a normal law; a mean and a variance do not determine it",
+    )
+    .with_offending("exponential")
+}
+
+pub(super) fn uncertain_mapping_not_affine(supplied: &str) -> BridgeRefusal {
+    not_licensed(
+        "scientific_bridge.uncertain_mapping_not_affine",
+        "identity or affine",
+        supplied,
+        "this propagator is the delta method of a declared affine map; a trial-level line or a measurement correction keeps its own measured interval",
+    )
+}
+
+pub(super) fn dependence_not_a_covariance(supplied: String) -> BridgeRefusal {
+    not_licensed(
+        "scientific_bridge.dependence_not_a_covariance",
+        "covariance within the slope and source variances",
+        supplied,
+        "state a covariance whose square is at most the product of the slope variance and the source variance",
     )
 }
 

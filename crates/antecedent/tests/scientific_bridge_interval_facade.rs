@@ -142,6 +142,10 @@ fn surrogate_contract() -> BridgeContract {
             evidence: Some("meta-analysis:ckd-2024".into()),
         }],
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 
@@ -176,6 +180,10 @@ fn affine_contract() -> BridgeContract {
             evidence: Some("linkage-study:2023".into()),
         }],
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 
@@ -246,6 +254,10 @@ fn correction_contract() -> BridgeContract {
         assumptions: vec![BridgeAssumption::for_measurement_model("flag-model", &model)],
         mapping: BridgeMapping::MeasurementCorrection(Box::new(model)),
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 

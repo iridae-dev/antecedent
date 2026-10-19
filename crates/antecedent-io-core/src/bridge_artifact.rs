@@ -486,6 +486,10 @@ fn contract_from_wire(
             applies_to: scope_from_wire(&p.applies_to),
             evidence: p.evidence.clone(),
         }),
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     })
 }
 

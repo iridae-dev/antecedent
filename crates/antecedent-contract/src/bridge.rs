@@ -58,9 +58,13 @@ pub use claim::{
     derive_bridged_claim,
 };
 pub use contract::{
-    BRIDGE_IDENTITY_VERSION, BRIDGE_SOURCE_PORT, BRIDGE_TARGET_PORT, BridgeAssumption,
-    BridgeContract, BridgeEndpoint, BridgeInterfaceBasis, BridgeScope, Licensing,
-    MAX_BRIDGE_ASSUMPTIONS, MAX_BRIDGE_TEXT_BYTES, TransportabilityPremise,
+    AnalyticLaw, BRIDGE_IDENTITY_VERSION, BRIDGE_SOURCE_PORT, BRIDGE_TARGET_PORT, BridgeAssumption,
+    BridgeContract, BridgeEndpoint, BridgeInterfaceBasis, BridgeScope, EstimandBridge,
+    ExperimentalPrior, ExposureSetting, ImportedExperimentalPrior, Licensing,
+    MAX_BRIDGE_ASSUMPTIONS, MAX_BRIDGE_TEXT_BYTES, MappingUncertainty, NonlinearMap,
+    NonlinearMoment, PreservedSupport, PropagatedUncertainty, SourceMappingDependence, SupportMap,
+    TransportabilityPremise, ValueInterval, nonlinear_expectation, preserved_support,
+    support_image,
 };
 pub use kind::{AssumptionKind, BridgeKind, QuantityClass, ValueKind};
 pub use mapping::{

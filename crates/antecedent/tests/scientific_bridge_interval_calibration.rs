@@ -160,6 +160,10 @@ fn surrogate_contract(trials: Vec<TrialEffectPair>) -> BridgeContract {
             evidence: Some("meta-analysis:fixture".into()),
         }],
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 
@@ -234,6 +238,10 @@ fn correction_contract(
         assumptions: vec![BridgeAssumption::for_measurement_model("flag-model", &model)],
         mapping: BridgeMapping::MeasurementCorrection(Box::new(model)),
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 

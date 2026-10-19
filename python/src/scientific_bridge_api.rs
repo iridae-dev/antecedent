@@ -238,6 +238,10 @@ fn parse_contract(value: &Json) -> PyResult<BridgeContract> {
         mapping: parse_mapping(member(map, "mapping")?)?,
         assumptions,
         transport,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     })
 }
 

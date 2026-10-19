@@ -132,6 +132,10 @@ fn contract(
         mapping,
         assumptions,
         transport: None,
+
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
     }
 }
 
