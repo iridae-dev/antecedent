@@ -232,14 +232,64 @@ pub fn fit_glm(
     )
 }
 
-/// Linear predictor `X β` for one row of a column-major design.
+/// Column `col` of a column-major design, a contiguous `nrows` block.
+///
+/// An empty design (`nrows == 0`) has no block. `chunks_exact(0)` would panic,
+/// so that case is an empty slice rather than a zero-stride chunk.
 #[inline]
-fn eta_at(x_colmajor: &[f64], nrows: usize, ncols: usize, beta: &[f64], row: usize) -> f64 {
-    let mut eta = 0.0;
-    for c in 0..ncols {
-        eta += x_colmajor[c * nrows + row] * beta[c];
+fn design_column(x_colmajor: &[f64], nrows: usize, col: usize) -> &[f64] {
+    if nrows == 0 {
+        return &[];
     }
-    eta
+    let start = col * nrows;
+    &x_colmajor[start..start + nrows]
+}
+
+/// `η = X β`, one contiguous pass per column.
+///
+/// Column `c` is added to every row before column `c + 1`, which is the same
+/// sum each row of `Σ_c x_{rc} β_c` produced when the product was formed per row.
+fn linear_predictor_into(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    beta: &[f64],
+    eta: &mut [f64],
+) {
+    let eta = &mut eta[..nrows];
+    eta.fill(0.0);
+    if nrows == 0 {
+        return;
+    }
+    let cols = ncols.min(beta.len());
+    let covered = nrows * cols;
+    for (column, &coef) in x_colmajor[..covered].chunks_exact(nrows).zip(beta) {
+        for (slot, &x) in eta.iter_mut().zip(column) {
+            *slot += x * coef;
+        }
+    }
+}
+
+/// `x'_{rc} = w_r x_{rc}` for every column, reading and writing one contiguous
+/// column at a time. `scaled` is `nrows * ncols` and is fully written.
+fn scale_columns_into(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    weight: &[f64],
+    scaled: &mut [f64],
+) {
+    if nrows == 0 || ncols == 0 {
+        return;
+    }
+    let covered = nrows * ncols;
+    let src = &x_colmajor[..covered];
+    let dst = &mut scaled[..covered];
+    for (column, scaled_col) in src.chunks_exact(nrows).zip(dst.chunks_exact_mut(nrows)) {
+        for ((slot, &x), &w) in scaled_col.iter_mut().zip(column).zip(weight) {
+            *slot = x * w;
+        }
+    }
 }
 
 /// Poisson deviance at `β` (log link).
@@ -249,9 +299,11 @@ fn eta_at(x_colmajor: &[f64], nrows: usize, ncols: usize, beta: &[f64], row: usi
 )]
 fn poisson_deviance_at(design: GlmDesignRef<'_>, beta: &[f64]) -> f64 {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    let mut eta = vec![0.0; nrows];
+    linear_predictor_into(x_colmajor, nrows, ncols, beta, &mut eta);
     let mut deviance = 0.0;
     for r in 0..nrows {
-        let mu = eta_at(x_colmajor, nrows, ncols, beta, r).exp().max(1e-12);
+        let mu = eta[r].exp().max(1e-12);
         let yi = y[r];
         if yi > 0.0 {
             deviance += 2.0 * (yi * (yi / mu).ln() - (yi - mu));
@@ -300,11 +352,13 @@ fn binomial_diagnostics_at(
     let mut min_margin = f64::INFINITY;
     let mut n_saturated = 0u64;
     let mut perfectly_classified = true;
+    let mut eta = vec![0.0; nrows];
+    linear_predictor_into(x_colmajor, nrows, ncols, beta, &mut eta);
     for r in 0..nrows {
-        let eta = eta_at(x_colmajor, nrows, ncols, beta, r);
+        let eta_r = eta[r];
         let mu = match family {
-            GlmFamily::BinomialLogit => sigmoid(eta),
-            GlmFamily::BinomialProbit => norm_cdf(eta),
+            GlmFamily::BinomialLogit => sigmoid(eta_r),
+            GlmFamily::BinomialProbit => norm_cdf(eta_r),
             _ => unreachable!("binomial diagnostics require a binomial family"),
         };
         if !(1e-8..=1.0 - 1e-8).contains(&mu) {
@@ -312,7 +366,7 @@ fn binomial_diagnostics_at(
             n_saturated += 1;
         }
         min_margin = min_margin.min(mu.min(1.0 - mu));
-        if (y[r] > 0.0 && eta <= 0.0) || (y[r] <= 0.0 && eta >= 0.0) {
+        if (y[r] > 0.0 && eta_r <= 0.0) || (y[r] <= 0.0 && eta_r >= 0.0) {
             perfectly_classified = false;
         }
         let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
@@ -348,9 +402,11 @@ fn validate_glm_shape(design: GlmDesignRef<'_>) -> Result<(), StatsError> {
 fn negbin_deviance_at(design: GlmDesignRef<'_>, beta: &[f64], alpha: f64) -> f64 {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let theta = 1.0 / alpha;
+    let mut eta = vec![0.0; nrows];
+    linear_predictor_into(x_colmajor, nrows, ncols, beta, &mut eta);
     let mut deviance = 0.0;
     for r in 0..nrows {
-        let mu = eta_at(x_colmajor, nrows, ncols, beta, r).exp().max(1e-12);
+        let mu = eta[r].exp().max(1e-12);
         let yi = y[r];
         if yi > 0.0 {
             deviance +=
@@ -466,28 +522,33 @@ fn irls_fit_scaled(
     let mut beta = vec![0.0; ncols];
     let mut x_w = vec![0.0; nrows * ncols];
     let mut z = vec![0.0; nrows];
+    let mut eta = vec![0.0; nrows];
+    let mut weight = vec![0.0; nrows];
     let mut converged = false;
     let mut iterations = 0u32;
 
     for iter in 1..=options.max_iter {
         iterations = iter;
         let mut max_delta = 0.0_f64;
+        // Predictor, then one scale of each column. `w` depends on the whole row,
+        // so the two passes cannot collapse further; both walk contiguous columns.
+        if data_start && iter == 1 {
+            for (slot, &yi) in eta.iter_mut().zip(y) {
+                *slot = (yi + 0.5).ln();
+            }
+        } else {
+            linear_predictor_into(x_colmajor, nrows, ncols, &beta, &mut eta);
+        }
         for r in 0..nrows {
-            let eta = if data_start && iter == 1 {
-                (y[r] + 0.5).ln()
-            } else {
-                eta_at(x_colmajor, nrows, ncols, &beta, r)
-            };
-            let (mut w, mut zw) = working(eta, y[r]);
+            let (mut w, mut zw) = working(eta[r], y[r]);
             if let Some(scale) = row_scale {
                 w *= scale[r];
                 zw *= scale[r];
             }
+            weight[r] = w;
             z[r] = zw;
-            for c in 0..ncols {
-                x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
-            }
         }
+        scale_columns_into(x_colmajor, nrows, ncols, &weight, &mut x_w);
         let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
         for c in 0..ncols {
             max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
@@ -649,12 +710,8 @@ fn fit_gaussian_weighted(
     check_prior_weights(design, weights)?;
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
-    let mut x_w = x_colmajor.to_vec();
-    for column in x_w.chunks_exact_mut(nrows.max(1)) {
-        for (value, scale) in column.iter_mut().zip(&root) {
-            *value *= scale;
-        }
-    }
+    let mut x_w = vec![0.0; nrows * ncols];
+    scale_columns_into(x_colmajor, nrows, ncols, &root, &mut x_w);
     let y_w: Vec<f64> = y.iter().zip(&root).map(|(v, scale)| v * scale).collect();
     let fit = backend.least_squares(&x_w, nrows, ncols, &y_w, workspace)?;
     Ok(GlmFit {
@@ -871,12 +928,10 @@ fn fit_negbin_prior(
         let mut pearson_ss = 0.0;
         let mut mass = 0.0;
         let mut sum_mu = 0.0;
+        let mut eta = vec![0.0; nrows];
+        linear_predictor_into(x_colmajor, nrows, ncols, &poisson.coefficients, &mut eta);
         for r in 0..nrows {
-            let mut eta = 0.0;
-            for c in 0..ncols {
-                eta += x_colmajor[c * nrows + r] * poisson.coefficients[c];
-            }
-            let mu = eta.exp().max(1e-12);
+            let mu = eta[r].exp().max(1e-12);
             let e = (y[r] - mu) / mu.sqrt();
             pearson_ss += share(r) * e * e;
             sum_mu += share(r) * mu;
@@ -903,14 +958,11 @@ fn fit_negbin_prior(
             let mut fit =
                 fit_negbin_fixed_alpha(design, prior, backend, workspace, options, alpha)?;
             let mut outer_ok = false;
+            let mut mu = vec![0.0; nrows];
             for _ in 0..max_outer.max(1) {
-                let mut mu = vec![0.0; nrows];
-                for r in 0..nrows {
-                    let mut eta = 0.0;
-                    for c in 0..ncols {
-                        eta += x_colmajor[c * nrows + r] * fit.coefficients[c];
-                    }
-                    mu[r] = eta.exp().max(1e-12);
+                linear_predictor_into(x_colmajor, nrows, ncols, &fit.coefficients, &mut mu);
+                for eta_r in &mut mu {
+                    *eta_r = eta_r.exp().max(1e-12);
                 }
                 let alpha_new = mle_nb_alpha(y, &mu, prior, alpha);
                 let beta_prev = fit.coefficients.clone();
@@ -1016,9 +1068,54 @@ fn fit_negbin_fixed_alpha(
     })
 }
 
+/// Weighted normal equations `Xᵀ W X` and `Xᵀ W z` from contiguous columns.
+///
+/// Entry `(i, j)` is `Σ_r (w_r x_{ri}) x_{rj}` summed in row order, the same
+/// products the rank-one row update added. A non-finite weight or entry stays
+/// in the matrix; the caller refuses it when the factorization fails.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+fn accumulate_weighted_normal_equations(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    fisher: &[f64],
+    working: &[f64],
+    xtwx: &mut [f64],
+    xtwz: &mut [f64],
+) {
+    xtwx[..ncols * ncols].fill(0.0);
+    xtwz[..ncols].fill(0.0);
+    if nrows == 0 || ncols == 0 {
+        return;
+    }
+    for c1 in 0..ncols {
+        let col1 = design_column(x_colmajor, nrows, c1);
+        let mut grad = 0.0;
+        for r in 0..nrows {
+            grad += (col1[r] * fisher[r]) * working[r];
+        }
+        xtwz[c1] = grad;
+        for c2 in 0..ncols {
+            let col2 = design_column(x_colmajor, nrows, c2);
+            let mut acc = 0.0;
+            for r in 0..nrows {
+                acc += (col1[r] * fisher[r]) * col2[r];
+            }
+            xtwx[c1 * ncols + c2] = acc;
+        }
+    }
+}
+
 /// Ridge-penalized binomial IRLS: the separation fallback (`fallback_separated` is the
 /// unpenalized fit's verdict, which the penalized fit must not clear) or the deliberate
 /// always-on ridge of [`fit_glm_ridge`] (`None`: the verdict is taken at the ridge solution).
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn fit_binomial_ridge(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
@@ -1030,54 +1127,45 @@ fn fit_binomial_ridge(
 ) -> Result<GlmFit, StatsError> {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut beta = vec![0.0; ncols];
+    let mut beta_new = vec![0.0; ncols];
     let mut xtwx = vec![0.0; ncols * ncols];
     let mut xtwz = vec![0.0; ncols];
-    // One gathered design row, so the rank-one update below runs over contiguous memory.
-    let mut row = vec![0.0; ncols];
+    let mut eta = vec![0.0; nrows];
+    let mut fisher = vec![0.0; nrows];
+    let mut working_z = vec![0.0; nrows];
     let mut converged = false;
     let mut iterations = 0u32;
+    // The intercept column does not change between iterations.
+    let unpenalize0 = ncols > 0 && column_is_constant(x_colmajor, nrows, 0);
 
     for iter in 1..=options.max_iter {
         iterations = iter;
         let mut max_delta = 0.0_f64;
-        xtwx.fill(0.0);
-        xtwz.fill(0.0);
+        linear_predictor_into(x_colmajor, nrows, ncols, &beta, &mut eta);
         for r in 0..nrows {
-            for c in 0..ncols {
-                row[c] = x_colmajor[c * nrows + r];
-            }
-            let mut eta = 0.0;
-            for c in 0..ncols {
-                eta += row[c] * beta[c];
-            }
-            let (_mu, w_fisher, working) = match family {
+            let eta_r = eta[r];
+            let (w_fisher, working) = match family {
                 GlmFamily::BinomialLogit => {
-                    let mu = sigmoid(eta).clamp(1e-9, 1.0 - 1e-9);
+                    let mu = sigmoid(eta_r).clamp(1e-9, 1.0 - 1e-9);
                     let w = mu * (1.0 - mu);
-                    let z = eta + (y[r] - mu) / w.max(1e-12);
-                    (mu, w, z)
+                    let z = eta_r + (y[r] - mu) / w.max(1e-12);
+                    (w, z)
                 }
                 GlmFamily::BinomialProbit => {
-                    let mu = norm_cdf(eta).clamp(1e-9, 1.0 - 1e-9);
-                    let phi = norm_pdf(eta).max(1e-12);
+                    let mu = norm_cdf(eta_r).clamp(1e-9, 1.0 - 1e-9);
+                    let phi = norm_pdf(eta_r).max(1e-12);
                     let w = (phi * phi) / (mu * (1.0 - mu)).max(1e-12);
-                    let z = eta + (y[r] - mu) / phi;
-                    (mu, w, z)
+                    let z = eta_r + (y[r] - mu) / phi;
+                    (w, z)
                 }
                 _ => unreachable!("ridge fallback is binomial-only"),
             };
-            let w_fisher = w_fisher * prior.map_or(1.0, |m| m[r]);
-            for i in 0..ncols {
-                let xi = row[i];
-                xtwz[i] += xi * w_fisher * working;
-                let xiw = xi * w_fisher;
-                let out = &mut xtwx[i * ncols..(i + 1) * ncols];
-                for j in 0..ncols {
-                    out[j] += xiw * row[j];
-                }
-            }
+            fisher[r] = w_fisher * prior.map_or(1.0, |m| m[r]);
+            working_z[r] = working;
         }
-        let unpenalize0 = ncols > 0 && column_is_constant(x_colmajor, nrows, 0);
+        accumulate_weighted_normal_equations(
+            x_colmajor, nrows, ncols, &fisher, &working_z, &mut xtwx, &mut xtwz,
+        );
         for c in 0..ncols {
             if c == 0 && unpenalize0 {
                 continue;
@@ -1087,7 +1175,6 @@ fn fit_binomial_ridge(
         let Some(inv) = invert_square(&xtwx, ncols) else {
             return Err(StatsError::Backend("ridge binomial: singular X'WX+λI".into()));
         };
-        let mut beta_new = vec![0.0; ncols];
         for i in 0..ncols {
             let mut s = 0.0;
             for j in 0..ncols {
@@ -1096,7 +1183,7 @@ fn fit_binomial_ridge(
             beta_new[i] = s;
             max_delta = max_delta.max((s - beta[i]).abs());
         }
-        beta = beta_new;
+        beta.copy_from_slice(&beta_new);
         if max_delta < options.tol {
             converged = true;
             break;
@@ -1376,6 +1463,13 @@ fn fit_multinomial_binary(
 }
 
 /// Whether `XᵀWX` (`W = diag(weights)`, identity when `None`) is numerically nonsingular.
+///
+/// Each Gram entry is summed down a pair of contiguous columns. The product
+/// `(w_r x_{r c1}) x_{r c2}` matches the old per-row update.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn weighted_gram_is_full_rank(
     x_colmajor: &[f64],
     nrows: usize,
@@ -1383,12 +1477,17 @@ fn weighted_gram_is_full_rank(
     weights: Option<&[f64]>,
 ) -> bool {
     let mut gram = vec![0.0; ncols * ncols];
-    for r in 0..nrows {
-        let w = weights.map_or(1.0, |w| w[r]);
+    if nrows > 0 {
         for c1 in 0..ncols {
-            let a = w * x_colmajor[c1 * nrows + r];
+            let col1 = design_column(x_colmajor, nrows, c1);
             for c2 in c1..ncols {
-                gram[c1 * ncols + c2] += a * x_colmajor[c2 * nrows + r];
+                let col2 = design_column(x_colmajor, nrows, c2);
+                let mut acc = 0.0;
+                for r in 0..nrows {
+                    let w = weights.map_or(1.0, |w| w[r]);
+                    acc += (w * col1[r]) * col2[r];
+                }
+                gram[c1 * ncols + c2] = acc;
             }
         }
     }
@@ -1421,6 +1520,9 @@ fn fit_multinomial_fisher(
     let mut score = vec![0.0; m];
     let mut pi = vec![0.0; k];
     let mut eta = vec![0.0; k];
+    let mut eta_free = vec![0.0; nrows * n_free];
+    let mut pi_rows = vec![0.0; nrows * k];
+    let mut delta = vec![0.0; m];
     let mut converged = false;
     let mut iterations = 0u32;
     let mut prev_deviance = f64::INFINITY;
@@ -1434,41 +1536,22 @@ fn fit_multinomial_fisher(
 
     for iter in 1..=options.max_iter {
         iterations = iter;
-        h.fill(0.0);
-        score.fill(0.0);
+        fill_multinomial_probabilities(
+            design,
+            &beta_free,
+            &mut eta_free,
+            &mut pi_rows,
+            &mut eta,
+            &mut pi,
+        );
         let mut loop_deviance = 0.0;
-
         for r in 0..nrows {
-            softmax_row(design, &beta_free, r, &mut eta, &mut pi);
             let yi = y_category[r] as usize;
             // In-loop deviance is for convergence only; final diagnostics recomputed below.
-            loop_deviance += weights.map_or(1.0, |w| w[r]) * -2.0 * pi[yi].max(1e-300).ln();
-
-            // Score and Fisher information over free categories 1..K-1.
-            for j in 1..k {
-                let pj = pi[j];
-                let yj = if yi == j { 1.0 } else { 0.0 };
-                let resid = yj - pj;
-                let jb = (j - 1) * ncols;
-                for c in 0..ncols {
-                    let xc = x_colmajor[c * nrows + r];
-                    score[jb + c] += weights.map_or(1.0, |w| w[r]) * resid * xc;
-                }
-                for jp in 1..k {
-                    let pjp = pi[jp];
-                    let w = if j == jp { pj * (1.0 - pj) } else { -pj * pjp };
-                    let jpb = (jp - 1) * ncols;
-                    for c1 in 0..ncols {
-                        let xc1 = x_colmajor[c1 * nrows + r];
-                        for c2 in 0..ncols {
-                            let xc2 = x_colmajor[c2 * nrows + r];
-                            h[(jb + c1) * m + (jpb + c2)] +=
-                                weights.map_or(1.0, |w| w[r]) * w * xc1 * xc2;
-                        }
-                    }
-                }
-            }
+            loop_deviance +=
+                weights.map_or(1.0, |w| w[r]) * -2.0 * pi_rows[r * k + yi].max(1e-300).ln();
         }
+        accumulate_multinomial_score_and_information(design, &pi_rows, weights, &mut score, &mut h);
 
         // At interior probabilities the information is nonsingular exactly when the design
         // has full column rank (checked before the loop), so a singular `h` here means the
@@ -1487,7 +1570,6 @@ fn fit_multinomial_fisher(
             regularized = true;
             invert_square(&h, m).ok_or(StatsError::RankDeficient { rank: 0, ncols: m })?
         };
-        let mut delta = vec![0.0; m];
         let mut max_delta = 0.0_f64;
         let mut score_norm = 0.0_f64;
         for i in 0..m {
@@ -1537,54 +1619,138 @@ fn fit_multinomial_fisher(
     })
 }
 
-/// Baseline-category softmax probabilities for row `r`: `η₀ = 0`, `ηⱼ = x·βⱼ` for
-/// `j = 1..K-1`, computed against the maximum `η` so the exponentials cannot overflow.
-/// `η₀ = 0` is always a candidate for the maximum, so the normaliser is at least 1.
+/// Baseline-category probabilities for every row.
+///
+/// Free linear predictors are accumulated one contiguous column at a time, in
+/// column order, so row `r` of class `j` matches `Σ_c x_{rc} β_{jc}`. Class 0
+/// stays at `η = 0`. `η₀ = 0` is always a candidate for the maximum, so the
+/// softmax normaliser is at least 1.
 #[allow(
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
 )]
-fn softmax_row(
+fn fill_multinomial_probabilities(
     design: MultinomialDesignRef<'_>,
     beta_free: &[f64],
-    r: usize,
-    eta: &mut [f64],
-    pi: &mut [f64],
+    eta_free: &mut [f64],
+    pi_rows: &mut [f64],
+    row_eta: &mut [f64],
+    row_pi: &mut [f64],
 ) {
     let MultinomialDesignRef { x_colmajor, nrows, ncols, n_categories: k, .. } = design;
-    eta[0] = 0.0;
-    for j in 1..k {
-        let mut acc = 0.0;
-        let base = (j - 1) * ncols;
-        for c in 0..ncols {
-            acc += x_colmajor[c * nrows + r] * beta_free[base + c];
+    let n_free = k - 1;
+    eta_free[..nrows * n_free].fill(0.0);
+    if nrows > 0 && n_free > 0 && ncols > 0 {
+        let covered = nrows * ncols;
+        for (c, column) in x_colmajor[..covered].chunks_exact(nrows).take(ncols).enumerate() {
+            for (r, &x) in column.iter().enumerate() {
+                for j in 0..n_free {
+                    eta_free[j * nrows + r] += x * beta_free[j * ncols + c];
+                }
+            }
         }
-        eta[j] = acc;
     }
-    pi[..k].copy_from_slice(&eta[..k]);
-    antecedent_kernels::softmax_in_place(&mut pi[..k]);
+    for r in 0..nrows {
+        row_eta[0] = 0.0;
+        for j in 0..n_free {
+            row_eta[j + 1] = eta_free[j * nrows + r];
+        }
+        row_pi[..k].copy_from_slice(&row_eta[..k]);
+        antecedent_kernels::softmax_in_place(&mut row_pi[..k]);
+        pi_rows[r * k..(r + 1) * k].copy_from_slice(&row_pi[..k]);
+    }
+}
+
+/// Score and Fisher information for free categories `1..K-1`.
+///
+/// One pass over each contiguous column pair updates every class block. The
+/// score for column `c1` is added on the first partner column, in row order:
+/// `(m_r (y_{rj} - π_{rj})) x_{r c1}`. The information entry is
+/// `((m_r w_{jj'}) x_{r c1}) x_{r c2}`. A non-finite probability is left in
+/// the matrix so the factorisation still refuses it.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+fn accumulate_multinomial_score_and_information(
+    design: MultinomialDesignRef<'_>,
+    pi_rows: &[f64],
+    weights: Option<&[f64]>,
+    score: &mut [f64],
+    h: &mut [f64],
+) {
+    let MultinomialDesignRef { x_colmajor, nrows, ncols, y_category, n_categories: k } = design;
+    let n_free = k - 1;
+    let m = n_free * ncols;
+    score[..m].fill(0.0);
+    h[..m * m].fill(0.0);
+    if nrows == 0 || ncols == 0 || n_free == 0 {
+        return;
+    }
+    for c1 in 0..ncols {
+        let col1 = design_column(x_colmajor, nrows, c1);
+        for c2 in 0..ncols {
+            let col2 = design_column(x_colmajor, nrows, c2);
+            for r in 0..nrows {
+                let obs = weights.map_or(1.0, |w| w[r]);
+                let xc1 = col1[r];
+                let xc2 = col2[r];
+                let yi = y_category[r] as usize;
+                if c2 == 0 {
+                    for j in 0..n_free {
+                        let pj = pi_rows[r * k + j + 1];
+                        let resid = if yi == j + 1 { 1.0 } else { 0.0 } - pj;
+                        score[j * ncols + c1] += (obs * resid) * xc1;
+                    }
+                }
+                for j in 0..n_free {
+                    let pj = pi_rows[r * k + j + 1];
+                    for jp in 0..n_free {
+                        let pjp = pi_rows[r * k + jp + 1];
+                        let class_w = if j == jp { pj * (1.0 - pj) } else { -pj * pjp };
+                        h[(j * ncols + c1) * m + (jp * ncols + c2)] +=
+                            ((obs * class_w) * xc1) * xc2;
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Multinomial deviance and separation at free coefficients (reference category 0 pinned).
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn multinomial_diagnostics_at(
     design: MultinomialDesignRef<'_>,
     beta_free: &[f64],
     weights: Option<&[f64]>,
 ) -> (f64, bool) {
     let MultinomialDesignRef { nrows, y_category, n_categories: k, .. } = design;
+    let n_free = k - 1;
+    let mut eta_free = vec![0.0; nrows * n_free];
+    let mut pi_rows = vec![0.0; nrows * k];
+    let mut row_eta = vec![0.0; k];
+    let mut row_pi = vec![0.0; k];
+    fill_multinomial_probabilities(
+        design,
+        beta_free,
+        &mut eta_free,
+        &mut pi_rows,
+        &mut row_eta,
+        &mut row_pi,
+    );
     let mut deviance = 0.0;
     let mut separated = false;
-    let mut pi = vec![0.0; k];
-    let mut eta = vec![0.0; k];
     for r in 0..nrows {
-        softmax_row(design, beta_free, r, &mut eta, &mut pi);
-        for &p in &pi {
-            if !(1e-8..=1.0 - 1e-8).contains(&p) {
+        for p in &pi_rows[r * k..(r + 1) * k] {
+            if !(1e-8..=1.0 - 1e-8).contains(p) {
                 separated = true;
             }
         }
         let yi = y_category[r] as usize;
-        deviance += weights.map_or(1.0, |w| w[r]) * -2.0 * pi[yi].max(1e-300).ln();
+        deviance += weights.map_or(1.0, |w| w[r]) * -2.0 * pi_rows[r * k + yi].max(1e-300).ln();
     }
     (deviance, separated)
 }
@@ -2397,5 +2563,343 @@ mod tests {
         assert!(fit.converged);
         assert!(fit.penalized && !fit.separated && !fit.boundary_saturated);
         assert!(fit.require_ok().is_ok(), "an ordinary ridge fit must pass require_ok");
+    }
+
+    fn coefs_match(fused: &[f64], reference: &[f64]) {
+        assert_eq!(fused.len(), reference.len());
+        for (i, (left, right)) in fused.iter().zip(reference).enumerate() {
+            let scale = 1.0 + left.abs().max(right.abs());
+            assert!(
+                (left - right).abs() <= 1e-10 * scale,
+                "coefficient {i}: fused {left} vs row formula {right}"
+            );
+        }
+    }
+
+    /// Row-wise IRLS, the pass the fused column scaling replaces.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
+    fn row_logit(x: &[f64], y: &[f64], max_iter: u32, tol: f64) -> Vec<f64> {
+        let nrows = y.len();
+        let ncols = x.len() / nrows;
+        let mut beta = vec![0.0; ncols];
+        let mut x_w = vec![0.0; nrows * ncols];
+        let mut z = vec![0.0; nrows];
+        let mut ws = LeastSquaresWorkspace::default();
+        for _ in 1..=max_iter {
+            let mut max_delta = 0.0_f64;
+            for r in 0..nrows {
+                let mut eta = 0.0;
+                for c in 0..ncols {
+                    eta += x[c * nrows + r] * beta[c];
+                }
+                let mu = sigmoid(eta);
+                let mu_c = mu.clamp(1e-9, 1.0 - 1e-9);
+                let w = (mu_c * (1.0 - mu_c)).sqrt();
+                z[r] = (eta + (y[r] - mu_c) / (mu_c * (1.0 - mu_c))) * w;
+                for c in 0..ncols {
+                    x_w[c * nrows + r] = x[c * nrows + r] * w;
+                }
+            }
+            let fit =
+                FaerBackend.least_squares(&x_w, nrows, ncols, &z, &mut ws).expect("row logit");
+            for c in 0..ncols {
+                max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
+                beta[c] = fit.coefficients[c];
+            }
+            if max_delta < tol {
+                break;
+            }
+        }
+        beta
+    }
+
+    /// Row-wise penalized normal equations, including a prior weight.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
+    fn row_ridge(
+        x: &[f64],
+        y: &[f64],
+        weights: &[f64],
+        lambda: f64,
+        max_iter: u32,
+        tol: f64,
+    ) -> Vec<f64> {
+        let nrows = y.len();
+        let ncols = x.len() / nrows;
+        let mut beta = vec![0.0; ncols];
+        let mut xtwx = vec![0.0; ncols * ncols];
+        let mut xtwz = vec![0.0; ncols];
+        let mut row = vec![0.0; ncols];
+        let unpenalize0 = ncols > 0 && column_is_constant(x, nrows, 0);
+        for _ in 1..=max_iter {
+            xtwx.fill(0.0);
+            xtwz.fill(0.0);
+            for r in 0..nrows {
+                for c in 0..ncols {
+                    row[c] = x[c * nrows + r];
+                }
+                let mut eta = 0.0;
+                for c in 0..ncols {
+                    eta += row[c] * beta[c];
+                }
+                let mu = sigmoid(eta).clamp(1e-9, 1.0 - 1e-9);
+                let w = mu * (1.0 - mu);
+                let z = eta + (y[r] - mu) / w.max(1e-12);
+                let w_fisher = w * weights[r];
+                for i in 0..ncols {
+                    let xi = row[i];
+                    xtwz[i] += xi * w_fisher * z;
+                    let xiw = xi * w_fisher;
+                    for j in 0..ncols {
+                        xtwx[i * ncols + j] += xiw * row[j];
+                    }
+                }
+            }
+            for c in 0..ncols {
+                if c == 0 && unpenalize0 {
+                    continue;
+                }
+                xtwx[c * ncols + c] += lambda;
+            }
+            let inv = invert_square(&xtwx, ncols).expect("row ridge");
+            let mut max_delta = 0.0_f64;
+            let mut beta_new = vec![0.0; ncols];
+            for i in 0..ncols {
+                let mut s = 0.0;
+                for j in 0..ncols {
+                    s += inv[i * ncols + j] * xtwz[j];
+                }
+                beta_new[i] = s;
+                max_delta = max_delta.max((s - beta[i]).abs());
+            }
+            beta = beta_new;
+            if max_delta < tol {
+                break;
+            }
+        }
+        beta
+    }
+
+    #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
+    fn fused_glm_matches_row_formula_on_a_penalized_design() {
+        let n = 6usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        let mut weights = vec![0.0; n];
+        for i in 0..n {
+            x[i] = 1.0;
+            x[n + i] = i as f64 - 2.5;
+            y[i] = if i % 2 == 0 { 0.0 } else { 1.0 };
+            weights[i] = 0.5 + i as f64 * 0.25;
+        }
+        let design = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y };
+        let opts = GlmOptions { ridge_on_separation: None, ..GlmOptions::new(40, 1e-12) };
+        let mut ws = LeastSquaresWorkspace::default();
+        let fused = fit_glm(GlmFamily::BinomialLogit, design, &FaerBackend, &mut ws, &opts)
+            .expect("fused logit");
+        let again = fit_glm(GlmFamily::BinomialLogit, design, &FaerBackend, &mut ws, &opts)
+            .expect("reused workspace");
+        assert_eq!(
+            ws.grow_count, 1,
+            "the solve workspace grows once, then the second fit reuses it"
+        );
+        assert!(fused.converged && again.converged);
+        coefs_match(&fused.coefficients, &row_logit(&x, &y, opts.max_iter, opts.tol));
+        coefs_match(&again.coefficients, &fused.coefficients);
+
+        let lambda = 0.35;
+        let penalized = fit_glm_ridge_weighted(
+            GlmFamily::BinomialLogit,
+            design,
+            &weights,
+            &FaerBackend,
+            &mut ws,
+            &opts,
+            lambda,
+        )
+        .expect("fused ridge");
+        assert!(penalized.converged && penalized.penalized);
+        coefs_match(
+            &penalized.coefficients,
+            &row_ridge(&x, &y, &weights, lambda, opts.max_iter, opts.tol),
+        );
+        let mut score = [0.0; 2];
+        for r in 0..n {
+            let eta = penalized.coefficients[0] + x[n + r] * penalized.coefficients[1];
+            let resid = weights[r] * (y[r] - sigmoid(eta));
+            score[0] += resid;
+            score[1] += resid * x[n + r];
+        }
+        score[1] -= lambda * penalized.coefficients[1];
+        assert!(score[0].abs() < 1e-6 && score[1].abs() < 1e-6, "penalized score {score:?}");
+    }
+
+    #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
+    fn fused_multinomial_score_matches_the_row_formula() {
+        let nrows = 4usize;
+        let ncols = 2usize;
+        let k = 3usize;
+        let n_free = k - 1;
+        let m = n_free * ncols;
+        let mut x = vec![0.0; nrows * ncols];
+        for r in 0..nrows {
+            x[r] = 1.0;
+            x[nrows + r] = r as f64 - 1.5;
+        }
+        let y = [0u32, 1, 2, 1];
+        let weights = [1.0, 0.5, 1.5, 0.25];
+        let mut pi_rows = vec![0.0; nrows * k];
+        for r in 0..nrows {
+            let eta = [0.0, 0.2 * r as f64 - 0.1, -0.15 * r as f64];
+            let max_eta = eta[0].max(eta[1]).max(eta[2]);
+            let exponentials =
+                [(eta[0] - max_eta).exp(), (eta[1] - max_eta).exp(), (eta[2] - max_eta).exp()];
+            let total = exponentials[0] + exponentials[1] + exponentials[2];
+            for j in 0..k {
+                pi_rows[r * k + j] = exponentials[j] / total;
+            }
+        }
+        let design =
+            MultinomialDesignRef { x_colmajor: &x, nrows, ncols, y_category: &y, n_categories: k };
+        let mut score = vec![0.0; m];
+        let mut h = vec![0.0; m * m];
+        accumulate_multinomial_score_and_information(
+            design,
+            &pi_rows,
+            Some(&weights),
+            &mut score,
+            &mut h,
+        );
+        let mut score_ref = vec![0.0; m];
+        let mut h_ref = vec![0.0; m * m];
+        for r in 0..nrows {
+            let yi = y[r] as usize;
+            let obs = weights[r];
+            for j in 1..k {
+                let pj = pi_rows[r * k + j];
+                let resid = if yi == j { 1.0 } else { 0.0 } - pj;
+                let jb = (j - 1) * ncols;
+                for c in 0..ncols {
+                    score_ref[jb + c] += obs * resid * x[c * nrows + r];
+                }
+                for jp in 1..k {
+                    let pjp = pi_rows[r * k + jp];
+                    let class_w = if j == jp { pj * (1.0 - pj) } else { -pj * pjp };
+                    let jpb = (jp - 1) * ncols;
+                    for c1 in 0..ncols {
+                        let xc1 = x[c1 * nrows + r];
+                        for c2 in 0..ncols {
+                            h_ref[(jb + c1) * m + (jpb + c2)] +=
+                                obs * class_w * xc1 * x[c2 * nrows + r];
+                        }
+                    }
+                }
+            }
+        }
+        for (i, (left, right)) in score.iter().zip(&score_ref).enumerate() {
+            assert!((left - right).abs() <= 1e-12, "score {i}: {left} vs {right}");
+        }
+        for (i, (left, right)) in h.iter().zip(&h_ref).enumerate() {
+            assert!((left - right).abs() <= 1e-12, "information {i}: {left} vs {right}");
+        }
+    }
+
+    #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
+    fn separation_rank_deficiency_and_nonfinite_updates_stay_visible() {
+        let n = 8usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = t;
+            y[i] = t;
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let separated = fit_glm(
+            GlmFamily::BinomialLogit,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(30, 1e-8).without_separation_ridge(),
+        )
+        .expect("separation is a fit with a refusal, not a dropped error");
+        assert!(separated.separated || !separated.converged);
+        assert!(separated.require_ok().is_err());
+
+        let mut collinear = vec![0.0; n * 3];
+        for i in 0..n {
+            let t = i as f64 / n as f64;
+            collinear[i] = 1.0;
+            collinear[n + i] = t;
+            collinear[2 * n + i] = t;
+            y[i] = if i % 2 == 0 { 0.0 } else { 1.0 };
+        }
+        let rank = fit_glm(
+            GlmFamily::BinomialLogit,
+            GlmDesignRef { x_colmajor: &collinear, nrows: n, ncols: 3, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(20, 1e-8).without_separation_ridge(),
+        );
+        assert!(
+            matches!(rank, Err(StatsError::RankDeficient { .. })),
+            "collinear design must stay rank-deficient, got {rank:?}"
+        );
+
+        x[n] = f64::NAN;
+        let nonfinite = fit_glm_ridge(
+            GlmFamily::BinomialLogit,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(10, 1e-8),
+            0.2,
+        );
+        match nonfinite {
+            Err(StatsError::Backend(_) | StatsError::RankDeficient { .. }) => {}
+            Ok(fit) => {
+                assert!(
+                    !fit.converged || fit.coefficients.iter().any(|coef| !coef.is_finite()),
+                    "a non-finite column must not become a finite converged fit"
+                );
+            }
+            Err(other) => panic!("unexpected refusal {other:?}"),
+        }
+
+        let fisher = [1.0, f64::NAN];
+        let working = [0.5, 0.5];
+        let mut xtwx = [0.0; 4];
+        let mut xtwz = [0.0; 2];
+        accumulate_weighted_normal_equations(
+            &[1.0, 1.0, 0.0, 1.0],
+            2,
+            2,
+            &fisher,
+            &working,
+            &mut xtwx,
+            &mut xtwz,
+        );
+        assert!(
+            xtwx.iter().any(|v| !v.is_finite()) || xtwz.iter().any(|v| !v.is_finite()),
+            "a non-finite weight stays in the normal equations"
+        );
     }
 }
