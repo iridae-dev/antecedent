@@ -36,6 +36,7 @@ pub mod joint_alignment;
 pub mod joint_law_rule;
 pub mod measurement;
 pub mod mechanism_composition;
+pub mod mixed_module;
 pub mod obligation;
 pub mod observation_query;
 pub mod plan;

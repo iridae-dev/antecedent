@@ -70,6 +70,9 @@
 #[non_exhaustive] pub enum antecedent_contract::evidence_ledger::SynthesisKind
 #[non_exhaustive] pub enum antecedent_contract::measurement::LatentPosteriorTrust
 #[non_exhaustive] pub enum antecedent_contract::measurement::MeasurementOperation
+#[non_exhaustive] pub enum antecedent_contract::mixed_module::CutFeedback
+#[non_exhaustive] pub enum antecedent_contract::mixed_module::MixedModulePolicy
+#[non_exhaustive] pub enum antecedent_contract::mixed_module::MixedModuleRefusal
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::NextAttempt
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::NuisanceEffect
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::PreparationEffect
@@ -450,6 +453,13 @@ impl core::clone::Clone for antecedent_contract::measurement::LatentPosteriorTru
 impl core::clone::Clone for antecedent_contract::measurement::MeasurementInterfaceBasis
 impl core::clone::Clone for antecedent_contract::measurement::MeasurementOperation
 impl core::clone::Clone for antecedent_contract::measurement::MeasurementRouteCard
+impl core::clone::Clone for antecedent_contract::mixed_module::CutFeedback
+impl core::clone::Clone for antecedent_contract::mixed_module::MarkovMelding
+impl core::clone::Clone for antecedent_contract::mixed_module::MixedModulePolicy
+impl core::clone::Clone for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::clone::Clone for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::clone::Clone for antecedent_contract::mixed_module::RobustEnvelope
+impl core::clone::Clone for antecedent_contract::mixed_module::SemiModular
 impl core::clone::Clone for antecedent_contract::provider_transport::AdmittedProviderSource
 impl core::clone::Clone for antecedent_contract::provider_transport::ProviderTransportSource
 impl core::clone::Clone for antecedent_contract::provider_transport::SourceTrustRequirement
@@ -738,6 +748,13 @@ impl core::cmp::Eq for antecedent_contract::interface_contract::UncertaintyParad
 impl core::cmp::Eq for antecedent_contract::measurement::LatentPosteriorTrust
 impl core::cmp::Eq for antecedent_contract::measurement::MeasurementOperation
 impl core::cmp::Eq for antecedent_contract::measurement::MeasurementRouteCard
+impl core::cmp::Eq for antecedent_contract::mixed_module::CutFeedback
+impl core::cmp::Eq for antecedent_contract::mixed_module::MarkovMelding
+impl core::cmp::Eq for antecedent_contract::mixed_module::MixedModulePolicy
+impl core::cmp::Eq for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::cmp::Eq for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::cmp::Eq for antecedent_contract::mixed_module::RobustEnvelope
+impl core::cmp::Eq for antecedent_contract::mixed_module::SemiModular
 impl core::cmp::Eq for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedHandoff
 impl core::cmp::Eq for antecedent_contract::provider_transport::TransportedInputPolicy
@@ -1176,6 +1193,13 @@ impl core::cmp::PartialEq for antecedent_contract::measurement::LatentPosteriorT
 impl core::cmp::PartialEq for antecedent_contract::measurement::MeasurementInterfaceBasis
 impl core::cmp::PartialEq for antecedent_contract::measurement::MeasurementOperation
 impl core::cmp::PartialEq for antecedent_contract::measurement::MeasurementRouteCard
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::CutFeedback
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::MarkovMelding
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::MixedModulePolicy
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::RobustEnvelope
+impl core::cmp::PartialEq for antecedent_contract::mixed_module::SemiModular
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::AdmittedProviderSource
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::ProviderTransportSource
 impl core::cmp::PartialEq for antecedent_contract::provider_transport::SourceTrustRequirement
@@ -1216,6 +1240,24 @@ impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::Trans
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportReason
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportRevalidation
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::TransportScene
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::CutFeedback> for antecedent_contract::mixed_module::MarkovMelding
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::CutFeedback> for antecedent_contract::mixed_module::RobustEnvelope
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::CutFeedback> for antecedent_contract::mixed_module::SemiModular
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::MarkovMelding> for antecedent_contract::mixed_module::CutFeedback
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::MarkovMelding> for antecedent_contract::mixed_module::MixedModulePolicy
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::MarkovMelding> for antecedent_contract::mixed_module::RobustEnvelope
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::MarkovMelding> for antecedent_contract::mixed_module::SemiModular
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::MixedModulePolicy> for antecedent_contract::mixed_module::MarkovMelding
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::MixedModulePolicy> for antecedent_contract::mixed_module::RobustEnvelope
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::MixedModulePolicy> for antecedent_contract::mixed_module::SemiModular
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::RobustEnvelope> for antecedent_contract::mixed_module::CutFeedback
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::RobustEnvelope> for antecedent_contract::mixed_module::MarkovMelding
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::RobustEnvelope> for antecedent_contract::mixed_module::MixedModulePolicy
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::RobustEnvelope> for antecedent_contract::mixed_module::SemiModular
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::SemiModular> for antecedent_contract::mixed_module::CutFeedback
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::SemiModular> for antecedent_contract::mixed_module::MarkovMelding
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::SemiModular> for antecedent_contract::mixed_module::MixedModulePolicy
+impl core::cmp::PartialEq<antecedent_contract::mixed_module::SemiModular> for antecedent_contract::mixed_module::RobustEnvelope
 impl core::cmp::PartialOrd for antecedent_contract::AdmissionCoordinate
 impl core::cmp::PartialOrd for antecedent_contract::AlignedLaw
 impl core::cmp::PartialOrd for antecedent_contract::CompositionStage
@@ -1299,6 +1341,7 @@ impl core::error::Error for antecedent_contract::adaptive_design::AdaptiveContra
 impl core::error::Error for antecedent_contract::composition_verification::GraphError
 impl core::error::Error for antecedent_contract::composition_verification::ViewError
 impl core::error::Error for antecedent_contract::evidence_ledger::LedgerError
+impl core::error::Error for antecedent_contract::mixed_module::MixedModuleRefusal
 impl core::error::Error for antecedent_contract::rewrite_legality::RewriteRefusal
 impl core::error::Error for antecedent_contract::summary_observation::SummaryObservationError
 impl core::fmt::Debug for antecedent_contract::AcceptanceReport
@@ -1642,6 +1685,13 @@ impl core::fmt::Debug for antecedent_contract::measurement::LatentPosteriorTrust
 impl core::fmt::Debug for antecedent_contract::measurement::MeasurementInterfaceBasis
 impl core::fmt::Debug for antecedent_contract::measurement::MeasurementOperation
 impl core::fmt::Debug for antecedent_contract::measurement::MeasurementRouteCard
+impl core::fmt::Debug for antecedent_contract::mixed_module::CutFeedback
+impl core::fmt::Debug for antecedent_contract::mixed_module::MarkovMelding
+impl core::fmt::Debug for antecedent_contract::mixed_module::MixedModulePolicy
+impl core::fmt::Debug for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::fmt::Debug for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::fmt::Debug for antecedent_contract::mixed_module::RobustEnvelope
+impl core::fmt::Debug for antecedent_contract::mixed_module::SemiModular
 impl core::fmt::Debug for antecedent_contract::provider_transport::AdmittedProviderSource
 impl core::fmt::Debug for antecedent_contract::provider_transport::ProviderTransportSource
 impl core::fmt::Debug for antecedent_contract::provider_transport::SourceTrustRequirement
@@ -1706,6 +1756,9 @@ impl core::fmt::Display for antecedent_contract::evidence_ledger::ObservationId
 impl core::fmt::Display for antecedent_contract::evidence_ledger::OperationId
 impl core::fmt::Display for antecedent_contract::evidence_ledger::ResultId
 impl core::fmt::Display for antecedent_contract::evidence_ledger::SourceId
+impl core::fmt::Display for antecedent_contract::mixed_module::CutFeedback
+impl core::fmt::Display for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::fmt::Display for antecedent_contract::mixed_module::ReconciliationRecord
 impl core::fmt::Display for antecedent_contract::rewrite_legality::NextAttempt
 impl core::fmt::Display for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::fmt::Display for antecedent_contract::rewrite_legality::RewriteRefusal
@@ -1818,6 +1871,13 @@ impl core::hash::Hash for antecedent_contract::interface_contract::DependenceReq
 impl core::hash::Hash for antecedent_contract::interface_contract::UncertaintyMeaning
 impl core::hash::Hash for antecedent_contract::interface_contract::UncertaintyParadigm
 impl core::hash::Hash for antecedent_contract::measurement::MeasurementOperation
+impl core::hash::Hash for antecedent_contract::mixed_module::CutFeedback
+impl core::hash::Hash for antecedent_contract::mixed_module::MarkovMelding
+impl core::hash::Hash for antecedent_contract::mixed_module::MixedModulePolicy
+impl core::hash::Hash for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::hash::Hash for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::hash::Hash for antecedent_contract::mixed_module::RobustEnvelope
+impl core::hash::Hash for antecedent_contract::mixed_module::SemiModular
 impl core::hash::Hash for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::hash::Hash for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::hash::Hash for antecedent_contract::rewrite_legality::NextAttempt
@@ -1969,6 +2029,11 @@ impl core::marker::Copy for antecedent_contract::interface_contract::Uncertainty
 impl core::marker::Copy for antecedent_contract::measurement::LatentPosteriorTrust
 impl core::marker::Copy for antecedent_contract::measurement::MeasurementOperation
 impl core::marker::Copy for antecedent_contract::measurement::MeasurementRouteCard
+impl core::marker::Copy for antecedent_contract::mixed_module::CutFeedback
+impl core::marker::Copy for antecedent_contract::mixed_module::MarkovMelding
+impl core::marker::Copy for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::marker::Copy for antecedent_contract::mixed_module::RobustEnvelope
+impl core::marker::Copy for antecedent_contract::mixed_module::SemiModular
 impl core::marker::Copy for antecedent_contract::provider_transport::SourceTrustRequirement
 impl core::marker::Copy for antecedent_contract::provider_transport::TransportedInputPolicy
 impl core::marker::Copy for antecedent_contract::rewrite_legality::NextAttempt
@@ -2323,6 +2388,13 @@ impl core::marker::Freeze for antecedent_contract::measurement::LatentPosteriorT
 impl core::marker::Freeze for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::marker::Freeze for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Freeze for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::MarkovMelding [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::MixedModulePolicy [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::RobustEnvelope [auto]
+impl core::marker::Freeze for antecedent_contract::mixed_module::SemiModular [auto]
 impl core::marker::Freeze for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::marker::Freeze for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::marker::Freeze for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -2704,6 +2776,13 @@ impl core::marker::Send for antecedent_contract::measurement::LatentPosteriorTru
 impl core::marker::Send for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::marker::Send for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Send for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::MarkovMelding [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::MixedModulePolicy [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::RobustEnvelope [auto]
+impl core::marker::Send for antecedent_contract::mixed_module::SemiModular [auto]
 impl core::marker::Send for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::marker::Send for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::marker::Send for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -3083,6 +3162,13 @@ impl core::marker::StructuralPartialEq for antecedent_contract::measurement::Lat
 impl core::marker::StructuralPartialEq for antecedent_contract::measurement::MeasurementInterfaceBasis
 impl core::marker::StructuralPartialEq for antecedent_contract::measurement::MeasurementOperation
 impl core::marker::StructuralPartialEq for antecedent_contract::measurement::MeasurementRouteCard
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::CutFeedback
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::MarkovMelding
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::MixedModulePolicy
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::MixedModuleRefusal
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::ReconciliationRecord
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::RobustEnvelope
+impl core::marker::StructuralPartialEq for antecedent_contract::mixed_module::SemiModular
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::AdmittedProviderSource
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::ProviderTransportSource
 impl core::marker::StructuralPartialEq for antecedent_contract::provider_transport::SourceTrustRequirement
@@ -3464,6 +3550,13 @@ impl core::marker::Sync for antecedent_contract::measurement::LatentPosteriorTru
 impl core::marker::Sync for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::marker::Sync for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Sync for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::MarkovMelding [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::MixedModulePolicy [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::RobustEnvelope [auto]
+impl core::marker::Sync for antecedent_contract::mixed_module::SemiModular [auto]
 impl core::marker::Sync for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::marker::Sync for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::marker::Sync for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -3845,6 +3938,13 @@ impl core::marker::Unpin for antecedent_contract::measurement::LatentPosteriorTr
 impl core::marker::Unpin for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::marker::Unpin for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::marker::Unpin for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::MarkovMelding [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::MixedModulePolicy [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::RobustEnvelope [auto]
+impl core::marker::Unpin for antecedent_contract::mixed_module::SemiModular [auto]
 impl core::marker::Unpin for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::marker::Unpin for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::marker::Unpin for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -4226,6 +4326,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measuremen
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::MarkovMelding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::MixedModulePolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::RobustEnvelope [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::mixed_module::SemiModular [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -4607,6 +4714,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::MeasurementInterfaceBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::MeasurementOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::MeasurementRouteCard [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::CutFeedback [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::MarkovMelding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::MixedModulePolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::MixedModuleRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::ReconciliationRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::RobustEnvelope [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::mixed_module::SemiModular [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::AdmittedProviderSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::ProviderTransportSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::provider_transport::SourceTrustRequirement [auto]
@@ -4747,6 +4861,7 @@ pub const <antecedent_contract::evidence_ledger::SynthesisKind>::ALL: [Self; 5]
 pub const <antecedent_contract::interface_contract::ContractOperation>::ALL: [Self; 8]
 pub const <antecedent_contract::interface_contract::UncertaintyMeaning>::ALL_MEANINGS: [antecedent_contract::DistributionMeaning; 7]
 pub const <antecedent_contract::interface_contract::UncertaintyParadigm>::ALL: [Self; 4]
+pub const <antecedent_contract::mixed_module::CutFeedback>::ALL: [Self; 2]
 pub const <antecedent_contract::provider_transport::TransportedHandoff>::STANDING: &'static str
 pub const <antecedent_contract::rewrite_legality::ColumnFilterPushdown>::NAME: &'static str
 pub const <antecedent_contract::rewrite_legality::NextAttempt>::ALL: [Self; 7]
@@ -6418,6 +6533,19 @@ pub fn <antecedent_contract::interface_contract::UncertaintyParadigm>::const fn 
 pub fn <antecedent_contract::interface_contract::UncertaintyParadigm>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::measurement::LatentPosteriorTrust>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::measurement::MeasurementOperation>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::mixed_module::CutFeedback>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::mixed_module::CutFeedback>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::mixed_module::MarkovMelding>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::mixed_module::MixedModulePolicy>::const fn coherent_joint() -> Self
+pub fn <antecedent_contract::mixed_module::MixedModulePolicy>::const fn cut_feedback(&self) -> core::option::Option<antecedent_contract::mixed_module::CutFeedback>
+pub fn <antecedent_contract::mixed_module::MixedModulePolicy>::const fn reconciliation(&self) -> core::option::Option<&antecedent_contract::mixed_module::ReconciliationRecord>
+pub fn <antecedent_contract::mixed_module::MixedModulePolicy>::fn declared_modular(reconciliation: &str, cut_feedback: antecedent_contract::mixed_module::CutFeedback) -> core::result::Result<Self, antecedent_contract::mixed_module::MixedModuleRefusal>
+pub fn <antecedent_contract::mixed_module::MixedModuleRefusal>::const fn code(self) -> &'static str
+pub fn <antecedent_contract::mixed_module::MixedModuleRefusal>::const fn detail(self) -> &'static str
+pub fn <antecedent_contract::mixed_module::ReconciliationRecord>::fn as_str(&self) -> &str
+pub fn <antecedent_contract::mixed_module::ReconciliationRecord>::fn try_new(text: &str) -> core::result::Result<Self, antecedent_contract::mixed_module::MixedModuleRefusal>
+pub fn <antecedent_contract::mixed_module::RobustEnvelope>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::mixed_module::SemiModular>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::const fn is_native_target_data(&self) -> bool
 pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::const fn source(&self) -> &antecedent_contract::provider_transport::ProviderTransportSource
 pub fn <antecedent_contract::provider_transport::AdmittedProviderSource>::fn canonical_identity(&self) -> antecedent_core::identity::SemanticDigest
@@ -6677,6 +6805,7 @@ pub mod antecedent_contract::joint_alignment
 pub mod antecedent_contract::joint_law_rule
 pub mod antecedent_contract::measurement
 pub mod antecedent_contract::mechanism_composition
+pub mod antecedent_contract::mixed_module
 pub mod antecedent_contract::obligation
 pub mod antecedent_contract::observation_query
 pub mod antecedent_contract::plan
@@ -6911,6 +7040,11 @@ pub struct antecedent_contract::interface_contract::UncertaintyMeaning
 pub struct antecedent_contract::measurement::MeasurementInterfaceBasis
 pub struct antecedent_contract::measurement::MeasurementRequest<'a>
 pub struct antecedent_contract::measurement::MeasurementRouteCard
+pub struct antecedent_contract::mixed_module::MarkovMelding
+pub struct antecedent_contract::mixed_module::ReconciliationRecord
+pub struct antecedent_contract::mixed_module::ReconciliationRecord has private fields
+pub struct antecedent_contract::mixed_module::RobustEnvelope
+pub struct antecedent_contract::mixed_module::SemiModular
 pub struct antecedent_contract::provider_transport::AdmittedProviderSource
 pub struct antecedent_contract::provider_transport::AdmittedProviderSource has private fields
 pub struct antecedent_contract::provider_transport::ProviderTransportSource
@@ -7917,6 +8051,11 @@ pub variant antecedent_contract::measurement::MeasurementOperation::LinearFuncti
 pub variant antecedent_contract::measurement::MeasurementOperation::NonlinearOutcomeModel
 pub variant antecedent_contract::measurement::MeasurementOperation::RiskDifference
 pub variant antecedent_contract::measurement::MeasurementOperation::TransportToOtherPopulation
+pub variant antecedent_contract::mixed_module::CutFeedback::Cut
+pub variant antecedent_contract::mixed_module::CutFeedback::Feedback
+pub variant antecedent_contract::mixed_module::MixedModulePolicy::CoherentJoint
+pub variant antecedent_contract::mixed_module::MixedModulePolicy::DeclaredModular { reconciliation: antecedent_contract::mixed_module::ReconciliationRecord, cut_feedback: antecedent_contract::mixed_module::CutFeedback }
+pub variant antecedent_contract::mixed_module::MixedModuleRefusal::BlankReconciliation
 pub variant antecedent_contract::provider_transport::SourceTrustRequirement::AttestationAccepted
 pub variant antecedent_contract::provider_transport::SourceTrustRequirement::ExactRequestVerified
 pub variant antecedent_contract::provider_transport::TransportedInputPolicy::AcceptsTransported
