@@ -46,6 +46,7 @@ pub mod ids;
 pub mod interval;
 pub mod intervention;
 pub mod measurement_model;
+pub(crate) mod measurement_record;
 pub mod node;
 pub mod query;
 pub mod reason_code;
