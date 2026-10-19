@@ -1,0 +1,20 @@
+# 3.0 test registration. Scaffold Q01 immediately; register each new test as it lands.
+#
+# Route-level evidence for checked_execution, support, evidence, composition,
+# transport, and decision is not claimed here. Those gates already require a
+# path that exists (evidence_test, a cited fixture, or a story file). Record
+# that path in evidence_path when a test that the gate consumes is registered.
+#
+# This sentinel is the executable check: scripts/gate_release.sh runs
+# scripts/check_v3_test_registry.py in the inventory section. The checker
+# script is the test; it is not a cargo target and it does not stand in for
+# route evidence.
+
+schema = 1
+
+[[test]]
+id = "v3-registry-sentinel"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/check_v3_test_registry.py"
+gates = ["inventory"]

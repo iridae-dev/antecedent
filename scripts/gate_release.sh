@@ -142,6 +142,9 @@ section_end "$section"
 fi
 
 if [[ "$section" == all || "$section" == inventory ]]; then
+echo "== 3.0 test registry =="
+python3 scripts/check_v3_test_registry.py
+
 echo "== docs vs support matrix =="
 bash scripts/gate_docs_support_matrix.sh
 
