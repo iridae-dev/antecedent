@@ -45,6 +45,8 @@ pub mod multi_env;
 pub mod network;
 pub mod panel;
 pub mod panel_window;
+#[cfg(feature = "polars")]
+pub mod polars_seam;
 pub mod pooled_frame;
 pub mod project;
 pub mod reference;

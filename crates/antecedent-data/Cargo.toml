@@ -26,6 +26,9 @@ arrow = [
     "arrow-array/ffi",
     "arrow-schema/ffi",
 ]
+# Optional prototype seam. Off by default. Not a crate dependency: this
+# repository pins no Polars version, and Polars is not an internal-contract backend.
+polars = []
 
 [dependencies]
 antecedent-core = { workspace = true }

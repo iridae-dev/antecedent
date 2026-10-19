@@ -77,10 +77,23 @@ mod tests {
         assert!(!line_names_polars_crate("# polars = \"0.55\""));
         assert!(!line_names_polars_crate("arrow-array = { version = \"54\" }"));
         assert!(!line_names_polars_crate("polars-arrow = \"1\""));
+        let feature_only = "[features]\ndefault = [\"arrow\"]\npolars = []\n";
+        assert!(!declares_polars_crate(feature_only));
     }
 
     fn declares_polars_crate(manifest: &str) -> bool {
-        manifest.lines().any(line_names_polars_crate)
+        let mut in_features = false;
+        manifest.lines().any(|line| {
+            let code = line.split('#').next().unwrap_or(line).trim();
+            if let Some(header) = code.strip_prefix('[').and_then(|rest| rest.strip_suffix(']')) {
+                in_features = header == "features";
+                return line_names_polars_crate(line);
+            }
+            if in_features {
+                return false;
+            }
+            line_names_polars_crate(line)
+        })
     }
 
     fn line_names_polars_crate(line: &str) -> bool {
