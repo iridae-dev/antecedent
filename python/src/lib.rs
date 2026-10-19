@@ -85,6 +85,7 @@ mod graph_falsification_api;
 mod graph_io;
 mod graphs;
 mod identification_details;
+mod inspect_receipt_api;
 mod interference_saturation_api;
 mod interrupt;
 mod intrinsic_influence_api;
@@ -2737,6 +2738,7 @@ impl PyCancellationToken {
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     batch6_contract_api::register(m)?;
+    inspect_receipt_api::register(m)?;
     registry::register_module(m)
 }
 
