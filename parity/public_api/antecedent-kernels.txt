@@ -166,42 +166,67 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::ReductionError
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::ViewError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::Welford [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_kernels::cholesky::CholeskyRefusal [auto]
+impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_kernels::layout_contract::ContiguousColumn<'a> [auto]
 impl<'a> core::clone::Clone for antecedent_kernels::BitMaskView<'a>
 impl<'a> core::clone::Clone for antecedent_kernels::F64MatrixView<'a>
 impl<'a> core::clone::Clone for antecedent_kernels::F64VectorView<'a>
 impl<'a> core::clone::Clone for antecedent_kernels::WeightedMask<'a>
+impl<'a> core::clone::Clone for antecedent_kernels::layout_contract::PackedBitmapMask<'a>
+impl<'a> core::clone::Clone for antecedent_kernels::layout_contract::UnitStrideF64<'a>
 impl<'a> core::fmt::Debug for antecedent_kernels::BitMaskView<'a>
 impl<'a> core::fmt::Debug for antecedent_kernels::F64MatrixView<'a>
 impl<'a> core::fmt::Debug for antecedent_kernels::F64VectorView<'a>
 impl<'a> core::fmt::Debug for antecedent_kernels::WeightedMask<'a>
+impl<'a> core::fmt::Debug for antecedent_kernels::layout_contract::ContiguousColumn<'a>
+impl<'a> core::fmt::Debug for antecedent_kernels::layout_contract::PackedBitmapMask<'a>
+impl<'a> core::fmt::Debug for antecedent_kernels::layout_contract::UnitStrideF64<'a>
 impl<'a> core::marker::Copy for antecedent_kernels::BitMaskView<'a>
 impl<'a> core::marker::Copy for antecedent_kernels::F64MatrixView<'a>
 impl<'a> core::marker::Copy for antecedent_kernels::F64VectorView<'a>
 impl<'a> core::marker::Copy for antecedent_kernels::WeightedMask<'a>
+impl<'a> core::marker::Copy for antecedent_kernels::layout_contract::PackedBitmapMask<'a>
+impl<'a> core::marker::Copy for antecedent_kernels::layout_contract::UnitStrideF64<'a>
 impl<'a> core::marker::Freeze for antecedent_kernels::BitMaskView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_kernels::F64MatrixView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_kernels::F64VectorView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_kernels::WeightedMask<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_kernels::layout_contract::ContiguousColumn<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_kernels::layout_contract::PackedBitmapMask<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_kernels::layout_contract::UnitStrideF64<'a> [auto]
 impl<'a> core::marker::Send for antecedent_kernels::BitMaskView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_kernels::F64MatrixView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_kernels::F64VectorView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_kernels::WeightedMask<'a> [auto]
+impl<'a> core::marker::Send for antecedent_kernels::layout_contract::ContiguousColumn<'a> [auto]
+impl<'a> core::marker::Send for antecedent_kernels::layout_contract::PackedBitmapMask<'a> [auto]
+impl<'a> core::marker::Send for antecedent_kernels::layout_contract::UnitStrideF64<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_kernels::BitMaskView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_kernels::F64MatrixView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_kernels::F64VectorView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_kernels::WeightedMask<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_kernels::layout_contract::ContiguousColumn<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_kernels::layout_contract::PackedBitmapMask<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_kernels::layout_contract::UnitStrideF64<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_kernels::BitMaskView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_kernels::F64MatrixView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_kernels::F64VectorView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_kernels::WeightedMask<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_kernels::layout_contract::ContiguousColumn<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_kernels::layout_contract::PackedBitmapMask<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_kernels::layout_contract::UnitStrideF64<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::BitMaskView<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::F64MatrixView<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::F64VectorView<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::WeightedMask<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::layout_contract::ContiguousColumn<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::layout_contract::PackedBitmapMask<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_kernels::layout_contract::UnitStrideF64<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::BitMaskView<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::F64MatrixView<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::F64VectorView<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::WeightedMask<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::layout_contract::PackedBitmapMask<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_kernels::layout_contract::UnitStrideF64<'a> [auto]
 pub const antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR: f64
 pub const antecedent_kernels::NORMAL_Q975: f64
 pub const antecedent_kernels::REDUCTION_ABS_TOLERANCE: f64
@@ -261,6 +286,14 @@ pub fn <antecedent_kernels::Welford>::fn push(&mut self, x: f64)
 pub fn <antecedent_kernels::Welford>::fn push_weighted(&mut self, weight: f64, x: f64)
 pub fn <antecedent_kernels::Welford>::fn sample_variance(&self) -> core::option::Option<f64>
 pub fn <antecedent_kernels::Welford>::fn stderr_of_mean(&self) -> f64
+pub fn <antecedent_kernels::layout_contract::ContiguousColumn<'a>>::const fn as_mut_slice(&mut self) -> &mut [f64]
+pub fn <antecedent_kernels::layout_contract::ContiguousColumn<'a>>::const fn new(values: &'a mut [f64]) -> Self
+pub fn <antecedent_kernels::layout_contract::PackedBitmapMask<'a>>::const fn mask(self) -> antecedent_kernels::BitMaskView<'a>
+pub fn <antecedent_kernels::layout_contract::PackedBitmapMask<'a>>::const fn values(self) -> antecedent_kernels::F64VectorView<'a>
+pub fn <antecedent_kernels::layout_contract::PackedBitmapMask<'a>>::fn new(values: &'a [f64], bytes: &'a [u8]) -> core::result::Result<Self, antecedent_kernels::ViewError>
+pub fn <antecedent_kernels::layout_contract::UnitStrideF64<'a>>::const fn as_slice(self) -> &'a [f64]
+pub fn <antecedent_kernels::layout_contract::UnitStrideF64<'a>>::const fn new(values: &'a [f64]) -> Self
+pub fn <antecedent_kernels::layout_contract::UnitStrideF64<'a>>::const fn view(self) -> antecedent_kernels::F64VectorView<'a>
 pub fn antecedent_kernels::accumulate_contingency(policy: &antecedent_core::execution::KernelPolicy, x_codes: &[u32], y_codes: &[u32], out: &mut [f64], n_y_levels: usize) -> core::result::Result<(), antecedent_kernels::ViewError>
 pub fn antecedent_kernels::back_solve_into(chol: &[f64], n: usize, y: &[f64], x: &mut [f64])
 pub fn antecedent_kernels::bayesian_bootstrap_weights(rng: &mut antecedent_core::execution::CausalRng, n: usize, normalize: bool) -> alloc::vec::Vec<f64>
@@ -339,6 +372,7 @@ pub fn antecedent_kernels::update_scatter(mean: &mut [f64], m2: &mut [f64], n_be
 pub mod antecedent_kernels::cholesky
 pub mod antecedent_kernels::dispatch
 pub mod antecedent_kernels::gram
+pub mod antecedent_kernels::layout_contract
 pub mod antecedent_kernels::numeric
 pub mod antecedent_kernels::parcorr
 pub mod antecedent_kernels::portable
@@ -364,6 +398,12 @@ pub struct antecedent_kernels::WeightedMask<'a>
 pub struct antecedent_kernels::Welford
 pub struct antecedent_kernels::Welford has private fields
 pub struct antecedent_kernels::cholesky::CholeskyRefusal
+pub struct antecedent_kernels::layout_contract::ContiguousColumn has private fields
+pub struct antecedent_kernels::layout_contract::ContiguousColumn<'a>
+pub struct antecedent_kernels::layout_contract::PackedBitmapMask has private fields
+pub struct antecedent_kernels::layout_contract::PackedBitmapMask<'a>
+pub struct antecedent_kernels::layout_contract::UnitStrideF64 has private fields
+pub struct antecedent_kernels::layout_contract::UnitStrideF64<'a>
 pub use antecedent_kernels::cholesky::CholeskyError = antecedent_kernels::CholeskyError
 pub use antecedent_kernels::cholesky::back_solve_into = antecedent_kernels::back_solve_into
 pub use antecedent_kernels::cholesky::chol_inverse = antecedent_kernels::chol_inverse

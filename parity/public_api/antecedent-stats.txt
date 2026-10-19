@@ -245,6 +245,7 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::UnitSummary
 impl core::clone::Clone for antecedent_stats::adaptive_inference::WeightScheme
 impl core::clone::Clone for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::clone::Clone for antecedent_stats::ci::AttainableP
+impl core::clone::Clone for antecedent_stats::gram::GramLayoutError
 impl core::clone::Clone for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::clone::Clone for antecedent_stats::measurement_error::BinaryErrorRates
 impl core::clone::Clone for antecedent_stats::measurement_error::CombinedImputations
@@ -307,6 +308,7 @@ impl core::cmp::Eq for antecedent_stats::adaptive_inference::UncertaintyParadigm
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::UnitSummary
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::cmp::Eq for antecedent_stats::ci::AttainableP
+impl core::cmp::Eq for antecedent_stats::gram::GramLayoutError
 impl core::cmp::Eq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::cmp::PartialEq for antecedent_stats::BasisKind
 impl core::cmp::PartialEq for antecedent_stats::BetweenStudyMethod
@@ -470,6 +472,7 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::UnitSummary
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::cmp::PartialEq for antecedent_stats::ci::AttainableP
+impl core::cmp::PartialEq for antecedent_stats::gram::GramLayoutError
 impl core::cmp::PartialEq for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::BinaryErrorRates
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::CombinedImputations
@@ -742,6 +745,7 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::UnitSummary
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::WeightScheme
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::fmt::Debug for antecedent_stats::ci::AttainableP
+impl core::fmt::Debug for antecedent_stats::gram::GramLayoutError
 impl core::fmt::Debug for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::fmt::Debug for antecedent_stats::measurement_error::BinaryErrorRates
 impl core::fmt::Debug for antecedent_stats::measurement_error::CombinedImputations
@@ -770,6 +774,7 @@ impl core::fmt::Display for antecedent_stats::SynthesisError
 impl core::fmt::Display for antecedent_stats::adaptive_inference::AdaptiveInferenceError
 impl core::fmt::Display for antecedent_stats::adaptive_inference::CapacityError
 impl core::fmt::Display for antecedent_stats::adaptive_inference::ProcedureContractError
+impl core::fmt::Display for antecedent_stats::gram::GramLayoutError
 impl core::fmt::Display for antecedent_stats::measurement_error::MeasurementErrorError
 impl core::fmt::Display for antecedent_stats::synthesis_transport::TransportedSynthesisError
 impl core::hash::Hash for antecedent_stats::BasisKind
@@ -887,6 +892,7 @@ impl core::marker::Copy for antecedent_stats::adaptive_inference::UnitSummary
 impl core::marker::Copy for antecedent_stats::adaptive_inference::WeightScheme
 impl core::marker::Copy for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::marker::Copy for antecedent_stats::ci::AttainableP
+impl core::marker::Copy for antecedent_stats::gram::GramLayoutError
 impl core::marker::Copy for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::marker::Copy for antecedent_stats::measurement_error::BinaryErrorRates
 impl core::marker::Copy for antecedent_stats::measurement_error::CorrectedProportion
@@ -1094,6 +1100,7 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::UnitSummary 
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Freeze for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Freeze for antecedent_stats::gram::GramLayoutError [auto]
 impl core::marker::Freeze for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::BinaryErrorRates [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::CombinedImputations [auto]
@@ -1317,6 +1324,7 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::UnitSummary [a
 impl core::marker::Send for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Send for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Send for antecedent_stats::gram::GramLayoutError [auto]
 impl core::marker::Send for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::BinaryErrorRates [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::CombinedImputations [auto]
@@ -1501,6 +1509,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::marker::StructuralPartialEq for antecedent_stats::ci::AttainableP
+impl core::marker::StructuralPartialEq for antecedent_stats::gram::GramLayoutError
 impl core::marker::StructuralPartialEq for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::BinaryErrorRates
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::CombinedImputations
@@ -1724,6 +1733,7 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::UnitSummary [a
 impl core::marker::Sync for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Sync for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Sync for antecedent_stats::gram::GramLayoutError [auto]
 impl core::marker::Sync for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::BinaryErrorRates [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::CombinedImputations [auto]
@@ -1947,6 +1957,7 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::UnitSummary [
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Unpin for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Unpin for antecedent_stats::gram::GramLayoutError [auto]
 impl core::marker::Unpin for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::BinaryErrorRates [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::CombinedImputations [auto]
@@ -2170,6 +2181,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::AttainableP [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::GramLayoutError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::BinaryErrorRates [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::CombinedImputations [auto]
@@ -2393,6 +2405,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::AttainableP [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::GramLayoutError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::RegimeValueSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::BinaryErrorRates [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::CombinedImputations [auto]
@@ -2424,6 +2437,8 @@ impl<'a> core::clone::Clone for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::clone::Clone for antecedent_stats::SandwichKind<'a>
 impl<'a> core::clone::Clone for antecedent_stats::adaptive_inference::ArmEvidence<'a>
 impl<'a> core::clone::Clone for antecedent_stats::adaptive_inference::PosteriorRequest<'a>
+impl<'a> core::clone::Clone for antecedent_stats::gram::ColumnMajorDesign<'a>
+impl<'a> core::clone::Clone for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::clone::Clone for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 impl<'a> core::clone::Clone for antecedent_stats::longitudinal_regime::SubjectHistories<'a>
 impl<'a> core::clone::Clone for antecedent_stats::measurement_error::LinearErrorData<'a>
@@ -2436,6 +2451,8 @@ impl<'a> core::fmt::Debug for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::SandwichKind<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::adaptive_inference::ArmEvidence<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::adaptive_inference::PosteriorRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::gram::ColumnMajorDesign<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::longitudinal_regime::SubjectHistories<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::LinearErrorData<'a>
@@ -2447,6 +2464,8 @@ impl<'a> core::marker::Copy for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::marker::Copy for antecedent_stats::SandwichKind<'a>
 impl<'a> core::marker::Copy for antecedent_stats::adaptive_inference::ArmEvidence<'a>
 impl<'a> core::marker::Copy for antecedent_stats::adaptive_inference::PosteriorRequest<'a>
+impl<'a> core::marker::Copy for antecedent_stats::gram::ColumnMajorDesign<'a>
+impl<'a> core::marker::Copy for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::marker::Copy for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 impl<'a> core::marker::Copy for antecedent_stats::longitudinal_regime::SubjectHistories<'a>
 impl<'a> core::marker::Copy for antecedent_stats::measurement_error::LinearErrorData<'a>
@@ -2460,6 +2479,8 @@ impl<'a> core::marker::Freeze for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::dcor::DistanceY<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
@@ -2473,6 +2494,8 @@ impl<'a> core::marker::Send for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::dcor::DistanceY<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
@@ -2486,6 +2509,8 @@ impl<'a> core::marker::Sync for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::dcor::DistanceY<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
@@ -2499,6 +2524,8 @@ impl<'a> core::marker::Unpin for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::dcor::DistanceY<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
@@ -2512,6 +2539,8 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SandwichK
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::dcor::DistanceY<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
@@ -2525,6 +2554,8 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::SandwichKind
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::dcor::DistanceY<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
@@ -3613,6 +3644,12 @@ pub fn <antecedent_stats::adaptive_inference::UnitAssignment>::const fn is_adapt
 pub fn <antecedent_stats::adaptive_inference::WeightScheme>::const fn as_str(self) -> &'static str
 pub fn <antecedent_stats::dcor::DistanceY<'a>>::fn correlate(&self, x: &[f64]) -> f64
 pub fn <antecedent_stats::dcor::DistanceY<'a>>::fn new(y: &'a [f64]) -> Self
+pub fn <antecedent_stats::gram::ColumnMajorDesign<'a>>::const fn ncols(self) -> usize
+pub fn <antecedent_stats::gram::ColumnMajorDesign<'a>>::const fn nrows(self) -> usize
+pub fn <antecedent_stats::gram::ColumnMajorDesign<'a>>::const fn x(self) -> &'a [f64]
+pub fn <antecedent_stats::gram::ColumnMajorDesign<'a>>::fn new(x: &'a [f64], nrows: usize, ncols: usize) -> core::result::Result<Self, antecedent_stats::gram::GramLayoutError>
+pub fn <antecedent_stats::gram::DesignRow<'a>>::const fn as_slice(self) -> &'a [f64]
+pub fn <antecedent_stats::gram::DesignRow<'a>>::const fn new(values: &'a [f64]) -> Self
 pub fn <antecedent_stats::measurement_error::BinaryErrorRates>::fn from_validation_counts(true_positive: u64, false_negative: u64, true_negative: u64, false_positive: u64) -> core::result::Result<Self, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::measurement_error::BinaryErrorRates>::fn new(sensitivity: f64, specificity: f64, sensitivity_variance: f64, specificity_variance: f64) -> core::result::Result<Self, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::measurement_error::BinaryErrorRates>::fn youden(&self) -> f64
@@ -4063,6 +4100,11 @@ pub struct antecedent_stats::adaptive_inference::StopFractions
 pub struct antecedent_stats::adaptive_inference::TerminalAtom
 pub struct antecedent_stats::dcor::DistanceY has private fields
 pub struct antecedent_stats::dcor::DistanceY<'a>
+pub struct antecedent_stats::gram::ColumnMajorDesign has private fields
+pub struct antecedent_stats::gram::ColumnMajorDesign<'a>
+pub struct antecedent_stats::gram::DesignRow has private fields
+pub struct antecedent_stats::gram::DesignRow<'a>
+pub struct antecedent_stats::gram::GramLayoutError
 pub struct antecedent_stats::longitudinal_regime::RegimeValueSummary
 pub struct antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 pub struct antecedent_stats::longitudinal_regime::SubjectHistories<'a>

@@ -1,0 +1,45 @@
+# N15 portable-layout measurement.
+# Recorded from one release run. Do not reuse benches/baselines/kernel_reductions.md.
+
+schema = 1
+item = "N15"
+command = "cargo test --release -p antecedent-stats --bench portable_layout --offline -- --nocapture --test-threads=1"
+protocol = "5 untimed warmups, then 31 trials. The recorded value is the median of Instant::elapsed. Buffer copies and Gram zero-fills run outside the timed section."
+host = "Apple M1 Max, arm64, macOS 26.5.2 (25F84)"
+rustc = "1.85.1 (4eb161250 2025-03-15), host aarch64-apple-darwin"
+threads = 1
+
+[shapes]
+fused_reductions = "n=65536 unit-stride f64, mask absent, portable::{masked_sum,masked_mean,masked_variance,masked_covariance}"
+bitmap_mask = "n=65536 unit-stride f64, packed bitmap 0b01010101 (half the bits set, least-significant bit first), scalar::{masked_sum,masked_mean,masked_variance,masked_covariance}"
+score_gram = "nrows=4096 ncols=32. form_xtx and form_xty read column-major X. accumulate_xtx_xty_row reads each contiguous design row once. form_xtx is the public body of accumulate_xtx."
+column_scaling = "n=65536 contiguous f64 column, portable::standardize_inplace (the scalar body)"
+
+[median_ns]
+fused_reductions_masked_sum = 61958
+fused_reductions_masked_mean = 62833
+fused_reductions_masked_variance = 124042
+fused_reductions_masked_covariance = 186042
+bitmap_mask_masked_sum = 45750
+bitmap_mask_masked_mean = 51333
+bitmap_mask_masked_variance = 98875
+bitmap_mask_masked_covariance = 114667
+score_gram_form_xtx = 2082208
+score_gram_form_xty = 165833
+score_gram_accumulate_xtx_xty_row = 2019542
+column_scaling_standardize_inplace = 138166
+
+[assembly]
+kernels_object = "target/release/deps/antecedent_kernels-5d5d93974de25c76.s"
+stats_object = "target/release/deps/antecedent_stats-d8d666fa7d6c44f8.s"
+fused_reductions = "portable::masked_sum unit-stride loop is ldr d / fadd d, one f64 at a time. No fadd.2d."
+bitmap_mask = "scalar::masked_sum mask loop is a bit test plus ldr d / fadd d. No fadd.2d."
+column_scaling = "scalar::standardize_inplace is three scalar passes (fadd d, fmul d, fdiv d). No fadd.2d."
+score_gram = "form_xtx, form_xty, and accumulate_xtx_xty_row inner products are ldr d / fmul d / fadd d. No fadd.2d."
+llvm_remarks = "RUSTFLAGS='-C remark=loop-vectorize -C debuginfo=1' cargo rustc --release --lib --emit asm printed no loop-vectorize remark for either crate. The assembly above is the inspection."
+
+[simd]
+decision = "not_promoted"
+bottleneck = "score_gram form_xtx (2082208 ns) and accumulate_xtx_xty_row (2019542 ns). The other three kernels are under 200000 ns at these shapes."
+bitmap = "At this alternating mask, scalar masked_sum (45750 ns) was not slower than the unmasked portable sum (61958 ns). The bitmap is not the bottleneck of this set."
+why_not_promoted = "The release bodies are scalar f64, so an explicit NEON kernel is a later candidate for the Gram inner product and the unit-stride reductions. This measurement does not add one. N16's tolerance already exists; promotion still needs that candidate to be timed against this record."
