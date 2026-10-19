@@ -1,0 +1,28 @@
+feature_id = "identify.experiment_moments"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Learning Linear Cyclic Causal Models with Latent Variables", sections = ["JMLR 13(32), hyttinen12a: experimental effects of a fully observed clamp, and the linear constraints those effects place on the direct-effect columns. This module stacks the rows. It does not copy a numbered theorem locator."] },
+]
+
+implementation_deviations = [
+ "Moment and constraint assembly only. The block system is not solved. There is no pseudoinverse, no direct-effect matrix, no disturbance covariance, and no rank test of the constraint matrix. Repeated covering rows are kept.",
+ "A missed pair condition refuses and lists the missing ordered pairs. The paper's procedure still emits a coefficient estimate in that case.",
+ "A dependence premise, a second population, a second retained unit set, or an empty retained set is an inconsistent regime. The input contract can accept a dependence premise; this step refuses it.",
+ "Moments are two-pass centered second moments with divisor equal to the row count, summed with a local Neumaier accumulator. This crate has no shared stable accumulator. Experimental effects are the multiple-regression coefficients of each passive column on the intervened columns.",
+ "A singular intervention covariance is refused as degenerate. The relative pivot floor is 1e-12. That floor is not a rank test of the constraint matrix.",
+ "Declared clamp levels are not the intervention sample. Realized draws come from the columns, and the declared level is not compared with the sample.",
+ "Weak stability, asymptotic stability, and the covariance condition are not checked. A regime with no targets contributes moments and no rows.",
+ "The byte count is eight times the moment floats plus eight times the constraint floats. Index storage is omitted. Overflow is refused before allocation.",
+ "This step does not call the design judge. Coverage is recomputed from the accepted regimes and the mask.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-identify/src/experiment_moments.rs)",
+]

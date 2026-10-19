@@ -30,6 +30,7 @@ pub mod envelope;
 pub mod error;
 /// Actual finite identification checker counters.
 pub mod execution_counts;
+pub mod experiment_moments;
 pub mod experiment_regime;
 pub mod experimental_recovery;
 pub mod frontdoor;

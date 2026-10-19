@@ -279,6 +279,13 @@ impl core::clone::Clone for antecedent_identify::discovered_transport_temporal::
 impl core::clone::Clone for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember
 impl core::clone::Clone for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope
 impl core::clone::Clone for antecedent_identify::discovered_transport_temporal::TemporalWindow
+impl core::clone::Clone for antecedent_identify::experiment_moments::AssembledExperimentConstraints
+impl core::clone::Clone for antecedent_identify::experiment_moments::ConstraintRow
+impl core::clone::Clone for antecedent_identify::experiment_moments::ExperimentMoments
+impl core::clone::Clone for antecedent_identify::experiment_moments::MissingPair
+impl core::clone::Clone for antecedent_identify::experiment_moments::MomentAssemblyRefusal
+impl core::clone::Clone for antecedent_identify::experiment_moments::RegimeInconsistency
+impl core::clone::Clone for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::clone::Clone for antecedent_identify::sid::Rule
 impl core::clone::Clone for antecedent_identify::sid::SHedgeCertificate
 impl core::clone::Clone for antecedent_identify::sid::SHedgeRecord
@@ -471,6 +478,10 @@ impl core::cmp::Eq for antecedent_identify::discovered_transport::DiscoveredTran
 impl core::cmp::Eq for antecedent_identify::discovered_transport::EnvelopeStatus
 impl core::cmp::Eq for antecedent_identify::discovered_transport::UnresolvedPair
 impl core::cmp::Eq for antecedent_identify::discovered_transport_temporal::LaggedEdge
+impl core::cmp::Eq for antecedent_identify::experiment_moments::ConstraintRow
+impl core::cmp::Eq for antecedent_identify::experiment_moments::MissingPair
+impl core::cmp::Eq for antecedent_identify::experiment_moments::MomentAssemblyRefusal
+impl core::cmp::Eq for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::cmp::Eq for antecedent_identify::sid::Rule
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionDag
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionRecord
@@ -502,6 +513,7 @@ impl core::cmp::Ord for antecedent_identify::counterfactual_id::CfSymbol
 impl core::cmp::Ord for antecedent_identify::counterfactual_id::CfValue
 impl core::cmp::Ord for antecedent_identify::cross_world::CounterfactualNode
 impl core::cmp::Ord for antecedent_identify::discovered_transport_temporal::LaggedEdge
+impl core::cmp::Ord for antecedent_identify::experiment_moments::MissingPair
 impl core::cmp::Ord for antecedent_identify::sid::scenario_invariance::SourceInvariance
 impl core::cmp::Ord for antecedent_identify::sid::scenario_invariance::TargetFactor
 impl core::cmp::PartialEq for antecedent_identify::AcceptedRegimeContract
@@ -687,6 +699,13 @@ impl core::cmp::PartialEq for antecedent_identify::discovered_transport_temporal
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport_temporal::TemporalWindow
+impl core::cmp::PartialEq for antecedent_identify::experiment_moments::AssembledExperimentConstraints
+impl core::cmp::PartialEq for antecedent_identify::experiment_moments::ConstraintRow
+impl core::cmp::PartialEq for antecedent_identify::experiment_moments::ExperimentMoments
+impl core::cmp::PartialEq for antecedent_identify::experiment_moments::MissingPair
+impl core::cmp::PartialEq for antecedent_identify::experiment_moments::MomentAssemblyRefusal
+impl core::cmp::PartialEq for antecedent_identify::experiment_moments::RegimeInconsistency
+impl core::cmp::PartialEq for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::cmp::PartialEq for antecedent_identify::sid::Rule
 impl core::cmp::PartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::cmp::PartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -721,6 +740,7 @@ impl core::cmp::PartialOrd for antecedent_identify::counterfactual_id::CfSymbol
 impl core::cmp::PartialOrd for antecedent_identify::counterfactual_id::CfValue
 impl core::cmp::PartialOrd for antecedent_identify::cross_world::CounterfactualNode
 impl core::cmp::PartialOrd for antecedent_identify::discovered_transport_temporal::LaggedEdge
+impl core::cmp::PartialOrd for antecedent_identify::experiment_moments::MissingPair
 impl core::cmp::PartialOrd for antecedent_identify::sid::scenario_invariance::SourceInvariance
 impl core::cmp::PartialOrd for antecedent_identify::sid::scenario_invariance::TargetFactor
 impl core::convert::From<antecedent_graph::error::GraphError> for antecedent_identify::IdentificationError
@@ -1020,6 +1040,13 @@ impl core::fmt::Debug for antecedent_identify::discovered_transport_temporal::La
 impl core::fmt::Debug for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember
 impl core::fmt::Debug for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope
 impl core::fmt::Debug for antecedent_identify::discovered_transport_temporal::TemporalWindow
+impl core::fmt::Debug for antecedent_identify::experiment_moments::AssembledExperimentConstraints
+impl core::fmt::Debug for antecedent_identify::experiment_moments::ConstraintRow
+impl core::fmt::Debug for antecedent_identify::experiment_moments::ExperimentMoments
+impl core::fmt::Debug for antecedent_identify::experiment_moments::MissingPair
+impl core::fmt::Debug for antecedent_identify::experiment_moments::MomentAssemblyRefusal
+impl core::fmt::Debug for antecedent_identify::experiment_moments::RegimeInconsistency
+impl core::fmt::Debug for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::fmt::Debug for antecedent_identify::sid::Rule
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeCertificate
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeRecord
@@ -1077,6 +1104,8 @@ impl core::fmt::Display for antecedent_identify::StudyPlanRefusal
 impl core::fmt::Display for antecedent_identify::counterfactual_id::CounterfactualIdRefusal
 impl core::fmt::Display for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::fmt::Display for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
+impl core::fmt::Display for antecedent_identify::experiment_moments::MomentAssemblyRefusal
+impl core::fmt::Display for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::fmt::Display for antecedent_identify::sid::cpdag_completion::CpdagScenarioError
 impl core::fmt::Display for antecedent_identify::sid::scenario_invariance::InvarianceReportError
 impl core::fmt::Display for antecedent_identify::sid::scenarios::ScenarioSetRefusal
@@ -1113,6 +1142,9 @@ impl core::hash::Hash for antecedent_identify::counterfactual_id::CfSymbol
 impl core::hash::Hash for antecedent_identify::counterfactual_id::CfValue
 impl core::hash::Hash for antecedent_identify::counterfactual_id::CounterfactualIdProblem
 impl core::hash::Hash for antecedent_identify::discovered_transport_temporal::LaggedEdge
+impl core::hash::Hash for antecedent_identify::experiment_moments::ConstraintRow
+impl core::hash::Hash for antecedent_identify::experiment_moments::MissingPair
+impl core::hash::Hash for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::marker::Copy for antecedent_identify::BinaryIvLaw
 impl core::marker::Copy for antecedent_identify::ChainPartial
 impl core::marker::Copy for antecedent_identify::ChainRecoveryDetail
@@ -1160,6 +1192,9 @@ impl core::marker::Copy for antecedent_identify::counterfactual_id::Counterfactu
 impl core::marker::Copy for antecedent_identify::counterfactual_id::CounterfactualIdShape
 impl core::marker::Copy for antecedent_identify::discovered_transport::EnvelopeStatus
 impl core::marker::Copy for antecedent_identify::discovered_transport_temporal::LaggedEdge
+impl core::marker::Copy for antecedent_identify::experiment_moments::ConstraintRow
+impl core::marker::Copy for antecedent_identify::experiment_moments::MissingPair
+impl core::marker::Copy for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::marker::Copy for antecedent_identify::sid::Rule
 impl core::marker::Copy for antecedent_identify::sid::scenarios::ScenarioDecisionLimits
 impl core::marker::Copy for antecedent_identify::sid::temporal_sequence::MechanismAssumption
@@ -1416,6 +1451,13 @@ impl core::marker::Freeze for antecedent_identify::discovered_transport_temporal
 impl core::marker::Freeze for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
+impl core::marker::Freeze for antecedent_identify::experiment_moments::AssembledExperimentConstraints [auto]
+impl core::marker::Freeze for antecedent_identify::experiment_moments::ConstraintRow [auto]
+impl core::marker::Freeze for antecedent_identify::experiment_moments::ExperimentMoments [auto]
+impl core::marker::Freeze for antecedent_identify::experiment_moments::MissingPair [auto]
+impl core::marker::Freeze for antecedent_identify::experiment_moments::MomentAssemblyRefusal [auto]
+impl core::marker::Freeze for antecedent_identify::experiment_moments::RegimeInconsistency [auto]
+impl core::marker::Freeze for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Freeze for antecedent_identify::sid::Rule [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeRecord [auto]
@@ -1714,6 +1756,13 @@ impl core::marker::Send for antecedent_identify::discovered_transport_temporal::
 impl core::marker::Send for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
+impl core::marker::Send for antecedent_identify::experiment_moments::AssembledExperimentConstraints [auto]
+impl core::marker::Send for antecedent_identify::experiment_moments::ConstraintRow [auto]
+impl core::marker::Send for antecedent_identify::experiment_moments::ExperimentMoments [auto]
+impl core::marker::Send for antecedent_identify::experiment_moments::MissingPair [auto]
+impl core::marker::Send for antecedent_identify::experiment_moments::MomentAssemblyRefusal [auto]
+impl core::marker::Send for antecedent_identify::experiment_moments::RegimeInconsistency [auto]
+impl core::marker::Send for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Send for antecedent_identify::sid::Rule [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeRecord [auto]
@@ -1939,6 +1988,13 @@ impl core::marker::StructuralPartialEq for antecedent_identify::discovered_trans
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport_temporal::TemporalWindow
+impl core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::AssembledExperimentConstraints
+impl core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::ConstraintRow
+impl core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::ExperimentMoments
+impl core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::MissingPair
+impl core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::MomentAssemblyRefusal
+impl core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::RegimeInconsistency
+impl core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::Rule
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -2216,6 +2272,13 @@ impl core::marker::Sync for antecedent_identify::discovered_transport_temporal::
 impl core::marker::Sync for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
+impl core::marker::Sync for antecedent_identify::experiment_moments::AssembledExperimentConstraints [auto]
+impl core::marker::Sync for antecedent_identify::experiment_moments::ConstraintRow [auto]
+impl core::marker::Sync for antecedent_identify::experiment_moments::ExperimentMoments [auto]
+impl core::marker::Sync for antecedent_identify::experiment_moments::MissingPair [auto]
+impl core::marker::Sync for antecedent_identify::experiment_moments::MomentAssemblyRefusal [auto]
+impl core::marker::Sync for antecedent_identify::experiment_moments::RegimeInconsistency [auto]
+impl core::marker::Sync for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Sync for antecedent_identify::sid::Rule [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2514,6 +2577,13 @@ impl core::marker::Unpin for antecedent_identify::discovered_transport_temporal:
 impl core::marker::Unpin for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
+impl core::marker::Unpin for antecedent_identify::experiment_moments::AssembledExperimentConstraints [auto]
+impl core::marker::Unpin for antecedent_identify::experiment_moments::ConstraintRow [auto]
+impl core::marker::Unpin for antecedent_identify::experiment_moments::ExperimentMoments [auto]
+impl core::marker::Unpin for antecedent_identify::experiment_moments::MissingPair [auto]
+impl core::marker::Unpin for antecedent_identify::experiment_moments::MomentAssemblyRefusal [auto]
+impl core::marker::Unpin for antecedent_identify::experiment_moments::RegimeInconsistency [auto]
+impl core::marker::Unpin for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Unpin for antecedent_identify::sid::Rule [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2812,6 +2882,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::AssembledExperimentConstraints [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::ConstraintRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::ExperimentMoments [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::MissingPair [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::MomentAssemblyRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::RegimeInconsistency [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3110,6 +3187,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_tr
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::AssembledExperimentConstraints [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::ConstraintRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::ExperimentMoments [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::MissingPair [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::MomentAssemblyRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::RegimeInconsistency [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3205,54 +3289,76 @@ impl<'a> core::clone::Clone for antecedent_identify::discovered_transport::Disco
 impl<'a> core::clone::Clone for antecedent_identify::discovered_transport::PagTransportRequest<'a>
 impl<'a> core::clone::Clone for antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
 impl<'a> core::clone::Clone for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a>
+impl<'a> core::clone::Clone for antecedent_identify::experiment_moments::RegimeSample<'a>
+impl<'a> core::clone::Clone for antecedent_identify::experiment_moments::UnitColumn<'a>
+impl<'a> core::cmp::PartialEq for antecedent_identify::experiment_moments::RegimeSample<'a>
+impl<'a> core::cmp::PartialEq for antecedent_identify::experiment_moments::UnitColumn<'a>
 impl<'a> core::fmt::Debug for antecedent_identify::ScheduleContrast<'a>
 impl<'a> core::fmt::Debug for antecedent_identify::StoredRecovery<'a>
 impl<'a> core::fmt::Debug for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_identify::discovered_transport::PagTransportRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
 impl<'a> core::fmt::Debug for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_identify::experiment_moments::RegimeSample<'a>
+impl<'a> core::fmt::Debug for antecedent_identify::experiment_moments::UnitColumn<'a>
 impl<'a> core::marker::Copy for antecedent_identify::ScheduleContrast<'a>
 impl<'a> core::marker::Copy for antecedent_identify::StoredRecovery<'a>
 impl<'a> core::marker::Copy for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a>
 impl<'a> core::marker::Copy for antecedent_identify::discovered_transport::PagTransportRequest<'a>
 impl<'a> core::marker::Copy for antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
 impl<'a> core::marker::Copy for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a>
+impl<'a> core::marker::Copy for antecedent_identify::experiment_moments::RegimeSample<'a>
+impl<'a> core::marker::Copy for antecedent_identify::experiment_moments::UnitColumn<'a>
 impl<'a> core::marker::Freeze for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_identify::experiment_moments::RegimeSample<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_identify::experiment_moments::UnitColumn<'a> [auto]
 impl<'a> core::marker::Send for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::marker::Send for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::marker::Send for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
 impl<'a> core::marker::Send for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent_identify::experiment_moments::RegimeSample<'a> [auto]
+impl<'a> core::marker::Send for antecedent_identify::experiment_moments::UnitColumn<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::RegimeSample<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::UnitColumn<'a>
 impl<'a> core::marker::Sync for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_identify::experiment_moments::RegimeSample<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_identify::experiment_moments::UnitColumn<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_identify::experiment_moments::RegimeSample<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_identify::experiment_moments::UnitColumn<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::RegimeSample<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::UnitColumn<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::RegimeSample<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::UnitColumn<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::ConditionalNonTransportabilityRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::ConditionalObstructionRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::ConditionalTransportRecord
@@ -3461,6 +3567,8 @@ pub enum antecedent_identify::counterfactual_id::CounterfactualObstruction
 pub enum antecedent_identify::discovered_transport::EnvelopeStatus
 pub enum antecedent_identify::discovered_transport::MemberVerdict
 pub enum antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
+pub enum antecedent_identify::experiment_moments::MomentAssemblyRefusal
+pub enum antecedent_identify::experiment_moments::RegimeInconsistency
 pub enum antecedent_identify::sid::Rule
 pub enum antecedent_identify::sid::cpdag_completion::CpdagEvidence
 pub enum antecedent_identify::sid::cpdag_completion::CpdagScenarioError
@@ -4135,6 +4243,26 @@ pub field antecedent_identify::discovered_transport_temporal::TemporalWindow::ou
 pub field antecedent_identify::discovered_transport_temporal::TemporalWindow::query: antecedent_core::query::transport::TransportQuery
 pub field antecedent_identify::discovered_transport_temporal::TemporalWindow::selection_targets: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent_identify::discovered_transport_temporal::TemporalWindow::treatment: antecedent_core::ids::VariableId
+pub field antecedent_identify::experiment_moments::AssembledExperimentConstraints::blocks: alloc::vec::Vec<antecedent_identify::experiment_moments::TargetConstraintBlock>
+pub field antecedent_identify::experiment_moments::AssembledExperimentConstraints::bytes: u64
+pub field antecedent_identify::experiment_moments::AssembledExperimentConstraints::moments: alloc::vec::Vec<antecedent_identify::experiment_moments::ExperimentMoments>
+pub field antecedent_identify::experiment_moments::AssembledExperimentConstraints::units: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_identify::experiment_moments::ConstraintRow::probe: antecedent_core::ids::VariableId
+pub field antecedent_identify::experiment_moments::ConstraintRow::regime: usize
+pub field antecedent_identify::experiment_moments::ExperimentMoments::covariance: alloc::vec::Vec<f64>
+pub field antecedent_identify::experiment_moments::ExperimentMoments::mean: alloc::vec::Vec<f64>
+pub field antecedent_identify::experiment_moments::ExperimentMoments::regime: usize
+pub field antecedent_identify::experiment_moments::ExperimentMoments::rows: usize
+pub field antecedent_identify::experiment_moments::MissingPair::from: antecedent_core::ids::VariableId
+pub field antecedent_identify::experiment_moments::MissingPair::into: antecedent_core::ids::VariableId
+pub field antecedent_identify::experiment_moments::RegimeSample::columns: &'a [antecedent_identify::experiment_moments::UnitColumn<'a>]
+pub field antecedent_identify::experiment_moments::TargetConstraintBlock::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_identify::experiment_moments::TargetConstraintBlock::rhs: alloc::vec::Vec<f64>
+pub field antecedent_identify::experiment_moments::TargetConstraintBlock::rows: alloc::vec::Vec<antecedent_identify::experiment_moments::ConstraintRow>
+pub field antecedent_identify::experiment_moments::TargetConstraintBlock::sources: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_identify::experiment_moments::TargetConstraintBlock::target: antecedent_core::ids::VariableId
+pub field antecedent_identify::experiment_moments::UnitColumn::unit: antecedent_core::ids::VariableId
+pub field antecedent_identify::experiment_moments::UnitColumn::values: &'a [f64]
 pub field antecedent_identify::sid::SHedgeCertificate::larger: antecedent_identify::sid::SelectionForest
 pub field antecedent_identify::sid::SHedgeCertificate::smaller: antecedent_identify::sid::SelectionForest
 pub field antecedent_identify::sid::SHedgeRecord::evidence_setting: alloc::string::String
@@ -4778,6 +4906,8 @@ pub fn antecedent_identify::discovered_transport::transport_across_pag(request: 
 pub fn antecedent_identify::discovered_transport_temporal::transport_across_temporal_class(request: &antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::envelope::search_truncated(result: &antecedent_identify::IdentificationResult) -> bool
 pub fn antecedent_identify::execution_counts::count_checked_identifications<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
+pub fn antecedent_identify::experiment_moments::assemble_experiment_constraints(contract: &antecedent_identify::AcceptedRegimeContract, samples: &[antecedent_identify::experiment_moments::RegimeSample<'_>]) -> core::result::Result<antecedent_identify::experiment_moments::AssembledExperimentConstraints, antecedent_identify::experiment_moments::MomentAssemblyRefusal>
+pub fn antecedent_identify::experiment_moments::experiment_constraint_bytes(units: u64, regimes: u64, constraint_rows: u64) -> core::result::Result<u64, antecedent_identify::experiment_moments::MomentAssemblyRefusal>
 pub fn antecedent_identify::experiment_regime::validate_regime_contract(contract: &antecedent_identify::RegimeContract) -> antecedent_identify::RegimeContractDecision
 pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_catalog_transport_selection_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
@@ -4839,6 +4969,7 @@ pub mod antecedent_identify::efficient
 pub mod antecedent_identify::envelope
 pub mod antecedent_identify::error
 pub mod antecedent_identify::execution_counts
+pub mod antecedent_identify::experiment_moments
 pub mod antecedent_identify::experiment_regime
 pub mod antecedent_identify::experimental_recovery
 pub mod antecedent_identify::frontdoor
@@ -5095,6 +5226,13 @@ pub struct antecedent_identify::discovered_transport_temporal::TemporalTransport
 pub struct antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope has private fields
 pub struct antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a>
 pub struct antecedent_identify::discovered_transport_temporal::TemporalWindow
+pub struct antecedent_identify::experiment_moments::AssembledExperimentConstraints
+pub struct antecedent_identify::experiment_moments::ConstraintRow
+pub struct antecedent_identify::experiment_moments::ExperimentMoments
+pub struct antecedent_identify::experiment_moments::MissingPair
+pub struct antecedent_identify::experiment_moments::RegimeSample<'a>
+pub struct antecedent_identify::experiment_moments::TargetConstraintBlock
+pub struct antecedent_identify::experiment_moments::UnitColumn<'a>
 pub struct antecedent_identify::sid::SHedgeCertificate
 pub struct antecedent_identify::sid::SHedgeCertificate has private fields
 pub struct antecedent_identify::sid::SHedgeRecord
@@ -5723,6 +5861,20 @@ pub variant antecedent_identify::discovered_transport::MemberVerdict::NotCertifi
 pub variant antecedent_identify::discovered_transport_temporal::TemporalClass::Cpdag(&'a antecedent_graph::cpdag::TemporalCpdag)
 pub variant antecedent_identify::discovered_transport_temporal::TemporalClass::Dag(&'a antecedent_graph::temporal::TemporalDag)
 pub variant antecedent_identify::discovered_transport_temporal::TemporalClass::Pag(&'a antecedent_graph::temporal_pag::TemporalPag)
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::ColumnLength { regime: usize }
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::DegenerateIntervention { regime: usize }
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::InadequateInterventionCoverage { missing: alloc::vec::Vec<antecedent_identify::experiment_moments::MissingPair> }
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::InconsistentRegime(antecedent_identify::experiment_moments::RegimeInconsistency)
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::NonFiniteMoment { regime: usize }
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::NonFiniteSample { regime: usize, unit: antecedent_core::ids::VariableId }
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::ResourceOverflow
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::SampleCount { regimes: usize, samples: usize }
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::SampleUnits { regime: usize }
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::ShortSample { regime: usize, rows: usize }
+pub variant antecedent_identify::experiment_moments::RegimeInconsistency::DependentDisturbance { regime: usize }
+pub variant antecedent_identify::experiment_moments::RegimeInconsistency::EmptyRetainedUnits { regime: usize }
+pub variant antecedent_identify::experiment_moments::RegimeInconsistency::PopulationMismatch { left: usize, right: usize }
+pub variant antecedent_identify::experiment_moments::RegimeInconsistency::UnitSetMismatch { left: usize, right: usize }
 pub variant antecedent_identify::sid::Rule::Ancestors
 pub variant antecedent_identify::sid::Rule::DirectTransport
 pub variant antecedent_identify::sid::Rule::Districts
