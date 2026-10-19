@@ -30,6 +30,7 @@ pub mod envelope;
 pub mod error;
 /// Actual finite identification checker counters.
 pub mod execution_counts;
+pub mod experimental_recovery;
 pub mod frontdoor;
 pub mod generalized;
 pub mod hedge;
@@ -196,6 +197,14 @@ pub use envelope::{
     carries_identified_mass, search_truncated,
 };
 pub use error::{IdentificationBudget, IdentificationError};
+pub use experimental_recovery::{
+    CLAMP_EXPERIMENT_RECIPE, ClampExogeneity, ClampExperimentSet, CoefficientRecovery,
+    DeclaredClampExperiment, DeclaredEquationRank, DeclaredNoiseLaw, DesignFault,
+    DirectCoefficient, ExperimentDesign, ExperimentalRecoveryDecision,
+    LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt, NotThisRecipe, PRIOR_REGULARIZATION_ATTEMPT,
+    PhysicalDynamicalStability, RecipeRefusal, RecoveryAttempt, RefusalReason, RegimeAssumption,
+    UnresolvedDirection, UnresolvedReason, WeakStability, decide_experimental_recovery,
+};
 pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};
 pub use generalized::{
     CAPPED_COMPLETION_DIAGNOSTIC_CODE, GeneralizedAdjustmentConfig,
