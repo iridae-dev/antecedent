@@ -243,6 +243,9 @@ impl core::clone::Clone for antecedent_design::decision_contract::AdmissibilityE
 impl core::clone::Clone for antecedent_design::decision_contract::AdmissibilityRules
 impl core::clone::Clone for antecedent_design::decision_contract::AdmissibleDecisionContract
 impl core::clone::Clone for antecedent_design::decision_contract::DeclaredExclusion
+impl core::clone::Clone for antecedent_design::decision_contract::ProgramObjective
+impl core::clone::Clone for antecedent_design::decision_contract::ProgramSearchContract
+impl core::clone::Clone for antecedent_design::decision_contract::ProgramSearchSpace
 impl core::clone::Clone for antecedent_design::decision_contract::SupportRule
 impl core::clone::Clone for antecedent_design::decision_contract::UncertaintyKind
 impl core::clone::Clone for antecedent_design::decision_contract::UncertaintyRequirement
@@ -691,6 +694,7 @@ impl core::cmp::Eq for antecedent_design::composition_bundle::SuppliedSources
 impl core::cmp::Eq for antecedent_design::decision_adapters::ClaimKind
 impl core::cmp::Eq for antecedent_design::decision_contract::AdmissibilityError
 impl core::cmp::Eq for antecedent_design::decision_contract::DeclaredExclusion
+impl core::cmp::Eq for antecedent_design::decision_contract::ProgramSearchSpace
 impl core::cmp::Eq for antecedent_design::decision_contract::SupportRule
 impl core::cmp::Eq for antecedent_design::decision_contract::UncertaintyKind
 impl core::cmp::Eq for antecedent_design::decision_contract::UncertaintyRequirement
@@ -994,6 +998,9 @@ impl core::cmp::PartialEq for antecedent_design::decision_contract::Admissibilit
 impl core::cmp::PartialEq for antecedent_design::decision_contract::AdmissibilityRules
 impl core::cmp::PartialEq for antecedent_design::decision_contract::AdmissibleDecisionContract
 impl core::cmp::PartialEq for antecedent_design::decision_contract::DeclaredExclusion
+impl core::cmp::PartialEq for antecedent_design::decision_contract::ProgramObjective
+impl core::cmp::PartialEq for antecedent_design::decision_contract::ProgramSearchContract
+impl core::cmp::PartialEq for antecedent_design::decision_contract::ProgramSearchSpace
 impl core::cmp::PartialEq for antecedent_design::decision_contract::SupportRule
 impl core::cmp::PartialEq for antecedent_design::decision_contract::UncertaintyKind
 impl core::cmp::PartialEq for antecedent_design::decision_contract::UncertaintyRequirement
@@ -1617,6 +1624,9 @@ impl core::fmt::Debug for antecedent_design::decision_contract::AdmissibilityErr
 impl core::fmt::Debug for antecedent_design::decision_contract::AdmissibilityRules
 impl core::fmt::Debug for antecedent_design::decision_contract::AdmissibleDecisionContract
 impl core::fmt::Debug for antecedent_design::decision_contract::DeclaredExclusion
+impl core::fmt::Debug for antecedent_design::decision_contract::ProgramObjective
+impl core::fmt::Debug for antecedent_design::decision_contract::ProgramSearchContract
+impl core::fmt::Debug for antecedent_design::decision_contract::ProgramSearchSpace
 impl core::fmt::Debug for antecedent_design::decision_contract::SupportRule
 impl core::fmt::Debug for antecedent_design::decision_contract::UncertaintyKind
 impl core::fmt::Debug for antecedent_design::decision_contract::UncertaintyRequirement
@@ -2367,6 +2377,9 @@ impl core::marker::Freeze for antecedent_design::decision_contract::Admissibilit
 impl core::marker::Freeze for antecedent_design::decision_contract::AdmissibilityRules [auto]
 impl core::marker::Freeze for antecedent_design::decision_contract::AdmissibleDecisionContract [auto]
 impl core::marker::Freeze for antecedent_design::decision_contract::DeclaredExclusion [auto]
+impl core::marker::Freeze for antecedent_design::decision_contract::ProgramObjective [auto]
+impl core::marker::Freeze for antecedent_design::decision_contract::ProgramSearchContract [auto]
+impl core::marker::Freeze for antecedent_design::decision_contract::ProgramSearchSpace [auto]
 impl core::marker::Freeze for antecedent_design::decision_contract::SupportRule [auto]
 impl core::marker::Freeze for antecedent_design::decision_contract::UncertaintyKind [auto]
 impl core::marker::Freeze for antecedent_design::decision_contract::UncertaintyRequirement [auto]
@@ -2918,6 +2931,9 @@ impl core::marker::Send for antecedent_design::decision_contract::AdmissibilityE
 impl core::marker::Send for antecedent_design::decision_contract::AdmissibilityRules [auto]
 impl core::marker::Send for antecedent_design::decision_contract::AdmissibleDecisionContract [auto]
 impl core::marker::Send for antecedent_design::decision_contract::DeclaredExclusion [auto]
+impl core::marker::Send for antecedent_design::decision_contract::ProgramObjective [auto]
+impl core::marker::Send for antecedent_design::decision_contract::ProgramSearchContract [auto]
+impl core::marker::Send for antecedent_design::decision_contract::ProgramSearchSpace [auto]
 impl core::marker::Send for antecedent_design::decision_contract::SupportRule [auto]
 impl core::marker::Send for antecedent_design::decision_contract::UncertaintyKind [auto]
 impl core::marker::Send for antecedent_design::decision_contract::UncertaintyRequirement [auto]
@@ -3430,6 +3446,9 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_contract:
 impl core::marker::StructuralPartialEq for antecedent_design::decision_contract::AdmissibilityRules
 impl core::marker::StructuralPartialEq for antecedent_design::decision_contract::AdmissibleDecisionContract
 impl core::marker::StructuralPartialEq for antecedent_design::decision_contract::DeclaredExclusion
+impl core::marker::StructuralPartialEq for antecedent_design::decision_contract::ProgramObjective
+impl core::marker::StructuralPartialEq for antecedent_design::decision_contract::ProgramSearchContract
+impl core::marker::StructuralPartialEq for antecedent_design::decision_contract::ProgramSearchSpace
 impl core::marker::StructuralPartialEq for antecedent_design::decision_contract::SupportRule
 impl core::marker::StructuralPartialEq for antecedent_design::decision_contract::UncertaintyKind
 impl core::marker::StructuralPartialEq for antecedent_design::decision_contract::UncertaintyRequirement
@@ -3954,6 +3973,9 @@ impl core::marker::Sync for antecedent_design::decision_contract::AdmissibilityE
 impl core::marker::Sync for antecedent_design::decision_contract::AdmissibilityRules [auto]
 impl core::marker::Sync for antecedent_design::decision_contract::AdmissibleDecisionContract [auto]
 impl core::marker::Sync for antecedent_design::decision_contract::DeclaredExclusion [auto]
+impl core::marker::Sync for antecedent_design::decision_contract::ProgramObjective [auto]
+impl core::marker::Sync for antecedent_design::decision_contract::ProgramSearchContract [auto]
+impl core::marker::Sync for antecedent_design::decision_contract::ProgramSearchSpace [auto]
 impl core::marker::Sync for antecedent_design::decision_contract::SupportRule [auto]
 impl core::marker::Sync for antecedent_design::decision_contract::UncertaintyKind [auto]
 impl core::marker::Sync for antecedent_design::decision_contract::UncertaintyRequirement [auto]
@@ -4506,6 +4528,9 @@ impl core::marker::Unpin for antecedent_design::decision_contract::Admissibility
 impl core::marker::Unpin for antecedent_design::decision_contract::AdmissibilityRules [auto]
 impl core::marker::Unpin for antecedent_design::decision_contract::AdmissibleDecisionContract [auto]
 impl core::marker::Unpin for antecedent_design::decision_contract::DeclaredExclusion [auto]
+impl core::marker::Unpin for antecedent_design::decision_contract::ProgramObjective [auto]
+impl core::marker::Unpin for antecedent_design::decision_contract::ProgramSearchContract [auto]
+impl core::marker::Unpin for antecedent_design::decision_contract::ProgramSearchSpace [auto]
 impl core::marker::Unpin for antecedent_design::decision_contract::SupportRule [auto]
 impl core::marker::Unpin for antecedent_design::decision_contract::UncertaintyKind [auto]
 impl core::marker::Unpin for antecedent_design::decision_contract::UncertaintyRequirement [auto]
@@ -5057,6 +5082,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_con
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_contract::AdmissibilityRules [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_contract::AdmissibleDecisionContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_contract::DeclaredExclusion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_contract::ProgramObjective [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_contract::ProgramSearchContract [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_contract::ProgramSearchSpace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_contract::SupportRule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_contract::UncertaintyKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_contract::UncertaintyRequirement [auto]
@@ -5601,6 +5629,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_contra
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_contract::AdmissibilityRules [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_contract::AdmissibleDecisionContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_contract::DeclaredExclusion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_contract::ProgramObjective [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_contract::ProgramSearchContract [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_contract::ProgramSearchSpace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_contract::SupportRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_contract::UncertaintyKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_contract::UncertaintyRequirement [auto]
@@ -6642,6 +6673,7 @@ pub enum antecedent_design::decision_adapters::ClaimKind
 pub enum antecedent_design::decision_adapters::ClaimProbability
 pub enum antecedent_design::decision_adapters::IdentifiedVerdict
 pub enum antecedent_design::decision_contract::AdmissibilityError
+pub enum antecedent_design::decision_contract::ProgramObjective
 pub enum antecedent_design::decision_contract::UncertaintyKind
 pub enum antecedent_design::decision_contract::UncertaintyRequirement
 pub enum antecedent_design::decision_eval::DecisionEvalError
@@ -7216,6 +7248,11 @@ pub field antecedent_design::decision_contract::AdmissibleDecisionContract::cont
 pub field antecedent_design::decision_contract::AdmissibleDecisionContract::rules: antecedent_design::decision_contract::AdmissibilityRules
 pub field antecedent_design::decision_contract::DeclaredExclusion::action_id: alloc::string::String
 pub field antecedent_design::decision_contract::DeclaredExclusion::reason: alloc::string::String
+pub field antecedent_design::decision_contract::ProgramSearchContract::constraints: alloc::vec::Vec<antecedent_design::HardConstraint>
+pub field antecedent_design::decision_contract::ProgramSearchContract::objective: antecedent_design::decision_contract::ProgramObjective
+pub field antecedent_design::decision_contract::ProgramSearchContract::space: antecedent_design::decision_contract::ProgramSearchSpace
+pub field antecedent_design::decision_contract::ProgramSearchSpace::id: alloc::string::String
+pub field antecedent_design::decision_contract::ProgramSearchSpace::variables: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::decision_contract::SupportRule::action_id: alloc::string::String
 pub field antecedent_design::decision_contract::SupportRule::input: usize
 pub field antecedent_design::decision_contract::SupportRule::weakest_allowed: antecedent_core::response::SupportStatus
@@ -8673,7 +8710,9 @@ pub fn <antecedent_design::RepairReportArtifact>::fn obligations(&self) -> core:
 pub fn <antecedent_design::RepairReportArtifact>::fn sealed(self) -> core::result::Result<Self, antecedent_design::RepairArtifactError>
 pub fn <antecedent_design::RepairReportArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_design::RepairArtifactError>
 pub fn <antecedent_design::ScoreEvaluation>::const fn as_str(self) -> &'static str
+pub fn <antecedent_design::SourceRequirement>::const fn identified_set() -> Self
 pub fn <antecedent_design::SourceRequirement>::fn check(&self, available: &[antecedent_design::SourceRepresentation]) -> core::result::Result<antecedent_design::SourceMode, antecedent_design::DecisionContractError>
+pub fn <antecedent_design::SourceRequirement>::fn is_identified_set(&self) -> bool
 pub fn <antecedent_design::StructuralResultArtifact>::fn atom_digests(&self) -> &[(alloc::string::String, core::option::Option<alloc::string::String>)]
 pub fn <antecedent_design::StructuralResultArtifact>::fn from_bytes(bytes: &[u8], expected_contract_identity: &str, expected_atom_digests: &[(alloc::string::String, core::option::Option<alloc::string::String>)]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::StructuralResultArtifact>::fn new(result: antecedent_design::decision_structural::StructuralDecisionResult, atoms: &[antecedent_design::decision_structural::StructuralAtom]) -> Self
@@ -8800,6 +8839,8 @@ pub fn <antecedent_design::decision_contract::AdmissibilityRules>::fn support_me
 pub fn <antecedent_design::decision_contract::AdmissibilityRules>::fn weakest_allowed(&self, action_id: &str, input: usize) -> core::option::Option<antecedent_core::response::SupportStatus>
 pub fn <antecedent_design::decision_contract::AdmissibleDecisionContract>::fn identity(&self) -> core::result::Result<alloc::string::String, antecedent_design::decision_contract::AdmissibilityError>
 pub fn <antecedent_design::decision_contract::AdmissibleDecisionContract>::fn validate(&self) -> core::result::Result<(), antecedent_design::decision_contract::AdmissibilityError>
+pub fn <antecedent_design::decision_contract::ProgramSearchContract>::fn source_requirement(&self) -> core::result::Result<antecedent_design::SourceRequirement, antecedent_design::DecisionContractError>
+pub fn <antecedent_design::decision_contract::ProgramSearchContract>::fn validate(&self) -> core::result::Result<(), antecedent_design::DecisionContractError>
 pub fn <antecedent_design::decision_contract::UncertaintyKind>::const fn name(self) -> &'static str
 pub fn <antecedent_design::decision_contract::UncertaintyRequirement>::const fn name(self) -> &'static str
 pub fn <antecedent_design::decision_contract::UncertaintyRequirement>::const fn satisfied_by(self, supplied: antecedent_design::decision_contract::UncertaintyKind) -> bool
@@ -9460,6 +9501,8 @@ pub struct antecedent_design::decision_artifact::DecisionResultArtifact has priv
 pub struct antecedent_design::decision_contract::AdmissibilityRules
 pub struct antecedent_design::decision_contract::AdmissibleDecisionContract
 pub struct antecedent_design::decision_contract::DeclaredExclusion
+pub struct antecedent_design::decision_contract::ProgramSearchContract
+pub struct antecedent_design::decision_contract::ProgramSearchSpace
 pub struct antecedent_design::decision_contract::SupportRule
 pub struct antecedent_design::decision_eval::ActionOutcome
 pub struct antecedent_design::decision_eval::ConstraintExclusion
@@ -10269,6 +10312,13 @@ pub variant antecedent_design::decision_contract::AdmissibilityError::DuplicateR
 pub variant antecedent_design::decision_contract::AdmissibilityError::InvalidRule(&'static str)
 pub variant antecedent_design::decision_contract::AdmissibilityError::UnknownAction(alloc::string::String)
 pub variant antecedent_design::decision_contract::AdmissibilityError::UnknownInput { action: alloc::string::String, input: usize }
+pub variant antecedent_design::decision_contract::ProgramObjective::ExpectedUtility(antecedent_design::UtilityExpr)
+pub variant antecedent_design::decision_contract::ProgramObjective::Optimality(antecedent_design::UtilityExpr)
+pub variant antecedent_design::decision_contract::ProgramObjective::Quantile { expr: antecedent_design::UtilityExpr, p: f64 }
+pub variant antecedent_design::decision_contract::ProgramObjective::Regret(antecedent_design::UtilityExpr)
+pub variant antecedent_design::decision_contract::ProgramObjective::Robust
+pub variant antecedent_design::decision_contract::ProgramObjective::Threshold { expr: antecedent_design::UtilityExpr, threshold: f64, tail: antecedent_design::Tail }
+pub variant antecedent_design::decision_contract::ProgramObjective::Variance(antecedent_design::UtilityExpr)
 pub variant antecedent_design::decision_contract::UncertaintyKind::Credible
 pub variant antecedent_design::decision_contract::UncertaintyKind::Point
 pub variant antecedent_design::decision_contract::UncertaintyKind::StructuralEnvelope

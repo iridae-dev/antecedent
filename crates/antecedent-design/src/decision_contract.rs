@@ -4,11 +4,14 @@
 //! scientific quantities its utility reads and a closed, replayable utility
 //! expression. Hard constraints exclude actions; they never become penalties.
 //! A [`DecisionFunctional`] says which source representation it needs: a mean
-//! can satisfy an expectation of a linear utility, a quantile needs a
-//! distribution, and a nonlinear utility over several inputs needs aligned
-//! joint draws. The contract's [`DecisionContract::identity`] is independent of
-//! the order in which actions and constraints were declared and changes with
-//! any semantic edit.
+//! can satisfy an expectation of a linear utility, covariance a linear variance,
+//! a quantile or threshold a law, and a nonlinear utility over several inputs
+//! aligned joint draws. [`DecisionContract::source_requirement`] compiles the
+//! minimal request for the declared actions, including regret, statewise
+//! optimality, robust sets, and hard constraints. A [`ProgramSearchContract`]
+//! searches a space; scoring a prespecified program does not become that search.
+//! The contract's [`DecisionContract::identity`] is independent of the order in
+//! which actions and constraints were declared and changes with any semantic edit.
 
 use std::collections::HashSet;
 
@@ -242,9 +245,13 @@ impl SourceRepresentation {
 }
 
 /// The ways a source can satisfy a functional.
+///
+/// An empty [`Self::any_of`] is the identified set or the set of structures a
+/// robust criterion reads. It is not an unspecified probabilistic request:
+/// [`Self::is_identified_set`] is true, and no mean, covariance, or law satisfies it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceRequirement {
-    /// Any one of these representations suffices.
+    /// Any one of these representations suffices. Empty for an identified set.
     pub any_of: Vec<SourceRepresentation>,
     /// Whether a sampled representation must also report a Monte Carlo error
     /// receipt, because the functional is then estimated rather than exact.
@@ -252,10 +259,25 @@ pub struct SourceRequirement {
 }
 
 impl SourceRequirement {
+    /// The identified set or structure set. No probabilistic representation suffices.
+    #[must_use]
+    pub const fn identified_set() -> Self {
+        Self { any_of: Vec::new(), sampled_needs_error_receipt: false }
+    }
+
+    /// Whether this requirement is an identified set or a set of structures.
+    #[must_use]
+    pub fn is_identified_set(&self) -> bool {
+        self.any_of.is_empty()
+    }
+
     /// Check `available` against the requirement.
     ///
+    /// An identified-set requirement matches none of `available`, so a mean is refused.
+    ///
     /// # Errors
-    /// Reports the representations that would have sufficed.
+    /// Reports the representations that would have sufficed. The list is empty
+    /// when the requirement is an identified set.
     pub fn check(
         &self,
         available: &[SourceRepresentation],
@@ -679,39 +701,48 @@ impl DecisionContract {
         Ok(())
     }
 
-    /// What every action's source must supply for the criterion's functional.
+    /// The minimal source that can score the declared actions.
     ///
-    /// The most demanding action decides: one nonlinear action makes the whole
-    /// comparison need draws.
+    /// Affine expected utility accepts a mean. A threshold or quantile asks for
+    /// the law that determines it, and a hard constraint is a threshold, so it
+    /// refuses a means-only source. Nonlinear coupling, regret, and statewise
+    /// optimality (the best action in each state) ask for one joint law. Minimax
+    /// over an identified set and maximin over structures ask for that set.
+    /// Linear variance is [`DecisionFunctional::Variance`], not a declared-action
+    /// criterion; a search states it as [`ProgramObjective::Variance`]. The most
+    /// demanding action decides.
+    ///
+    /// Compiling the request does not change [`Self::identity`]. Scoring these
+    /// declared actions does not build a [`ProgramSearchContract`].
     ///
     /// # Errors
     /// An invalid contract refuses.
     pub fn source_requirement(&self) -> Result<Option<SourceRequirement>, DecisionContractError> {
         self.validate()?;
-        let Some(functional) = self.criterion.functional() else {
-            return Ok(None);
-        };
-        let mut combined: Option<SourceRequirement> = None;
-        for action in &self.actions {
-            let mut requirement = functional.requirement(&action.utility);
-            if self.criterion.needs_state_alignment() {
-                // State-by-state comparison needs one aligned source across actions.
-                requirement.any_of.retain(|r| *r == SourceRepresentation::JointDraws);
+        let mut requirement = if let Some(functional) = self.criterion.functional() {
+            let mut combined: Option<SourceRequirement> = None;
+            for action in &self.actions {
+                let requirement = functional.requirement(&action.utility);
+                combined = Some(match combined {
+                    None => requirement,
+                    Some(previous) => intersect(previous, &requirement),
+                });
             }
-            combined = Some(match combined {
-                None => requirement,
-                Some(previous) => SourceRequirement {
-                    any_of: previous
-                        .any_of
-                        .into_iter()
-                        .filter(|r| requirement.any_of.contains(r))
-                        .collect(),
-                    sampled_needs_error_receipt: previous.sampled_needs_error_receipt
-                        || requirement.sampled_needs_error_receipt,
-                },
-            });
+            combined.ok_or(DecisionContractError::InvalidDeclaration(
+                "a decision compares at least two actions",
+            ))?
+        } else if self.criterion.needs_state_alignment() {
+            // Regret compares each action with the best action in that state.
+            joint_draws()
+        } else {
+            SourceRequirement::identified_set()
+        };
+        requirement = tighten(requirement, &self.constraints);
+        if self.criterion.needs_state_alignment() {
+            // State-by-state comparison needs one aligned source across actions.
+            requirement.any_of.retain(|r| *r == SourceRepresentation::JointDraws);
         }
-        Ok(combined)
+        Ok(Some(requirement))
     }
 
     /// Canonical BLAKE3 identity as lowercase hex.
@@ -766,6 +797,228 @@ fn encode_constraint(constraint: &HardConstraint) -> [u8; 32] {
     applies.sort();
     out.texts(&applies);
     out.finish()
+}
+
+fn joint_draws() -> SourceRequirement {
+    SourceRequirement {
+        any_of: vec![SourceRepresentation::JointDraws],
+        sampled_needs_error_receipt: true,
+    }
+}
+
+fn intersect(previous: SourceRequirement, requirement: &SourceRequirement) -> SourceRequirement {
+    SourceRequirement {
+        any_of: previous.any_of.into_iter().filter(|r| requirement.any_of.contains(r)).collect(),
+        sampled_needs_error_receipt: previous.sampled_needs_error_receipt
+            || requirement.sampled_needs_error_receipt,
+    }
+}
+
+/// A law that answers a threshold also answers an affine expectation. Any other
+/// criterion keeps only the representations that were already sufficient for it.
+fn tighten(requirement: SourceRequirement, constraints: &[HardConstraint]) -> SourceRequirement {
+    constraints.iter().fold(requirement, |requirement, constraint| {
+        if requirement.is_identified_set() {
+            return requirement;
+        }
+        let law =
+            DecisionFunctional::Probability { threshold: constraint.bound, tail: Tail::Lower }
+                .requirement(&constraint.expr);
+        let any_of = if requirement.any_of.contains(&SourceRepresentation::Mean) {
+            law.any_of
+        } else {
+            law.any_of.into_iter().filter(|r| requirement.any_of.contains(r)).collect()
+        };
+        SourceRequirement {
+            any_of,
+            sampled_needs_error_receipt: requirement.sampled_needs_error_receipt
+                || law.sampled_needs_error_receipt,
+        }
+    })
+}
+
+/// Controllable variables a search ranges over.
+///
+/// A list of declared actions is not a space. Those actions are scored by a
+/// [`DecisionContract`] and are not promoted into a search.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProgramSearchSpace {
+    /// Stable identity of the space.
+    pub id: String,
+    /// Controllable variables, in the order an objective's inputs read them.
+    pub variables: Vec<String>,
+}
+
+/// What a search optimizes. This is not a declared-action criterion.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ProgramObjective {
+    /// Expected utility of `expr`. Affine expressions accept a mean.
+    ExpectedUtility(UtilityExpr),
+    /// Variance of `expr`. Affine expressions accept a covariance.
+    Variance(UtilityExpr),
+    /// Probability that `expr` falls on `tail` of `threshold`.
+    Threshold {
+        /// Expression over the space's variables.
+        expr: UtilityExpr,
+        /// Threshold.
+        threshold: f64,
+        /// Direction.
+        tail: Tail,
+    },
+    /// The `p`th quantile of `expr`.
+    Quantile {
+        /// Expression over the space's variables.
+        expr: UtilityExpr,
+        /// Level in `(0, 1)`.
+        p: f64,
+    },
+    /// An optimum over the space. A joint law is required; a mean does not
+    /// certify optimality of a searched program.
+    Optimality(UtilityExpr),
+    /// Regret of the chosen program against the best feasible program. A joint law.
+    Regret(UtilityExpr),
+    /// A robust optimum over an identified set or a set of structures.
+    Robust,
+}
+
+impl ProgramObjective {
+    fn expr(&self) -> Option<&UtilityExpr> {
+        match self {
+            Self::ExpectedUtility(expr)
+            | Self::Variance(expr)
+            | Self::Optimality(expr)
+            | Self::Regret(expr)
+            | Self::Threshold { expr, .. }
+            | Self::Quantile { expr, .. } => Some(expr),
+            Self::Robust => None,
+        }
+    }
+
+    fn parameters_valid(&self) -> bool {
+        match self {
+            Self::Threshold { threshold, .. } => threshold.is_finite(),
+            Self::Quantile { p, .. } => *p > 0.0 && *p < 1.0,
+            _ => true,
+        }
+    }
+
+    fn requirement(&self) -> SourceRequirement {
+        match self {
+            Self::ExpectedUtility(expr) => DecisionFunctional::ExpectedUtility.requirement(expr),
+            Self::Variance(expr) => DecisionFunctional::Variance.requirement(expr),
+            Self::Threshold { expr, threshold, tail } => {
+                DecisionFunctional::Probability { threshold: *threshold, tail: *tail }
+                    .requirement(expr)
+            }
+            Self::Quantile { expr, p } => DecisionFunctional::Quantile { p: *p }.requirement(expr),
+            // Optimality and regret couple the searched program across states.
+            Self::Optimality(_) | Self::Regret(_) => joint_draws(),
+            Self::Robust => SourceRequirement::identified_set(),
+        }
+    }
+}
+
+/// A search over programs: a space, an objective, and hard constraints.
+///
+/// Distinct from [`DecisionContract`], which scores a prespecified list of
+/// actions. Evaluating those actions does not construct this contract and does
+/// not search.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProgramSearchContract {
+    /// Variables the search ranges over.
+    pub space: ProgramSearchSpace,
+    /// Objective.
+    pub objective: ProgramObjective,
+    /// Hard constraints on every candidate. `applies_to` stays empty: a search
+    /// constraint is not attached to a declared action. Constraints exclude
+    /// candidates and never become penalties.
+    pub constraints: Vec<HardConstraint>,
+}
+
+impl ProgramSearchContract {
+    /// Check the space, the objective, and the constraints.
+    ///
+    /// # Errors
+    /// Refuses a blank identity, a variable an expression does not have, or a
+    /// parameter out of range.
+    pub fn validate(&self) -> Result<(), DecisionContractError> {
+        use DecisionContractError as E;
+        if is_blank(&self.space.id) {
+            return Err(E::InvalidDeclaration("search space id"));
+        }
+        if self.space.variables.is_empty() || self.space.variables.len() > MAX_INPUTS {
+            return Err(E::InvalidDeclaration("a search names between one and 256 variables"));
+        }
+        let mut names = HashSet::new();
+        for variable in &self.space.variables {
+            if is_blank(variable) {
+                return Err(E::InvalidDeclaration("search variable"));
+            }
+            if !names.insert(variable.as_str()) {
+                return Err(E::DuplicateId(variable.clone()));
+            }
+        }
+        if !self.objective.parameters_valid() {
+            return Err(E::InvalidParameter("search objective"));
+        }
+        if let Some(expr) = self.objective.expr() {
+            check_search_expr(expr, self.space.variables.len())?;
+            if expr.inputs_used().is_empty() {
+                return Err(E::InvalidDeclaration("an objective reads at least one variable"));
+            }
+        }
+        let mut constraint_ids = HashSet::new();
+        for constraint in &self.constraints {
+            if is_blank(&constraint.id) || is_blank(&constraint.units) {
+                return Err(E::InvalidDeclaration("constraint id and units"));
+            }
+            if !constraint_ids.insert(constraint.id.as_str()) {
+                return Err(E::DuplicateId(constraint.id.clone()));
+            }
+            if !constraint.applies_to.is_empty() {
+                return Err(E::InvalidDeclaration(
+                    "a search constraint applies to every candidate",
+                ));
+            }
+            if !constraint.bound.is_finite()
+                || !constraint.min_probability.is_finite()
+                || constraint.min_probability <= 0.0
+                || constraint.min_probability > 1.0
+                || !constraint.expr.all_finite()
+                || constraint.expr.depth() > MAX_DEPTH
+            {
+                return Err(E::InvalidParameter("constraint"));
+            }
+            check_search_expr(&constraint.expr, self.space.variables.len())?;
+        }
+        Ok(())
+    }
+
+    /// The minimal source for the objective and the constraints.
+    ///
+    /// The same matrix as [`DecisionContract::source_requirement`]: means for an
+    /// affine expected utility, covariance for a linear variance, the appropriate
+    /// law for a threshold or quantile, a joint law for nonlinear coupling, regret,
+    /// or optimality, and a set for a robust objective. A hard constraint refuses
+    /// a means-only source.
+    ///
+    /// # Errors
+    /// An invalid search contract refuses.
+    pub fn source_requirement(&self) -> Result<SourceRequirement, DecisionContractError> {
+        self.validate()?;
+        Ok(tighten(self.objective.requirement(), &self.constraints))
+    }
+}
+
+fn check_search_expr(expr: &UtilityExpr, variables: usize) -> Result<(), DecisionContractError> {
+    use DecisionContractError as E;
+    if !expr.all_finite() || expr.depth() > MAX_DEPTH {
+        return Err(E::InvalidParameter("utility expression"));
+    }
+    if let Some(k) = expr.inputs_used().into_iter().find(|k| *k >= variables) {
+        return Err(E::UnknownInput(k));
+    }
+    Ok(())
 }
 
 /// The uncertainty representation a claim carries.
@@ -1155,9 +1408,196 @@ mod tests {
             regret.source_requirement().unwrap().unwrap().any_of,
             vec![SourceRepresentation::JointDraws]
         );
+        let mut statewise = c.clone();
+        statewise.criterion = DecisionCriterion::Regret;
+        let statewise = statewise.source_requirement().unwrap().unwrap();
+        assert_eq!(statewise.any_of, vec![SourceRepresentation::JointDraws]);
+        assert!(statewise.check(&[SourceRepresentation::Mean]).is_err());
         let mut minimax = c;
         minimax.criterion = DecisionCriterion::MaximinOverStructures;
-        assert_eq!(minimax.source_requirement().unwrap(), None);
+        let set = minimax.source_requirement().unwrap().unwrap();
+        assert!(set.is_identified_set());
+        assert!(set.check(&[SourceRepresentation::Mean]).is_err());
+    }
+
+    fn one_input(id: &str, regime: &str, utility: UtilityExpr) -> DecisionAction {
+        DecisionAction {
+            id: id.into(),
+            kind: ActionKind::Intervention,
+            inputs: vec![input("benefit", regime)],
+            utility,
+        }
+    }
+
+    fn declared(criterion: DecisionCriterion, utility: UtilityExpr) -> DecisionContract {
+        DecisionContract {
+            actions: vec![
+                one_input("treat", "do(a=1)", utility.clone()),
+                one_input("wait", "do(a=0)", utility),
+            ],
+            utility_units: "qaly".into(),
+            criterion,
+            constraints: vec![],
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::ReportOnly,
+        }
+    }
+
+    fn cap() -> HardConstraint {
+        HardConstraint {
+            id: "cap".into(),
+            expr: UtilityExpr::Input(0),
+            bound: 1.0,
+            min_probability: 0.9,
+            units: "qaly".into(),
+            applies_to: vec![],
+        }
+    }
+
+    fn search(objective: ProgramObjective) -> ProgramSearchContract {
+        ProgramSearchContract {
+            space: ProgramSearchSpace { id: "dose".into(), variables: vec!["dose".into()] },
+            objective,
+            constraints: vec![],
+        }
+    }
+
+    #[test]
+    fn source_requirement_compiles_the_minimal_sufficient_request() {
+        use DecisionCriterion as C;
+        use SourceRepresentation as S;
+
+        // Affine expected utility: a mean is sufficient, and compiling the request
+        // leaves the contract identity unchanged.
+        let affine = declared(C::PosteriorExpectedUtility, UtilityExpr::Input(0));
+        let identity = affine.identity().unwrap();
+        let means = affine.source_requirement().unwrap().unwrap();
+        assert_eq!(
+            means.any_of,
+            vec![S::Mean, S::MeanAndCovariance, S::JointDraws, S::MarginalDraws]
+        );
+        assert_eq!(means.check(&[S::Mean]).unwrap().representation, S::Mean);
+        assert_eq!(affine.identity().unwrap(), identity);
+        // Two affine inputs still accept a mean; the draw alternative is joint.
+        let gap = UtilityExpr::difference(UtilityExpr::Input(0), UtilityExpr::Input(1));
+        let mut wide = contract();
+        wide.actions[0].utility = gap.clone();
+        wide.actions[1].utility = gap;
+        wide.constraints.clear();
+        wide.criterion = C::PosteriorExpectedUtility;
+        assert_eq!(
+            wide.source_requirement().unwrap().unwrap().any_of,
+            vec![S::Mean, S::MeanAndCovariance, S::JointDraws]
+        );
+        // A threshold of that same contrast has no marginal law.
+        wide.criterion = C::ThresholdProbability { threshold: 0.0 };
+        let contrast = wide.source_requirement().unwrap().unwrap();
+        assert_eq!(contrast.any_of, vec![S::JointDraws]);
+        assert!(contrast.check(&[S::Mean]).is_err());
+        assert!(contrast.check(&[S::Cdf]).is_err());
+
+        // Linear variance accepts covariance and refuses a mean. A nonlinear
+        // variance has no covariance route.
+        let scaled = UtilityExpr::product(UtilityExpr::Const(2.0), UtilityExpr::Input(0));
+        let variance = DecisionFunctional::Variance.requirement(&scaled);
+        assert!(scaled.is_affine());
+        assert_eq!(variance.any_of, vec![S::MeanAndCovariance, S::JointDraws, S::MarginalDraws]);
+        assert!(variance.check(&[S::Mean]).is_err());
+        assert_eq!(
+            variance.check(&[S::MeanAndCovariance]).unwrap().representation,
+            S::MeanAndCovariance
+        );
+        let curved = UtilityExpr::maximum(UtilityExpr::Input(0), UtilityExpr::Const(0.0));
+        let curved_variance = DecisionFunctional::Variance.requirement(&curved);
+        assert!(curved_variance.check(&[S::MeanAndCovariance]).is_err());
+
+        // Thresholds and quantiles of an input ask for that law, not a mean.
+        let threshold = declared(C::ThresholdProbability { threshold: 1.0 }, UtilityExpr::Input(0))
+            .source_requirement()
+            .unwrap()
+            .unwrap();
+        assert!(threshold.check(&[S::Mean]).is_err());
+        assert_eq!(threshold.check(&[S::Cdf]).unwrap().representation, S::Cdf);
+        let quantile = declared(C::Quantile { p: 0.1 }, UtilityExpr::Input(0))
+            .source_requirement()
+            .unwrap()
+            .unwrap();
+        assert!(quantile.check(&[S::Mean]).is_err());
+        assert_eq!(
+            quantile.check(&[S::QuantileFunction]).unwrap().representation,
+            S::QuantileFunction
+        );
+
+        // A hard constraint is a threshold, so an otherwise affine utility refuses a mean.
+        let mut constrained = affine.clone();
+        constrained.constraints.push(cap());
+        assert_ne!(constrained.identity().unwrap(), identity);
+        let constrained = constrained.source_requirement().unwrap().unwrap();
+        assert!(constrained.check(&[S::Mean]).is_err());
+        assert_eq!(constrained.check(&[S::Cdf]).unwrap().representation, S::Cdf);
+
+        // Nonlinear coupling, regret, and statewise optimality need one joint law.
+        let coupled = contract().source_requirement().unwrap().unwrap();
+        assert!(coupled.check(&[S::Mean]).is_err());
+        assert_eq!(coupled.any_of, vec![S::JointDraws]);
+        for criterion in [C::Regret, C::ExpectedRegret] {
+            let requirement =
+                declared(criterion, UtilityExpr::Input(0)).source_requirement().unwrap().unwrap();
+            assert_eq!(requirement.any_of, vec![S::JointDraws]);
+            assert!(requirement.check(&[S::Mean]).is_err());
+        }
+
+        // Robust decisions read a set. A mean and a joint law are both refused.
+        for criterion in [C::MinimaxOverIdentifiedSet, C::MaximinOverStructures] {
+            let requirement =
+                declared(criterion, UtilityExpr::Input(0)).source_requirement().unwrap().unwrap();
+            assert!(requirement.is_identified_set());
+            assert_eq!(
+                requirement.check(&[S::Mean]),
+                Err(DecisionContractError::MissingSource { needed: vec![] })
+            );
+            assert!(requirement.check(&[S::JointDraws]).is_err());
+        }
+    }
+
+    #[test]
+    fn a_prespecified_program_is_not_promoted_into_a_search() {
+        use SourceRepresentation as S;
+        let prespecified =
+            declared(DecisionCriterion::PosteriorExpectedUtility, UtilityExpr::Input(0));
+        let identity = prespecified.identity().unwrap();
+        let mode = prespecified.source_requirement().unwrap().unwrap().check(&[S::Mean]).unwrap();
+        assert_eq!(mode.representation, S::Mean);
+        assert_eq!(prespecified.identity().unwrap(), identity);
+
+        let affine = UtilityExpr::Input(0);
+        let expectation =
+            search(ProgramObjective::ExpectedUtility(affine.clone())).source_requirement().unwrap();
+        assert_eq!(expectation.check(&[S::Mean]).unwrap().representation, S::Mean);
+        let variance =
+            search(ProgramObjective::Variance(affine.clone())).source_requirement().unwrap();
+        assert!(variance.check(&[S::Mean]).is_err());
+        assert_eq!(
+            variance.check(&[S::MeanAndCovariance]).unwrap().representation,
+            S::MeanAndCovariance
+        );
+        let optimum =
+            search(ProgramObjective::Optimality(affine.clone())).source_requirement().unwrap();
+        assert_eq!(optimum.any_of, vec![S::JointDraws]);
+        assert!(optimum.check(&[S::Mean]).is_err());
+        let regret = search(ProgramObjective::Regret(affine)).source_requirement().unwrap();
+        assert!(regret.check(&[S::Mean]).is_err());
+        assert_eq!(regret.any_of, vec![S::JointDraws]);
+        let robust = search(ProgramObjective::Robust).source_requirement().unwrap();
+        assert!(robust.is_identified_set());
+        assert!(robust.check(&[S::Mean]).is_err());
+
+        let mut searched = search(ProgramObjective::ExpectedUtility(UtilityExpr::Input(0)));
+        searched.constraints.push(cap());
+        let searched = searched.source_requirement().unwrap();
+        assert!(searched.check(&[S::Mean]).is_err());
+        assert_eq!(searched.check(&[S::Cdf]).unwrap().representation, S::Cdf);
     }
 
     #[test]
