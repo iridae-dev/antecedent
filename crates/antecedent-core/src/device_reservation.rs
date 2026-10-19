@@ -56,7 +56,6 @@ impl DeviceReservationRequest {
     ///
     /// [`DeviceReservationError::Overflow`] when either sum does not fit in
     /// `u64`. The sum is not wrapped.
-    #[must_use]
     pub const fn try_sum(
         device_parts: &[u64],
         spill_parts: &[u64],
@@ -77,7 +76,6 @@ impl DeviceReservationRequest {
     ///
     /// [`DeviceReservationError::Overflow`] when either product does not fit in
     /// `u64`. The product is not wrapped.
-    #[must_use]
     pub const fn try_product(
         device_count: u64,
         device_width: u64,
