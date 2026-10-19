@@ -52,6 +52,7 @@ pub mod external_callback_artifact;
 pub mod external_claim_artifact;
 pub mod external_column_claim_artifact;
 pub mod external_estimate;
+pub mod feature_version;
 pub mod frozen_scores_artifact;
 pub mod graph_dot;
 pub mod graph_gml;

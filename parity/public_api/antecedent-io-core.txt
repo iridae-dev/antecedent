@@ -52,6 +52,8 @@
 #[non_exhaustive] pub enum antecedent_io_core::dependency_key::DependencyKeyError
 #[non_exhaustive] pub enum antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::evidence_ledger_artifact::SynthesisMethod
+#[non_exhaustive] pub enum antecedent_io_core::feature_version::FeatureRead
+#[non_exhaustive] pub enum antecedent_io_core::feature_version::FeatureRefusal
 #[non_exhaustive] pub enum antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::interface_contract_artifact::InterfaceContractArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::measurement_model_wire::MeasurementReplay
@@ -512,6 +514,9 @@ impl core::clone::Clone for antecedent_io_core::external_column_claim_artifact::
 impl core::clone::Clone for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact
 impl core::clone::Clone for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata
 impl core::clone::Clone for antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity
+impl core::clone::Clone for antecedent_io_core::feature_version::FeatureRead
+impl core::clone::Clone for antecedent_io_core::feature_version::FeatureRefusal
+impl core::clone::Clone for antecedent_io_core::feature_version::FeatureVersion
 impl core::clone::Clone for antecedent_io_core::frozen_scores_artifact::FrozenScoreParts
 impl core::clone::Clone for antecedent_io_core::frozen_scores_artifact::FrozenScoreTable
 impl core::clone::Clone for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
@@ -969,6 +974,9 @@ impl core::cmp::Eq for antecedent_io_core::external_claim_artifact::ExternalClai
 impl core::cmp::Eq for antecedent_io_core::external_claim_artifact::LineageLinkWire
 impl core::cmp::Eq for antecedent_io_core::external_column_claim_artifact::ColumnIdentityWire
 impl core::cmp::Eq for antecedent_io_core::external_column_claim_artifact::ColumnSupportCountWire
+impl core::cmp::Eq for antecedent_io_core::feature_version::FeatureRead
+impl core::cmp::Eq for antecedent_io_core::feature_version::FeatureRefusal
+impl core::cmp::Eq for antecedent_io_core::feature_version::FeatureVersion
 impl core::cmp::Eq for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
 impl core::cmp::Eq for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::cmp::Eq for antecedent_io_core::identity::IdentityMarkedEdgeWire
@@ -1483,6 +1491,9 @@ impl core::cmp::PartialEq for antecedent_io_core::external_column_claim_artifact
 impl core::cmp::PartialEq for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact
 impl core::cmp::PartialEq for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata
 impl core::cmp::PartialEq for antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity
+impl core::cmp::PartialEq for antecedent_io_core::feature_version::FeatureRead
+impl core::cmp::PartialEq for antecedent_io_core::feature_version::FeatureRefusal
+impl core::cmp::PartialEq for antecedent_io_core::feature_version::FeatureVersion
 impl core::cmp::PartialEq for antecedent_io_core::frozen_scores_artifact::FrozenScoreTable
 impl core::cmp::PartialEq for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
 impl core::cmp::PartialEq for antecedent_io_core::frozen_scores_artifact::FrozenScoresMeta
@@ -1782,6 +1793,7 @@ impl core::error::Error for antecedent_io_core::cross_world_artifact::CrossWorld
 impl core::error::Error for antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError
 impl core::error::Error for antecedent_io_core::dependency_key::DependencyKeyError
 impl core::error::Error for antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifactError
+impl core::error::Error for antecedent_io_core::feature_version::FeatureRefusal
 impl core::error::Error for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
 impl core::error::Error for antecedent_io_core::interface_contract_artifact::InterfaceContractArtifactError
 impl core::error::Error for antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifactError
@@ -2240,6 +2252,9 @@ impl core::fmt::Debug for antecedent_io_core::external_column_claim_artifact::Co
 impl core::fmt::Debug for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact
 impl core::fmt::Debug for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata
 impl core::fmt::Debug for antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity
+impl core::fmt::Debug for antecedent_io_core::feature_version::FeatureRead
+impl core::fmt::Debug for antecedent_io_core::feature_version::FeatureRefusal
+impl core::fmt::Debug for antecedent_io_core::feature_version::FeatureVersion
 impl core::fmt::Debug for antecedent_io_core::frozen_scores_artifact::FrozenScoreParts
 impl core::fmt::Debug for antecedent_io_core::frozen_scores_artifact::FrozenScoreTable
 impl core::fmt::Debug for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
@@ -2469,6 +2484,7 @@ impl core::fmt::Display for antecedent_io_core::dependency_key::DependencyClass
 impl core::fmt::Display for antecedent_io_core::dependency_key::DependencyKeyError
 impl core::fmt::Display for antecedent_io_core::dependency_key::ReusableProduct
 impl core::fmt::Display for antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifactError
+impl core::fmt::Display for antecedent_io_core::feature_version::FeatureRefusal
 impl core::fmt::Display for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
 impl core::fmt::Display for antecedent_io_core::interface_contract_artifact::InterfaceContractArtifactError
 impl core::fmt::Display for antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifactError
@@ -2539,6 +2555,8 @@ impl core::marker::Copy for antecedent_io_core::distribution_artifact::Distribut
 impl core::marker::Copy for antecedent_io_core::distribution_artifact::DistributionTrust
 impl core::marker::Copy for antecedent_io_core::distribution_artifact::DrawAlignment
 impl core::marker::Copy for antecedent_io_core::external_claim_artifact::ExternalClaimTrust
+impl core::marker::Copy for antecedent_io_core::feature_version::FeatureRead
+impl core::marker::Copy for antecedent_io_core::feature_version::FeatureVersion
 impl core::marker::Copy for antecedent_io_core::graphless_support::GraphlessAssignmentSupport
 impl core::marker::Copy for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::marker::Copy for antecedent_io_core::measurement_model_wire::ReplayedValues
@@ -3003,6 +3021,9 @@ impl core::marker::Freeze for antecedent_io_core::external_column_claim_artifact
 impl core::marker::Freeze for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact [auto]
 impl core::marker::Freeze for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata [auto]
 impl core::marker::Freeze for antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity [auto]
+impl core::marker::Freeze for antecedent_io_core::feature_version::FeatureRead [auto]
+impl core::marker::Freeze for antecedent_io_core::feature_version::FeatureRefusal [auto]
+impl core::marker::Freeze for antecedent_io_core::feature_version::FeatureVersion [auto]
 impl core::marker::Freeze for antecedent_io_core::frozen_scores_artifact::FrozenScoreParts [auto]
 impl core::marker::Freeze for antecedent_io_core::frozen_scores_artifact::FrozenScoreTable [auto]
 impl core::marker::Freeze for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError [auto]
@@ -3654,6 +3675,9 @@ impl core::marker::Send for antecedent_io_core::external_column_claim_artifact::
 impl core::marker::Send for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact [auto]
 impl core::marker::Send for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata [auto]
 impl core::marker::Send for antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity [auto]
+impl core::marker::Send for antecedent_io_core::feature_version::FeatureRead [auto]
+impl core::marker::Send for antecedent_io_core::feature_version::FeatureRefusal [auto]
+impl core::marker::Send for antecedent_io_core::feature_version::FeatureVersion [auto]
 impl core::marker::Send for antecedent_io_core::frozen_scores_artifact::FrozenScoreParts [auto]
 impl core::marker::Send for antecedent_io_core::frozen_scores_artifact::FrozenScoreTable [auto]
 impl core::marker::Send for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError [auto]
@@ -4278,6 +4302,9 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::external_column_c
 impl core::marker::StructuralPartialEq for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact
 impl core::marker::StructuralPartialEq for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata
 impl core::marker::StructuralPartialEq for antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity
+impl core::marker::StructuralPartialEq for antecedent_io_core::feature_version::FeatureRead
+impl core::marker::StructuralPartialEq for antecedent_io_core::feature_version::FeatureRefusal
+impl core::marker::StructuralPartialEq for antecedent_io_core::feature_version::FeatureVersion
 impl core::marker::StructuralPartialEq for antecedent_io_core::frozen_scores_artifact::FrozenScoreTable
 impl core::marker::StructuralPartialEq for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io_core::frozen_scores_artifact::FrozenScoresMeta
@@ -4916,6 +4943,9 @@ impl core::marker::Sync for antecedent_io_core::external_column_claim_artifact::
 impl core::marker::Sync for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact [auto]
 impl core::marker::Sync for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata [auto]
 impl core::marker::Sync for antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity [auto]
+impl core::marker::Sync for antecedent_io_core::feature_version::FeatureRead [auto]
+impl core::marker::Sync for antecedent_io_core::feature_version::FeatureRefusal [auto]
+impl core::marker::Sync for antecedent_io_core::feature_version::FeatureVersion [auto]
 impl core::marker::Sync for antecedent_io_core::frozen_scores_artifact::FrozenScoreParts [auto]
 impl core::marker::Sync for antecedent_io_core::frozen_scores_artifact::FrozenScoreTable [auto]
 impl core::marker::Sync for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError [auto]
@@ -5567,6 +5597,9 @@ impl core::marker::Unpin for antecedent_io_core::external_column_claim_artifact:
 impl core::marker::Unpin for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact [auto]
 impl core::marker::Unpin for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata [auto]
 impl core::marker::Unpin for antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity [auto]
+impl core::marker::Unpin for antecedent_io_core::feature_version::FeatureRead [auto]
+impl core::marker::Unpin for antecedent_io_core::feature_version::FeatureRefusal [auto]
+impl core::marker::Unpin for antecedent_io_core::feature_version::FeatureVersion [auto]
 impl core::marker::Unpin for antecedent_io_core::frozen_scores_artifact::FrozenScoreParts [auto]
 impl core::marker::Unpin for antecedent_io_core::frozen_scores_artifact::FrozenScoreTable [auto]
 impl core::marker::Unpin for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError [auto]
@@ -6218,6 +6251,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::external_co
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::feature_version::FeatureRead [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::feature_version::FeatureRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::feature_version::FeatureVersion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::frozen_scores_artifact::FrozenScoreParts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::frozen_scores_artifact::FrozenScoreTable [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError [auto]
@@ -6869,6 +6905,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::external_colum
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::feature_version::FeatureRead [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::feature_version::FeatureRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::feature_version::FeatureVersion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::frozen_scores_artifact::FrozenScoreParts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::frozen_scores_artifact::FrozenScoreTable [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError [auto]
@@ -7598,37 +7637,49 @@ impl serde_core::ser::Serialize for antecedent_io_core::transported_counterfactu
 impl serde_core::ser::Serialize for antecedent_io_core::wire::GraphCpdagWire
 impl serde_core::ser::Serialize for antecedent_io_core::wire::ScalarTypeWire
 impl<'a> core::clone::Clone for antecedent_io_core::ScoreTableKey<'a>
+impl<'a> core::clone::Clone for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
+impl<'a> core::cmp::Eq for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::cmp::Eq for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
+impl<'a> core::cmp::PartialEq for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::cmp::PartialEq for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::fmt::Debug for antecedent_io_core::ScoreTableKey<'a>
+impl<'a> core::fmt::Debug for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::fmt::Debug for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::ScoreTableKey<'a>
+impl<'a> core::marker::Copy for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::marker::Freeze for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
+impl<'a> core::marker::StructuralPartialEq for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::marker::Sync for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
 impl<'de, T> serde_core::de::Deserialize<'de> for antecedent_io_core::SlotSectionWire<T> where T: serde_core::de::Deserialize<'de>
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AdaptiveBudgetWire
@@ -8308,6 +8359,7 @@ pub const antecedent_io_core::external_claim_artifact::MAX_EXTERNAL_CLAIM_ARTIFA
 pub const antecedent_io_core::external_claim_artifact::MAX_EXTERNAL_CLAIM_COORDINATES: usize
 pub const antecedent_io_core::external_column_claim_artifact::MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES: usize
 pub const antecedent_io_core::external_column_claim_artifact::MAX_EXTERNAL_COLUMN_ROWS: u64
+pub const antecedent_io_core::feature_version::MIGRATION_SOURCE_MINORS: core::ops::range::RangeInclusive<u16>
 pub const antecedent_io_core::frozen_scores_artifact::FROZEN_SCORES_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::frozen_scores_artifact::FROZEN_SCORES_ARTIFACT_VERSION: u16
 pub const antecedent_io_core::frozen_scores_artifact::MAX_FROZEN_SCORES_ARTIFACT_BYTES: usize
@@ -8463,6 +8515,7 @@ pub enum antecedent_io_core::distribution_artifact::DistributionTrust
 pub enum antecedent_io_core::distribution_artifact::DrawAlignment
 pub enum antecedent_io_core::external_binding_wire::ColumnSupportWire
 pub enum antecedent_io_core::external_claim_artifact::ExternalClaimTrust
+pub enum antecedent_io_core::feature_version::RequestedVersion<'a>
 pub enum antecedent_io_core::graphless_support::GraphlessSupportStatus
 pub enum antecedent_io_core::identity::IdentityNodeWire
 pub enum antecedent_io_core::measurement_model_wire::CategoricalReplayFunctional
@@ -10519,6 +10572,8 @@ pub field antecedent_io_core::external_column_claim_artifact::ExternalColumnClai
 pub field antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata::version: u16
 pub field antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity::claim: antecedent_io_core::external_claim_artifact::ExternalClaimIdentity
 pub field antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity::column: antecedent_io_core::external_column_claim_artifact::ColumnIdentityWire
+pub field antecedent_io_core::feature_version::FeatureVersion::name: &'static str
+pub field antecedent_io_core::feature_version::FeatureVersion::version: u32
 pub field antecedent_io_core::frozen_scores_artifact::FrozenScoreParts::declared: antecedent_core::recalc::StageIdentities
 pub field antecedent_io_core::frozen_scores_artifact::FrozenScoreParts::estimator: alloc::string::String
 pub field antecedent_io_core::frozen_scores_artifact::FrozenScoreParts::fit_identity: antecedent_core::recalc::StageIdentity
@@ -12059,6 +12114,8 @@ pub fn antecedent_io_core::external_claim_artifact::wire_from_chain(chain: &ante
 pub fn antecedent_io_core::external_compose_identity(sources: &[antecedent_prob::external_prior::ExternalPriorSource], conflict_policy: core::option::Option<(f64, f64)>) -> antecedent_io_core::ExternalComposeIdentityWire
 pub fn antecedent_io_core::external_estimate::parse_digest_hex(hex: &str) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
 pub fn antecedent_io_core::extract_prior_source_meta(artifact: &antecedent_io_core::EncodedArtifact) -> core::result::Result<core::option::Option<antecedent_io_core::PriorSourceMeta>, antecedent_io_core::IoError>
+pub fn antecedent_io_core::feature_version::classify_feature_read(container: antecedent_io_core::FormatVersion, requested: antecedent_io_core::feature_version::RequestedVersion<'_>, accepted: &[antecedent_io_core::feature_version::FeatureVersion]) -> core::result::Result<antecedent_io_core::feature_version::FeatureRead, antecedent_io_core::feature_version::FeatureRefusal>
+pub fn antecedent_io_core::feature_version::is_migration_source(container: antecedent_io_core::FormatVersion) -> bool
 pub fn antecedent_io_core::float_bits(values: &[f64]) -> alloc::vec::Vec<u64>
 pub fn antecedent_io_core::graph_dot::dag_with_names_from_dot(dot: &str) -> core::result::Result<(antecedent_graph::dag::Dag, alloc::vec::Vec<alloc::string::String>), antecedent_io_core::IoError>
 pub fn antecedent_io_core::graph_gml::dag_with_names_from_gml(gml: &str) -> core::result::Result<(antecedent_graph::dag::Dag, alloc::vec::Vec<alloc::string::String>), antecedent_io_core::IoError>
@@ -12210,6 +12267,7 @@ pub mod antecedent_io_core::external_callback_artifact
 pub mod antecedent_io_core::external_claim_artifact
 pub mod antecedent_io_core::external_column_claim_artifact
 pub mod antecedent_io_core::external_estimate
+pub mod antecedent_io_core::feature_version
 pub mod antecedent_io_core::frozen_scores_artifact
 pub mod antecedent_io_core::graph_dot
 pub mod antecedent_io_core::graph_gml
@@ -12634,6 +12692,7 @@ pub struct antecedent_io_core::external_column_claim_artifact::ExternalColumnCla
 pub struct antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimArtifact has private fields
 pub struct antecedent_io_core::external_column_claim_artifact::ExternalColumnClaimMetadata
 pub struct antecedent_io_core::external_column_claim_artifact::ExternalColumnIdentity
+pub struct antecedent_io_core::feature_version::FeatureVersion
 pub struct antecedent_io_core::frozen_scores_artifact::FrozenScoreParts
 pub struct antecedent_io_core::frozen_scores_artifact::FrozenScoreTable
 pub struct antecedent_io_core::frozen_scores_artifact::FrozenScoreTable has private fields
@@ -14051,6 +14110,13 @@ pub variant antecedent_io_core::external_binding_wire::ColumnSupportWire::PerRow
 pub variant antecedent_io_core::external_binding_wire::ColumnSupportWire::Uniform(alloc::string::String)
 pub variant antecedent_io_core::external_claim_artifact::ExternalClaimTrust::ExactRequestVerified
 pub variant antecedent_io_core::external_claim_artifact::ExternalClaimTrust::ExternallyAttested
+pub variant antecedent_io_core::feature_version::FeatureRead::Compatible { feature: antecedent_io_core::feature_version::FeatureVersion }
+pub variant antecedent_io_core::feature_version::FeatureRead::RequiresMigration { from: antecedent_io_core::FormatVersion, feature: antecedent_io_core::feature_version::FeatureVersion }
+pub variant antecedent_io_core::feature_version::FeatureRefusal::PackageSemVer { major: u32, minor: u32, patch: u32 }
+pub variant antecedent_io_core::feature_version::FeatureRefusal::UnknownFeature { name: alloc::string::String, version: u32 }
+pub variant antecedent_io_core::feature_version::FeatureRefusal::UnsupportedContainer { major: u16, minor: u16 }
+pub variant antecedent_io_core::feature_version::RequestedVersion::Feature { name: &'a str, version: u32 }
+pub variant antecedent_io_core::feature_version::RequestedVersion::Package(&'a antecedent_io_core::SemanticVersion)
 pub variant antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError::Decode(alloc::string::String)
 pub variant antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError::Encode(alloc::string::String)
 pub variant antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError::IdentityMismatch { field: &'static str }
