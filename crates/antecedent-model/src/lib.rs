@@ -19,6 +19,7 @@ pub mod error;
 pub mod evaluate;
 pub mod falsify;
 pub mod lgssm;
+pub mod linear_solution;
 pub mod mechanism;
 pub mod mechanism_transport;
 pub mod model_collection;
@@ -51,6 +52,12 @@ pub use falsify::{
     MarkovImplicationTest, falsify_graph,
 };
 pub use lgssm::{kalman_filter, rts_smooth};
+pub use linear_solution::{
+    Conditioning, ConsistencyWitness, FREE_BLOCK_EQUATION, FactorDescription, FamilyCertificate,
+    HardClamp, IdentificationStatus, LinearSolutionError, LinearStructuralMap, NextAttempt,
+    PhysicalStability, QueryBlock, SingularBlock, SolutionAssessment, SolverConvergence,
+    Uniqueness, assess,
+};
 pub use mechanism::{
     NoiseInferenceMode, evaluate_batch_topo, evaluate_column, infer_noise_column,
     infer_noise_column_rng, log_prob_column, noise_inference_mode_of, reference_noise,

@@ -1,0 +1,1010 @@
+//! Solution contracts for a specified linear equilibrium SCM.
+//!
+//! The structural model is `X = KX + c + ε`. `K[i, j]` is variable `j`'s direct
+//! mechanism into variable `i`. This initial family requires a zero diagonal;
+//! a later normalization would have to transform the intercept and the noise
+//! law with it, and this module does not do that.
+//!
+//! A hard clamp `H = a` deletes the clamped equations and leaves the free block
+//!
+//! ```text
+//! (I - K_FF) X_F = K_FH a + c_F + ε_F
+//! ```
+//!
+//! [`FREE_BLOCK_EQUATION`] records that operator. The reports below describe
+//! the block to factor. They do not form `(I - K_FF)⁻¹`. `ε_F` stays the
+//! marginal disturbance on the free variables: clamping is not conditioning
+//! on the factual value of a clamped variable.
+//!
+//! Each assessment keeps four statuses apart:
+//!
+//! - [`QueryBlock`] — solvability and conditioning of one concrete free block,
+//!   for the original system and again for the clamped query.
+//! - [`FamilyCertificate`] — the sufficient family bound `ρ(|K|) < 1` on the
+//!   entrywise absolute matrix. It applies to every hard-clamp free block at
+//!   once. A bound that does not land strictly below one leaves this
+//!   certificate unestablished and names the narrower query-specific check.
+//!   That outcome is [`IdentificationStatus::NotMarkedUnidentified`].
+//! - [`PhysicalStability`] — dynamical stability. Invertibility of `(I - K)`,
+//!   a signed radius `ρ(K) < 1`, and `ρ(|K|) < 1` are different claims, and
+//!   none of them is written into this status. `ρ(K) < 1` does not imply
+//!   `ρ(|K|) < 1`.
+//! - [`SolverConvergence`] — whether an iterative solver ran. No certificate
+//!   above is a convergence result.
+//!
+//! Hyttinen, Eberhardt, and Hoyer's weak stability is invertibility of the
+//! equilibrium map. It is the solvability status, when that status is
+//! [`Uniqueness::Unique`], and it is not [`PhysicalStability`].
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![forbid(unsafe_code)]
+#![deny(missing_docs)]
+
+use thiserror::Error;
+
+/// Equation of the free block under a hard clamp `H = a`.
+///
+/// `K_FF` and `K_FH` are the free-free and free-clamped blocks of `K`.
+/// Factor or solve this operator; do not treat the string as an inverse.
+pub const FREE_BLOCK_EQUATION: &str = "(I - K_FF) X_F = K_FH a + c_F + ε_F";
+
+/// A computed upper bound must sit at least this far below one before
+/// `ρ(|K|) < 1` is treated as established. The gap absorbs a rounding-low
+/// Collatz–Wielandt ratio so a bound that merely grazes one is not admitted.
+const ADMISSION_GAP: f64 = 1.0e-12;
+
+/// Power iterations used for the Collatz–Wielandt upper bound on `ρ(|K|)`.
+const POWER_ITERATIONS: usize = 32;
+
+/// Failure to construct a map or a clamp, before any certificate is issued.
+#[derive(Clone, Debug, Eq, PartialEq, Error)]
+#[non_exhaustive]
+pub enum LinearSolutionError {
+    /// The coefficient matrix and the intercept do not describe one finite square model.
+    #[error("linear SCM shape: {message}")]
+    Shape {
+        /// What is inconsistent.
+        message: &'static str,
+    },
+    /// `K[node, node]` is nonzero. This family does not rescale that equation.
+    #[error("linear SCM requires a zero diagonal at node {node}")]
+    NonzeroDiagonal {
+        /// Variable whose structural self-coefficient is nonzero.
+        node: usize,
+    },
+    /// A structural coefficient is NaN or infinite.
+    #[error("non-finite structural coefficient into {into_node} from {from_node}")]
+    NonFiniteCoefficient {
+        /// Row index, the variable the mechanism enters.
+        into_node: usize,
+        /// Column index, the variable the mechanism comes from.
+        from_node: usize,
+    },
+    /// An intercept is NaN or infinite.
+    #[error("non-finite intercept at node {node}")]
+    NonFiniteIntercept {
+        /// Variable whose intercept is not finite.
+        node: usize,
+    },
+    /// A clamp index is outside `0..dimension`.
+    #[error("clamp index {node} is outside dimension {dimension}")]
+    ClampOutOfRange {
+        /// Index that was requested.
+        node: usize,
+        /// Model dimension the clamp was built against.
+        dimension: usize,
+    },
+    /// The same variable was clamped twice.
+    #[error("clamp index {node} is repeated")]
+    DuplicateClamp {
+        /// Index that occurred more than once.
+        node: usize,
+    },
+    /// The clamp was built for a different dimension than the map.
+    #[error("clamp dimension {clamp} does not match model dimension {model}")]
+    ClampDimension {
+        /// Dimension stored on the clamp.
+        clamp: usize,
+        /// Dimension of the map.
+        model: usize,
+    },
+}
+
+/// Row-major structural map `X = KX + c + ε` with a zero diagonal.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinearStructuralMap {
+    n: usize,
+    coefficients: Vec<f64>,
+    intercept: Vec<f64>,
+}
+
+impl LinearStructuralMap {
+    /// Build a map from row-major `K` and intercept `c`.
+    ///
+    /// `coefficients[i * n + j]` is `K[i, j]`, the direct mechanism of `j` into `i`.
+    /// `n` is `intercept.len()`. The diagonal must be exactly zero, and every
+    /// entry must be finite.
+    ///
+    /// # Errors
+    ///
+    /// [`LinearSolutionError::Shape`], [`LinearSolutionError::NonFiniteCoefficient`],
+    /// [`LinearSolutionError::NonFiniteIntercept`], or [`LinearSolutionError::NonzeroDiagonal`].
+    #[must_use = "construction errors are the refusal of this initial family"]
+    pub fn try_new(
+        coefficients: Vec<f64>,
+        intercept: Vec<f64>,
+    ) -> Result<Self, LinearSolutionError> {
+        let n = intercept.len();
+        if n == 0 {
+            return Err(LinearSolutionError::Shape {
+                message: "a linear SCM needs at least one variable",
+            });
+        }
+        let Some(len) = n.checked_mul(n) else {
+            return Err(LinearSolutionError::Shape {
+                message: "coefficient length overflows usize",
+            });
+        };
+        if coefficients.len() != len {
+            return Err(LinearSolutionError::Shape {
+                message: "coefficients must be row-major with length n*n",
+            });
+        }
+        for (i, row) in coefficients.chunks_exact(n).enumerate() {
+            if !intercept[i].is_finite() {
+                return Err(LinearSolutionError::NonFiniteIntercept { node: i });
+            }
+            for (j, value) in row.iter().copied().enumerate() {
+                if !value.is_finite() {
+                    return Err(LinearSolutionError::NonFiniteCoefficient {
+                        into_node: i,
+                        from_node: j,
+                    });
+                }
+                // The family invariant is an exact structural zero, not a tolerance.
+                #[allow(
+                    clippy::float_cmp,
+                    reason = "zero diagonal is an exact structural constraint of this family"
+                )]
+                if i == j && value != 0.0 {
+                    return Err(LinearSolutionError::NonzeroDiagonal { node: i });
+                }
+            }
+        }
+        Ok(Self { n, coefficients, intercept })
+    }
+
+    /// Number of variables.
+    #[must_use]
+    pub fn dimension(&self) -> usize {
+        self.n
+    }
+
+    /// Row-major `K`.
+    #[must_use]
+    pub fn coefficients(&self) -> &[f64] {
+        &self.coefficients
+    }
+
+    /// Intercept `c`.
+    #[must_use]
+    pub fn intercept(&self) -> &[f64] {
+        &self.intercept
+    }
+
+    /// `K[into_node, from_node]`, the mechanism of `from_node` into `into_node`.
+    #[must_use]
+    pub fn coefficient(&self, into_node: usize, from_node: usize) -> Option<f64> {
+        if into_node >= self.n || from_node >= self.n {
+            return None;
+        }
+        Some(self.coefficients[into_node * self.n + from_node])
+    }
+}
+
+/// Variables held at assigned values. The values themselves do not enter the
+/// solvability certificate; they enter the right-hand side `K_FH a`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HardClamp {
+    dimension: usize,
+    indices: Vec<usize>,
+}
+
+impl HardClamp {
+    /// Clamp `nodes` inside a model of `dimension`.
+    ///
+    /// Indices are stored in increasing order. Duplicates are refused.
+    ///
+    /// # Errors
+    ///
+    /// [`LinearSolutionError::Shape`] when `dimension` is zero,
+    /// [`LinearSolutionError::ClampOutOfRange`], or [`LinearSolutionError::DuplicateClamp`].
+    pub fn try_new(dimension: usize, nodes: &[usize]) -> Result<Self, LinearSolutionError> {
+        if dimension == 0 {
+            return Err(LinearSolutionError::Shape {
+                message: "a clamp needs a positive model dimension",
+            });
+        }
+        let mut indices = nodes.to_vec();
+        indices.sort_unstable();
+        for (pos, &node) in indices.iter().enumerate() {
+            if node >= dimension {
+                return Err(LinearSolutionError::ClampOutOfRange { node, dimension });
+            }
+            if pos > 0 && indices[pos - 1] == node {
+                return Err(LinearSolutionError::DuplicateClamp { node });
+            }
+        }
+        Ok(Self { dimension, indices })
+    }
+
+    /// Clamp no variables. The intervened block is then the original system.
+    ///
+    /// # Errors
+    ///
+    /// [`LinearSolutionError::Shape`] when `dimension` is zero.
+    pub fn none(dimension: usize) -> Result<Self, LinearSolutionError> {
+        Self::try_new(dimension, &[])
+    }
+
+    /// Dimension the clamp was built for.
+    #[must_use]
+    pub fn dimension(&self) -> usize {
+        self.dimension
+    }
+
+    /// Clamped variable indices, strictly increasing.
+    #[must_use]
+    pub fn indices(&self) -> &[usize] {
+        &self.indices
+    }
+}
+
+/// Solvability, conditioning, family certificate, physical stability, and
+/// solver convergence for one map and one hard clamp.
+///
+/// `original` ignores the clamp. `intervened` is the free block that remains.
+/// Those two blocks can disagree; a determinant of the original system is not
+/// a determinant of the free block.
+#[derive(Clone, Debug, PartialEq)]
+#[must_use]
+pub struct SolutionAssessment {
+    /// Full system, with every variable free.
+    pub original: QueryBlock,
+    /// Free block after the hard clamp.
+    pub intervened: QueryBlock,
+    /// Sufficient certificate `ρ(|K|) < 1` for every hard-clamp sub-block.
+    pub family: FamilyCertificate,
+    /// Physical dynamical stability. Always unclaimed by this module.
+    pub physical_stability: PhysicalStability,
+    /// Iterative solver status. Always [`SolverConvergence::NotRun`] here.
+    pub solver: SolverConvergence,
+}
+
+/// One linear block: the operator to factor, whether it determines `X_F`,
+/// and a condition number when this module has one without inverting.
+#[derive(Clone, Debug, PartialEq)]
+pub struct QueryBlock {
+    /// `(I - K_FF)` described by its structural blocks.
+    pub factor: FactorDescription,
+    /// Existence and uniqueness for this block alone.
+    pub uniqueness: Uniqueness,
+    /// Conditioning of `(I - K_FF)`, kept separate from uniqueness.
+    pub conditioning: Conditioning,
+}
+
+/// Structural pieces of [`FREE_BLOCK_EQUATION`].
+///
+/// `k_ff` is `K_FF`, not `(I - K_FF)` and not an inverse. A caller that
+/// factors the block builds `I - K_FF` from `k_ff`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FactorDescription {
+    /// Free indices `F`, ascending.
+    pub free: Vec<usize>,
+    /// Clamped indices `H`, ascending.
+    pub clamped: Vec<usize>,
+    /// [`FREE_BLOCK_EQUATION`].
+    pub equation: &'static str,
+    /// `K_FF` in free-index order, row-major. Entry `(p, q)` is `K[F_p, F_q]`.
+    pub k_ff: Vec<f64>,
+    /// `K_FH` row-major, length `free.len() * clamped.len()`.
+    /// Entry `(p, r)` is `K[F_p, H_r]`.
+    pub k_fh: Vec<f64>,
+    /// Intercepts `c_F` in free-index order.
+    pub intercept_f: Vec<f64>,
+}
+
+/// Whether `(I - K_FF) X_F = rhs` determines `X_F`.
+///
+/// A unique block is a query-specific claim. It does not establish
+/// `ρ(|K|) < 1`, and it does not establish physical stability.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Uniqueness {
+    /// The free block has a unique solution for every finite right-hand side.
+    Unique,
+    /// `(I - K_FF)` is singular. Off the consistency constraint there is no
+    /// solution; on it there are infinitely many. No root is selected.
+    Singular(SingularBlock),
+    /// The sufficient checks did not decide this block. The query stays open.
+    /// This is not a verdict that the model is unidentified.
+    Undetermined {
+        /// Factor or solve `(I - K_FF)` on this free set.
+        next_attempt: NextAttempt,
+    },
+}
+
+/// Witness that a singular free block is a consistency constraint rather than
+/// a selected root.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SingularBlock {
+    /// How the constraint was obtained.
+    pub witness: ConsistencyWitness,
+}
+
+/// Left-null data for `w · (K_FH a + c_F + ε_F) = 0`.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConsistencyWitness {
+    /// Nontrivial `w` with `wᵀ (I - K_FF) = 0`, in free-index order.
+    ///
+    /// A solution exists only when `w` is orthogonal to `K_FH a + c_F + ε_F`.
+    LeftNull(Vec<f64>),
+    /// The determinant is zero, so the solution is not unique, and a left
+    /// null vector was not formed. The next exact step is a factorization of
+    /// this same block.
+    NotFormed,
+}
+
+/// Conditioning of `(I - K_FF)`, separate from whether a unique solution exists.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Conditioning {
+    /// Infinity-norm condition number.
+    ///
+    /// `exact` is true for the closed 1×1 and 2×2 forms. It is false when
+    /// `kappa` is the Neumann bound `(1 + ||K_FF||∞) / (1 - ||K_FF||∞)`
+    /// obtained from `||K_FF||∞ < 1`.
+    InfinityNorm {
+        /// Condition number, or a finite upper bound on it when `exact` is false.
+        kappa: f64,
+        /// `true` when `kappa` is the closed-form infinity-norm condition number.
+        exact: bool,
+    },
+    /// Uniqueness may already be known. A condition number still needs a factor.
+    NotEstimated {
+        /// Factor `(I - K_FF)` and estimate its condition from that factor.
+        next_attempt: NextAttempt,
+    },
+    /// The block is singular, so it has no finite condition number.
+    Undefined,
+}
+
+/// Sufficient family certificate `ρ(|K|) < 1`.
+///
+/// The bound is an upper bound: the infinity norm of `|K|`, and for order
+/// above two a Collatz–Wielandt ratio `max_i (|K| v)_i / v_i` on positive
+/// vectors from a short power iteration. For two variables it is the closed
+/// form `sqrt(|K[0,1] K[1,0]|)`. Admission requires the bound to sit at least
+/// `1e-12` below one, so a ratio that only rounds under one is not admitted.
+///
+/// Failure means the sufficient bound was not shown. It does not prove
+/// `ρ(|K|) ≥ 1`, it does not prove a query-specific block is singular, and
+/// it does not mark the model unidentified. `ρ(K) < 1` for the signed matrix
+/// is not this certificate.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FamilyCertificate {
+    /// `ρ(|K|) ≤ rho_abs_upper < 1`, up to the admission gap.
+    Admitted {
+        /// Finite upper bound on `ρ(|K|)`.
+        rho_abs_upper: f64,
+    },
+    /// The sufficient bound did not land strictly below one.
+    Insufficient {
+        /// Finite upper bound, or `+∞` when every bound overflowed.
+        rho_abs_upper: f64,
+        /// The narrower check to run for the clamp that was assessed.
+        next_attempt: NextAttempt,
+        /// Specified-model algebra is not an identification result.
+        identification: IdentificationStatus,
+    },
+}
+
+impl FamilyCertificate {
+    /// Whether `ρ(|K|) < 1` was established for the whole intervention family.
+    #[must_use]
+    pub fn is_admitted(&self) -> bool {
+        matches!(self, Self::Admitted { .. })
+    }
+
+    /// Upper bound carried by either variant.
+    #[must_use]
+    pub fn rho_abs_upper(&self) -> f64 {
+        match self {
+            Self::Admitted { rho_abs_upper } | Self::Insufficient { rho_abs_upper, .. } => {
+                *rho_abs_upper
+            }
+        }
+    }
+
+    /// Identification status of this certificate.
+    ///
+    /// Both variants return [`IdentificationStatus::NotMarkedUnidentified`].
+    /// A failed bound does not change the status.
+    #[must_use]
+    pub fn identification(&self) -> IdentificationStatus {
+        match self {
+            Self::Admitted { .. } => IdentificationStatus::NotMarkedUnidentified,
+            Self::Insufficient { identification, .. } => *identification,
+        }
+    }
+}
+
+/// What to try after a sufficient certificate stops short.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NextAttempt {
+    /// Decide `(I - K_FF)` on this free set by a factorization or an exact
+    /// small-block check. The claim, if it succeeds, covers this free set
+    /// and not every other hard clamp.
+    QuerySpecificFreeBlock {
+        /// Free indices, ascending.
+        free: Vec<usize>,
+    },
+}
+
+/// Identification claim attached to a family certificate.
+///
+/// This module evaluates a specified map. It does not identify `K` from
+/// observations, and a failed contraction bound is not an identification failure.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IdentificationStatus {
+    /// The model was not marked unidentified.
+    NotMarkedUnidentified,
+}
+
+/// Physical stability of the equilibrium as a dynamical system.
+///
+/// This module does not award or refuse stability. Unique solvability,
+/// `ρ(K) < 1` for a signed synchronous update, and `ρ(|K|) < 1` remain
+/// separate claims; a signed radius below one does not imply the absolute
+/// certificate, and neither radius is copied into this status.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PhysicalStability {
+    /// No physical-stability certificate was claimed.
+    Unclaimed,
+}
+
+/// Convergence of an iterative linear solver.
+///
+/// Certificates are not solver iterations. Admitting `ρ(|K|) < 1` does not
+/// mean a solver converged, and failing that bound does not mean a solver diverged.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SolverConvergence {
+    /// No iterative solver was run.
+    NotRun,
+}
+
+/// Assess `model` under `clamp`.
+///
+/// The original block and the clamped free block are decided independently.
+/// The family certificate is the absolute-radius bound on the whole of `K`.
+/// Physical stability stays [`PhysicalStability::Unclaimed`] and solver
+/// convergence stays [`SolverConvergence::NotRun`].
+///
+/// # Errors
+///
+/// [`LinearSolutionError::ClampDimension`] when the clamp was built for a
+/// different dimension.
+#[must_use = "the assessment is the solution contract"]
+pub fn assess(
+    model: &LinearStructuralMap,
+    clamp: &HardClamp,
+) -> Result<SolutionAssessment, LinearSolutionError> {
+    if clamp.dimension != model.n {
+        return Err(LinearSolutionError::ClampDimension { clamp: clamp.dimension, model: model.n });
+    }
+    let original = query_block(model, &[]);
+    let intervened = query_block(model, &clamp.indices);
+    let family = certify_family(model, &intervened.factor.free);
+    Ok(SolutionAssessment {
+        original,
+        intervened,
+        family,
+        physical_stability: PhysicalStability::Unclaimed,
+        solver: SolverConvergence::NotRun,
+    })
+}
+
+fn certify_family(model: &LinearStructuralMap, query_free: &[usize]) -> FamilyCertificate {
+    let upper = abs_radius_upper(&model.coefficients, model.n);
+    let upper = if upper.is_finite() { upper } else { f64::INFINITY };
+    if (0.0..1.0 - ADMISSION_GAP).contains(&upper) {
+        FamilyCertificate::Admitted { rho_abs_upper: upper }
+    } else {
+        FamilyCertificate::Insufficient {
+            rho_abs_upper: upper,
+            next_attempt: NextAttempt::QuerySpecificFreeBlock { free: query_free.to_vec() },
+            identification: IdentificationStatus::NotMarkedUnidentified,
+        }
+    }
+}
+
+fn query_block(model: &LinearStructuralMap, clamped: &[usize]) -> QueryBlock {
+    let free = free_indices(model.n, clamped);
+    let k_ff = principal(&model.coefficients, model.n, &free);
+    let k_fh = gather_k_fh(&model.coefficients, model.n, &free, clamped);
+    let intercept_f = free.iter().map(|&node| model.intercept[node]).collect();
+    let (uniqueness, conditioning) = decide(&k_ff, &free);
+    QueryBlock {
+        factor: FactorDescription {
+            free,
+            clamped: clamped.to_vec(),
+            equation: FREE_BLOCK_EQUATION,
+            k_ff,
+            k_fh,
+            intercept_f,
+        },
+        uniqueness,
+        conditioning,
+    }
+}
+
+fn free_indices(n: usize, clamped: &[usize]) -> Vec<usize> {
+    let mut free = Vec::with_capacity(n.saturating_sub(clamped.len()));
+    let mut cursor = 0;
+    for node in 0..n {
+        if cursor < clamped.len() && clamped[cursor] == node {
+            cursor += 1;
+        } else {
+            free.push(node);
+        }
+    }
+    free
+}
+
+fn principal(coefficients: &[f64], n: usize, free: &[usize]) -> Vec<f64> {
+    let m = free.len();
+    let mut block = vec![0.0; m * m];
+    for (row, &into_node) in free.iter().enumerate() {
+        for (col, &from_node) in free.iter().enumerate() {
+            block[row * m + col] = coefficients[into_node * n + from_node];
+        }
+    }
+    block
+}
+
+fn gather_k_fh(coefficients: &[f64], n: usize, free: &[usize], clamped: &[usize]) -> Vec<f64> {
+    let mut block = Vec::with_capacity(free.len().saturating_mul(clamped.len()));
+    for &into_node in free {
+        for &from_node in clamped {
+            block.push(coefficients[into_node * n + from_node]);
+        }
+    }
+    block
+}
+
+fn decide(k_ff: &[f64], free: &[usize]) -> (Uniqueness, Conditioning) {
+    let m = free.len();
+    match m {
+        0 | 1 => (Uniqueness::Unique, Conditioning::InfinityNorm { kappa: 1.0, exact: true }),
+        2 => two_by_two(k_ff, free),
+        _ => larger_block(k_ff, free),
+    }
+}
+
+fn two_by_two(k_ff: &[f64], free: &[usize]) -> (Uniqueness, Conditioning) {
+    let into_from_second = k_ff[1];
+    let into_second_from_first = k_ff[2];
+    let product = into_from_second * into_second_from_first;
+    if !product.is_finite() {
+        return undetermined(free);
+    }
+    let det = 1.0 - product;
+    if !det.is_finite() {
+        return undetermined(free);
+    }
+    #[allow(
+        clippy::float_cmp,
+        reason = "the 2x2 closed form is singular exactly when 1 - K_01 K_10 evaluates to zero"
+    )]
+    if det == 0.0 {
+        return (
+            Uniqueness::Singular(SingularBlock {
+                witness: ConsistencyWitness::LeftNull(vec![into_second_from_first, 1.0]),
+            }),
+            Conditioning::Undefined,
+        );
+    }
+    let row_sum = (1.0 + into_from_second.abs()).max(1.0 + into_second_from_first.abs());
+    let kappa = (row_sum * row_sum) / det.abs();
+    if !kappa.is_finite() {
+        return (Uniqueness::Unique, not_estimated(free));
+    }
+    (Uniqueness::Unique, Conditioning::InfinityNorm { kappa, exact: true })
+}
+
+fn larger_block(k_ff: &[f64], free: &[usize]) -> (Uniqueness, Conditioning) {
+    let m = free.len();
+    let norm = max_abs_row_sum(k_ff, m);
+    if norm.is_finite() && norm < 1.0 {
+        return neumann_block(norm, free);
+    }
+    if m == 3 {
+        return three_by_three(k_ff, free);
+    }
+    undetermined(free)
+}
+
+fn neumann_block(norm: f64, free: &[usize]) -> (Uniqueness, Conditioning) {
+    let kappa = (1.0 + norm) / (1.0 - norm);
+    if !kappa.is_finite() {
+        return (Uniqueness::Unique, not_estimated(free));
+    }
+    (Uniqueness::Unique, Conditioning::InfinityNorm { kappa, exact: false })
+}
+
+fn three_by_three(k_ff: &[f64], free: &[usize]) -> (Uniqueness, Conditioning) {
+    let mut eye_minus = [0.0; 9];
+    for row in 0..3 {
+        for col in 0..3 {
+            let coefficient = k_ff[row * 3 + col];
+            eye_minus[row * 3 + col] = if row == col { 1.0 - coefficient } else { -coefficient };
+        }
+    }
+    let det = determinant3(&eye_minus);
+    if !det.is_finite() {
+        return undetermined(free);
+    }
+    #[allow(
+        clippy::float_cmp,
+        reason = "the 3x3 closed form is singular exactly when its determinant evaluates to zero"
+    )]
+    if det == 0.0 {
+        return (
+            Uniqueness::Singular(SingularBlock { witness: ConsistencyWitness::NotFormed }),
+            Conditioning::Undefined,
+        );
+    }
+    (Uniqueness::Unique, not_estimated(free))
+}
+
+fn determinant3(m: &[f64; 9]) -> f64 {
+    let (a, b, c) = (m[0], m[1], m[2]);
+    let (d, e, f) = (m[3], m[4], m[5]);
+    let (g, h, i) = (m[6], m[7], m[8]);
+    a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+}
+
+fn undetermined(free: &[usize]) -> (Uniqueness, Conditioning) {
+    let next_attempt = NextAttempt::QuerySpecificFreeBlock { free: free.to_vec() };
+    (
+        Uniqueness::Undetermined { next_attempt: next_attempt.clone() },
+        Conditioning::NotEstimated { next_attempt },
+    )
+}
+
+fn not_estimated(free: &[usize]) -> Conditioning {
+    Conditioning::NotEstimated {
+        next_attempt: NextAttempt::QuerySpecificFreeBlock { free: free.to_vec() },
+    }
+}
+
+fn abs_radius_upper(coefficients: &[f64], n: usize) -> f64 {
+    if n == 2 {
+        return (coefficients[1].abs() * coefficients[2].abs()).sqrt();
+    }
+    let by_norm = max_abs_row_sum(coefficients, n);
+    if n < 2 {
+        return by_norm;
+    }
+    smaller_upper(by_norm, collatz_wielandt_upper(coefficients, n))
+}
+
+fn max_abs_row_sum(coefficients: &[f64], n: usize) -> f64 {
+    coefficients
+        .chunks_exact(n)
+        .map(|row| row.iter().map(|entry| entry.abs()).sum::<f64>())
+        .fold(0.0_f64, f64::max)
+}
+
+fn smaller_upper(left: f64, right: f64) -> f64 {
+    match (left.is_finite(), right.is_finite()) {
+        (true, true) => left.min(right),
+        (true, false) => left,
+        (false, true) => right,
+        (false, false) => f64::INFINITY,
+    }
+}
+
+/// Collatz–Wielandt upper bound `ρ(|K|) ≤ max_i (|K| v)_i / v_i` for `v > 0`.
+///
+/// Successive iterates and their sum are both probed, so a period-2 cycle
+/// still yields a valid upper bound. A bound that stays at or above one does
+/// not prove `ρ(|K|) ≥ 1`.
+fn collatz_wielandt_upper(coefficients: &[f64], n: usize) -> f64 {
+    let mut vector = vec![1.0; n];
+    let mut image = vec![0.0; n];
+    let mut best = f64::INFINITY;
+    for _ in 0..POWER_ITERATIONS {
+        abs_matvec(coefficients, n, &vector, &mut image);
+        if image.iter().any(|value| !value.is_finite()) {
+            break;
+        }
+        best = best.min(positive_ratio_max(&image, &vector));
+        let scale = image.iter().copied().fold(0.0_f64, f64::max);
+        if scale <= 0.0 {
+            return 0.0;
+        }
+        if !scale.is_finite() {
+            break;
+        }
+        let mut next = vec![0.0; n];
+        for i in 0..n {
+            let scaled = image[i] / scale;
+            next[i] = if scaled > 0.0 { scaled } else { f64::MIN_POSITIVE };
+        }
+        let mut summed = vec![0.0; n];
+        for i in 0..n {
+            summed[i] = vector[i] + next[i];
+        }
+        abs_matvec(coefficients, n, &summed, &mut image);
+        if image.iter().all(|value| value.is_finite()) {
+            best = best.min(positive_ratio_max(&image, &summed));
+        }
+        vector = next;
+    }
+    best
+}
+
+fn positive_ratio_max(image: &[f64], vector: &[f64]) -> f64 {
+    let mut max_ratio = 0.0_f64;
+    for (&image_i, &coordinate) in image.iter().zip(vector) {
+        if coordinate <= 0.0 || !image_i.is_finite() {
+            return f64::INFINITY;
+        }
+        let ratio = image_i / coordinate;
+        if !ratio.is_finite() {
+            return f64::INFINITY;
+        }
+        max_ratio = max_ratio.max(ratio);
+    }
+    max_ratio
+}
+
+fn abs_matvec(coefficients: &[f64], n: usize, vector: &[f64], out: &mut [f64]) {
+    for (row, image) in out.iter_mut().enumerate() {
+        let mut sum = 0.0;
+        let start = row * n;
+        for (column, &coordinate) in vector.iter().enumerate() {
+            sum += coefficients[start + column].abs() * coordinate;
+        }
+        *image = sum;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Conditioning, ConsistencyWitness, FamilyCertificate, HardClamp, IdentificationStatus,
+        LinearSolutionError, LinearStructuralMap, NextAttempt, PhysicalStability,
+        SolverConvergence, Uniqueness, assess,
+    };
+
+    fn close(left: f64, right: f64) -> bool {
+        (left - right).abs() <= 1.0e-12
+    }
+
+    fn map(coefficients: Vec<f64>, intercept: Vec<f64>) -> LinearStructuralMap {
+        LinearStructuralMap::try_new(coefficients, intercept).expect("fixture map")
+    }
+
+    /// Observational `B`-on-`A` slope and the `B` response to a unit shift of
+    /// the mean of `ε_A`, for `A = k_ab B + ε_A`, `B = k_ba A + ε_B`, with
+    /// centered independent unit-variance disturbances. Local 2×2 algebra for
+    /// the fixture; [`assess`] does not invert.
+    fn two_node_association_and_mean_shift(k_ab: f64, k_ba: f64) -> (f64, f64) {
+        let det = 1.0 - k_ab * k_ba;
+        let response_a_from_a = 1.0 / det;
+        let response_a_from_b = k_ab / det;
+        let response_b_from_a = k_ba / det;
+        let response_b_from_b = 1.0 / det;
+        let var_a = response_a_from_a * response_a_from_a + response_a_from_b * response_a_from_b;
+        let cov_ab = response_a_from_a * response_b_from_a + response_a_from_b * response_b_from_b;
+        (cov_ab / var_a, response_b_from_a)
+    }
+
+    #[test]
+    fn two_cycle_association_clamp_derivative_and_mean_shift_are_different() {
+        // A = 0.4 B + U_A, B = 0.5 A + U_B. Indices: A = 0, B = 1.
+        let model = map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0]);
+        let clamp_a = HardClamp::try_new(2, &[0]).expect("clamp A");
+        let report = assess(&model, &clamp_a).expect("assessment");
+
+        let (association, mean_shift_b) = two_node_association_and_mean_shift(0.4, 0.5);
+        let clamp_derivative_b = model.coefficient(1, 0).expect("K[B, A]");
+
+        assert!(close(association, 45.0 / 58.0));
+        assert!((association - 0.776).abs() < 1.0e-3);
+        assert!(close(mean_shift_b, 0.625));
+        assert!(close(clamp_derivative_b, 0.5));
+        assert!((association - clamp_derivative_b).abs() > 0.2);
+        assert!((mean_shift_b - clamp_derivative_b).abs() > 0.1);
+        assert!((association - mean_shift_b).abs() > 0.1);
+
+        assert!(report.family.is_admitted());
+        assert!(close(report.family.rho_abs_upper(), (0.2_f64).sqrt()));
+        assert_eq!(report.family.identification(), IdentificationStatus::NotMarkedUnidentified);
+        assert!(matches!(report.original.uniqueness, Uniqueness::Unique));
+        match report.original.conditioning {
+            Conditioning::InfinityNorm { kappa, exact: true } => assert!(close(kappa, 2.8125)),
+            other => panic!("original conditioning {other:?}"),
+        }
+        assert_eq!(report.intervened.factor.free, vec![1]);
+        assert_eq!(report.intervened.factor.clamped, vec![0]);
+        assert!(matches!(report.intervened.uniqueness, Uniqueness::Unique));
+        match report.intervened.conditioning {
+            Conditioning::InfinityNorm { kappa, exact: true } => assert!(close(kappa, 1.0)),
+            other => panic!("clamp conditioning {other:?}"),
+        }
+        assert_eq!(report.physical_stability, PhysicalStability::Unclaimed);
+        assert_eq!(report.solver, SolverConvergence::NotRun);
+    }
+
+    #[test]
+    fn overlapping_loops_are_uniquely_solvable_until_c_is_clamped() {
+        // A = B + C + U_A, B = A + U_B, C = A + U_C.
+        // Indices: A = 0, B = 1, C = 2.
+        let model = map(vec![0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0], vec![0.0, 0.0, 0.0]);
+        let clamp_c = HardClamp::try_new(3, &[2]).expect("clamp C");
+        let report = assess(&model, &clamp_c).expect("assessment");
+
+        assert!(matches!(report.original.uniqueness, Uniqueness::Unique));
+        assert!(matches!(report.original.conditioning, Conditioning::NotEstimated { .. }));
+        match report.intervened.uniqueness {
+            Uniqueness::Singular(block) => match block.witness {
+                ConsistencyWitness::LeftNull(w) => {
+                    assert_eq!(w.len(), 2);
+                    assert!(close(w[0], 1.0));
+                    assert!(close(w[1], 1.0));
+                    let k_fh = &report.intervened.factor.k_fh;
+                    assert_eq!(k_fh.len(), 2);
+                    assert!(close(k_fh[0], 1.0));
+                    assert!(close(k_fh[1], 0.0));
+                    let clamp_coeff = w[0] * k_fh[0] + w[1] * k_fh[1];
+                    assert!(close(clamp_coeff, 1.0));
+                    assert!(report.intervened.factor.intercept_f.iter().all(|c| close(*c, 0.0)));
+                }
+                ConsistencyWitness::NotFormed => panic!("2x2 left null should be formed"),
+            },
+            other => panic!("intervened uniqueness {other:?}"),
+        }
+        assert!(matches!(report.intervened.conditioning, Conditioning::Undefined));
+
+        match &report.family {
+            FamilyCertificate::Insufficient { rho_abs_upper, next_attempt, identification } => {
+                assert!(*rho_abs_upper >= 1.0);
+                assert_eq!(next_attempt, &NextAttempt::QuerySpecificFreeBlock { free: vec![0, 1] });
+                assert_eq!(*identification, IdentificationStatus::NotMarkedUnidentified);
+            }
+            FamilyCertificate::Admitted { .. } => {
+                panic!("ρ(|K|) < 1 must stay unestablished for the overlapping loops")
+            }
+        }
+        assert_eq!(report.family.identification(), IdentificationStatus::NotMarkedUnidentified);
+        assert_eq!(report.physical_stability, PhysicalStability::Unclaimed);
+        assert_eq!(report.solver, SolverConvergence::NotRun);
+    }
+
+    #[test]
+    fn nilpotent_signed_update_does_not_admit_the_abs_family() {
+        // K = [[0, 2, 2], [2, 0, 0], [-2, 0, 0]]. K³ = 0, so every eigenvalue
+        // of the signed matrix is 0. |K| does not inherit that radius.
+        let coefficients = vec![0.0, 2.0, 2.0, 2.0, 0.0, 0.0, -2.0, 0.0, 0.0];
+        let square = matmul3(&coefficients, &coefficients);
+        let cube = matmul3(&square, &coefficients);
+        assert!(cube.iter().all(|entry| close(*entry, 0.0)));
+
+        let model = map(coefficients, vec![0.0, 0.0, 0.0]);
+        let full = assess(&model, &HardClamp::none(3).expect("no clamp")).expect("full");
+        assert!(!full.family.is_admitted());
+        assert!(full.family.rho_abs_upper() >= 1.0);
+        assert!(matches!(full.original.uniqueness, Uniqueness::Unique));
+        assert_eq!(full.family.identification(), IdentificationStatus::NotMarkedUnidentified);
+        assert_eq!(full.physical_stability, PhysicalStability::Unclaimed);
+        assert_eq!(full.solver, SolverConvergence::NotRun);
+
+        let clamped =
+            assess(&model, &HardClamp::try_new(3, &[2]).expect("clamp third")).expect("clamped");
+        assert!(matches!(clamped.intervened.uniqueness, Uniqueness::Unique));
+        let k_ff = &clamped.intervened.factor.k_ff;
+        let signed_radius = (k_ff[1].abs() * k_ff[2].abs()).sqrt();
+        assert!(close(signed_radius, 2.0));
+        assert_eq!(clamped.physical_stability, PhysicalStability::Unclaimed);
+        assert_eq!(clamped.solver, SolverConvergence::NotRun);
+        assert!(!clamped.family.is_admitted());
+    }
+
+    #[test]
+    fn row_sum_above_one_can_still_admit_the_abs_certificate() {
+        // Row sums reach 10, while the spectrum of |K| is {0, ±0.9}.
+        let model = map(vec![0.0, 0.9, 0.0, 0.9, 0.0, 0.0, 10.0, 0.0, 0.0], vec![0.0, 0.0, 0.0]);
+        let report = assess(&model, &HardClamp::none(3).expect("no clamp")).expect("assessment");
+        assert!(report.family.is_admitted());
+        assert!(report.family.rho_abs_upper() < 1.0);
+        assert!(matches!(report.original.uniqueness, Uniqueness::Unique));
+        assert_eq!(report.solver, SolverConvergence::NotRun);
+        assert_eq!(report.physical_stability, PhysicalStability::Unclaimed);
+    }
+
+    #[test]
+    fn unresolved_block_names_a_query_check_and_stays_identified() {
+        // A 4-cycle of weight 1 has infinity norm 1, so ρ(|K|) < 1 is not
+        // established, and the free block is past the 3×3 closed form.
+        let mut coefficients = vec![0.0; 16];
+        for node in 0..4 {
+            coefficients[node * 4 + (node + 1) % 4] = 1.0;
+        }
+        let model = map(coefficients, vec![0.0; 4]);
+        let report = assess(&model, &HardClamp::none(4).expect("no clamp")).expect("assessment");
+        let free = vec![0, 1, 2, 3];
+        match report.original.uniqueness {
+            Uniqueness::Undetermined { next_attempt } => {
+                assert_eq!(
+                    next_attempt,
+                    NextAttempt::QuerySpecificFreeBlock { free: free.clone() }
+                );
+            }
+            other => panic!("original uniqueness {other:?}"),
+        }
+        match report.family {
+            FamilyCertificate::Insufficient { rho_abs_upper, next_attempt, identification } => {
+                assert!(rho_abs_upper >= 1.0);
+                assert_eq!(next_attempt, NextAttempt::QuerySpecificFreeBlock { free });
+                assert_eq!(identification, IdentificationStatus::NotMarkedUnidentified);
+            }
+            FamilyCertificate::Admitted { .. } => panic!("a unit 4-cycle is not a contraction"),
+        }
+        assert_eq!(report.physical_stability, PhysicalStability::Unclaimed);
+        assert_eq!(report.solver, SolverConvergence::NotRun);
+    }
+
+    #[test]
+    fn nonzero_diagonal_non_finite_entries_and_bad_clamps_are_refused() {
+        let diagonal = LinearStructuralMap::try_new(vec![0.2, 0.0, 0.0, 0.0], vec![0.0, 0.0]);
+        assert_eq!(diagonal, Err(LinearSolutionError::NonzeroDiagonal { node: 0 }));
+        let negative = LinearStructuralMap::try_new(vec![0.0, 1.0, 0.0, -0.2], vec![0.0, 0.0]);
+        assert_eq!(negative, Err(LinearSolutionError::NonzeroDiagonal { node: 1 }));
+        let infinite =
+            LinearStructuralMap::try_new(vec![0.0, f64::INFINITY, 0.0, 0.0], vec![0.0, 0.0]);
+        assert!(matches!(
+            infinite,
+            Err(LinearSolutionError::NonFiniteCoefficient { into_node: 0, from_node: 1 })
+        ));
+        let shape = LinearStructuralMap::try_new(vec![0.0, 1.0, 0.0], vec![0.0, 0.0]);
+        assert!(matches!(shape, Err(LinearSolutionError::Shape { .. })));
+
+        assert_eq!(
+            HardClamp::try_new(3, &[1, 0, 1]),
+            Err(LinearSolutionError::DuplicateClamp { node: 1 })
+        );
+        assert_eq!(
+            HardClamp::try_new(3, &[3]),
+            Err(LinearSolutionError::ClampOutOfRange { node: 3, dimension: 3 })
+        );
+        let clamp = HardClamp::try_new(3, &[2, 0]).expect("sorted clamp");
+        assert_eq!(clamp.indices(), &[0, 2]);
+        let model = map(vec![0.0, 0.1, 0.2, 0.0], vec![0.0, 0.0]);
+        let mismatch = assess(&model, &HardClamp::none(3).expect("other dimension"));
+        assert_eq!(mismatch, Err(LinearSolutionError::ClampDimension { clamp: 3, model: 2 }));
+    }
+
+    fn matmul3(left: &[f64], right: &[f64]) -> [f64; 9] {
+        let mut product = [0.0; 9];
+        for row in 0..3 {
+            for col in 0..3 {
+                product[row * 3 + col] = left[row * 3] * right[col]
+                    + left[row * 3 + 1] * right[3 + col]
+                    + left[row * 3 + 2] * right[6 + col];
+            }
+        }
+        product
+    }
+}
