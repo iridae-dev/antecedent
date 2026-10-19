@@ -2,6 +2,10 @@
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_graph::GraphError
+#[non_exhaustive] pub enum antecedent_graph::OrdinaryDSeparationOnCycles
+#[non_exhaustive] pub enum antecedent_graph::SigmaSeparationStatus
+#[non_exhaustive] pub struct antecedent_graph::SigmaSeparation
+#[non_exhaustive] pub struct antecedent_graph::SigmaSeparationAssumptions
 impl !core::marker::Freeze for antecedent_graph::Pag [auto]
 impl !core::marker::Freeze for antecedent_graph::PagCompletion [auto]
 impl !core::marker::Freeze for antecedent_graph::PagReview [auto]
@@ -35,6 +39,7 @@ impl core::clone::Clone for antecedent_graph::GraphWorkspace
 impl core::clone::Clone for antecedent_graph::LazyUnfoldedTemporalGraph
 impl core::clone::Clone for antecedent_graph::MarkedEdge
 impl core::clone::Clone for antecedent_graph::MiddleMark
+impl core::clone::Clone for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::clone::Clone for antecedent_graph::Pag
 impl core::clone::Clone for antecedent_graph::PagCompletion
 impl core::clone::Clone for antecedent_graph::PagReview
@@ -43,6 +48,10 @@ impl core::clone::Clone for antecedent_graph::PathStep
 impl core::clone::Clone for antecedent_graph::SelectionDiagram
 impl core::clone::Clone for antecedent_graph::SeparationCertificate
 impl core::clone::Clone for antecedent_graph::SeparationResult
+impl core::clone::Clone for antecedent_graph::SigmaSeparation
+impl core::clone::Clone for antecedent_graph::SigmaSeparationAssumptions
+impl core::clone::Clone for antecedent_graph::SigmaSeparationStatus
+impl core::clone::Clone for antecedent_graph::SigmaSeparationWorkspace
 impl core::clone::Clone for antecedent_graph::TemporalAdmg
 impl core::clone::Clone for antecedent_graph::TemporalCpdag
 impl core::clone::Clone for antecedent_graph::TemporalCpdagCompletion
@@ -74,11 +83,15 @@ impl core::cmp::Eq for antecedent_graph::Endpoint
 impl core::cmp::Eq for antecedent_graph::GraphError
 impl core::cmp::Eq for antecedent_graph::MarkedEdge
 impl core::cmp::Eq for antecedent_graph::MiddleMark
+impl core::cmp::Eq for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::cmp::Eq for antecedent_graph::Pag
 impl core::cmp::Eq for antecedent_graph::PagSeparation
 impl core::cmp::Eq for antecedent_graph::PathStep
 impl core::cmp::Eq for antecedent_graph::SeparationCertificate
 impl core::cmp::Eq for antecedent_graph::SeparationResult
+impl core::cmp::Eq for antecedent_graph::SigmaSeparation
+impl core::cmp::Eq for antecedent_graph::SigmaSeparationAssumptions
+impl core::cmp::Eq for antecedent_graph::SigmaSeparationStatus
 impl core::cmp::Eq for antecedent_graph::TemporalCpdag
 impl core::cmp::Eq for antecedent_graph::TemporalDag
 impl core::cmp::Eq for antecedent_graph::TemporalPag
@@ -101,11 +114,15 @@ impl core::cmp::PartialEq for antecedent_graph::Endpoint
 impl core::cmp::PartialEq for antecedent_graph::GraphError
 impl core::cmp::PartialEq for antecedent_graph::MarkedEdge
 impl core::cmp::PartialEq for antecedent_graph::MiddleMark
+impl core::cmp::PartialEq for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::cmp::PartialEq for antecedent_graph::Pag
 impl core::cmp::PartialEq for antecedent_graph::PagSeparation
 impl core::cmp::PartialEq for antecedent_graph::PathStep
 impl core::cmp::PartialEq for antecedent_graph::SeparationCertificate
 impl core::cmp::PartialEq for antecedent_graph::SeparationResult
+impl core::cmp::PartialEq for antecedent_graph::SigmaSeparation
+impl core::cmp::PartialEq for antecedent_graph::SigmaSeparationAssumptions
+impl core::cmp::PartialEq for antecedent_graph::SigmaSeparationStatus
 impl core::cmp::PartialEq for antecedent_graph::TemporalCpdag
 impl core::cmp::PartialEq for antecedent_graph::TemporalDag
 impl core::cmp::PartialEq for antecedent_graph::TemporalPag
@@ -117,6 +134,7 @@ impl core::default::Default for antecedent_graph::CompletionValidationReport
 impl core::default::Default for antecedent_graph::DSeparationWorkspace
 impl core::default::Default for antecedent_graph::GraphWorkspace
 impl core::default::Default for antecedent_graph::MiddleMark
+impl core::default::Default for antecedent_graph::SigmaSeparationWorkspace
 impl core::error::Error for antecedent_graph::GraphError
 impl core::fmt::Debug for antecedent_graph::Admg
 impl core::fmt::Debug for antecedent_graph::BitSet
@@ -143,6 +161,7 @@ impl core::fmt::Debug for antecedent_graph::GraphWorkspace
 impl core::fmt::Debug for antecedent_graph::LazyUnfoldedTemporalGraph
 impl core::fmt::Debug for antecedent_graph::MarkedEdge
 impl core::fmt::Debug for antecedent_graph::MiddleMark
+impl core::fmt::Debug for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::fmt::Debug for antecedent_graph::Pag
 impl core::fmt::Debug for antecedent_graph::PagCompletion
 impl core::fmt::Debug for antecedent_graph::PagReview
@@ -151,6 +170,10 @@ impl core::fmt::Debug for antecedent_graph::PathStep
 impl core::fmt::Debug for antecedent_graph::SelectionDiagram
 impl core::fmt::Debug for antecedent_graph::SeparationCertificate
 impl core::fmt::Debug for antecedent_graph::SeparationResult
+impl core::fmt::Debug for antecedent_graph::SigmaSeparation
+impl core::fmt::Debug for antecedent_graph::SigmaSeparationAssumptions
+impl core::fmt::Debug for antecedent_graph::SigmaSeparationStatus
+impl core::fmt::Debug for antecedent_graph::SigmaSeparationWorkspace
 impl core::fmt::Debug for antecedent_graph::TemporalAdmg
 impl core::fmt::Debug for antecedent_graph::TemporalCpdag
 impl core::fmt::Debug for antecedent_graph::TemporalCpdagCompletion
@@ -184,8 +207,11 @@ impl core::marker::Copy for antecedent_graph::DenseNodeId
 impl core::marker::Copy for antecedent_graph::Endpoint
 impl core::marker::Copy for antecedent_graph::MarkedEdge
 impl core::marker::Copy for antecedent_graph::MiddleMark
+impl core::marker::Copy for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::marker::Copy for antecedent_graph::PagSeparation
 impl core::marker::Copy for antecedent_graph::PathStep
+impl core::marker::Copy for antecedent_graph::SigmaSeparationAssumptions
+impl core::marker::Copy for antecedent_graph::SigmaSeparationStatus
 impl core::marker::Copy for antecedent_graph::WithinTier
 impl core::marker::Freeze for antecedent_graph::Admg [auto]
 impl core::marker::Freeze for antecedent_graph::BitSet [auto]
@@ -212,11 +238,16 @@ impl core::marker::Freeze for antecedent_graph::GraphWorkspace [auto]
 impl core::marker::Freeze for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::marker::Freeze for antecedent_graph::MarkedEdge [auto]
 impl core::marker::Freeze for antecedent_graph::MiddleMark [auto]
+impl core::marker::Freeze for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::marker::Freeze for antecedent_graph::PagSeparation [auto]
 impl core::marker::Freeze for antecedent_graph::PathStep [auto]
 impl core::marker::Freeze for antecedent_graph::SelectionDiagram [auto]
 impl core::marker::Freeze for antecedent_graph::SeparationCertificate [auto]
 impl core::marker::Freeze for antecedent_graph::SeparationResult [auto]
+impl core::marker::Freeze for antecedent_graph::SigmaSeparation [auto]
+impl core::marker::Freeze for antecedent_graph::SigmaSeparationAssumptions [auto]
+impl core::marker::Freeze for antecedent_graph::SigmaSeparationStatus [auto]
+impl core::marker::Freeze for antecedent_graph::SigmaSeparationWorkspace [auto]
 impl core::marker::Freeze for antecedent_graph::TemporalAdmg [auto]
 impl core::marker::Freeze for antecedent_graph::TemporalCpdag [auto]
 impl core::marker::Freeze for antecedent_graph::TemporalCpdagCompletion [auto]
@@ -256,6 +287,7 @@ impl core::marker::Send for antecedent_graph::GraphWorkspace [auto]
 impl core::marker::Send for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::marker::Send for antecedent_graph::MarkedEdge [auto]
 impl core::marker::Send for antecedent_graph::MiddleMark [auto]
+impl core::marker::Send for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::marker::Send for antecedent_graph::Pag [auto]
 impl core::marker::Send for antecedent_graph::PagCompletion [auto]
 impl core::marker::Send for antecedent_graph::PagReview [auto]
@@ -264,6 +296,10 @@ impl core::marker::Send for antecedent_graph::PathStep [auto]
 impl core::marker::Send for antecedent_graph::SelectionDiagram [auto]
 impl core::marker::Send for antecedent_graph::SeparationCertificate [auto]
 impl core::marker::Send for antecedent_graph::SeparationResult [auto]
+impl core::marker::Send for antecedent_graph::SigmaSeparation [auto]
+impl core::marker::Send for antecedent_graph::SigmaSeparationAssumptions [auto]
+impl core::marker::Send for antecedent_graph::SigmaSeparationStatus [auto]
+impl core::marker::Send for antecedent_graph::SigmaSeparationWorkspace [auto]
 impl core::marker::Send for antecedent_graph::TemporalAdmg [auto]
 impl core::marker::Send for antecedent_graph::TemporalCpdag [auto]
 impl core::marker::Send for antecedent_graph::TemporalCpdagCompletion [auto]
@@ -292,11 +328,15 @@ impl core::marker::StructuralPartialEq for antecedent_graph::Endpoint
 impl core::marker::StructuralPartialEq for antecedent_graph::GraphError
 impl core::marker::StructuralPartialEq for antecedent_graph::MarkedEdge
 impl core::marker::StructuralPartialEq for antecedent_graph::MiddleMark
+impl core::marker::StructuralPartialEq for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::marker::StructuralPartialEq for antecedent_graph::Pag
 impl core::marker::StructuralPartialEq for antecedent_graph::PagSeparation
 impl core::marker::StructuralPartialEq for antecedent_graph::PathStep
 impl core::marker::StructuralPartialEq for antecedent_graph::SeparationCertificate
 impl core::marker::StructuralPartialEq for antecedent_graph::SeparationResult
+impl core::marker::StructuralPartialEq for antecedent_graph::SigmaSeparation
+impl core::marker::StructuralPartialEq for antecedent_graph::SigmaSeparationAssumptions
+impl core::marker::StructuralPartialEq for antecedent_graph::SigmaSeparationStatus
 impl core::marker::StructuralPartialEq for antecedent_graph::TemporalCpdag
 impl core::marker::StructuralPartialEq for antecedent_graph::TemporalPag
 impl core::marker::StructuralPartialEq for antecedent_graph::TieredBackground
@@ -326,6 +366,7 @@ impl core::marker::Sync for antecedent_graph::GraphWorkspace [auto]
 impl core::marker::Sync for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::marker::Sync for antecedent_graph::MarkedEdge [auto]
 impl core::marker::Sync for antecedent_graph::MiddleMark [auto]
+impl core::marker::Sync for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::marker::Sync for antecedent_graph::Pag [auto]
 impl core::marker::Sync for antecedent_graph::PagCompletion [auto]
 impl core::marker::Sync for antecedent_graph::PagReview [auto]
@@ -334,6 +375,10 @@ impl core::marker::Sync for antecedent_graph::PathStep [auto]
 impl core::marker::Sync for antecedent_graph::SelectionDiagram [auto]
 impl core::marker::Sync for antecedent_graph::SeparationCertificate [auto]
 impl core::marker::Sync for antecedent_graph::SeparationResult [auto]
+impl core::marker::Sync for antecedent_graph::SigmaSeparation [auto]
+impl core::marker::Sync for antecedent_graph::SigmaSeparationAssumptions [auto]
+impl core::marker::Sync for antecedent_graph::SigmaSeparationStatus [auto]
+impl core::marker::Sync for antecedent_graph::SigmaSeparationWorkspace [auto]
 impl core::marker::Sync for antecedent_graph::TemporalAdmg [auto]
 impl core::marker::Sync for antecedent_graph::TemporalCpdag [auto]
 impl core::marker::Sync for antecedent_graph::TemporalCpdagCompletion [auto]
@@ -374,6 +419,7 @@ impl core::marker::Unpin for antecedent_graph::GraphWorkspace [auto]
 impl core::marker::Unpin for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::marker::Unpin for antecedent_graph::MarkedEdge [auto]
 impl core::marker::Unpin for antecedent_graph::MiddleMark [auto]
+impl core::marker::Unpin for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::marker::Unpin for antecedent_graph::Pag [auto]
 impl core::marker::Unpin for antecedent_graph::PagCompletion [auto]
 impl core::marker::Unpin for antecedent_graph::PagReview [auto]
@@ -382,6 +428,10 @@ impl core::marker::Unpin for antecedent_graph::PathStep [auto]
 impl core::marker::Unpin for antecedent_graph::SelectionDiagram [auto]
 impl core::marker::Unpin for antecedent_graph::SeparationCertificate [auto]
 impl core::marker::Unpin for antecedent_graph::SeparationResult [auto]
+impl core::marker::Unpin for antecedent_graph::SigmaSeparation [auto]
+impl core::marker::Unpin for antecedent_graph::SigmaSeparationAssumptions [auto]
+impl core::marker::Unpin for antecedent_graph::SigmaSeparationStatus [auto]
+impl core::marker::Unpin for antecedent_graph::SigmaSeparationWorkspace [auto]
 impl core::marker::Unpin for antecedent_graph::TemporalAdmg [auto]
 impl core::marker::Unpin for antecedent_graph::TemporalCpdag [auto]
 impl core::marker::Unpin for antecedent_graph::TemporalCpdagCompletion [auto]
@@ -422,6 +472,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::GraphWorkspac
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::MarkedEdge [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::MiddleMark [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Pag [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PagCompletion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PagReview [auto]
@@ -430,6 +481,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PathStep [aut
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SelectionDiagram [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SeparationCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SeparationResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SigmaSeparation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SigmaSeparationAssumptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SigmaSeparationStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SigmaSeparationWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalAdmg [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalCpdag [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalCpdagCompletion [auto]
@@ -470,6 +525,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::GraphWorkspace [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::MarkedEdge [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::MiddleMark [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Pag [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PagCompletion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PagReview [auto]
@@ -478,6 +534,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PathStep [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SelectionDiagram [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SeparationCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SeparationResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SigmaSeparation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SigmaSeparationAssumptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SigmaSeparationStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SigmaSeparationWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalAdmg [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalCpdag [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalCpdagCompletion [auto]
@@ -502,7 +562,12 @@ impl<'a> core::marker::Sync for antecedent_graph::DagView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_graph::DagView<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DagView<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_graph::DagView<'a> [auto]
+pub const <antecedent_graph::SigmaSeparationAssumptions>::PROCEDURE: Self
+pub const <antecedent_graph::SigmaSeparationAssumptions>::READING: &'static str
 pub const antecedent_graph::DEFAULT_COMPLETION_OPERATIONS: usize
+pub const antecedent_graph::EXHAUSTIVE_MIXED_NODE_BOUND: usize
+pub const antecedent_graph::EXHAUSTIVE_NODE_BOUND: usize
+pub const antecedent_graph::WALK_ORACLE_NODE_BOUND: usize
 pub enum antecedent_graph::CopyLabels
 pub enum antecedent_graph::Endpoint
 pub enum antecedent_graph::MiddleMark
@@ -556,6 +621,16 @@ pub field antecedent_graph::PagReview::graph: antecedent_graph::Pag
 pub field antecedent_graph::PagReview::pending_circles: alloc::sync::Arc<[(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId)]>
 pub field antecedent_graph::PathStep::node: antecedent_graph::DenseNodeId
 pub field antecedent_graph::SeparationCertificate::conditioning: alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub field antecedent_graph::SigmaSeparation::assumptions: antecedent_graph::SigmaSeparationAssumptions
+pub field antecedent_graph::SigmaSeparation::conditioning: alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub field antecedent_graph::SigmaSeparation::status: antecedent_graph::SigmaSeparationStatus
+pub field antecedent_graph::SigmaSeparation::x: antecedent_graph::DenseNodeId
+pub field antecedent_graph::SigmaSeparation::y: antecedent_graph::DenseNodeId
+pub field antecedent_graph::SigmaSeparationAssumptions::observational_markov_requires_unique_solvability_per_component: bool
+pub field antecedent_graph::SigmaSeparationAssumptions::ordinary_d_separation_on_cycles: antecedent_graph::OrdinaryDSeparationOnCycles
+pub field antecedent_graph::SigmaSeparationAssumptions::reading: &'static str
+pub field antecedent_graph::SigmaSeparationAssumptions::sigma_faithfulness_assumed: bool
+pub field antecedent_graph::SigmaSeparationAssumptions::simple_scm_assumed: bool
 pub field antecedent_graph::TemporalCpdagCompletion::graph: antecedent_graph::TemporalDag
 pub field antecedent_graph::TemporalCpdagCompletion::index: usize
 pub field antecedent_graph::TemporalCpdagReview::algorithm: alloc::sync::Arc<str>
@@ -830,6 +905,9 @@ pub fn <antecedent_graph::SelectionDiagram>::const fn causal_graph(&self) -> &an
 pub fn <antecedent_graph::SelectionDiagram>::fn mechanism_may_differ(&self, variable: antecedent_core::ids::VariableId) -> bool
 pub fn <antecedent_graph::SelectionDiagram>::fn selection_targets(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_graph::SelectionDiagram>::fn try_new(causal_graph: antecedent_graph::Admg, selection_targets: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::SigmaSeparation>::const fn separated(&self) -> bool
+pub fn <antecedent_graph::SigmaSeparationStatus>::const fn is_separated(self) -> bool
+pub fn <antecedent_graph::SigmaSeparationWorkspace>::fn new() -> Self
 pub fn <antecedent_graph::TemporalAdmg>::fn add_lagged(&mut self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalAdmg>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalAdmg>::fn bidirected_neighbors(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
@@ -962,6 +1040,8 @@ pub fn antecedent_graph::cpdag_completion::is_mec_member(cpdag: &antecedent_grap
 pub fn antecedent_graph::ensure_lagged(graph: &mut antecedent_graph::TemporalDag, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn antecedent_graph::latent_project(dag: &antecedent_graph::Dag, observed: &[antecedent_graph::DenseNodeId]) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
 pub fn antecedent_graph::projection::projection_preserves_msep_sample(dag: &antecedent_graph::Dag, observed: &[antecedent_graph::DenseNodeId], queries: &[(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId, alloc::vec::Vec<antecedent_graph::DenseNodeId>)]) -> core::result::Result<bool, antecedent_graph::GraphError>
+pub fn antecedent_graph::sigma_separates(graph: &antecedent_graph::CyclicMixedGraph, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, conditioning: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::SigmaSeparationWorkspace) -> core::result::Result<antecedent_graph::SigmaSeparation, antecedent_graph::GraphError>
+pub fn antecedent_graph::sigma_separation::sigma_walk_oracle(graph: &antecedent_graph::CyclicMixedGraph, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, conditioning: &[antecedent_graph::DenseNodeId]) -> core::result::Result<antecedent_graph::SigmaSeparation, antecedent_graph::GraphError>
 pub mod antecedent_graph::admg
 pub mod antecedent_graph::algo
 pub mod antecedent_graph::ancestry
@@ -979,6 +1059,7 @@ pub mod antecedent_graph::overlay
 pub mod antecedent_graph::pag
 pub mod antecedent_graph::projection
 pub mod antecedent_graph::selection
+pub mod antecedent_graph::sigma_separation
 pub mod antecedent_graph::temporal
 pub mod antecedent_graph::temporal_admg
 pub mod antecedent_graph::temporal_cpdag_completion
@@ -1032,6 +1113,8 @@ pub struct antecedent_graph::PathStep
 pub struct antecedent_graph::SelectionDiagram
 pub struct antecedent_graph::SelectionDiagram has private fields
 pub struct antecedent_graph::SeparationCertificate
+pub struct antecedent_graph::SigmaSeparationWorkspace
+pub struct antecedent_graph::SigmaSeparationWorkspace has private fields
 pub struct antecedent_graph::TemporalAdmg
 pub struct antecedent_graph::TemporalAdmg has private fields
 pub struct antecedent_graph::TemporalCpdag
@@ -1089,6 +1172,16 @@ pub use antecedent_graph::pag::PagReview = antecedent_graph::PagReview
 pub use antecedent_graph::projection::latent_project = antecedent_graph::latent_project
 pub use antecedent_graph::projection_preserves_msep_sample = antecedent_graph::projection::projection_preserves_msep_sample
 pub use antecedent_graph::selection::SelectionDiagram = antecedent_graph::SelectionDiagram
+pub use antecedent_graph::sigma_separation::EXHAUSTIVE_MIXED_NODE_BOUND = antecedent_graph::EXHAUSTIVE_MIXED_NODE_BOUND
+pub use antecedent_graph::sigma_separation::EXHAUSTIVE_NODE_BOUND = antecedent_graph::EXHAUSTIVE_NODE_BOUND
+pub use antecedent_graph::sigma_separation::OrdinaryDSeparationOnCycles = antecedent_graph::OrdinaryDSeparationOnCycles
+pub use antecedent_graph::sigma_separation::SigmaSeparation = antecedent_graph::SigmaSeparation
+pub use antecedent_graph::sigma_separation::SigmaSeparationAssumptions = antecedent_graph::SigmaSeparationAssumptions
+pub use antecedent_graph::sigma_separation::SigmaSeparationStatus = antecedent_graph::SigmaSeparationStatus
+pub use antecedent_graph::sigma_separation::SigmaSeparationWorkspace = antecedent_graph::SigmaSeparationWorkspace
+pub use antecedent_graph::sigma_separation::WALK_ORACLE_NODE_BOUND = antecedent_graph::WALK_ORACLE_NODE_BOUND
+pub use antecedent_graph::sigma_separation::sigma_separates = antecedent_graph::sigma_separates
+pub use antecedent_graph::sigma_walk_oracle = antecedent_graph::sigma_separation::sigma_walk_oracle
 pub use antecedent_graph::temporal::TemporalDag = antecedent_graph::TemporalDag
 pub use antecedent_graph::temporal_admg::TemporalAdmg = antecedent_graph::TemporalAdmg
 pub use antecedent_graph::temporal_cpdag_completion::TemporalCpdagCompletion = antecedent_graph::TemporalCpdagCompletion
@@ -1135,10 +1228,13 @@ pub variant antecedent_graph::MiddleMark::Empty
 pub variant antecedent_graph::MiddleMark::Left
 pub variant antecedent_graph::MiddleMark::Right
 pub variant antecedent_graph::MiddleMark::Unknown
+pub variant antecedent_graph::OrdinaryDSeparationOnCycles::NotSettled
 pub variant antecedent_graph::PagSeparation::Connected
 pub variant antecedent_graph::PagSeparation::Separated
 pub variant antecedent_graph::PagSeparation::Undetermined
 pub variant antecedent_graph::SeparationResult::Connected { active_path: alloc::vec::Vec<antecedent_graph::PathStep> }
 pub variant antecedent_graph::SeparationResult::Separated { conditioning: alloc::vec::Vec<antecedent_graph::DenseNodeId>, certificate: antecedent_graph::SeparationCertificate }
+pub variant antecedent_graph::SigmaSeparationStatus::NotSeparated
+pub variant antecedent_graph::SigmaSeparationStatus::Separated
 pub variant antecedent_graph::WithinTier::CoDetermined
 pub variant antecedent_graph::WithinTier::Unknown

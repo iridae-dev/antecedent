@@ -45,6 +45,7 @@ pub mod pag;
 pub mod projection;
 mod scc;
 pub mod selection;
+pub mod sigma_separation;
 pub mod temporal;
 pub mod temporal_admg;
 pub mod temporal_cpdag_completion;
@@ -74,6 +75,11 @@ pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag, PagReview};
 pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use scc::Condensation;
 pub use selection::SelectionDiagram;
+pub use sigma_separation::{
+    EXHAUSTIVE_MIXED_NODE_BOUND, EXHAUSTIVE_NODE_BOUND, OrdinaryDSeparationOnCycles,
+    SigmaSeparation, SigmaSeparationAssumptions, SigmaSeparationStatus, SigmaSeparationWorkspace,
+    WALK_ORACLE_NODE_BOUND, sigma_separates, sigma_walk_oracle,
+};
 pub use temporal::TemporalDag;
 pub use temporal_admg::TemporalAdmg;
 pub use temporal_cpdag_completion::{TemporalCpdagCompletion, TemporalCpdagCompletionSampler};
