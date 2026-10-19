@@ -426,7 +426,9 @@ pub(crate) struct MatchedDiffs {
 /// query averages exactly `matches` donors. Euclidean features only.
 ///
 /// Reuses [`PropensityEstimationWorkspace`]'s cached [`MatchingIndex`] when donor geometry
-/// is unchanged.
+/// is unchanged. One-dimensional absolute distance is answered by [`SortedScalarIndex`]:
+/// the same donor a forward scan keeps, including ties, calipers, and replacement.
+/// Multivariate queries stay on the cached index and its memory guard.
 #[expect(
     clippy::too_many_arguments,
     reason = "the two sides of the match, the metric, the neighbour count, the caliper and the execution state are independent inputs"
@@ -456,6 +458,8 @@ pub(crate) fn match_diffs(
              donor arm has {n_donors}"
         )));
     }
+    // Building the cached index is what enforces the memory guard and the reuse
+    // counter. Scalar queries are answered afterwards by the sorted index.
     workspace.ensure_matching_index(donor_features, dim, distance, ctx)?;
     let n_queries = query_outcome.len();
     let slots = n_queries.checked_mul(matches).ok_or_else(|| {
@@ -468,28 +472,43 @@ pub(crate) fn match_diffs(
     distances.clear();
     distances.resize(n_queries, 0.0);
     {
-        let index = workspace.matching_index.as_ref().expect("ensured");
-        if matches == 1 {
-            index
-                .match_all_within(
-                    query_features,
-                    n_queries,
-                    caliper,
-                    &mut donor_rows,
-                    &mut distances,
-                    ctx,
-                )
-                .map_err(stats_err)?;
-        } else {
-            match_nearest_k(
-                index,
+        let scalar = matches == 1 && dim == 1 && matches!(distance, MatchingDistance::Absolute);
+        if scalar {
+            match_scalar_sorted(
+                donor_features,
                 query_features,
-                matches,
+                n_queries,
                 caliper,
                 &mut donor_rows,
                 &mut distances,
                 ctx,
             )?;
+        } else {
+            // Multivariate Euclidean search keeps `MatchingIndex` and its memory guard.
+            // An exact spatial index is a separate attempt and does not lift that guard.
+            let index = workspace.matching_index.as_ref().expect("ensured");
+            if matches == 1 {
+                index
+                    .match_all_within(
+                        query_features,
+                        n_queries,
+                        caliper,
+                        &mut donor_rows,
+                        &mut distances,
+                        ctx,
+                    )
+                    .map_err(stats_err)?;
+            } else {
+                match_nearest_k(
+                    index,
+                    query_features,
+                    matches,
+                    caliper,
+                    &mut donor_rows,
+                    &mut distances,
+                    ctx,
+                )?;
+            }
         }
     }
     let mut diffs = Vec::with_capacity(n_queries);
@@ -523,6 +542,109 @@ pub(crate) fn match_diffs(
     workspace.matching_donor_rows = donor_rows;
     workspace.matching_distances = distances;
     Ok(MatchedDiffs { diffs, donors: used_donors, queries: used_queries })
+}
+
+/// Exact nearest-donor index for one scalar score.
+///
+/// Donors stay in the index after a query matches them, so a later query can use the same
+/// donor (matching with replacement). Equal absolute differences resolve to the lowest donor
+/// index, which is the donor a forward scan keeps under a strict `<` update.
+struct SortedScalarIndex {
+    /// `(score, donor index)` in ascending score order. The donor index orders equal scores.
+    by_score: Vec<(f64, usize)>,
+}
+
+impl SortedScalarIndex {
+    /// Index `donors` in their given order. Scores are finite; the matching index build
+    /// refuses a non-finite donor before this is called.
+    #[must_use]
+    fn from_donors(donors: &[f64]) -> Self {
+        let mut by_score: Vec<(f64, usize)> =
+            donors.iter().copied().enumerate().map(|(index, score)| (score, index)).collect();
+        by_score.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        Self { by_score }
+    }
+
+    /// Nearest donor to `query`, or `None` when that distance is non-finite or past `caliper`.
+    ///
+    /// A distance equal to the caliper is a match. `caliper == None` accepts every finite
+    /// nearest donor.
+    #[must_use = "the donor and distance are the match"]
+    fn nearest(&self, query: f64, caliper: Option<f64>) -> Option<(usize, f64)> {
+        let split = self.by_score.partition_point(|&(score, _)| score < query);
+        let left = split.checked_sub(1).map(|i| (query - self.by_score[i].0).abs());
+        let right = self.by_score.get(split).map(|&(score, _)| (query - score).abs());
+        let best = match (left, right) {
+            (Some(l), Some(r)) => l.min(r),
+            (Some(distance), None) | (None, Some(distance)) => distance,
+            (None, None) => return None,
+        };
+        if !best.is_finite() {
+            return None;
+        }
+        // `|query - score|` is non-decreasing as `score` moves away from `query`, so every
+        // donor tied with `best` is contiguous around the two neighbours.
+        let mut position = usize::MAX;
+        let mut i = split;
+        while i > 0 {
+            i -= 1;
+            let (score, donor) = self.by_score[i];
+            if (query - score).abs().total_cmp(&best).is_ne() {
+                break;
+            }
+            position = position.min(donor);
+        }
+        for &(score, donor) in &self.by_score[split..] {
+            if (query - score).abs().total_cmp(&best).is_ne() {
+                break;
+            }
+            position = position.min(donor);
+        }
+        if position == usize::MAX {
+            return None;
+        }
+        if let Some(limit) = caliper {
+            if best > limit {
+                return None;
+            }
+        }
+        Some((position, best))
+    }
+}
+
+/// Answer one-dimensional absolute-distance queries from [`SortedScalarIndex`].
+///
+/// `donor_rows[q] == usize::MAX` and `distances[q] == ∞` when the nearest donor is outside
+/// the caliper or at a non-finite distance.
+fn match_scalar_sorted(
+    donors: &[f64],
+    queries: &[f64],
+    n_queries: usize,
+    caliper: Option<f64>,
+    donor_rows: &mut [usize],
+    distances: &mut [f64],
+    ctx: &ExecutionContext,
+) -> Result<(), EstimationError> {
+    if queries.len() != n_queries {
+        return Err(stats_err(StatsError::Shape { message: "queries length != n_queries * dim" }));
+    }
+    let index = SortedScalarIndex::from_donors(donors);
+    for (q, &query) in queries.iter().enumerate() {
+        if q % MATCH_CANCELLATION_CHUNK == 0 && ctx.cancellation.is_cancelled() {
+            return Err(stats_err(StatsError::Cancelled));
+        }
+        if !query.is_finite() {
+            return Err(stats_err(StatsError::Shape { message: "matching query must be finite" }));
+        }
+        if let Some((donor, distance)) = index.nearest(query, caliper) {
+            donor_rows[q] = donor;
+            distances[q] = distance;
+        } else {
+            donor_rows[q] = usize::MAX;
+            distances[q] = f64::INFINITY;
+        }
+    }
+    Ok(())
 }
 
 /// Fill `donor_rows` (`matches` slots per query) with each query's `matches` nearest donors.
@@ -1802,5 +1924,159 @@ mod tests {
             (weighted.se_analytic - replicated.se_analytic).abs() > 1e-6,
             "a weight is not a frequency: the variance must differ from the replicated rows"
         );
+    }
+
+    /// Forward scan the sorted index replaces: strict `<`, so the lowest donor index keeps a tie.
+    fn scalar_scan(donors: &[f64], query: f64) -> (usize, f64) {
+        let mut best = (0usize, f64::INFINITY);
+        for (index, &donor) in donors.iter().enumerate() {
+            let distance = (query - donor).abs();
+            if distance < best.1 {
+                best = (index, distance);
+            }
+        }
+        best
+    }
+
+    /// What the scan accepts under `caliper` (`None` accepts every finite nearest donor).
+    fn scalar_scan_within(
+        donors: &[f64],
+        query: f64,
+        caliper: Option<f64>,
+    ) -> Option<(usize, f64)> {
+        let found = scalar_scan(donors, query);
+        if !found.1.is_finite() || caliper.is_some_and(|limit| found.1 > limit) {
+            None
+        } else {
+            Some(found)
+        }
+    }
+
+    /// Ties keep the lowest donor index, a caliper drops the pair it excludes, replacement
+    /// reuses a donor, and sampling weights average those same scan matches.
+    #[test]
+    fn sorted_scalar_index_agrees_with_the_scalar_scan() {
+        // Query 1 is equidistant from donor 0 (score 2) and donor 1 (score 0). Donor 0 is
+        // the right-hand neighbour in sorted order and still wins, because its index is lower.
+        // Donor 3 repeats donor 1's score; the first copy wins. Query 10 sits outside a 0.5
+        // caliper of every donor.
+        let donors = [2.0, 0.0, 3.0, 0.0];
+        let queries = [1.0, 1.0, 0.0, 10.0];
+        let index = SortedScalarIndex::from_donors(&donors);
+        for &query in &queries {
+            for caliper in [None, Some(1.0), Some(0.5)] {
+                let scanned = scalar_scan_within(&donors, query, caliper);
+                let indexed = index.nearest(query, caliper);
+                assert_eq!(indexed.map(|m| m.0), scanned.map(|m| m.0), "query {query} {caliper:?}");
+                assert_eq!(
+                    indexed.map(|m| m.1.to_bits()),
+                    scanned.map(|m| m.1.to_bits()),
+                    "query {query} {caliper:?}"
+                );
+            }
+        }
+        let (tied, tied_distance) = scalar_scan(&donors, 1.0);
+        assert_eq!(tied, 0, "the tie keeps the lower index, not the left neighbour");
+        assert!(tied_distance > 0.5);
+        assert!(index.nearest(1.0, Some(0.5)).is_none(), "the caliper excludes the tie");
+        assert_eq!(index.nearest(1.0, Some(tied_distance)).unwrap().0, tied);
+        // Replacement: a second query at the same score matches the same donor.
+        assert_eq!(index.nearest(1.0, None).unwrap().0, index.nearest(queries[1], None).unwrap().0);
+
+        let treatment = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
+        let outcome = [10.0, 8.0, 4.0, 1.0, 5.0, 9.0];
+        let features = [1.0, 1.0, 0.0, 2.0, 0.0, 3.0];
+        let weights = [3.0, 1.0, 9.0, 1.0, 4.0, 1.0];
+        let mut workspace = PropensityEstimationWorkspace::default();
+        let MatchedDiffs { diffs, donors: matched_donors, queries: matched_queries } = match_diffs(
+            MatchSide { features: &features[3..], outcome: &outcome[3..] },
+            MatchSide { features: &features[..3], outcome: &outcome[..3] },
+            1,
+            MatchingDistance::Absolute,
+            1,
+            None,
+            &mut workspace,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert_eq!(matched_queries, vec![0, 1, 2]);
+        for (slot, &query) in matched_queries.iter().enumerate() {
+            assert_eq!(matched_donors[slot], scalar_scan(&features[3..], features[query]).0);
+        }
+        // The two treated units at 1.0 tie between controls at 2.0 and 0.0 and both reuse
+        // local donor 0. The treated unit at 0.0 matches the control at 0.0.
+        assert_eq!(matched_donors, vec![0, 0, 1]);
+        let mass: f64 = weights[..3].iter().sum();
+        let weighted_mean =
+            diffs.iter().zip(&weights[..3]).map(|(diff, weight)| diff * weight).sum::<f64>() / mass;
+        let weighted = contrast(
+            &treatment,
+            &outcome,
+            &features,
+            &TargetPopulation::Treated,
+            None,
+            Some(&weights),
+        );
+        let plain =
+            contrast(&treatment, &outcome, &features, &TargetPopulation::Treated, None, None);
+        assert_eq!(weighted.ate.to_bits(), weighted_mean.to_bits());
+        assert_eq!(plain.ate.to_bits(), (diffs.iter().sum::<f64>() / diffs.len() as f64).to_bits());
+        assert!((weighted.ate - plain.ate).abs() > 1e-9);
+
+        let inside = match_diffs(
+            MatchSide { features: &features[3..], outcome: &outcome[3..] },
+            MatchSide { features: &features[..3], outcome: &outcome[..3] },
+            1,
+            MatchingDistance::Absolute,
+            1,
+            Some(0.5),
+            &mut PropensityEstimationWorkspace::default(),
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert_eq!(inside.queries, vec![2]);
+        assert_eq!(inside.donors, vec![scalar_scan(&features[3..], features[2]).0]);
+    }
+
+    /// Multivariate matching still builds `MatchingIndex`, whose memory guard refuses a
+    /// donor set that does not fit. A spatial index is not part of this path.
+    #[test]
+    fn multivariate_size_guard_refuses_an_input_past_its_limit() {
+        let n = 8;
+        let treatment: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
+        let outcome = vec![1.0; n];
+        let features: Vec<f64> = (0..n * 2).map(|i| i as f64 * 0.1).collect();
+        let sample = |ctx: &ExecutionContext| {
+            matching_contrast(
+                MatchingSample {
+                    treatment: &treatment,
+                    outcome: &outcome,
+                    features: &features,
+                    dim: 2,
+                    distance: MatchingDistance::Euclidean,
+                    matches: 1,
+                    population_variance: false,
+                    ctx,
+                },
+                &TargetPopulation::AllObserved,
+                None,
+                &mut PropensityEstimationWorkspace::default(),
+                homoskedastic(),
+                None,
+            )
+        };
+        let mut allowed = ExecutionContext::for_tests(1);
+        allowed.memory.hard_limit_bytes = Some(1024 * 1024);
+        assert!(sample(&allowed).is_ok());
+        let mut refused = ExecutionContext::for_tests(1);
+        refused.memory.hard_limit_bytes = Some(1);
+        let err = sample(&refused).unwrap_err();
+        assert!(matches!(
+            err,
+            crate::error::EstimationError::Stats(antecedent_stats::StatsError::ResourceLimit {
+                limit_bytes: 1,
+                ..
+            })
+        ));
     }
 }
