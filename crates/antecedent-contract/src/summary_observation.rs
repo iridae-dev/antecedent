@@ -1,0 +1,893 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+//! Adapter from a frequentist estimate and covariance to a summary observation model.
+//!
+//! A [`FrequentistSummary`] stays a frequentist summary. An interval and a
+//! covariance summary are different objects from a Bayesian likelihood and from
+//! a Bayesian law. [`FrequentistSummary::as_bayesian_likelihood`] refuses that
+//! reading and names the next attempt.
+//!
+//! An estimate and its covariance may enter a [`SummaryObservationModel`] when
+//! a sampling approximation, a selection record, a dependence record, and an
+//! origin are all present. Those four fields are part of the model. The
+//! permitted use is a likelihood update, checked by
+//! [`SummaryObservationModel::validate_use`]. The same model read as a Bayesian
+//! law is refused. An interval cannot take this path: the four fields do not
+//! turn coverage into an observation model.
+//!
+//! This module does not form a posterior, multiply a likelihood, or estimate a
+//! covariance.
+
+use std::error::Error;
+use std::fmt;
+use std::sync::Arc;
+
+use antecedent_core::text::is_blank;
+use antecedent_core::{CanonicalWriter, SemanticDigest};
+
+/// Identity tag for a frequentist summary.
+pub const FREQUENTIST_SUMMARY_TAG: &str = "antecedent.contract.frequentist_summary.v1";
+
+/// Identity tag for a summary observation model.
+pub const SUMMARY_OBSERVATION_TAG: &str = "antecedent.contract.summary_observation.v1";
+
+const BLANK_DETAIL: &str = "summary_observation.blank_record";
+const NOT_LIKELIHOOD_DETAIL: &str = "summary_observation.not_bayesian_likelihood";
+const INTERVAL_DETAIL: &str = "summary_observation.interval_stays_frequentist";
+const NOT_LAW_DETAIL: &str = "summary_observation.not_bayesian_law";
+
+const MISMATCH_CODE: &str = antecedent_core::reason_code!("distribution_meaning_mismatch");
+const INVALID_CODE: &str = antecedent_core::reason_code!("invalid_argument");
+
+/// What a frequentist summary is.
+///
+/// Adaptation does not change this kind. Declaration order is [`Self::ALL`].
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum FrequentistSummaryKind {
+    /// Point estimate together with its covariance.
+    EstimateCovariance,
+    /// Coverage interval or region.
+    Interval,
+}
+
+impl FrequentistSummaryKind {
+    /// Both summaries, in declaration order.
+    pub const ALL: [Self; 2] = [Self::EstimateCovariance, Self::Interval];
+
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::EstimateCovariance => "estimate_covariance",
+            Self::Interval => "interval",
+        }
+    }
+
+    /// Parse the spelling of [`Self::as_str`].
+    #[must_use = "an unknown name is not a frequentist summary"]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
+    }
+}
+
+impl fmt::Display for FrequentistSummaryKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// A frequentist estimate/covariance or a frequentist interval.
+///
+/// The kind is fixed at construction. Offering the summary as a Bayesian
+/// likelihood returns [`FrequentistSummary::as_bayesian_likelihood`] and leaves
+/// this value a frequentist summary.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct FrequentistSummary {
+    kind: FrequentistSummaryKind,
+    name: Arc<str>,
+}
+
+impl FrequentistSummary {
+    /// Estimate and covariance named `name`.
+    ///
+    /// # Errors
+    ///
+    /// [`SummaryObservationError`] when `name` is empty or whitespace. The
+    /// error has no next attempt.
+    #[must_use = "a blank summary name is refused"]
+    pub fn estimate_covariance(name: impl Into<Arc<str>>) -> Result<Self, SummaryObservationError> {
+        Ok(Self {
+            kind: FrequentistSummaryKind::EstimateCovariance,
+            name: declared(name, "summary")?,
+        })
+    }
+
+    /// Coverage interval named `name`.
+    ///
+    /// # Errors
+    ///
+    /// [`SummaryObservationError`] when `name` is empty or whitespace. The
+    /// error has no next attempt.
+    #[must_use = "a blank summary name is refused"]
+    pub fn interval(name: impl Into<Arc<str>>) -> Result<Self, SummaryObservationError> {
+        Ok(Self { kind: FrequentistSummaryKind::Interval, name: declared(name, "summary")? })
+    }
+
+    /// Frequentist kind. Adaptation does not replace it.
+    #[must_use]
+    pub const fn kind(&self) -> FrequentistSummaryKind {
+        self.kind
+    }
+
+    /// Declared name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Digest of the kind and the name.
+    #[must_use]
+    pub fn identity(&self) -> SemanticDigest {
+        digest(FREQUENTIST_SUMMARY_TAG, &[self.kind.as_str(), self.name()])
+    }
+
+    /// Refuse this summary as a Bayesian likelihood.
+    ///
+    /// An interval's next attempt is [`SummaryNextAttempt::ReportAsFrequentistInterval`].
+    /// A covariance summary's next attempt is
+    /// [`SummaryNextAttempt::AdaptEstimateCovariance`]. Neither attempt retags
+    /// this summary.
+    #[must_use = "a frequentist summary is not a Bayesian likelihood"]
+    pub fn as_bayesian_likelihood(&self) -> SummaryObservationError {
+        let next = match self.kind {
+            FrequentistSummaryKind::Interval => SummaryNextAttempt::ReportAsFrequentistInterval,
+            FrequentistSummaryKind::EstimateCovariance => {
+                SummaryNextAttempt::AdaptEstimateCovariance
+            }
+        };
+        let prefix = match self.kind {
+            FrequentistSummaryKind::Interval => "frequentist interval ",
+            FrequentistSummaryKind::EstimateCovariance => "frequentist covariance summary ",
+        };
+        let suffix = match self.kind {
+            FrequentistSummaryKind::Interval => {
+                "stays a frequentist summary and is not a Bayesian likelihood and is not a Bayesian law"
+            }
+            FrequentistSummaryKind::EstimateCovariance => {
+                "stays a frequentist summary and is not a Bayesian likelihood"
+            }
+        };
+        SummaryObservationError::meaning(
+            NOT_LIKELIHOOD_DETAIL,
+            named(prefix, self.name(), suffix, next),
+            next,
+            self.kind,
+        )
+    }
+}
+
+/// Sampling approximation under which an estimate's covariance is read.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct SamplingApproximation {
+    name: Arc<str>,
+}
+
+impl SamplingApproximation {
+    /// Approximation named `name`.
+    ///
+    /// # Errors
+    ///
+    /// [`SummaryObservationError`] when `name` is empty or whitespace.
+    #[must_use = "a blank sampling approximation is refused"]
+    pub fn new(name: impl Into<Arc<str>>) -> Result<Self, SummaryObservationError> {
+        Ok(Self { name: declared(name, "sampling approximation")? })
+    }
+
+    /// Declared name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+/// Selection or sampling assumption of the estimate.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Selection {
+    name: Arc<str>,
+}
+
+impl Selection {
+    /// Selection named `name`.
+    ///
+    /// # Errors
+    ///
+    /// [`SummaryObservationError`] when `name` is empty or whitespace.
+    #[must_use = "a blank selection record is refused"]
+    pub fn new(name: impl Into<Arc<str>>) -> Result<Self, SummaryObservationError> {
+        Ok(Self { name: declared(name, "selection")? })
+    }
+
+    /// Declared name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+/// Dependence among the sampling units of the estimate.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Dependence {
+    name: Arc<str>,
+}
+
+impl Dependence {
+    /// Dependence named `name`.
+    ///
+    /// # Errors
+    ///
+    /// [`SummaryObservationError`] when `name` is empty or whitespace.
+    #[must_use = "a blank dependence record is refused"]
+    pub fn new(name: impl Into<Arc<str>>) -> Result<Self, SummaryObservationError> {
+        Ok(Self { name: declared(name, "dependence")? })
+    }
+
+    /// Declared name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+/// Origin of the estimate and covariance.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Origin {
+    name: Arc<str>,
+}
+
+impl Origin {
+    /// Origin named `name`.
+    ///
+    /// # Errors
+    ///
+    /// [`SummaryObservationError`] when `name` is empty or whitespace.
+    #[must_use = "a blank origin is refused"]
+    pub fn new(name: impl Into<Arc<str>>) -> Result<Self, SummaryObservationError> {
+        Ok(Self { name: declared(name, "origin")? })
+    }
+
+    /// Declared name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+/// Observation model adapted from an estimate and its covariance.
+///
+/// The wrapped [`FrequentistSummary`] stays
+/// [`FrequentistSummaryKind::EstimateCovariance`]. The sampling approximation,
+/// selection, dependence, and origin are required fields. A likelihood update
+/// is the permitted use. A Bayesian law is not.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct SummaryObservationModel {
+    summary: FrequentistSummary,
+    sampling_approximation: SamplingApproximation,
+    selection: Selection,
+    dependence: Dependence,
+    origin: Origin,
+}
+
+impl SummaryObservationModel {
+    /// Adapt `summary` when it is an estimate and covariance and the four
+    /// records are present.
+    ///
+    /// An interval is refused even when all four records are supplied. The
+    /// next attempt is to report that interval as a frequentist coverage
+    /// summary.
+    ///
+    /// # Errors
+    ///
+    /// [`SummaryObservationError`] when `summary` is an interval.
+    #[must_use = "a frequentist interval stays a frequentist summary"]
+    pub fn try_adapt(
+        summary: FrequentistSummary,
+        sampling_approximation: SamplingApproximation,
+        selection: Selection,
+        dependence: Dependence,
+        origin: Origin,
+    ) -> Result<Self, SummaryObservationError> {
+        if summary.kind == FrequentistSummaryKind::Interval {
+            let next = SummaryNextAttempt::ReportAsFrequentistInterval;
+            return Err(SummaryObservationError::meaning(
+                INTERVAL_DETAIL,
+                named(
+                    "frequentist interval ",
+                    summary.name(),
+                    "stays a frequentist summary and is not a summary observation model",
+                    next,
+                ),
+                next,
+                summary.kind,
+            ));
+        }
+        Ok(Self { summary, sampling_approximation, selection, dependence, origin })
+    }
+
+    /// Frequentist estimate and covariance this model was adapted from.
+    #[must_use]
+    pub const fn summary(&self) -> &FrequentistSummary {
+        &self.summary
+    }
+
+    /// Sampling approximation recorded on this model.
+    #[must_use]
+    pub const fn sampling_approximation(&self) -> &SamplingApproximation {
+        &self.sampling_approximation
+    }
+
+    /// Selection recorded on this model.
+    #[must_use]
+    pub const fn selection(&self) -> &Selection {
+        &self.selection
+    }
+
+    /// Dependence recorded on this model.
+    #[must_use]
+    pub const fn dependence(&self) -> &Dependence {
+        &self.dependence
+    }
+
+    /// Origin recorded on this model.
+    #[must_use]
+    pub const fn origin(&self) -> &Origin {
+        &self.origin
+    }
+
+    /// Digest of the frequentist summary and the four records.
+    ///
+    /// This digest is not [`FrequentistSummary::identity`].
+    #[must_use]
+    pub fn identity(&self) -> SemanticDigest {
+        digest(
+            SUMMARY_OBSERVATION_TAG,
+            &[
+                self.summary.kind.as_str(),
+                self.summary.name(),
+                self.sampling_approximation.name(),
+                self.selection.name(),
+                self.dependence.name(),
+                self.origin.name(),
+            ],
+        )
+    }
+
+    /// Admit `requested` when it is a likelihood update of this model.
+    ///
+    /// [`SummaryUse::LikelihoodUpdate`] returns an admission whose summary kind
+    /// is still [`FrequentistSummaryKind::EstimateCovariance`].
+    /// [`SummaryUse::BayesianLaw`] is refused. The next attempt is
+    /// [`SummaryNextAttempt::UseAsLikelihoodUpdate`].
+    ///
+    /// # Errors
+    ///
+    /// [`SummaryObservationError`] when `requested` is a Bayesian law.
+    #[must_use = "only a likelihood update of the summary observation model is permitted"]
+    pub fn validate_use(
+        &self,
+        requested: SummaryUse,
+    ) -> Result<LikelihoodUpdateAdmission, SummaryObservationError> {
+        match requested {
+            SummaryUse::LikelihoodUpdate => Ok(LikelihoodUpdateAdmission {
+                summary_kind: self.summary.kind,
+                summary_name: Arc::clone(&self.summary.name),
+                summary_identity: self.summary.identity(),
+                model_identity: self.identity(),
+            }),
+            SummaryUse::BayesianLaw => {
+                let next = SummaryNextAttempt::UseAsLikelihoodUpdate;
+                Err(SummaryObservationError::meaning(
+                    NOT_LAW_DETAIL,
+                    named(
+                        "summary observation model ",
+                        self.summary.name(),
+                        "is not a Bayesian law",
+                        next,
+                    ),
+                    next,
+                    self.summary.kind,
+                ))
+            }
+        }
+    }
+}
+
+/// How a summary observation model may be used.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum SummaryUse {
+    /// Use the model as the likelihood of an update.
+    LikelihoodUpdate,
+    /// Read the frequentist summary as a Bayesian law.
+    BayesianLaw,
+}
+
+impl SummaryUse {
+    /// Both uses, in declaration order.
+    pub const ALL: [Self; 2] = [Self::LikelihoodUpdate, Self::BayesianLaw];
+
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::LikelihoodUpdate => "likelihood_update",
+            Self::BayesianLaw => "bayesian_law",
+        }
+    }
+}
+
+impl fmt::Display for SummaryUse {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// Admission to use a summary observation model as a likelihood update.
+///
+/// The frequentist summary kind and identity are the estimate and covariance
+/// the model was adapted from.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct LikelihoodUpdateAdmission {
+    summary_kind: FrequentistSummaryKind,
+    summary_name: Arc<str>,
+    summary_identity: SemanticDigest,
+    model_identity: SemanticDigest,
+}
+
+impl LikelihoodUpdateAdmission {
+    /// Kind of the frequentist summary. An admitted update keeps it.
+    #[must_use]
+    pub const fn summary_kind(&self) -> FrequentistSummaryKind {
+        self.summary_kind
+    }
+
+    /// Name of the frequentist summary.
+    #[must_use]
+    pub fn summary_name(&self) -> &str {
+        &self.summary_name
+    }
+
+    /// Identity of the frequentist summary.
+    #[must_use]
+    pub const fn summary_identity(&self) -> SemanticDigest {
+        self.summary_identity
+    }
+
+    /// Identity of the summary observation model.
+    #[must_use]
+    pub const fn model_identity(&self) -> SemanticDigest {
+        self.model_identity
+    }
+}
+
+/// Legal next attempt after a summary was refused as a Bayesian reading.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum SummaryNextAttempt {
+    /// Keep the interval as a frequentist coverage summary.
+    ReportAsFrequentistInterval,
+    /// Record the four fields and adapt the estimate and covariance.
+    AdaptEstimateCovariance,
+    /// Use the summary observation model as the likelihood of the update.
+    UseAsLikelihoodUpdate,
+}
+
+impl SummaryNextAttempt {
+    /// Every next attempt, in declaration order.
+    pub const ALL: [Self; 3] = [
+        Self::ReportAsFrequentistInterval,
+        Self::AdaptEstimateCovariance,
+        Self::UseAsLikelihoodUpdate,
+    ];
+
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ReportAsFrequentistInterval => "report_as_frequentist_interval",
+            Self::AdaptEstimateCovariance => "adapt_estimate_covariance",
+            Self::UseAsLikelihoodUpdate => "use_as_likelihood_update",
+        }
+    }
+
+    /// Wording of the next attempt.
+    #[must_use]
+    pub const fn phrase(self) -> &'static str {
+        match self {
+            Self::ReportAsFrequentistInterval => {
+                "report the interval as a frequentist coverage summary"
+            }
+            Self::AdaptEstimateCovariance => {
+                "record sampling approximation, selection, dependence, and origin on a summary \
+                 observation model"
+            }
+            Self::UseAsLikelihoodUpdate => {
+                "use the summary observation model as the likelihood of the update"
+            }
+        }
+    }
+
+    /// Parse the spelling of [`Self::as_str`].
+    #[must_use = "an unknown name is not a next attempt"]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|attempt| attempt.as_str() == name)
+    }
+}
+
+impl fmt::Display for SummaryNextAttempt {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.phrase())
+    }
+}
+
+/// A refused summary record or a refused Bayesian reading.
+///
+/// A Bayesian reading stores [`Self::next_attempt`]. A blank record does not.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[must_use = "using a frequentist summary as a Bayesian likelihood is refused"]
+pub struct SummaryObservationError {
+    code: &'static str,
+    detail: &'static str,
+    message: String,
+    next: Option<SummaryNextAttempt>,
+    summary_kind: Option<FrequentistSummaryKind>,
+}
+
+impl SummaryObservationError {
+    /// Registered reason code.
+    #[must_use]
+    pub const fn code(&self) -> &'static str {
+        self.code
+    }
+
+    /// Namespaced detail, `summary_observation.<rule>`.
+    #[must_use]
+    pub const fn detail(&self) -> &'static str {
+        self.detail
+    }
+
+    /// What was refused, including the next attempt when a reading was refused.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        self.message.as_str()
+    }
+
+    /// The refusal as `(code, detail, explanation)`.
+    #[must_use]
+    pub fn refusal(&self) -> (&'static str, &'static str, &str) {
+        (self.code, self.detail, self.message.as_str())
+    }
+
+    /// The next attempt, when a Bayesian reading or an interval adaptation was refused.
+    #[must_use = "a refused Bayesian reading names its next attempt"]
+    pub const fn next_attempt(&self) -> Option<SummaryNextAttempt> {
+        self.next
+    }
+
+    /// Frequentist kind of the summary that was offered, when the refusal has one.
+    ///
+    /// A blank record has none. A refused reading keeps the frequentist kind.
+    #[must_use = "a refused reading keeps the frequentist kind"]
+    pub const fn summary_kind(&self) -> Option<FrequentistSummaryKind> {
+        self.summary_kind
+    }
+
+    fn blank(field: &'static str) -> Self {
+        Self {
+            code: INVALID_CODE,
+            detail: BLANK_DETAIL,
+            message: format!("{field} is blank"),
+            next: None,
+            summary_kind: None,
+        }
+    }
+
+    fn meaning(
+        detail: &'static str,
+        message: String,
+        next: SummaryNextAttempt,
+        kind: FrequentistSummaryKind,
+    ) -> Self {
+        Self { code: MISMATCH_CODE, detail, message, next: Some(next), summary_kind: Some(kind) }
+    }
+}
+
+impl fmt::Display for SummaryObservationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}: {}", self.detail, self.message)
+    }
+}
+
+impl Error for SummaryObservationError {}
+
+fn declared(
+    name: impl Into<Arc<str>>,
+    field: &'static str,
+) -> Result<Arc<str>, SummaryObservationError> {
+    let name = name.into();
+    if is_blank(&name) { Err(SummaryObservationError::blank(field)) } else { Ok(name) }
+}
+
+fn named(prefix: &str, name: &str, suffix: &str, next: SummaryNextAttempt) -> String {
+    let mut message = String::from(prefix);
+    message.push('`');
+    message.push_str(name);
+    message.push_str("` ");
+    message.push_str(suffix);
+    message.push_str("; next attempt: ");
+    message.push_str(next.phrase());
+    message
+}
+
+fn digest(tag: &str, fields: &[&str]) -> SemanticDigest {
+    let mut writer = CanonicalWriter::new(tag);
+    for field in fields {
+        writer.text(field);
+    }
+    SemanticDigest::from_bytes(writer.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Dependence, FrequentistSummary, FrequentistSummaryKind, Origin, SamplingApproximation,
+        Selection, SummaryNextAttempt, SummaryObservationModel, SummaryUse,
+    };
+
+    struct ObservationRecords {
+        sampling: SamplingApproximation,
+        selection: Selection,
+        dependence: Dependence,
+        origin: Origin,
+    }
+
+    fn records() -> ObservationRecords {
+        ObservationRecords {
+            sampling: SamplingApproximation::new("normal_approximation").expect("sampling"),
+            selection: Selection::new("complete_cases").expect("selection"),
+            dependence: Dependence::new("cluster_dependence").expect("dependence"),
+            origin: Origin::new("trial_estimator").expect("origin"),
+        }
+    }
+
+    fn estimate(name: &str) -> FrequentistSummary {
+        FrequentistSummary::estimate_covariance(name).expect("estimate")
+    }
+
+    fn interval(name: &str) -> FrequentistSummary {
+        FrequentistSummary::interval(name).expect("interval")
+    }
+
+    #[test]
+    fn frequentist_interval_is_not_a_bayesian_likelihood() {
+        let interval = interval("ate");
+        let identity = interval.identity();
+        let refusal = interval.as_bayesian_likelihood();
+
+        assert_eq!(interval.kind(), FrequentistSummaryKind::Interval);
+        assert_eq!(interval.identity(), identity);
+        assert_eq!(refusal.summary_kind(), Some(FrequentistSummaryKind::Interval));
+        assert_eq!(refusal.code(), "distribution_meaning_mismatch");
+        assert_eq!(refusal.detail(), "summary_observation.not_bayesian_likelihood");
+        assert_eq!(refusal.next_attempt(), Some(SummaryNextAttempt::ReportAsFrequentistInterval));
+        assert_eq!(
+            refusal.next_attempt().expect("next").as_str(),
+            "report_as_frequentist_interval"
+        );
+        assert_eq!(
+            refusal.next_attempt().expect("next").to_string(),
+            SummaryNextAttempt::ReportAsFrequentistInterval.phrase()
+        );
+        let message = refusal.message();
+        assert!(message.contains("frequentist interval `ate`"));
+        assert!(message.contains("stays a frequentist summary"));
+        assert!(message.contains("not a Bayesian likelihood"));
+        assert!(message.contains("not a Bayesian law"));
+        assert!(message.contains(SummaryNextAttempt::ReportAsFrequentistInterval.phrase()));
+        assert_eq!(
+            refusal.refusal(),
+            (
+                "distribution_meaning_mismatch",
+                "summary_observation.not_bayesian_likelihood",
+                message,
+            )
+        );
+        assert!(antecedent_core::reason_code::is_runtime_refusal(refusal.code()));
+        assert_ne!(interval.kind().as_str(), "bayesian_law");
+        assert_ne!(interval.identity(), estimate("ate").identity());
+    }
+
+    #[test]
+    fn covariance_summary_is_not_a_bayesian_likelihood() {
+        let summary = estimate("ate");
+        let identity = summary.identity();
+        let refusal = summary.as_bayesian_likelihood();
+
+        assert_eq!(summary.kind(), FrequentistSummaryKind::EstimateCovariance);
+        assert_eq!(summary.identity(), identity);
+        assert_eq!(refusal.summary_kind(), Some(FrequentistSummaryKind::EstimateCovariance));
+        assert_eq!(refusal.code(), "distribution_meaning_mismatch");
+        assert_eq!(refusal.detail(), "summary_observation.not_bayesian_likelihood");
+        assert_eq!(refusal.next_attempt(), Some(SummaryNextAttempt::AdaptEstimateCovariance));
+        assert_eq!(refusal.next_attempt().expect("next").as_str(), "adapt_estimate_covariance");
+        let message = refusal.message();
+        assert!(message.contains("frequentist covariance summary `ate`"));
+        assert!(message.contains("stays a frequentist summary"));
+        assert!(message.contains("not a Bayesian likelihood"));
+        assert!(message.contains("sampling approximation"));
+        assert!(message.contains("selection"));
+        assert!(message.contains("dependence"));
+        assert!(message.contains("origin"));
+        assert!(message.contains(SummaryNextAttempt::AdaptEstimateCovariance.phrase()));
+        assert!(antecedent_core::reason_code::is_runtime_refusal(refusal.code()));
+        assert_ne!(refusal.next_attempt(), Some(SummaryNextAttempt::ReportAsFrequentistInterval));
+    }
+
+    #[test]
+    fn interval_stays_frequentist_when_adaptation_is_refused() {
+        let interval = interval("risk_difference");
+        let identity = interval.identity();
+        let fields = records();
+        let refusal = SummaryObservationModel::try_adapt(
+            interval.clone(),
+            fields.sampling,
+            fields.selection,
+            fields.dependence,
+            fields.origin,
+        )
+        .expect_err("interval");
+
+        assert_eq!(interval.kind(), FrequentistSummaryKind::Interval);
+        assert_eq!(interval.identity(), identity);
+        assert_eq!(refusal.summary_kind(), Some(FrequentistSummaryKind::Interval));
+        assert_eq!(refusal.detail(), "summary_observation.interval_stays_frequentist");
+        assert_eq!(refusal.code(), "distribution_meaning_mismatch");
+        assert_eq!(refusal.next_attempt(), Some(SummaryNextAttempt::ReportAsFrequentistInterval));
+        assert!(refusal.message().contains("stays a frequentist summary"));
+        assert!(refusal.message().contains("not a summary observation model"));
+        assert!(refusal.message().contains("risk_difference"));
+        assert!(antecedent_core::reason_code::is_runtime_refusal(refusal.code()));
+        assert_ne!(refusal.detail(), interval.as_bayesian_likelihood().detail());
+    }
+
+    #[test]
+    fn estimate_covariance_adapts_with_required_fields() {
+        let summary = estimate("ate");
+        let summary_identity = summary.identity();
+        let fields = records();
+        let model = SummaryObservationModel::try_adapt(
+            summary.clone(),
+            fields.sampling.clone(),
+            fields.selection.clone(),
+            fields.dependence.clone(),
+            fields.origin.clone(),
+        )
+        .expect("adapt");
+
+        assert_eq!(model.summary(), &summary);
+        assert_eq!(model.summary().kind(), FrequentistSummaryKind::EstimateCovariance);
+        assert_eq!(model.summary().identity(), summary_identity);
+        assert_eq!(model.sampling_approximation(), &fields.sampling);
+        assert_eq!(model.selection(), &fields.selection);
+        assert_eq!(model.dependence(), &fields.dependence);
+        assert_eq!(model.origin(), &fields.origin);
+        assert_eq!(model.sampling_approximation().name(), "normal_approximation");
+        assert_eq!(model.selection().name(), "complete_cases");
+        assert_eq!(model.dependence().name(), "cluster_dependence");
+        assert_eq!(model.origin().name(), "trial_estimator");
+        assert_ne!(model.identity(), summary_identity);
+
+        let again = SummaryObservationModel::try_adapt(
+            summary,
+            fields.sampling,
+            fields.selection,
+            fields.dependence,
+            fields.origin,
+        )
+        .expect("again");
+        assert_eq!(again.identity(), model.identity());
+
+        let other_origin = Origin::new("registry_estimator").expect("origin");
+        let shifted = SummaryObservationModel::try_adapt(
+            estimate("ate"),
+            SamplingApproximation::new("normal_approximation").expect("sampling"),
+            Selection::new("complete_cases").expect("selection"),
+            Dependence::new("cluster_dependence").expect("dependence"),
+            other_origin,
+        )
+        .expect("shifted");
+        assert_ne!(shifted.identity(), model.identity());
+        assert_eq!(shifted.summary().kind(), FrequentistSummaryKind::EstimateCovariance);
+        assert_eq!(shifted.summary().identity(), summary_identity);
+    }
+
+    #[test]
+    fn likelihood_update_is_permitted_and_bayesian_law_is_refused() {
+        let summary = estimate("ate");
+        let fields = records();
+        let model = SummaryObservationModel::try_adapt(
+            summary.clone(),
+            fields.sampling,
+            fields.selection,
+            fields.dependence,
+            fields.origin,
+        )
+        .expect("adapt");
+        let before = model.identity();
+        let admission = model.validate_use(SummaryUse::LikelihoodUpdate).expect("update");
+
+        assert_eq!(admission.summary_kind(), FrequentistSummaryKind::EstimateCovariance);
+        assert_eq!(admission.summary_name(), "ate");
+        assert_eq!(admission.summary_identity(), summary.identity());
+        assert_eq!(admission.model_identity(), before);
+        assert_ne!(admission.summary_identity(), admission.model_identity());
+        assert_ne!(admission.summary_kind(), FrequentistSummaryKind::Interval);
+        assert_eq!(model.summary().kind(), FrequentistSummaryKind::EstimateCovariance);
+        assert_eq!(model.identity(), before);
+
+        let refusal = model.validate_use(SummaryUse::BayesianLaw).expect_err("law");
+        assert_eq!(refusal.summary_kind(), Some(FrequentistSummaryKind::EstimateCovariance));
+        assert_eq!(refusal.code(), "distribution_meaning_mismatch");
+        assert_eq!(refusal.detail(), "summary_observation.not_bayesian_law");
+        assert_eq!(refusal.next_attempt(), Some(SummaryNextAttempt::UseAsLikelihoodUpdate));
+        assert_eq!(refusal.next_attempt().expect("next").as_str(), "use_as_likelihood_update");
+        assert!(refusal.message().contains("not a Bayesian law"));
+        assert!(refusal.message().contains(SummaryNextAttempt::UseAsLikelihoodUpdate.phrase()));
+        assert!(refusal.message().contains("ate"));
+        assert!(antecedent_core::reason_code::is_runtime_refusal(refusal.code()));
+        assert_eq!(model.summary().kind(), summary.kind());
+        assert_eq!(model.summary().identity(), summary.identity());
+        assert_eq!(model.identity(), before);
+        assert_ne!(SummaryUse::LikelihoodUpdate, SummaryUse::BayesianLaw);
+    }
+
+    #[test]
+    fn blank_records_are_refused() {
+        let cases = [
+            (FrequentistSummary::estimate_covariance(" ").err(), "summary is blank"),
+            (FrequentistSummary::interval("\n").err(), "summary is blank"),
+            (SamplingApproximation::new("").err(), "sampling approximation is blank"),
+            (Selection::new("\t").err(), "selection is blank"),
+            (Dependence::new("  ").err(), "dependence is blank"),
+            (Origin::new("").err(), "origin is blank"),
+        ];
+        for (refusal, expected) in cases {
+            let refusal = refusal.expect("blank");
+            assert_eq!(refusal.code(), "invalid_argument");
+            assert_eq!(refusal.detail(), "summary_observation.blank_record");
+            assert_eq!(refusal.message(), expected);
+            assert!(refusal.next_attempt().is_none());
+            assert!(refusal.summary_kind().is_none());
+            assert!(antecedent_core::reason_code::is_runtime_refusal(refusal.code()));
+        }
+    }
+
+    #[test]
+    fn next_attempt_names_differ() {
+        assert_eq!(SummaryNextAttempt::ALL.len(), 3);
+        assert_eq!(FrequentistSummaryKind::ALL.len(), 2);
+        assert_eq!(SummaryUse::ALL.len(), 2);
+        for (index, attempt) in SummaryNextAttempt::ALL.iter().enumerate() {
+            assert_eq!(SummaryNextAttempt::from_name(attempt.as_str()), Some(*attempt));
+            for other in SummaryNextAttempt::ALL.iter().skip(index + 1) {
+                assert_ne!(attempt.as_str(), other.as_str());
+                assert_ne!(attempt.phrase(), other.phrase());
+            }
+        }
+        for kind in FrequentistSummaryKind::ALL {
+            assert_eq!(FrequentistSummaryKind::from_name(kind.as_str()), Some(kind));
+        }
+        assert!(SummaryNextAttempt::from_name("bayesian_law").is_none());
+        assert!(FrequentistSummaryKind::from_name("bayesian_likelihood").is_none());
+    }
+}

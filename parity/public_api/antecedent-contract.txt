@@ -77,6 +77,9 @@
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::PushdownEffect
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::SummaryEffect
 #[non_exhaustive] pub enum antecedent_contract::rewrite_legality::TileEffect
+#[non_exhaustive] pub enum antecedent_contract::summary_observation::FrequentistSummaryKind
+#[non_exhaustive] pub enum antecedent_contract::summary_observation::SummaryNextAttempt
+#[non_exhaustive] pub enum antecedent_contract::summary_observation::SummaryUse
 #[non_exhaustive] pub enum antecedent_contract::transport_revalidation::TransportReason
 #[non_exhaustive] pub struct antecedent_contract::AcceptanceReport
 #[non_exhaustive] pub struct antecedent_contract::AssumptionSlot
@@ -467,6 +470,17 @@ impl core::clone::Clone for antecedent_contract::rewrite_legality::SufficientSta
 impl core::clone::Clone for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::clone::Clone for antecedent_contract::rewrite_legality::TileEffect
 impl core::clone::Clone for antecedent_contract::rewrite_legality::TiledEvaluation
+impl core::clone::Clone for antecedent_contract::summary_observation::Dependence
+impl core::clone::Clone for antecedent_contract::summary_observation::FrequentistSummary
+impl core::clone::Clone for antecedent_contract::summary_observation::FrequentistSummaryKind
+impl core::clone::Clone for antecedent_contract::summary_observation::LikelihoodUpdateAdmission
+impl core::clone::Clone for antecedent_contract::summary_observation::Origin
+impl core::clone::Clone for antecedent_contract::summary_observation::SamplingApproximation
+impl core::clone::Clone for antecedent_contract::summary_observation::Selection
+impl core::clone::Clone for antecedent_contract::summary_observation::SummaryNextAttempt
+impl core::clone::Clone for antecedent_contract::summary_observation::SummaryObservationError
+impl core::clone::Clone for antecedent_contract::summary_observation::SummaryObservationModel
+impl core::clone::Clone for antecedent_contract::summary_observation::SummaryUse
 impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneCalibration
 impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneClaim
 impl core::clone::Clone for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -741,6 +755,17 @@ impl core::cmp::Eq for antecedent_contract::rewrite_legality::SufficientStatisti
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::TileEffect
 impl core::cmp::Eq for antecedent_contract::rewrite_legality::TiledEvaluation
+impl core::cmp::Eq for antecedent_contract::summary_observation::Dependence
+impl core::cmp::Eq for antecedent_contract::summary_observation::FrequentistSummary
+impl core::cmp::Eq for antecedent_contract::summary_observation::FrequentistSummaryKind
+impl core::cmp::Eq for antecedent_contract::summary_observation::LikelihoodUpdateAdmission
+impl core::cmp::Eq for antecedent_contract::summary_observation::Origin
+impl core::cmp::Eq for antecedent_contract::summary_observation::SamplingApproximation
+impl core::cmp::Eq for antecedent_contract::summary_observation::Selection
+impl core::cmp::Eq for antecedent_contract::summary_observation::SummaryNextAttempt
+impl core::cmp::Eq for antecedent_contract::summary_observation::SummaryObservationError
+impl core::cmp::Eq for antecedent_contract::summary_observation::SummaryObservationModel
+impl core::cmp::Eq for antecedent_contract::summary_observation::SummaryUse
 impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneCalibration
 impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneClaim
 impl core::cmp::Eq for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -1171,6 +1196,17 @@ impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::SufficientS
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::TileEffect
 impl core::cmp::PartialEq for antecedent_contract::rewrite_legality::TiledEvaluation
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::Dependence
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::FrequentistSummary
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::FrequentistSummaryKind
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::LikelihoodUpdateAdmission
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::Origin
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::SamplingApproximation
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::Selection
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::SummaryNextAttempt
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::SummaryObservationError
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::SummaryObservationModel
+impl core::cmp::PartialEq for antecedent_contract::summary_observation::SummaryUse
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneCalibration
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneClaim
 impl core::cmp::PartialEq for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -1264,6 +1300,7 @@ impl core::error::Error for antecedent_contract::composition_verification::Graph
 impl core::error::Error for antecedent_contract::composition_verification::ViewError
 impl core::error::Error for antecedent_contract::evidence_ledger::LedgerError
 impl core::error::Error for antecedent_contract::rewrite_legality::RewriteRefusal
+impl core::error::Error for antecedent_contract::summary_observation::SummaryObservationError
 impl core::fmt::Debug for antecedent_contract::AcceptanceReport
 impl core::fmt::Debug for antecedent_contract::AdmissionBasis
 impl core::fmt::Debug for antecedent_contract::AdmissionCoordinate
@@ -1625,6 +1662,17 @@ impl core::fmt::Debug for antecedent_contract::rewrite_legality::SufficientStati
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::TileEffect
 impl core::fmt::Debug for antecedent_contract::rewrite_legality::TiledEvaluation
+impl core::fmt::Debug for antecedent_contract::summary_observation::Dependence
+impl core::fmt::Debug for antecedent_contract::summary_observation::FrequentistSummary
+impl core::fmt::Debug for antecedent_contract::summary_observation::FrequentistSummaryKind
+impl core::fmt::Debug for antecedent_contract::summary_observation::LikelihoodUpdateAdmission
+impl core::fmt::Debug for antecedent_contract::summary_observation::Origin
+impl core::fmt::Debug for antecedent_contract::summary_observation::SamplingApproximation
+impl core::fmt::Debug for antecedent_contract::summary_observation::Selection
+impl core::fmt::Debug for antecedent_contract::summary_observation::SummaryNextAttempt
+impl core::fmt::Debug for antecedent_contract::summary_observation::SummaryObservationError
+impl core::fmt::Debug for antecedent_contract::summary_observation::SummaryObservationModel
+impl core::fmt::Debug for antecedent_contract::summary_observation::SummaryUse
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneCalibration
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneClaim
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -1661,6 +1709,10 @@ impl core::fmt::Display for antecedent_contract::evidence_ledger::SourceId
 impl core::fmt::Display for antecedent_contract::rewrite_legality::NextAttempt
 impl core::fmt::Display for antecedent_contract::rewrite_legality::PreservationAxis
 impl core::fmt::Display for antecedent_contract::rewrite_legality::RewriteRefusal
+impl core::fmt::Display for antecedent_contract::summary_observation::FrequentistSummaryKind
+impl core::fmt::Display for antecedent_contract::summary_observation::SummaryNextAttempt
+impl core::fmt::Display for antecedent_contract::summary_observation::SummaryObservationError
+impl core::fmt::Display for antecedent_contract::summary_observation::SummaryUse
 impl core::hash::Hash for antecedent_contract::AdmissionCoordinate
 impl core::hash::Hash for antecedent_contract::AlignedLaw
 impl core::hash::Hash for antecedent_contract::BufferMaterialization
@@ -1775,6 +1827,16 @@ impl core::hash::Hash for antecedent_contract::rewrite_legality::PreservationAxi
 impl core::hash::Hash for antecedent_contract::rewrite_legality::PushdownEffect
 impl core::hash::Hash for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::hash::Hash for antecedent_contract::rewrite_legality::TileEffect
+impl core::hash::Hash for antecedent_contract::summary_observation::Dependence
+impl core::hash::Hash for antecedent_contract::summary_observation::FrequentistSummary
+impl core::hash::Hash for antecedent_contract::summary_observation::FrequentistSummaryKind
+impl core::hash::Hash for antecedent_contract::summary_observation::LikelihoodUpdateAdmission
+impl core::hash::Hash for antecedent_contract::summary_observation::Origin
+impl core::hash::Hash for antecedent_contract::summary_observation::SamplingApproximation
+impl core::hash::Hash for antecedent_contract::summary_observation::Selection
+impl core::hash::Hash for antecedent_contract::summary_observation::SummaryNextAttempt
+impl core::hash::Hash for antecedent_contract::summary_observation::SummaryObservationModel
+impl core::hash::Hash for antecedent_contract::summary_observation::SummaryUse
 impl core::hash::Hash for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::hash::Hash for antecedent_contract::transport_revalidation::TransportReason
 impl core::marker::Copy for antecedent_contract::AdmissionCoordinate
@@ -1916,6 +1978,9 @@ impl core::marker::Copy for antecedent_contract::rewrite_legality::PreservationA
 impl core::marker::Copy for antecedent_contract::rewrite_legality::PushdownEffect
 impl core::marker::Copy for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::marker::Copy for antecedent_contract::rewrite_legality::TileEffect
+impl core::marker::Copy for antecedent_contract::summary_observation::FrequentistSummaryKind
+impl core::marker::Copy for antecedent_contract::summary_observation::SummaryNextAttempt
+impl core::marker::Copy for antecedent_contract::summary_observation::SummaryUse
 impl core::marker::Copy for antecedent_contract::transport_revalidation::SceneClaimKind
 impl core::marker::Freeze for antecedent_contract::AcceptanceReport [auto]
 impl core::marker::Freeze for antecedent_contract::AdmissionBasis [auto]
@@ -2278,6 +2343,17 @@ impl core::marker::Freeze for antecedent_contract::rewrite_legality::SufficientS
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::TileEffect [auto]
 impl core::marker::Freeze for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::Dependence [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::FrequentistSummary [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::LikelihoodUpdateAdmission [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::Origin [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::SamplingApproximation [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::Selection [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::SummaryObservationError [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::SummaryObservationModel [auto]
+impl core::marker::Freeze for antecedent_contract::summary_observation::SummaryUse [auto]
 impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::marker::Freeze for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -2648,6 +2724,17 @@ impl core::marker::Send for antecedent_contract::rewrite_legality::SufficientSta
 impl core::marker::Send for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::TileEffect [auto]
 impl core::marker::Send for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::Dependence [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::FrequentistSummary [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::LikelihoodUpdateAdmission [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::Origin [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::SamplingApproximation [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::Selection [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::SummaryObservationError [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::SummaryObservationModel [auto]
+impl core::marker::Send for antecedent_contract::summary_observation::SummaryUse [auto]
 impl core::marker::Send for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::marker::Send for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::marker::Send for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -3016,6 +3103,17 @@ impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::SummaryEffect
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::TileEffect
 impl core::marker::StructuralPartialEq for antecedent_contract::rewrite_legality::TiledEvaluation
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::Dependence
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::FrequentistSummary
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::FrequentistSummaryKind
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::LikelihoodUpdateAdmission
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::Origin
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SamplingApproximation
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::Selection
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SummaryNextAttempt
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SummaryObservationError
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SummaryObservationModel
+impl core::marker::StructuralPartialEq for antecedent_contract::summary_observation::SummaryUse
 impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneCalibration
 impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneClaim
 impl core::marker::StructuralPartialEq for antecedent_contract::transport_revalidation::SceneClaimKind
@@ -3386,6 +3484,17 @@ impl core::marker::Sync for antecedent_contract::rewrite_legality::SufficientSta
 impl core::marker::Sync for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::TileEffect [auto]
 impl core::marker::Sync for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::Dependence [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::FrequentistSummary [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::LikelihoodUpdateAdmission [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::Origin [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::SamplingApproximation [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::Selection [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::SummaryObservationError [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::SummaryObservationModel [auto]
+impl core::marker::Sync for antecedent_contract::summary_observation::SummaryUse [auto]
 impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::marker::Sync for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -3756,6 +3865,17 @@ impl core::marker::Unpin for antecedent_contract::rewrite_legality::SufficientSt
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::TileEffect [auto]
 impl core::marker::Unpin for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::Dependence [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::FrequentistSummary [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::LikelihoodUpdateAdmission [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::Origin [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::SamplingApproximation [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::Selection [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::SummaryObservationError [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::SummaryObservationModel [auto]
+impl core::marker::Unpin for antecedent_contract::summary_observation::SummaryUse [auto]
 impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::marker::Unpin for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -4126,6 +4246,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_le
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::TileEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::Dependence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::FrequentistSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::LikelihoodUpdateAdmission [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::Origin [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SamplingApproximation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::Selection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SummaryObservationError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SummaryObservationModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::summary_observation::SummaryUse [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -4496,6 +4627,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legal
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::SummaryEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::TileEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::rewrite_legality::TiledEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::Dependence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::FrequentistSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::FrequentistSummaryKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::LikelihoodUpdateAdmission [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::Origin [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SamplingApproximation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::Selection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SummaryNextAttempt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SummaryObservationError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SummaryObservationModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::summary_observation::SummaryUse [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneCalibration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::transport_revalidation::SceneClaimKind [auto]
@@ -4613,6 +4755,9 @@ pub const <antecedent_contract::rewrite_legality::PreservationAxis>::ALL: [Self;
 pub const <antecedent_contract::rewrite_legality::SharedRowDesignPreparation>::NAME: &'static str
 pub const <antecedent_contract::rewrite_legality::SufficientStatistics>::NAME: &'static str
 pub const <antecedent_contract::rewrite_legality::TiledEvaluation>::NAME: &'static str
+pub const <antecedent_contract::summary_observation::FrequentistSummaryKind>::ALL: [Self; 2]
+pub const <antecedent_contract::summary_observation::SummaryNextAttempt>::ALL: [Self; 3]
+pub const <antecedent_contract::summary_observation::SummaryUse>::ALL: [Self; 2]
 pub const antecedent_contract::ASSUMPTION_RANGE_LABEL: &str
 pub const antecedent_contract::EFFECT_IDENTITY_VERSION: u64
 pub const antecedent_contract::JOINT_LAW_STAGE: &str
@@ -4679,6 +4824,8 @@ pub const antecedent_contract::provider_transport::MAX_PROVIDER_TRANSPORT_TEXT_B
 pub const antecedent_contract::provider_transport::PROVIDER_SOURCE_PORT: &str
 pub const antecedent_contract::provider_transport::PROVIDER_TRANSPORT_VERSION: u64
 pub const antecedent_contract::provider_transport::TRANSPORT_SOURCE_PORT: &str
+pub const antecedent_contract::summary_observation::FREQUENTIST_SUMMARY_TAG: &str
+pub const antecedent_contract::summary_observation::SUMMARY_OBSERVATION_TAG: &str
 pub const antecedent_contract::transport_revalidation::TRANSPORT_REVALIDATION_VERSION: u64
 pub const fn antecedent_contract::capability_name(capability: antecedent_contract::ExternalCapability) -> &'static str
 pub const fn antecedent_contract::external_refusal::probe_name(kind: antecedent_contract::VerificationProbeKind) -> &'static str
@@ -6338,6 +6485,44 @@ pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn effect
 pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn full(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
 pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn new(full: antecedent_contract::rewrite_legality::PreservedIdentities, tile: antecedent_contract::rewrite_legality::PreservedIdentities, effect: antecedent_contract::rewrite_legality::TileEffect) -> Self
 pub fn <antecedent_contract::rewrite_legality::TiledEvaluation>::const fn tile(&self) -> &antecedent_contract::rewrite_legality::PreservedIdentities
+pub fn <antecedent_contract::summary_observation::Dependence>::fn name(&self) -> &str
+pub fn <antecedent_contract::summary_observation::Dependence>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_contract::summary_observation::SummaryObservationError>
+pub fn <antecedent_contract::summary_observation::FrequentistSummary>::const fn kind(&self) -> antecedent_contract::summary_observation::FrequentistSummaryKind
+pub fn <antecedent_contract::summary_observation::FrequentistSummary>::fn as_bayesian_likelihood(&self) -> antecedent_contract::summary_observation::SummaryObservationError
+pub fn <antecedent_contract::summary_observation::FrequentistSummary>::fn estimate_covariance(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_contract::summary_observation::SummaryObservationError>
+pub fn <antecedent_contract::summary_observation::FrequentistSummary>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::summary_observation::FrequentistSummary>::fn interval(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_contract::summary_observation::SummaryObservationError>
+pub fn <antecedent_contract::summary_observation::FrequentistSummary>::fn name(&self) -> &str
+pub fn <antecedent_contract::summary_observation::FrequentistSummaryKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::summary_observation::FrequentistSummaryKind>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::summary_observation::LikelihoodUpdateAdmission>::const fn model_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::summary_observation::LikelihoodUpdateAdmission>::const fn summary_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::summary_observation::LikelihoodUpdateAdmission>::const fn summary_kind(&self) -> antecedent_contract::summary_observation::FrequentistSummaryKind
+pub fn <antecedent_contract::summary_observation::LikelihoodUpdateAdmission>::fn summary_name(&self) -> &str
+pub fn <antecedent_contract::summary_observation::Origin>::fn name(&self) -> &str
+pub fn <antecedent_contract::summary_observation::Origin>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_contract::summary_observation::SummaryObservationError>
+pub fn <antecedent_contract::summary_observation::SamplingApproximation>::fn name(&self) -> &str
+pub fn <antecedent_contract::summary_observation::SamplingApproximation>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_contract::summary_observation::SummaryObservationError>
+pub fn <antecedent_contract::summary_observation::Selection>::fn name(&self) -> &str
+pub fn <antecedent_contract::summary_observation::Selection>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_contract::summary_observation::SummaryObservationError>
+pub fn <antecedent_contract::summary_observation::SummaryNextAttempt>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::summary_observation::SummaryNextAttempt>::const fn phrase(self) -> &'static str
+pub fn <antecedent_contract::summary_observation::SummaryNextAttempt>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::summary_observation::SummaryObservationError>::const fn code(&self) -> &'static str
+pub fn <antecedent_contract::summary_observation::SummaryObservationError>::const fn detail(&self) -> &'static str
+pub fn <antecedent_contract::summary_observation::SummaryObservationError>::const fn next_attempt(&self) -> core::option::Option<antecedent_contract::summary_observation::SummaryNextAttempt>
+pub fn <antecedent_contract::summary_observation::SummaryObservationError>::const fn summary_kind(&self) -> core::option::Option<antecedent_contract::summary_observation::FrequentistSummaryKind>
+pub fn <antecedent_contract::summary_observation::SummaryObservationError>::fn message(&self) -> &str
+pub fn <antecedent_contract::summary_observation::SummaryObservationError>::fn refusal(&self) -> (&'static str, &'static str, &str)
+pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::const fn dependence(&self) -> &antecedent_contract::summary_observation::Dependence
+pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::const fn origin(&self) -> &antecedent_contract::summary_observation::Origin
+pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::const fn sampling_approximation(&self) -> &antecedent_contract::summary_observation::SamplingApproximation
+pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::const fn selection(&self) -> &antecedent_contract::summary_observation::Selection
+pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::const fn summary(&self) -> &antecedent_contract::summary_observation::FrequentistSummary
+pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::fn try_adapt(summary: antecedent_contract::summary_observation::FrequentistSummary, sampling_approximation: antecedent_contract::summary_observation::SamplingApproximation, selection: antecedent_contract::summary_observation::Selection, dependence: antecedent_contract::summary_observation::Dependence, origin: antecedent_contract::summary_observation::Origin) -> core::result::Result<Self, antecedent_contract::summary_observation::SummaryObservationError>
+pub fn <antecedent_contract::summary_observation::SummaryObservationModel>::fn validate_use(&self, requested: antecedent_contract::summary_observation::SummaryUse) -> core::result::Result<antecedent_contract::summary_observation::LikelihoodUpdateAdmission, antecedent_contract::summary_observation::SummaryObservationError>
+pub fn <antecedent_contract::summary_observation::SummaryUse>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::transport_revalidation::SceneClaim>::fn new(key: impl core::convert::Into<alloc::string::String>, kind: antecedent_contract::transport_revalidation::SceneClaimKind, identity: antecedent_core::identity::SemanticDigest, quantity: antecedent_core::identity::SemanticDigest) -> Self
 pub fn <antecedent_contract::transport_revalidation::TransportClaimRevalidation>::const fn graph_claim(&self) -> &antecedent_contract::composition_verification::ClaimRevalidation
 pub fn <antecedent_contract::transport_revalidation::TransportClaimRevalidation>::fn calibration_withdrawn(&self) -> bool
@@ -6504,6 +6689,7 @@ pub mod antecedent_contract::quantity
 pub mod antecedent_contract::reasoning
 pub mod antecedent_contract::response_coordinates
 pub mod antecedent_contract::rewrite_legality
+pub mod antecedent_contract::summary_observation
 pub mod antecedent_contract::support_labels
 pub mod antecedent_contract::transform
 pub mod antecedent_contract::transport_result
@@ -6745,6 +6931,22 @@ pub struct antecedent_contract::rewrite_legality::SufficientStatistics
 pub struct antecedent_contract::rewrite_legality::SufficientStatistics has private fields
 pub struct antecedent_contract::rewrite_legality::TiledEvaluation
 pub struct antecedent_contract::rewrite_legality::TiledEvaluation has private fields
+pub struct antecedent_contract::summary_observation::Dependence
+pub struct antecedent_contract::summary_observation::Dependence has private fields
+pub struct antecedent_contract::summary_observation::FrequentistSummary
+pub struct antecedent_contract::summary_observation::FrequentistSummary has private fields
+pub struct antecedent_contract::summary_observation::LikelihoodUpdateAdmission
+pub struct antecedent_contract::summary_observation::LikelihoodUpdateAdmission has private fields
+pub struct antecedent_contract::summary_observation::Origin
+pub struct antecedent_contract::summary_observation::Origin has private fields
+pub struct antecedent_contract::summary_observation::SamplingApproximation
+pub struct antecedent_contract::summary_observation::SamplingApproximation has private fields
+pub struct antecedent_contract::summary_observation::Selection
+pub struct antecedent_contract::summary_observation::Selection has private fields
+pub struct antecedent_contract::summary_observation::SummaryObservationError
+pub struct antecedent_contract::summary_observation::SummaryObservationError has private fields
+pub struct antecedent_contract::summary_observation::SummaryObservationModel
+pub struct antecedent_contract::summary_observation::SummaryObservationModel has private fields
 pub struct antecedent_contract::transport_revalidation::SceneClaim
 pub struct antecedent_contract::transport_revalidation::SceneSource
 pub struct antecedent_contract::transport_revalidation::SceneTarget
@@ -7767,6 +7969,13 @@ pub variant antecedent_contract::rewrite_legality::TileEffect::DropsRows
 pub variant antecedent_contract::rewrite_legality::TileEffect::Faithful
 pub variant antecedent_contract::rewrite_legality::TileEffect::RetargetsPopulation
 pub variant antecedent_contract::rewrite_legality::TileEffect::SplitsFold
+pub variant antecedent_contract::summary_observation::FrequentistSummaryKind::EstimateCovariance
+pub variant antecedent_contract::summary_observation::FrequentistSummaryKind::Interval
+pub variant antecedent_contract::summary_observation::SummaryNextAttempt::AdaptEstimateCovariance
+pub variant antecedent_contract::summary_observation::SummaryNextAttempt::ReportAsFrequentistInterval
+pub variant antecedent_contract::summary_observation::SummaryNextAttempt::UseAsLikelihoodUpdate
+pub variant antecedent_contract::summary_observation::SummaryUse::BayesianLaw
+pub variant antecedent_contract::summary_observation::SummaryUse::LikelihoodUpdate
 pub variant antecedent_contract::transport_revalidation::SceneCalibration::Held { record: antecedent_core::identity::SemanticDigest, established_at_target: antecedent_core::identity::SemanticDigest }
 pub variant antecedent_contract::transport_revalidation::SceneCalibration::Inherited { from: alloc::string::String, record: antecedent_core::identity::SemanticDigest, established_at_target: antecedent_core::identity::SemanticDigest }
 pub variant antecedent_contract::transport_revalidation::SceneCalibration::PointOnly
