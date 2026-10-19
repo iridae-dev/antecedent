@@ -10484,6 +10484,7 @@ pub mod antecedent_estimate::bayesian_iv
 pub mod antecedent_estimate::bayesian_mediation
 pub mod antecedent_estimate::bayesian_rd
 pub mod antecedent_estimate::bayesian_robust_ate
+pub mod antecedent_estimate::bootstrap_wave
 pub mod antecedent_estimate::categorical_treatment
 pub mod antecedent_estimate::causal_forest
 pub mod antecedent_estimate::cell_aipw

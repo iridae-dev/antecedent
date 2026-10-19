@@ -17,6 +17,7 @@ use antecedent_stats::{
     form_xtx, invert_square,
 };
 
+use crate::bootstrap_wave::{fill_worker_replicate, retained_index_slots};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 
@@ -313,9 +314,10 @@ pub(crate) fn adaptive_bootstrap_should_stop(
 
 /// IID bootstrap standard error with failure accounting and optional early-stop.
 ///
-/// Index plans are produced in one batch under `ctx` via
-/// [`fill_resample_index_batch`] for the full requested `replicates` (CRN-stable under
-/// fixed seeds even when evaluation stops early).
+/// Each replicate draws `n` row indexes from the resample stream keyed by
+/// `stream_base ^ replicate_id`, so the draw is fixed by the seed and that id even when
+/// evaluation stops early. Workers write those indexes into a reused buffer of length
+/// `n`; an `n` by replicates index matrix is not retained.
 ///
 /// `estimate` should return `Ok(Some(ate))` on success, `Ok(None)` for a soft-failed replicate
 /// (counted as failed, bootstrap continues), or `Err` to abort the whole bootstrap.
@@ -340,8 +342,9 @@ pub(crate) fn bootstrap_se(
 /// [`bootstrap_se`] with per-worker scratch so replicate evaluation can run
 /// under [`ExecutionContext::parallelism`] without a shared `&mut` workspace.
 ///
-/// Adaptive early-stop stays serial (the floor is a running success count).
-/// When an outer map already saturates the thread budget, `ctx` is serial and
+/// Retained index memory is `n` times the worker count (one buffer on the serial and
+/// adaptive paths). Adaptive early-stop stays serial (the floor is a running success
+/// count). When an outer map already saturates the thread budget, `ctx` is serial and
 /// this path does not spawn.
 pub(crate) fn bootstrap_se_with_scratch<S, F>(
     replicates: u32,
@@ -362,42 +365,15 @@ where
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
     let n_rep = replicates as usize;
-    let len = n
-        .checked_mul(n_rep)
-        .filter(|&len| {
-            len.checked_mul(std::mem::size_of::<antecedent_data::GlobalId>())
-                .is_some_and(|bytes| isize::try_from(bytes).is_ok())
-        })
-        .ok_or_else(|| {
-            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
-        })?;
-    let mut indexes = Vec::new();
-    indexes.try_reserve_exact(len).map_err(|e| {
-        EstimationError::data_msg(format!("bootstrap index allocation failed: {e}"))
-    })?;
-    indexes.resize(len, antecedent_data::GlobalId::new(0));
-    if let Err(error) = fill_resample_index_batch(
-        ResamplingPlan::IidBootstrap,
-        n,
-        n_rep,
-        None,
-        ctx,
-        stream_base,
-        &mut indexes,
-    ) {
-        // A cancellation can race with the check above. Other data failures must
-        // remain errors, even if cancellation happens concurrently with them.
-        if ctx.cancellation.is_cancelled() && matches!(&error, DataError::Cancelled) {
-            return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
-        }
-        return Err(error.into());
-    }
+    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
+    let parallel = threads > 1 && !ctx.adaptive_bootstrap.enabled;
+    // One length-`n` buffer per worker. Adaptive early-stop does not spawn.
+    let workers = if parallel { threads } else { 1 };
+    retained_index_slots(n, workers)?;
     if ctx.cancellation.is_cancelled() {
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
-    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
-    let parallel = threads > 1 && !ctx.adaptive_bootstrap.enabled;
-    let rows = ReplicateRows::Rows { indexes: &indexes, n };
+    let rows = ReplicateRows::Rows { n, ctx, stream_base };
     if parallel {
         return evaluate_bootstrap_parallel(ctx, &rows, n_rep, make_scratch, estimate);
     }
@@ -526,10 +502,13 @@ where
     evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
 }
 
-/// How one bootstrap replicate's row indices are drawn from the batch of draws.
+/// How one bootstrap replicate's row indices are supplied to the estimator.
 enum ReplicateRows<'a> {
-    /// `n` row draws per replicate: an iid row bootstrap.
-    Rows { indexes: &'a [antecedent_data::GlobalId], n: usize },
+    /// `n` iid row draws for replicate `r`, generated from `stream_base ^ r`.
+    ///
+    /// Each worker fills its own length-`n` buffer. The `n` by replicates matrix is not
+    /// retained.
+    Rows { n: usize, ctx: &'a ExecutionContext, stream_base: u64 },
     /// `groups` cluster draws per replicate, each expanded to all of its rows in order. The
     /// replicate is a whole-cluster resample whose length varies with the clusters drawn.
     Clusters {
@@ -550,10 +529,10 @@ impl ReplicateRows<'_> {
             })
         };
         match self {
-            Self::Rows { indexes, n } => {
-                for src in &indexes[r * n..(r + 1) * n] {
-                    out.push(row(*src)?);
-                }
+            Self::Rows { n, ctx, stream_base } => {
+                let replicate = u64::try_from(r)
+                    .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds u64"))?;
+                fill_worker_replicate(*n, replicate, ctx, *stream_base, out)?;
             }
             Self::Clusters { draws, groups, members } => {
                 for cluster in &draws[r * groups..(r + 1) * groups] {

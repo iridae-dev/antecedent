@@ -27,6 +27,7 @@ pub mod bayesian_iv;
 pub mod bayesian_mediation;
 pub mod bayesian_rd;
 pub mod bayesian_robust_ate;
+pub mod bootstrap_wave;
 pub mod categorical_treatment;
 pub mod causal_forest;
 pub mod cell_aipw;
