@@ -28,6 +28,9 @@ use super::{
     reject_dag_only_on_pag, validate_static_pair,
 };
 
+#[path = "lowered_route.rs"]
+mod lowered_route;
+
 fn mixed_admg(study: &super::Study) -> Result<Admg, CausalError> {
     study
         .graph

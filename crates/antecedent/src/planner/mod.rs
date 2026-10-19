@@ -4,6 +4,7 @@
 
 mod binding;
 mod logical;
+mod lowered;
 mod plan;
 
 pub(crate) use binding::{PlanBinding, RouteDefaults};
@@ -17,6 +18,10 @@ pub(crate) use logical::{
     compile_logical_static_pag_response, compile_logical_static_response,
     compile_logical_temporal_class_effect, compile_logical_temporal_effect,
     compile_logical_temporal_effect_classified, compile_logical_temporal_response,
+};
+pub(crate) use lowered::{
+    linear_gaussian_physical_operators, linear_gaussian_program_operators,
+    linear_gaussian_scientific_problem,
 };
 pub use plan::{LogicalAnalysisPlan, PhysicalExecutionPlan, reject_dag_only_on_pag};
 
