@@ -826,11 +826,7 @@ mod tests {
                     .max(left.joint.mean[j].abs())
                     .max(right.joint.mean[i].abs())
                     .max(right.joint.mean[j].abs());
-                assert!(
-                    moment_within_tolerance(a, b, magnitude),
-                    "m2[{}] {a} vs {b}",
-                    i * dim + j
-                );
+                assert!(moment_within_tolerance(a, b, magnitude), "m2[{}] {a} vs {b}", i * dim + j);
             }
         }
     }
@@ -937,10 +933,7 @@ mod tests {
         // has to match the rows; 1e-6 is the floor when that rounding is negligible.
         let offset_bound = (1e12 * f64::EPSILON * 64.0) / (y.len() as f64 - ncols as f64);
         let variance_bound = offset_bound.max(1e-6);
-        assert!(
-            (merged_var - brute).abs() <= variance_bound,
-            "merge {merged_var} brute {brute}"
-        );
+        assert!((merged_var - brute).abs() <= variance_bound, "merge {merged_var} brute {brute}");
 
         let points = [
             [1e12 - 2.0, 1.0],

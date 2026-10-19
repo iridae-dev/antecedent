@@ -139,9 +139,7 @@ impl std::fmt::Display for WeightRole {
 #[non_exhaustive]
 pub enum HistoryOperatorError {
     /// The horizon misses a tick or runs past the cadence.
-    #[error(
-        "horizon {end_ns} ns crosses the cadence; next attempt: end on a tick inside it"
-    )]
+    #[error("horizon {end_ns} ns crosses the cadence; next attempt: end on a tick inside it")]
     HorizonCrossesCadence {
         /// Exclusive horizon end, in nanoseconds.
         end_ns: u64,
@@ -151,9 +149,7 @@ pub enum HistoryOperatorError {
         declared_ticks: Option<u64>,
     },
     /// Tick count times the interval does not fit in `u64`.
-    #[error(
-        "cadence of {ticks} ticks at {interval_ns} ns overflows; next attempt: shorten it"
-    )]
+    #[error("cadence of {ticks} ticks at {interval_ns} ns overflows; next attempt: shorten it")]
     CadenceSpanOverflow {
         /// Regular interval, in nanoseconds.
         interval_ns: u64,
@@ -522,11 +518,7 @@ fn admit_weight(role: WeightRole, value: f64) -> Result<(), HistoryOperatorError
 }
 
 fn admit_name(field: &'static str, name: Arc<str>) -> Result<Arc<str>, HistoryOperatorError> {
-    if is_blank(&name) {
-        Err(HistoryOperatorError::EmptyName { field })
-    } else {
-        Ok(name)
-    }
+    if is_blank(&name) { Err(HistoryOperatorError::EmptyName { field }) } else { Ok(name) }
 }
 
 #[cfg(test)]
@@ -573,8 +565,7 @@ mod tests {
         let weights =
             CensoringAssignmentWeight::try_new(cadence.clone(), horizon, law.clone(), 1.0, -0.5)
                 .unwrap();
-        let reduction =
-            TrajectoryReduction::try_new(cadence, horizon, law, "mean").unwrap();
+        let reduction = TrajectoryReduction::try_new(cadence, horizon, law, "mean").unwrap();
 
         assert_eq!(history.history(), HistoryWindow::max_lag(2));
         assert_eq!(history.frame().horizon(), horizon);
@@ -593,12 +584,9 @@ mod tests {
     #[test]
     fn a_contemporaneous_initial_law_is_present() {
         let (cadence, horizon, _) = frame_inputs();
-        let transition = Transition::try_new(
-            cadence,
-            horizon,
-            Some(InitialLaw::contemporaneous_observed()),
-        )
-        .unwrap();
+        let transition =
+            Transition::try_new(cadence, horizon, Some(InitialLaw::contemporaneous_observed()))
+                .unwrap();
         assert!(transition.frame().initial_law().name().is_none());
     }
 
@@ -646,11 +634,7 @@ mod tests {
         let error = Transition::try_new(regular(10, 4), Horizon::ending_at(50), Some(origin()))
             .unwrap_err();
         match error {
-            HistoryOperatorError::HorizonCrossesCadence {
-                end_ns,
-                interval_ns,
-                declared_ticks,
-            } => {
+            HistoryOperatorError::HorizonCrossesCadence { end_ns, interval_ns, declared_ticks } => {
                 assert_eq!(end_ns, 50);
                 assert_eq!(interval_ns, Some(10));
                 assert_eq!(declared_ticks, Some(4));
@@ -665,11 +649,13 @@ mod tests {
         let irregular_error =
             Transition::try_new(irregular, Horizon::ending_at(10), Some(origin())).unwrap_err();
         match irregular_error {
-            HistoryOperatorError::HorizonCrossesCadence { interval_ns: None, end_ns: 10, .. } => {}
+            HistoryOperatorError::HorizonCrossesCadence {
+                interval_ns: None, end_ns: 10, ..
+            } => {}
             other => panic!("expected an irregular cadence to be crossed, got {other:?}"),
         }
-        let zero = Transition::try_new(regular(0, 4), Horizon::ending_at(10), Some(origin()))
-            .unwrap_err();
+        let zero =
+            Transition::try_new(regular(0, 4), Horizon::ending_at(10), Some(origin())).unwrap_err();
         match zero {
             HistoryOperatorError::HorizonCrossesCadence { interval_ns: Some(0), .. } => {}
             other => panic!("expected a zero interval to be crossed, got {other:?}"),
@@ -758,15 +744,8 @@ mod tests {
         let Ok(length) = usize::try_from(ticks) else {
             return;
         };
-        let error = Transition::try_new(
-            regular(2, length),
-            Horizon::ending_at(2),
-            Some(origin()),
-        )
-        .unwrap_err();
-        assert_eq!(
-            error,
-            HistoryOperatorError::CadenceSpanOverflow { interval_ns: 2, ticks }
-        );
+        let error = Transition::try_new(regular(2, length), Horizon::ending_at(2), Some(origin()))
+            .unwrap_err();
+        assert_eq!(error, HistoryOperatorError::CadenceSpanOverflow { interval_ns: 2, ticks });
     }
 }

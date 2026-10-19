@@ -962,10 +962,7 @@ mod tests {
 
     fn assert_close(got: f64, expected: f64, tol: f64, what: &str) {
         let gap = (got - expected).abs();
-        assert!(
-            gap <= tol,
-            "{what}: summary {got} vs row-wise {expected} (gap {gap}, tol {tol})"
-        );
+        assert!(gap <= tol, "{what}: summary {got} vs row-wise {expected} (gap {gap}, tol {tol})");
     }
 
     struct TargetCase<'a> {

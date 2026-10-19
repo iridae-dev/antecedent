@@ -297,7 +297,7 @@ impl RetentionRefusal {
 
 #[cfg(test)]
 mod tests {
-    use super::{RetentionMode, RetentionPolicy, RetainedOperation};
+    use super::{RetainedOperation, RetentionMode, RetentionPolicy};
 
     #[test]
     fn default_mode_keeps_full_reusable_state() {
@@ -339,10 +339,7 @@ mod tests {
             let refusal = mode.require(*operation).unwrap_err();
             assert_eq!(refusal.mode(), mode);
             assert_eq!(refusal.operation(), *operation);
-            assert_eq!(
-                refusal.to_string(),
-                format!("summary-only cannot serve {operation}")
-            );
+            assert_eq!(refusal.to_string(), format!("summary-only cannot serve {operation}"));
         }
         let disk = mode.require(RetainedOperation::ReadDiskArtifact).unwrap_err();
         assert_eq!(disk.operation(), RetainedOperation::ReadDiskArtifact);
@@ -368,10 +365,7 @@ mod tests {
         for operation in mode.no_longer_serves() {
             let refusal = mode.require(*operation).unwrap_err();
             assert_eq!(refusal.operation(), *operation);
-            assert_eq!(
-                refusal.to_string(),
-                format!("disk-backed output cannot serve {operation}")
-            );
+            assert_eq!(refusal.to_string(), format!("disk-backed output cannot serve {operation}"));
         }
         assert_ne!(mode, RetentionMode::default());
     }
