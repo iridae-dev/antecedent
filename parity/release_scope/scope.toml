@@ -1,0 +1,1423 @@
+# B05 release scope.
+# Checking this file records the mandatory list and the research list.
+# Later attempts write their outcomes back into the matching rows.
+# An unresolved mandatory row blocks release.
+# A public claim changes only after the named attempts are exhausted.
+# The failed Gaussian-panel attempt stays recorded in parity/method_specs/specs.toml.
+
+schema = 1
+recorded_by = "B05"
+unresolved_mandatory_blocks_release = true
+public_claim_changes_only_after_named_attempts_are_exhausted = true
+delta_ab_identified_claim = "pending"
+model_conditional_rule = "A world becomes model-conditional only after both the supported-world design and the joint-assignment design leave it unsupported."
+gaussian_panel_record = "parity/method_specs/specs.toml"
+
+[[entry]]
+id = "licensed.AnomalyAttribution.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AnomalyAttribution.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageDerivative.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageDerivative.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageDerivative.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageDerivative.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageEffect.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageEffect.Admg"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageEffect.Cpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageEffect.Pag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageEffect.TemporalAdmg"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageEffect.CoDetermined"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.AverageEffect.Unknown"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ChangeAttribution.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ChangeAttribution.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ConditionalEffect.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ConditionalEffect.Cpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ConditionalEffect.Pag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.Counterfactual.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.Counterfactual.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.Counterfactual.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.Counterfactual.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.DirectionalDerivative.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.DirectionalDerivative.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.DirectionalDerivative.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.DirectionalDerivative.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.Elasticity.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.Elasticity.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.Elasticity.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.Elasticity.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionalDistribution.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionalDistribution.Admg"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionalDistribution.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionalDistribution.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionalDistribution.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionalDistribution.TemporalAdmg"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionResponse.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionResponse.Admg"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionResponse.Cpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionResponse.Pag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionResponse.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionResponse.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionResponse.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionResponse.TemporalAdmg"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterventionResponse.CoDetermined"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.MediationEffect.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.NestedCounterfactualEffect.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.NestedCounterfactualEffect.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.NestedCounterfactualEffect.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.NestedCounterfactualEffect.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PathSpecificEffect.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PathSpecificEffect.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PathSpecificEffect.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PathSpecificEffect.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PointDerivative.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PointDerivative.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PointDerivative.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PointDerivative.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PulseEffect.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PulseEffect.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.PulseEffect.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseCurve.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseCurve.Admg"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseCurve.Cpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseCurve.Pag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseCurve.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseCurve.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseCurve.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseCurve.TemporalAdmg"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseJacobian.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseJacobian.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseJacobian.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.ResponseJacobian.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.SemiElasticity.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.SemiElasticity.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.SemiElasticity.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.SemiElasticity.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.SustainedEffect.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.SustainedEffect.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.SustainedEffect.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.TemporalConditionalPulse.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.TemporalConditionalPulse.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.TemporalConditionalPulse.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.TemporalConditionalSustained.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.TemporalConditionalSustained.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.TemporalConditionalSustained.TemporalPag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.TemporalMediationEffect.TemporalDag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.TemporalMediationEffect.TemporalCpdag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.TransportQuery.Admg"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.TransportQuery.TemporalAdmg"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "licensed.InterferenceQuery.Dag"
+status = "mandatory"
+list = "mandatory"
+source = "route_manifest"
+
+[[entry]]
+id = "P01.linear.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P01.iv.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P01.iv.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P02.glm.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P02.glm.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P02.glm.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P02.penalized_propensity.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P02.penalized_propensity.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P02.penalized_propensity.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P03.aipw.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P03.aipw.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P03.aipw.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P03.policy.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P03.policy.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P04.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P04.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P04.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P06.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P07.curve.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P07.derivative.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P07.derivative.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P07.continuous_dose.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P07.continuous_dose.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P07.continuous_dose.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P07.smoothed_dose.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P07.smoothed_dose.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P07.smoothed_dose.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P07.dose_grid.static.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P07.dose_grid.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P07.dose_grid.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P07.dose_grid.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P07.quantile.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P09.two_arm.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P09.multiarm.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P09.categorical.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P09.factorial.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P09.switchback.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P09.adaptive.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P09.interference.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P10.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P10.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P10.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P11.did.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P11.did.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P11.augmented_panel_did.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P11.augmented_panel_did.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P11.staggered.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P11.synthetic_control.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P11.synthetic_control.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P11.rd.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P11.rd.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P11.local_ratio.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P11.local_ratio.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P11.local_ratio.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+
+[[entry]]
+id = "P12.intervention.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P12.counterfactual.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P12.counterfactual.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P13.attribution.static.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P13.attribution.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P13.attribution.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P13.attribution.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P14.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P14.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P15.conditional.static.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P15.conditional.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P15.conditional.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P15.conditional.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P15.projection.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "statistical"
+
+[[entry]]
+id = "P16.static.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P16.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P16.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P16.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P18.static.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P18.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P18.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P18.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P19.static.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P19.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P19.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P19.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "P20.static.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P20.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P20.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "P20.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+
+[[entry]]
+id = "X01.static.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "X01.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "X01.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "X01.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+
+[[entry]]
+id = "X02.static.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+obligation = "fit"
+
+[[entry]]
+id = "X02.static.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "implementation"
+obligation = "fit"
+
+[[entry]]
+id = "X02.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+obligation = "fit"
+
+[[entry]]
+id = "X02.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "temporal-identification"
+obligation = "fit"
+
+[[entry]]
+id = "X06.temporal.frequentist"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+obligation = "flagship"
+
+[[entry]]
+id = "X06.temporal.bayesian"
+status = "mandatory"
+list = "mandatory"
+source = "method_children"
+gap = "validation"
+obligation = "flagship"
+
+[[entry]]
+id = "Y01"
+status = "mandatory"
+list = "mandatory"
+source = "feedback"
+role = "cyclic graph"
+
+[[entry]]
+id = "Y02"
+status = "mandatory"
+list = "mandatory"
+source = "feedback"
+role = "SCC schedule"
+
+[[entry]]
+id = "Y03"
+status = "mandatory"
+list = "mandatory"
+source = "feedback"
+role = "linear solution contract"
+
+[[entry]]
+id = "Y10"
+status = "mandatory"
+list = "mandatory"
+source = "feedback"
+role = "experimental recovery recipe"
+
+[[entry]]
+id = "Y09"
+status = "mandatory"
+list = "mandatory"
+source = "feedback"
+role = "sigma-separation"
+
+[[entry]]
+id = "Q04"
+status = "mandatory"
+list = "mandatory"
+source = "workflow"
+role = "mixed-evidence workflow"
+
+[[entry]]
+id = "X01.licensed_contrast"
+status = "mandatory"
+list = "mandatory"
+source = "joint_response"
+role = "two-intervention contrast on an existing licensed linear or g-computation AverageEffect route"
+carrier = "licensed.AverageEffect.Dag"
+
+[[entry]]
+id = "X02.gaussian_panel"
+status = "closed_failed"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X02"
+attempt_order = 0
+record = "The Gaussian panel (simplex lag L=2, shared Michaelis-Menten, one bilinear interaction, partial pooling of group intercepts, seasonal dummies, one additive confounder, Gaussian AR(1)) and a simulable nonlinear callback do not identify joint Delta_AB."
+specs = "parity/method_specs/specs.toml"
+
+[[entry]]
+id = "X02.supported_worlds"
+status = "pending_attempt"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X02"
+attempt_order = 1
+end_state = "Each of the four worlds of Delta_AB = E[Y(a,b)]-E[Y(a,0)]-E[Y(0,b)]+E[Y(0,0)] is identified from a design with support there, using the existing licensed linear or g-computation intervention route, and the fitted mechanism carries parameter uncertainty only inside supported worlds."
+
+[[entry]]
+id = "X02.joint_assignment"
+status = "pending_attempt"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X02"
+attempt_order = 2
+end_state = "A world the observational panel leaves unsupported is identified by an experimental or quasi-experimental joint assignment, and a world is model-conditional only after both designs leave it unsupported."
+
+[[entry]]
+id = "X03.piecewise_constant"
+status = "pending_attempt"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X03"
+attempt_order = 1
+end_state = "Piecewise-constant change points are identified where the design supports them."
+
+[[entry]]
+id = "X03.smooth"
+status = "pending_attempt"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X03"
+attempt_order = 2
+end_state = "Smoothly varying parameters follow a weakly identified change point."
+
+[[entry]]
+id = "X03.coarser_contrast"
+status = "pending_attempt"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X03"
+attempt_order = 3
+end_state = "A unique attribution the design cannot support is followed by a coarser contrast that design can support."
+
+[[entry]]
+id = "X04.finite_certificate"
+status = "pending_attempt"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X04"
+attempt_order = 1
+end_state = "An exhaustive finite candidate set ships with an optimum certificate scoped to that set."
+
+[[entry]]
+id = "X04.continuous_best_found"
+status = "pending_attempt"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X04"
+attempt_order = 2
+end_state = "A missing certificate starts continuous search, which ships as best-found until it earns a certificate."
+
+[[entry]]
+id = "X05.geo_translation"
+status = "pending_attempt"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X05"
+attempt_order = 1
+end_state = "One geo-experiment estimand is translated into the longitudinal model."
+
+[[entry]]
+id = "X05.weaker_conditional"
+status = "pending_attempt"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X05"
+attempt_order = 2
+end_state = "An unsupported mapping ships the weaker conditional result and the update-to-decision chain continues."
+
+[[entry]]
+id = "X05.smaller_ranking"
+status = "pending_attempt"
+list = "mandatory"
+source = "attempt"
+attempt_of = "X05"
+attempt_order = 3
+end_state = "An unsupported ranking is followed by a smaller ranking the declared model can support."
+
+[[entry]]
+id = "X02.broader.static.frequentist"
+status = "research"
+list = "research"
+source = "method_children"
+gap = "theory"
+
+[[entry]]
+id = "X02.broader.static.bayesian"
+status = "research"
+list = "research"
+source = "method_children"
+gap = "theory"
+
+[[entry]]
+id = "X02.broader.temporal.frequentist"
+status = "research"
+list = "research"
+source = "method_children"
+gap = "theory"
+
+[[entry]]
+id = "X02.broader.temporal.bayesian"
+status = "research"
+list = "research"
+source = "method_children"
+gap = "theory"
+
+[[entry]]
+id = "Y18"
+status = "research"
+list = "research"
+source = "research"
+role = "generalized cyclic ID and cyclic FCI"
+
+[[entry]]
+id = "Y19"
+status = "research"
+list = "research"
+source = "research"
+role = "nonlinear, stationary, and constraint feedback"
+
+[[entry]]
+id = "G08"
+status = "research"
+list = "research"
+source = "research"
+role = "optional numerical batching or Python preparation"
