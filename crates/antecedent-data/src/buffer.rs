@@ -176,3 +176,33 @@ impl PartialEq for F64Buffer {
         self.as_slice() == other.as_slice()
     }
 }
+
+/// Keeps the allocation behind an offset foreign window alive.
+#[cfg(test)]
+#[derive(Debug)]
+struct OffsetOwner(Vec<f64>);
+
+#[cfg(test)]
+impl ForeignBufferOwner for OffsetOwner {}
+
+/// Contiguous offset window into `values`, kept as a foreign buffer.
+///
+/// A `NumPy` noncontiguous array is not imported. [`ForeignF64Buffer`] is the
+/// ingestion path that already accepts a pointer and a length: an offset into a
+/// larger allocation, which is the unit-stride window of that array. A strided
+/// view does not grow a second snapshot type.
+#[cfg(test)]
+#[must_use]
+pub(crate) fn foreign_offset_f64(values: Vec<f64>, start: usize, len: usize) -> F64Buffer {
+    assert!(
+        start.checked_add(len).is_some_and(|end| end <= values.len()),
+        "offset window is outside the allocation"
+    );
+    let owner = Arc::new(OffsetOwner(values));
+    let ptr = owner.0.as_ptr().wrapping_add(start);
+    // SAFETY: `owner` keeps the `Vec<f64>` allocation alive and immutable. `start + len`
+    // is in range, so `ptr` addresses `len` aligned `f64`s (or is empty and unread).
+    // Moving the `Arc` does not reallocate.
+    let foreign = unsafe { ForeignF64Buffer::new(owner, ptr, len) };
+    F64Buffer::foreign(foreign)
+}

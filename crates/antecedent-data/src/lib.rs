@@ -55,6 +55,8 @@ pub mod temporal;
 pub mod vector_vars;
 
 #[cfg(test)]
+mod differential;
+#[cfg(test)]
 mod testing;
 
 #[cfg(feature = "arrow")]
