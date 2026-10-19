@@ -1,12 +1,22 @@
 //! Execution context: parallelism, determinism, RNG, budgets, kernel policy.
 //!
 //! No core algorithm creates a global thread pool, uses an implicit global RNG,
-//! or selects architecture-specific behavior outside [`KernelPolicy`]
+//! or selects architecture-specific behavior outside [`KernelPolicy`].
+//!
+//! CPU and RAM admission is a shared lease. Taking a lease decrements the
+//! budget; [`MemoryBudget`] is not that lease and is never decremented. A child
+//! lease is drawn from its parent's remainder, release returns that remainder,
+//! and cancellation releases the lease. Byte products and sums that do not fit
+//! in `u64` are refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::fmt;
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, Weak};
+use std::time::{Duration, Instant};
+
+use thiserror::Error;
 
 /// Parallel execution budget.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -341,19 +351,609 @@ impl Default for AdaptiveDrawBudget {
     }
 }
 
-/// Cooperative cancellation token.
-#[derive(Clone, Debug, Default)]
-pub struct CancellationToken {
+/// CPU slots and RAM bytes requested from an admission budget.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct AdmissionRequest {
+    threads: u32,
+    bytes: u64,
+}
+
+impl AdmissionRequest {
+    /// Request `threads` CPU slots and `bytes` of RAM.
+    #[must_use]
+    pub const fn new(threads: u32, bytes: u64) -> Self {
+        Self { threads, bytes }
+    }
+
+    /// CPU slots.
+    #[must_use]
+    pub const fn threads(self) -> u32 {
+        self.threads
+    }
+
+    /// RAM bytes.
+    #[must_use]
+    pub const fn bytes(self) -> u64 {
+        self.bytes
+    }
+
+    /// Sum `parts` into one byte request.
+    ///
+    /// # Errors
+    ///
+    /// [`AdmissionError::Overflow`] when the sum does not fit in `u64`. The sum is not wrapped.
+    pub const fn try_sum(threads: u32, parts: &[u64]) -> Result<Self, AdmissionError> {
+        let mut bytes = 0u64;
+        let mut index = 0;
+        while index < parts.len() {
+            let Some(sum) = checked_byte_sum(bytes, parts[index]) else {
+                return Err(AdmissionError::Overflow);
+            };
+            bytes = sum;
+            index += 1;
+        }
+        Ok(Self::new(threads, bytes))
+    }
+
+    /// Request `count * width` bytes.
+    ///
+    /// # Errors
+    ///
+    /// [`AdmissionError::Overflow`] when the product does not fit in `u64`.
+    pub const fn try_product(threads: u32, count: u64, width: u64) -> Result<Self, AdmissionError> {
+        let Some(bytes) = checked_byte_product(count, width) else {
+            return Err(AdmissionError::Overflow);
+        };
+        Ok(Self::new(threads, bytes))
+    }
+}
+
+/// CPU slots and RAM bytes still held by one lease, or still free in a pool.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct AdmissionRemainder {
+    threads: u32,
+    bytes: u64,
+}
+
+impl AdmissionRemainder {
+    /// Remainder of `threads` slots and `bytes` of RAM.
+    #[must_use]
+    pub const fn new(threads: u32, bytes: u64) -> Self {
+        Self { threads, bytes }
+    }
+
+    /// Nothing held.
+    #[must_use]
+    pub const fn zero() -> Self {
+        Self::new(0, 0)
+    }
+
+    /// CPU slots.
+    #[must_use]
+    pub const fn threads(self) -> u32 {
+        self.threads
+    }
+
+    /// RAM bytes.
+    #[must_use]
+    pub const fn bytes(self) -> u64 {
+        self.bytes
+    }
+}
+
+/// Why an admission lease was not granted, or a size was not accepted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Error)]
+#[non_exhaustive]
+pub enum AdmissionError {
+    /// The request is larger than the pool or parent remainder.
+    #[error(
+        "admission request of {requested_threads} threads and {requested_bytes} bytes exceeds \
+         the remainder of {remaining_threads} threads and {remaining_bytes} bytes"
+    )]
+    ExceedsRemainder {
+        /// CPU slots asked for.
+        requested_threads: u32,
+        /// RAM bytes asked for.
+        requested_bytes: u64,
+        /// CPU slots still available to this account.
+        remaining_threads: u32,
+        /// RAM bytes still available to this account.
+        remaining_bytes: u64,
+    },
+    /// A sum or product did not fit. It was not wrapped.
+    #[error("admission arithmetic overflowed and was refused")]
+    Overflow,
+    /// The wait ended and the budget still could not hold the request.
+    #[error("admission wait of {bound:?} ended before the budget had room")]
+    WaitBoundExceeded {
+        /// Bound that elapsed.
+        bound: Duration,
+    },
+    /// The study was cancelled. A held lease from that study was released.
+    #[error("admission stopped because cancellation released the lease")]
+    Cancelled,
+    /// The parent lease no longer holds a remainder.
+    #[error("admission lease is already released")]
+    Released,
+}
+
+/// `count * width`, or `None` when the product does not fit in `u64`.
+#[must_use]
+pub const fn checked_byte_product(count: u64, width: u64) -> Option<u64> {
+    count.checked_mul(width)
+}
+
+/// `left + right`, or `None` when the sum does not fit in `u64`.
+#[must_use]
+pub const fn checked_byte_sum(left: u64, right: u64) -> Option<u64> {
+    left.checked_add(right)
+}
+
+/// Shared CPU and RAM budget.
+///
+/// [`Self::available`] is what no open lease holds. Granting a lease decrements it. Two contexts
+/// that install the same pool compete for that one remainder. [`MemoryBudget`] is not consulted
+/// and is not decremented.
+#[derive(Clone)]
+pub struct AdmissionPool {
+    shared: Arc<SharedAdmission>,
+}
+
+struct SharedAdmission {
+    state: Mutex<AdmissionState>,
+    released: Arc<Condvar>,
+}
+
+/// Free counters plus every open lease remainder equal the budget. That equality is the
+/// enforcement: a descriptor that never changes these counters admits nothing.
+struct AdmissionState {
+    thread_budget: u32,
+    byte_budget: u64,
+    threads_free: u32,
+    bytes_free: u64,
+    leases: Vec<LeaseSlot>,
+    next_id: u64,
+    blocked_waiters: usize,
+}
+
+struct LeaseSlot {
+    id: u64,
+    parent: Option<u64>,
+    threads: u32,
+    bytes: u64,
+    flag: Arc<AtomicBool>,
+}
+
+enum GrantError {
+    Short(AdmissionError),
+    Overflow,
+}
+
+impl AdmissionPool {
+    /// Budget of `threads` CPU slots and `bytes` of RAM, all of it free.
+    #[must_use]
+    pub fn fixed(threads: u32, bytes: u64) -> Self {
+        Self {
+            shared: Arc::new(SharedAdmission {
+                state: Mutex::new(AdmissionState {
+                    thread_budget: threads,
+                    byte_budget: bytes,
+                    threads_free: threads,
+                    bytes_free: bytes,
+                    leases: Vec::new(),
+                    next_id: 1,
+                    blocked_waiters: 0,
+                }),
+                released: Arc::new(Condvar::new()),
+            }),
+        }
+    }
+
+    /// CPU and RAM no open lease holds.
+    ///
+    /// Cancelled leases are released before the remainder is read, so a cancelled study no longer
+    /// occupies the budget.
+    #[must_use]
+    pub fn available(&self) -> AdmissionRemainder {
+        let mut guard = lock_mutex(&self.shared.state);
+        if reap_cancelled(&mut guard) {
+            self.shared.released.notify_all();
+        }
+        AdmissionRemainder::new(guard.threads_free, guard.bytes_free)
+    }
+
+    /// CPU slots this pool was created with.
+    #[must_use]
+    pub fn thread_budget(&self) -> u32 {
+        lock_mutex(&self.shared.state).thread_budget
+    }
+
+    /// RAM bytes this pool was created with.
+    #[must_use]
+    pub fn byte_budget(&self) -> u64 {
+        lock_mutex(&self.shared.state).byte_budget
+    }
+
+    /// Studies blocked inside a bounded acquire.
+    #[must_use]
+    pub fn blocked_waiters(&self) -> usize {
+        lock_mutex(&self.shared.state).blocked_waiters
+    }
+}
+
+impl fmt::Debug for AdmissionPool {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let guard = lock_mutex(&self.shared.state);
+        formatter
+            .debug_struct("AdmissionPool")
+            .field("thread_budget", &guard.thread_budget)
+            .field("byte_budget", &guard.byte_budget)
+            .field("threads_free", &guard.threads_free)
+            .field("bytes_free", &guard.bytes_free)
+            .field("open_leases", &guard.leases.len())
+            .field("blocked_waiters", &guard.blocked_waiters)
+            .finish()
+    }
+}
+
+fn lock_mutex<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+fn lease_index(leases: &[LeaseSlot], id: u64) -> Option<usize> {
+    leases.iter().position(|slot| slot.id == id)
+}
+
+fn exceeds(
+    request: AdmissionRequest,
+    remaining_threads: u32,
+    remaining_bytes: u64,
+) -> AdmissionError {
+    AdmissionError::ExceedsRemainder {
+        requested_threads: request.threads,
+        requested_bytes: request.bytes,
+        remaining_threads,
+        remaining_bytes,
+    }
+}
+
+fn reserve(
+    available_threads: u32,
+    available_bytes: u64,
+    request: AdmissionRequest,
+) -> Result<(u32, u64), AdmissionError> {
+    let Some(threads) = available_threads.checked_sub(request.threads) else {
+        return Err(exceeds(request, available_threads, available_bytes));
+    };
+    let Some(bytes) = available_bytes.checked_sub(request.bytes) else {
+        return Err(exceeds(request, available_threads, available_bytes));
+    };
+    Ok((threads, bytes))
+}
+
+fn grant_root(
+    state: &mut AdmissionState,
+    request: AdmissionRequest,
+    flag: Arc<AtomicBool>,
+) -> Result<u64, GrantError> {
+    let Some(next_id) = state.next_id.checked_add(1) else {
+        return Err(GrantError::Overflow);
+    };
+    let (threads_free, bytes_free) = match reserve(state.threads_free, state.bytes_free, request) {
+        Ok(reserved) => reserved,
+        Err(error) => return Err(GrantError::Short(error)),
+    };
+    state.threads_free = threads_free;
+    state.bytes_free = bytes_free;
+    Ok(push_lease(state, None, request, flag, next_id))
+}
+
+fn grant_child(
+    state: &mut AdmissionState,
+    parent_id: u64,
+    request: AdmissionRequest,
+    flag: Arc<AtomicBool>,
+) -> Result<u64, AdmissionError> {
+    let Some(next_id) = state.next_id.checked_add(1) else {
+        return Err(AdmissionError::Overflow);
+    };
+    let Some(index) = lease_index(&state.leases, parent_id) else {
+        return Err(AdmissionError::Released);
+    };
+    let remaining_threads = state.leases[index].threads;
+    let remaining_bytes = state.leases[index].bytes;
+    let (threads, bytes) = reserve(remaining_threads, remaining_bytes, request)?;
+    state.leases[index].threads = threads;
+    state.leases[index].bytes = bytes;
+    Ok(push_lease(state, Some(parent_id), request, flag, next_id))
+}
+
+fn push_lease(
+    state: &mut AdmissionState,
+    parent: Option<u64>,
+    request: AdmissionRequest,
+    flag: Arc<AtomicBool>,
+    next_id: u64,
+) -> u64 {
+    let id = state.next_id;
+    state.next_id = next_id;
+    state.leases.push(LeaseSlot {
+        id,
+        parent,
+        threads: request.threads,
+        bytes: request.bytes,
+        flag,
+    });
+    id
+}
+
+fn credit(
+    state: &mut AdmissionState,
+    parent: Option<u64>,
+    threads: u32,
+    bytes: u64,
+) -> Result<(), AdmissionError> {
+    let parent_index = parent.and_then(|id| lease_index(&state.leases, id));
+    if let Some(index) = parent_index {
+        let Some(held_threads) = state.leases[index].threads.checked_add(threads) else {
+            return Err(AdmissionError::Overflow);
+        };
+        let Some(held_bytes) = state.leases[index].bytes.checked_add(bytes) else {
+            return Err(AdmissionError::Overflow);
+        };
+        state.leases[index].threads = held_threads;
+        state.leases[index].bytes = held_bytes;
+        return Ok(());
+    }
+    let Some(threads_free) = state.threads_free.checked_add(threads) else {
+        return Err(AdmissionError::Overflow);
+    };
+    if threads_free > state.thread_budget {
+        return Err(AdmissionError::Overflow);
+    }
+    let Some(bytes_free) = state.bytes_free.checked_add(bytes) else {
+        return Err(AdmissionError::Overflow);
+    };
+    if bytes_free > state.byte_budget {
+        return Err(AdmissionError::Overflow);
+    }
+    state.threads_free = threads_free;
+    state.bytes_free = bytes_free;
+    Ok(())
+}
+
+fn close_slot(state: &mut AdmissionState, index: usize) -> Option<AdmissionRemainder> {
+    let id = state.leases[index].id;
+    let parent = state.leases[index].parent;
+    let threads = state.leases[index].threads;
+    let bytes = state.leases[index].bytes;
+    credit(state, parent, threads, bytes).ok()?;
+    for slot in &mut state.leases {
+        if slot.parent == Some(id) {
+            slot.parent = parent;
+        }
+    }
+    state.leases.remove(index);
+    Some(AdmissionRemainder::new(threads, bytes))
+}
+
+fn reap_cancelled(state: &mut AdmissionState) -> bool {
+    let mut freed = false;
+    loop {
+        let Some(index) = state.leases.iter().position(|slot| slot.flag.load(Ordering::SeqCst))
+        else {
+            return freed;
+        };
+        if close_slot(state, index).is_none() {
+            return freed;
+        }
+        freed = true;
+    }
+}
+
+fn close_and_notify(shared: &SharedAdmission, id: u64) -> AdmissionRemainder {
+    let mut guard = lock_mutex(&shared.state);
+    let Some(index) = lease_index(&guard.leases, id) else {
+        return AdmissionRemainder::zero();
+    };
+    let Some(remainder) = close_slot(&mut guard, index) else {
+        return AdmissionRemainder::zero();
+    };
+    shared.released.notify_all();
+    remainder
+}
+
+/// A hold on CPU slots and RAM bytes.
+///
+/// Dropping the lease releases whatever remainder it still holds. Cancellation of the study that
+/// took it does the same: the next admission observation returns that remainder to the parent, or
+/// to the pool when the lease is a root.
+#[must_use = "dropping the lease releases its CPU and RAM"]
+pub struct AdmissionLease {
+    shared: Arc<SharedAdmission>,
+    id: u64,
+    flag: Arc<AtomicBool>,
+    active: AtomicBool,
+}
+
+impl AdmissionLease {
+    fn new(shared: Arc<SharedAdmission>, id: u64, flag: Arc<AtomicBool>) -> Self {
+        Self { shared, id, flag, active: AtomicBool::new(true) }
+    }
+
+    /// Take a child lease from this lease's remainder.
+    ///
+    /// The child cannot use RAM or CPU the parent does not still hold, even when the pool has
+    /// more free. The pool's free count stays put: the child is a portion of the parent.
+    ///
+    /// # Errors
+    ///
+    /// [`AdmissionError::ExceedsRemainder`] when the request is larger than this lease's
+    /// remainder. [`AdmissionError::Cancelled`] when the study was cancelled.
+    /// [`AdmissionError::Released`] when this lease is already gone.
+    /// [`AdmissionError::Overflow`] when naming another lease does not fit in `u64`.
+    pub fn acquire_child(&self, threads: u32, bytes: u64) -> Result<Self, AdmissionError> {
+        self.acquire_child_request(AdmissionRequest::new(threads, bytes))
+    }
+
+    /// Child lease of `count * width` bytes, refused when the product overflows.
+    ///
+    /// # Errors
+    ///
+    /// [`AdmissionError::Overflow`] when `count * width` does not fit in `u64`. Otherwise the
+    /// errors of [`Self::acquire_child`].
+    pub fn acquire_child_product(
+        &self,
+        threads: u32,
+        count: u64,
+        width: u64,
+    ) -> Result<Self, AdmissionError> {
+        self.acquire_child_request(AdmissionRequest::try_product(threads, count, width)?)
+    }
+
+    /// Child lease for a request already checked for overflow.
+    ///
+    /// # Errors
+    ///
+    /// See [`Self::acquire_child`].
+    pub fn acquire_child_request(&self, request: AdmissionRequest) -> Result<Self, AdmissionError> {
+        let mut guard = lock_mutex(&self.shared.state);
+        if reap_cancelled(&mut guard) {
+            self.shared.released.notify_all();
+        }
+        if self.flag.load(Ordering::SeqCst) {
+            self.active.store(false, Ordering::SeqCst);
+            return Err(AdmissionError::Cancelled);
+        }
+        if lease_index(&guard.leases, self.id).is_none() {
+            self.active.store(false, Ordering::SeqCst);
+            return Err(AdmissionError::Released);
+        }
+        let id = grant_child(&mut guard, self.id, request, Arc::clone(&self.flag))?;
+        Ok(Self::new(Arc::clone(&self.shared), id, Arc::clone(&self.flag)))
+    }
+
+    /// CPU and RAM this lease still holds, after cancelled leases are released.
+    #[must_use]
+    pub fn remainder(&self) -> AdmissionRemainder {
+        let mut guard = lock_mutex(&self.shared.state);
+        if reap_cancelled(&mut guard) {
+            self.shared.released.notify_all();
+        }
+        if let Some(index) = lease_index(&guard.leases, self.id) {
+            let slot = &guard.leases[index];
+            AdmissionRemainder::new(slot.threads, slot.bytes)
+        } else {
+            self.active.store(false, Ordering::SeqCst);
+            AdmissionRemainder::zero()
+        }
+    }
+
+    /// Return this lease's remainder to its parent, or to the pool when it is a root.
+    ///
+    /// Outstanding children keep their portion. That portion is not part of the returned
+    /// remainder; each child returns it when that child is released.
+    #[must_use = "the remainder is the CPU and RAM returned to the parent"]
+    pub fn release(self) -> AdmissionRemainder {
+        if !self.active.swap(false, Ordering::SeqCst) {
+            return AdmissionRemainder::zero();
+        }
+        close_and_notify(&self.shared, self.id)
+    }
+}
+
+impl Drop for AdmissionLease {
+    fn drop(&mut self) {
+        if self.active.swap(false, Ordering::SeqCst) {
+            let _ = close_and_notify(&self.shared, self.id);
+        }
+    }
+}
+
+impl fmt::Debug for AdmissionLease {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AdmissionLease")
+            .field("id", &self.id)
+            .field("active", &self.active.load(Ordering::SeqCst))
+            .finish_non_exhaustive()
+    }
+}
+
+struct CancelFlag {
     cancelled: Arc<AtomicBool>,
+    waiters: Mutex<Vec<Weak<Condvar>>>,
+    admission: Mutex<Arc<SharedAdmission>>,
+}
+
+impl Default for CancelFlag {
+    fn default() -> Self {
+        Self::from_pool(AdmissionPool::fixed(u32::MAX, u64::MAX))
+    }
+}
+
+impl CancelFlag {
+    fn from_pool(pool: AdmissionPool) -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+            waiters: Mutex::new(Vec::new()),
+            admission: Mutex::new(pool.shared),
+        }
+    }
+
+    fn register_waiter(&self, cv: &Arc<Condvar>) {
+        let mut waiters = lock_mutex(&self.waiters);
+        waiters.retain(|waiter| waiter.strong_count() > 0);
+        let incoming = Arc::downgrade(cv);
+        if !waiters.iter().any(|waiter| Weak::ptr_eq(waiter, &incoming)) {
+            waiters.push(incoming);
+        }
+    }
+
+    fn wake(&self) {
+        let waiters = {
+            let mut waiters = lock_mutex(&self.waiters);
+            waiters.retain(|waiter| waiter.strong_count() > 0);
+            waiters.clone()
+        };
+        for waiter in waiters {
+            if let Some(cv) = waiter.upgrade() {
+                cv.notify_all();
+            }
+        }
+    }
+}
+
+/// Cooperative cancellation token.
+///
+/// The token also names the admission pool of the context that holds it. [`Self::cancel`] wakes
+/// studies waiting on that pool.
+#[derive(Clone, Default)]
+pub struct CancellationToken {
+    flag: Arc<CancelFlag>,
     /// Test hook: checks left before the token cancels itself.
     trip_after: Option<Arc<AtomicUsize>>,
 }
 
+impl fmt::Debug for CancellationToken {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CancellationToken")
+            .field("cancelled", &self.flag.cancelled.load(Ordering::SeqCst))
+            .field("trip_after", &self.trip_after)
+            .finish()
+    }
+}
+
 impl CancellationToken {
-    /// Create a fresh token.
+    /// Create a fresh token with an open CPU and RAM budget.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    fn with_pool(pool: AdmissionPool) -> Self {
+        Self { flag: Arc::new(CancelFlag::from_pool(pool)), trip_after: None }
     }
 
     /// A token that cancels itself on its `checks + 1`-th observation, so a
@@ -363,21 +963,25 @@ impl CancellationToken {
     #[doc(hidden)]
     #[must_use]
     pub fn cancel_after_checks(checks: usize) -> Self {
-        Self { cancelled: Arc::default(), trip_after: Some(Arc::new(AtomicUsize::new(checks))) }
+        Self {
+            flag: Arc::new(CancelFlag::default()),
+            trip_after: Some(Arc::new(AtomicUsize::new(checks))),
+        }
     }
 
     /// A non-owning handle that does not keep this token alive.
     #[must_use]
     pub fn downgrade(&self) -> WeakCancellationToken {
         WeakCancellationToken {
-            cancelled: Arc::downgrade(&self.cancelled),
+            flag: Arc::downgrade(&self.flag),
             trip_after: self.trip_after.clone(),
         }
     }
 
-    /// Request cancellation.
+    /// Request cancellation and wake admission waits bound to this token.
     pub fn cancel(&self) {
-        self.cancelled.store(true, Ordering::SeqCst);
+        self.flag.cancelled.store(true, Ordering::SeqCst);
+        self.flag.wake();
     }
 
     /// Whether cancellation was requested.
@@ -389,7 +993,19 @@ impl CancellationToken {
                 self.cancel();
             }
         }
-        self.cancelled.load(Ordering::SeqCst)
+        self.flag.cancelled.load(Ordering::SeqCst)
+    }
+
+    fn set_pool(&self, pool: AdmissionPool) {
+        *lock_mutex(&self.flag.admission) = pool.shared;
+    }
+
+    fn admission_pool(&self) -> AdmissionPool {
+        AdmissionPool { shared: Arc::clone(&lock_mutex(&self.flag.admission)) }
+    }
+
+    fn cancel_flag(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.flag.cancelled)
     }
 }
 
@@ -401,7 +1017,7 @@ impl CancellationToken {
 /// leaking the contexts that were built and dropped.
 #[derive(Clone, Debug)]
 pub struct WeakCancellationToken {
-    cancelled: std::sync::Weak<AtomicBool>,
+    flag: Weak<CancelFlag>,
     trip_after: Option<Arc<AtomicUsize>>,
 }
 
@@ -409,16 +1025,13 @@ impl WeakCancellationToken {
     /// The token, if any owner of it is still alive.
     #[must_use]
     pub fn upgrade(&self) -> Option<CancellationToken> {
-        Some(CancellationToken {
-            cancelled: self.cancelled.upgrade()?,
-            trip_after: self.trip_after.clone(),
-        })
+        Some(CancellationToken { flag: self.flag.upgrade()?, trip_after: self.trip_after.clone() })
     }
 
     /// Whether an owner of the token is still alive.
     #[must_use]
     pub fn is_alive(&self) -> bool {
-        self.cancelled.strong_count() > 0
+        self.flag.strong_count() > 0
     }
 }
 
@@ -664,6 +1277,70 @@ pub const fn derive_stream(master: u64, stream_id: u64) -> u64 {
     z ^ (z >> 32)
 }
 
+fn admit(
+    shared: &Arc<SharedAdmission>,
+    request: AdmissionRequest,
+    flag: &Arc<AtomicBool>,
+    waiters: &CancelFlag,
+    bound: Option<Duration>,
+) -> Result<AdmissionLease, AdmissionError> {
+    waiters.register_waiter(&shared.released);
+    let mut guard = lock_mutex(&shared.state);
+    let limit = match bound {
+        None => None,
+        Some(bound) => {
+            let deadline = Instant::now().checked_add(bound).ok_or(AdmissionError::Overflow)?;
+            Some((deadline, bound))
+        }
+    };
+    loop {
+        if reap_cancelled(&mut guard) {
+            shared.released.notify_all();
+        }
+        if flag.load(Ordering::SeqCst) {
+            return Err(AdmissionError::Cancelled);
+        }
+        match grant_root(&mut guard, request, Arc::clone(flag)) {
+            Ok(id) => return Ok(AdmissionLease::new(Arc::clone(shared), id, Arc::clone(flag))),
+            Err(GrantError::Overflow) => return Err(AdmissionError::Overflow),
+            Err(GrantError::Short(refusal)) => {
+                guard = wait_or_stop(shared, guard, refusal, limit)?;
+            }
+        }
+    }
+}
+
+fn wait_or_stop<'a>(
+    shared: &'a SharedAdmission,
+    guard: MutexGuard<'a, AdmissionState>,
+    refusal: AdmissionError,
+    limit: Option<(Instant, Duration)>,
+) -> Result<MutexGuard<'a, AdmissionState>, AdmissionError> {
+    let Some((deadline, bound)) = limit else {
+        return Err(refusal);
+    };
+    if Instant::now() >= deadline {
+        return Err(AdmissionError::WaitBoundExceeded { bound });
+    }
+    wait_for_room(shared, guard, deadline)
+}
+
+fn wait_for_room<'a>(
+    shared: &'a SharedAdmission,
+    mut guard: MutexGuard<'a, AdmissionState>,
+    deadline: Instant,
+) -> Result<MutexGuard<'a, AdmissionState>, AdmissionError> {
+    let Some(waiting) = guard.blocked_waiters.checked_add(1) else {
+        return Err(AdmissionError::Overflow);
+    };
+    guard.blocked_waiters = waiting;
+    let timeout = deadline.saturating_duration_since(Instant::now());
+    let (mut locked, _) =
+        shared.released.wait_timeout(guard, timeout).unwrap_or_else(PoisonError::into_inner);
+    locked.blocked_waiters = locked.blocked_waiters.saturating_sub(1);
+    Ok(locked)
+}
+
 /// Full execution context passed into algorithms.
 #[derive(Clone)]
 pub struct ExecutionContext {
@@ -707,7 +1384,7 @@ impl ExecutionContext {
             determinism: Determinism::Strict,
             rng: RngFactory::from_seed(seed),
             memory: MemoryBudget::unlimited(),
-            cancellation: CancellationToken::new(),
+            cancellation: CancellationToken::with_pool(AdmissionPool::fixed(1, u64::MAX)),
             progress: None,
             kernel_policy: KernelPolicy::scalar_only(),
             cache_policy: CachePolicy::disabled(),
@@ -819,13 +1496,107 @@ impl ExecutionContext {
             determinism: Determinism::Strict,
             rng: RngFactory::from_seed(seed),
             memory: MemoryBudget::unlimited(),
-            cancellation: CancellationToken::new(),
+            cancellation: CancellationToken::with_pool(AdmissionPool::fixed(
+                threads.get(),
+                u64::MAX,
+            )),
             progress: None,
             kernel_policy: KernelPolicy::default_policy(),
             cache_policy: CachePolicy::enabled(None),
             adaptive_bootstrap: AdaptiveBootstrapBudget::disabled(),
             adaptive_draws: AdaptiveDrawBudget::disabled(),
         }
+    }
+
+    /// Install `pool` for this context and every clone of its cancellation token.
+    ///
+    /// Later acquires decrement `pool`. [`Self::memory`] is left unchanged.
+    #[must_use]
+    pub fn with_admission(self, pool: AdmissionPool) -> Self {
+        self.cancellation.set_pool(pool);
+        self
+    }
+
+    /// The pool later acquires decrement.
+    #[must_use]
+    pub fn admission(&self) -> AdmissionPool {
+        self.cancellation.admission_pool()
+    }
+
+    /// Take a root lease from [`Self::admission`], decrementing that pool.
+    ///
+    /// # Errors
+    ///
+    /// [`AdmissionError::ExceedsRemainder`] when the pool's remainder is short.
+    /// [`AdmissionError::Cancelled`] when this context is already cancelled.
+    /// [`AdmissionError::Overflow`] when the lease id does not fit in `u64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use antecedent_core::execution::AdmissionPool;
+    /// use antecedent_core::ExecutionContext;
+    ///
+    /// let shared = AdmissionPool::fixed(4, 1_000);
+    /// let study = ExecutionContext::for_tests(1).with_admission(shared.clone());
+    /// let lease = study.acquire_admission(3, 250).unwrap();
+    /// assert_eq!(shared.available().threads(), 1);
+    /// assert_eq!(shared.available().bytes(), 750);
+    /// assert_eq!(lease.release().threads(), 3);
+    /// assert_eq!(shared.available().threads(), 4);
+    /// ```
+    pub fn acquire_admission(
+        &self,
+        threads: u32,
+        bytes: u64,
+    ) -> Result<AdmissionLease, AdmissionError> {
+        self.acquire_request(AdmissionRequest::new(threads, bytes), None)
+    }
+
+    /// Wait up to `bound` for a root lease. Cancellation ends the wait with no hold.
+    ///
+    /// # Errors
+    ///
+    /// [`AdmissionError::WaitBoundExceeded`] when `bound` elapses first.
+    /// [`AdmissionError::Cancelled`] when this context is cancelled. The other
+    /// errors match [`Self::acquire_admission`].
+    pub fn acquire_admission_bounded(
+        &self,
+        threads: u32,
+        bytes: u64,
+        bound: Duration,
+    ) -> Result<AdmissionLease, AdmissionError> {
+        self.acquire_request(AdmissionRequest::new(threads, bytes), Some(bound))
+    }
+
+    /// Root lease of `count * width` bytes.
+    ///
+    /// # Errors
+    ///
+    /// [`AdmissionError::Overflow`] when `count * width` does not fit in `u64`.
+    /// The product is not wrapped, and the pool is not decremented. Otherwise
+    /// the errors of [`Self::acquire_admission`].
+    pub fn acquire_admission_product(
+        &self,
+        threads: u32,
+        count: u64,
+        width: u64,
+    ) -> Result<AdmissionLease, AdmissionError> {
+        self.acquire_request(AdmissionRequest::try_product(threads, count, width)?, None)
+    }
+
+    fn acquire_request(
+        &self,
+        request: AdmissionRequest,
+        bound: Option<Duration>,
+    ) -> Result<AdmissionLease, AdmissionError> {
+        admit(
+            &self.cancellation.admission_pool().shared,
+            request,
+            &self.cancellation.cancel_flag(),
+            &self.cancellation.flag,
+            bound,
+        )
     }
 }
 
@@ -935,6 +1706,7 @@ impl core::fmt::Debug for ExecutionContext {
             .field("cache_policy", &self.cache_policy)
             .field("adaptive_bootstrap", &self.adaptive_bootstrap)
             .field("adaptive_draws", &self.adaptive_draws)
+            .field("admission", &self.admission())
             .finish()
     }
 }
@@ -942,6 +1714,9 @@ impl core::fmt::Debug for ExecutionContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+    use std::time::{Duration, Instant};
 
     #[test]
     fn rng_streams_are_deterministic() {
@@ -1196,5 +1971,162 @@ mod tests {
             let x = rng.next_f64();
             assert!((0.0..1.0).contains(&x));
         }
+    }
+
+    #[test]
+    fn simultaneous_studies_compete_for_a_fixed_admission_budget() {
+        let shared = AdmissionPool::fixed(4, 500);
+        let study_a = ExecutionContext::for_tests(1).with_admission(shared.clone());
+        let study_b = ExecutionContext::for_tests(2).with_admission(shared.clone());
+        assert!(study_a.memory.hard_limit_bytes.is_none());
+        assert_eq!(shared.thread_budget(), 4);
+        assert_eq!(shared.byte_budget(), 500);
+        let gate = Arc::new(Barrier::new(2));
+        let start = |study: ExecutionContext, gate: Arc<Barrier>| {
+            thread::spawn(move || {
+                gate.wait();
+                study.acquire_admission(3, 300)
+            })
+        };
+        let left = start(study_a, Arc::clone(&gate));
+        let right = start(study_b, gate);
+        let left = left.join().unwrap();
+        let right = right.join().unwrap();
+        let ((Ok(_), Err(refusal)) | (Err(refusal), Ok(_))) = (&left, &right) else {
+            panic!("one study must take the budget and the other must be refused");
+        };
+        assert!(matches!(
+            refusal,
+            AdmissionError::ExceedsRemainder {
+                requested_threads: 3,
+                requested_bytes: 300,
+                remaining_threads: 1,
+                remaining_bytes: 200,
+            }
+        ));
+        assert_eq!(shared.available().threads(), 1);
+        assert_eq!(shared.available().bytes(), 200);
+        drop(left);
+        drop(right);
+        assert_eq!(shared.available().threads(), 4);
+        assert_eq!(shared.available().bytes(), 500);
+    }
+
+    #[test]
+    fn cloned_context_shares_the_admission_decrement() {
+        let study = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(2, 10));
+        let clone = study.clone();
+        let lease = study.acquire_admission(2, 10).unwrap();
+        assert!(clone.acquire_admission(1, 0).is_err());
+        assert_eq!(clone.admission().available().threads(), 0);
+        assert_eq!(lease.release().threads(), 2);
+        assert_eq!(clone.admission().available().threads(), 2);
+        assert_eq!(clone.admission().available().bytes(), 10);
+    }
+
+    #[test]
+    fn child_lease_cannot_exceed_parent_remainder() {
+        let shared = AdmissionPool::fixed(10, 1_000);
+        let study = ExecutionContext::for_tests(7).with_admission(shared.clone());
+        let parent = study.acquire_admission(4, 400).unwrap();
+        assert_eq!(shared.available().threads(), 6);
+        let too_wide = parent.acquire_child(5, 1);
+        assert!(matches!(
+            too_wide,
+            Err(AdmissionError::ExceedsRemainder {
+                remaining_threads: 4,
+                remaining_bytes: 400,
+                ..
+            })
+        ));
+        assert_eq!(shared.available().threads(), 6);
+        let child = parent.acquire_child(3, 100).unwrap();
+        assert_eq!(parent.remainder().threads(), 1);
+        assert_eq!(parent.remainder().bytes(), 300);
+        assert_eq!(shared.available().threads(), 6);
+        let returned = child.release();
+        assert_eq!(returned.threads(), 3);
+        assert_eq!(returned.bytes(), 100);
+        assert_eq!(parent.remainder().threads(), 4);
+        assert_eq!(parent.remainder().bytes(), 400);
+        let child = parent.acquire_child(4, 400).unwrap();
+        assert_eq!(parent.release().threads(), 0);
+        assert_eq!(shared.available().threads(), 6);
+        assert_eq!(child.remainder().threads(), 4);
+        drop(child);
+        assert_eq!(shared.available().threads(), 10);
+        assert_eq!(shared.available().bytes(), 1_000);
+    }
+
+    #[test]
+    fn cancellation_releases_the_admission_lease() {
+        let shared = AdmissionPool::fixed(4, 80);
+        let study_a = ExecutionContext::for_tests(1).with_admission(shared.clone());
+        let study_b = ExecutionContext::for_tests(2).with_admission(shared.clone());
+        let lease = study_a.acquire_admission(4, 80).unwrap();
+        study_a.cancellation.cancel();
+        assert_eq!(shared.available().threads(), 4);
+        assert_eq!(shared.available().bytes(), 80);
+        assert_eq!(lease.release().threads(), 0);
+        let taken = study_b.acquire_admission(4, 80).unwrap();
+        assert_eq!(shared.available().threads(), 0);
+        drop(taken);
+        assert_eq!(shared.available().threads(), 4);
+        study_b.cancellation.cancel();
+        let refused = study_b.acquire_admission_bounded(1, 1, Duration::from_secs(30));
+        assert!(matches!(refused, Err(AdmissionError::Cancelled)));
+    }
+
+    #[test]
+    fn byte_overflow_is_refused_instead_of_wrapped() {
+        let shared = AdmissionPool::fixed(2, 32);
+        let study = ExecutionContext::for_tests(1).with_admission(shared.clone());
+        assert!(checked_byte_product(u64::MAX, 2).is_none());
+        assert!(checked_byte_sum(u64::MAX, 1).is_none());
+        assert_eq!(u64::MAX.wrapping_add(1), 0);
+        assert!(matches!(
+            AdmissionRequest::try_sum(1, &[u64::MAX, 1]),
+            Err(AdmissionError::Overflow)
+        ));
+        assert!(matches!(
+            study.acquire_admission_product(1, u64::MAX, 2),
+            Err(AdmissionError::Overflow)
+        ));
+        assert_eq!(shared.available().threads(), 2);
+        assert_eq!(shared.available().bytes(), 32);
+        let parent = study.acquire_admission(1, 32).unwrap();
+        assert!(matches!(
+            parent.acquire_child_product(1, u64::MAX, 2),
+            Err(AdmissionError::Overflow)
+        ));
+        assert_eq!(parent.remainder().bytes(), 32);
+        assert_eq!(shared.available().bytes(), 0);
+        drop(parent);
+        assert_eq!(shared.available().bytes(), 32);
+    }
+
+    #[test]
+    fn bounded_wait_ends_on_release_and_on_the_bound() {
+        let shared = AdmissionPool::fixed(2, 40);
+        let study_a = ExecutionContext::for_tests(1).with_admission(shared.clone());
+        let study_b = ExecutionContext::for_tests(2).with_admission(shared.clone());
+        let lease = study_a.acquire_admission(2, 40).unwrap();
+        let early = study_b.acquire_admission_bounded(2, 40, Duration::from_millis(20));
+        assert!(matches!(early, Err(AdmissionError::WaitBoundExceeded { .. })));
+        assert_eq!(shared.available().threads(), 0);
+        let waiting =
+            thread::spawn(move || study_b.acquire_admission_bounded(2, 40, Duration::from_secs(5)));
+        let started = Instant::now();
+        while shared.blocked_waiters() == 0 {
+            assert!(started.elapsed() < Duration::from_secs(2), "waiter did not block");
+            thread::yield_now();
+        }
+        assert_eq!(lease.release().threads(), 2);
+        let got = waiting.join().unwrap().unwrap();
+        assert_eq!(got.remainder().threads(), 2);
+        assert_eq!(shared.available().threads(), 0);
+        drop(got);
+        assert_eq!(shared.available().threads(), 2);
+        assert_eq!(shared.available().bytes(), 40);
     }
 }

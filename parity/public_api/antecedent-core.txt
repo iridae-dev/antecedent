@@ -53,6 +53,7 @@
 #[non_exhaustive] pub enum antecedent_core::TheoremFamily
 #[non_exhaustive] pub enum antecedent_core::TransportSupportCoordinate
 #[non_exhaustive] pub enum antecedent_core::ValueExpr
+#[non_exhaustive] pub enum antecedent_core::execution::AdmissionError
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ArmBinding
 #[non_exhaustive] pub enum antecedent_core::measurement_model::DifferentialAxis
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ErrorStructure
@@ -74,6 +75,7 @@
 #[non_exhaustive] pub struct antecedent_core::AverageEffectQuery
 #[non_exhaustive] pub struct antecedent_core::CalibrationBasis
 #[non_exhaustive] pub struct antecedent_core::ContractIdentities
+impl !core::marker::Freeze for antecedent_core::execution::AdmissionLease [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExecutionContext [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_core::ExecutionContext [auto]
 impl core::clone::Clone for antecedent_core::AdaptiveBootstrapBudget
@@ -400,6 +402,10 @@ impl core::clone::Clone for antecedent_core::WorldCollection
 impl core::clone::Clone for antecedent_core::WorldId
 impl core::clone::Clone for antecedent_core::WorldObservation
 impl core::clone::Clone for antecedent_core::WorldSpec
+impl core::clone::Clone for antecedent_core::execution::AdmissionError
+impl core::clone::Clone for antecedent_core::execution::AdmissionPool
+impl core::clone::Clone for antecedent_core::execution::AdmissionRemainder
+impl core::clone::Clone for antecedent_core::execution::AdmissionRequest
 impl core::clone::Clone for antecedent_core::execution_attempt::AttemptReport
 impl core::clone::Clone for antecedent_core::execution_attempt::ObservationToken
 impl core::clone::Clone for antecedent_core::execution_attempt::Operation
@@ -725,6 +731,9 @@ impl core::cmp::Eq for antecedent_core::WorldCollection
 impl core::cmp::Eq for antecedent_core::WorldId
 impl core::cmp::Eq for antecedent_core::WorldObservation
 impl core::cmp::Eq for antecedent_core::WorldSpec
+impl core::cmp::Eq for antecedent_core::execution::AdmissionError
+impl core::cmp::Eq for antecedent_core::execution::AdmissionRemainder
+impl core::cmp::Eq for antecedent_core::execution::AdmissionRequest
 impl core::cmp::Eq for antecedent_core::execution_attempt::AttemptReport
 impl core::cmp::Eq for antecedent_core::execution_attempt::Operation
 impl core::cmp::Eq for antecedent_core::execution_attempt::OperationCounts
@@ -1133,6 +1142,9 @@ impl core::cmp::PartialEq for antecedent_core::WorldCollection
 impl core::cmp::PartialEq for antecedent_core::WorldId
 impl core::cmp::PartialEq for antecedent_core::WorldObservation
 impl core::cmp::PartialEq for antecedent_core::WorldSpec
+impl core::cmp::PartialEq for antecedent_core::execution::AdmissionError
+impl core::cmp::PartialEq for antecedent_core::execution::AdmissionRemainder
+impl core::cmp::PartialEq for antecedent_core::execution::AdmissionRequest
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::AttemptReport
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::Operation
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::OperationCounts
@@ -1301,6 +1313,7 @@ impl core::error::Error for antecedent_core::SchemaError
 impl core::error::Error for antecedent_core::ScientificTargetError
 impl core::error::Error for antecedent_core::TemporalIndexError
 impl core::error::Error for antecedent_core::ToleranceError
+impl core::error::Error for antecedent_core::execution::AdmissionError
 impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
 impl core::error::Error for antecedent_core::value::InterventionValueError
 impl core::fmt::Debug for antecedent_core::AdaptiveBootstrapBudget
@@ -1629,6 +1642,11 @@ impl core::fmt::Debug for antecedent_core::WorldCollection
 impl core::fmt::Debug for antecedent_core::WorldId
 impl core::fmt::Debug for antecedent_core::WorldObservation
 impl core::fmt::Debug for antecedent_core::WorldSpec
+impl core::fmt::Debug for antecedent_core::execution::AdmissionError
+impl core::fmt::Debug for antecedent_core::execution::AdmissionLease
+impl core::fmt::Debug for antecedent_core::execution::AdmissionPool
+impl core::fmt::Debug for antecedent_core::execution::AdmissionRemainder
+impl core::fmt::Debug for antecedent_core::execution::AdmissionRequest
 impl core::fmt::Debug for antecedent_core::execution_attempt::AttemptReport
 impl core::fmt::Debug for antecedent_core::execution_attempt::Operation
 impl core::fmt::Debug for antecedent_core::execution_attempt::OperationCounts
@@ -1762,6 +1780,7 @@ impl core::fmt::Display for antecedent_core::ToleranceError
 impl core::fmt::Display for antecedent_core::Value
 impl core::fmt::Display for antecedent_core::VariableId
 impl core::fmt::Display for antecedent_core::VarianceRule
+impl core::fmt::Display for antecedent_core::execution::AdmissionError
 impl core::fmt::Display for antecedent_core::recalc::ChangedDependency
 impl core::fmt::Display for antecedent_core::recalc::RefusalReason
 impl core::fmt::Display for antecedent_core::recalc::Stage
@@ -1981,6 +2000,9 @@ impl core::hash::Hash for antecedent_core::WorldCollection
 impl core::hash::Hash for antecedent_core::WorldId
 impl core::hash::Hash for antecedent_core::WorldObservation
 impl core::hash::Hash for antecedent_core::WorldSpec
+impl core::hash::Hash for antecedent_core::execution::AdmissionError
+impl core::hash::Hash for antecedent_core::execution::AdmissionRemainder
+impl core::hash::Hash for antecedent_core::execution::AdmissionRequest
 impl core::hash::Hash for antecedent_core::measurement_model::ArmBinding
 impl core::hash::Hash for antecedent_core::measurement_model::DifferentialAxis
 impl core::hash::Hash for antecedent_core::measurement_model::ErrorStructure
@@ -2164,6 +2186,9 @@ impl core::marker::Copy for antecedent_core::VarianceRule
 impl core::marker::Copy for antecedent_core::WorkerId
 impl core::marker::Copy for antecedent_core::WorldId
 impl core::marker::Copy for antecedent_core::WorldObservation
+impl core::marker::Copy for antecedent_core::execution::AdmissionError
+impl core::marker::Copy for antecedent_core::execution::AdmissionRemainder
+impl core::marker::Copy for antecedent_core::execution::AdmissionRequest
 impl core::marker::Copy for antecedent_core::execution_attempt::Operation
 impl core::marker::Copy for antecedent_core::execution_attempt::OperationCounts
 impl core::marker::Copy for antecedent_core::measurement_model::DifferentialAxis
@@ -2535,6 +2560,10 @@ impl core::marker::Freeze for antecedent_core::WorldCollection [auto]
 impl core::marker::Freeze for antecedent_core::WorldId [auto]
 impl core::marker::Freeze for antecedent_core::WorldObservation [auto]
 impl core::marker::Freeze for antecedent_core::WorldSpec [auto]
+impl core::marker::Freeze for antecedent_core::execution::AdmissionError [auto]
+impl core::marker::Freeze for antecedent_core::execution::AdmissionPool [auto]
+impl core::marker::Freeze for antecedent_core::execution::AdmissionRemainder [auto]
+impl core::marker::Freeze for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::OperationCounts [auto]
@@ -2926,6 +2955,11 @@ impl core::marker::Send for antecedent_core::WorldCollection [auto]
 impl core::marker::Send for antecedent_core::WorldId [auto]
 impl core::marker::Send for antecedent_core::WorldObservation [auto]
 impl core::marker::Send for antecedent_core::WorldSpec [auto]
+impl core::marker::Send for antecedent_core::execution::AdmissionError [auto]
+impl core::marker::Send for antecedent_core::execution::AdmissionLease [auto]
+impl core::marker::Send for antecedent_core::execution::AdmissionPool [auto]
+impl core::marker::Send for antecedent_core::execution::AdmissionRemainder [auto]
+impl core::marker::Send for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::OperationCounts [auto]
@@ -3302,6 +3336,9 @@ impl core::marker::StructuralPartialEq for antecedent_core::WorldCollection
 impl core::marker::StructuralPartialEq for antecedent_core::WorldId
 impl core::marker::StructuralPartialEq for antecedent_core::WorldObservation
 impl core::marker::StructuralPartialEq for antecedent_core::WorldSpec
+impl core::marker::StructuralPartialEq for antecedent_core::execution::AdmissionError
+impl core::marker::StructuralPartialEq for antecedent_core::execution::AdmissionRemainder
+impl core::marker::StructuralPartialEq for antecedent_core::execution::AdmissionRequest
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::AttemptReport
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::Operation
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::OperationCounts
@@ -3693,6 +3730,11 @@ impl core::marker::Sync for antecedent_core::WorldCollection [auto]
 impl core::marker::Sync for antecedent_core::WorldId [auto]
 impl core::marker::Sync for antecedent_core::WorldObservation [auto]
 impl core::marker::Sync for antecedent_core::WorldSpec [auto]
+impl core::marker::Sync for antecedent_core::execution::AdmissionError [auto]
+impl core::marker::Sync for antecedent_core::execution::AdmissionLease [auto]
+impl core::marker::Sync for antecedent_core::execution::AdmissionPool [auto]
+impl core::marker::Sync for antecedent_core::execution::AdmissionRemainder [auto]
+impl core::marker::Sync for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::OperationCounts [auto]
@@ -4084,6 +4126,11 @@ impl core::marker::Unpin for antecedent_core::WorldCollection [auto]
 impl core::marker::Unpin for antecedent_core::WorldId [auto]
 impl core::marker::Unpin for antecedent_core::WorldObservation [auto]
 impl core::marker::Unpin for antecedent_core::WorldSpec [auto]
+impl core::marker::Unpin for antecedent_core::execution::AdmissionError [auto]
+impl core::marker::Unpin for antecedent_core::execution::AdmissionLease [auto]
+impl core::marker::Unpin for antecedent_core::execution::AdmissionPool [auto]
+impl core::marker::Unpin for antecedent_core::execution::AdmissionRemainder [auto]
+impl core::marker::Unpin for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::OperationCounts [auto]
@@ -4149,6 +4196,7 @@ impl core::marker::Unpin for antecedent_core::search_budget::SearchEstimate [aut
 impl core::marker::Unpin for antecedent_core::search_budget::SearchFamily [auto]
 impl core::marker::Unpin for antecedent_core::search_budget::SearchResourceLimit [auto]
 impl core::marker::Unpin for antecedent_core::value::InterventionValueError [auto]
+impl core::ops::drop::Drop for antecedent_core::execution::AdmissionLease
 impl core::ops::drop::Drop for antecedent_core::execution_attempt::OperationGuard
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveDrawBudget [auto]
@@ -4475,6 +4523,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldCollectio
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionLease [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionPool [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionRemainder [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::AdmissionRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
@@ -4865,6 +4918,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldCollection [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionLease [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionPool [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionRemainder [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::AdmissionRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
@@ -5041,6 +5099,8 @@ pub const antecedent_core::reason_code::RUNTIME_REFUSAL_CODES: &[&str]
 pub const antecedent_core::recalc::MAX_EXTERNAL_BRANCHES: u8
 pub const antecedent_core::recalc::STANDING_INPUT_VERSION: u64
 pub const fn antecedent_core::derive_stream(master: u64, stream_id: u64) -> u64
+pub const fn antecedent_core::execution::checked_byte_product(count: u64, width: u64) -> core::option::Option<u64>
+pub const fn antecedent_core::execution::checked_byte_sum(left: u64, right: u64) -> core::option::Option<u64>
 pub const fn antecedent_core::execution::mix64(z: u64) -> u64
 pub const fn antecedent_core::reason_code::is_registered(code: &str) -> bool
 pub const fn antecedent_core::reason_code::is_runtime_refusal(code: &str) -> bool
@@ -5974,11 +6034,16 @@ pub fn <antecedent_core::EvidenceRegime>::fn satisfies(&self, need: &antecedent_
 pub fn <antecedent_core::EvidenceRegime>::fn supplies_population_law(&self) -> bool
 pub fn <antecedent_core::EvidenceRegime>::fn try_new(id: antecedent_core::RegimeId, kind: antecedent_core::RegimeKind, evidence_kind: antecedent_core::EvidenceKind, interventions: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>, intervention_values: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::InterventionAssignment]>>, measured: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>, population: impl core::convert::Into<alloc::sync::Arc<str>>, distribution: antecedent_core::DistributionAvailability) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::EvidenceRegime>::fn validate_descriptor(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::ExecutionContext>::fn acquire_admission(&self, threads: u32, bytes: u64) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
+pub fn <antecedent_core::ExecutionContext>::fn acquire_admission_bounded(&self, threads: u32, bytes: u64, bound: core::time::Duration) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
+pub fn <antecedent_core::ExecutionContext>::fn acquire_admission_product(&self, threads: u32, count: u64, width: u64) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
+pub fn <antecedent_core::ExecutionContext>::fn admission(&self) -> antecedent_core::execution::AdmissionPool
 pub fn <antecedent_core::ExecutionContext>::fn for_tests(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn production(seed: u64, max_threads: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn production_default(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn serial_inner(&self) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn with_admission(self, pool: antecedent_core::execution::AdmissionPool) -> Self
 pub fn <antecedent_core::ExecutionReceipt>::const fn new(request: antecedent_core::RequestIdentity, state: antecedent_core::ExecutionRequestState) -> Self
 pub fn <antecedent_core::ExecutionRequestState>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::ExecutionRequestState>::const fn publishes_claim(self) -> bool
@@ -6576,6 +6641,25 @@ pub fn <antecedent_core::WorldSpec>::fn intervention_of(&self, variable: anteced
 pub fn <antecedent_core::WorldSpec>::fn interventions(&self) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_core::VariableId, f64)> + '_
 pub fn <antecedent_core::WorldSpec>::fn new(interventions: impl core::iter::traits::collect::IntoIterator<Item = (antecedent_core::VariableId, f64)>, routes: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::EdgeRoute>) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::WorldSpec>::fn routes(&self) -> &[antecedent_core::EdgeRoute]
+pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child(&self, threads: u32, bytes: u64) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
+pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child_product(&self, threads: u32, count: u64, width: u64) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
+pub fn <antecedent_core::execution::AdmissionLease>::fn acquire_child_request(&self, request: antecedent_core::execution::AdmissionRequest) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
+pub fn <antecedent_core::execution::AdmissionLease>::fn release(self) -> antecedent_core::execution::AdmissionRemainder
+pub fn <antecedent_core::execution::AdmissionLease>::fn remainder(&self) -> antecedent_core::execution::AdmissionRemainder
+pub fn <antecedent_core::execution::AdmissionPool>::fn available(&self) -> antecedent_core::execution::AdmissionRemainder
+pub fn <antecedent_core::execution::AdmissionPool>::fn blocked_waiters(&self) -> usize
+pub fn <antecedent_core::execution::AdmissionPool>::fn byte_budget(&self) -> u64
+pub fn <antecedent_core::execution::AdmissionPool>::fn fixed(threads: u32, bytes: u64) -> Self
+pub fn <antecedent_core::execution::AdmissionPool>::fn thread_budget(&self) -> u32
+pub fn <antecedent_core::execution::AdmissionRemainder>::const fn bytes(self) -> u64
+pub fn <antecedent_core::execution::AdmissionRemainder>::const fn new(threads: u32, bytes: u64) -> Self
+pub fn <antecedent_core::execution::AdmissionRemainder>::const fn threads(self) -> u32
+pub fn <antecedent_core::execution::AdmissionRemainder>::const fn zero() -> Self
+pub fn <antecedent_core::execution::AdmissionRequest>::const fn bytes(self) -> u64
+pub fn <antecedent_core::execution::AdmissionRequest>::const fn new(threads: u32, bytes: u64) -> Self
+pub fn <antecedent_core::execution::AdmissionRequest>::const fn threads(self) -> u32
+pub fn <antecedent_core::execution::AdmissionRequest>::const fn try_product(threads: u32, count: u64, width: u64) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
+pub fn <antecedent_core::execution::AdmissionRequest>::const fn try_sum(threads: u32, parts: &[u64]) -> core::result::Result<Self, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn counts(&self, operation: antecedent_core::execution_attempt::Operation) -> antecedent_core::execution_attempt::OperationCounts
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn is_complete(&self) -> bool
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn is_empty(&self) -> bool
@@ -7041,6 +7125,14 @@ pub struct antecedent_core::WorldId has private fields
 pub struct antecedent_core::WorldObservation
 pub struct antecedent_core::WorldSpec
 pub struct antecedent_core::WorldSpec has private fields
+pub struct antecedent_core::execution::AdmissionLease
+pub struct antecedent_core::execution::AdmissionLease has private fields
+pub struct antecedent_core::execution::AdmissionPool
+pub struct antecedent_core::execution::AdmissionPool has private fields
+pub struct antecedent_core::execution::AdmissionRemainder
+pub struct antecedent_core::execution::AdmissionRemainder has private fields
+pub struct antecedent_core::execution::AdmissionRequest
+pub struct antecedent_core::execution::AdmissionRequest has private fields
 pub struct antecedent_core::execution_attempt::AttemptReport
 pub struct antecedent_core::execution_attempt::AttemptReport has private fields
 pub struct antecedent_core::execution_attempt::ExecutionAttempt<T, E>
@@ -8094,6 +8186,11 @@ pub variant antecedent_core::VariableDomain::Unspecified
 pub variant antecedent_core::VarianceRule::ClusterRobust
 pub variant antecedent_core::VarianceRule::DependencePreserving
 pub variant antecedent_core::VarianceRule::RowSubjectIid
+pub variant antecedent_core::execution::AdmissionError::Cancelled
+pub variant antecedent_core::execution::AdmissionError::ExceedsRemainder { requested_threads: u32, requested_bytes: u64, remaining_threads: u32, remaining_bytes: u64 }
+pub variant antecedent_core::execution::AdmissionError::Overflow
+pub variant antecedent_core::execution::AdmissionError::Released
+pub variant antecedent_core::execution::AdmissionError::WaitBoundExceeded { bound: core::time::Duration }
 pub variant antecedent_core::execution_attempt::Operation::AdjustedFit
 pub variant antecedent_core::execution_attempt::Operation::CachedFailureRead
 pub variant antecedent_core::execution_attempt::Operation::Decision
