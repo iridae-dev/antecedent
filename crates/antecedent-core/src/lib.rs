@@ -49,6 +49,7 @@ pub mod identification;
 pub mod identity;
 pub mod ids;
 pub mod inference_realization;
+pub mod inspect;
 pub mod interval;
 pub mod intervention;
 pub mod measurement_model;

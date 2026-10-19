@@ -54,6 +54,7 @@
 #[non_exhaustive] pub enum antecedent_core::TransportSupportCoordinate
 #[non_exhaustive] pub enum antecedent_core::ValueExpr
 #[non_exhaustive] pub enum antecedent_core::execution::AdmissionError
+#[non_exhaustive] pub enum antecedent_core::inspect::InspectionRefusal
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ArmBinding
 #[non_exhaustive] pub enum antecedent_core::measurement_model::DifferentialAxis
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ErrorStructure
@@ -410,6 +411,15 @@ impl core::clone::Clone for antecedent_core::execution_attempt::AttemptReport
 impl core::clone::Clone for antecedent_core::execution_attempt::ObservationToken
 impl core::clone::Clone for antecedent_core::execution_attempt::Operation
 impl core::clone::Clone for antecedent_core::execution_attempt::OperationCounts
+impl core::clone::Clone for antecedent_core::inspect::EstimatedResources
+impl core::clone::Clone for antecedent_core::inspect::EvidenceTransformation
+impl core::clone::Clone for antecedent_core::inspect::EvidenceTransformations
+impl core::clone::Clone for antecedent_core::inspect::InspectionInputs
+impl core::clone::Clone for antecedent_core::inspect::InspectionRefusal
+impl core::clone::Clone for antecedent_core::inspect::MaterializationSnapshot
+impl core::clone::Clone for antecedent_core::inspect::PlanInspection
+impl core::clone::Clone for antecedent_core::inspect::ReuseSnapshot
+impl core::clone::Clone for antecedent_core::inspect::UncertaintyDemand
 impl core::clone::Clone for antecedent_core::measurement_model::ArmBinding
 impl core::clone::Clone for antecedent_core::measurement_model::BinaryArmRates
 impl core::clone::Clone for antecedent_core::measurement_model::CorrectedFunctionalRecord
@@ -737,6 +747,15 @@ impl core::cmp::Eq for antecedent_core::execution::AdmissionRequest
 impl core::cmp::Eq for antecedent_core::execution_attempt::AttemptReport
 impl core::cmp::Eq for antecedent_core::execution_attempt::Operation
 impl core::cmp::Eq for antecedent_core::execution_attempt::OperationCounts
+impl core::cmp::Eq for antecedent_core::inspect::EstimatedResources
+impl core::cmp::Eq for antecedent_core::inspect::EvidenceTransformation
+impl core::cmp::Eq for antecedent_core::inspect::EvidenceTransformations
+impl core::cmp::Eq for antecedent_core::inspect::InspectionInputs
+impl core::cmp::Eq for antecedent_core::inspect::InspectionRefusal
+impl core::cmp::Eq for antecedent_core::inspect::MaterializationSnapshot
+impl core::cmp::Eq for antecedent_core::inspect::PlanInspection
+impl core::cmp::Eq for antecedent_core::inspect::ReuseSnapshot
+impl core::cmp::Eq for antecedent_core::inspect::UncertaintyDemand
 impl core::cmp::Eq for antecedent_core::measurement_model::ArmBinding
 impl core::cmp::Eq for antecedent_core::measurement_model::DifferentialAxis
 impl core::cmp::Eq for antecedent_core::measurement_model::ErrorStructure
@@ -1148,6 +1167,15 @@ impl core::cmp::PartialEq for antecedent_core::execution::AdmissionRequest
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::AttemptReport
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::Operation
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::OperationCounts
+impl core::cmp::PartialEq for antecedent_core::inspect::EstimatedResources
+impl core::cmp::PartialEq for antecedent_core::inspect::EvidenceTransformation
+impl core::cmp::PartialEq for antecedent_core::inspect::EvidenceTransformations
+impl core::cmp::PartialEq for antecedent_core::inspect::InspectionInputs
+impl core::cmp::PartialEq for antecedent_core::inspect::InspectionRefusal
+impl core::cmp::PartialEq for antecedent_core::inspect::MaterializationSnapshot
+impl core::cmp::PartialEq for antecedent_core::inspect::PlanInspection
+impl core::cmp::PartialEq for antecedent_core::inspect::ReuseSnapshot
+impl core::cmp::PartialEq for antecedent_core::inspect::UncertaintyDemand
 impl core::cmp::PartialEq for antecedent_core::measurement_model::ArmBinding
 impl core::cmp::PartialEq for antecedent_core::measurement_model::BinaryArmRates
 impl core::cmp::PartialEq for antecedent_core::measurement_model::CorrectedFunctionalRecord
@@ -1290,6 +1318,7 @@ impl core::default::Default for antecedent_core::SyntheticPanelMethod
 impl core::default::Default for antecedent_core::execution_attempt::AttemptReport
 impl core::default::Default for antecedent_core::execution_attempt::ObservationToken
 impl core::default::Default for antecedent_core::execution_attempt::OperationCounts
+impl core::default::Default for antecedent_core::inspect::InspectionInputs
 impl core::default::Default for antecedent_core::recalc::ResumeContext
 impl core::default::Default for antecedent_core::recalc::StageIdentities
 impl core::default::Default for antecedent_core::search_budget::FunctionalEnumeration
@@ -1314,6 +1343,7 @@ impl core::error::Error for antecedent_core::ScientificTargetError
 impl core::error::Error for antecedent_core::TemporalIndexError
 impl core::error::Error for antecedent_core::ToleranceError
 impl core::error::Error for antecedent_core::execution::AdmissionError
+impl core::error::Error for antecedent_core::inspect::InspectionRefusal
 impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
 impl core::error::Error for antecedent_core::value::InterventionValueError
 impl core::fmt::Debug for antecedent_core::AdaptiveBootstrapBudget
@@ -1650,6 +1680,15 @@ impl core::fmt::Debug for antecedent_core::execution::AdmissionRequest
 impl core::fmt::Debug for antecedent_core::execution_attempt::AttemptReport
 impl core::fmt::Debug for antecedent_core::execution_attempt::Operation
 impl core::fmt::Debug for antecedent_core::execution_attempt::OperationCounts
+impl core::fmt::Debug for antecedent_core::inspect::EstimatedResources
+impl core::fmt::Debug for antecedent_core::inspect::EvidenceTransformation
+impl core::fmt::Debug for antecedent_core::inspect::EvidenceTransformations
+impl core::fmt::Debug for antecedent_core::inspect::InspectionInputs
+impl core::fmt::Debug for antecedent_core::inspect::InspectionRefusal
+impl core::fmt::Debug for antecedent_core::inspect::MaterializationSnapshot
+impl core::fmt::Debug for antecedent_core::inspect::PlanInspection
+impl core::fmt::Debug for antecedent_core::inspect::ReuseSnapshot
+impl core::fmt::Debug for antecedent_core::inspect::UncertaintyDemand
 impl core::fmt::Debug for antecedent_core::measurement_model::ArmBinding
 impl core::fmt::Debug for antecedent_core::measurement_model::BinaryArmRates
 impl core::fmt::Debug for antecedent_core::measurement_model::CorrectedFunctionalRecord
@@ -1781,6 +1820,7 @@ impl core::fmt::Display for antecedent_core::Value
 impl core::fmt::Display for antecedent_core::VariableId
 impl core::fmt::Display for antecedent_core::VarianceRule
 impl core::fmt::Display for antecedent_core::execution::AdmissionError
+impl core::fmt::Display for antecedent_core::inspect::InspectionRefusal
 impl core::fmt::Display for antecedent_core::recalc::ChangedDependency
 impl core::fmt::Display for antecedent_core::recalc::RefusalReason
 impl core::fmt::Display for antecedent_core::recalc::Stage
@@ -2003,6 +2043,15 @@ impl core::hash::Hash for antecedent_core::WorldSpec
 impl core::hash::Hash for antecedent_core::execution::AdmissionError
 impl core::hash::Hash for antecedent_core::execution::AdmissionRemainder
 impl core::hash::Hash for antecedent_core::execution::AdmissionRequest
+impl core::hash::Hash for antecedent_core::inspect::EstimatedResources
+impl core::hash::Hash for antecedent_core::inspect::EvidenceTransformation
+impl core::hash::Hash for antecedent_core::inspect::EvidenceTransformations
+impl core::hash::Hash for antecedent_core::inspect::InspectionInputs
+impl core::hash::Hash for antecedent_core::inspect::InspectionRefusal
+impl core::hash::Hash for antecedent_core::inspect::MaterializationSnapshot
+impl core::hash::Hash for antecedent_core::inspect::PlanInspection
+impl core::hash::Hash for antecedent_core::inspect::ReuseSnapshot
+impl core::hash::Hash for antecedent_core::inspect::UncertaintyDemand
 impl core::hash::Hash for antecedent_core::measurement_model::ArmBinding
 impl core::hash::Hash for antecedent_core::measurement_model::DifferentialAxis
 impl core::hash::Hash for antecedent_core::measurement_model::ErrorStructure
@@ -2191,6 +2240,9 @@ impl core::marker::Copy for antecedent_core::execution::AdmissionRemainder
 impl core::marker::Copy for antecedent_core::execution::AdmissionRequest
 impl core::marker::Copy for antecedent_core::execution_attempt::Operation
 impl core::marker::Copy for antecedent_core::execution_attempt::OperationCounts
+impl core::marker::Copy for antecedent_core::inspect::EstimatedResources
+impl core::marker::Copy for antecedent_core::inspect::InspectionRefusal
+impl core::marker::Copy for antecedent_core::inspect::UncertaintyDemand
 impl core::marker::Copy for antecedent_core::measurement_model::DifferentialAxis
 impl core::marker::Copy for antecedent_core::measurement_model::ErrorStructure
 impl core::marker::Copy for antecedent_core::measurement_model::MeasurementIdentities
@@ -2567,6 +2619,15 @@ impl core::marker::Freeze for antecedent_core::execution::AdmissionRequest [auto
 impl core::marker::Freeze for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Freeze for antecedent_core::inspect::EstimatedResources [auto]
+impl core::marker::Freeze for antecedent_core::inspect::EvidenceTransformation [auto]
+impl core::marker::Freeze for antecedent_core::inspect::EvidenceTransformations [auto]
+impl core::marker::Freeze for antecedent_core::inspect::InspectionInputs [auto]
+impl core::marker::Freeze for antecedent_core::inspect::InspectionRefusal [auto]
+impl core::marker::Freeze for antecedent_core::inspect::MaterializationSnapshot [auto]
+impl core::marker::Freeze for antecedent_core::inspect::PlanInspection [auto]
+impl core::marker::Freeze for antecedent_core::inspect::ReuseSnapshot [auto]
+impl core::marker::Freeze for antecedent_core::inspect::UncertaintyDemand [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -2963,6 +3024,15 @@ impl core::marker::Send for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Send for antecedent_core::inspect::EstimatedResources [auto]
+impl core::marker::Send for antecedent_core::inspect::EvidenceTransformation [auto]
+impl core::marker::Send for antecedent_core::inspect::EvidenceTransformations [auto]
+impl core::marker::Send for antecedent_core::inspect::InspectionInputs [auto]
+impl core::marker::Send for antecedent_core::inspect::InspectionRefusal [auto]
+impl core::marker::Send for antecedent_core::inspect::MaterializationSnapshot [auto]
+impl core::marker::Send for antecedent_core::inspect::PlanInspection [auto]
+impl core::marker::Send for antecedent_core::inspect::ReuseSnapshot [auto]
+impl core::marker::Send for antecedent_core::inspect::UncertaintyDemand [auto]
 impl core::marker::Send for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::marker::Send for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::marker::Send for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -3342,6 +3412,15 @@ impl core::marker::StructuralPartialEq for antecedent_core::execution::Admission
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::AttemptReport
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::Operation
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::OperationCounts
+impl core::marker::StructuralPartialEq for antecedent_core::inspect::EstimatedResources
+impl core::marker::StructuralPartialEq for antecedent_core::inspect::EvidenceTransformation
+impl core::marker::StructuralPartialEq for antecedent_core::inspect::EvidenceTransformations
+impl core::marker::StructuralPartialEq for antecedent_core::inspect::InspectionInputs
+impl core::marker::StructuralPartialEq for antecedent_core::inspect::InspectionRefusal
+impl core::marker::StructuralPartialEq for antecedent_core::inspect::MaterializationSnapshot
+impl core::marker::StructuralPartialEq for antecedent_core::inspect::PlanInspection
+impl core::marker::StructuralPartialEq for antecedent_core::inspect::ReuseSnapshot
+impl core::marker::StructuralPartialEq for antecedent_core::inspect::UncertaintyDemand
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::ArmBinding
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::BinaryArmRates
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::CorrectedFunctionalRecord
@@ -3738,6 +3817,15 @@ impl core::marker::Sync for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Sync for antecedent_core::inspect::EstimatedResources [auto]
+impl core::marker::Sync for antecedent_core::inspect::EvidenceTransformation [auto]
+impl core::marker::Sync for antecedent_core::inspect::EvidenceTransformations [auto]
+impl core::marker::Sync for antecedent_core::inspect::InspectionInputs [auto]
+impl core::marker::Sync for antecedent_core::inspect::InspectionRefusal [auto]
+impl core::marker::Sync for antecedent_core::inspect::MaterializationSnapshot [auto]
+impl core::marker::Sync for antecedent_core::inspect::PlanInspection [auto]
+impl core::marker::Sync for antecedent_core::inspect::ReuseSnapshot [auto]
+impl core::marker::Sync for antecedent_core::inspect::UncertaintyDemand [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -4134,6 +4222,15 @@ impl core::marker::Unpin for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Unpin for antecedent_core::inspect::EstimatedResources [auto]
+impl core::marker::Unpin for antecedent_core::inspect::EvidenceTransformation [auto]
+impl core::marker::Unpin for antecedent_core::inspect::EvidenceTransformations [auto]
+impl core::marker::Unpin for antecedent_core::inspect::InspectionInputs [auto]
+impl core::marker::Unpin for antecedent_core::inspect::InspectionRefusal [auto]
+impl core::marker::Unpin for antecedent_core::inspect::MaterializationSnapshot [auto]
+impl core::marker::Unpin for antecedent_core::inspect::PlanInspection [auto]
+impl core::marker::Unpin for antecedent_core::inspect::ReuseSnapshot [auto]
+impl core::marker::Unpin for antecedent_core::inspect::UncertaintyDemand [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -4531,6 +4628,15 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::Adm
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::EstimatedResources [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::EvidenceTransformation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::EvidenceTransformations [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::InspectionInputs [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::InspectionRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::MaterializationSnapshot [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::PlanInspection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::ReuseSnapshot [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::UncertaintyDemand [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -4926,6 +5032,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::Admiss
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::EstimatedResources [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::EvidenceTransformation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::EvidenceTransformations [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::InspectionInputs [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::InspectionRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::MaterializationSnapshot [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::PlanInspection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::ReuseSnapshot [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::UncertaintyDemand [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::ArmBinding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::BinaryArmRates [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::CorrectedFunctionalRecord [auto]
@@ -6665,6 +6780,43 @@ pub fn <antecedent_core::execution_attempt::AttemptReport>::fn is_complete(&self
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn is_empty(&self) -> bool
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn operations(&self) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_core::execution_attempt::Operation, antecedent_core::execution_attempt::OperationCounts)> + '_
 pub fn <antecedent_core::execution_attempt::OperationCounts>::fn unfinished(self) -> u64
+pub fn <antecedent_core::inspect::EstimatedResources>::const fn declared(memory: antecedent_core::MemoryBudget, estimated_bytes: u64) -> Self
+pub fn <antecedent_core::inspect::EstimatedResources>::const fn estimated_bytes(self) -> u64
+pub fn <antecedent_core::inspect::EstimatedResources>::const fn memory(self) -> antecedent_core::MemoryBudget
+pub fn <antecedent_core::inspect::EvidenceTransformation>::fn declared(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_core::inspect::InspectionRefusal>
+pub fn <antecedent_core::inspect::EvidenceTransformation>::fn name(&self) -> &str
+pub fn <antecedent_core::inspect::EvidenceTransformations>::fn declared(steps: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::inspect::EvidenceTransformation>) -> Self
+pub fn <antecedent_core::inspect::EvidenceTransformations>::fn steps(&self) -> &[antecedent_core::inspect::EvidenceTransformation]
+pub fn <antecedent_core::inspect::InspectionInputs>::const fn backend_policy(self, backend_policy: antecedent_core::KernelPolicy) -> Self
+pub fn <antecedent_core::inspect::InspectionInputs>::const fn new() -> Self
+pub fn <antecedent_core::inspect::InspectionInputs>::const fn realization(self, realization: antecedent_core::RealizationKind) -> Self
+pub fn <antecedent_core::inspect::InspectionInputs>::const fn resources(self, resources: antecedent_core::inspect::EstimatedResources) -> Self
+pub fn <antecedent_core::inspect::InspectionInputs>::const fn uncertainty(self, uncertainty: antecedent_core::inspect::UncertaintyDemand) -> Self
+pub fn <antecedent_core::inspect::InspectionInputs>::fn assumptions(self, assumptions: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::Assumption>) -> Self
+pub fn <antecedent_core::inspect::InspectionInputs>::fn evidence(self, evidence: antecedent_core::inspect::EvidenceTransformations) -> Self
+pub fn <antecedent_core::inspect::InspectionInputs>::fn materialization(self, materialization: antecedent_core::inspect::MaterializationSnapshot) -> Self
+pub fn <antecedent_core::inspect::InspectionInputs>::fn operators(self, operators: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::PhysicalOperator>) -> Self
+pub fn <antecedent_core::inspect::InspectionInputs>::fn reuse(self, reuse: antecedent_core::inspect::ReuseSnapshot) -> Self
+pub fn <antecedent_core::inspect::InspectionInputs>::fn target(self, target: antecedent_core::ScientificTarget) -> Self
+pub fn <antecedent_core::inspect::MaterializationSnapshot>::const fn copy_bytes(&self) -> u64
+pub fn <antecedent_core::inspect::MaterializationSnapshot>::fn declared(name: impl core::convert::Into<alloc::sync::Arc<str>>, copy_bytes: u64) -> core::result::Result<Self, antecedent_core::inspect::InspectionRefusal>
+pub fn <antecedent_core::inspect::MaterializationSnapshot>::fn name(&self) -> &str
+pub fn <antecedent_core::inspect::PlanInspection>::const fn backend_policy(&self) -> antecedent_core::KernelPolicy
+pub fn <antecedent_core::inspect::PlanInspection>::const fn evidence(&self) -> &antecedent_core::inspect::EvidenceTransformations
+pub fn <antecedent_core::inspect::PlanInspection>::const fn materialization(&self) -> &antecedent_core::inspect::MaterializationSnapshot
+pub fn <antecedent_core::inspect::PlanInspection>::const fn realization(&self) -> antecedent_core::RealizationKind
+pub fn <antecedent_core::inspect::PlanInspection>::const fn resources(&self) -> antecedent_core::inspect::EstimatedResources
+pub fn <antecedent_core::inspect::PlanInspection>::const fn reuse(&self) -> &antecedent_core::inspect::ReuseSnapshot
+pub fn <antecedent_core::inspect::PlanInspection>::const fn target(&self) -> &antecedent_core::ScientificTarget
+pub fn <antecedent_core::inspect::PlanInspection>::const fn uncertainty(&self) -> antecedent_core::inspect::UncertaintyDemand
+pub fn <antecedent_core::inspect::PlanInspection>::fn assumptions(&self) -> &[antecedent_core::Assumption]
+pub fn <antecedent_core::inspect::PlanInspection>::fn operators(&self) -> &[antecedent_core::PhysicalOperator]
+pub fn <antecedent_core::inspect::ReuseSnapshot>::const fn frozen_fit(&self) -> bool
+pub fn <antecedent_core::inspect::ReuseSnapshot>::fn declared(name: impl core::convert::Into<alloc::sync::Arc<str>>, frozen_fit: bool) -> core::result::Result<Self, antecedent_core::inspect::InspectionRefusal>
+pub fn <antecedent_core::inspect::ReuseSnapshot>::fn name(&self) -> &str
+pub fn <antecedent_core::inspect::UncertaintyDemand>::const fn declared(joint: bool, level: f64) -> Self
+pub fn <antecedent_core::inspect::UncertaintyDemand>::const fn joint(self) -> bool
+pub fn <antecedent_core::inspect::UncertaintyDemand>::const fn level(self) -> f64
 pub fn <antecedent_core::measurement_model::CorrectedFunctionalRecord>::const fn has_interval(&self) -> bool
 pub fn <antecedent_core::measurement_model::DifferentialAxis>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::measurement_model::MeasurementInference>::const fn as_str(self) -> &'static str
@@ -6773,6 +6925,7 @@ pub fn antecedent_core::execution::splitmix64(state: &mut u64) -> u64
 pub fn antecedent_core::execution_attempt::observe_execution<T, E>(execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 pub fn antecedent_core::fnv1a_u64(bytes: &[u8]) -> u64
 pub fn antecedent_core::identity::to_hex(bytes: &[u8]) -> alloc::string::String
+pub fn antecedent_core::inspect::inspect(inputs: antecedent_core::inspect::InspectionInputs) -> core::result::Result<antecedent_core::inspect::PlanInspection, antecedent_core::inspect::InspectionRefusal>
 pub fn antecedent_core::is_blank(text: &str) -> bool
 pub fn antecedent_core::measurement_model::measurement_data_digest(parts: &[(&str, &[f64])]) -> antecedent_core::SemanticDigest
 pub fn antecedent_core::policy_graphless_coordinate(multi: bool, ipw: bool, uplift: bool, cate: bool, regret: bool, crossfit: bool) -> (&'static str, &'static str, &'static str)
@@ -6790,6 +6943,7 @@ pub mod antecedent_core::identification
 pub mod antecedent_core::identity
 pub mod antecedent_core::ids
 pub mod antecedent_core::inference_realization
+pub mod antecedent_core::inspect
 pub mod antecedent_core::interval
 pub mod antecedent_core::intervention
 pub mod antecedent_core::measurement_model
@@ -7139,6 +7293,22 @@ pub struct antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 pub struct antecedent_core::execution_attempt::ObservationToken has private fields
 pub struct antecedent_core::execution_attempt::OperationCounts
 pub struct antecedent_core::execution_attempt::OperationGuard has private fields
+pub struct antecedent_core::inspect::EstimatedResources
+pub struct antecedent_core::inspect::EstimatedResources has private fields
+pub struct antecedent_core::inspect::EvidenceTransformation
+pub struct antecedent_core::inspect::EvidenceTransformation has private fields
+pub struct antecedent_core::inspect::EvidenceTransformations
+pub struct antecedent_core::inspect::EvidenceTransformations has private fields
+pub struct antecedent_core::inspect::InspectionInputs
+pub struct antecedent_core::inspect::InspectionInputs has private fields
+pub struct antecedent_core::inspect::MaterializationSnapshot
+pub struct antecedent_core::inspect::MaterializationSnapshot has private fields
+pub struct antecedent_core::inspect::PlanInspection
+pub struct antecedent_core::inspect::PlanInspection has private fields
+pub struct antecedent_core::inspect::ReuseSnapshot
+pub struct antecedent_core::inspect::ReuseSnapshot has private fields
+pub struct antecedent_core::inspect::UncertaintyDemand
+pub struct antecedent_core::inspect::UncertaintyDemand has private fields
 pub struct antecedent_core::measurement_model::BinaryArmRates
 pub struct antecedent_core::measurement_model::CorrectedFunctionalRecord
 pub struct antecedent_core::measurement_model::MeasurementBinding
@@ -8209,6 +8379,17 @@ pub variant antecedent_core::execution_attempt::Operation::ProgramCompilation
 pub variant antecedent_core::execution_attempt::Operation::ProviderBinding
 pub variant antecedent_core::execution_attempt::Operation::ProviderInvocation
 pub variant antecedent_core::execution_attempt::Operation::ScoreConstruction
+pub variant antecedent_core::inspect::InspectionRefusal::BlankName
+pub variant antecedent_core::inspect::InspectionRefusal::MissingAssumptions
+pub variant antecedent_core::inspect::InspectionRefusal::MissingBackendPolicy
+pub variant antecedent_core::inspect::InspectionRefusal::MissingEstimatedResources
+pub variant antecedent_core::inspect::InspectionRefusal::MissingEvidenceTransformations
+pub variant antecedent_core::inspect::InspectionRefusal::MissingMaterialization
+pub variant antecedent_core::inspect::InspectionRefusal::MissingPhysicalOperators
+pub variant antecedent_core::inspect::InspectionRefusal::MissingRealization
+pub variant antecedent_core::inspect::InspectionRefusal::MissingReuse
+pub variant antecedent_core::inspect::InspectionRefusal::MissingTarget
+pub variant antecedent_core::inspect::InspectionRefusal::MissingUncertaintyDemand
 pub variant antecedent_core::measurement_model::ArmBinding::AllArms
 pub variant antecedent_core::measurement_model::ArmBinding::Arm(alloc::string::String)
 pub variant antecedent_core::measurement_model::DifferentialAxis::Arm
