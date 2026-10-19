@@ -1001,7 +1001,7 @@ mod tests {
         assert!(text.starts_with(err.detail()));
         assert!(text.contains("next attempt:"));
         assert!(text.contains(err.next_attempt().sentence()));
-        let _error: &dyn Error = &err;
+        let _: &dyn Error = &err;
     }
 
     #[test]
@@ -1261,7 +1261,7 @@ mod tests {
             assert_eq!(err.next_attempt().as_str(), "name_preserved_identity");
             assert!(err.message().contains(axis.phrase()));
             assert!(err.to_string().contains(err.next_attempt().sentence()));
-            let _error: &dyn Error = &err;
+            let _: &dyn Error = &err;
         }
     }
 
