@@ -908,4 +908,299 @@ mod tests {
         assert!(message.contains("non-finite design row at row 1"), "{message}");
         assert!(message.contains("drop that row from the summary and rebuild"), "{message}");
     }
+
+    /// Row-wise `RSS` and `X' W r`, with the offset removed before `x'β`.
+    ///
+    /// Putting the offset into the predictor first cancels a shared `1e12` level.
+    /// [`rss_and_xtwr`] keeps that order for the Laplace checks; this reference is
+    /// the centered scan the summary is compared with.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
+    fn row_wise_rss_and_score(design: BayesDesignRef<'_>, beta: &[f64]) -> (f64, Vec<f64>) {
+        let nrows = design.nrows;
+        let p = beta.len();
+        let mut xtwr = vec![0.0; p];
+        let mut rss = 0.0;
+        for row in 0..nrows {
+            let weight = design.weights.map_or(1.0, |weights| weights[row]);
+            let offset = design.offsets.map_or(0.0, |offsets| offsets[row]);
+            let mut pred = 0.0;
+            for col in 0..p {
+                pred += design.x_colmajor[col * nrows + row] * beta[col];
+            }
+            let resid = (design.y[row] - offset) - pred;
+            rss += weight * resid * resid;
+            for col in 0..p {
+                xtwr[col] += weight * design.x_colmajor[col * nrows + row] * resid;
+            }
+        }
+        (rss, xtwr)
+    }
+
+    fn row_wise_prior(mean: &[f64], prec: &CoefficientPrecision, beta: &[f64]) -> (f64, Vec<f64>) {
+        let p = beta.len();
+        let diff: Vec<f64> = beta.iter().zip(mean).map(|(coef, m)| coef - m).collect();
+        let mut p_diff = vec![0.0; p];
+        match prec {
+            CoefficientPrecision::Diagonal(diag) => {
+                for (slot, (precision, gap)) in p_diff.iter_mut().zip(diag.iter().zip(&diff)) {
+                    *slot = precision * gap;
+                }
+            }
+            CoefficientPrecision::Dense { matrix, .. } => {
+                for (i, slot) in p_diff.iter_mut().enumerate() {
+                    let row = &matrix[i * p..(i + 1) * p];
+                    *slot = row.iter().zip(&diff).map(|(entry, gap)| entry * gap).sum();
+                }
+            }
+        }
+        let quad = diff.iter().zip(&p_diff).map(|(gap, precision_gap)| gap * precision_gap).sum();
+        (quad, p_diff)
+    }
+
+    fn assert_close(got: f64, expected: f64, tol: f64, what: &str) {
+        let gap = (got - expected).abs();
+        assert!(
+            gap <= tol,
+            "{what}: summary {got} vs row-wise {expected} (gap {gap}, tol {tol})"
+        );
+    }
+
+    struct TargetCase<'a> {
+        design: BayesDesignRef<'a>,
+        prior: GaussianCoefficientPrior,
+        prec: CoefficientPrecision,
+        beta: &'a [f64],
+        sigma2: f64,
+        shape: f64,
+        scale: f64,
+        lambda: f64,
+        tol: f64,
+    }
+
+    fn assert_summary_matches_rows(case: &TargetCase<'_>) {
+        let (rss, xtwr) = row_wise_rss_and_score(case.design, case.beta);
+        let (quad, p_diff) = row_wise_prior(&case.prior.mean, &case.prec, case.beta);
+        let inv_s2 = 1.0 / case.sigma2;
+        let mut known = gaussian_target_from_model_with_precision(
+            case.design,
+            case.prior.clone(),
+            case.prec.clone(),
+            GaussianVarianceModel::Known { sigma2: case.sigma2 },
+        )
+        .unwrap();
+        let mut grad = vec![0.0; known.dim()];
+        let logp = known.logp_and_grad(case.beta, &mut grad).unwrap();
+        assert_close(logp, -0.5 * inv_s2 * (rss + quad), case.tol, "known log density");
+        for i in 0..case.beta.len() {
+            assert_close(grad[i], inv_s2 * (xtwr[i] - p_diff[i]), case.tol, "known gradient");
+        }
+
+        let n_eff = match case.design.weights {
+            Some(weights) => weights.iter().sum(),
+            None => case.design.nrows as f64,
+        };
+        let a_const = case.shape + 0.5 * (n_eff + case.beta.len() as f64);
+        let b_beta = case.scale + 0.5 * (rss + quad);
+        let exp_neg = (-case.lambda).exp();
+        let mut state = case.beta.to_vec();
+        state.push(case.lambda);
+        let mut joint = gaussian_target_from_model_with_precision(
+            case.design,
+            case.prior.clone(),
+            case.prec.clone(),
+            GaussianVarianceModel::InvGamma { shape: case.shape, scale: case.scale },
+        )
+        .unwrap();
+        let mut jgrad = vec![0.0; joint.dim()];
+        let jlogp = joint.logp_and_grad(&state, &mut jgrad).unwrap();
+        assert_close(
+            jlogp,
+            -a_const * case.lambda - b_beta * exp_neg,
+            case.tol,
+            "joint log density",
+        );
+        for i in 0..case.beta.len() {
+            assert_close(
+                jgrad[i],
+                exp_neg * (xtwr[i] - p_diff[i]),
+                case.tol,
+                "joint coefficient gradient",
+            );
+        }
+        assert_close(
+            jgrad[case.beta.len()],
+            -a_const + b_beta * exp_neg,
+            case.tol,
+            "joint log-variance gradient",
+        );
+    }
+
+    #[test]
+    fn summary_log_density_matches_row_wise_reference() {
+        let (x, y) = tiny_design();
+        let weights = [0.5, 1.5, 0.0, 2.0];
+        let offsets = [0.25, -0.5, 1.0, 0.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: Some(&offsets),
+        };
+        let prior = GaussianCoefficientPrior::shared(2, 0.3, 2.5).unwrap();
+        let prec = CoefficientPrecision::Diagonal(prior.precision());
+        let beta = [0.2, 1.4];
+        assert_summary_matches_rows(&TargetCase {
+            design,
+            prior,
+            prec,
+            beta: &beta,
+            sigma2: 2.5,
+            shape: 2.0,
+            scale: 1.5,
+            lambda: 0.35,
+            tol: 1e-9,
+        });
+    }
+
+    #[test]
+    fn dense_prior_summary_matches_row_wise_reference() {
+        let (x, y) = tiny_design();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let prior = GaussianCoefficientPrior {
+            mean: std::sync::Arc::from(vec![0.3, 0.8]),
+            variance: std::sync::Arc::from(vec![0.5, 0.2]),
+        };
+        let prec = CoefficientPrecision::Dense {
+            dim: 2,
+            matrix: crate::linalg::invert_spd(&[0.5, -0.25, -0.25, 0.2], 2).unwrap(),
+        };
+        let beta = [0.4, -0.2];
+        assert_summary_matches_rows(&TargetCase {
+            design,
+            prior,
+            prec,
+            beta: &beta,
+            sigma2: 0.7,
+            shape: 2.0,
+            scale: 1.0,
+            lambda: -0.2,
+            tol: 1e-9,
+        });
+    }
+
+    #[test]
+    fn rank_deficient_summary_matches_row_wise_reference() {
+        // Second column is twice the first, so `X' W X` is singular. A proper
+        // coefficient prior still defines the log density and gradient.
+        let x = vec![1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0];
+        let y = vec![1.0, 2.0, 0.5, 1.5];
+        let weights = [1.0, 0.25, 2.0, 1.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: None,
+        };
+        let stats = GaussianSufficientStats::from_design(design, 2).unwrap();
+        let det = stats.xtwx[0] * stats.xtwx[3] - stats.xtwx[1] * stats.xtwx[2];
+        assert!(det.abs() <= 1e-12, "Gram det {det}");
+        let prior = GaussianCoefficientPrior::shared(2, 0.0, 1.0).unwrap();
+        let prec = CoefficientPrecision::Diagonal(prior.precision());
+        let beta = [0.4, -0.2];
+        assert_summary_matches_rows(&TargetCase {
+            design,
+            prior,
+            prec,
+            beta: &beta,
+            sigma2: 1.2,
+            shape: 3.0,
+            scale: 0.5,
+            lambda: 0.1,
+            tol: 1e-9,
+        });
+    }
+
+    #[test]
+    fn shared_offset_matches_row_reference_at_rounding_scale() {
+        let offset = 1e12;
+        let n = 6;
+        let mut x = vec![1.0; n];
+        x.extend([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+        let weights = [1.0, 0.5, 1.5, 0.0, 2.0, 1.0];
+        let offsets = vec![offset; n];
+        let prior = GaussianCoefficientPrior::shared(2, -0.1, 1.5).unwrap();
+        let prec = CoefficientPrecision::Diagonal(prior.precision());
+
+        // Deltas sit at `ulp(1e12)`, so `y − offset` is the rounding of that level.
+        let deltas = [1.0e-4, -2.0e-4, 0.5e-4, 1.5e-4, -0.5e-4, 0.0];
+        let y: Vec<f64> = deltas.iter().map(|delta| offset + delta).collect();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: Some(&offsets),
+        };
+        let stats = GaussianSufficientStats::from_design(design, 2).unwrap();
+        let rounding = offset * f64::EPSILON;
+        let max_cross = stats.xtwy.iter().fold(0.0_f64, |max, value| max.max(value.abs()));
+        assert!(max_cross > 0.0 && max_cross <= rounding * 8.0, "centered moment {max_cross}");
+        assert!(stats.ytwy.abs() <= rounding, "centered square {}", stats.ytwy);
+        let beta = [0.25, -0.1];
+        assert_summary_matches_rows(&TargetCase {
+            design,
+            prior: prior.clone(),
+            prec: prec.clone(),
+            beta: &beta,
+            sigma2: 1.0,
+            shape: 2.0,
+            scale: 1.0,
+            lambda: 0.0,
+            tol: 1e-9,
+        });
+
+        // An O(1) signal on the same offset cancels in an uncentered residual.
+        // The summary log density still matches the centered row scan.
+        let eps = [-1.5, 0.5, -0.25, 1.25, -0.75, 0.75];
+        let y: Vec<f64> = eps
+            .iter()
+            .enumerate()
+            .map(|(i, shock)| offset + 1.0 + 2.0 * i as f64 + shock)
+            .collect();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: Some(&offsets),
+        };
+        let beta = [0.4, 1.7];
+        assert_summary_matches_rows(&TargetCase {
+            design,
+            prior,
+            prec,
+            beta: &beta,
+            sigma2: 1.7,
+            shape: 2.5,
+            scale: 0.8,
+            lambda: -0.3,
+            tol: 1e-8,
+        });
+    }
 }
