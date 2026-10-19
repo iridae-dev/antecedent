@@ -796,7 +796,7 @@ mod tests {
         assert!((actual - expected).abs() <= scale * 1e-12, "actual {actual} expected {expected}");
     }
 
-    fn row<'a>(block: &'a TargetConstraintBlock, regime: usize, probe: u32) -> (&'a [f64], f64) {
+    fn row(block: &TargetConstraintBlock, regime: usize, probe: u32) -> (&[f64], f64) {
         let slot = block
             .rows
             .iter()
