@@ -120,6 +120,8 @@ estimator.population_linear_aipw crates/antecedent-estimate/src/population_aipw.
 key estimator.population_linear_aipw interval_method population_linear_aipw_score
 # Only core ridge normal equations and a fixed normal quantile are used here.
 allow adaptive_interval crates/antecedent-estimate/src/population_aipw.rs antecedent_stats
+# The wave test reads a bootstrap receipt field. It does not call an adaptive interval.
+allow adaptive_interval crates/antecedent-estimate/src/bootstrap_wave.rs cancelled
 estimator.propensity_weighting crates/antecedent-estimate/src/propensity/weighting.rs
 key estimator.propensity_weighting estimator propensity.weighting
 key estimator.propensity_weighting interval_method population_linear_aipw_score
@@ -334,9 +336,12 @@ key evidence estimator evidence.envelope.* evidence.dependence.*
 key evidence dependence evidence.dependence.*
 # Crate root re-exports the types. It does not run them for a record that
 # does not carry this facet.
-allow evidence crates/antecedent-contract/src/lib.rs AxisInterval CovarianceCombination CovarianceTerms DecisionRequest DependenceContract DependenceError DependenceSource DependenceSourceId DependenceStatus EvidenceBinding EvidenceCalibration EvidenceEnvelope EvidenceEnvelopeError EvidenceOrigins EvidencePort EvidencePortError EvidenceSupport FactorDisclosure SharedFactor SharedFactorId SharedFactorKind SharedFactorSets UncertaintyAxes UncertaintyAxis WorldTime dependence evidence_envelope evidence_ports
+allow evidence crates/antecedent-contract/src/lib.rs AxisInterval CovarianceCombination CovarianceTerms DecisionRequest DependenceContract DependenceError DependenceSource DependenceSourceId DependenceStatus EFFECT_IDENTITY_VERSION EffectId EffectNextAttempt EvidenceBinding EvidenceCalibration EvidenceEffect EvidenceEffectError EvidenceEffectLedger EvidenceEnvelope EvidenceEnvelopeError EvidenceOperator EvidenceOrigins EvidencePort EvidencePortError EvidenceSupport FactorDisclosure MAX_RECORDED_EFFECTS NextAttempt NumericalAdmission RecordedEffect SharedFactor SharedFactorId SharedFactorKind SharedFactorSets UncertaintyAxes UncertaintyAxis WorldTime dependence evidence_effects evidence_envelope evidence_ports
 # Local helpers and identity tags share bare names with this facet. They do not call it.
 allow evidence crates/antecedent-contract/src/joint_law_rule.rs blank
+allow evidence crates/antecedent-contract/src/mixed_module.rs blank
+allow evidence crates/antecedent-contract/src/rewrite_legality.rs BLANK_DETAIL NextAttempt blank
+allow evidence crates/antecedent-contract/src/summary_observation.rs BLANK_DETAIL blank
 allow evidence crates/antecedent-contract/src/joint_alignment.rs NextAttempt
 allow evidence crates/antecedent-contract/src/measurement.rs blank
 allow evidence crates/antecedent-contract/src/mechanism_composition.rs blank
@@ -666,6 +671,8 @@ allow design crates/antecedent/src/analysis/execute/class_posterior.rs prepare
 allow design crates/antecedent/src/analysis/execute/class_posterior_response.rs build
 allow design crates/antecedent/src/analysis/execute/compile.rs antecedent_contract
 allow design crates/antecedent/src/analysis/execute/dispatch.rs prepare
+# Shared bare names with the design crate. The route fits the retained linear program.
+allow design crates/antecedent/src/analysis/execute/lowered_route.rs Utility antecedent_contract build refused unresolved_obligations
 allow design crates/antecedent/src/analysis/execute/mod.rs antecedent_contract antecedent_io
 allow design crates/antecedent/src/analysis/execute/panel_path.rs finish prepare
 allow design crates/antecedent/src/analysis/execute/response_path.rs evaluate prepare
@@ -717,6 +724,7 @@ allow design crates/antecedent/src/inference.rs DistributionArtifact antecedent_
 allow design crates/antecedent/src/analysis/surface/io.rs antecedent_io
 allow design crates/antecedent/src/planner/logical.rs antecedent_contract
 allow design crates/antecedent/src/planner/plan.rs antecedent_contract
+allow design crates/antecedent/src/planner/lowered.rs build
 allow design crates/antecedent/src/prelude.rs antecedent_contract
 allow design crates/antecedent/src/result.rs IdentifiedSet antecedent_contract antecedent_io
 allow design crates/antecedent/src/review.rs finish
@@ -971,6 +979,8 @@ allow design crates/antecedent/src/analysis/prepared/lifecycle.rs antecedent_con
 allow design crates/antecedent/src/analysis/prepared/mod.rs prepare seal
 allow design crates/antecedent/src/analysis/prepared/operations.rs evaluate finish prepare quantity
 allow design crates/antecedent/src/analysis/prepared/prepare.rs prepare
+# LifecycleInput::Utility shares a bare name with a design type. This module does not call it.
+allow design crates/antecedent/src/analysis/prepared/recompile.rs Utility
 allow design crates/antecedent/src/analysis/prepared/prepare_identification.rs prepare
 allow design crates/antecedent/src/analysis/prepared/retarget.rs antecedent_contract refusal
 allow design crates/antecedent/src/analysis/prepared/seal.rs names prepare
@@ -1039,6 +1049,8 @@ allow mechanism crates/antecedent-io-core/src/external_column_claim_artifact.rs 
 allow mechanism crates/antecedent-io-core/src/provider_envelope.rs ARTIFACT_KIND
 allow mechanism crates/antecedent-io-core/src/provider_verification_artifact.rs ARTIFACT_KIND META_SECTION
 allow mechanism crates/antecedent-io/src/sensitivity_artifact.rs decode_parts encode_parts
+# The stream section name shares META_SECTION with mechanism artifacts. It is not one.
+allow mechanism crates/antecedent-io/src/stream_artifact.rs META_SECTION
 allow mechanism crates/antecedent-validate/src/bayesian_checks/prior_sensitivity.rs evaluate
 allow mechanism crates/antecedent/src/analysis/contract/program_wire.rs nested_counterfactual
 allow mechanism crates/antecedent/src/analysis/execute/execute_helpers_route.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection PolicyValue UnitChangeResult antecedent_attribution gcm
@@ -1564,6 +1576,7 @@ allow cross_world_interval crates/antecedent/src/analysis/execute/dispatch.rs re
 allow cross_world_interval crates/antecedent/src/analysis/execute/pag_path.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/execute/response_path.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/execute/static_path.rs resolve
+allow cross_world_interval crates/antecedent/src/analysis/execute/lowered_route.rs refused
 allow cross_world_interval crates/antecedent/src/analysis/joint_law_composed_basis.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/joint_law_propagation.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/multi_level_treatment.rs refused
@@ -1758,6 +1771,7 @@ allow adaptive_interval crates/antecedent/src/analysis/execute/execute_helpers_r
 allow adaptive_interval crates/antecedent/src/analysis/execute/execute_helpers_route.rs cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/panel_path.rs antecedent_stats cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/static_path.rs cancelled
+allow adaptive_interval crates/antecedent/src/analysis/execute/lowered_route.rs antecedent_stats cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_class_effect_core.rs cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_effect_core.rs cancelled
 allow adaptive_interval crates/antecedent/src/analysis/execute/temporal_mediation_core.rs cancelled
