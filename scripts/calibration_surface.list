@@ -370,6 +370,7 @@ allow evidence crates/antecedent-io/src/recovery_chain_artifact.rs witness
 allow evidence crates/antecedent/src/analysis/checked_temporal_class_response.rs witness
 allow evidence crates/antecedent/src/analysis/counterfactual_transport.rs witness
 allow evidence crates/antecedent/src/analysis/decision_claims.rs blank
+allow evidence crates/antecedent/src/analysis/four_way.rs DecisionRequest EvidencePort EvidencePortError
 allow evidence crates/antecedent/src/analysis/discovered_transport_estimate.rs IDENTITY_TAG
 allow evidence crates/antecedent/src/analysis/execute/checked_graph_posterior_response.rs witness
 allow evidence crates/antecedent/src/analysis/execute/class_posterior_response.rs witness
@@ -673,6 +674,7 @@ allow design crates/antecedent/src/analysis/execute/compile.rs antecedent_contra
 allow design crates/antecedent/src/analysis/execute/dispatch.rs prepare
 # Shared bare names with the design crate. The route fits the retained linear program.
 allow design crates/antecedent/src/analysis/execute/lowered_route.rs Utility antecedent_contract build refused unresolved_obligations
+allow design crates/antecedent/src/analysis/four_way.rs Utility antecedent_contract build decide refused
 allow design crates/antecedent/src/analysis/execute/mod.rs antecedent_contract antecedent_io
 allow design crates/antecedent/src/analysis/execute/panel_path.rs finish prepare
 allow design crates/antecedent/src/analysis/execute/response_path.rs evaluate prepare
@@ -1137,6 +1139,7 @@ allow registry_mirror crates/antecedent/src/analysis/execute/response_path.rs ta
 allow registry_mirror crates/antecedent/src/analysis/execute/sequential_validation.rs table
 allow registry_mirror crates/antecedent/src/analysis/execute/static_path.rs table
 allow registry_mirror crates/antecedent/src/analysis/execute/temporal_attribution.rs table
+allow registry_mirror crates/antecedent/src/analysis/four_way.rs interval_method
 allow registry_mirror crates/antecedent/src/analysis/helpers.rs table
 allow registry_mirror crates/antecedent/src/analysis/prepared/estimate.rs table
 allow registry_mirror crates/antecedent/src/analysis/prepared/operations.rs table
@@ -1513,6 +1516,7 @@ allow adaptive_interval crates/antecedent/src/analysis/discovered_transport.rs r
 allow adaptive_interval crates/antecedent/src/analysis/dose_grid_functional.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/effect_constancy.rs refusal
 allow adaptive_interval crates/antecedent/src/analysis/evidence_ledger.rs antecedent_stats cancelled check_cancelled refusal
+allow adaptive_interval crates/antecedent/src/analysis/four_way.rs antecedent_stats
 allow adaptive_interval crates/antecedent/src/analysis/execute/admg_posterior_response.rs weighted
 allow adaptive_interval crates/antecedent/src/analysis/execute/atom_mix.rs weighted
 allow adaptive_interval crates/antecedent/src/analysis/execute/class_posterior.rs weighted
@@ -1577,6 +1581,7 @@ allow cross_world_interval crates/antecedent/src/analysis/execute/pag_path.rs re
 allow cross_world_interval crates/antecedent/src/analysis/execute/response_path.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/execute/static_path.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/execute/lowered_route.rs refused
+allow cross_world_interval crates/antecedent/src/analysis/four_way.rs refused
 allow cross_world_interval crates/antecedent/src/analysis/joint_law_composed_basis.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/joint_law_propagation.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/multi_level_treatment.rs refused
