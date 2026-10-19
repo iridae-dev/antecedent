@@ -21,6 +21,7 @@ pub mod auto;
 pub mod backdoor;
 pub mod bounds;
 mod class_envelope_cache;
+pub mod compiled_product;
 pub mod counterfactual_id;
 pub mod cross_world;
 pub mod efficient;
@@ -184,6 +185,11 @@ pub mod oracle_dot;
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph};
 pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
+pub use compiled_product::{
+    AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
+    IdentificationClaimClass, IdentificationOutcome, RequiredFactor, UnresolvedObligation,
+    WorldObligation,
+};
 pub use efficient::EfficientBackdoorIdentifier;
 pub use envelope::{
     GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass,
