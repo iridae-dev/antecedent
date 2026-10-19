@@ -34,6 +34,7 @@ pub mod dataset;
 pub mod discrete;
 pub mod error;
 pub mod event;
+pub mod global_index;
 pub mod lagged_frame;
 mod lazy_identity;
 pub mod materialize;
