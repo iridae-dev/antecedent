@@ -1,0 +1,27 @@
+feature_id = "identify.experimental_recovery"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Learning Linear Cyclic Causal Models with Latent Variables", sections = ["JMLR 13(32), hyttinen12a: multi-experiment linear cyclic model. This attempt uses the fully observed randomized-clamp specialization: surgical exogeneity, independent regimes, weak stability as invertibility, intervention coverage, and rank. The module does not copy a numbered theorem locator."] },
+]
+
+implementation_deviations = [
+ "This is a design judge. It does not read a sample, form second-order moments, fit a coefficient, or assemble a mechanism matrix. The paper's estimator is a later attempt.",
+ "The system is the fully observed canonical model x = Kx + ε with a zero diagonal and independent Gaussian disturbances. Correlated disturbances are refused as the latent-variable expansion, which the paper includes and this attempt does not.",
+ "A clamp must be a randomized surgical assignment, uncorrelated with the disturbances. Conditioning on the factual disturbance is refused.",
+ "Regimes must be declared independent. An undeclared noise law is refused.",
+ "Weak stability means I − UK is invertible on every experiment. That is not physical dynamical stability, and it is not the family bound ρ(|K|) < 1.",
+ "Coverage is the pair condition: for each ordered pair (from, into), some experiment clamps from while into stays passive. A missed pair returns that incoming row as an unresolved direction and does not build K.",
+ "When the pair condition holds, a declared column rank below the row width returns the unresolved directions and leaves the recovery goal open.",
+ "Observational equilibrium least squares is refused and names hyttinen_eberhardt_hoyer.fully_observed_clamp_experiment as the next attempt. Prior regularization is not this recipe.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-identify/src/experimental_recovery.rs)",
+]

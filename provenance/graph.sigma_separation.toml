@@ -1,0 +1,29 @@
+feature_id = "graph.sigma_separation"
+implementation_crate = "antecedent-graph"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Markov Properties for Graphical Models with Cycles and Latent Variables", doi = "10.48550/arXiv.1710.08775", sections = ["σ-separation as a graphical criterion on directed mixed graphs that may contain cycles. Numbered locators below are the Bongers, Forré, Peters, and Mooij appendix, which this module cites for the same criterion."] },
+ { title = "Foundations of Structural Causal Models with Cycles and Latent Variables", doi = "10.48550/arXiv.1611.06221", sections = ["Definition A.16", "Lemma A.17", "Proposition A.19", "Theorem A.7", "Theorem A.21", "Corollary A.22", "Definition A.23"] },
+]
+
+implementation_deviations = [
+ "This is a graphical query, not a proof of the observational, interventional, or counterfactual Markov property.",
+ "sigma_separates d-separates the acyclification (Proposition A.19). An outside parent of a strongly connected component is copied onto every member, and a component of size at least two becomes a bidirected clique. Those edges are not original direct mechanisms.",
+ "sigma_walk_oracle is a separate procedure. It enumerates simple paths on the original graph (Lemma A.17) and applies the σ-blocking rules (Definition A.16). It refuses graphs larger than four nodes. The engine has no such cap.",
+ "The two procedures are compared exhaustively on every mixed graph of three nodes and every directed graph of four nodes. That bound is a test, not a license that larger graphs were checked the same way.",
+ "On an acyclic graph the answer matches ordinary d-separation only when the endpoints are distinct and outside the conditioning set. An endpoint inside the conditioning set is σ-blocked (Definition A.16, clause 1). Dag::is_d_separated treats that query as not separated.",
+ "The query does not check unique solvability of each strongly connected component, which Theorem A.21 requires before the observational Markov reading applies.",
+ "A simple SCM is not assumed, so Corollary A.22 is not claimed. σ-faithfulness (Definition A.23) is not assumed. NotSeparated is not a proof of dependence.",
+ "Ordinary d-separation on cyclic graphs is left unsettled. Theorem A.7 says restricted families, including linear and discrete models, can still satisfy it. This query neither transfers nor discards that criterion.",
+ "This is not the 2018 nonlinear σ-discovery algorithm, the 2020 cyclic causal calculus, or cyclic FCI.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-graph/src/sigma_separation.rs)",
+]

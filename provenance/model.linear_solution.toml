@@ -1,0 +1,26 @@
+feature_id = "model.linear_solution"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Foundations of Structural Causal Models with Cycles and Latent Variables", doi = "10.48550/arXiv.1611.06221", sections = ["Solvability of a cyclic structural model under intervention. This record uses one sufficient linear bound, not the paper's simple-SCM requirement of unique solvability with respect to every subset."] },
+ { title = "Learning Linear Cyclic Causal Models with Latent Variables", sections = ["Weak stability as invertibility of the equilibrium map. This module keeps that status apart from physical dynamical stability and does not implement the paper's estimator."] },
+]
+
+implementation_deviations = [
+ "The model is the specified linear equilibrium X = KX + c + ε with a zero diagonal. A nonzero diagonal is refused rather than normalized, because that rescaling would have to carry the intercept and the noise law.",
+ "A hard clamp deletes the clamped equations and leaves the free block (I − K_FF) X_F = K_FH a + c_F + ε_F. The assessment describes that block. It does not form the inverse, and the free disturbance is not the factual value of a clamped variable.",
+ "The family certificate is the sufficient bound ρ(|K|) < 1 on the entrywise absolute matrix. Two variables use the closed form sqrt(|K[0,1] K[1,0]|). Larger maps use the infinity norm of |K| and, above order two, a 32-iteration Collatz–Wielandt ratio. Admission requires the upper bound to sit at least 1e-12 below one.",
+ "A bound that does not clear that gap is not a proof that ρ(|K|) ≥ 1, not a proof that the queried block is singular, and not an identification failure. The next attempt is the query-specific free-block check. IdentificationStatus stays NotMarkedUnidentified.",
+ "ρ(K) < 1 on the signed matrix is a different claim and is not this certificate. Physical stability is Unclaimed. Solver convergence is NotRun. None of those follows from invertibility of (I − K).",
+ "Unique solvability of one free block is not the simple-SCM certificate, and it is not a modular ioSCM solution mechanism.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-model/src/linear_solution.rs)",
+]
