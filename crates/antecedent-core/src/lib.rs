@@ -59,6 +59,7 @@ pub mod query;
 pub mod reason_code;
 pub mod recalc;
 pub mod response;
+pub mod rng_key;
 pub mod schema;
 pub mod scientific_target;
 pub mod search;
@@ -150,6 +151,10 @@ pub use response::{
     CausalResponse, CredibleDraws, DiagnosticScope, HorizonIdentification, IdentifiedSet,
     IntervalInterpretation, ResponseEnvelope, ResponseIdentification, ResponseUncertainty,
     ResponseValue, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
+};
+pub use rng_key::{
+    BatchSize, ChainId, DeclaredTolerance, FailedRngAttempt, FoldId, ReductionPolicy, ReplicateId,
+    RngKey, SemanticOperation, StreamRequest, ToleranceError, WorkerId,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
