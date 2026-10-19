@@ -2,7 +2,8 @@
 //!
 //! `antecedent-core` owns identifiers, schemas, assumptions, provenance,
 //! contract identities, diagnostics, errors, and execution policy. It must not depend on numerical,
-//! graph-algorithm, Arrow, or Python crates.
+//! graph-algorithm, Arrow, or Python crates. Inference-independent scientific targets live in
+//! [`scientific_target`] and do not replace [`CausalQuery`].
 //!
 //! # Names at the boundary, IDs on the hot path
 //!
@@ -53,6 +54,7 @@ pub mod reason_code;
 pub mod recalc;
 pub mod response;
 pub mod schema;
+pub mod scientific_target;
 pub mod search;
 pub use search::{
     DEFAULT_SEARCH_MEMORY_BYTES, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
@@ -138,6 +140,14 @@ pub use response::{
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
     ValueType, VariableInProgress, VariableSchema,
+};
+pub use scientific_target::{
+    Conditioning, ContrastForm, ContrastTerm, CrossWorldPremise, DoseTimeSurface, GraphFamily,
+    HistoryWindow, InferenceSelection, InitialLaw, InterventionContrast, InterventionWorld,
+    MediationArms, MediationComponent, MediationTarget, ModelAssumptions, ObservationUnit,
+    OutcomeQuantity, QuantityUnits, SCIENTIFIC_TARGET_FORMAT, SCIENTIFIC_TARGET_IDENTITY_TAG,
+    ScientificTarget, ScientificTargetError, ScientificWorldId, TargetForm, TimeFrame, WorldAction,
+    WorldBinding, WorldCollection,
 };
 pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
 pub use text::is_blank;

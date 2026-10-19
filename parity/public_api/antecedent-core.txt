@@ -18,22 +18,29 @@
 #[non_exhaustive] pub enum antecedent_core::CallbackOutput
 #[non_exhaustive] pub enum antecedent_core::CausalQuery
 #[non_exhaustive] pub enum antecedent_core::CompareOp
+#[non_exhaustive] pub enum antecedent_core::ContrastForm
+#[non_exhaustive] pub enum antecedent_core::CrossWorldPremise
 #[non_exhaustive] pub enum antecedent_core::ExecutionRequestState
 #[non_exhaustive] pub enum antecedent_core::ExogenousCoupling
 #[non_exhaustive] pub enum antecedent_core::ExpressionFault
+#[non_exhaustive] pub enum antecedent_core::GraphFamily
 #[non_exhaustive] pub enum antecedent_core::IdentityDomain
+#[non_exhaustive] pub enum antecedent_core::InferenceSelection
 #[non_exhaustive] pub enum antecedent_core::IntervalMethod
 #[non_exhaustive] pub enum antecedent_core::Intervention
 #[non_exhaustive] pub enum antecedent_core::InterventionError
 #[non_exhaustive] pub enum antecedent_core::LogicOp
+#[non_exhaustive] pub enum antecedent_core::MediationComponent
 #[non_exhaustive] pub enum antecedent_core::OutcomeFunctional
 #[non_exhaustive] pub enum antecedent_core::PopulationSelector
 #[non_exhaustive] pub enum antecedent_core::Portability
 #[non_exhaustive] pub enum antecedent_core::PredicateExpr
 #[non_exhaustive] pub enum antecedent_core::QueryError
 #[non_exhaustive] pub enum antecedent_core::SchemaError
+#[non_exhaustive] pub enum antecedent_core::ScientificTargetError
 #[non_exhaustive] pub enum antecedent_core::ShapleyMode
 #[non_exhaustive] pub enum antecedent_core::StochasticPolicy
+#[non_exhaustive] pub enum antecedent_core::TargetForm
 #[non_exhaustive] pub enum antecedent_core::TargetPopulation
 #[non_exhaustive] pub enum antecedent_core::TemporalIndexError
 #[non_exhaustive] pub enum antecedent_core::TemporalPolicy
@@ -99,13 +106,17 @@ impl core::clone::Clone for antecedent_core::ChangeAttributionQuery
 impl core::clone::Clone for antecedent_core::CompareOp
 impl core::clone::Clone for antecedent_core::ComponentId
 impl core::clone::Clone for antecedent_core::ConditionalEffectQuery
+impl core::clone::Clone for antecedent_core::Conditioning
 impl core::clone::Clone for antecedent_core::ContinuousDomain
 impl core::clone::Clone for antecedent_core::ContinuousDoseResponseQuery
 impl core::clone::Clone for antecedent_core::ContractIdentities
+impl core::clone::Clone for antecedent_core::ContrastForm
+impl core::clone::Clone for antecedent_core::ContrastTerm
 impl core::clone::Clone for antecedent_core::CounterfactualEvent
 impl core::clone::Clone for antecedent_core::CounterfactualEventQuery
 impl core::clone::Clone for antecedent_core::CounterfactualQuery
 impl core::clone::Clone for antecedent_core::CredibleDraws
+impl core::clone::Clone for antecedent_core::CrossWorldPremise
 impl core::clone::Clone for antecedent_core::CrossWorldQuery
 impl core::clone::Clone for antecedent_core::DependenceGroup
 impl core::clone::Clone for antecedent_core::DerivativeScale
@@ -119,6 +130,7 @@ impl core::clone::Clone for antecedent_core::DiagnosticSeverity
 impl core::clone::Clone for antecedent_core::DidSamplingDesign
 impl core::clone::Clone for antecedent_core::DistributionAvailability
 impl core::clone::Clone for antecedent_core::DistributionRef
+impl core::clone::Clone for antecedent_core::DoseTimeSurface
 impl core::clone::Clone for antecedent_core::DynamicRuleId
 impl core::clone::Clone for antecedent_core::EdgeRoute
 impl core::clone::Clone for antecedent_core::Environment
@@ -141,19 +153,25 @@ impl core::clone::Clone for antecedent_core::ExpressionFault
 impl core::clone::Clone for antecedent_core::FixedCandidateRegretInputs
 impl core::clone::Clone for antecedent_core::FixedGroupDosePolicy
 impl core::clone::Clone for antecedent_core::Fnv1a64
+impl core::clone::Clone for antecedent_core::GraphFamily
 impl core::clone::Clone for antecedent_core::GridSpec
+impl core::clone::Clone for antecedent_core::HistoryWindow
 impl core::clone::Clone for antecedent_core::HorizonIdentification
 impl core::clone::Clone for antecedent_core::IdentificationStatus
 impl core::clone::Clone for antecedent_core::IdentityDomain
 impl core::clone::Clone for antecedent_core::IdentityRef
+impl core::clone::Clone for antecedent_core::InferenceSelection
+impl core::clone::Clone for antecedent_core::InitialLaw
 impl core::clone::Clone for antecedent_core::InterferenceFunctional
 impl core::clone::Clone for antecedent_core::InterferenceQuery
 impl core::clone::Clone for antecedent_core::IntervalInterpretation
 impl core::clone::Clone for antecedent_core::IntervalMethod
 impl core::clone::Clone for antecedent_core::Intervention
 impl core::clone::Clone for antecedent_core::InterventionAssignment
+impl core::clone::Clone for antecedent_core::InterventionContrast
 impl core::clone::Clone for antecedent_core::InterventionError
 impl core::clone::Clone for antecedent_core::InterventionSequence
+impl core::clone::Clone for antecedent_core::InterventionWorld
 impl core::clone::Clone for antecedent_core::InterventionalDistributionQuery
 impl core::clone::Clone for antecedent_core::KernelPolicy
 impl core::clone::Clone for antecedent_core::KnownCensoringSurvival
@@ -167,9 +185,13 @@ impl core::clone::Clone for antecedent_core::LongitudinalRegimeQuery
 impl core::clone::Clone for antecedent_core::MeasurementSpec
 impl core::clone::Clone for antecedent_core::MechanismChangeQuery
 impl core::clone::Clone for antecedent_core::MechanismOverride
+impl core::clone::Clone for antecedent_core::MediationArms
+impl core::clone::Clone for antecedent_core::MediationComponent
 impl core::clone::Clone for antecedent_core::MediationContrast
 impl core::clone::Clone for antecedent_core::MediationQuery
+impl core::clone::Clone for antecedent_core::MediationTarget
 impl core::clone::Clone for antecedent_core::MemoryBudget
+impl core::clone::Clone for antecedent_core::ModelAssumptions
 impl core::clone::Clone for antecedent_core::ModelId
 impl core::clone::Clone for antecedent_core::MonteCarloBudget
 impl core::clone::Clone for antecedent_core::MonteCarloError
@@ -179,8 +201,10 @@ impl core::clone::Clone for antecedent_core::NodeRef
 impl core::clone::Clone for antecedent_core::NonZeroThreadCount
 impl core::clone::Clone for antecedent_core::ObservationAssumption
 impl core::clone::Clone for antecedent_core::ObservationSpec
+impl core::clone::Clone for antecedent_core::ObservationUnit
 impl core::clone::Clone for antecedent_core::OrderedFloatBits
 impl core::clone::Clone for antecedent_core::OutcomeFunctional
+impl core::clone::Clone for antecedent_core::OutcomeQuantity
 impl core::clone::Clone for antecedent_core::PanelDidQuery
 impl core::clone::Clone for antecedent_core::Parallelism
 impl core::clone::Clone for antecedent_core::ParametricAssumption
@@ -194,6 +218,7 @@ impl core::clone::Clone for antecedent_core::PopulationSelector
 impl core::clone::Clone for antecedent_core::Portability
 impl core::clone::Clone for antecedent_core::PredicateExpr
 impl core::clone::Clone for antecedent_core::PriorAssumption
+impl core::clone::Clone for antecedent_core::QuantityUnits
 impl core::clone::Clone for antecedent_core::QueryError
 impl core::clone::Clone for antecedent_core::QueryId
 impl core::clone::Clone for antecedent_core::RandomizationDesign
@@ -217,6 +242,9 @@ impl core::clone::Clone for antecedent_core::SamplingDesign
 impl core::clone::Clone for antecedent_core::SamplingSelection
 impl core::clone::Clone for antecedent_core::ScalarType
 impl core::clone::Clone for antecedent_core::SchemaError
+impl core::clone::Clone for antecedent_core::ScientificTarget
+impl core::clone::Clone for antecedent_core::ScientificTargetError
+impl core::clone::Clone for antecedent_core::ScientificWorldId
 impl core::clone::Clone for antecedent_core::SearchLimits
 impl core::clone::Clone for antecedent_core::SearchReceipt
 impl core::clone::Clone for antecedent_core::SearchStop
@@ -239,6 +267,7 @@ impl core::clone::Clone for antecedent_core::SurvivalFunctional
 impl core::clone::Clone for antecedent_core::SurvivalQuery
 impl core::clone::Clone for antecedent_core::SyntheticControlQuery
 impl core::clone::Clone for antecedent_core::SyntheticPanelMethod
+impl core::clone::Clone for antecedent_core::TargetForm
 impl core::clone::Clone for antecedent_core::TargetPopulation
 impl core::clone::Clone for antecedent_core::TargetSampling
 impl core::clone::Clone for antecedent_core::TemporalEffectQuery
@@ -250,6 +279,7 @@ impl core::clone::Clone for antecedent_core::TemporalResponseLicense
 impl core::clone::Clone for antecedent_core::TemporalResponseSpec
 impl core::clone::Clone for antecedent_core::TheoremFamily
 impl core::clone::Clone for antecedent_core::TheoremScope
+impl core::clone::Clone for antecedent_core::TimeFrame
 impl core::clone::Clone for antecedent_core::ToleranceClass
 impl core::clone::Clone for antecedent_core::TransportEvaluateSupport
 impl core::clone::Clone for antecedent_core::TransportIdentifySupport
@@ -269,6 +299,9 @@ impl core::clone::Clone for antecedent_core::VariableDomain
 impl core::clone::Clone for antecedent_core::VariableId
 impl core::clone::Clone for antecedent_core::VariableSchema
 impl core::clone::Clone for antecedent_core::WeakCancellationToken
+impl core::clone::Clone for antecedent_core::WorldAction
+impl core::clone::Clone for antecedent_core::WorldBinding
+impl core::clone::Clone for antecedent_core::WorldCollection
 impl core::clone::Clone for antecedent_core::WorldId
 impl core::clone::Clone for antecedent_core::WorldObservation
 impl core::clone::Clone for antecedent_core::WorldSpec
@@ -350,9 +383,13 @@ impl core::cmp::Eq for antecedent_core::ChangeAttributionQuery
 impl core::cmp::Eq for antecedent_core::CompareOp
 impl core::cmp::Eq for antecedent_core::ComponentId
 impl core::cmp::Eq for antecedent_core::ConditionalEffectQuery
+impl core::cmp::Eq for antecedent_core::Conditioning
 impl core::cmp::Eq for antecedent_core::ContractIdentities
+impl core::cmp::Eq for antecedent_core::ContrastForm
+impl core::cmp::Eq for antecedent_core::ContrastTerm
 impl core::cmp::Eq for antecedent_core::CounterfactualEvent
 impl core::cmp::Eq for antecedent_core::CounterfactualEventQuery
+impl core::cmp::Eq for antecedent_core::CrossWorldPremise
 impl core::cmp::Eq for antecedent_core::CrossWorldQuery
 impl core::cmp::Eq for antecedent_core::DependenceGroup
 impl core::cmp::Eq for antecedent_core::DerivativeScale
@@ -365,6 +402,7 @@ impl core::cmp::Eq for antecedent_core::DiagnosticSeverity
 impl core::cmp::Eq for antecedent_core::DidSamplingDesign
 impl core::cmp::Eq for antecedent_core::DistributionAvailability
 impl core::cmp::Eq for antecedent_core::DistributionRef
+impl core::cmp::Eq for antecedent_core::DoseTimeSurface
 impl core::cmp::Eq for antecedent_core::DynamicRuleId
 impl core::cmp::Eq for antecedent_core::EdgeRoute
 impl core::cmp::Eq for antecedent_core::Environment
@@ -378,14 +416,20 @@ impl core::cmp::Eq for antecedent_core::ExposurePropensityProvenance
 impl core::cmp::Eq for antecedent_core::ExprNumber
 impl core::cmp::Eq for antecedent_core::ExprType
 impl core::cmp::Eq for antecedent_core::ExpressionFault
+impl core::cmp::Eq for antecedent_core::GraphFamily
+impl core::cmp::Eq for antecedent_core::HistoryWindow
 impl core::cmp::Eq for antecedent_core::IdentificationStatus
 impl core::cmp::Eq for antecedent_core::IdentityDomain
 impl core::cmp::Eq for antecedent_core::IdentityRef
+impl core::cmp::Eq for antecedent_core::InferenceSelection
+impl core::cmp::Eq for antecedent_core::InitialLaw
 impl core::cmp::Eq for antecedent_core::IntervalInterpretation
 impl core::cmp::Eq for antecedent_core::IntervalMethod
 impl core::cmp::Eq for antecedent_core::Intervention
+impl core::cmp::Eq for antecedent_core::InterventionContrast
 impl core::cmp::Eq for antecedent_core::InterventionError
 impl core::cmp::Eq for antecedent_core::InterventionSequence
+impl core::cmp::Eq for antecedent_core::InterventionWorld
 impl core::cmp::Eq for antecedent_core::KernelPolicy
 impl core::cmp::Eq for antecedent_core::Lag
 impl core::cmp::Eq for antecedent_core::LawOrigin
@@ -395,17 +439,23 @@ impl core::cmp::Eq for antecedent_core::LongitudinalRegimeMethod
 impl core::cmp::Eq for antecedent_core::MeasurementSpec
 impl core::cmp::Eq for antecedent_core::MechanismChangeQuery
 impl core::cmp::Eq for antecedent_core::MechanismOverride
+impl core::cmp::Eq for antecedent_core::MediationArms
+impl core::cmp::Eq for antecedent_core::MediationComponent
 impl core::cmp::Eq for antecedent_core::MediationContrast
 impl core::cmp::Eq for antecedent_core::MediationQuery
+impl core::cmp::Eq for antecedent_core::MediationTarget
 impl core::cmp::Eq for antecedent_core::MemoryBudget
+impl core::cmp::Eq for antecedent_core::ModelAssumptions
 impl core::cmp::Eq for antecedent_core::ModelId
 impl core::cmp::Eq for antecedent_core::NestedCounterfactualQuery
 impl core::cmp::Eq for antecedent_core::NodeRef
 impl core::cmp::Eq for antecedent_core::NonZeroThreadCount
 impl core::cmp::Eq for antecedent_core::ObservationAssumption
 impl core::cmp::Eq for antecedent_core::ObservationSpec
+impl core::cmp::Eq for antecedent_core::ObservationUnit
 impl core::cmp::Eq for antecedent_core::OrderedFloatBits
 impl core::cmp::Eq for antecedent_core::OutcomeFunctional
+impl core::cmp::Eq for antecedent_core::OutcomeQuantity
 impl core::cmp::Eq for antecedent_core::Parallelism
 impl core::cmp::Eq for antecedent_core::ParametricAssumption
 impl core::cmp::Eq for antecedent_core::PinnedDependency
@@ -413,6 +463,7 @@ impl core::cmp::Eq for antecedent_core::PolicyReads
 impl core::cmp::Eq for antecedent_core::PopulationSelector
 impl core::cmp::Eq for antecedent_core::PredicateExpr
 impl core::cmp::Eq for antecedent_core::PriorAssumption
+impl core::cmp::Eq for antecedent_core::QuantityUnits
 impl core::cmp::Eq for antecedent_core::QueryError
 impl core::cmp::Eq for antecedent_core::QueryId
 impl core::cmp::Eq for antecedent_core::RandomizedEstimand
@@ -427,6 +478,9 @@ impl core::cmp::Eq for antecedent_core::SamplingDesign
 impl core::cmp::Eq for antecedent_core::SamplingSelection
 impl core::cmp::Eq for antecedent_core::ScalarType
 impl core::cmp::Eq for antecedent_core::SchemaError
+impl core::cmp::Eq for antecedent_core::ScientificTarget
+impl core::cmp::Eq for antecedent_core::ScientificTargetError
+impl core::cmp::Eq for antecedent_core::ScientificWorldId
 impl core::cmp::Eq for antecedent_core::SearchLimits
 impl core::cmp::Eq for antecedent_core::SearchReceipt
 impl core::cmp::Eq for antecedent_core::SearchStop
@@ -443,6 +497,7 @@ impl core::cmp::Eq for antecedent_core::StreamDomain
 impl core::cmp::Eq for antecedent_core::SupportStatus
 impl core::cmp::Eq for antecedent_core::SurvivalFunctional
 impl core::cmp::Eq for antecedent_core::SyntheticPanelMethod
+impl core::cmp::Eq for antecedent_core::TargetForm
 impl core::cmp::Eq for antecedent_core::TargetPopulation
 impl core::cmp::Eq for antecedent_core::TargetSampling
 impl core::cmp::Eq for antecedent_core::TemporalIndexError
@@ -452,6 +507,7 @@ impl core::cmp::Eq for antecedent_core::TemporalPolicy
 impl core::cmp::Eq for antecedent_core::TemporalResponseLicense
 impl core::cmp::Eq for antecedent_core::TheoremFamily
 impl core::cmp::Eq for antecedent_core::TheoremScope
+impl core::cmp::Eq for antecedent_core::TimeFrame
 impl core::cmp::Eq for antecedent_core::ToleranceClass
 impl core::cmp::Eq for antecedent_core::TransportEvaluateSupport
 impl core::cmp::Eq for antecedent_core::TransportIdentifySupport
@@ -469,6 +525,9 @@ impl core::cmp::Eq for antecedent_core::VariableCoordinate
 impl core::cmp::Eq for antecedent_core::VariableDomain
 impl core::cmp::Eq for antecedent_core::VariableId
 impl core::cmp::Eq for antecedent_core::VariableSchema
+impl core::cmp::Eq for antecedent_core::WorldAction
+impl core::cmp::Eq for antecedent_core::WorldBinding
+impl core::cmp::Eq for antecedent_core::WorldCollection
 impl core::cmp::Eq for antecedent_core::WorldId
 impl core::cmp::Eq for antecedent_core::WorldObservation
 impl core::cmp::Eq for antecedent_core::WorldSpec
@@ -523,6 +582,7 @@ impl core::cmp::Eq for antecedent_core::value::InterventionValueError
 impl core::cmp::Ord for antecedent_core::CategoryDomainId
 impl core::cmp::Ord for antecedent_core::ComponentId
 impl core::cmp::Ord for antecedent_core::CounterfactualEvent
+impl core::cmp::Ord for antecedent_core::CrossWorldPremise
 impl core::cmp::Ord for antecedent_core::DiagnosticSeverity
 impl core::cmp::Ord for antecedent_core::DistributionRef
 impl core::cmp::Ord for antecedent_core::DynamicRuleId
@@ -534,6 +594,7 @@ impl core::cmp::Ord for antecedent_core::NodeRef
 impl core::cmp::Ord for antecedent_core::NonZeroThreadCount
 impl core::cmp::Ord for antecedent_core::QueryId
 impl core::cmp::Ord for antecedent_core::RegimeId
+impl core::cmp::Ord for antecedent_core::ScientificWorldId
 impl core::cmp::Ord for antecedent_core::SemanticDigest
 impl core::cmp::Ord for antecedent_core::StateVersion
 impl core::cmp::Ord for antecedent_core::TemporalNodeKey
@@ -580,13 +641,17 @@ impl core::cmp::PartialEq for antecedent_core::ChangeAttributionQuery
 impl core::cmp::PartialEq for antecedent_core::CompareOp
 impl core::cmp::PartialEq for antecedent_core::ComponentId
 impl core::cmp::PartialEq for antecedent_core::ConditionalEffectQuery
+impl core::cmp::PartialEq for antecedent_core::Conditioning
 impl core::cmp::PartialEq for antecedent_core::ContinuousDomain
 impl core::cmp::PartialEq for antecedent_core::ContinuousDoseResponseQuery
 impl core::cmp::PartialEq for antecedent_core::ContractIdentities
+impl core::cmp::PartialEq for antecedent_core::ContrastForm
+impl core::cmp::PartialEq for antecedent_core::ContrastTerm
 impl core::cmp::PartialEq for antecedent_core::CounterfactualEvent
 impl core::cmp::PartialEq for antecedent_core::CounterfactualEventQuery
 impl core::cmp::PartialEq for antecedent_core::CounterfactualQuery
 impl core::cmp::PartialEq for antecedent_core::CredibleDraws
+impl core::cmp::PartialEq for antecedent_core::CrossWorldPremise
 impl core::cmp::PartialEq for antecedent_core::CrossWorldQuery
 impl core::cmp::PartialEq for antecedent_core::DependenceGroup
 impl core::cmp::PartialEq for antecedent_core::DerivativeScale
@@ -600,6 +665,7 @@ impl core::cmp::PartialEq for antecedent_core::DiagnosticSeverity
 impl core::cmp::PartialEq for antecedent_core::DidSamplingDesign
 impl core::cmp::PartialEq for antecedent_core::DistributionAvailability
 impl core::cmp::PartialEq for antecedent_core::DistributionRef
+impl core::cmp::PartialEq for antecedent_core::DoseTimeSurface
 impl core::cmp::PartialEq for antecedent_core::DynamicRuleId
 impl core::cmp::PartialEq for antecedent_core::EdgeRoute
 impl core::cmp::PartialEq for antecedent_core::Environment
@@ -620,19 +686,25 @@ impl core::cmp::PartialEq for antecedent_core::ExprType
 impl core::cmp::PartialEq for antecedent_core::ExpressionFault
 impl core::cmp::PartialEq for antecedent_core::FixedCandidateRegretInputs
 impl core::cmp::PartialEq for antecedent_core::FixedGroupDosePolicy
+impl core::cmp::PartialEq for antecedent_core::GraphFamily
 impl core::cmp::PartialEq for antecedent_core::GridSpec
+impl core::cmp::PartialEq for antecedent_core::HistoryWindow
 impl core::cmp::PartialEq for antecedent_core::HorizonIdentification
 impl core::cmp::PartialEq for antecedent_core::IdentificationStatus
 impl core::cmp::PartialEq for antecedent_core::IdentityDomain
 impl core::cmp::PartialEq for antecedent_core::IdentityRef
+impl core::cmp::PartialEq for antecedent_core::InferenceSelection
+impl core::cmp::PartialEq for antecedent_core::InitialLaw
 impl core::cmp::PartialEq for antecedent_core::InterferenceFunctional
 impl core::cmp::PartialEq for antecedent_core::InterferenceQuery
 impl core::cmp::PartialEq for antecedent_core::IntervalInterpretation
 impl core::cmp::PartialEq for antecedent_core::IntervalMethod
 impl core::cmp::PartialEq for antecedent_core::Intervention
 impl core::cmp::PartialEq for antecedent_core::InterventionAssignment
+impl core::cmp::PartialEq for antecedent_core::InterventionContrast
 impl core::cmp::PartialEq for antecedent_core::InterventionError
 impl core::cmp::PartialEq for antecedent_core::InterventionSequence
+impl core::cmp::PartialEq for antecedent_core::InterventionWorld
 impl core::cmp::PartialEq for antecedent_core::InterventionalDistributionQuery
 impl core::cmp::PartialEq for antecedent_core::KernelPolicy
 impl core::cmp::PartialEq for antecedent_core::KnownCensoringSurvival
@@ -646,9 +718,13 @@ impl core::cmp::PartialEq for antecedent_core::LongitudinalRegimeQuery
 impl core::cmp::PartialEq for antecedent_core::MeasurementSpec
 impl core::cmp::PartialEq for antecedent_core::MechanismChangeQuery
 impl core::cmp::PartialEq for antecedent_core::MechanismOverride
+impl core::cmp::PartialEq for antecedent_core::MediationArms
+impl core::cmp::PartialEq for antecedent_core::MediationComponent
 impl core::cmp::PartialEq for antecedent_core::MediationContrast
 impl core::cmp::PartialEq for antecedent_core::MediationQuery
+impl core::cmp::PartialEq for antecedent_core::MediationTarget
 impl core::cmp::PartialEq for antecedent_core::MemoryBudget
+impl core::cmp::PartialEq for antecedent_core::ModelAssumptions
 impl core::cmp::PartialEq for antecedent_core::ModelId
 impl core::cmp::PartialEq for antecedent_core::MonteCarloBudget
 impl core::cmp::PartialEq for antecedent_core::MonteCarloError
@@ -658,8 +734,10 @@ impl core::cmp::PartialEq for antecedent_core::NodeRef
 impl core::cmp::PartialEq for antecedent_core::NonZeroThreadCount
 impl core::cmp::PartialEq for antecedent_core::ObservationAssumption
 impl core::cmp::PartialEq for antecedent_core::ObservationSpec
+impl core::cmp::PartialEq for antecedent_core::ObservationUnit
 impl core::cmp::PartialEq for antecedent_core::OrderedFloatBits
 impl core::cmp::PartialEq for antecedent_core::OutcomeFunctional
+impl core::cmp::PartialEq for antecedent_core::OutcomeQuantity
 impl core::cmp::PartialEq for antecedent_core::PanelDidQuery
 impl core::cmp::PartialEq for antecedent_core::Parallelism
 impl core::cmp::PartialEq for antecedent_core::ParametricAssumption
@@ -672,6 +750,7 @@ impl core::cmp::PartialEq for antecedent_core::PopulationSelector
 impl core::cmp::PartialEq for antecedent_core::Portability
 impl core::cmp::PartialEq for antecedent_core::PredicateExpr
 impl core::cmp::PartialEq for antecedent_core::PriorAssumption
+impl core::cmp::PartialEq for antecedent_core::QuantityUnits
 impl core::cmp::PartialEq for antecedent_core::QueryError
 impl core::cmp::PartialEq for antecedent_core::QueryId
 impl core::cmp::PartialEq for antecedent_core::RandomizationDesign
@@ -695,6 +774,9 @@ impl core::cmp::PartialEq for antecedent_core::SamplingDesign
 impl core::cmp::PartialEq for antecedent_core::SamplingSelection
 impl core::cmp::PartialEq for antecedent_core::ScalarType
 impl core::cmp::PartialEq for antecedent_core::SchemaError
+impl core::cmp::PartialEq for antecedent_core::ScientificTarget
+impl core::cmp::PartialEq for antecedent_core::ScientificTargetError
+impl core::cmp::PartialEq for antecedent_core::ScientificWorldId
 impl core::cmp::PartialEq for antecedent_core::SearchLimits
 impl core::cmp::PartialEq for antecedent_core::SearchReceipt
 impl core::cmp::PartialEq for antecedent_core::SearchStop
@@ -717,6 +799,7 @@ impl core::cmp::PartialEq for antecedent_core::SurvivalFunctional
 impl core::cmp::PartialEq for antecedent_core::SurvivalQuery
 impl core::cmp::PartialEq for antecedent_core::SyntheticControlQuery
 impl core::cmp::PartialEq for antecedent_core::SyntheticPanelMethod
+impl core::cmp::PartialEq for antecedent_core::TargetForm
 impl core::cmp::PartialEq for antecedent_core::TargetPopulation
 impl core::cmp::PartialEq for antecedent_core::TargetSampling
 impl core::cmp::PartialEq for antecedent_core::TemporalEffectQuery
@@ -728,6 +811,7 @@ impl core::cmp::PartialEq for antecedent_core::TemporalResponseLicense
 impl core::cmp::PartialEq for antecedent_core::TemporalResponseSpec
 impl core::cmp::PartialEq for antecedent_core::TheoremFamily
 impl core::cmp::PartialEq for antecedent_core::TheoremScope
+impl core::cmp::PartialEq for antecedent_core::TimeFrame
 impl core::cmp::PartialEq for antecedent_core::ToleranceClass
 impl core::cmp::PartialEq for antecedent_core::TransportEvaluateSupport
 impl core::cmp::PartialEq for antecedent_core::TransportIdentifySupport
@@ -746,6 +830,9 @@ impl core::cmp::PartialEq for antecedent_core::VariableCoordinate
 impl core::cmp::PartialEq for antecedent_core::VariableDomain
 impl core::cmp::PartialEq for antecedent_core::VariableId
 impl core::cmp::PartialEq for antecedent_core::VariableSchema
+impl core::cmp::PartialEq for antecedent_core::WorldAction
+impl core::cmp::PartialEq for antecedent_core::WorldBinding
+impl core::cmp::PartialEq for antecedent_core::WorldCollection
 impl core::cmp::PartialEq for antecedent_core::WorldId
 impl core::cmp::PartialEq for antecedent_core::WorldObservation
 impl core::cmp::PartialEq for antecedent_core::WorldSpec
@@ -805,6 +892,7 @@ impl core::cmp::PartialEq for antecedent_core::value::InterventionValueError
 impl core::cmp::PartialOrd for antecedent_core::CategoryDomainId
 impl core::cmp::PartialOrd for antecedent_core::ComponentId
 impl core::cmp::PartialOrd for antecedent_core::CounterfactualEvent
+impl core::cmp::PartialOrd for antecedent_core::CrossWorldPremise
 impl core::cmp::PartialOrd for antecedent_core::DiagnosticSeverity
 impl core::cmp::PartialOrd for antecedent_core::DistributionRef
 impl core::cmp::PartialOrd for antecedent_core::DynamicRuleId
@@ -816,6 +904,7 @@ impl core::cmp::PartialOrd for antecedent_core::NodeRef
 impl core::cmp::PartialOrd for antecedent_core::NonZeroThreadCount
 impl core::cmp::PartialOrd for antecedent_core::QueryId
 impl core::cmp::PartialOrd for antecedent_core::RegimeId
+impl core::cmp::PartialOrd for antecedent_core::ScientificWorldId
 impl core::cmp::PartialOrd for antecedent_core::SemanticDigest
 impl core::cmp::PartialOrd for antecedent_core::StateVersion
 impl core::cmp::PartialOrd for antecedent_core::TemporalNodeKey
@@ -879,6 +968,7 @@ impl core::error::Error for antecedent_core::InterventionError
 impl core::error::Error for antecedent_core::QueryError
 impl core::error::Error for antecedent_core::RecoveryMismatch
 impl core::error::Error for antecedent_core::SchemaError
+impl core::error::Error for antecedent_core::ScientificTargetError
 impl core::error::Error for antecedent_core::TemporalIndexError
 impl core::error::Error for antecedent_core::value::InterventionValueError
 impl core::fmt::Debug for antecedent_core::AdaptiveBootstrapBudget
@@ -919,13 +1009,17 @@ impl core::fmt::Debug for antecedent_core::ChangeAttributionQuery
 impl core::fmt::Debug for antecedent_core::CompareOp
 impl core::fmt::Debug for antecedent_core::ComponentId
 impl core::fmt::Debug for antecedent_core::ConditionalEffectQuery
+impl core::fmt::Debug for antecedent_core::Conditioning
 impl core::fmt::Debug for antecedent_core::ContinuousDomain
 impl core::fmt::Debug for antecedent_core::ContinuousDoseResponseQuery
 impl core::fmt::Debug for antecedent_core::ContractIdentities
+impl core::fmt::Debug for antecedent_core::ContrastForm
+impl core::fmt::Debug for antecedent_core::ContrastTerm
 impl core::fmt::Debug for antecedent_core::CounterfactualEvent
 impl core::fmt::Debug for antecedent_core::CounterfactualEventQuery
 impl core::fmt::Debug for antecedent_core::CounterfactualQuery
 impl core::fmt::Debug for antecedent_core::CredibleDraws
+impl core::fmt::Debug for antecedent_core::CrossWorldPremise
 impl core::fmt::Debug for antecedent_core::CrossWorldQuery
 impl core::fmt::Debug for antecedent_core::DependenceGroup
 impl core::fmt::Debug for antecedent_core::DerivativeScale
@@ -939,6 +1033,7 @@ impl core::fmt::Debug for antecedent_core::DiagnosticSeverity
 impl core::fmt::Debug for antecedent_core::DidSamplingDesign
 impl core::fmt::Debug for antecedent_core::DistributionAvailability
 impl core::fmt::Debug for antecedent_core::DistributionRef
+impl core::fmt::Debug for antecedent_core::DoseTimeSurface
 impl core::fmt::Debug for antecedent_core::DynamicRuleId
 impl core::fmt::Debug for antecedent_core::EdgeRoute
 impl core::fmt::Debug for antecedent_core::Environment
@@ -961,19 +1056,25 @@ impl core::fmt::Debug for antecedent_core::ExpressionFault
 impl core::fmt::Debug for antecedent_core::FixedCandidateRegretInputs
 impl core::fmt::Debug for antecedent_core::FixedGroupDosePolicy
 impl core::fmt::Debug for antecedent_core::Fnv1a64
+impl core::fmt::Debug for antecedent_core::GraphFamily
 impl core::fmt::Debug for antecedent_core::GridSpec
+impl core::fmt::Debug for antecedent_core::HistoryWindow
 impl core::fmt::Debug for antecedent_core::HorizonIdentification
 impl core::fmt::Debug for antecedent_core::IdentificationStatus
 impl core::fmt::Debug for antecedent_core::IdentityDomain
 impl core::fmt::Debug for antecedent_core::IdentityRef
+impl core::fmt::Debug for antecedent_core::InferenceSelection
+impl core::fmt::Debug for antecedent_core::InitialLaw
 impl core::fmt::Debug for antecedent_core::InterferenceFunctional
 impl core::fmt::Debug for antecedent_core::InterferenceQuery
 impl core::fmt::Debug for antecedent_core::IntervalInterpretation
 impl core::fmt::Debug for antecedent_core::IntervalMethod
 impl core::fmt::Debug for antecedent_core::Intervention
 impl core::fmt::Debug for antecedent_core::InterventionAssignment
+impl core::fmt::Debug for antecedent_core::InterventionContrast
 impl core::fmt::Debug for antecedent_core::InterventionError
 impl core::fmt::Debug for antecedent_core::InterventionSequence
+impl core::fmt::Debug for antecedent_core::InterventionWorld
 impl core::fmt::Debug for antecedent_core::InterventionalDistributionQuery
 impl core::fmt::Debug for antecedent_core::KernelPolicy
 impl core::fmt::Debug for antecedent_core::KnownCensoringSurvival
@@ -987,9 +1088,13 @@ impl core::fmt::Debug for antecedent_core::LongitudinalRegimeQuery
 impl core::fmt::Debug for antecedent_core::MeasurementSpec
 impl core::fmt::Debug for antecedent_core::MechanismChangeQuery
 impl core::fmt::Debug for antecedent_core::MechanismOverride
+impl core::fmt::Debug for antecedent_core::MediationArms
+impl core::fmt::Debug for antecedent_core::MediationComponent
 impl core::fmt::Debug for antecedent_core::MediationContrast
 impl core::fmt::Debug for antecedent_core::MediationQuery
+impl core::fmt::Debug for antecedent_core::MediationTarget
 impl core::fmt::Debug for antecedent_core::MemoryBudget
+impl core::fmt::Debug for antecedent_core::ModelAssumptions
 impl core::fmt::Debug for antecedent_core::ModelId
 impl core::fmt::Debug for antecedent_core::MonteCarloBudget
 impl core::fmt::Debug for antecedent_core::MonteCarloError
@@ -999,8 +1104,10 @@ impl core::fmt::Debug for antecedent_core::NodeRef
 impl core::fmt::Debug for antecedent_core::NonZeroThreadCount
 impl core::fmt::Debug for antecedent_core::ObservationAssumption
 impl core::fmt::Debug for antecedent_core::ObservationSpec
+impl core::fmt::Debug for antecedent_core::ObservationUnit
 impl core::fmt::Debug for antecedent_core::OrderedFloatBits
 impl core::fmt::Debug for antecedent_core::OutcomeFunctional
+impl core::fmt::Debug for antecedent_core::OutcomeQuantity
 impl core::fmt::Debug for antecedent_core::PanelDidQuery
 impl core::fmt::Debug for antecedent_core::Parallelism
 impl core::fmt::Debug for antecedent_core::ParametricAssumption
@@ -1014,6 +1121,7 @@ impl core::fmt::Debug for antecedent_core::PopulationSelector
 impl core::fmt::Debug for antecedent_core::Portability
 impl core::fmt::Debug for antecedent_core::PredicateExpr
 impl core::fmt::Debug for antecedent_core::PriorAssumption
+impl core::fmt::Debug for antecedent_core::QuantityUnits
 impl core::fmt::Debug for antecedent_core::QueryError
 impl core::fmt::Debug for antecedent_core::QueryId
 impl core::fmt::Debug for antecedent_core::RandomizationDesign
@@ -1037,6 +1145,9 @@ impl core::fmt::Debug for antecedent_core::SamplingDesign
 impl core::fmt::Debug for antecedent_core::SamplingSelection
 impl core::fmt::Debug for antecedent_core::ScalarType
 impl core::fmt::Debug for antecedent_core::SchemaError
+impl core::fmt::Debug for antecedent_core::ScientificTarget
+impl core::fmt::Debug for antecedent_core::ScientificTargetError
+impl core::fmt::Debug for antecedent_core::ScientificWorldId
 impl core::fmt::Debug for antecedent_core::SearchLimits
 impl core::fmt::Debug for antecedent_core::SearchReceipt
 impl core::fmt::Debug for antecedent_core::SearchStop
@@ -1059,6 +1170,7 @@ impl core::fmt::Debug for antecedent_core::SurvivalFunctional
 impl core::fmt::Debug for antecedent_core::SurvivalQuery
 impl core::fmt::Debug for antecedent_core::SyntheticControlQuery
 impl core::fmt::Debug for antecedent_core::SyntheticPanelMethod
+impl core::fmt::Debug for antecedent_core::TargetForm
 impl core::fmt::Debug for antecedent_core::TargetPopulation
 impl core::fmt::Debug for antecedent_core::TargetSampling
 impl core::fmt::Debug for antecedent_core::TemporalEffectQuery
@@ -1070,6 +1182,7 @@ impl core::fmt::Debug for antecedent_core::TemporalResponseLicense
 impl core::fmt::Debug for antecedent_core::TemporalResponseSpec
 impl core::fmt::Debug for antecedent_core::TheoremFamily
 impl core::fmt::Debug for antecedent_core::TheoremScope
+impl core::fmt::Debug for antecedent_core::TimeFrame
 impl core::fmt::Debug for antecedent_core::ToleranceClass
 impl core::fmt::Debug for antecedent_core::TransportEvaluateSupport
 impl core::fmt::Debug for antecedent_core::TransportIdentifySupport
@@ -1090,6 +1203,9 @@ impl core::fmt::Debug for antecedent_core::VariableId
 impl core::fmt::Debug for antecedent_core::VariableInProgress
 impl core::fmt::Debug for antecedent_core::VariableSchema
 impl core::fmt::Debug for antecedent_core::WeakCancellationToken
+impl core::fmt::Debug for antecedent_core::WorldAction
+impl core::fmt::Debug for antecedent_core::WorldBinding
+impl core::fmt::Debug for antecedent_core::WorldCollection
 impl core::fmt::Debug for antecedent_core::WorldId
 impl core::fmt::Debug for antecedent_core::WorldObservation
 impl core::fmt::Debug for antecedent_core::WorldSpec
@@ -1164,6 +1280,8 @@ impl core::fmt::Display for antecedent_core::QueryId
 impl core::fmt::Display for antecedent_core::RecoveryMismatch
 impl core::fmt::Display for antecedent_core::RegimeId
 impl core::fmt::Display for antecedent_core::SchemaError
+impl core::fmt::Display for antecedent_core::ScientificTargetError
+impl core::fmt::Display for antecedent_core::ScientificWorldId
 impl core::fmt::Display for antecedent_core::SemanticDigest
 impl core::fmt::Display for antecedent_core::StateVersion
 impl core::fmt::Display for antecedent_core::TemporalIndexError
@@ -1196,9 +1314,13 @@ impl core::hash::Hash for antecedent_core::ChangeAttributionQuery
 impl core::hash::Hash for antecedent_core::CompareOp
 impl core::hash::Hash for antecedent_core::ComponentId
 impl core::hash::Hash for antecedent_core::ConditionalEffectQuery
+impl core::hash::Hash for antecedent_core::Conditioning
 impl core::hash::Hash for antecedent_core::ContractIdentities
+impl core::hash::Hash for antecedent_core::ContrastForm
+impl core::hash::Hash for antecedent_core::ContrastTerm
 impl core::hash::Hash for antecedent_core::CounterfactualEvent
 impl core::hash::Hash for antecedent_core::CounterfactualEventQuery
+impl core::hash::Hash for antecedent_core::CrossWorldPremise
 impl core::hash::Hash for antecedent_core::CrossWorldQuery
 impl core::hash::Hash for antecedent_core::DependenceGroup
 impl core::hash::Hash for antecedent_core::DerivativeScale
@@ -1207,6 +1329,7 @@ impl core::hash::Hash for antecedent_core::DiagnosticKind
 impl core::hash::Hash for antecedent_core::DiagnosticScope
 impl core::hash::Hash for antecedent_core::DiagnosticSeverity
 impl core::hash::Hash for antecedent_core::DistributionRef
+impl core::hash::Hash for antecedent_core::DoseTimeSurface
 impl core::hash::Hash for antecedent_core::DynamicRuleId
 impl core::hash::Hash for antecedent_core::EdgeRoute
 impl core::hash::Hash for antecedent_core::EnvironmentId
@@ -1215,29 +1338,41 @@ impl core::hash::Hash for antecedent_core::ExecutionRequestState
 impl core::hash::Hash for antecedent_core::ExogenousCoupling
 impl core::hash::Hash for antecedent_core::ExprNumber
 impl core::hash::Hash for antecedent_core::ExprType
+impl core::hash::Hash for antecedent_core::GraphFamily
+impl core::hash::Hash for antecedent_core::HistoryWindow
 impl core::hash::Hash for antecedent_core::IdentificationStatus
 impl core::hash::Hash for antecedent_core::IdentityDomain
 impl core::hash::Hash for antecedent_core::IdentityRef
+impl core::hash::Hash for antecedent_core::InferenceSelection
+impl core::hash::Hash for antecedent_core::InitialLaw
 impl core::hash::Hash for antecedent_core::IntervalInterpretation
 impl core::hash::Hash for antecedent_core::IntervalMethod
 impl core::hash::Hash for antecedent_core::Intervention
+impl core::hash::Hash for antecedent_core::InterventionContrast
 impl core::hash::Hash for antecedent_core::InterventionSequence
+impl core::hash::Hash for antecedent_core::InterventionWorld
 impl core::hash::Hash for antecedent_core::KernelPolicy
 impl core::hash::Hash for antecedent_core::Lag
 impl core::hash::Hash for antecedent_core::LawOrigin
 impl core::hash::Hash for antecedent_core::LogicOp
 impl core::hash::Hash for antecedent_core::MechanismChangeQuery
 impl core::hash::Hash for antecedent_core::MechanismOverride
+impl core::hash::Hash for antecedent_core::MediationArms
+impl core::hash::Hash for antecedent_core::MediationComponent
 impl core::hash::Hash for antecedent_core::MediationContrast
 impl core::hash::Hash for antecedent_core::MediationQuery
+impl core::hash::Hash for antecedent_core::MediationTarget
 impl core::hash::Hash for antecedent_core::MemoryBudget
+impl core::hash::Hash for antecedent_core::ModelAssumptions
 impl core::hash::Hash for antecedent_core::ModelId
 impl core::hash::Hash for antecedent_core::NodeRef
 impl core::hash::Hash for antecedent_core::NonZeroThreadCount
 impl core::hash::Hash for antecedent_core::ObservationAssumption
 impl core::hash::Hash for antecedent_core::ObservationSpec
+impl core::hash::Hash for antecedent_core::ObservationUnit
 impl core::hash::Hash for antecedent_core::OrderedFloatBits
 impl core::hash::Hash for antecedent_core::OutcomeFunctional
+impl core::hash::Hash for antecedent_core::OutcomeQuantity
 impl core::hash::Hash for antecedent_core::Parallelism
 impl core::hash::Hash for antecedent_core::ParametricAssumption
 impl core::hash::Hash for antecedent_core::PinnedDependency
@@ -1245,6 +1380,7 @@ impl core::hash::Hash for antecedent_core::PolicyReads
 impl core::hash::Hash for antecedent_core::PopulationSelector
 impl core::hash::Hash for antecedent_core::PredicateExpr
 impl core::hash::Hash for antecedent_core::PriorAssumption
+impl core::hash::Hash for antecedent_core::QuantityUnits
 impl core::hash::Hash for antecedent_core::QueryId
 impl core::hash::Hash for antecedent_core::RegimeId
 impl core::hash::Hash for antecedent_core::RegimeKind
@@ -1253,6 +1389,8 @@ impl core::hash::Hash for antecedent_core::RoleHint
 impl core::hash::Hash for antecedent_core::SamplingDesign
 impl core::hash::Hash for antecedent_core::SamplingSelection
 impl core::hash::Hash for antecedent_core::ScalarType
+impl core::hash::Hash for antecedent_core::ScientificTarget
+impl core::hash::Hash for antecedent_core::ScientificWorldId
 impl core::hash::Hash for antecedent_core::SearchLimits
 impl core::hash::Hash for antecedent_core::SearchStop
 impl core::hash::Hash for antecedent_core::SemanticDigest
@@ -1265,11 +1403,13 @@ impl core::hash::Hash for antecedent_core::StateVersion
 impl core::hash::Hash for antecedent_core::StochasticPolicy
 impl core::hash::Hash for antecedent_core::StreamDomain
 impl core::hash::Hash for antecedent_core::SupportStatus
+impl core::hash::Hash for antecedent_core::TargetForm
 impl core::hash::Hash for antecedent_core::TargetPopulation
 impl core::hash::Hash for antecedent_core::TargetSampling
 impl core::hash::Hash for antecedent_core::TemporalNodeKey
 impl core::hash::Hash for antecedent_core::TemporalPolicy
 impl core::hash::Hash for antecedent_core::TheoremFamily
+impl core::hash::Hash for antecedent_core::TimeFrame
 impl core::hash::Hash for antecedent_core::ToleranceClass
 impl core::hash::Hash for antecedent_core::TransportOutcomeKind
 impl core::hash::Hash for antecedent_core::UnitChangeQuery
@@ -1277,6 +1417,9 @@ impl core::hash::Hash for antecedent_core::Value
 impl core::hash::Hash for antecedent_core::ValueExpr
 impl core::hash::Hash for antecedent_core::ValueType
 impl core::hash::Hash for antecedent_core::VariableId
+impl core::hash::Hash for antecedent_core::WorldAction
+impl core::hash::Hash for antecedent_core::WorldBinding
+impl core::hash::Hash for antecedent_core::WorldCollection
 impl core::hash::Hash for antecedent_core::WorldId
 impl core::hash::Hash for antecedent_core::WorldObservation
 impl core::hash::Hash for antecedent_core::WorldSpec
@@ -1315,7 +1458,10 @@ impl core::marker::Copy for antecedent_core::CausalQueryKind
 impl core::marker::Copy for antecedent_core::CompareOp
 impl core::marker::Copy for antecedent_core::ComponentId
 impl core::marker::Copy for antecedent_core::ContractIdentities
+impl core::marker::Copy for antecedent_core::ContrastForm
+impl core::marker::Copy for antecedent_core::ContrastTerm
 impl core::marker::Copy for antecedent_core::CounterfactualEvent
+impl core::marker::Copy for antecedent_core::CrossWorldPremise
 impl core::marker::Copy for antecedent_core::DependenceGroup
 impl core::marker::Copy for antecedent_core::DerivativeScale
 impl core::marker::Copy for antecedent_core::Determinism
@@ -1336,15 +1482,19 @@ impl core::marker::Copy for antecedent_core::ExprNumber
 impl core::marker::Copy for antecedent_core::ExprType
 impl core::marker::Copy for antecedent_core::ExpressionFault
 impl core::marker::Copy for antecedent_core::Fnv1a64
+impl core::marker::Copy for antecedent_core::GraphFamily
+impl core::marker::Copy for antecedent_core::HistoryWindow
 impl core::marker::Copy for antecedent_core::IdentificationStatus
 impl core::marker::Copy for antecedent_core::IdentityDomain
 impl core::marker::Copy for antecedent_core::IdentityRef
+impl core::marker::Copy for antecedent_core::InferenceSelection
 impl core::marker::Copy for antecedent_core::IntervalInterpretation
 impl core::marker::Copy for antecedent_core::IntervalMethod
 impl core::marker::Copy for antecedent_core::KernelPolicy
 impl core::marker::Copy for antecedent_core::Lag
 impl core::marker::Copy for antecedent_core::LogicOp
 impl core::marker::Copy for antecedent_core::LongitudinalRegimeMethod
+impl core::marker::Copy for antecedent_core::MediationComponent
 impl core::marker::Copy for antecedent_core::MediationContrast
 impl core::marker::Copy for antecedent_core::MemoryBudget
 impl core::marker::Copy for antecedent_core::ModelId
@@ -1361,6 +1511,7 @@ impl core::marker::Copy for antecedent_core::RegimeKind
 impl core::marker::Copy for antecedent_core::RoleHint
 impl core::marker::Copy for antecedent_core::SamplingDesign
 impl core::marker::Copy for antecedent_core::ScalarType
+impl core::marker::Copy for antecedent_core::ScientificWorldId
 impl core::marker::Copy for antecedent_core::SearchLimits
 impl core::marker::Copy for antecedent_core::SearchStop
 impl core::marker::Copy for antecedent_core::SemanticDigest
@@ -1453,13 +1604,17 @@ impl core::marker::Freeze for antecedent_core::ChangeAttributionQuery [auto]
 impl core::marker::Freeze for antecedent_core::CompareOp [auto]
 impl core::marker::Freeze for antecedent_core::ComponentId [auto]
 impl core::marker::Freeze for antecedent_core::ConditionalEffectQuery [auto]
+impl core::marker::Freeze for antecedent_core::Conditioning [auto]
 impl core::marker::Freeze for antecedent_core::ContinuousDomain [auto]
 impl core::marker::Freeze for antecedent_core::ContinuousDoseResponseQuery [auto]
 impl core::marker::Freeze for antecedent_core::ContractIdentities [auto]
+impl core::marker::Freeze for antecedent_core::ContrastForm [auto]
+impl core::marker::Freeze for antecedent_core::ContrastTerm [auto]
 impl core::marker::Freeze for antecedent_core::CounterfactualEvent [auto]
 impl core::marker::Freeze for antecedent_core::CounterfactualEventQuery [auto]
 impl core::marker::Freeze for antecedent_core::CounterfactualQuery [auto]
 impl core::marker::Freeze for antecedent_core::CredibleDraws [auto]
+impl core::marker::Freeze for antecedent_core::CrossWorldPremise [auto]
 impl core::marker::Freeze for antecedent_core::CrossWorldQuery [auto]
 impl core::marker::Freeze for antecedent_core::DependenceGroup [auto]
 impl core::marker::Freeze for antecedent_core::DerivativeScale [auto]
@@ -1473,6 +1628,7 @@ impl core::marker::Freeze for antecedent_core::DiagnosticSeverity [auto]
 impl core::marker::Freeze for antecedent_core::DidSamplingDesign [auto]
 impl core::marker::Freeze for antecedent_core::DistributionAvailability [auto]
 impl core::marker::Freeze for antecedent_core::DistributionRef [auto]
+impl core::marker::Freeze for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Freeze for antecedent_core::DynamicRuleId [auto]
 impl core::marker::Freeze for antecedent_core::EdgeRoute [auto]
 impl core::marker::Freeze for antecedent_core::Environment [auto]
@@ -1495,19 +1651,25 @@ impl core::marker::Freeze for antecedent_core::ExpressionFault [auto]
 impl core::marker::Freeze for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Freeze for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Freeze for antecedent_core::Fnv1a64 [auto]
+impl core::marker::Freeze for antecedent_core::GraphFamily [auto]
 impl core::marker::Freeze for antecedent_core::GridSpec [auto]
+impl core::marker::Freeze for antecedent_core::HistoryWindow [auto]
 impl core::marker::Freeze for antecedent_core::HorizonIdentification [auto]
 impl core::marker::Freeze for antecedent_core::IdentificationStatus [auto]
 impl core::marker::Freeze for antecedent_core::IdentityDomain [auto]
 impl core::marker::Freeze for antecedent_core::IdentityRef [auto]
+impl core::marker::Freeze for antecedent_core::InferenceSelection [auto]
+impl core::marker::Freeze for antecedent_core::InitialLaw [auto]
 impl core::marker::Freeze for antecedent_core::InterferenceFunctional [auto]
 impl core::marker::Freeze for antecedent_core::InterferenceQuery [auto]
 impl core::marker::Freeze for antecedent_core::IntervalInterpretation [auto]
 impl core::marker::Freeze for antecedent_core::IntervalMethod [auto]
 impl core::marker::Freeze for antecedent_core::Intervention [auto]
 impl core::marker::Freeze for antecedent_core::InterventionAssignment [auto]
+impl core::marker::Freeze for antecedent_core::InterventionContrast [auto]
 impl core::marker::Freeze for antecedent_core::InterventionError [auto]
 impl core::marker::Freeze for antecedent_core::InterventionSequence [auto]
+impl core::marker::Freeze for antecedent_core::InterventionWorld [auto]
 impl core::marker::Freeze for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::marker::Freeze for antecedent_core::KernelPolicy [auto]
 impl core::marker::Freeze for antecedent_core::KnownCensoringSurvival [auto]
@@ -1521,9 +1683,13 @@ impl core::marker::Freeze for antecedent_core::LongitudinalRegimeQuery [auto]
 impl core::marker::Freeze for antecedent_core::MeasurementSpec [auto]
 impl core::marker::Freeze for antecedent_core::MechanismChangeQuery [auto]
 impl core::marker::Freeze for antecedent_core::MechanismOverride [auto]
+impl core::marker::Freeze for antecedent_core::MediationArms [auto]
+impl core::marker::Freeze for antecedent_core::MediationComponent [auto]
 impl core::marker::Freeze for antecedent_core::MediationContrast [auto]
 impl core::marker::Freeze for antecedent_core::MediationQuery [auto]
+impl core::marker::Freeze for antecedent_core::MediationTarget [auto]
 impl core::marker::Freeze for antecedent_core::MemoryBudget [auto]
+impl core::marker::Freeze for antecedent_core::ModelAssumptions [auto]
 impl core::marker::Freeze for antecedent_core::ModelId [auto]
 impl core::marker::Freeze for antecedent_core::MonteCarloBudget [auto]
 impl core::marker::Freeze for antecedent_core::MonteCarloError [auto]
@@ -1533,8 +1699,10 @@ impl core::marker::Freeze for antecedent_core::NodeRef [auto]
 impl core::marker::Freeze for antecedent_core::NonZeroThreadCount [auto]
 impl core::marker::Freeze for antecedent_core::ObservationAssumption [auto]
 impl core::marker::Freeze for antecedent_core::ObservationSpec [auto]
+impl core::marker::Freeze for antecedent_core::ObservationUnit [auto]
 impl core::marker::Freeze for antecedent_core::OrderedFloatBits [auto]
 impl core::marker::Freeze for antecedent_core::OutcomeFunctional [auto]
+impl core::marker::Freeze for antecedent_core::OutcomeQuantity [auto]
 impl core::marker::Freeze for antecedent_core::PanelDidQuery [auto]
 impl core::marker::Freeze for antecedent_core::Parallelism [auto]
 impl core::marker::Freeze for antecedent_core::ParametricAssumption [auto]
@@ -1548,6 +1716,7 @@ impl core::marker::Freeze for antecedent_core::PopulationSelector [auto]
 impl core::marker::Freeze for antecedent_core::Portability [auto]
 impl core::marker::Freeze for antecedent_core::PredicateExpr [auto]
 impl core::marker::Freeze for antecedent_core::PriorAssumption [auto]
+impl core::marker::Freeze for antecedent_core::QuantityUnits [auto]
 impl core::marker::Freeze for antecedent_core::QueryError [auto]
 impl core::marker::Freeze for antecedent_core::QueryId [auto]
 impl core::marker::Freeze for antecedent_core::RandomizationDesign [auto]
@@ -1571,6 +1740,9 @@ impl core::marker::Freeze for antecedent_core::SamplingDesign [auto]
 impl core::marker::Freeze for antecedent_core::SamplingSelection [auto]
 impl core::marker::Freeze for antecedent_core::ScalarType [auto]
 impl core::marker::Freeze for antecedent_core::SchemaError [auto]
+impl core::marker::Freeze for antecedent_core::ScientificTarget [auto]
+impl core::marker::Freeze for antecedent_core::ScientificTargetError [auto]
+impl core::marker::Freeze for antecedent_core::ScientificWorldId [auto]
 impl core::marker::Freeze for antecedent_core::SearchLimits [auto]
 impl core::marker::Freeze for antecedent_core::SearchReceipt [auto]
 impl core::marker::Freeze for antecedent_core::SearchStop [auto]
@@ -1593,6 +1765,7 @@ impl core::marker::Freeze for antecedent_core::SurvivalFunctional [auto]
 impl core::marker::Freeze for antecedent_core::SurvivalQuery [auto]
 impl core::marker::Freeze for antecedent_core::SyntheticControlQuery [auto]
 impl core::marker::Freeze for antecedent_core::SyntheticPanelMethod [auto]
+impl core::marker::Freeze for antecedent_core::TargetForm [auto]
 impl core::marker::Freeze for antecedent_core::TargetPopulation [auto]
 impl core::marker::Freeze for antecedent_core::TargetSampling [auto]
 impl core::marker::Freeze for antecedent_core::TemporalEffectQuery [auto]
@@ -1604,6 +1777,7 @@ impl core::marker::Freeze for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Freeze for antecedent_core::TemporalResponseSpec [auto]
 impl core::marker::Freeze for antecedent_core::TheoremFamily [auto]
 impl core::marker::Freeze for antecedent_core::TheoremScope [auto]
+impl core::marker::Freeze for antecedent_core::TimeFrame [auto]
 impl core::marker::Freeze for antecedent_core::ToleranceClass [auto]
 impl core::marker::Freeze for antecedent_core::TransportEvaluateSupport [auto]
 impl core::marker::Freeze for antecedent_core::TransportIdentifySupport [auto]
@@ -1624,6 +1798,9 @@ impl core::marker::Freeze for antecedent_core::VariableId [auto]
 impl core::marker::Freeze for antecedent_core::VariableInProgress [auto]
 impl core::marker::Freeze for antecedent_core::VariableSchema [auto]
 impl core::marker::Freeze for antecedent_core::WeakCancellationToken [auto]
+impl core::marker::Freeze for antecedent_core::WorldAction [auto]
+impl core::marker::Freeze for antecedent_core::WorldBinding [auto]
+impl core::marker::Freeze for antecedent_core::WorldCollection [auto]
 impl core::marker::Freeze for antecedent_core::WorldId [auto]
 impl core::marker::Freeze for antecedent_core::WorldObservation [auto]
 impl core::marker::Freeze for antecedent_core::WorldSpec [auto]
@@ -1718,13 +1895,17 @@ impl core::marker::Send for antecedent_core::ChangeAttributionQuery [auto]
 impl core::marker::Send for antecedent_core::CompareOp [auto]
 impl core::marker::Send for antecedent_core::ComponentId [auto]
 impl core::marker::Send for antecedent_core::ConditionalEffectQuery [auto]
+impl core::marker::Send for antecedent_core::Conditioning [auto]
 impl core::marker::Send for antecedent_core::ContinuousDomain [auto]
 impl core::marker::Send for antecedent_core::ContinuousDoseResponseQuery [auto]
 impl core::marker::Send for antecedent_core::ContractIdentities [auto]
+impl core::marker::Send for antecedent_core::ContrastForm [auto]
+impl core::marker::Send for antecedent_core::ContrastTerm [auto]
 impl core::marker::Send for antecedent_core::CounterfactualEvent [auto]
 impl core::marker::Send for antecedent_core::CounterfactualEventQuery [auto]
 impl core::marker::Send for antecedent_core::CounterfactualQuery [auto]
 impl core::marker::Send for antecedent_core::CredibleDraws [auto]
+impl core::marker::Send for antecedent_core::CrossWorldPremise [auto]
 impl core::marker::Send for antecedent_core::CrossWorldQuery [auto]
 impl core::marker::Send for antecedent_core::DependenceGroup [auto]
 impl core::marker::Send for antecedent_core::DerivativeScale [auto]
@@ -1738,6 +1919,7 @@ impl core::marker::Send for antecedent_core::DiagnosticSeverity [auto]
 impl core::marker::Send for antecedent_core::DidSamplingDesign [auto]
 impl core::marker::Send for antecedent_core::DistributionAvailability [auto]
 impl core::marker::Send for antecedent_core::DistributionRef [auto]
+impl core::marker::Send for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Send for antecedent_core::DynamicRuleId [auto]
 impl core::marker::Send for antecedent_core::EdgeRoute [auto]
 impl core::marker::Send for antecedent_core::Environment [auto]
@@ -1760,19 +1942,25 @@ impl core::marker::Send for antecedent_core::ExpressionFault [auto]
 impl core::marker::Send for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Send for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Send for antecedent_core::Fnv1a64 [auto]
+impl core::marker::Send for antecedent_core::GraphFamily [auto]
 impl core::marker::Send for antecedent_core::GridSpec [auto]
+impl core::marker::Send for antecedent_core::HistoryWindow [auto]
 impl core::marker::Send for antecedent_core::HorizonIdentification [auto]
 impl core::marker::Send for antecedent_core::IdentificationStatus [auto]
 impl core::marker::Send for antecedent_core::IdentityDomain [auto]
 impl core::marker::Send for antecedent_core::IdentityRef [auto]
+impl core::marker::Send for antecedent_core::InferenceSelection [auto]
+impl core::marker::Send for antecedent_core::InitialLaw [auto]
 impl core::marker::Send for antecedent_core::InterferenceFunctional [auto]
 impl core::marker::Send for antecedent_core::InterferenceQuery [auto]
 impl core::marker::Send for antecedent_core::IntervalInterpretation [auto]
 impl core::marker::Send for antecedent_core::IntervalMethod [auto]
 impl core::marker::Send for antecedent_core::Intervention [auto]
 impl core::marker::Send for antecedent_core::InterventionAssignment [auto]
+impl core::marker::Send for antecedent_core::InterventionContrast [auto]
 impl core::marker::Send for antecedent_core::InterventionError [auto]
 impl core::marker::Send for antecedent_core::InterventionSequence [auto]
+impl core::marker::Send for antecedent_core::InterventionWorld [auto]
 impl core::marker::Send for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::marker::Send for antecedent_core::KernelPolicy [auto]
 impl core::marker::Send for antecedent_core::KnownCensoringSurvival [auto]
@@ -1786,9 +1974,13 @@ impl core::marker::Send for antecedent_core::LongitudinalRegimeQuery [auto]
 impl core::marker::Send for antecedent_core::MeasurementSpec [auto]
 impl core::marker::Send for antecedent_core::MechanismChangeQuery [auto]
 impl core::marker::Send for antecedent_core::MechanismOverride [auto]
+impl core::marker::Send for antecedent_core::MediationArms [auto]
+impl core::marker::Send for antecedent_core::MediationComponent [auto]
 impl core::marker::Send for antecedent_core::MediationContrast [auto]
 impl core::marker::Send for antecedent_core::MediationQuery [auto]
+impl core::marker::Send for antecedent_core::MediationTarget [auto]
 impl core::marker::Send for antecedent_core::MemoryBudget [auto]
+impl core::marker::Send for antecedent_core::ModelAssumptions [auto]
 impl core::marker::Send for antecedent_core::ModelId [auto]
 impl core::marker::Send for antecedent_core::MonteCarloBudget [auto]
 impl core::marker::Send for antecedent_core::MonteCarloError [auto]
@@ -1798,8 +1990,10 @@ impl core::marker::Send for antecedent_core::NodeRef [auto]
 impl core::marker::Send for antecedent_core::NonZeroThreadCount [auto]
 impl core::marker::Send for antecedent_core::ObservationAssumption [auto]
 impl core::marker::Send for antecedent_core::ObservationSpec [auto]
+impl core::marker::Send for antecedent_core::ObservationUnit [auto]
 impl core::marker::Send for antecedent_core::OrderedFloatBits [auto]
 impl core::marker::Send for antecedent_core::OutcomeFunctional [auto]
+impl core::marker::Send for antecedent_core::OutcomeQuantity [auto]
 impl core::marker::Send for antecedent_core::PanelDidQuery [auto]
 impl core::marker::Send for antecedent_core::Parallelism [auto]
 impl core::marker::Send for antecedent_core::ParametricAssumption [auto]
@@ -1813,6 +2007,7 @@ impl core::marker::Send for antecedent_core::PopulationSelector [auto]
 impl core::marker::Send for antecedent_core::Portability [auto]
 impl core::marker::Send for antecedent_core::PredicateExpr [auto]
 impl core::marker::Send for antecedent_core::PriorAssumption [auto]
+impl core::marker::Send for antecedent_core::QuantityUnits [auto]
 impl core::marker::Send for antecedent_core::QueryError [auto]
 impl core::marker::Send for antecedent_core::QueryId [auto]
 impl core::marker::Send for antecedent_core::RandomizationDesign [auto]
@@ -1836,6 +2031,9 @@ impl core::marker::Send for antecedent_core::SamplingDesign [auto]
 impl core::marker::Send for antecedent_core::SamplingSelection [auto]
 impl core::marker::Send for antecedent_core::ScalarType [auto]
 impl core::marker::Send for antecedent_core::SchemaError [auto]
+impl core::marker::Send for antecedent_core::ScientificTarget [auto]
+impl core::marker::Send for antecedent_core::ScientificTargetError [auto]
+impl core::marker::Send for antecedent_core::ScientificWorldId [auto]
 impl core::marker::Send for antecedent_core::SearchLimits [auto]
 impl core::marker::Send for antecedent_core::SearchReceipt [auto]
 impl core::marker::Send for antecedent_core::SearchStop [auto]
@@ -1858,6 +2056,7 @@ impl core::marker::Send for antecedent_core::SurvivalFunctional [auto]
 impl core::marker::Send for antecedent_core::SurvivalQuery [auto]
 impl core::marker::Send for antecedent_core::SyntheticControlQuery [auto]
 impl core::marker::Send for antecedent_core::SyntheticPanelMethod [auto]
+impl core::marker::Send for antecedent_core::TargetForm [auto]
 impl core::marker::Send for antecedent_core::TargetPopulation [auto]
 impl core::marker::Send for antecedent_core::TargetSampling [auto]
 impl core::marker::Send for antecedent_core::TemporalEffectQuery [auto]
@@ -1869,6 +2068,7 @@ impl core::marker::Send for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Send for antecedent_core::TemporalResponseSpec [auto]
 impl core::marker::Send for antecedent_core::TheoremFamily [auto]
 impl core::marker::Send for antecedent_core::TheoremScope [auto]
+impl core::marker::Send for antecedent_core::TimeFrame [auto]
 impl core::marker::Send for antecedent_core::ToleranceClass [auto]
 impl core::marker::Send for antecedent_core::TransportEvaluateSupport [auto]
 impl core::marker::Send for antecedent_core::TransportIdentifySupport [auto]
@@ -1889,6 +2089,9 @@ impl core::marker::Send for antecedent_core::VariableId [auto]
 impl core::marker::Send for antecedent_core::VariableInProgress [auto]
 impl core::marker::Send for antecedent_core::VariableSchema [auto]
 impl core::marker::Send for antecedent_core::WeakCancellationToken [auto]
+impl core::marker::Send for antecedent_core::WorldAction [auto]
+impl core::marker::Send for antecedent_core::WorldBinding [auto]
+impl core::marker::Send for antecedent_core::WorldCollection [auto]
 impl core::marker::Send for antecedent_core::WorldId [auto]
 impl core::marker::Send for antecedent_core::WorldObservation [auto]
 impl core::marker::Send for antecedent_core::WorldSpec [auto]
@@ -1978,13 +2181,17 @@ impl core::marker::StructuralPartialEq for antecedent_core::ChangeAttributionQue
 impl core::marker::StructuralPartialEq for antecedent_core::CompareOp
 impl core::marker::StructuralPartialEq for antecedent_core::ComponentId
 impl core::marker::StructuralPartialEq for antecedent_core::ConditionalEffectQuery
+impl core::marker::StructuralPartialEq for antecedent_core::Conditioning
 impl core::marker::StructuralPartialEq for antecedent_core::ContinuousDomain
 impl core::marker::StructuralPartialEq for antecedent_core::ContinuousDoseResponseQuery
 impl core::marker::StructuralPartialEq for antecedent_core::ContractIdentities
+impl core::marker::StructuralPartialEq for antecedent_core::ContrastForm
+impl core::marker::StructuralPartialEq for antecedent_core::ContrastTerm
 impl core::marker::StructuralPartialEq for antecedent_core::CounterfactualEvent
 impl core::marker::StructuralPartialEq for antecedent_core::CounterfactualEventQuery
 impl core::marker::StructuralPartialEq for antecedent_core::CounterfactualQuery
 impl core::marker::StructuralPartialEq for antecedent_core::CredibleDraws
+impl core::marker::StructuralPartialEq for antecedent_core::CrossWorldPremise
 impl core::marker::StructuralPartialEq for antecedent_core::CrossWorldQuery
 impl core::marker::StructuralPartialEq for antecedent_core::DependenceGroup
 impl core::marker::StructuralPartialEq for antecedent_core::DerivativeScale
@@ -1998,6 +2205,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::DiagnosticSeverity
 impl core::marker::StructuralPartialEq for antecedent_core::DidSamplingDesign
 impl core::marker::StructuralPartialEq for antecedent_core::DistributionAvailability
 impl core::marker::StructuralPartialEq for antecedent_core::DistributionRef
+impl core::marker::StructuralPartialEq for antecedent_core::DoseTimeSurface
 impl core::marker::StructuralPartialEq for antecedent_core::DynamicRuleId
 impl core::marker::StructuralPartialEq for antecedent_core::EdgeRoute
 impl core::marker::StructuralPartialEq for antecedent_core::Environment
@@ -2018,19 +2226,25 @@ impl core::marker::StructuralPartialEq for antecedent_core::ExprType
 impl core::marker::StructuralPartialEq for antecedent_core::ExpressionFault
 impl core::marker::StructuralPartialEq for antecedent_core::FixedCandidateRegretInputs
 impl core::marker::StructuralPartialEq for antecedent_core::FixedGroupDosePolicy
+impl core::marker::StructuralPartialEq for antecedent_core::GraphFamily
 impl core::marker::StructuralPartialEq for antecedent_core::GridSpec
+impl core::marker::StructuralPartialEq for antecedent_core::HistoryWindow
 impl core::marker::StructuralPartialEq for antecedent_core::HorizonIdentification
 impl core::marker::StructuralPartialEq for antecedent_core::IdentificationStatus
 impl core::marker::StructuralPartialEq for antecedent_core::IdentityDomain
 impl core::marker::StructuralPartialEq for antecedent_core::IdentityRef
+impl core::marker::StructuralPartialEq for antecedent_core::InferenceSelection
+impl core::marker::StructuralPartialEq for antecedent_core::InitialLaw
 impl core::marker::StructuralPartialEq for antecedent_core::InterferenceFunctional
 impl core::marker::StructuralPartialEq for antecedent_core::InterferenceQuery
 impl core::marker::StructuralPartialEq for antecedent_core::IntervalInterpretation
 impl core::marker::StructuralPartialEq for antecedent_core::IntervalMethod
 impl core::marker::StructuralPartialEq for antecedent_core::Intervention
 impl core::marker::StructuralPartialEq for antecedent_core::InterventionAssignment
+impl core::marker::StructuralPartialEq for antecedent_core::InterventionContrast
 impl core::marker::StructuralPartialEq for antecedent_core::InterventionError
 impl core::marker::StructuralPartialEq for antecedent_core::InterventionSequence
+impl core::marker::StructuralPartialEq for antecedent_core::InterventionWorld
 impl core::marker::StructuralPartialEq for antecedent_core::InterventionalDistributionQuery
 impl core::marker::StructuralPartialEq for antecedent_core::KernelPolicy
 impl core::marker::StructuralPartialEq for antecedent_core::KnownCensoringSurvival
@@ -2043,9 +2257,13 @@ impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalRegimeMe
 impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalRegimeQuery
 impl core::marker::StructuralPartialEq for antecedent_core::MeasurementSpec
 impl core::marker::StructuralPartialEq for antecedent_core::MechanismChangeQuery
+impl core::marker::StructuralPartialEq for antecedent_core::MediationArms
+impl core::marker::StructuralPartialEq for antecedent_core::MediationComponent
 impl core::marker::StructuralPartialEq for antecedent_core::MediationContrast
 impl core::marker::StructuralPartialEq for antecedent_core::MediationQuery
+impl core::marker::StructuralPartialEq for antecedent_core::MediationTarget
 impl core::marker::StructuralPartialEq for antecedent_core::MemoryBudget
+impl core::marker::StructuralPartialEq for antecedent_core::ModelAssumptions
 impl core::marker::StructuralPartialEq for antecedent_core::ModelId
 impl core::marker::StructuralPartialEq for antecedent_core::MonteCarloBudget
 impl core::marker::StructuralPartialEq for antecedent_core::MonteCarloError
@@ -2055,8 +2273,10 @@ impl core::marker::StructuralPartialEq for antecedent_core::NodeRef
 impl core::marker::StructuralPartialEq for antecedent_core::NonZeroThreadCount
 impl core::marker::StructuralPartialEq for antecedent_core::ObservationAssumption
 impl core::marker::StructuralPartialEq for antecedent_core::ObservationSpec
+impl core::marker::StructuralPartialEq for antecedent_core::ObservationUnit
 impl core::marker::StructuralPartialEq for antecedent_core::OrderedFloatBits
 impl core::marker::StructuralPartialEq for antecedent_core::OutcomeFunctional
+impl core::marker::StructuralPartialEq for antecedent_core::OutcomeQuantity
 impl core::marker::StructuralPartialEq for antecedent_core::PanelDidQuery
 impl core::marker::StructuralPartialEq for antecedent_core::Parallelism
 impl core::marker::StructuralPartialEq for antecedent_core::ParametricAssumption
@@ -2069,6 +2289,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::PopulationSelector
 impl core::marker::StructuralPartialEq for antecedent_core::Portability
 impl core::marker::StructuralPartialEq for antecedent_core::PredicateExpr
 impl core::marker::StructuralPartialEq for antecedent_core::PriorAssumption
+impl core::marker::StructuralPartialEq for antecedent_core::QuantityUnits
 impl core::marker::StructuralPartialEq for antecedent_core::QueryError
 impl core::marker::StructuralPartialEq for antecedent_core::QueryId
 impl core::marker::StructuralPartialEq for antecedent_core::RandomizationDesign
@@ -2092,6 +2313,8 @@ impl core::marker::StructuralPartialEq for antecedent_core::SamplingDesign
 impl core::marker::StructuralPartialEq for antecedent_core::SamplingSelection
 impl core::marker::StructuralPartialEq for antecedent_core::ScalarType
 impl core::marker::StructuralPartialEq for antecedent_core::SchemaError
+impl core::marker::StructuralPartialEq for antecedent_core::ScientificTargetError
+impl core::marker::StructuralPartialEq for antecedent_core::ScientificWorldId
 impl core::marker::StructuralPartialEq for antecedent_core::SearchLimits
 impl core::marker::StructuralPartialEq for antecedent_core::SearchReceipt
 impl core::marker::StructuralPartialEq for antecedent_core::SearchStop
@@ -2113,6 +2336,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::SurvivalFunctional
 impl core::marker::StructuralPartialEq for antecedent_core::SurvivalQuery
 impl core::marker::StructuralPartialEq for antecedent_core::SyntheticControlQuery
 impl core::marker::StructuralPartialEq for antecedent_core::SyntheticPanelMethod
+impl core::marker::StructuralPartialEq for antecedent_core::TargetForm
 impl core::marker::StructuralPartialEq for antecedent_core::TargetPopulation
 impl core::marker::StructuralPartialEq for antecedent_core::TargetSampling
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalEffectQuery
@@ -2124,6 +2348,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::TemporalResponseLice
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalResponseSpec
 impl core::marker::StructuralPartialEq for antecedent_core::TheoremFamily
 impl core::marker::StructuralPartialEq for antecedent_core::TheoremScope
+impl core::marker::StructuralPartialEq for antecedent_core::TimeFrame
 impl core::marker::StructuralPartialEq for antecedent_core::ToleranceClass
 impl core::marker::StructuralPartialEq for antecedent_core::TransportEvaluateSupport
 impl core::marker::StructuralPartialEq for antecedent_core::TransportIdentifySupport
@@ -2141,6 +2366,9 @@ impl core::marker::StructuralPartialEq for antecedent_core::VariableCoordinate
 impl core::marker::StructuralPartialEq for antecedent_core::VariableDomain
 impl core::marker::StructuralPartialEq for antecedent_core::VariableId
 impl core::marker::StructuralPartialEq for antecedent_core::VariableSchema
+impl core::marker::StructuralPartialEq for antecedent_core::WorldAction
+impl core::marker::StructuralPartialEq for antecedent_core::WorldBinding
+impl core::marker::StructuralPartialEq for antecedent_core::WorldCollection
 impl core::marker::StructuralPartialEq for antecedent_core::WorldId
 impl core::marker::StructuralPartialEq for antecedent_core::WorldObservation
 impl core::marker::StructuralPartialEq for antecedent_core::WorldSpec
@@ -2235,13 +2463,17 @@ impl core::marker::Sync for antecedent_core::ChangeAttributionQuery [auto]
 impl core::marker::Sync for antecedent_core::CompareOp [auto]
 impl core::marker::Sync for antecedent_core::ComponentId [auto]
 impl core::marker::Sync for antecedent_core::ConditionalEffectQuery [auto]
+impl core::marker::Sync for antecedent_core::Conditioning [auto]
 impl core::marker::Sync for antecedent_core::ContinuousDomain [auto]
 impl core::marker::Sync for antecedent_core::ContinuousDoseResponseQuery [auto]
 impl core::marker::Sync for antecedent_core::ContractIdentities [auto]
+impl core::marker::Sync for antecedent_core::ContrastForm [auto]
+impl core::marker::Sync for antecedent_core::ContrastTerm [auto]
 impl core::marker::Sync for antecedent_core::CounterfactualEvent [auto]
 impl core::marker::Sync for antecedent_core::CounterfactualEventQuery [auto]
 impl core::marker::Sync for antecedent_core::CounterfactualQuery [auto]
 impl core::marker::Sync for antecedent_core::CredibleDraws [auto]
+impl core::marker::Sync for antecedent_core::CrossWorldPremise [auto]
 impl core::marker::Sync for antecedent_core::CrossWorldQuery [auto]
 impl core::marker::Sync for antecedent_core::DependenceGroup [auto]
 impl core::marker::Sync for antecedent_core::DerivativeScale [auto]
@@ -2255,6 +2487,7 @@ impl core::marker::Sync for antecedent_core::DiagnosticSeverity [auto]
 impl core::marker::Sync for antecedent_core::DidSamplingDesign [auto]
 impl core::marker::Sync for antecedent_core::DistributionAvailability [auto]
 impl core::marker::Sync for antecedent_core::DistributionRef [auto]
+impl core::marker::Sync for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Sync for antecedent_core::DynamicRuleId [auto]
 impl core::marker::Sync for antecedent_core::EdgeRoute [auto]
 impl core::marker::Sync for antecedent_core::Environment [auto]
@@ -2277,19 +2510,25 @@ impl core::marker::Sync for antecedent_core::ExpressionFault [auto]
 impl core::marker::Sync for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Sync for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Sync for antecedent_core::Fnv1a64 [auto]
+impl core::marker::Sync for antecedent_core::GraphFamily [auto]
 impl core::marker::Sync for antecedent_core::GridSpec [auto]
+impl core::marker::Sync for antecedent_core::HistoryWindow [auto]
 impl core::marker::Sync for antecedent_core::HorizonIdentification [auto]
 impl core::marker::Sync for antecedent_core::IdentificationStatus [auto]
 impl core::marker::Sync for antecedent_core::IdentityDomain [auto]
 impl core::marker::Sync for antecedent_core::IdentityRef [auto]
+impl core::marker::Sync for antecedent_core::InferenceSelection [auto]
+impl core::marker::Sync for antecedent_core::InitialLaw [auto]
 impl core::marker::Sync for antecedent_core::InterferenceFunctional [auto]
 impl core::marker::Sync for antecedent_core::InterferenceQuery [auto]
 impl core::marker::Sync for antecedent_core::IntervalInterpretation [auto]
 impl core::marker::Sync for antecedent_core::IntervalMethod [auto]
 impl core::marker::Sync for antecedent_core::Intervention [auto]
 impl core::marker::Sync for antecedent_core::InterventionAssignment [auto]
+impl core::marker::Sync for antecedent_core::InterventionContrast [auto]
 impl core::marker::Sync for antecedent_core::InterventionError [auto]
 impl core::marker::Sync for antecedent_core::InterventionSequence [auto]
+impl core::marker::Sync for antecedent_core::InterventionWorld [auto]
 impl core::marker::Sync for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::marker::Sync for antecedent_core::KernelPolicy [auto]
 impl core::marker::Sync for antecedent_core::KnownCensoringSurvival [auto]
@@ -2303,9 +2542,13 @@ impl core::marker::Sync for antecedent_core::LongitudinalRegimeQuery [auto]
 impl core::marker::Sync for antecedent_core::MeasurementSpec [auto]
 impl core::marker::Sync for antecedent_core::MechanismChangeQuery [auto]
 impl core::marker::Sync for antecedent_core::MechanismOverride [auto]
+impl core::marker::Sync for antecedent_core::MediationArms [auto]
+impl core::marker::Sync for antecedent_core::MediationComponent [auto]
 impl core::marker::Sync for antecedent_core::MediationContrast [auto]
 impl core::marker::Sync for antecedent_core::MediationQuery [auto]
+impl core::marker::Sync for antecedent_core::MediationTarget [auto]
 impl core::marker::Sync for antecedent_core::MemoryBudget [auto]
+impl core::marker::Sync for antecedent_core::ModelAssumptions [auto]
 impl core::marker::Sync for antecedent_core::ModelId [auto]
 impl core::marker::Sync for antecedent_core::MonteCarloBudget [auto]
 impl core::marker::Sync for antecedent_core::MonteCarloError [auto]
@@ -2315,8 +2558,10 @@ impl core::marker::Sync for antecedent_core::NodeRef [auto]
 impl core::marker::Sync for antecedent_core::NonZeroThreadCount [auto]
 impl core::marker::Sync for antecedent_core::ObservationAssumption [auto]
 impl core::marker::Sync for antecedent_core::ObservationSpec [auto]
+impl core::marker::Sync for antecedent_core::ObservationUnit [auto]
 impl core::marker::Sync for antecedent_core::OrderedFloatBits [auto]
 impl core::marker::Sync for antecedent_core::OutcomeFunctional [auto]
+impl core::marker::Sync for antecedent_core::OutcomeQuantity [auto]
 impl core::marker::Sync for antecedent_core::PanelDidQuery [auto]
 impl core::marker::Sync for antecedent_core::Parallelism [auto]
 impl core::marker::Sync for antecedent_core::ParametricAssumption [auto]
@@ -2330,6 +2575,7 @@ impl core::marker::Sync for antecedent_core::PopulationSelector [auto]
 impl core::marker::Sync for antecedent_core::Portability [auto]
 impl core::marker::Sync for antecedent_core::PredicateExpr [auto]
 impl core::marker::Sync for antecedent_core::PriorAssumption [auto]
+impl core::marker::Sync for antecedent_core::QuantityUnits [auto]
 impl core::marker::Sync for antecedent_core::QueryError [auto]
 impl core::marker::Sync for antecedent_core::QueryId [auto]
 impl core::marker::Sync for antecedent_core::RandomizationDesign [auto]
@@ -2353,6 +2599,9 @@ impl core::marker::Sync for antecedent_core::SamplingDesign [auto]
 impl core::marker::Sync for antecedent_core::SamplingSelection [auto]
 impl core::marker::Sync for antecedent_core::ScalarType [auto]
 impl core::marker::Sync for antecedent_core::SchemaError [auto]
+impl core::marker::Sync for antecedent_core::ScientificTarget [auto]
+impl core::marker::Sync for antecedent_core::ScientificTargetError [auto]
+impl core::marker::Sync for antecedent_core::ScientificWorldId [auto]
 impl core::marker::Sync for antecedent_core::SearchLimits [auto]
 impl core::marker::Sync for antecedent_core::SearchReceipt [auto]
 impl core::marker::Sync for antecedent_core::SearchStop [auto]
@@ -2375,6 +2624,7 @@ impl core::marker::Sync for antecedent_core::SurvivalFunctional [auto]
 impl core::marker::Sync for antecedent_core::SurvivalQuery [auto]
 impl core::marker::Sync for antecedent_core::SyntheticControlQuery [auto]
 impl core::marker::Sync for antecedent_core::SyntheticPanelMethod [auto]
+impl core::marker::Sync for antecedent_core::TargetForm [auto]
 impl core::marker::Sync for antecedent_core::TargetPopulation [auto]
 impl core::marker::Sync for antecedent_core::TargetSampling [auto]
 impl core::marker::Sync for antecedent_core::TemporalEffectQuery [auto]
@@ -2386,6 +2636,7 @@ impl core::marker::Sync for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Sync for antecedent_core::TemporalResponseSpec [auto]
 impl core::marker::Sync for antecedent_core::TheoremFamily [auto]
 impl core::marker::Sync for antecedent_core::TheoremScope [auto]
+impl core::marker::Sync for antecedent_core::TimeFrame [auto]
 impl core::marker::Sync for antecedent_core::ToleranceClass [auto]
 impl core::marker::Sync for antecedent_core::TransportEvaluateSupport [auto]
 impl core::marker::Sync for antecedent_core::TransportIdentifySupport [auto]
@@ -2406,6 +2657,9 @@ impl core::marker::Sync for antecedent_core::VariableId [auto]
 impl core::marker::Sync for antecedent_core::VariableInProgress [auto]
 impl core::marker::Sync for antecedent_core::VariableSchema [auto]
 impl core::marker::Sync for antecedent_core::WeakCancellationToken [auto]
+impl core::marker::Sync for antecedent_core::WorldAction [auto]
+impl core::marker::Sync for antecedent_core::WorldBinding [auto]
+impl core::marker::Sync for antecedent_core::WorldCollection [auto]
 impl core::marker::Sync for antecedent_core::WorldId [auto]
 impl core::marker::Sync for antecedent_core::WorldObservation [auto]
 impl core::marker::Sync for antecedent_core::WorldSpec [auto]
@@ -2500,13 +2754,17 @@ impl core::marker::Unpin for antecedent_core::ChangeAttributionQuery [auto]
 impl core::marker::Unpin for antecedent_core::CompareOp [auto]
 impl core::marker::Unpin for antecedent_core::ComponentId [auto]
 impl core::marker::Unpin for antecedent_core::ConditionalEffectQuery [auto]
+impl core::marker::Unpin for antecedent_core::Conditioning [auto]
 impl core::marker::Unpin for antecedent_core::ContinuousDomain [auto]
 impl core::marker::Unpin for antecedent_core::ContinuousDoseResponseQuery [auto]
 impl core::marker::Unpin for antecedent_core::ContractIdentities [auto]
+impl core::marker::Unpin for antecedent_core::ContrastForm [auto]
+impl core::marker::Unpin for antecedent_core::ContrastTerm [auto]
 impl core::marker::Unpin for antecedent_core::CounterfactualEvent [auto]
 impl core::marker::Unpin for antecedent_core::CounterfactualEventQuery [auto]
 impl core::marker::Unpin for antecedent_core::CounterfactualQuery [auto]
 impl core::marker::Unpin for antecedent_core::CredibleDraws [auto]
+impl core::marker::Unpin for antecedent_core::CrossWorldPremise [auto]
 impl core::marker::Unpin for antecedent_core::CrossWorldQuery [auto]
 impl core::marker::Unpin for antecedent_core::DependenceGroup [auto]
 impl core::marker::Unpin for antecedent_core::DerivativeScale [auto]
@@ -2520,6 +2778,7 @@ impl core::marker::Unpin for antecedent_core::DiagnosticSeverity [auto]
 impl core::marker::Unpin for antecedent_core::DidSamplingDesign [auto]
 impl core::marker::Unpin for antecedent_core::DistributionAvailability [auto]
 impl core::marker::Unpin for antecedent_core::DistributionRef [auto]
+impl core::marker::Unpin for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Unpin for antecedent_core::DynamicRuleId [auto]
 impl core::marker::Unpin for antecedent_core::EdgeRoute [auto]
 impl core::marker::Unpin for antecedent_core::Environment [auto]
@@ -2542,19 +2801,25 @@ impl core::marker::Unpin for antecedent_core::ExpressionFault [auto]
 impl core::marker::Unpin for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Unpin for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Unpin for antecedent_core::Fnv1a64 [auto]
+impl core::marker::Unpin for antecedent_core::GraphFamily [auto]
 impl core::marker::Unpin for antecedent_core::GridSpec [auto]
+impl core::marker::Unpin for antecedent_core::HistoryWindow [auto]
 impl core::marker::Unpin for antecedent_core::HorizonIdentification [auto]
 impl core::marker::Unpin for antecedent_core::IdentificationStatus [auto]
 impl core::marker::Unpin for antecedent_core::IdentityDomain [auto]
 impl core::marker::Unpin for antecedent_core::IdentityRef [auto]
+impl core::marker::Unpin for antecedent_core::InferenceSelection [auto]
+impl core::marker::Unpin for antecedent_core::InitialLaw [auto]
 impl core::marker::Unpin for antecedent_core::InterferenceFunctional [auto]
 impl core::marker::Unpin for antecedent_core::InterferenceQuery [auto]
 impl core::marker::Unpin for antecedent_core::IntervalInterpretation [auto]
 impl core::marker::Unpin for antecedent_core::IntervalMethod [auto]
 impl core::marker::Unpin for antecedent_core::Intervention [auto]
 impl core::marker::Unpin for antecedent_core::InterventionAssignment [auto]
+impl core::marker::Unpin for antecedent_core::InterventionContrast [auto]
 impl core::marker::Unpin for antecedent_core::InterventionError [auto]
 impl core::marker::Unpin for antecedent_core::InterventionSequence [auto]
+impl core::marker::Unpin for antecedent_core::InterventionWorld [auto]
 impl core::marker::Unpin for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::marker::Unpin for antecedent_core::KernelPolicy [auto]
 impl core::marker::Unpin for antecedent_core::KnownCensoringSurvival [auto]
@@ -2568,9 +2833,13 @@ impl core::marker::Unpin for antecedent_core::LongitudinalRegimeQuery [auto]
 impl core::marker::Unpin for antecedent_core::MeasurementSpec [auto]
 impl core::marker::Unpin for antecedent_core::MechanismChangeQuery [auto]
 impl core::marker::Unpin for antecedent_core::MechanismOverride [auto]
+impl core::marker::Unpin for antecedent_core::MediationArms [auto]
+impl core::marker::Unpin for antecedent_core::MediationComponent [auto]
 impl core::marker::Unpin for antecedent_core::MediationContrast [auto]
 impl core::marker::Unpin for antecedent_core::MediationQuery [auto]
+impl core::marker::Unpin for antecedent_core::MediationTarget [auto]
 impl core::marker::Unpin for antecedent_core::MemoryBudget [auto]
+impl core::marker::Unpin for antecedent_core::ModelAssumptions [auto]
 impl core::marker::Unpin for antecedent_core::ModelId [auto]
 impl core::marker::Unpin for antecedent_core::MonteCarloBudget [auto]
 impl core::marker::Unpin for antecedent_core::MonteCarloError [auto]
@@ -2580,8 +2849,10 @@ impl core::marker::Unpin for antecedent_core::NodeRef [auto]
 impl core::marker::Unpin for antecedent_core::NonZeroThreadCount [auto]
 impl core::marker::Unpin for antecedent_core::ObservationAssumption [auto]
 impl core::marker::Unpin for antecedent_core::ObservationSpec [auto]
+impl core::marker::Unpin for antecedent_core::ObservationUnit [auto]
 impl core::marker::Unpin for antecedent_core::OrderedFloatBits [auto]
 impl core::marker::Unpin for antecedent_core::OutcomeFunctional [auto]
+impl core::marker::Unpin for antecedent_core::OutcomeQuantity [auto]
 impl core::marker::Unpin for antecedent_core::PanelDidQuery [auto]
 impl core::marker::Unpin for antecedent_core::Parallelism [auto]
 impl core::marker::Unpin for antecedent_core::ParametricAssumption [auto]
@@ -2595,6 +2866,7 @@ impl core::marker::Unpin for antecedent_core::PopulationSelector [auto]
 impl core::marker::Unpin for antecedent_core::Portability [auto]
 impl core::marker::Unpin for antecedent_core::PredicateExpr [auto]
 impl core::marker::Unpin for antecedent_core::PriorAssumption [auto]
+impl core::marker::Unpin for antecedent_core::QuantityUnits [auto]
 impl core::marker::Unpin for antecedent_core::QueryError [auto]
 impl core::marker::Unpin for antecedent_core::QueryId [auto]
 impl core::marker::Unpin for antecedent_core::RandomizationDesign [auto]
@@ -2618,6 +2890,9 @@ impl core::marker::Unpin for antecedent_core::SamplingDesign [auto]
 impl core::marker::Unpin for antecedent_core::SamplingSelection [auto]
 impl core::marker::Unpin for antecedent_core::ScalarType [auto]
 impl core::marker::Unpin for antecedent_core::SchemaError [auto]
+impl core::marker::Unpin for antecedent_core::ScientificTarget [auto]
+impl core::marker::Unpin for antecedent_core::ScientificTargetError [auto]
+impl core::marker::Unpin for antecedent_core::ScientificWorldId [auto]
 impl core::marker::Unpin for antecedent_core::SearchLimits [auto]
 impl core::marker::Unpin for antecedent_core::SearchReceipt [auto]
 impl core::marker::Unpin for antecedent_core::SearchStop [auto]
@@ -2640,6 +2915,7 @@ impl core::marker::Unpin for antecedent_core::SurvivalFunctional [auto]
 impl core::marker::Unpin for antecedent_core::SurvivalQuery [auto]
 impl core::marker::Unpin for antecedent_core::SyntheticControlQuery [auto]
 impl core::marker::Unpin for antecedent_core::SyntheticPanelMethod [auto]
+impl core::marker::Unpin for antecedent_core::TargetForm [auto]
 impl core::marker::Unpin for antecedent_core::TargetPopulation [auto]
 impl core::marker::Unpin for antecedent_core::TargetSampling [auto]
 impl core::marker::Unpin for antecedent_core::TemporalEffectQuery [auto]
@@ -2651,6 +2927,7 @@ impl core::marker::Unpin for antecedent_core::TemporalResponseLicense [auto]
 impl core::marker::Unpin for antecedent_core::TemporalResponseSpec [auto]
 impl core::marker::Unpin for antecedent_core::TheoremFamily [auto]
 impl core::marker::Unpin for antecedent_core::TheoremScope [auto]
+impl core::marker::Unpin for antecedent_core::TimeFrame [auto]
 impl core::marker::Unpin for antecedent_core::ToleranceClass [auto]
 impl core::marker::Unpin for antecedent_core::TransportEvaluateSupport [auto]
 impl core::marker::Unpin for antecedent_core::TransportIdentifySupport [auto]
@@ -2671,6 +2948,9 @@ impl core::marker::Unpin for antecedent_core::VariableId [auto]
 impl core::marker::Unpin for antecedent_core::VariableInProgress [auto]
 impl core::marker::Unpin for antecedent_core::VariableSchema [auto]
 impl core::marker::Unpin for antecedent_core::WeakCancellationToken [auto]
+impl core::marker::Unpin for antecedent_core::WorldAction [auto]
+impl core::marker::Unpin for antecedent_core::WorldBinding [auto]
+impl core::marker::Unpin for antecedent_core::WorldCollection [auto]
 impl core::marker::Unpin for antecedent_core::WorldId [auto]
 impl core::marker::Unpin for antecedent_core::WorldObservation [auto]
 impl core::marker::Unpin for antecedent_core::WorldSpec [auto]
@@ -2766,13 +3046,17 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ChangeAttribut
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CompareOp [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ComponentId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ConditionalEffectQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Conditioning [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ContinuousDomain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ContinuousDoseResponseQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ContractIdentities [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ContrastForm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ContrastTerm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CounterfactualEvent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CounterfactualEventQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CounterfactualQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CredibleDraws [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CrossWorldPremise [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CrossWorldQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DependenceGroup [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DerivativeScale [auto]
@@ -2786,6 +3070,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DiagnosticSeve
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DidSamplingDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DistributionAvailability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DistributionRef [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DoseTimeSurface [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DynamicRuleId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::EdgeRoute [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Environment [auto]
@@ -2807,19 +3092,25 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExpressionFaul
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Fnv1a64 [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::GraphFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::GridSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::HistoryWindow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::HorizonIdentification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::IdentificationStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::IdentityDomain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::IdentityRef [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InferenceSelection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InitialLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterferenceFunctional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterferenceQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::IntervalInterpretation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::IntervalMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Intervention [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterventionAssignment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterventionContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterventionError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterventionSequence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterventionWorld [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::KernelPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::KnownCensoringSurvival [auto]
@@ -2833,9 +3124,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LongitudinalRe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MeasurementSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MechanismChangeQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MechanismOverride [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationArms [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationComponent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MemoryBudget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ModelAssumptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ModelId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MonteCarloBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MonteCarloError [auto]
@@ -2845,8 +3140,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NodeRef [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NonZeroThreadCount [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ObservationAssumption [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ObservationSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ObservationUnit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::OrderedFloatBits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::OutcomeFunctional [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::OutcomeQuantity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PanelDidQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Parallelism [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ParametricAssumption [auto]
@@ -2860,6 +3157,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PopulationSele
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Portability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PredicateExpr [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PriorAssumption [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::QuantityUnits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::QueryError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::QueryId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RandomizationDesign [auto]
@@ -2883,6 +3181,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SamplingDesign
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SamplingSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ScalarType [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SchemaError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ScientificTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ScientificTargetError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ScientificWorldId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SearchLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SearchReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SearchStop [auto]
@@ -2905,6 +3206,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SurvivalFuncti
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SurvivalQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SyntheticControlQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SyntheticPanelMethod [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TargetForm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TargetPopulation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TargetSampling [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalEffectQuery [auto]
@@ -2916,6 +3218,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalRespon
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalResponseSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TheoremFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TheoremScope [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TimeFrame [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ToleranceClass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TransportEvaluateSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TransportIdentifySupport [auto]
@@ -2936,6 +3239,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::VariableId [au
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::VariableInProgress [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::VariableSchema [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WeakCancellationToken [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldAction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldCollection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldSpec [auto]
@@ -3030,13 +3336,17 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ChangeAttribution
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CompareOp [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ComponentId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ConditionalEffectQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Conditioning [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ContinuousDomain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ContinuousDoseResponseQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ContractIdentities [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ContrastForm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ContrastTerm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CounterfactualEvent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CounterfactualEventQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CounterfactualQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CredibleDraws [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CrossWorldPremise [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CrossWorldQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DependenceGroup [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DerivativeScale [auto]
@@ -3050,6 +3360,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DiagnosticSeverit
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DidSamplingDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DistributionAvailability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DistributionRef [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DoseTimeSurface [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DynamicRuleId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::EdgeRoute [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Environment [auto]
@@ -3071,19 +3382,25 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ExpressionFault [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Fnv1a64 [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::GraphFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::GridSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::HistoryWindow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::HorizonIdentification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::IdentificationStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::IdentityDomain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::IdentityRef [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InferenceSelection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InitialLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterferenceFunctional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterferenceQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::IntervalInterpretation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::IntervalMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Intervention [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterventionAssignment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterventionContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterventionError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterventionSequence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterventionWorld [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::InterventionalDistributionQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::KernelPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::KnownCensoringSurvival [auto]
@@ -3097,9 +3414,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LongitudinalRegim
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MeasurementSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MechanismChangeQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MechanismOverride [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationArms [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationComponent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MemoryBudget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ModelAssumptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ModelId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MonteCarloBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MonteCarloError [auto]
@@ -3109,8 +3430,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NodeRef [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NonZeroThreadCount [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ObservationAssumption [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ObservationSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ObservationUnit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::OrderedFloatBits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::OutcomeFunctional [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::OutcomeQuantity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PanelDidQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Parallelism [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ParametricAssumption [auto]
@@ -3124,6 +3447,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PopulationSelecto
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Portability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PredicateExpr [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PriorAssumption [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::QuantityUnits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::QueryError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::QueryId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RandomizationDesign [auto]
@@ -3147,6 +3471,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SamplingDesign [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SamplingSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ScalarType [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SchemaError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ScientificTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ScientificTargetError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ScientificWorldId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SearchLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SearchReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SearchStop [auto]
@@ -3169,6 +3496,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SurvivalFunctiona
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SurvivalQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SyntheticControlQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SyntheticPanelMethod [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TargetForm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TargetPopulation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TargetSampling [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalEffectQuery [auto]
@@ -3180,6 +3508,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalResponseL
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalResponseSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TheoremFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TheoremScope [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TimeFrame [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ToleranceClass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TransportEvaluateSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TransportIdentifySupport [auto]
@@ -3200,6 +3529,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::VariableId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::VariableInProgress [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::VariableSchema [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WeakCancellationToken [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldAction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldCollection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldSpec [auto]
@@ -3345,6 +3677,8 @@ pub const antecedent_core::MAX_NONPARAMETRIC_RESPONSE_DIM: usize
 pub const antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS: usize
 pub const antecedent_core::MAX_TEMPORAL_RESPONSE_HORIZONS: usize
 pub const antecedent_core::POSTERIOR_MASS_TOLERANCE: f64
+pub const antecedent_core::SCIENTIFIC_TARGET_FORMAT: u16
+pub const antecedent_core::SCIENTIFIC_TARGET_IDENTITY_TAG: &str
 pub const antecedent_core::STRUCTURAL_ENVELOPE_LABEL: &str
 pub const antecedent_core::TEMPORAL_OBSERVATION_UNLICENSED: &str
 pub const antecedent_core::VERSION: &str
@@ -3528,6 +3862,8 @@ pub field antecedent_core::ContractIdentities::inference_binding: antecedent_cor
 pub field antecedent_core::ContractIdentities::observation: antecedent_core::SemanticDigest
 pub field antecedent_core::ContractIdentities::program: core::option::Option<antecedent_core::SemanticDigest>
 pub field antecedent_core::ContractIdentities::target: antecedent_core::SemanticDigest
+pub field antecedent_core::ContrastTerm::coefficient: i8
+pub field antecedent_core::ContrastTerm::world: antecedent_core::ScientificWorldId
 pub field antecedent_core::CounterfactualQuery::allow_nested: bool
 pub field antecedent_core::CounterfactualQuery::control: antecedent_core::Intervention
 pub field antecedent_core::CounterfactualQuery::interventions: alloc::sync::Arc<[antecedent_core::Intervention]>
@@ -4088,6 +4424,9 @@ pub fn <antecedent_core::ComponentId>::const fn raw(self) -> u32
 pub fn <antecedent_core::ComponentId>::const fn variable(self) -> antecedent_core::VariableId
 pub fn <antecedent_core::ConditionalEffectQuery>::fn try_new(inner: antecedent_core::AverageEffectQuery) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::ConditionalEffectQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::Conditioning>::fn on(variables: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::VariableId>) -> Self
+pub fn <antecedent_core::Conditioning>::fn unconditional() -> Self
+pub fn <antecedent_core::Conditioning>::fn variables(&self) -> &[antecedent_core::VariableId]
 pub fn <antecedent_core::ContinuousDomain>::fn new(variable: antecedent_core::VariableId, grid: antecedent_core::GridSpec) -> Self
 pub fn <antecedent_core::ContinuousDoseResponseQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::ContractIdentities>::const fn new(target: antecedent_core::SemanticDigest, identification: antecedent_core::SemanticDigest, identification_product: core::option::Option<antecedent_core::SemanticDigest>, program: core::option::Option<antecedent_core::SemanticDigest>, inference_binding: antecedent_core::SemanticDigest, observation: antecedent_core::SemanticDigest, data_snapshot: antecedent_core::SemanticDigest) -> Self
@@ -4137,6 +4476,12 @@ pub fn <antecedent_core::DiagnosticSet>::fn push(&mut self, diagnostic: antecede
 pub fn <antecedent_core::DistributionRef>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::DistributionRef>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::DistributionRef>::const fn raw(self) -> u32
+pub fn <antecedent_core::DoseTimeSurface>::const fn dose(&self) -> antecedent_core::VariableId
+pub fn <antecedent_core::DoseTimeSurface>::const fn worlds(&self) -> &antecedent_core::WorldCollection
+pub fn <antecedent_core::DoseTimeSurface>::fn cells(&self) -> &[antecedent_core::ScientificWorldId]
+pub fn <antecedent_core::DoseTimeSurface>::fn horizons(&self) -> &[u32]
+pub fn <antecedent_core::DoseTimeSurface>::fn level_bits(&self) -> &[u64]
+pub fn <antecedent_core::DoseTimeSurface>::fn new(worlds: antecedent_core::WorldCollection, dose: antecedent_core::VariableId, levels: impl core::iter::traits::collect::IntoIterator<Item = f64>, horizons: impl core::iter::traits::collect::IntoIterator<Item = u32>, cells: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ScientificWorldId>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::DynamicRuleId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::DynamicRuleId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::DynamicRuleId>::const fn raw(self) -> u32
@@ -4188,6 +4533,9 @@ pub fn <antecedent_core::Fnv1a64>::fn fold(&mut self, word: u64) -> &mut Self
 pub fn <antecedent_core::Fnv1a64>::fn word(&mut self, word: u64) -> &mut Self
 pub fn <antecedent_core::GridSpec>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::GridSpec>::fn values(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_core::QueryError>
+pub fn <antecedent_core::HistoryWindow>::const fn max_lag(steps: u32) -> Self
+pub fn <antecedent_core::HistoryWindow>::const fn max_lag_steps(self) -> core::option::Option<u32>
+pub fn <antecedent_core::HistoryWindow>::const fn planner_default() -> Self
 pub fn <antecedent_core::IdentificationStatus>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::IdentificationStatus>::const fn strength_rank(self) -> u8
 pub fn <antecedent_core::IdentificationStatus>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -4196,6 +4544,9 @@ pub fn <antecedent_core::IdentifiedSet<f64>>::fn try_new(lower: f64, upper: f64)
 pub fn <antecedent_core::IdentityDomain>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::IdentityDomain>::const fn derive_key(self) -> &'static str
 pub fn <antecedent_core::IdentityRef>::const fn new(domain: antecedent_core::IdentityDomain, digest: antecedent_core::SemanticDigest) -> Self
+pub fn <antecedent_core::InitialLaw>::const fn contemporaneous_observed() -> Self
+pub fn <antecedent_core::InitialLaw>::fn name(&self) -> core::option::Option<&str>
+pub fn <antecedent_core::InitialLaw>::fn named(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::InterferenceQuery>::fn new(assignment: antecedent_core::AssignmentDesign, exposure: antecedent_core::ExposureMapping, functional: antecedent_core::InterferenceFunctional) -> Self
 pub fn <antecedent_core::InterferenceQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::IntervalInterpretation>::const fn as_str(self) -> &'static str
@@ -4211,9 +4562,21 @@ pub fn <antecedent_core::Intervention>::fn soft(variable: antecedent_core::Varia
 pub fn <antecedent_core::Intervention>::fn target_variables(&self) -> alloc::vec::Vec<antecedent_core::VariableId>
 pub fn <antecedent_core::Intervention>::fn transform(variable: antecedent_core::VariableId, expr: antecedent_core::ValueExpr) -> Self
 pub fn <antecedent_core::Intervention>::fn validate(&self) -> core::result::Result<(), antecedent_core::InterventionError>
+pub fn <antecedent_core::InterventionContrast>::const fn form(&self) -> antecedent_core::ContrastForm
+pub fn <antecedent_core::InterventionContrast>::const fn reference(&self) -> antecedent_core::ScientificWorldId
+pub fn <antecedent_core::InterventionContrast>::const fn worlds(&self) -> &antecedent_core::WorldCollection
+pub fn <antecedent_core::InterventionContrast>::fn difference(worlds: antecedent_core::WorldCollection, plus: antecedent_core::ScientificWorldId, minus: antecedent_core::ScientificWorldId, reference: antecedent_core::ScientificWorldId) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
+pub fn <antecedent_core::InterventionContrast>::fn interaction(worlds: antecedent_core::WorldCollection, joint: antecedent_core::ScientificWorldId, a_at_reference: antecedent_core::ScientificWorldId, b_at_reference: antecedent_core::ScientificWorldId, reference: antecedent_core::ScientificWorldId) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
+pub fn <antecedent_core::InterventionContrast>::fn terms(&self) -> alloc::vec::Vec<antecedent_core::ContrastTerm>
 pub fn <antecedent_core::InterventionSequence>::fn is_empty(&self) -> bool
 pub fn <antecedent_core::InterventionSequence>::fn len(&self) -> usize
 pub fn <antecedent_core::InterventionSequence>::fn new(steps: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::SequencedIntervention]>>) -> Self
+pub fn <antecedent_core::InterventionWorld>::const fn action(&self) -> &antecedent_core::WorldAction
+pub fn <antecedent_core::InterventionWorld>::const fn binding(&self) -> &antecedent_core::WorldBinding
+pub fn <antecedent_core::InterventionWorld>::const fn id(&self) -> antecedent_core::ScientificWorldId
+pub fn <antecedent_core::InterventionWorld>::const fn is_reference(&self) -> bool
+pub fn <antecedent_core::InterventionWorld>::const fn time(&self) -> &antecedent_core::TimeFrame
+pub fn <antecedent_core::InterventionWorld>::fn new(id: antecedent_core::ScientificWorldId, action: antecedent_core::WorldAction, reference: bool, binding: antecedent_core::WorldBinding, time: antecedent_core::TimeFrame) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::InterventionalDistributionQuery>::fn new(outcome: antecedent_core::VariableId, interventions: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::Intervention]>>) -> Self
 pub fn <antecedent_core::InterventionalDistributionQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::InterventionalDistributionQuery>::fn with_conditioning(self, conditioning: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> Self
@@ -4236,10 +4599,26 @@ pub fn <antecedent_core::MechanismOverride>::fn constant(value: f64) -> Self
 pub fn <antecedent_core::MechanismOverride>::fn multiplicative(factor: f64) -> Self
 pub fn <antecedent_core::MechanismOverride>::fn named(family_id: impl core::convert::Into<alloc::sync::Arc<str>>, parameters: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> Self
 pub fn <antecedent_core::MechanismOverride>::fn truncated_shift(delta: f64, lower: f64, upper: f64) -> Self
+pub fn <antecedent_core::MediationArms>::const fn active(&self) -> &antecedent_core::Intervention
+pub fn <antecedent_core::MediationArms>::const fn component(&self) -> antecedent_core::MediationComponent
+pub fn <antecedent_core::MediationArms>::const fn control(&self) -> &antecedent_core::Intervention
+pub fn <antecedent_core::MediationArms>::const fn treatment(&self) -> antecedent_core::VariableId
+pub fn <antecedent_core::MediationArms>::fn mediators(&self) -> &[antecedent_core::VariableId]
+pub fn <antecedent_core::MediationArms>::fn new(treatment: antecedent_core::VariableId, mediators: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::VariableId>, control: antecedent_core::Intervention, active: antecedent_core::Intervention, component: antecedent_core::MediationComponent) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
+pub fn <antecedent_core::MediationComponent>::const fn requires_cross_world(self) -> bool
 pub fn <antecedent_core::MediationQuery>::fn binary(treatment: antecedent_core::VariableId, outcome: antecedent_core::VariableId, mediators: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>, contrast: antecedent_core::MediationContrast) -> Self
 pub fn <antecedent_core::MediationQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::MediationQuery>::fn with_horizons(self, horizons: impl core::convert::Into<alloc::sync::Arc<[u32]>>) -> core::result::Result<Self, antecedent_core::QueryError>
+pub fn <antecedent_core::MediationTarget>::const fn arms(&self) -> &antecedent_core::MediationArms
+pub fn <antecedent_core::MediationTarget>::const fn binding(&self) -> &antecedent_core::WorldBinding
+pub fn <antecedent_core::MediationTarget>::const fn premises(&self) -> &alloc::collections::btree::set::BTreeSet<antecedent_core::CrossWorldPremise>
+pub fn <antecedent_core::MediationTarget>::const fn schedule(&self) -> core::option::Option<&antecedent_core::TemporalPolicy>
+pub fn <antecedent_core::MediationTarget>::const fn time(&self) -> &antecedent_core::TimeFrame
+pub fn <antecedent_core::MediationTarget>::fn new(binding: antecedent_core::WorldBinding, time: antecedent_core::TimeFrame, schedule: core::option::Option<antecedent_core::TemporalPolicy>, arms: antecedent_core::MediationArms, premises: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::CrossWorldPremise>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::MemoryBudget>::const fn unlimited() -> Self
+pub fn <antecedent_core::ModelAssumptions>::const fn graph(&self) -> antecedent_core::GraphFamily
+pub fn <antecedent_core::ModelAssumptions>::const fn new(graph: antecedent_core::GraphFamily, records: antecedent_core::AssumptionSet) -> Self
+pub fn <antecedent_core::ModelAssumptions>::const fn records(&self) -> &antecedent_core::AssumptionSet
 pub fn <antecedent_core::ModelId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::ModelId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::ModelId>::const fn raw(self) -> u32
@@ -4257,6 +4636,8 @@ pub fn <antecedent_core::NodeRef>::const fn variable(self) -> antecedent_core::V
 pub fn <antecedent_core::NonZeroThreadCount>::const fn get(self) -> u32
 pub fn <antecedent_core::NonZeroThreadCount>::const fn new(n: u32) -> core::option::Option<Self>
 pub fn <antecedent_core::NonZeroThreadCount>::const fn one() -> Self
+pub fn <antecedent_core::ObservationUnit>::fn name(&self) -> &str
+pub fn <antecedent_core::ObservationUnit>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::OrderedFloatBits>::const fn to_f64(self) -> f64
 pub fn <antecedent_core::OrderedFloatBits>::fn from_f64(v: f64) -> Self
 pub fn <antecedent_core::OutcomeFunctional>::const fn is_mean(&self) -> bool
@@ -4266,6 +4647,11 @@ pub fn <antecedent_core::OutcomeFunctional>::fn quantile(tau: f64) -> Self
 pub fn <antecedent_core::OutcomeFunctional>::fn quantile_level(&self) -> core::option::Option<f64>
 pub fn <antecedent_core::OutcomeFunctional>::fn thresholds(&self) -> core::option::Option<alloc::vec::Vec<f64>>
 pub fn <antecedent_core::OutcomeFunctional>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::OutcomeQuantity>::const fn functional(&self) -> &antecedent_core::OutcomeFunctional
+pub fn <antecedent_core::OutcomeQuantity>::const fn outcome(&self) -> antecedent_core::VariableId
+pub fn <antecedent_core::OutcomeQuantity>::const fn units(&self) -> &antecedent_core::QuantityUnits
+pub fn <antecedent_core::OutcomeQuantity>::fn mean(outcome: antecedent_core::VariableId, units: antecedent_core::QuantityUnits) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
+pub fn <antecedent_core::OutcomeQuantity>::fn new(outcome: antecedent_core::VariableId, functional: antecedent_core::OutcomeFunctional, units: antecedent_core::QuantityUnits) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::PanelDidQuery>::fn augmented_panel(outcome_post: antecedent_core::VariableId, outcome_pre: antecedent_core::VariableId, propensity: antecedent_core::VariableId, untreated_change_prediction: antecedent_core::VariableId, treated: impl core::convert::Into<alloc::sync::Arc<[bool]>>, subjects: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, clusters: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, predictions_cross_fitted: bool) -> Self
 pub fn <antecedent_core::PanelDidQuery>::fn new(outcome: antecedent_core::VariableId, treated: impl core::convert::Into<alloc::sync::Arc<[bool]>>, post: impl core::convert::Into<alloc::sync::Arc<[bool]>>, subjects: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, clusters: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>) -> Self
 pub fn <antecedent_core::PanelDidQuery>::fn repeated_cross_section(outcome: antecedent_core::VariableId, treated: impl core::convert::Into<alloc::sync::Arc<[bool]>>, post: impl core::convert::Into<alloc::sync::Arc<[bool]>>, subjects: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, clusters: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>) -> Self
@@ -4299,6 +4685,9 @@ pub fn <antecedent_core::Portability>::fn export_refusal(&self) -> core::option:
 pub fn <antecedent_core::PredicateExpr>::fn named(id: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_core::PredicateExpr>::fn rows(rows: impl core::convert::Into<alloc::sync::Arc<[usize]>>) -> Self
 pub fn <antecedent_core::PredicateExpr>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::QuantityUnits>::fn dimensionless() -> Self
+pub fn <antecedent_core::QuantityUnits>::fn name(&self) -> &str
+pub fn <antecedent_core::QuantityUnits>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::QueryId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::QueryId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::QueryId>::const fn raw(self) -> u32
@@ -4335,6 +4724,14 @@ pub fn <antecedent_core::RngFactory>::const fn master_seed(&self) -> u64
 pub fn <antecedent_core::RngFactory>::fn stream(&self, stream_id: u64) -> antecedent_core::CausalRng
 pub fn <antecedent_core::RngFactory>::fn stream_for(&self, domain: antecedent_core::StreamDomain, index: u64) -> antecedent_core::CausalRng
 pub fn <antecedent_core::SamplingDesign>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::ScientificTarget>::const fn assumptions(&self) -> &antecedent_core::ModelAssumptions
+pub fn <antecedent_core::ScientificTarget>::const fn form(&self) -> &antecedent_core::TargetForm
+pub fn <antecedent_core::ScientificTarget>::const fn inference(&self) -> antecedent_core::InferenceSelection
+pub fn <antecedent_core::ScientificTarget>::const fn new(form: antecedent_core::TargetForm, assumptions: antecedent_core::ModelAssumptions, inference: antecedent_core::InferenceSelection) -> Self
+pub fn <antecedent_core::ScientificTarget>::const fn with_inference(self, inference: antecedent_core::InferenceSelection) -> Self
+pub fn <antecedent_core::ScientificTarget>::fn identity(&self) -> antecedent_core::SemanticDigest
+pub fn <antecedent_core::ScientificWorldId>::const fn from_raw(raw: u32) -> Self
+pub fn <antecedent_core::ScientificWorldId>::const fn raw(self) -> u32
 pub fn <antecedent_core::SearchBudget<'a>>::const fn depth_reached(&self) -> usize
 pub fn <antecedent_core::SearchBudget<'a>>::const fn limits(&self) -> antecedent_core::SearchLimits
 pub fn <antecedent_core::SearchBudget<'a>>::const fn memory_limit_bytes(&self) -> u64
@@ -4439,6 +4836,12 @@ pub fn <antecedent_core::TheoremScope>::fn meta_sid_complete() -> Self
 pub fn <antecedent_core::TheoremScope>::fn mz_transportability() -> Self
 pub fn <antecedent_core::TheoremScope>::fn statistical_table_inspect_label() -> &'static str
 pub fn <antecedent_core::TheoremScope>::fn z_transportability() -> Self
+pub fn <antecedent_core::TimeFrame>::const fn history(&self) -> core::option::Option<antecedent_core::HistoryWindow>
+pub fn <antecedent_core::TimeFrame>::const fn horizon_steps(&self) -> core::option::Option<u32>
+pub fn <antecedent_core::TimeFrame>::const fn initial_law(&self) -> core::option::Option<&antecedent_core::InitialLaw>
+pub fn <antecedent_core::TimeFrame>::const fn is_static(&self) -> bool
+pub fn <antecedent_core::TimeFrame>::const fn static_decision() -> Self
+pub fn <antecedent_core::TimeFrame>::fn temporal(horizon_steps: u32, history: antecedent_core::HistoryWindow, initial_law: antecedent_core::InitialLaw) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::ToleranceClass>::const fn atol(self) -> f64
 pub fn <antecedent_core::ToleranceClass>::const fn rtol(self) -> f64
 pub fn <antecedent_core::ToleranceClass>::fn close(self, actual: f64, expected: f64) -> bool
@@ -4515,6 +4918,20 @@ pub fn <antecedent_core::VariableInProgress>::fn treatment(self) -> antecedent_c
 pub fn <antecedent_core::VariableInProgress>::fn unit(self, unit: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_core::WeakCancellationToken>::fn is_alive(&self) -> bool
 pub fn <antecedent_core::WeakCancellationToken>::fn upgrade(&self) -> core::option::Option<antecedent_core::CancellationToken>
+pub fn <antecedent_core::WorldAction>::fn at_decision(interventions: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::Intervention>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
+pub fn <antecedent_core::WorldAction>::fn at_decision_interventions(&self) -> core::option::Option<&[antecedent_core::Intervention]>
+pub fn <antecedent_core::WorldAction>::fn schedule(intervention: antecedent_core::Intervention, policy: antecedent_core::TemporalPolicy) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
+pub fn <antecedent_core::WorldAction>::fn schedule_parts(&self) -> core::option::Option<(&antecedent_core::Intervention, &antecedent_core::TemporalPolicy)>
+pub fn <antecedent_core::WorldBinding>::const fn conditioning(&self) -> &antecedent_core::Conditioning
+pub fn <antecedent_core::WorldBinding>::const fn outcome(&self) -> &antecedent_core::OutcomeQuantity
+pub fn <antecedent_core::WorldBinding>::const fn population(&self) -> &antecedent_core::TargetPopulation
+pub fn <antecedent_core::WorldBinding>::const fn unit(&self) -> &antecedent_core::ObservationUnit
+pub fn <antecedent_core::WorldBinding>::fn new(population: antecedent_core::TargetPopulation, unit: antecedent_core::ObservationUnit, outcome: antecedent_core::OutcomeQuantity, conditioning: antecedent_core::Conditioning) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
+pub fn <antecedent_core::WorldCollection>::fn get(&self, id: antecedent_core::ScientificWorldId) -> core::option::Option<&antecedent_core::InterventionWorld>
+pub fn <antecedent_core::WorldCollection>::fn is_empty(&self) -> bool
+pub fn <antecedent_core::WorldCollection>::fn len(&self) -> usize
+pub fn <antecedent_core::WorldCollection>::fn new(worlds: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::InterventionWorld>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
+pub fn <antecedent_core::WorldCollection>::fn worlds(&self) -> &[antecedent_core::InterventionWorld]
 pub fn <antecedent_core::WorldId>::const fn index(self) -> usize
 pub fn <antecedent_core::WorldId>::const fn new(index: u8) -> Self
 pub fn <antecedent_core::WorldSpec>::fn intervention_of(&self, variable: antecedent_core::VariableId) -> core::option::Option<f64>
@@ -4629,6 +5046,7 @@ pub mod antecedent_core::reason_code
 pub mod antecedent_core::recalc
 pub mod antecedent_core::response
 pub mod antecedent_core::schema
+pub mod antecedent_core::scientific_target
 pub mod antecedent_core::search
 pub mod antecedent_core::temporal
 pub mod antecedent_core::text
@@ -4664,8 +5082,11 @@ pub struct antecedent_core::ChangeAttributionQuery
 pub struct antecedent_core::ComponentId
 pub struct antecedent_core::ComponentId has private fields
 pub struct antecedent_core::ConditionalEffectQuery
+pub struct antecedent_core::Conditioning
+pub struct antecedent_core::Conditioning has private fields
 pub struct antecedent_core::ContinuousDomain
 pub struct antecedent_core::ContinuousDoseResponseQuery
+pub struct antecedent_core::ContrastTerm
 pub struct antecedent_core::CounterfactualEvent
 pub struct antecedent_core::CounterfactualEvent has private fields
 pub struct antecedent_core::CounterfactualEventQuery
@@ -4678,6 +5099,8 @@ pub struct antecedent_core::Diagnostic
 pub struct antecedent_core::DiagnosticSet
 pub struct antecedent_core::DistributionRef
 pub struct antecedent_core::DistributionRef has private fields
+pub struct antecedent_core::DoseTimeSurface
+pub struct antecedent_core::DoseTimeSurface has private fields
 pub struct antecedent_core::DynamicRuleId
 pub struct antecedent_core::DynamicRuleId has private fields
 pub struct antecedent_core::EdgeRoute
@@ -4697,12 +5120,20 @@ pub struct antecedent_core::FixedCandidateRegretInputs
 pub struct antecedent_core::FixedGroupDosePolicy
 pub struct antecedent_core::Fnv1a64
 pub struct antecedent_core::Fnv1a64 has private fields
+pub struct antecedent_core::HistoryWindow
+pub struct antecedent_core::HistoryWindow has private fields
 pub struct antecedent_core::HorizonIdentification
 pub struct antecedent_core::IdentifiedSet<T>
 pub struct antecedent_core::IdentityRef
+pub struct antecedent_core::InitialLaw
+pub struct antecedent_core::InitialLaw has private fields
 pub struct antecedent_core::InterferenceQuery
 pub struct antecedent_core::InterventionAssignment
+pub struct antecedent_core::InterventionContrast
+pub struct antecedent_core::InterventionContrast has private fields
 pub struct antecedent_core::InterventionSequence
+pub struct antecedent_core::InterventionWorld
+pub struct antecedent_core::InterventionWorld has private fields
 pub struct antecedent_core::InterventionalDistributionQuery
 pub struct antecedent_core::KernelPolicy
 pub struct antecedent_core::KnownCensoringSurvival
@@ -4714,8 +5145,14 @@ pub struct antecedent_core::LongitudinalRegimeQuery
 pub struct antecedent_core::MeasurementSpec
 pub struct antecedent_core::MechanismChangeQuery
 pub struct antecedent_core::MechanismOverride
+pub struct antecedent_core::MediationArms
+pub struct antecedent_core::MediationArms has private fields
 pub struct antecedent_core::MediationQuery
+pub struct antecedent_core::MediationTarget
+pub struct antecedent_core::MediationTarget has private fields
 pub struct antecedent_core::MemoryBudget
+pub struct antecedent_core::ModelAssumptions
+pub struct antecedent_core::ModelAssumptions has private fields
 pub struct antecedent_core::ModelId
 pub struct antecedent_core::ModelId has private fields
 pub struct antecedent_core::MonteCarloBudget
@@ -4725,8 +5162,12 @@ pub struct antecedent_core::NestedCounterfactualQuery
 pub struct antecedent_core::NestedCounterfactualQuery has private fields
 pub struct antecedent_core::NonZeroThreadCount
 pub struct antecedent_core::NonZeroThreadCount has private fields
+pub struct antecedent_core::ObservationUnit
+pub struct antecedent_core::ObservationUnit has private fields
 pub struct antecedent_core::OrderedFloatBits
 pub struct antecedent_core::OrderedFloatBits has private fields
+pub struct antecedent_core::OutcomeQuantity
+pub struct antecedent_core::OutcomeQuantity has private fields
 pub struct antecedent_core::PanelDidQuery
 pub struct antecedent_core::Parallelism
 pub struct antecedent_core::ParametricAssumption
@@ -4738,6 +5179,8 @@ pub struct antecedent_core::PopulationRegistry
 pub struct antecedent_core::PopulationRegistry has private fields
 pub struct antecedent_core::PopulationSelection
 pub struct antecedent_core::PriorAssumption
+pub struct antecedent_core::QuantityUnits
+pub struct antecedent_core::QuantityUnits has private fields
 pub struct antecedent_core::QueryId
 pub struct antecedent_core::QueryId has private fields
 pub struct antecedent_core::RandomizedEffectQuery
@@ -4751,6 +5194,10 @@ pub struct antecedent_core::ResponseEnvelope
 pub struct antecedent_core::ResponseQuery
 pub struct antecedent_core::RngFactory
 pub struct antecedent_core::RngFactory has private fields
+pub struct antecedent_core::ScientificTarget
+pub struct antecedent_core::ScientificTarget has private fields
+pub struct antecedent_core::ScientificWorldId
+pub struct antecedent_core::ScientificWorldId has private fields
 pub struct antecedent_core::SearchBudget has private fields
 pub struct antecedent_core::SearchBudget<'a>
 pub struct antecedent_core::SearchLimits
@@ -4778,6 +5225,8 @@ pub struct antecedent_core::TemporalNodeKey
 pub struct antecedent_core::TemporalResponseLicense
 pub struct antecedent_core::TemporalResponseSpec
 pub struct antecedent_core::TheoremScope
+pub struct antecedent_core::TimeFrame
+pub struct antecedent_core::TimeFrame has private fields
 pub struct antecedent_core::TransportEvaluateSupport
 pub struct antecedent_core::TransportIdentifySupport
 pub struct antecedent_core::TransportLocation
@@ -4794,6 +5243,12 @@ pub struct antecedent_core::VariableInProgress has private fields
 pub struct antecedent_core::VariableSchema
 pub struct antecedent_core::WeakCancellationToken
 pub struct antecedent_core::WeakCancellationToken has private fields
+pub struct antecedent_core::WorldAction
+pub struct antecedent_core::WorldAction has private fields
+pub struct antecedent_core::WorldBinding
+pub struct antecedent_core::WorldBinding has private fields
+pub struct antecedent_core::WorldCollection
+pub struct antecedent_core::WorldCollection has private fields
 pub struct antecedent_core::WorldId
 pub struct antecedent_core::WorldId has private fields
 pub struct antecedent_core::WorldObservation
@@ -5056,6 +5511,34 @@ pub use antecedent_core::schema::SmallRoleSet = antecedent_core::SmallRoleSet
 pub use antecedent_core::schema::ValueType = antecedent_core::ValueType
 pub use antecedent_core::schema::VariableInProgress = antecedent_core::VariableInProgress
 pub use antecedent_core::schema::VariableSchema = antecedent_core::VariableSchema
+pub use antecedent_core::scientific_target::Conditioning = antecedent_core::Conditioning
+pub use antecedent_core::scientific_target::ContrastForm = antecedent_core::ContrastForm
+pub use antecedent_core::scientific_target::ContrastTerm = antecedent_core::ContrastTerm
+pub use antecedent_core::scientific_target::CrossWorldPremise = antecedent_core::CrossWorldPremise
+pub use antecedent_core::scientific_target::DoseTimeSurface = antecedent_core::DoseTimeSurface
+pub use antecedent_core::scientific_target::GraphFamily = antecedent_core::GraphFamily
+pub use antecedent_core::scientific_target::HistoryWindow = antecedent_core::HistoryWindow
+pub use antecedent_core::scientific_target::InferenceSelection = antecedent_core::InferenceSelection
+pub use antecedent_core::scientific_target::InitialLaw = antecedent_core::InitialLaw
+pub use antecedent_core::scientific_target::InterventionContrast = antecedent_core::InterventionContrast
+pub use antecedent_core::scientific_target::InterventionWorld = antecedent_core::InterventionWorld
+pub use antecedent_core::scientific_target::MediationArms = antecedent_core::MediationArms
+pub use antecedent_core::scientific_target::MediationComponent = antecedent_core::MediationComponent
+pub use antecedent_core::scientific_target::MediationTarget = antecedent_core::MediationTarget
+pub use antecedent_core::scientific_target::ModelAssumptions = antecedent_core::ModelAssumptions
+pub use antecedent_core::scientific_target::ObservationUnit = antecedent_core::ObservationUnit
+pub use antecedent_core::scientific_target::OutcomeQuantity = antecedent_core::OutcomeQuantity
+pub use antecedent_core::scientific_target::QuantityUnits = antecedent_core::QuantityUnits
+pub use antecedent_core::scientific_target::SCIENTIFIC_TARGET_FORMAT = antecedent_core::SCIENTIFIC_TARGET_FORMAT
+pub use antecedent_core::scientific_target::SCIENTIFIC_TARGET_IDENTITY_TAG = antecedent_core::SCIENTIFIC_TARGET_IDENTITY_TAG
+pub use antecedent_core::scientific_target::ScientificTarget = antecedent_core::ScientificTarget
+pub use antecedent_core::scientific_target::ScientificTargetError = antecedent_core::ScientificTargetError
+pub use antecedent_core::scientific_target::ScientificWorldId = antecedent_core::ScientificWorldId
+pub use antecedent_core::scientific_target::TargetForm = antecedent_core::TargetForm
+pub use antecedent_core::scientific_target::TimeFrame = antecedent_core::TimeFrame
+pub use antecedent_core::scientific_target::WorldAction = antecedent_core::WorldAction
+pub use antecedent_core::scientific_target::WorldBinding = antecedent_core::WorldBinding
+pub use antecedent_core::scientific_target::WorldCollection = antecedent_core::WorldCollection
 pub use antecedent_core::search::DEFAULT_SEARCH_MEMORY_BYTES = antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES
 pub use antecedent_core::search::SearchBudget = antecedent_core::SearchBudget
 pub use antecedent_core::search::SearchLimits = antecedent_core::SearchLimits
@@ -5191,6 +5674,11 @@ pub variant antecedent_core::CompareOp::Gt
 pub variant antecedent_core::CompareOp::Le
 pub variant antecedent_core::CompareOp::Lt
 pub variant antecedent_core::CompareOp::Ne
+pub variant antecedent_core::ContrastForm::Difference { plus: antecedent_core::ScientificWorldId, minus: antecedent_core::ScientificWorldId }
+pub variant antecedent_core::ContrastForm::Interaction { joint: antecedent_core::ScientificWorldId, a_at_reference: antecedent_core::ScientificWorldId, b_at_reference: antecedent_core::ScientificWorldId }
+pub variant antecedent_core::CrossWorldPremise::Composition
+pub variant antecedent_core::CrossWorldPremise::CrossWorldIndependence
+pub variant antecedent_core::CrossWorldPremise::PathSpecificNested
 pub variant antecedent_core::DependenceGroup::IndependentStudies
 pub variant antecedent_core::DependenceGroup::LinkedUnits
 pub variant antecedent_core::DependenceGroup::UnknownDependence
@@ -5252,6 +5740,17 @@ pub variant antecedent_core::ExpressionFault::OutputType { found: antecedent_cor
 pub variant antecedent_core::ExpressionFault::TooLarge
 pub variant antecedent_core::ExpressionFault::TypeMismatch { expected: antecedent_core::ExprType, found: antecedent_core::ExprType }
 pub variant antecedent_core::ExpressionFault::ZeroLag
+pub variant antecedent_core::GraphFamily::Admg
+pub variant antecedent_core::GraphFamily::CoDetermined
+pub variant antecedent_core::GraphFamily::Cpdag
+pub variant antecedent_core::GraphFamily::Dag
+pub variant antecedent_core::GraphFamily::Graphless
+pub variant antecedent_core::GraphFamily::Pag
+pub variant antecedent_core::GraphFamily::TemporalAdmg
+pub variant antecedent_core::GraphFamily::TemporalCpdag
+pub variant antecedent_core::GraphFamily::TemporalDag
+pub variant antecedent_core::GraphFamily::TemporalPag
+pub variant antecedent_core::GraphFamily::Unspecified
 pub variant antecedent_core::GridSpec::Linspace { start: f64, end: f64, points: usize }
 pub variant antecedent_core::GridSpec::Values(alloc::sync::Arc<[f64]>)
 pub variant antecedent_core::IdentificationStatus::GraphDependent
@@ -5273,6 +5772,10 @@ pub variant antecedent_core::IdentityDomain::ScoreReuse
 pub variant antecedent_core::IdentityDomain::Target
 pub variant antecedent_core::IdentityDomain::TargetWeights
 pub variant antecedent_core::IdentityDomain::TransportCertificate
+pub variant antecedent_core::InferenceSelection::Bayesian
+pub variant antecedent_core::InferenceSelection::Frequentist
+pub variant antecedent_core::InferenceSelection::GeneralizedBayesian
+pub variant antecedent_core::InferenceSelection::Unspecified
 pub variant antecedent_core::InterferenceFunctional::ExposureContrast { outcome: antecedent_core::VariableId, from: antecedent_core::ExposureLevel, to: antecedent_core::ExposureLevel }
 pub variant antecedent_core::IntervalInterpretation::Confidence
 pub variant antecedent_core::IntervalInterpretation::Credible
@@ -5307,6 +5810,11 @@ pub variant antecedent_core::LongitudinalRegimeMethod::GFormula
 pub variant antecedent_core::LongitudinalRegimeMethod::Ipw
 pub variant antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
 pub variant antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust
+pub variant antecedent_core::MediationComponent::Direct
+pub variant antecedent_core::MediationComponent::Mediated
+pub variant antecedent_core::MediationComponent::NaturalDirect
+pub variant antecedent_core::MediationComponent::NaturalIndirect
+pub variant antecedent_core::MediationComponent::Total
 pub variant antecedent_core::MediationContrast::Direct
 pub variant antecedent_core::MediationContrast::Mediated
 pub variant antecedent_core::MediationContrast::NaturalDirect
@@ -5445,6 +5953,29 @@ pub variant antecedent_core::SchemaError::TooManyVariables
 pub variant antecedent_core::SchemaError::UnexpectedCategoryDomain { name: alloc::string::String }
 pub variant antecedent_core::SchemaError::UnknownVariableId { id: u32 }
 pub variant antecedent_core::SchemaError::UnknownVariableName { name: alloc::string::String }
+pub variant antecedent_core::ScientificTargetError::CallbackAction
+pub variant antecedent_core::ScientificTargetError::ConditioningIncludesOutcome
+pub variant antecedent_core::ScientificTargetError::ContrastWorldSet
+pub variant antecedent_core::ScientificTargetError::DuplicateInterventionVariable { id: antecedent_core::VariableId }
+pub variant antecedent_core::ScientificTargetError::DuplicateWorldId { id: antecedent_core::ScientificWorldId }
+pub variant antecedent_core::ScientificTargetError::EmptyMediators
+pub variant antecedent_core::ScientificTargetError::EmptyName { field: &'static str }
+pub variant antecedent_core::ScientificTargetError::EmptyWorlds
+pub variant antecedent_core::ScientificTargetError::IncompatibleBinding { field: &'static str }
+pub variant antecedent_core::ScientificTargetError::IncompatibleTime
+pub variant antecedent_core::ScientificTargetError::InterventionVariableMismatch { expected: antecedent_core::VariableId, got: antecedent_core::VariableId }
+pub variant antecedent_core::ScientificTargetError::InvalidAction { reason: alloc::string::String }
+pub variant antecedent_core::ScientificTargetError::MediationNeedsCrossWorldPremises
+pub variant antecedent_core::ScientificTargetError::MediatorOverlap
+pub variant antecedent_core::ScientificTargetError::MismatchedActionTime
+pub variant antecedent_core::ScientificTargetError::NonPositiveHorizon
+pub variant antecedent_core::ScientificTargetError::NotADoseTimeGrid { reason: &'static str }
+pub variant antecedent_core::ScientificTargetError::ReferenceIsNotBaseline { id: antecedent_core::ScientificWorldId }
+pub variant antecedent_core::ScientificTargetError::ReferenceNotMarked { id: antecedent_core::ScientificWorldId }
+pub variant antecedent_core::ScientificTargetError::TreatmentEqualsOutcome { id: antecedent_core::VariableId }
+pub variant antecedent_core::ScientificTargetError::UnexpectedReference { id: antecedent_core::ScientificWorldId }
+pub variant antecedent_core::ScientificTargetError::UnknownWorld { id: antecedent_core::ScientificWorldId }
+pub variant antecedent_core::ScientificTargetError::WorldsNotDistinct
 pub variant antecedent_core::SearchStop::Cancelled
 pub variant antecedent_core::SearchStop::Depth
 pub variant antecedent_core::SearchStop::Memory
@@ -5469,6 +6000,11 @@ pub variant antecedent_core::SurvivalFunctional::CumulativeIncidence { target_ca
 pub variant antecedent_core::SurvivalFunctional::SurvivalAndRmst
 pub variant antecedent_core::SyntheticPanelMethod::Control
 pub variant antecedent_core::SyntheticPanelMethod::DifferenceInDifferences
+pub variant antecedent_core::TargetForm::Contrast(antecedent_core::InterventionContrast)
+pub variant antecedent_core::TargetForm::DoseTime(antecedent_core::DoseTimeSurface)
+pub variant antecedent_core::TargetForm::Mediation(antecedent_core::MediationTarget)
+pub variant antecedent_core::TargetForm::World(antecedent_core::InterventionWorld)
+pub variant antecedent_core::TargetForm::Worlds(antecedent_core::WorldCollection)
 pub variant antecedent_core::TargetPopulation::AllObserved
 pub variant antecedent_core::TargetPopulation::CustomDistribution(antecedent_core::DistributionRef)
 pub variant antecedent_core::TargetPopulation::Environment(antecedent_core::EnvironmentId)
