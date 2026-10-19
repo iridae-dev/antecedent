@@ -12,6 +12,7 @@
 pub mod cholesky;
 pub mod dispatch;
 pub mod gram;
+pub mod layout_contract;
 pub mod numeric;
 pub mod parcorr;
 pub mod portable;

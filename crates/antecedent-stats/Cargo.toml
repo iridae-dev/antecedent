@@ -38,3 +38,6 @@ harness = false
 [[bench]]
 name = "linalg"
 harness = false
+
+[[bench]]
+name = "portable_layout"

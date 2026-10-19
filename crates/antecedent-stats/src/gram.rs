@@ -2,6 +2,79 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+/// Column-major `X` does not cover `nrows * ncols` entries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GramLayoutError;
+
+impl core::fmt::Display for GramLayoutError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("column-major design is shorter than nrows * ncols")
+    }
+}
+
+/// Column-major design: `ncols` contiguous columns of `nrows` `f64` values.
+///
+/// `form_xtx` writes a row-major `ncols × ncols` Gram. `accumulate_xtx_xty_row`
+/// takes one contiguous design row, which is not this column-major buffer.
+#[derive(Clone, Copy, Debug)]
+pub struct ColumnMajorDesign<'a> {
+    x: &'a [f64],
+    nrows: usize,
+    ncols: usize,
+}
+
+impl<'a> ColumnMajorDesign<'a> {
+    /// Borrow `X` when it holds at least `nrows * ncols` values.
+    ///
+    /// # Errors
+    ///
+    /// `nrows * ncols` overflows or `x` is shorter than that product.
+    pub fn new(x: &'a [f64], nrows: usize, ncols: usize) -> Result<Self, GramLayoutError> {
+        match nrows.checked_mul(ncols) {
+            Some(len) if x.len() >= len => Ok(Self { x, nrows, ncols }),
+            _ => Err(GramLayoutError),
+        }
+    }
+
+    /// Column-major values.
+    #[must_use]
+    pub const fn x(self) -> &'a [f64] {
+        self.x
+    }
+
+    /// Rows in each column.
+    #[must_use]
+    pub const fn nrows(self) -> usize {
+        self.nrows
+    }
+
+    /// Columns.
+    #[must_use]
+    pub const fn ncols(self) -> usize {
+        self.ncols
+    }
+}
+
+/// One contiguous design row for [`accumulate_xtx_xty_row`].
+#[derive(Clone, Copy, Debug)]
+pub struct DesignRow<'a> {
+    values: &'a [f64],
+}
+
+impl<'a> DesignRow<'a> {
+    /// Borrow the row. Its length is the Gram order.
+    #[must_use]
+    pub const fn new(values: &'a [f64]) -> Self {
+        Self { values }
+    }
+
+    /// The row, in column order.
+    #[must_use]
+    pub const fn as_slice(self) -> &'a [f64] {
+        self.values
+    }
+}
+
 /// Fill symmetric `ncols×ncols` `XtX` (row-major) from column-major `X`.
 pub fn form_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
@@ -142,6 +215,16 @@ pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn column_major_design_refuses_a_short_buffer() {
+        let x = [1.0, 2.0, 3.0];
+        assert!(ColumnMajorDesign::new(&x, 2, 2).is_err());
+        let design = ColumnMajorDesign::new(&x, 3, 1).unwrap();
+        assert_eq!(design.nrows(), 3);
+        assert_eq!(design.ncols(), 1);
+        assert_eq!(DesignRow::new(&[1.0, 2.0]).as_slice().len(), 2);
+    }
 
     #[test]
     fn accumulate_row_matches_form_xtx() {
