@@ -3,7 +3,8 @@
 //! Unlike the historical plug-in residual variance, these targets keep one
 //! potential for the entire run: known σ², or joint `(β, λ = log σ²)` under an
 //! inverse-gamma residual prior. Coefficient priors follow
-//! `β | σ² ~ N(m₀, σ² V₀)`.
+//! `β | σ² ~ N(m₀, σ² V₀)`. Leapfrog reads a weighted, offset-aware cross-product
+//! summary, so it does not rescan the design.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -24,25 +25,42 @@ pub(crate) trait PosteriorTarget {
     fn logp_and_grad(&mut self, q: &[f64], grad: &mut [f64]) -> Result<f64, ProbError>;
 }
 
-/// Shared weighted residual / prior quadratic pieces for Gaussian linear models.
+/// Weighted, offset-aware cross-products for a Gaussian linear model.
+///
+/// The summary stores `n_eff`, `X' W X`, `X' W ỹ`, and `ỹ' W ỹ`, where
+/// `ỹ = y − offset` and a missing offset is zero. Known-σ² and joint
+/// `(β, log σ²)` targets both hold this summary, so a later HMC step evaluates
+/// the residual quadratic and `X' W r` without rescanning rows.
 #[derive(Clone, Debug)]
 pub(crate) struct GaussianSufficientStats {
     /// Effective sample size `Σ w_i`.
     pub n_eff: f64,
     /// Number of coefficients `p`.
     pub p: usize,
+    /// `X' W X`, entry `(c1, c2)` at `c1 * p + c2` (`p²`).
+    pub xtwx: Vec<f64>,
+    /// `X' W (y − offset)` (`p`).
+    pub xtwy: Vec<f64>,
+    /// `(y − offset)' W (y − offset)`.
+    pub ytwy: f64,
 }
 
 impl GaussianSufficientStats {
-    /// Compute `n_eff` and validate design / coefficient lengths.
+    /// Cross-products of a weighted, offset-adjusted design.
+    ///
+    /// A non-finite weight, offset, or design row is refused. The next attempt
+    /// is to drop that row from the summary and rebuild; the weight is not skipped.
     ///
     /// # Errors
     ///
-    /// Empty design or coefficient length mismatch.
+    /// Empty design, a length mismatch, a non-finite weight, offset, or row, a
+    /// negative weight, a non-finite cross-product, or a non-positive effective
+    /// sample size.
     #[allow(
         clippy::neg_cmp_op_on_partial_ord,
         reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
     )]
+    #[must_use = "a non-finite weight, offset, or row is refused"]
     pub fn from_design(design: BayesDesignRef<'_>, ncols: usize) -> Result<Self, ProbError> {
         if design.ncols != ncols {
             return Err(ProbError::Shape {
@@ -52,22 +70,170 @@ impl GaussianSufficientStats {
         if ncols == 0 || design.nrows == 0 {
             return Err(ProbError::Shape { message: "empty design" });
         }
-        let mut n_eff = 0.0;
-        for r in 0..design.nrows {
-            n_eff += design.weights.map_or(1.0, |w| w[r]);
+        screened_design_lengths(design)?;
+        let Some(gram) = ncols.checked_mul(ncols) else {
+            return Err(ProbError::Shape { message: "coefficient dimension overflow" });
+        };
+        let mut stats =
+            Self { n_eff: 0.0, p: ncols, xtwx: vec![0.0; gram], xtwy: vec![0.0; ncols], ytwy: 0.0 };
+        for row in 0..design.nrows {
+            accumulate_summary_row(design, row, &mut stats)?;
         }
-        if !(n_eff > 0.0) || !n_eff.is_finite() {
+        if !(stats.n_eff > 0.0) || !stats.n_eff.is_finite() {
             return Err(ProbError::Numerical {
                 message: "non-positive or non-finite effective sample size".into(),
             });
         }
-        Ok(Self { n_eff, p: ncols })
+        Ok(stats)
     }
+
+    /// Residual sum of squares and score `X' W r` from the stored cross-products.
+    ///
+    /// `ỹ = y − offset`, `RSS = ỹ' W ỹ − 2 β' X' W ỹ + β' X' W X β`, and
+    /// `X' W r = X' W ỹ − X' W X β`. No row is revisited.
+    ///
+    /// # Errors
+    ///
+    /// `beta` / `xtwr` length mismatch, or a non-finite residual sum of squares.
+    #[must_use = "a non-finite residual sum of squares is refused"]
+    pub(crate) fn rss_and_score(&self, beta: &[f64], xtwr: &mut [f64]) -> Result<f64, ProbError> {
+        let p = self.p;
+        if beta.len() != p || xtwr.len() != p {
+            return Err(ProbError::Shape { message: "sufficient-stat score length != p" });
+        }
+        for (i, score) in xtwr.iter_mut().enumerate() {
+            let mut acc = self.xtwy[i];
+            for (&gram, &coef) in self.xtwx[i * p..(i + 1) * p].iter().zip(beta) {
+                acc -= gram * coef;
+            }
+            *score = acc;
+        }
+        let mut rss = self.ytwy;
+        for ((&coef, &cross), &score) in beta.iter().zip(&self.xtwy).zip(xtwr.iter()) {
+            rss -= coef * (cross + score);
+        }
+        if !rss.is_finite() || xtwr.iter().any(|score| !score.is_finite()) {
+            return Err(ProbError::Numerical {
+                message: "non-finite residual sum of squares from cross-products".into(),
+            });
+        }
+        Ok(rss)
+    }
+}
+
+/// Lengths required before a row can be accumulated. A long `X` buffer is kept;
+/// only the `nrows * ncols` prefix is read.
+#[must_use = "a short design buffer is refused"]
+fn screened_design_lengths(design: BayesDesignRef<'_>) -> Result<(), ProbError> {
+    if design.y.len() != design.nrows {
+        return Err(ProbError::Shape { message: "y length != nrows" });
+    }
+    if design.x_colmajor.len() < design.nrows.saturating_mul(design.ncols) {
+        return Err(ProbError::Shape { message: "X buffer too short" });
+    }
+    if let Some(weights) = design.weights {
+        if weights.len() != design.nrows {
+            return Err(ProbError::Shape { message: "weights length != nrows" });
+        }
+    }
+    if let Some(offsets) = design.offsets {
+        if offsets.len() != design.nrows {
+            return Err(ProbError::Shape { message: "offsets length != nrows" });
+        }
+    }
+    Ok(())
+}
+
+fn non_finite_summary_input(what: &str, row: usize) -> ProbError {
+    ProbError::Numerical {
+        message: format!(
+            "non-finite {what} at row {row}; next attempt: drop that row from the summary and \
+             rebuild"
+        ),
+    }
+}
+
+fn negative_weight(row: usize) -> ProbError {
+    ProbError::Numerical {
+        message: format!(
+            "negative weight at row {row}; next attempt: drop that row from the summary and \
+             rebuild"
+        ),
+    }
+}
+
+#[must_use = "a non-finite cross-product is refused"]
+fn add_finite(acc: &mut f64, term: f64, row: usize) -> Result<(), ProbError> {
+    let sum = *acc + term;
+    if !sum.is_finite() {
+        return Err(non_finite_summary_input("weighted cross-product", row));
+    }
+    *acc = sum;
+    Ok(())
+}
+
+/// One design row. A zero weight still screens the row; it does not drop a
+/// non-finite entry, and it contributes nothing to the products.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+#[must_use = "a non-finite weight, offset, or row is refused"]
+fn accumulate_summary_row(
+    design: BayesDesignRef<'_>,
+    row: usize,
+    stats: &mut GaussianSufficientStats,
+) -> Result<(), ProbError> {
+    let weight = design.weights.map_or(1.0, |weights| weights[row]);
+    if !weight.is_finite() {
+        return Err(non_finite_summary_input("weight", row));
+    }
+    if weight < 0.0 {
+        return Err(negative_weight(row));
+    }
+    let offset = design.offsets.map_or(0.0, |offsets| offsets[row]);
+    if !offset.is_finite() {
+        return Err(non_finite_summary_input("offset", row));
+    }
+    let y = design.y[row];
+    if !y.is_finite() {
+        return Err(non_finite_summary_input("design row", row));
+    }
+    let adjusted = y - offset;
+    if !adjusted.is_finite() {
+        return Err(non_finite_summary_input("design row", row));
+    }
+    let nrows = design.nrows;
+    let p = stats.p;
+    for c1 in 0..p {
+        let x1 = design.x_colmajor[c1 * nrows + row];
+        if !x1.is_finite() {
+            return Err(non_finite_summary_input("design row", row));
+        }
+        add_finite(&mut stats.xtwy[c1], weight * x1 * adjusted, row)?;
+        for c2 in c1..p {
+            let x2 = design.x_colmajor[c2 * nrows + row];
+            if c1 != c2 && !x2.is_finite() {
+                return Err(non_finite_summary_input("design row", row));
+            }
+            let prod = weight * x1 * x2;
+            add_finite(&mut stats.xtwx[c1 * p + c2], prod, row)?;
+            if c1 != c2 {
+                add_finite(&mut stats.xtwx[c2 * p + c1], prod, row)?;
+            }
+        }
+    }
+    add_finite(&mut stats.ytwy, weight * adjusted * adjusted, row)?;
+    stats.n_eff += weight;
+    Ok(())
 }
 
 /// Weighted residual sum of squares and score `X' W r` at `beta`.
 ///
 /// `r_i = y_i - offset_i - x_i' β`, `RSS_w = Σ w_i r_i²`.
+/// The library targets call `GaussianSufficientStats::rss_and_score`. The Laplace
+/// tests still compare this row scan with that summary.
+#[cfg_attr(not(test), allow(dead_code))]
 #[allow(
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
@@ -208,7 +374,7 @@ impl<'a> GaussianKnownTarget<'a> {
 
 impl PosteriorTarget for GaussianKnownTarget<'_> {
     fn dim(&self) -> usize {
-        self.stats.p
+        self.design.ncols
     }
 
     #[allow(
@@ -220,7 +386,7 @@ impl PosteriorTarget for GaussianKnownTarget<'_> {
         if q.len() != p || grad.len() != p {
             return Err(ProbError::Shape { message: "known target state/grad length != p" });
         }
-        let rss = rss_and_xtwr(self.design, q, &mut self.xtwr)?;
+        let rss = self.stats.rss_and_score(q, &mut self.xtwr)?;
         let quad = prior_quadratic(&self.coef_prior, &self.prec, q, &mut self.p_diff)?;
         let inv_s2 = 1.0 / self.sigma2;
         let logp = -0.5 * inv_s2 * (rss + quad);
@@ -314,7 +480,7 @@ impl<'a> GaussianInvGammaTarget<'a> {
 
 impl PosteriorTarget for GaussianInvGammaTarget<'_> {
     fn dim(&self) -> usize {
-        self.stats.p + 1
+        self.design.ncols + 1
     }
 
     #[allow(
@@ -331,7 +497,7 @@ impl PosteriorTarget for GaussianInvGammaTarget<'_> {
         if !lambda.is_finite() {
             return Err(ProbError::Numerical { message: "non-finite log_sigma2".into() });
         }
-        let rss = rss_and_xtwr(self.design, beta, &mut self.xtwr)?;
+        let rss = self.stats.rss_and_score(beta, &mut self.xtwr)?;
         let quad = prior_quadratic(&self.coef_prior, &self.prec, beta, &mut self.p_diff)?;
         let b_beta = self.scale + 0.5 * (rss + quad);
         let exp_neg_l = (-lambda).exp();
@@ -570,5 +736,176 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn weighted_summary_matches_explicit_cross_product() {
+        let (x, y) = tiny_design();
+        let weights = [0.5, 1.5, 0.0, 2.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: None,
+        };
+        let stats = GaussianSufficientStats::from_design(design, 2).unwrap();
+        let mut xtwx = [0.0; 4];
+        let mut xtwy = [0.0; 2];
+        let mut ytwy = 0.0;
+        let mut n_eff = 0.0;
+        for r in 0..4 {
+            let w = weights[r];
+            n_eff += w;
+            ytwy += w * y[r] * y[r];
+            for c1 in 0..2 {
+                let x1 = x[c1 * 4 + r];
+                xtwy[c1] += w * x1 * y[r];
+                for c2 in 0..2 {
+                    xtwx[c1 * 2 + c2] += w * x1 * x[c2 * 4 + r];
+                }
+            }
+        }
+        assert!((stats.n_eff - n_eff).abs() < 1e-12);
+        assert!((stats.ytwy - ytwy).abs() < 1e-12);
+        for (got, expected) in stats.xtwx.iter().zip(&xtwx) {
+            assert!((got - expected).abs() < 1e-12);
+        }
+        for (got, expected) in stats.xtwy.iter().zip(&xtwy) {
+            assert!((got - expected).abs() < 1e-12);
+        }
+
+        let beta = [0.25, -0.5];
+        let mut score = [0.0; 2];
+        let rss = stats.rss_and_score(&beta, &mut score).unwrap();
+        let mut explicit_rss = 0.0;
+        let mut explicit_score = [0.0; 2];
+        for r in 0..4 {
+            let pred = x[r] * beta[0] + x[4 + r] * beta[1];
+            let resid = y[r] - pred;
+            explicit_rss += weights[r] * resid * resid;
+            explicit_score[0] += weights[r] * x[r] * resid;
+            explicit_score[1] += weights[r] * x[4 + r] * resid;
+        }
+        assert!((rss - explicit_rss).abs() < 1e-12);
+        assert!((score[0] - explicit_score[0]).abs() < 1e-12);
+        assert!((score[1] - explicit_score[1]).abs() < 1e-12);
+    }
+
+    #[test]
+    fn offset_shifts_cross_product_like_centering() {
+        let (x, y) = tiny_design();
+        let weights = [1.0, 2.0, 1.0, 3.0];
+        let mass: f64 = weights.iter().sum();
+        let mean = y.iter().zip(&weights).map(|(yi, wi)| wi * yi).sum::<f64>() / mass;
+        let offsets = [mean, mean, mean, mean];
+        let raw = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: None,
+        };
+        let centered = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: Some(&offsets),
+        };
+        let raw_stats = GaussianSufficientStats::from_design(raw, 2).unwrap();
+        let centered_stats = GaussianSufficientStats::from_design(centered, 2).unwrap();
+        for (got, expected) in centered_stats.xtwx.iter().zip(&raw_stats.xtwx) {
+            assert!((got - expected).abs() < 1e-12);
+        }
+        for c in 0..2 {
+            let column_mass: f64 = (0..4).map(|r| weights[r] * x[c * 4 + r]).sum();
+            let shifted = raw_stats.xtwy[c] - mean * column_mass;
+            assert!((centered_stats.xtwy[c] - shifted).abs() < 1e-12);
+            let mut explicit = 0.0;
+            for r in 0..4 {
+                explicit += weights[r] * x[c * 4 + r] * (y[r] - mean);
+            }
+            assert!((centered_stats.xtwy[c] - explicit).abs() < 1e-12);
+        }
+        // Column 0 is an intercept, so centering removes its cross-product.
+        assert!(centered_stats.xtwy[0].abs() < 1e-12);
+    }
+
+    #[test]
+    fn non_finite_weight_is_refused() {
+        let (x, y) = tiny_design();
+        let mut weights = [1.0, 1.0, 1.0, 1.0];
+        weights[1] = f64::NAN;
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: None,
+        };
+        let err = GaussianSufficientStats::from_design(design, 2).unwrap_err();
+        let ProbError::Numerical { message } = err else {
+            panic!("expected a numerical refusal");
+        };
+        assert!(message.contains("non-finite weight at row 1"), "{message}");
+        assert!(
+            message.contains("next attempt: drop that row from the summary and rebuild"),
+            "{message}"
+        );
+
+        weights[1] = f64::INFINITY;
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: None,
+        };
+        let err = GaussianSufficientStats::from_design(design, 2).unwrap_err();
+        let ProbError::Numerical { message } = err else {
+            panic!("expected a numerical refusal");
+        };
+        assert!(message.contains("non-finite weight at row 1"), "{message}");
+
+        let weights = [1.0, 0.0, 1.0, 1.0];
+        let mut offsets = [0.0, 0.0, 0.0, 0.0];
+        offsets[2] = f64::NAN;
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: Some(&offsets),
+        };
+        let err = GaussianSufficientStats::from_design(design, 2).unwrap_err();
+        let ProbError::Numerical { message } = err else {
+            panic!("expected a numerical refusal");
+        };
+        assert!(message.contains("non-finite offset at row 2"), "{message}");
+        assert!(message.contains("drop that row from the summary and rebuild"), "{message}");
+
+        let mut x_bad = x.clone();
+        x_bad[4 + 1] = f64::NAN;
+        let design = BayesDesignRef {
+            x_colmajor: &x_bad,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: None,
+        };
+        let err = GaussianSufficientStats::from_design(design, 2).unwrap_err();
+        let ProbError::Numerical { message } = err else {
+            panic!("expected a numerical refusal");
+        };
+        assert!(message.contains("non-finite design row at row 1"), "{message}");
+        assert!(message.contains("drop that row from the summary and rebuild"), "{message}");
     }
 }
