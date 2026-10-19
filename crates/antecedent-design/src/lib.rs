@@ -15,6 +15,7 @@ pub mod decision_adapters;
 pub mod decision_artifact;
 pub mod decision_contract;
 pub mod decision_eval;
+pub mod decision_evaluation;
 pub mod decision_refusal;
 pub mod decision_reliability;
 pub mod decision_robust_artifact;
