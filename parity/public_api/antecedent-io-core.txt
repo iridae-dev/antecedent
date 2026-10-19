@@ -568,6 +568,8 @@ impl core::clone::Clone for antecedent_io_core::plan_wire::KernelSelectionWire
 impl core::clone::Clone for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl core::clone::Clone for antecedent_io_core::provider_envelope::ProviderEnvelope
 impl core::clone::Clone for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
+impl core::clone::Clone for antecedent_io_core::provider_replay::ProviderReplay
+impl core::clone::Clone for antecedent_io_core::provider_replay::ReplayFreshness
 impl core::clone::Clone for antecedent_io_core::provider_verification_artifact::ExecutionRequestWire
 impl core::clone::Clone for antecedent_io_core::provider_verification_artifact::ExecutionVerificationWire
 impl core::clone::Clone for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire
@@ -1004,6 +1006,8 @@ impl core::cmp::Eq for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::cmp::Eq for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::cmp::Eq for antecedent_io_core::plan_wire::KernelSelectionWire
 impl core::cmp::Eq for antecedent_io_core::provider_envelope::ExternalProviderTrust
+impl core::cmp::Eq for antecedent_io_core::provider_replay::ProviderReplay
+impl core::cmp::Eq for antecedent_io_core::provider_replay::ReplayFreshness
 impl core::cmp::Eq for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire
 impl core::cmp::Eq for antecedent_io_core::quantity_wire::DistributionMeaningWire
 impl core::cmp::Eq for antecedent_io_core::quantity_wire::QuantityConditionWire
@@ -1543,6 +1547,8 @@ impl core::cmp::PartialEq for antecedent_io_core::plan_wire::KernelSelectionWire
 impl core::cmp::PartialEq for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl core::cmp::PartialEq for antecedent_io_core::provider_envelope::ProviderEnvelope
 impl core::cmp::PartialEq for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
+impl core::cmp::PartialEq for antecedent_io_core::provider_replay::ProviderReplay
+impl core::cmp::PartialEq for antecedent_io_core::provider_replay::ReplayFreshness
 impl core::cmp::PartialEq for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire
 impl core::cmp::PartialEq for antecedent_io_core::provider_verification_artifact::ProviderVerificationReceiptWire
 impl core::cmp::PartialEq for antecedent_io_core::provider_verification_artifact::VerifiedRequestWire
@@ -2306,6 +2312,8 @@ impl core::fmt::Debug for antecedent_io_core::plan_wire::KernelSelectionWire
 impl core::fmt::Debug for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl core::fmt::Debug for antecedent_io_core::provider_envelope::ProviderEnvelope
 impl core::fmt::Debug for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
+impl core::fmt::Debug for antecedent_io_core::provider_replay::ProviderReplay
+impl core::fmt::Debug for antecedent_io_core::provider_replay::ReplayFreshness
 impl core::fmt::Debug for antecedent_io_core::provider_verification_artifact::ExecutionRequestWire
 impl core::fmt::Debug for antecedent_io_core::provider_verification_artifact::ExecutionVerificationWire
 impl core::fmt::Debug for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire
@@ -2565,6 +2573,8 @@ impl core::marker::Copy for antecedent_io_core::plan_wire::BufferMaterialization
 impl core::marker::Copy for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::marker::Copy for antecedent_io_core::plan_wire::KernelSelectionWire
 impl core::marker::Copy for antecedent_io_core::provider_envelope::ExternalProviderTrust
+impl core::marker::Copy for antecedent_io_core::provider_replay::ProviderReplay
+impl core::marker::Copy for antecedent_io_core::provider_replay::ReplayFreshness
 impl core::marker::Copy for antecedent_io_core::quantity_wire::DistributionMeaningWire
 impl core::marker::Copy for antecedent_io_core::query_wire::ArithOpWire
 impl core::marker::Copy for antecedent_io_core::query_wire::AttributionComponentsWire
@@ -3075,6 +3085,8 @@ impl core::marker::Freeze for antecedent_io_core::plan_wire::KernelSelectionWire
 impl core::marker::Freeze for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::marker::Freeze for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
 impl core::marker::Freeze for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader [auto]
+impl core::marker::Freeze for antecedent_io_core::provider_replay::ProviderReplay [auto]
+impl core::marker::Freeze for antecedent_io_core::provider_replay::ReplayFreshness [auto]
 impl core::marker::Freeze for antecedent_io_core::provider_verification_artifact::ExecutionRequestWire [auto]
 impl core::marker::Freeze for antecedent_io_core::provider_verification_artifact::ExecutionVerificationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire [auto]
@@ -3729,6 +3741,8 @@ impl core::marker::Send for antecedent_io_core::plan_wire::KernelSelectionWire [
 impl core::marker::Send for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::marker::Send for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
 impl core::marker::Send for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader [auto]
+impl core::marker::Send for antecedent_io_core::provider_replay::ProviderReplay [auto]
+impl core::marker::Send for antecedent_io_core::provider_replay::ReplayFreshness [auto]
 impl core::marker::Send for antecedent_io_core::provider_verification_artifact::ExecutionRequestWire [auto]
 impl core::marker::Send for antecedent_io_core::provider_verification_artifact::ExecutionVerificationWire [auto]
 impl core::marker::Send for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire [auto]
@@ -4354,6 +4368,8 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::plan_wire::Kernel
 impl core::marker::StructuralPartialEq for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl core::marker::StructuralPartialEq for antecedent_io_core::provider_envelope::ProviderEnvelope
 impl core::marker::StructuralPartialEq for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
+impl core::marker::StructuralPartialEq for antecedent_io_core::provider_replay::ProviderReplay
+impl core::marker::StructuralPartialEq for antecedent_io_core::provider_replay::ReplayFreshness
 impl core::marker::StructuralPartialEq for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::provider_verification_artifact::ProviderVerificationReceiptWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::provider_verification_artifact::VerifiedRequestWire
@@ -4997,6 +5013,8 @@ impl core::marker::Sync for antecedent_io_core::plan_wire::KernelSelectionWire [
 impl core::marker::Sync for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::marker::Sync for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
 impl core::marker::Sync for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader [auto]
+impl core::marker::Sync for antecedent_io_core::provider_replay::ProviderReplay [auto]
+impl core::marker::Sync for antecedent_io_core::provider_replay::ReplayFreshness [auto]
 impl core::marker::Sync for antecedent_io_core::provider_verification_artifact::ExecutionRequestWire [auto]
 impl core::marker::Sync for antecedent_io_core::provider_verification_artifact::ExecutionVerificationWire [auto]
 impl core::marker::Sync for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire [auto]
@@ -5651,6 +5669,8 @@ impl core::marker::Unpin for antecedent_io_core::plan_wire::KernelSelectionWire 
 impl core::marker::Unpin for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::marker::Unpin for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
 impl core::marker::Unpin for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader [auto]
+impl core::marker::Unpin for antecedent_io_core::provider_replay::ProviderReplay [auto]
+impl core::marker::Unpin for antecedent_io_core::provider_replay::ReplayFreshness [auto]
 impl core::marker::Unpin for antecedent_io_core::provider_verification_artifact::ExecutionRequestWire [auto]
 impl core::marker::Unpin for antecedent_io_core::provider_verification_artifact::ExecutionVerificationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire [auto]
@@ -6305,6 +6325,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::plan_wire::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::provider_replay::ProviderReplay [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::provider_replay::ReplayFreshness [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::provider_verification_artifact::ExecutionRequestWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::provider_verification_artifact::ExecutionVerificationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire [auto]
@@ -6959,6 +6981,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::plan_wire::Ker
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::provider_replay::ProviderReplay [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::provider_replay::ReplayFreshness [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::provider_verification_artifact::ExecutionRequestWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::provider_verification_artifact::ExecutionVerificationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire [auto]
@@ -8528,6 +8552,7 @@ pub enum antecedent_io_core::plan_wire::BufferMaterializationWire
 pub enum antecedent_io_core::plan_wire::DataClassificationWire
 pub enum antecedent_io_core::plan_wire::KernelSelectionWire
 pub enum antecedent_io_core::provider_envelope::ExternalProviderTrust
+pub enum antecedent_io_core::provider_replay::ReplayFreshness
 pub enum antecedent_io_core::quantity_wire::DistributionMeaningWire
 pub enum antecedent_io_core::query_wire::AllocationMethodWire
 pub enum antecedent_io_core::query_wire::ArithOpWire
@@ -10756,6 +10781,11 @@ pub field antecedent_io_core::provider_envelope::ProviderEnvelopeHeader::uncerta
 pub field antecedent_io_core::provider_envelope::ProviderEnvelopeHeader::uncertainty_shape: core::option::Option<alloc::vec::Vec<usize>>
 pub field antecedent_io_core::provider_envelope::ProviderEnvelopeHeader::verification_evidence_digest: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::provider_envelope::ProviderEnvelopeHeader::version: u16
+pub field antecedent_io_core::provider_replay::ProviderReplay::column_list: antecedent_core::identity::SemanticDigest
+pub field antecedent_io_core::provider_replay::ProviderReplay::function: antecedent_core::identity::SemanticDigest
+pub field antecedent_io_core::provider_replay::ProviderReplay::provider_version: core::option::Option<u64>
+pub field antecedent_io_core::provider_replay::ProviderReplay::seed: core::option::Option<u64>
+pub field antecedent_io_core::provider_replay::ProviderReplay::state: core::option::Option<antecedent_core::identity::SemanticDigest>
 pub field antecedent_io_core::provider_verification_artifact::ExecutionRequestWire::artifact_blake3: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::provider_verification_artifact::ExecutionRequestWire::deterministic: bool
 pub field antecedent_io_core::provider_verification_artifact::ExecutionRequestWire::identity: antecedent_io_core::provider_verification_artifact::ProviderIdentityWire
@@ -11817,6 +11847,7 @@ pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::f
 pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::fn result(&self) -> core::result::Result<core::option::Option<antecedent_io_core::measurement_model_wire::MeasurementResult>, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::provider_envelope::ProviderEnvelopeHeader>::fn artifact_id(&self) -> alloc::string::String
+pub fn <antecedent_io_core::provider_replay::ProviderReplay>::const fn fresh_against(&self, previous: &Self) -> antecedent_io_core::provider_replay::ReplayFreshness
 pub fn <antecedent_io_core::provider_verification_artifact::ProviderVerificationReceiptWire>::fn into_receipt(self) -> core::result::Result<antecedent_contract::provider_verification::ProviderVerificationReceipt, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::query_wire::CallbackRecordWire>::fn to_record(&self) -> antecedent_core::callback::RecoveryRecord
 pub fn <antecedent_io_core::query_wire::OutcomeFunctionalWire>::const fn is_mean(&self) -> bool
@@ -12290,6 +12321,7 @@ pub mod antecedent_io_core::posterior
 pub mod antecedent_io_core::prior_bank
 pub mod antecedent_io_core::provenance_wire
 pub mod antecedent_io_core::provider_envelope
+pub mod antecedent_io_core::provider_replay
 pub mod antecedent_io_core::provider_verification_artifact
 pub mod antecedent_io_core::quantity_wire
 pub mod antecedent_io_core::query_wire
@@ -12735,6 +12767,7 @@ pub struct antecedent_io_core::mechanism_composition_artifact::UncertaintyWire
 pub struct antecedent_io_core::mechanism_wire::ParentBasisWire
 pub struct antecedent_io_core::provider_envelope::ProviderEnvelope
 pub struct antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
+pub struct antecedent_io_core::provider_replay::ProviderReplay
 pub struct antecedent_io_core::provider_verification_artifact::ExecutionRequestWire
 pub struct antecedent_io_core::provider_verification_artifact::ExecutionVerificationWire
 pub struct antecedent_io_core::provider_verification_artifact::ProviderIdentityWire
@@ -14174,6 +14207,9 @@ pub variant antecedent_io_core::plan_wire::KernelSelectionWire::PortableOptimize
 pub variant antecedent_io_core::plan_wire::KernelSelectionWire::Scalar
 pub variant antecedent_io_core::provider_envelope::ExternalProviderTrust::ExternallyAttested
 pub variant antecedent_io_core::provider_envelope::ExternalProviderTrust::VerifiedExtension
+pub variant antecedent_io_core::provider_replay::ReplayFreshness::Fresh
+pub variant antecedent_io_core::provider_replay::ReplayFreshness::OpaqueInvalidation
+pub variant antecedent_io_core::provider_replay::ReplayFreshness::Stale
 pub variant antecedent_io_core::quantity_wire::DistributionMeaningWire::Bootstrap
 pub variant antecedent_io_core::quantity_wire::DistributionMeaningWire::CausalFunctionalPosterior
 pub variant antecedent_io_core::quantity_wire::DistributionMeaningWire::EmpiricalOutcome

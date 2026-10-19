@@ -84,6 +84,7 @@ pub mod posterior;
 pub mod prior_bank;
 pub mod provenance_wire;
 pub mod provider_envelope;
+pub mod provider_replay;
 pub mod provider_verification_artifact;
 pub mod quantity_wire;
 pub mod query_wire;
