@@ -30,3 +30,4 @@ compatibility analysis where applicable. See [docs/architecture.md](../docs/arch
 | [0023](0023-learner-substrate.md) | Learner substrate (faer + owned interface; Forust/SmartCore later) |
 | [0024](0024-transport-architecture.md) | Transport architecture: theorem families, typed outcomes, catalogs |
 | [0025](0025-provider-protocol.md) | Provider protocol and adjustment handoff |
+| [0026](0026-internal-contract-versions.md) | Internal contract versions (identity, uncertainty, cyclic solutions, retention, threads, data backends, artifact migration) |
