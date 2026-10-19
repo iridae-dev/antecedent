@@ -36,6 +36,7 @@
 #[non_exhaustive] pub enum antecedent_core::PopulationSelector
 #[non_exhaustive] pub enum antecedent_core::Portability
 #[non_exhaustive] pub enum antecedent_core::PredicateExpr
+#[non_exhaustive] pub enum antecedent_core::ProviderDeclarationError
 #[non_exhaustive] pub enum antecedent_core::QueryError
 #[non_exhaustive] pub enum antecedent_core::SchemaError
 #[non_exhaustive] pub enum antecedent_core::ScientificTargetError
@@ -96,6 +97,8 @@ impl core::clone::Clone for antecedent_core::CallbackRefusal
 impl core::clone::Clone for antecedent_core::CallbackSpec
 impl core::clone::Clone for antecedent_core::CancellationToken
 impl core::clone::Clone for antecedent_core::CanonicalWriter
+impl core::clone::Clone for antecedent_core::CapabilityRequest
+impl core::clone::Clone for antecedent_core::CapabilitySet
 impl core::clone::Clone for antecedent_core::CatalogDistribution
 impl core::clone::Clone for antecedent_core::CategoryDomainId
 impl core::clone::Clone for antecedent_core::CausalQuery
@@ -105,6 +108,7 @@ impl core::clone::Clone for antecedent_core::CausalRng
 impl core::clone::Clone for antecedent_core::CausalSchema
 impl core::clone::Clone for antecedent_core::ChangeAttributionQuery
 impl core::clone::Clone for antecedent_core::CompareOp
+impl core::clone::Clone for antecedent_core::CompiledCapabilityRequest
 impl core::clone::Clone for antecedent_core::ComponentId
 impl core::clone::Clone for antecedent_core::ConditionalEffectQuery
 impl core::clone::Clone for antecedent_core::Conditioning
@@ -152,6 +156,7 @@ impl core::clone::Clone for antecedent_core::ExposurePropensityProvenance
 impl core::clone::Clone for antecedent_core::ExprNumber
 impl core::clone::Clone for antecedent_core::ExprType
 impl core::clone::Clone for antecedent_core::ExpressionFault
+impl core::clone::Clone for antecedent_core::FailedCapabilityAttempt
 impl core::clone::Clone for antecedent_core::FixedCandidateRegretInputs
 impl core::clone::Clone for antecedent_core::FixedGroupDosePolicy
 impl core::clone::Clone for antecedent_core::Fnv1a64
@@ -228,6 +233,10 @@ impl core::clone::Clone for antecedent_core::PopulationSelector
 impl core::clone::Clone for antecedent_core::Portability
 impl core::clone::Clone for antecedent_core::PredicateExpr
 impl core::clone::Clone for antecedent_core::PriorAssumption
+impl core::clone::Clone for antecedent_core::ProviderCapability
+impl core::clone::Clone for antecedent_core::ProviderDeclaration
+impl core::clone::Clone for antecedent_core::ProviderDeclarationError
+impl core::clone::Clone for antecedent_core::ProviderId
 impl core::clone::Clone for antecedent_core::QuantityUnits
 impl core::clone::Clone for antecedent_core::QueryError
 impl core::clone::Clone for antecedent_core::QueryId
@@ -386,11 +395,14 @@ impl core::cmp::Eq for antecedent_core::CachePolicy
 impl core::cmp::Eq for antecedent_core::CallbackCall
 impl core::cmp::Eq for antecedent_core::CallbackImplementation
 impl core::cmp::Eq for antecedent_core::CallbackRefusal
+impl core::cmp::Eq for antecedent_core::CapabilityRequest
+impl core::cmp::Eq for antecedent_core::CapabilitySet
 impl core::cmp::Eq for antecedent_core::CategoryDomainId
 impl core::cmp::Eq for antecedent_core::CausalQueryKind
 impl core::cmp::Eq for antecedent_core::CausalSchema
 impl core::cmp::Eq for antecedent_core::ChangeAttributionQuery
 impl core::cmp::Eq for antecedent_core::CompareOp
+impl core::cmp::Eq for antecedent_core::CompiledCapabilityRequest
 impl core::cmp::Eq for antecedent_core::ComponentId
 impl core::cmp::Eq for antecedent_core::ConditionalEffectQuery
 impl core::cmp::Eq for antecedent_core::Conditioning
@@ -427,6 +439,7 @@ impl core::cmp::Eq for antecedent_core::ExposurePropensityProvenance
 impl core::cmp::Eq for antecedent_core::ExprNumber
 impl core::cmp::Eq for antecedent_core::ExprType
 impl core::cmp::Eq for antecedent_core::ExpressionFault
+impl core::cmp::Eq for antecedent_core::FailedCapabilityAttempt
 impl core::cmp::Eq for antecedent_core::FrozenFitReuse
 impl core::cmp::Eq for antecedent_core::GraphFamily
 impl core::cmp::Eq for antecedent_core::HistoryWindow
@@ -482,6 +495,10 @@ impl core::cmp::Eq for antecedent_core::PolicyReads
 impl core::cmp::Eq for antecedent_core::PopulationSelector
 impl core::cmp::Eq for antecedent_core::PredicateExpr
 impl core::cmp::Eq for antecedent_core::PriorAssumption
+impl core::cmp::Eq for antecedent_core::ProviderCapability
+impl core::cmp::Eq for antecedent_core::ProviderDeclaration
+impl core::cmp::Eq for antecedent_core::ProviderDeclarationError
+impl core::cmp::Eq for antecedent_core::ProviderId
 impl core::cmp::Eq for antecedent_core::QuantityUnits
 impl core::cmp::Eq for antecedent_core::QueryError
 impl core::cmp::Eq for antecedent_core::QueryId
@@ -611,6 +628,8 @@ impl core::cmp::Ord for antecedent_core::Lag
 impl core::cmp::Ord for antecedent_core::ModelId
 impl core::cmp::Ord for antecedent_core::NodeRef
 impl core::cmp::Ord for antecedent_core::NonZeroThreadCount
+impl core::cmp::Ord for antecedent_core::ProviderCapability
+impl core::cmp::Ord for antecedent_core::ProviderId
 impl core::cmp::Ord for antecedent_core::QueryId
 impl core::cmp::Ord for antecedent_core::RegimeId
 impl core::cmp::Ord for antecedent_core::ScientificWorldId
@@ -650,6 +669,8 @@ impl core::cmp::PartialEq for antecedent_core::CallbackImplementation
 impl core::cmp::PartialEq for antecedent_core::CallbackOutput
 impl core::cmp::PartialEq for antecedent_core::CallbackRefusal
 impl core::cmp::PartialEq for antecedent_core::CallbackSpec
+impl core::cmp::PartialEq for antecedent_core::CapabilityRequest
+impl core::cmp::PartialEq for antecedent_core::CapabilitySet
 impl core::cmp::PartialEq for antecedent_core::CatalogDistribution
 impl core::cmp::PartialEq for antecedent_core::CategoryDomainId
 impl core::cmp::PartialEq for antecedent_core::CausalQuery
@@ -658,6 +679,7 @@ impl core::cmp::PartialEq for antecedent_core::CausalResponse
 impl core::cmp::PartialEq for antecedent_core::CausalSchema
 impl core::cmp::PartialEq for antecedent_core::ChangeAttributionQuery
 impl core::cmp::PartialEq for antecedent_core::CompareOp
+impl core::cmp::PartialEq for antecedent_core::CompiledCapabilityRequest
 impl core::cmp::PartialEq for antecedent_core::ComponentId
 impl core::cmp::PartialEq for antecedent_core::ConditionalEffectQuery
 impl core::cmp::PartialEq for antecedent_core::Conditioning
@@ -704,6 +726,7 @@ impl core::cmp::PartialEq for antecedent_core::ExposurePropensityProvenance
 impl core::cmp::PartialEq for antecedent_core::ExprNumber
 impl core::cmp::PartialEq for antecedent_core::ExprType
 impl core::cmp::PartialEq for antecedent_core::ExpressionFault
+impl core::cmp::PartialEq for antecedent_core::FailedCapabilityAttempt
 impl core::cmp::PartialEq for antecedent_core::FixedCandidateRegretInputs
 impl core::cmp::PartialEq for antecedent_core::FixedGroupDosePolicy
 impl core::cmp::PartialEq for antecedent_core::FrozenFitReuse
@@ -778,6 +801,10 @@ impl core::cmp::PartialEq for antecedent_core::PopulationSelector
 impl core::cmp::PartialEq for antecedent_core::Portability
 impl core::cmp::PartialEq for antecedent_core::PredicateExpr
 impl core::cmp::PartialEq for antecedent_core::PriorAssumption
+impl core::cmp::PartialEq for antecedent_core::ProviderCapability
+impl core::cmp::PartialEq for antecedent_core::ProviderDeclaration
+impl core::cmp::PartialEq for antecedent_core::ProviderDeclarationError
+impl core::cmp::PartialEq for antecedent_core::ProviderId
 impl core::cmp::PartialEq for antecedent_core::QuantityUnits
 impl core::cmp::PartialEq for antecedent_core::QueryError
 impl core::cmp::PartialEq for antecedent_core::QueryId
@@ -930,6 +957,8 @@ impl core::cmp::PartialOrd for antecedent_core::Lag
 impl core::cmp::PartialOrd for antecedent_core::ModelId
 impl core::cmp::PartialOrd for antecedent_core::NodeRef
 impl core::cmp::PartialOrd for antecedent_core::NonZeroThreadCount
+impl core::cmp::PartialOrd for antecedent_core::ProviderCapability
+impl core::cmp::PartialOrd for antecedent_core::ProviderId
 impl core::cmp::PartialOrd for antecedent_core::QueryId
 impl core::cmp::PartialOrd for antecedent_core::RegimeId
 impl core::cmp::PartialOrd for antecedent_core::ScientificWorldId
@@ -972,6 +1001,7 @@ impl core::default::Default for antecedent_core::AdaptiveDrawBudget
 impl core::default::Default for antecedent_core::AnomalyReference
 impl core::default::Default for antecedent_core::AssumptionSet
 impl core::default::Default for antecedent_core::CancellationToken
+impl core::default::Default for antecedent_core::CapabilitySet
 impl core::default::Default for antecedent_core::CausalSchemaBuilder
 impl core::default::Default for antecedent_core::DiagnosticSet
 impl core::default::Default for antecedent_core::DidSamplingDesign
@@ -993,8 +1023,10 @@ impl core::default::Default for antecedent_core::recalc::ResumeContext
 impl core::default::Default for antecedent_core::recalc::StageIdentities
 impl core::error::Error for antecedent_core::CallbackError
 impl core::error::Error for antecedent_core::ExpressionFault
+impl core::error::Error for antecedent_core::FailedCapabilityAttempt
 impl core::error::Error for antecedent_core::InterventionError
 impl core::error::Error for antecedent_core::OperatorError
+impl core::error::Error for antecedent_core::ProviderDeclarationError
 impl core::error::Error for antecedent_core::QueryError
 impl core::error::Error for antecedent_core::RecoveryMismatch
 impl core::error::Error for antecedent_core::SchemaError
@@ -1027,6 +1059,8 @@ impl core::fmt::Debug for antecedent_core::CallbackRefusal
 impl core::fmt::Debug for antecedent_core::CallbackSpec
 impl core::fmt::Debug for antecedent_core::CancellationToken
 impl core::fmt::Debug for antecedent_core::CanonicalWriter
+impl core::fmt::Debug for antecedent_core::CapabilityRequest
+impl core::fmt::Debug for antecedent_core::CapabilitySet
 impl core::fmt::Debug for antecedent_core::CatalogDistribution
 impl core::fmt::Debug for antecedent_core::CategoryDomainId
 impl core::fmt::Debug for antecedent_core::CausalQuery
@@ -1037,6 +1071,7 @@ impl core::fmt::Debug for antecedent_core::CausalSchema
 impl core::fmt::Debug for antecedent_core::CausalSchemaBuilder
 impl core::fmt::Debug for antecedent_core::ChangeAttributionQuery
 impl core::fmt::Debug for antecedent_core::CompareOp
+impl core::fmt::Debug for antecedent_core::CompiledCapabilityRequest
 impl core::fmt::Debug for antecedent_core::ComponentId
 impl core::fmt::Debug for antecedent_core::ConditionalEffectQuery
 impl core::fmt::Debug for antecedent_core::Conditioning
@@ -1084,6 +1119,7 @@ impl core::fmt::Debug for antecedent_core::ExposurePropensityProvenance
 impl core::fmt::Debug for antecedent_core::ExprNumber
 impl core::fmt::Debug for antecedent_core::ExprType
 impl core::fmt::Debug for antecedent_core::ExpressionFault
+impl core::fmt::Debug for antecedent_core::FailedCapabilityAttempt
 impl core::fmt::Debug for antecedent_core::FixedCandidateRegretInputs
 impl core::fmt::Debug for antecedent_core::FixedGroupDosePolicy
 impl core::fmt::Debug for antecedent_core::Fnv1a64
@@ -1160,6 +1196,10 @@ impl core::fmt::Debug for antecedent_core::PopulationSelector
 impl core::fmt::Debug for antecedent_core::Portability
 impl core::fmt::Debug for antecedent_core::PredicateExpr
 impl core::fmt::Debug for antecedent_core::PriorAssumption
+impl core::fmt::Debug for antecedent_core::ProviderCapability
+impl core::fmt::Debug for antecedent_core::ProviderDeclaration
+impl core::fmt::Debug for antecedent_core::ProviderDeclarationError
+impl core::fmt::Debug for antecedent_core::ProviderId
 impl core::fmt::Debug for antecedent_core::QuantityUnits
 impl core::fmt::Debug for antecedent_core::QueryError
 impl core::fmt::Debug for antecedent_core::QueryId
@@ -1310,6 +1350,7 @@ impl core::fmt::Display for antecedent_core::DynamicRuleId
 impl core::fmt::Display for antecedent_core::EnvironmentId
 impl core::fmt::Display for antecedent_core::ExprType
 impl core::fmt::Display for antecedent_core::ExpressionFault
+impl core::fmt::Display for antecedent_core::FailedCapabilityAttempt
 impl core::fmt::Display for antecedent_core::FrozenFitReuse
 impl core::fmt::Display for antecedent_core::IdentityDomain
 impl core::fmt::Display for antecedent_core::InterventionError
@@ -1319,6 +1360,9 @@ impl core::fmt::Display for antecedent_core::OperatorEffect
 impl core::fmt::Display for antecedent_core::OperatorError
 impl core::fmt::Display for antecedent_core::OperatorGraph
 impl core::fmt::Display for antecedent_core::OperatorRole
+impl core::fmt::Display for antecedent_core::ProviderCapability
+impl core::fmt::Display for antecedent_core::ProviderDeclarationError
+impl core::fmt::Display for antecedent_core::ProviderId
 impl core::fmt::Display for antecedent_core::QueryError
 impl core::fmt::Display for antecedent_core::QueryId
 impl core::fmt::Display for antecedent_core::RecoveryMismatch
@@ -1352,10 +1396,13 @@ impl core::hash::Hash for antecedent_core::AverageEffectQuery
 impl core::hash::Hash for antecedent_core::CacheBudget
 impl core::hash::Hash for antecedent_core::CachePolicy
 impl core::hash::Hash for antecedent_core::CallbackCall
+impl core::hash::Hash for antecedent_core::CapabilityRequest
+impl core::hash::Hash for antecedent_core::CapabilitySet
 impl core::hash::Hash for antecedent_core::CategoryDomainId
 impl core::hash::Hash for antecedent_core::CausalQueryKind
 impl core::hash::Hash for antecedent_core::ChangeAttributionQuery
 impl core::hash::Hash for antecedent_core::CompareOp
+impl core::hash::Hash for antecedent_core::CompiledCapabilityRequest
 impl core::hash::Hash for antecedent_core::ComponentId
 impl core::hash::Hash for antecedent_core::ConditionalEffectQuery
 impl core::hash::Hash for antecedent_core::Conditioning
@@ -1383,6 +1430,7 @@ impl core::hash::Hash for antecedent_core::ExecutionRequestState
 impl core::hash::Hash for antecedent_core::ExogenousCoupling
 impl core::hash::Hash for antecedent_core::ExprNumber
 impl core::hash::Hash for antecedent_core::ExprType
+impl core::hash::Hash for antecedent_core::FailedCapabilityAttempt
 impl core::hash::Hash for antecedent_core::FrozenFitReuse
 impl core::hash::Hash for antecedent_core::GraphFamily
 impl core::hash::Hash for antecedent_core::HistoryWindow
@@ -1431,6 +1479,9 @@ impl core::hash::Hash for antecedent_core::PolicyReads
 impl core::hash::Hash for antecedent_core::PopulationSelector
 impl core::hash::Hash for antecedent_core::PredicateExpr
 impl core::hash::Hash for antecedent_core::PriorAssumption
+impl core::hash::Hash for antecedent_core::ProviderCapability
+impl core::hash::Hash for antecedent_core::ProviderDeclaration
+impl core::hash::Hash for antecedent_core::ProviderId
 impl core::hash::Hash for antecedent_core::QuantityUnits
 impl core::hash::Hash for antecedent_core::QueryId
 impl core::hash::Hash for antecedent_core::RegimeId
@@ -1504,6 +1555,8 @@ impl core::marker::Copy for antecedent_core::AssumptionStatus
 impl core::marker::Copy for antecedent_core::AttributionComponents
 impl core::marker::Copy for antecedent_core::CacheBudget
 impl core::marker::Copy for antecedent_core::CachePolicy
+impl core::marker::Copy for antecedent_core::CapabilityRequest
+impl core::marker::Copy for antecedent_core::CapabilitySet
 impl core::marker::Copy for antecedent_core::CategoryDomainId
 impl core::marker::Copy for antecedent_core::CausalQueryKind
 impl core::marker::Copy for antecedent_core::CompareOp
@@ -1560,6 +1613,9 @@ impl core::marker::Copy for antecedent_core::OperatorGraph
 impl core::marker::Copy for antecedent_core::OperatorRole
 impl core::marker::Copy for antecedent_core::OrderedFloatBits
 impl core::marker::Copy for antecedent_core::Parallelism
+impl core::marker::Copy for antecedent_core::ProviderCapability
+impl core::marker::Copy for antecedent_core::ProviderDeclarationError
+impl core::marker::Copy for antecedent_core::ProviderId
 impl core::marker::Copy for antecedent_core::QueryId
 impl core::marker::Copy for antecedent_core::RandomizedEstimand
 impl core::marker::Copy for antecedent_core::RegimeId
@@ -1648,6 +1704,8 @@ impl core::marker::Freeze for antecedent_core::CallbackRefusal [auto]
 impl core::marker::Freeze for antecedent_core::CallbackSpec [auto]
 impl core::marker::Freeze for antecedent_core::CancellationToken [auto]
 impl core::marker::Freeze for antecedent_core::CanonicalWriter [auto]
+impl core::marker::Freeze for antecedent_core::CapabilityRequest [auto]
+impl core::marker::Freeze for antecedent_core::CapabilitySet [auto]
 impl core::marker::Freeze for antecedent_core::CatalogDistribution [auto]
 impl core::marker::Freeze for antecedent_core::CategoryDomainId [auto]
 impl core::marker::Freeze for antecedent_core::CausalQuery [auto]
@@ -1658,6 +1716,7 @@ impl core::marker::Freeze for antecedent_core::CausalSchema [auto]
 impl core::marker::Freeze for antecedent_core::CausalSchemaBuilder [auto]
 impl core::marker::Freeze for antecedent_core::ChangeAttributionQuery [auto]
 impl core::marker::Freeze for antecedent_core::CompareOp [auto]
+impl core::marker::Freeze for antecedent_core::CompiledCapabilityRequest [auto]
 impl core::marker::Freeze for antecedent_core::ComponentId [auto]
 impl core::marker::Freeze for antecedent_core::ConditionalEffectQuery [auto]
 impl core::marker::Freeze for antecedent_core::Conditioning [auto]
@@ -1705,6 +1764,7 @@ impl core::marker::Freeze for antecedent_core::ExposurePropensityProvenance [aut
 impl core::marker::Freeze for antecedent_core::ExprNumber [auto]
 impl core::marker::Freeze for antecedent_core::ExprType [auto]
 impl core::marker::Freeze for antecedent_core::ExpressionFault [auto]
+impl core::marker::Freeze for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Freeze for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Freeze for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Freeze for antecedent_core::Fnv1a64 [auto]
@@ -1781,6 +1841,10 @@ impl core::marker::Freeze for antecedent_core::PopulationSelector [auto]
 impl core::marker::Freeze for antecedent_core::Portability [auto]
 impl core::marker::Freeze for antecedent_core::PredicateExpr [auto]
 impl core::marker::Freeze for antecedent_core::PriorAssumption [auto]
+impl core::marker::Freeze for antecedent_core::ProviderCapability [auto]
+impl core::marker::Freeze for antecedent_core::ProviderDeclaration [auto]
+impl core::marker::Freeze for antecedent_core::ProviderDeclarationError [auto]
+impl core::marker::Freeze for antecedent_core::ProviderId [auto]
 impl core::marker::Freeze for antecedent_core::QuantityUnits [auto]
 impl core::marker::Freeze for antecedent_core::QueryError [auto]
 impl core::marker::Freeze for antecedent_core::QueryId [auto]
@@ -1948,6 +2012,8 @@ impl core::marker::Send for antecedent_core::CallbackRefusal [auto]
 impl core::marker::Send for antecedent_core::CallbackSpec [auto]
 impl core::marker::Send for antecedent_core::CancellationToken [auto]
 impl core::marker::Send for antecedent_core::CanonicalWriter [auto]
+impl core::marker::Send for antecedent_core::CapabilityRequest [auto]
+impl core::marker::Send for antecedent_core::CapabilitySet [auto]
 impl core::marker::Send for antecedent_core::CatalogDistribution [auto]
 impl core::marker::Send for antecedent_core::CategoryDomainId [auto]
 impl core::marker::Send for antecedent_core::CausalQuery [auto]
@@ -1958,6 +2024,7 @@ impl core::marker::Send for antecedent_core::CausalSchema [auto]
 impl core::marker::Send for antecedent_core::CausalSchemaBuilder [auto]
 impl core::marker::Send for antecedent_core::ChangeAttributionQuery [auto]
 impl core::marker::Send for antecedent_core::CompareOp [auto]
+impl core::marker::Send for antecedent_core::CompiledCapabilityRequest [auto]
 impl core::marker::Send for antecedent_core::ComponentId [auto]
 impl core::marker::Send for antecedent_core::ConditionalEffectQuery [auto]
 impl core::marker::Send for antecedent_core::Conditioning [auto]
@@ -2005,6 +2072,7 @@ impl core::marker::Send for antecedent_core::ExposurePropensityProvenance [auto]
 impl core::marker::Send for antecedent_core::ExprNumber [auto]
 impl core::marker::Send for antecedent_core::ExprType [auto]
 impl core::marker::Send for antecedent_core::ExpressionFault [auto]
+impl core::marker::Send for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Send for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Send for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Send for antecedent_core::Fnv1a64 [auto]
@@ -2081,6 +2149,10 @@ impl core::marker::Send for antecedent_core::PopulationSelector [auto]
 impl core::marker::Send for antecedent_core::Portability [auto]
 impl core::marker::Send for antecedent_core::PredicateExpr [auto]
 impl core::marker::Send for antecedent_core::PriorAssumption [auto]
+impl core::marker::Send for antecedent_core::ProviderCapability [auto]
+impl core::marker::Send for antecedent_core::ProviderDeclaration [auto]
+impl core::marker::Send for antecedent_core::ProviderDeclarationError [auto]
+impl core::marker::Send for antecedent_core::ProviderId [auto]
 impl core::marker::Send for antecedent_core::QuantityUnits [auto]
 impl core::marker::Send for antecedent_core::QueryError [auto]
 impl core::marker::Send for antecedent_core::QueryId [auto]
@@ -2245,6 +2317,8 @@ impl core::marker::StructuralPartialEq for antecedent_core::CallbackImplementati
 impl core::marker::StructuralPartialEq for antecedent_core::CallbackOutput
 impl core::marker::StructuralPartialEq for antecedent_core::CallbackRefusal
 impl core::marker::StructuralPartialEq for antecedent_core::CallbackSpec
+impl core::marker::StructuralPartialEq for antecedent_core::CapabilityRequest
+impl core::marker::StructuralPartialEq for antecedent_core::CapabilitySet
 impl core::marker::StructuralPartialEq for antecedent_core::CatalogDistribution
 impl core::marker::StructuralPartialEq for antecedent_core::CategoryDomainId
 impl core::marker::StructuralPartialEq for antecedent_core::CausalQuery
@@ -2253,6 +2327,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::CausalResponse
 impl core::marker::StructuralPartialEq for antecedent_core::CausalSchema
 impl core::marker::StructuralPartialEq for antecedent_core::ChangeAttributionQuery
 impl core::marker::StructuralPartialEq for antecedent_core::CompareOp
+impl core::marker::StructuralPartialEq for antecedent_core::CompiledCapabilityRequest
 impl core::marker::StructuralPartialEq for antecedent_core::ComponentId
 impl core::marker::StructuralPartialEq for antecedent_core::ConditionalEffectQuery
 impl core::marker::StructuralPartialEq for antecedent_core::Conditioning
@@ -2299,6 +2374,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::ExposurePropensityPr
 impl core::marker::StructuralPartialEq for antecedent_core::ExprNumber
 impl core::marker::StructuralPartialEq for antecedent_core::ExprType
 impl core::marker::StructuralPartialEq for antecedent_core::ExpressionFault
+impl core::marker::StructuralPartialEq for antecedent_core::FailedCapabilityAttempt
 impl core::marker::StructuralPartialEq for antecedent_core::FixedCandidateRegretInputs
 impl core::marker::StructuralPartialEq for antecedent_core::FixedGroupDosePolicy
 impl core::marker::StructuralPartialEq for antecedent_core::FrozenFitReuse
@@ -2372,6 +2448,10 @@ impl core::marker::StructuralPartialEq for antecedent_core::PopulationSelector
 impl core::marker::StructuralPartialEq for antecedent_core::Portability
 impl core::marker::StructuralPartialEq for antecedent_core::PredicateExpr
 impl core::marker::StructuralPartialEq for antecedent_core::PriorAssumption
+impl core::marker::StructuralPartialEq for antecedent_core::ProviderCapability
+impl core::marker::StructuralPartialEq for antecedent_core::ProviderDeclaration
+impl core::marker::StructuralPartialEq for antecedent_core::ProviderDeclarationError
+impl core::marker::StructuralPartialEq for antecedent_core::ProviderId
 impl core::marker::StructuralPartialEq for antecedent_core::QuantityUnits
 impl core::marker::StructuralPartialEq for antecedent_core::QueryError
 impl core::marker::StructuralPartialEq for antecedent_core::QueryId
@@ -2534,6 +2614,8 @@ impl core::marker::Sync for antecedent_core::CallbackRefusal [auto]
 impl core::marker::Sync for antecedent_core::CallbackSpec [auto]
 impl core::marker::Sync for antecedent_core::CancellationToken [auto]
 impl core::marker::Sync for antecedent_core::CanonicalWriter [auto]
+impl core::marker::Sync for antecedent_core::CapabilityRequest [auto]
+impl core::marker::Sync for antecedent_core::CapabilitySet [auto]
 impl core::marker::Sync for antecedent_core::CatalogDistribution [auto]
 impl core::marker::Sync for antecedent_core::CategoryDomainId [auto]
 impl core::marker::Sync for antecedent_core::CausalQuery [auto]
@@ -2544,6 +2626,7 @@ impl core::marker::Sync for antecedent_core::CausalSchema [auto]
 impl core::marker::Sync for antecedent_core::CausalSchemaBuilder [auto]
 impl core::marker::Sync for antecedent_core::ChangeAttributionQuery [auto]
 impl core::marker::Sync for antecedent_core::CompareOp [auto]
+impl core::marker::Sync for antecedent_core::CompiledCapabilityRequest [auto]
 impl core::marker::Sync for antecedent_core::ComponentId [auto]
 impl core::marker::Sync for antecedent_core::ConditionalEffectQuery [auto]
 impl core::marker::Sync for antecedent_core::Conditioning [auto]
@@ -2591,6 +2674,7 @@ impl core::marker::Sync for antecedent_core::ExposurePropensityProvenance [auto]
 impl core::marker::Sync for antecedent_core::ExprNumber [auto]
 impl core::marker::Sync for antecedent_core::ExprType [auto]
 impl core::marker::Sync for antecedent_core::ExpressionFault [auto]
+impl core::marker::Sync for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Sync for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Sync for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Sync for antecedent_core::Fnv1a64 [auto]
@@ -2667,6 +2751,10 @@ impl core::marker::Sync for antecedent_core::PopulationSelector [auto]
 impl core::marker::Sync for antecedent_core::Portability [auto]
 impl core::marker::Sync for antecedent_core::PredicateExpr [auto]
 impl core::marker::Sync for antecedent_core::PriorAssumption [auto]
+impl core::marker::Sync for antecedent_core::ProviderCapability [auto]
+impl core::marker::Sync for antecedent_core::ProviderDeclaration [auto]
+impl core::marker::Sync for antecedent_core::ProviderDeclarationError [auto]
+impl core::marker::Sync for antecedent_core::ProviderId [auto]
 impl core::marker::Sync for antecedent_core::QuantityUnits [auto]
 impl core::marker::Sync for antecedent_core::QueryError [auto]
 impl core::marker::Sync for antecedent_core::QueryId [auto]
@@ -2834,6 +2922,8 @@ impl core::marker::Unpin for antecedent_core::CallbackRefusal [auto]
 impl core::marker::Unpin for antecedent_core::CallbackSpec [auto]
 impl core::marker::Unpin for antecedent_core::CancellationToken [auto]
 impl core::marker::Unpin for antecedent_core::CanonicalWriter [auto]
+impl core::marker::Unpin for antecedent_core::CapabilityRequest [auto]
+impl core::marker::Unpin for antecedent_core::CapabilitySet [auto]
 impl core::marker::Unpin for antecedent_core::CatalogDistribution [auto]
 impl core::marker::Unpin for antecedent_core::CategoryDomainId [auto]
 impl core::marker::Unpin for antecedent_core::CausalQuery [auto]
@@ -2844,6 +2934,7 @@ impl core::marker::Unpin for antecedent_core::CausalSchema [auto]
 impl core::marker::Unpin for antecedent_core::CausalSchemaBuilder [auto]
 impl core::marker::Unpin for antecedent_core::ChangeAttributionQuery [auto]
 impl core::marker::Unpin for antecedent_core::CompareOp [auto]
+impl core::marker::Unpin for antecedent_core::CompiledCapabilityRequest [auto]
 impl core::marker::Unpin for antecedent_core::ComponentId [auto]
 impl core::marker::Unpin for antecedent_core::ConditionalEffectQuery [auto]
 impl core::marker::Unpin for antecedent_core::Conditioning [auto]
@@ -2891,6 +2982,7 @@ impl core::marker::Unpin for antecedent_core::ExposurePropensityProvenance [auto
 impl core::marker::Unpin for antecedent_core::ExprNumber [auto]
 impl core::marker::Unpin for antecedent_core::ExprType [auto]
 impl core::marker::Unpin for antecedent_core::ExpressionFault [auto]
+impl core::marker::Unpin for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Unpin for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Unpin for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Unpin for antecedent_core::Fnv1a64 [auto]
@@ -2967,6 +3059,10 @@ impl core::marker::Unpin for antecedent_core::PopulationSelector [auto]
 impl core::marker::Unpin for antecedent_core::Portability [auto]
 impl core::marker::Unpin for antecedent_core::PredicateExpr [auto]
 impl core::marker::Unpin for antecedent_core::PriorAssumption [auto]
+impl core::marker::Unpin for antecedent_core::ProviderCapability [auto]
+impl core::marker::Unpin for antecedent_core::ProviderDeclaration [auto]
+impl core::marker::Unpin for antecedent_core::ProviderDeclarationError [auto]
+impl core::marker::Unpin for antecedent_core::ProviderId [auto]
 impl core::marker::Unpin for antecedent_core::QuantityUnits [auto]
 impl core::marker::Unpin for antecedent_core::QueryError [auto]
 impl core::marker::Unpin for antecedent_core::QueryId [auto]
@@ -3135,6 +3231,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CallbackRefusa
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CallbackSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CancellationToken [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CanonicalWriter [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CapabilityRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CapabilitySet [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CatalogDistribution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CategoryDomainId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CausalQuery [auto]
@@ -3145,6 +3243,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CausalSchema [
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CausalSchemaBuilder [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ChangeAttributionQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CompareOp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::CompiledCapabilityRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ComponentId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ConditionalEffectQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Conditioning [auto]
@@ -3191,6 +3290,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExposurePropen
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExprNumber [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExprType [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExpressionFault [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Fnv1a64 [auto]
@@ -3267,6 +3367,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PopulationSele
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Portability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PredicateExpr [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PriorAssumption [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ProviderCapability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ProviderDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ProviderDeclarationError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ProviderId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::QuantityUnits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::QueryError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::QueryId [auto]
@@ -3434,6 +3538,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CallbackRefusal [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CallbackSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CancellationToken [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CanonicalWriter [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CapabilityRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CapabilitySet [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CatalogDistribution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CategoryDomainId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CausalQuery [auto]
@@ -3444,6 +3550,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CausalSchema [aut
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CausalSchemaBuilder [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ChangeAttributionQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CompareOp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::CompiledCapabilityRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ComponentId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ConditionalEffectQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Conditioning [auto]
@@ -3490,6 +3597,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ExposurePropensit
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ExprNumber [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ExprType [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ExpressionFault [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Fnv1a64 [auto]
@@ -3566,6 +3674,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PopulationSelecto
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Portability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PredicateExpr [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PriorAssumption [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ProviderCapability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ProviderDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ProviderDeclarationError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ProviderId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::QuantityUnits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::QueryError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::QueryId [auto]
@@ -3747,6 +3859,7 @@ macro antecedent_core::reason_code!
 pub const <antecedent_core::IdentityDomain>::ALL: [antecedent_core::IdentityDomain; 13]
 pub const <antecedent_core::IntervalMethod>::ALL: [antecedent_core::IntervalMethod; 9]
 pub const <antecedent_core::Lag>::CONTEMPORANEOUS: Self
+pub const <antecedent_core::ProviderCapability>::ALL: [Self; 9]
 pub const <antecedent_core::StateVersion>::ZERO: Self
 pub const <antecedent_core::StreamDomain>::Attribution: Self
 pub const <antecedent_core::StreamDomain>::Bayesian: Self
@@ -3846,6 +3959,7 @@ pub enum antecedent_core::ObservationSpec
 pub enum antecedent_core::OperatorEffect
 pub enum antecedent_core::OperatorGraph
 pub enum antecedent_core::OperatorRole
+pub enum antecedent_core::ProviderCapability
 pub enum antecedent_core::RandomizationDesign
 pub enum antecedent_core::RandomizedEstimand
 pub enum antecedent_core::RegimeKind
@@ -4484,6 +4598,14 @@ pub fn <antecedent_core::CanonicalWriter>::fn reals(&mut self, values: &[f64]) -
 pub fn <antecedent_core::CanonicalWriter>::fn text(&mut self, text: &str) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn texts<S: core::convert::AsRef<str>>(&mut self, values: &[S]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn word(&mut self, word: u64) -> &mut Self
+pub fn <antecedent_core::CapabilityRequest>::const fn capability(self) -> antecedent_core::ProviderCapability
+pub fn <antecedent_core::CapabilityRequest>::const fn new(capability: antecedent_core::ProviderCapability) -> Self
+pub fn <antecedent_core::CapabilitySet>::const fn contains(self, capability: antecedent_core::ProviderCapability) -> bool
+pub fn <antecedent_core::CapabilitySet>::const fn empty() -> Self
+pub fn <antecedent_core::CapabilitySet>::const fn is_empty(self) -> bool
+pub fn <antecedent_core::CapabilitySet>::const fn legal_next(self) -> core::option::Option<antecedent_core::ProviderCapability>
+pub fn <antecedent_core::CapabilitySet>::const fn len(self) -> usize
+pub fn <antecedent_core::CapabilitySet>::fn from_capabilities(capabilities: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ProviderCapability>) -> Self
 pub fn <antecedent_core::CatalogDistribution>::const fn is_joint(&self) -> bool
 pub fn <antecedent_core::CatalogDistribution>::fn canonical_identity(&self) -> alloc::string::String
 pub fn <antecedent_core::CatalogDistribution>::fn project(&self, projection: antecedent_core::EvidenceProjection) -> core::result::Result<Self, antecedent_core::QueryError>
@@ -4540,6 +4662,9 @@ pub fn <antecedent_core::ChangeAttributionQuery>::fn new(outcome: antecedent_cor
 pub fn <antecedent_core::ChangeAttributionQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::ChangeAttributionQuery>::fn with_allocation(self, allocation: antecedent_core::AllocationMethod) -> Self
 pub fn <antecedent_core::CompareOp>::fn apply(self, a: f64, b: f64) -> bool
+pub fn <antecedent_core::CompiledCapabilityRequest>::const fn capability(&self) -> antecedent_core::ProviderCapability
+pub fn <antecedent_core::CompiledCapabilityRequest>::const fn provider(&self) -> antecedent_core::ProviderId
+pub fn <antecedent_core::CompiledCapabilityRequest>::fn provider_name(&self) -> &str
 pub fn <antecedent_core::ComponentId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::ComponentId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::ComponentId>::const fn from_variable(variable: antecedent_core::VariableId) -> Self
@@ -4653,6 +4778,12 @@ pub fn <antecedent_core::ExogenousCoupling>::const fn tag(self) -> &'static str
 pub fn <antecedent_core::ExprNumber>::fn get(self) -> f64
 pub fn <antecedent_core::ExprNumber>::fn new(value: f64) -> Self
 pub fn <antecedent_core::FactorNeed<'_>>::fn needed_variables(&self) -> alloc::collections::btree::set::BTreeSet<antecedent_core::VariableId>
+pub fn <antecedent_core::FailedCapabilityAttempt>::const fn declared(&self) -> antecedent_core::CapabilitySet
+pub fn <antecedent_core::FailedCapabilityAttempt>::const fn legal_next(&self) -> core::option::Option<antecedent_core::ProviderCapability>
+pub fn <antecedent_core::FailedCapabilityAttempt>::const fn operation(&self) -> antecedent_core::ProviderCapability
+pub fn <antecedent_core::FailedCapabilityAttempt>::const fn provider(&self) -> antecedent_core::ProviderId
+pub fn <antecedent_core::FailedCapabilityAttempt>::fn diagnostic(&self) -> antecedent_core::Diagnostic
+pub fn <antecedent_core::FailedCapabilityAttempt>::fn provider_name(&self) -> &str
 pub fn <antecedent_core::FixedGroupDosePolicy>::fn validate(&self, baseline_groups: &[alloc::sync::Arc<str>]) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::Fnv1a64>::const fn finish(&self) -> u64
 pub fn <antecedent_core::Fnv1a64>::const fn new() -> Self
@@ -4835,6 +4966,16 @@ pub fn <antecedent_core::Portability>::fn export_refusal(&self) -> core::option:
 pub fn <antecedent_core::PredicateExpr>::fn named(id: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_core::PredicateExpr>::fn rows(rows: impl core::convert::Into<alloc::sync::Arc<[usize]>>) -> Self
 pub fn <antecedent_core::PredicateExpr>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::ProviderCapability>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::ProviderCapability>::fn from_name(name: &str) -> core::option::Option<Self>
+pub fn <antecedent_core::ProviderDeclaration>::const fn capabilities(&self) -> antecedent_core::CapabilitySet
+pub fn <antecedent_core::ProviderDeclaration>::const fn id(&self) -> antecedent_core::ProviderId
+pub fn <antecedent_core::ProviderDeclaration>::const fn supports(&self, capability: antecedent_core::ProviderCapability) -> bool
+pub fn <antecedent_core::ProviderDeclaration>::fn compile(&self, request: antecedent_core::CapabilityRequest) -> core::result::Result<antecedent_core::CompiledCapabilityRequest, antecedent_core::FailedCapabilityAttempt>
+pub fn <antecedent_core::ProviderDeclaration>::fn name(&self) -> &str
+pub fn <antecedent_core::ProviderDeclaration>::fn new(id: antecedent_core::ProviderId, name: impl core::convert::Into<alloc::sync::Arc<str>>, capabilities: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ProviderCapability>) -> core::result::Result<Self, antecedent_core::ProviderDeclarationError>
+pub fn <antecedent_core::ProviderId>::const fn from_raw(raw: u64) -> Self
+pub fn <antecedent_core::ProviderId>::const fn raw(self) -> u64
 pub fn <antecedent_core::QuantityUnits>::fn dimensionless() -> Self
 pub fn <antecedent_core::QuantityUnits>::fn name(&self) -> &str
 pub fn <antecedent_core::QuantityUnits>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
@@ -5192,6 +5333,7 @@ pub mod antecedent_core::intervention
 pub mod antecedent_core::measurement_model
 pub mod antecedent_core::node
 pub mod antecedent_core::operator
+pub mod antecedent_core::provider_capability
 pub mod antecedent_core::query
 pub mod antecedent_core::reason_code
 pub mod antecedent_core::recalc
@@ -5219,6 +5361,10 @@ pub struct antecedent_core::CancellationToken
 pub struct antecedent_core::CancellationToken has private fields
 pub struct antecedent_core::CanonicalWriter
 pub struct antecedent_core::CanonicalWriter has private fields
+pub struct antecedent_core::CapabilityRequest
+pub struct antecedent_core::CapabilityRequest has private fields
+pub struct antecedent_core::CapabilitySet
+pub struct antecedent_core::CapabilitySet has private fields
 pub struct antecedent_core::CatalogDistribution
 pub struct antecedent_core::CategoryDomainId
 pub struct antecedent_core::CategoryDomainId has private fields
@@ -5230,6 +5376,8 @@ pub struct antecedent_core::CausalSchema has private fields
 pub struct antecedent_core::CausalSchemaBuilder
 pub struct antecedent_core::CausalSchemaBuilder has private fields
 pub struct antecedent_core::ChangeAttributionQuery
+pub struct antecedent_core::CompiledCapabilityRequest
+pub struct antecedent_core::CompiledCapabilityRequest has private fields
 pub struct antecedent_core::ComponentId
 pub struct antecedent_core::ComponentId has private fields
 pub struct antecedent_core::ConditionalEffectQuery
@@ -5269,6 +5417,8 @@ pub struct antecedent_core::ExposureLevel
 pub struct antecedent_core::ExprNumber
 pub struct antecedent_core::ExprNumber has private fields
 pub struct antecedent_core::FactorNeed<'a>
+pub struct antecedent_core::FailedCapabilityAttempt
+pub struct antecedent_core::FailedCapabilityAttempt has private fields
 pub struct antecedent_core::FixedCandidateRegretInputs
 pub struct antecedent_core::FixedGroupDosePolicy
 pub struct antecedent_core::Fnv1a64
@@ -5338,6 +5488,10 @@ pub struct antecedent_core::PopulationRegistry
 pub struct antecedent_core::PopulationRegistry has private fields
 pub struct antecedent_core::PopulationSelection
 pub struct antecedent_core::PriorAssumption
+pub struct antecedent_core::ProviderDeclaration
+pub struct antecedent_core::ProviderDeclaration has private fields
+pub struct antecedent_core::ProviderId
+pub struct antecedent_core::ProviderId has private fields
 pub struct antecedent_core::QuantityUnits
 pub struct antecedent_core::QuantityUnits has private fields
 pub struct antecedent_core::QueryId
@@ -5543,6 +5697,14 @@ pub use antecedent_core::operator::OperatorError = antecedent_core::OperatorErro
 pub use antecedent_core::operator::OperatorGraph = antecedent_core::OperatorGraph
 pub use antecedent_core::operator::OperatorPorts = antecedent_core::OperatorPorts
 pub use antecedent_core::operator::OperatorRole = antecedent_core::OperatorRole
+pub use antecedent_core::provider_capability::CapabilityRequest = antecedent_core::CapabilityRequest
+pub use antecedent_core::provider_capability::CapabilitySet = antecedent_core::CapabilitySet
+pub use antecedent_core::provider_capability::CompiledCapabilityRequest = antecedent_core::CompiledCapabilityRequest
+pub use antecedent_core::provider_capability::FailedCapabilityAttempt = antecedent_core::FailedCapabilityAttempt
+pub use antecedent_core::provider_capability::ProviderCapability = antecedent_core::ProviderCapability
+pub use antecedent_core::provider_capability::ProviderDeclaration = antecedent_core::ProviderDeclaration
+pub use antecedent_core::provider_capability::ProviderDeclarationError = antecedent_core::ProviderDeclarationError
+pub use antecedent_core::provider_capability::ProviderId = antecedent_core::ProviderId
 pub use antecedent_core::query::AllocationMethod = antecedent_core::AllocationMethod
 pub use antecedent_core::query::AnomalyAttributionQuery = antecedent_core::AnomalyAttributionQuery
 pub use antecedent_core::query::AnomalyReference = antecedent_core::AnomalyReference
@@ -6042,6 +6204,16 @@ pub variant antecedent_core::Portability::Recoverable(alloc::vec::Vec<antecedent
 pub variant antecedent_core::Portability::RuntimeBound { callbacks: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_core::PredicateExpr::Named(alloc::sync::Arc<str>)
 pub variant antecedent_core::PredicateExpr::Rows(alloc::sync::Arc<[usize]>)
+pub variant antecedent_core::ProviderCapability::Density
+pub variant antecedent_core::ProviderCapability::DifferentiableLogDensity
+pub variant antecedent_core::ProviderCapability::EstimatingEquations
+pub variant antecedent_core::ProviderCapability::ExactIntegration
+pub variant antecedent_core::ProviderCapability::InfluenceContributions
+pub variant antecedent_core::ProviderCapability::Prediction
+pub variant antecedent_core::ProviderCapability::Sampling
+pub variant antecedent_core::ProviderCapability::StateTransition
+pub variant antecedent_core::ProviderCapability::Updating
+pub variant antecedent_core::ProviderDeclarationError::BlankName
 pub variant antecedent_core::QueryError::AmbiguousInterventionTarget
 pub variant antecedent_core::QueryError::ConditioningOverlapsOutcomeOrIntervention
 pub variant antecedent_core::QueryError::DuplicateAllocationComponent

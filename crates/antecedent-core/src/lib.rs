@@ -54,6 +54,7 @@ pub mod measurement_model;
 pub(crate) mod measurement_record;
 pub mod node;
 pub mod operator;
+pub mod provider_capability;
 pub mod query;
 pub mod reason_code;
 pub mod recalc;
@@ -108,6 +109,10 @@ pub use node::NodeRef;
 pub use operator::{
     EvidenceClaims, FrozenFitReuse, Operator, OperatorDeclaration, OperatorEffect, OperatorError,
     OperatorGraph, OperatorPorts, OperatorRole,
+};
+pub use provider_capability::{
+    CapabilityRequest, CapabilitySet, CompiledCapabilityRequest, FailedCapabilityAttempt,
+    ProviderCapability, ProviderDeclaration, ProviderDeclarationError, ProviderId,
 };
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
