@@ -49,6 +49,7 @@
 #[non_exhaustive] pub enum antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::cross_world_artifact::CrossWorldArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError
+#[non_exhaustive] pub enum antecedent_io_core::dependency_key::DependencyKeyError
 #[non_exhaustive] pub enum antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::evidence_ledger_artifact::SynthesisMethod
 #[non_exhaustive] pub enum antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
@@ -456,6 +457,12 @@ impl core::clone::Clone for antecedent_io_core::cross_world_execution_artifact::
 impl core::clone::Clone for antecedent_io_core::cross_world_execution_artifact::UnitWire
 impl core::clone::Clone for antecedent_io_core::cross_world_execution_artifact::VariableWire
 impl core::clone::Clone for antecedent_io_core::cross_world_execution_artifact::WorldWire
+impl core::clone::Clone for antecedent_io_core::dependency_key::DependencyClass
+impl core::clone::Clone for antecedent_io_core::dependency_key::DependencyKey
+impl core::clone::Clone for antecedent_io_core::dependency_key::DependencyKeyError
+impl core::clone::Clone for antecedent_io_core::dependency_key::DependencyRecord
+impl core::clone::Clone for antecedent_io_core::dependency_key::ReusableProduct
+impl core::clone::Clone for antecedent_io_core::dependency_key::SealedDependencyKey
 impl core::clone::Clone for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire
 impl core::clone::Clone for antecedent_io_core::distribution_artifact::DistributionArtifact
 impl core::clone::Clone for antecedent_io_core::distribution_artifact::DistributionCalibration
@@ -933,6 +940,11 @@ impl core::cmp::Eq for antecedent_io_core::cross_world_execution_artifact::Share
 impl core::cmp::Eq for antecedent_io_core::cross_world_execution_artifact::UnitWire
 impl core::cmp::Eq for antecedent_io_core::cross_world_execution_artifact::VariableWire
 impl core::cmp::Eq for antecedent_io_core::cross_world_execution_artifact::WorldWire
+impl core::cmp::Eq for antecedent_io_core::dependency_key::DependencyClass
+impl core::cmp::Eq for antecedent_io_core::dependency_key::DependencyKeyError
+impl core::cmp::Eq for antecedent_io_core::dependency_key::DependencyRecord
+impl core::cmp::Eq for antecedent_io_core::dependency_key::ReusableProduct
+impl core::cmp::Eq for antecedent_io_core::dependency_key::SealedDependencyKey
 impl core::cmp::Eq for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire
 impl core::cmp::Eq for antecedent_io_core::distribution_artifact::DistributionCalibration
 impl core::cmp::Eq for antecedent_io_core::distribution_artifact::DistributionIdentity
@@ -1050,6 +1062,8 @@ impl core::cmp::Eq for antecedent_io_core::transported_counterfactual_artifact::
 impl core::cmp::Eq for antecedent_io_core::wire::GraphCpdagWire
 impl core::cmp::Eq for antecedent_io_core::wire::ScalarTypeWire
 impl core::cmp::Ord for antecedent_io_core::compact_export::TermSpec
+impl core::cmp::Ord for antecedent_io_core::dependency_key::DependencyClass
+impl core::cmp::Ord for antecedent_io_core::dependency_key::ReusableProduct
 impl core::cmp::Ord for antecedent_io_core::mechanism_composition_artifact::ParameterIdWire
 impl core::cmp::Ord for antecedent_io_core::mechanism_composition_artifact::TermWire
 impl core::cmp::PartialEq for antecedent_io_core::AdaptiveBudgetWire
@@ -1425,6 +1439,11 @@ impl core::cmp::PartialEq for antecedent_io_core::cross_world_execution_artifact
 impl core::cmp::PartialEq for antecedent_io_core::cross_world_execution_artifact::UnitWire
 impl core::cmp::PartialEq for antecedent_io_core::cross_world_execution_artifact::VariableWire
 impl core::cmp::PartialEq for antecedent_io_core::cross_world_execution_artifact::WorldWire
+impl core::cmp::PartialEq for antecedent_io_core::dependency_key::DependencyClass
+impl core::cmp::PartialEq for antecedent_io_core::dependency_key::DependencyKeyError
+impl core::cmp::PartialEq for antecedent_io_core::dependency_key::DependencyRecord
+impl core::cmp::PartialEq for antecedent_io_core::dependency_key::ReusableProduct
+impl core::cmp::PartialEq for antecedent_io_core::dependency_key::SealedDependencyKey
 impl core::cmp::PartialEq for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire
 impl core::cmp::PartialEq for antecedent_io_core::distribution_artifact::DistributionArtifact
 impl core::cmp::PartialEq for antecedent_io_core::distribution_artifact::DistributionCalibration
@@ -1664,6 +1683,8 @@ impl core::cmp::PartialEq<&str> for antecedent_io_core::CalibrationStatus
 impl core::cmp::PartialEq<&str> for antecedent_io_core::ContractReason
 impl core::cmp::PartialEq<str> for antecedent_io_core::ContractReason
 impl core::cmp::PartialOrd for antecedent_io_core::compact_export::TermSpec
+impl core::cmp::PartialOrd for antecedent_io_core::dependency_key::DependencyClass
+impl core::cmp::PartialOrd for antecedent_io_core::dependency_key::ReusableProduct
 impl core::cmp::PartialOrd for antecedent_io_core::mechanism_composition_artifact::ParameterIdWire
 impl core::cmp::PartialOrd for antecedent_io_core::mechanism_composition_artifact::TermWire
 impl core::convert::AsRef<[u8]> for antecedent_io_core::MappedSection
@@ -1759,6 +1780,7 @@ impl core::error::Error for antecedent_io_core::counterfactual_id_artifact::Coun
 impl core::error::Error for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError
 impl core::error::Error for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError
 impl core::error::Error for antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError
+impl core::error::Error for antecedent_io_core::dependency_key::DependencyKeyError
 impl core::error::Error for antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifactError
 impl core::error::Error for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
 impl core::error::Error for antecedent_io_core::interface_contract_artifact::InterfaceContractArtifactError
@@ -2163,6 +2185,12 @@ impl core::fmt::Debug for antecedent_io_core::cross_world_execution_artifact::Sh
 impl core::fmt::Debug for antecedent_io_core::cross_world_execution_artifact::UnitWire
 impl core::fmt::Debug for antecedent_io_core::cross_world_execution_artifact::VariableWire
 impl core::fmt::Debug for antecedent_io_core::cross_world_execution_artifact::WorldWire
+impl core::fmt::Debug for antecedent_io_core::dependency_key::DependencyClass
+impl core::fmt::Debug for antecedent_io_core::dependency_key::DependencyKey
+impl core::fmt::Debug for antecedent_io_core::dependency_key::DependencyKeyError
+impl core::fmt::Debug for antecedent_io_core::dependency_key::DependencyRecord
+impl core::fmt::Debug for antecedent_io_core::dependency_key::ReusableProduct
+impl core::fmt::Debug for antecedent_io_core::dependency_key::SealedDependencyKey
 impl core::fmt::Debug for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire
 impl core::fmt::Debug for antecedent_io_core::distribution_artifact::DistributionArtifact
 impl core::fmt::Debug for antecedent_io_core::distribution_artifact::DistributionCalibration
@@ -2437,6 +2465,9 @@ impl core::fmt::Display for antecedent_io_core::counterfactual_id_artifact::Coun
 impl core::fmt::Display for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError
 impl core::fmt::Display for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError
 impl core::fmt::Display for antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError
+impl core::fmt::Display for antecedent_io_core::dependency_key::DependencyClass
+impl core::fmt::Display for antecedent_io_core::dependency_key::DependencyKeyError
+impl core::fmt::Display for antecedent_io_core::dependency_key::ReusableProduct
 impl core::fmt::Display for antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifactError
 impl core::fmt::Display for antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError
 impl core::fmt::Display for antecedent_io_core::interface_contract_artifact::InterfaceContractArtifactError
@@ -2463,6 +2494,9 @@ impl core::hash::Hash for antecedent_io_core::EstimandFingerprint
 impl core::hash::Hash for antecedent_io_core::PriorMapping
 impl core::hash::Hash for antecedent_io_core::TemporalCoordinates
 impl core::hash::Hash for antecedent_io_core::TemporalNodeKeyWire
+impl core::hash::Hash for antecedent_io_core::dependency_key::DependencyClass
+impl core::hash::Hash for antecedent_io_core::dependency_key::ReusableProduct
+impl core::hash::Hash for antecedent_io_core::dependency_key::SealedDependencyKey
 impl core::hash::Hash for antecedent_io_core::quantity_wire::QuantityConditionWire
 impl core::hash::Hash for antecedent_io_core::sensitivity_artifact::PointSupport
 impl core::marker::Copy for antecedent_io_core::CalibrationStatus
@@ -2498,6 +2532,9 @@ impl core::marker::Copy for antecedent_io_core::compact_export::ExportLimits
 impl core::marker::Copy for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSearchLimitsWire
 impl core::marker::Copy for antecedent_io_core::coverage_records_data::CoverageGridPoint
 impl core::marker::Copy for antecedent_io_core::coverage_records_data::CoverageRecord
+impl core::marker::Copy for antecedent_io_core::dependency_key::DependencyClass
+impl core::marker::Copy for antecedent_io_core::dependency_key::ReusableProduct
+impl core::marker::Copy for antecedent_io_core::dependency_key::SealedDependencyKey
 impl core::marker::Copy for antecedent_io_core::distribution_artifact::DistributionCalibration
 impl core::marker::Copy for antecedent_io_core::distribution_artifact::DistributionTrust
 impl core::marker::Copy for antecedent_io_core::distribution_artifact::DrawAlignment
@@ -2911,6 +2948,12 @@ impl core::marker::Freeze for antecedent_io_core::cross_world_execution_artifact
 impl core::marker::Freeze for antecedent_io_core::cross_world_execution_artifact::UnitWire [auto]
 impl core::marker::Freeze for antecedent_io_core::cross_world_execution_artifact::VariableWire [auto]
 impl core::marker::Freeze for antecedent_io_core::cross_world_execution_artifact::WorldWire [auto]
+impl core::marker::Freeze for antecedent_io_core::dependency_key::DependencyClass [auto]
+impl core::marker::Freeze for antecedent_io_core::dependency_key::DependencyKey [auto]
+impl core::marker::Freeze for antecedent_io_core::dependency_key::DependencyKeyError [auto]
+impl core::marker::Freeze for antecedent_io_core::dependency_key::DependencyRecord [auto]
+impl core::marker::Freeze for antecedent_io_core::dependency_key::ReusableProduct [auto]
+impl core::marker::Freeze for antecedent_io_core::dependency_key::SealedDependencyKey [auto]
 impl core::marker::Freeze for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire [auto]
 impl core::marker::Freeze for antecedent_io_core::distribution_artifact::DistributionArtifact [auto]
 impl core::marker::Freeze for antecedent_io_core::distribution_artifact::DistributionCalibration [auto]
@@ -3556,6 +3599,12 @@ impl core::marker::Send for antecedent_io_core::cross_world_execution_artifact::
 impl core::marker::Send for antecedent_io_core::cross_world_execution_artifact::UnitWire [auto]
 impl core::marker::Send for antecedent_io_core::cross_world_execution_artifact::VariableWire [auto]
 impl core::marker::Send for antecedent_io_core::cross_world_execution_artifact::WorldWire [auto]
+impl core::marker::Send for antecedent_io_core::dependency_key::DependencyClass [auto]
+impl core::marker::Send for antecedent_io_core::dependency_key::DependencyKey [auto]
+impl core::marker::Send for antecedent_io_core::dependency_key::DependencyKeyError [auto]
+impl core::marker::Send for antecedent_io_core::dependency_key::DependencyRecord [auto]
+impl core::marker::Send for antecedent_io_core::dependency_key::ReusableProduct [auto]
+impl core::marker::Send for antecedent_io_core::dependency_key::SealedDependencyKey [auto]
 impl core::marker::Send for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire [auto]
 impl core::marker::Send for antecedent_io_core::distribution_artifact::DistributionArtifact [auto]
 impl core::marker::Send for antecedent_io_core::distribution_artifact::DistributionCalibration [auto]
@@ -4185,6 +4234,11 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::cross_world_execu
 impl core::marker::StructuralPartialEq for antecedent_io_core::cross_world_execution_artifact::UnitWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::cross_world_execution_artifact::VariableWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::cross_world_execution_artifact::WorldWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::dependency_key::DependencyClass
+impl core::marker::StructuralPartialEq for antecedent_io_core::dependency_key::DependencyKeyError
+impl core::marker::StructuralPartialEq for antecedent_io_core::dependency_key::DependencyRecord
+impl core::marker::StructuralPartialEq for antecedent_io_core::dependency_key::ReusableProduct
+impl core::marker::StructuralPartialEq for antecedent_io_core::dependency_key::SealedDependencyKey
 impl core::marker::StructuralPartialEq for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::distribution_artifact::DistributionArtifact
 impl core::marker::StructuralPartialEq for antecedent_io_core::distribution_artifact::DistributionCalibration
@@ -4807,6 +4861,12 @@ impl core::marker::Sync for antecedent_io_core::cross_world_execution_artifact::
 impl core::marker::Sync for antecedent_io_core::cross_world_execution_artifact::UnitWire [auto]
 impl core::marker::Sync for antecedent_io_core::cross_world_execution_artifact::VariableWire [auto]
 impl core::marker::Sync for antecedent_io_core::cross_world_execution_artifact::WorldWire [auto]
+impl core::marker::Sync for antecedent_io_core::dependency_key::DependencyClass [auto]
+impl core::marker::Sync for antecedent_io_core::dependency_key::DependencyKey [auto]
+impl core::marker::Sync for antecedent_io_core::dependency_key::DependencyKeyError [auto]
+impl core::marker::Sync for antecedent_io_core::dependency_key::DependencyRecord [auto]
+impl core::marker::Sync for antecedent_io_core::dependency_key::ReusableProduct [auto]
+impl core::marker::Sync for antecedent_io_core::dependency_key::SealedDependencyKey [auto]
 impl core::marker::Sync for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire [auto]
 impl core::marker::Sync for antecedent_io_core::distribution_artifact::DistributionArtifact [auto]
 impl core::marker::Sync for antecedent_io_core::distribution_artifact::DistributionCalibration [auto]
@@ -5452,6 +5512,12 @@ impl core::marker::Unpin for antecedent_io_core::cross_world_execution_artifact:
 impl core::marker::Unpin for antecedent_io_core::cross_world_execution_artifact::UnitWire [auto]
 impl core::marker::Unpin for antecedent_io_core::cross_world_execution_artifact::VariableWire [auto]
 impl core::marker::Unpin for antecedent_io_core::cross_world_execution_artifact::WorldWire [auto]
+impl core::marker::Unpin for antecedent_io_core::dependency_key::DependencyClass [auto]
+impl core::marker::Unpin for antecedent_io_core::dependency_key::DependencyKey [auto]
+impl core::marker::Unpin for antecedent_io_core::dependency_key::DependencyKeyError [auto]
+impl core::marker::Unpin for antecedent_io_core::dependency_key::DependencyRecord [auto]
+impl core::marker::Unpin for antecedent_io_core::dependency_key::ReusableProduct [auto]
+impl core::marker::Unpin for antecedent_io_core::dependency_key::SealedDependencyKey [auto]
 impl core::marker::Unpin for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire [auto]
 impl core::marker::Unpin for antecedent_io_core::distribution_artifact::DistributionArtifact [auto]
 impl core::marker::Unpin for antecedent_io_core::distribution_artifact::DistributionCalibration [auto]
@@ -6097,6 +6163,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cross_world
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cross_world_execution_artifact::UnitWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cross_world_execution_artifact::VariableWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cross_world_execution_artifact::WorldWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::dependency_key::DependencyClass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::dependency_key::DependencyKey [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::dependency_key::DependencyKeyError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::dependency_key::DependencyRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::dependency_key::ReusableProduct [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::dependency_key::SealedDependencyKey [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::distribution_artifact::DistributionArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::distribution_artifact::DistributionCalibration [auto]
@@ -6742,6 +6814,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cross_world_ex
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cross_world_execution_artifact::UnitWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cross_world_execution_artifact::VariableWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cross_world_execution_artifact::WorldWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::dependency_key::DependencyClass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::dependency_key::DependencyKey [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::dependency_key::DependencyKeyError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::dependency_key::DependencyRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::dependency_key::ReusableProduct [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::dependency_key::SealedDependencyKey [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::distribution_artifact::DistributionArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::distribution_artifact::DistributionCalibration [auto]
@@ -8112,6 +8190,8 @@ impl<T> serde_core::ser::Serialize for antecedent_io_core::SlotSectionWire<T> wh
 macro antecedent_io_core::map_artifact_check!
 macro antecedent_io_core::sectioned_artifact_enum!
 macro antecedent_io_core::sectioned_artifact_error!
+pub const <antecedent_io_core::dependency_key::DependencyClass>::ALL: [Self; 8]
+pub const <antecedent_io_core::dependency_key::ReusableProduct>::ALL: [Self; 14]
 pub const antecedent_io_core::AUTO_COMPRESS_MAX_RATIO: f64
 pub const antecedent_io_core::AUTO_COMPRESS_MIN_BYTES: usize
 pub const antecedent_io_core::COMPRESSION_ZSTD: &str
@@ -8210,6 +8290,8 @@ pub const antecedent_io_core::cross_world_execution_artifact::CROSS_WORLD_EXECUT
 pub const antecedent_io_core::cross_world_execution_artifact::CROSS_WORLD_EXECUTION_ARTIFACT_VERSION: u16
 pub const antecedent_io_core::cross_world_execution_artifact::CROSS_WORLD_EXECUTION_INFERENCE_CLAIM: &str
 pub const antecedent_io_core::cross_world_execution_artifact::MAX_CROSS_WORLD_EXECUTION_ARTIFACT_BYTES: usize
+pub const antecedent_io_core::dependency_key::DEPENDENCY_KEY_FORMAT: u16
+pub const antecedent_io_core::dependency_key::DEPENDENCY_KEY_TAG: &str
 pub const antecedent_io_core::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES: usize
 pub const antecedent_io_core::distribution_artifact::MAX_DISTRIBUTION_COORDINATES: usize
 pub const antecedent_io_core::distribution_artifact::MAX_DISTRIBUTION_DRAWS: usize
@@ -8374,6 +8456,8 @@ pub enum antecedent_io_core::cohort_decision::LawRequest
 pub enum antecedent_io_core::compact_export::InputSupport
 pub enum antecedent_io_core::compact_export::QueryValue
 pub enum antecedent_io_core::compact_export::TermSpec
+pub enum antecedent_io_core::dependency_key::DependencyClass
+pub enum antecedent_io_core::dependency_key::ReusableProduct
 pub enum antecedent_io_core::distribution_artifact::DistributionCalibration
 pub enum antecedent_io_core::distribution_artifact::DistributionTrust
 pub enum antecedent_io_core::distribution_artifact::DrawAlignment
@@ -11580,6 +11664,25 @@ pub fn <antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionA
 pub fn <antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact>::fn seal(request: &antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>
 pub fn <antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>
 pub fn <antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>::fn refusal(&self) -> core::option::Option<antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionRefusalWire>
+pub fn <antecedent_io_core::dependency_key::DependencyClass>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io_core::dependency_key::DependencyKey>::const fn product(&self) -> antecedent_io_core::dependency_key::ReusableProduct
+pub fn <antecedent_io_core::dependency_key::DependencyKey>::fn bind(self, record: antecedent_io_core::dependency_key::DependencyRecord) -> core::result::Result<Self, antecedent_io_core::dependency_key::DependencyKeyError>
+pub fn <antecedent_io_core::dependency_key::DependencyKey>::fn new(product: antecedent_io_core::dependency_key::ReusableProduct) -> Self
+pub fn <antecedent_io_core::dependency_key::DependencyKey>::fn seal(self) -> core::result::Result<antecedent_io_core::dependency_key::SealedDependencyKey, antecedent_io_core::dependency_key::DependencyKeyError>
+pub fn <antecedent_io_core::dependency_key::DependencyRecord>::const fn inference(inference: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_io_core::dependency_key::DependencyRecord>::const fn intervention_targets(interventions: antecedent_core::identity::SemanticDigest, targets: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_io_core::dependency_key::DependencyRecord>::const fn joint_alignment(alignment: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_io_core::dependency_key::DependencyRecord>::const fn model_prior_provider(model: antecedent_core::identity::SemanticDigest, prior: antecedent_core::identity::SemanticDigest, provider: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_io_core::dependency_key::DependencyRecord>::const fn numerical_policy(policy: antecedent_core::physical_operator::NumericalPolicy) -> Self
+pub fn <antecedent_io_core::dependency_key::DependencyRecord>::const fn source_snapshot(snapshot: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_io_core::dependency_key::DependencyRecord>::const fn target_identification(target: antecedent_core::identity::SemanticDigest, identification: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_io_core::dependency_key::DependencyRecord>::fn class(&self) -> antecedent_io_core::dependency_key::DependencyClass
+pub fn <antecedent_io_core::dependency_key::DependencyRecord>::fn rows_history_folds(row_ids: &[u64], row_payload: antecedent_core::identity::SemanticDigest, history: antecedent_core::identity::SemanticDigest, fold_ids: &[u32], n_folds: u32) -> core::result::Result<Self, antecedent_io_core::dependency_key::DependencyKeyError>
+pub fn <antecedent_io_core::dependency_key::ReusableProduct>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io_core::dependency_key::ReusableProduct>::const fn declared(self) -> &'static [antecedent_io_core::dependency_key::DependencyClass]
+pub fn <antecedent_io_core::dependency_key::ReusableProduct>::const fn declares(self, class: antecedent_io_core::dependency_key::DependencyClass) -> bool
+pub fn <antecedent_io_core::dependency_key::SealedDependencyKey>::const fn digest(self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_io_core::dependency_key::SealedDependencyKey>::const fn product(self) -> antecedent_io_core::dependency_key::ReusableProduct
 pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn alignment_identity(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn axes(&self) -> [&str; 2]
 pub fn <antecedent_io_core::distribution_artifact::DistributionArtifact>::fn covariance(&self, left: usize, right: usize) -> core::result::Result<f64, antecedent_io_core::IoError>
@@ -12094,6 +12197,7 @@ pub mod antecedent_io_core::counterfactual_transport_wire
 pub mod antecedent_io_core::coverage_records_data
 pub mod antecedent_io_core::cross_world_artifact
 pub mod antecedent_io_core::cross_world_execution_artifact
+pub mod antecedent_io_core::dependency_key
 pub mod antecedent_io_core::discovery_wire
 pub mod antecedent_io_core::distribution_artifact
 pub mod antecedent_io_core::distribution_replay
@@ -12478,6 +12582,12 @@ pub struct antecedent_io_core::cross_world_execution_artifact::SharedDrawsWire
 pub struct antecedent_io_core::cross_world_execution_artifact::UnitWire
 pub struct antecedent_io_core::cross_world_execution_artifact::VariableWire
 pub struct antecedent_io_core::cross_world_execution_artifact::WorldWire
+pub struct antecedent_io_core::dependency_key::DependencyKey
+pub struct antecedent_io_core::dependency_key::DependencyKey has private fields
+pub struct antecedent_io_core::dependency_key::DependencyRecord
+pub struct antecedent_io_core::dependency_key::DependencyRecord has private fields
+pub struct antecedent_io_core::dependency_key::SealedDependencyKey
+pub struct antecedent_io_core::dependency_key::SealedDependencyKey has private fields
 pub struct antecedent_io_core::discovery_wire::DiscoveryTemporalGraphWire
 pub struct antecedent_io_core::distribution_artifact::DistributionArtifact
 pub struct antecedent_io_core::distribution_artifact::DistributionArtifact has private fields
@@ -13884,6 +13994,32 @@ pub variant antecedent_io_core::cross_world_execution_artifact::CrossWorldExecut
 pub variant antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError::ResultMismatch(&'static str)
 pub variant antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError::UnsupportedSemantics(&'static str)
 pub variant antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError::UnsupportedVersion { version: u16 }
+pub variant antecedent_io_core::dependency_key::DependencyClass::Inference
+pub variant antecedent_io_core::dependency_key::DependencyClass::InterventionTargets
+pub variant antecedent_io_core::dependency_key::DependencyClass::JointAlignment
+pub variant antecedent_io_core::dependency_key::DependencyClass::ModelPriorProvider
+pub variant antecedent_io_core::dependency_key::DependencyClass::NumericalPolicy
+pub variant antecedent_io_core::dependency_key::DependencyClass::RowsHistoryFolds
+pub variant antecedent_io_core::dependency_key::DependencyClass::SourceSnapshot
+pub variant antecedent_io_core::dependency_key::DependencyClass::TargetIdentification
+pub variant antecedent_io_core::dependency_key::DependencyKeyError::Duplicate { product: antecedent_io_core::dependency_key::ReusableProduct, class: antecedent_io_core::dependency_key::DependencyClass }
+pub variant antecedent_io_core::dependency_key::DependencyKeyError::Omitted { product: antecedent_io_core::dependency_key::ReusableProduct, class: antecedent_io_core::dependency_key::DependencyClass }
+pub variant antecedent_io_core::dependency_key::DependencyKeyError::RowFoldLengthMismatch { rows: u64, folds: u64 }
+pub variant antecedent_io_core::dependency_key::DependencyKeyError::Undeclared { product: antecedent_io_core::dependency_key::ReusableProduct, class: antecedent_io_core::dependency_key::DependencyClass }
+pub variant antecedent_io_core::dependency_key::ReusableProduct::BatchDesign
+pub variant antecedent_io_core::dependency_key::ReusableProduct::FrozenFit
+pub variant antecedent_io_core::dependency_key::ReusableProduct::Identification
+pub variant antecedent_io_core::dependency_key::ReusableProduct::Inference
+pub variant antecedent_io_core::dependency_key::ReusableProduct::InterventionEvaluation
+pub variant antecedent_io_core::dependency_key::ReusableProduct::InterventionTargets
+pub variant antecedent_io_core::dependency_key::ReusableProduct::JointAlignment
+pub variant antecedent_io_core::dependency_key::ReusableProduct::JointLaw
+pub variant antecedent_io_core::dependency_key::ReusableProduct::ModelPriorProvider
+pub variant antecedent_io_core::dependency_key::ReusableProduct::NumericalPolicy
+pub variant antecedent_io_core::dependency_key::ReusableProduct::ProviderReplay
+pub variant antecedent_io_core::dependency_key::ReusableProduct::RowHistoryFolds
+pub variant antecedent_io_core::dependency_key::ReusableProduct::ScoreTable
+pub variant antecedent_io_core::dependency_key::ReusableProduct::SourceSnapshot
 pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::Exact
 pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::Measured
 pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::PointOnly

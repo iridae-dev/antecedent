@@ -39,6 +39,7 @@ pub mod counterfactual_transport_wire;
 pub mod coverage_records_data;
 pub mod cross_world_artifact;
 pub mod cross_world_execution_artifact;
+pub mod dependency_key;
 pub mod discovery_wire;
 pub mod distribution_artifact;
 pub mod distribution_replay;
