@@ -32,6 +32,7 @@ pub mod column;
 mod column_closure;
 mod content_identity;
 pub mod dataset;
+pub mod design_layout;
 pub mod discrete;
 pub mod error;
 pub mod event;

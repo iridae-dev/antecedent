@@ -118,6 +118,9 @@ impl core::clone::Clone for antecedent_data::WindowBoundary
 impl core::clone::Clone for antecedent_data::WindowChunk
 impl core::clone::Clone for antecedent_data::WindowNextAttempt
 impl core::clone::Clone for antecedent_data::arrow_adapter::FrozenArrowStudy
+impl core::clone::Clone for antecedent_data::design_layout::LayoutError
+impl core::clone::Clone for antecedent_data::design_layout::OwnershipCopy
+impl core::clone::Clone for antecedent_data::design_layout::OwnershipReceipt
 impl core::cmp::Eq for antecedent_data::BooleanColumn
 impl core::cmp::Eq for antecedent_data::BorrowError
 impl core::cmp::Eq for antecedent_data::CalendarSpan
@@ -163,6 +166,9 @@ impl core::cmp::Eq for antecedent_data::VectorVariableGroups
 impl core::cmp::Eq for antecedent_data::WindowBoundary
 impl core::cmp::Eq for antecedent_data::WindowChunk
 impl core::cmp::Eq for antecedent_data::WindowNextAttempt
+impl core::cmp::Eq for antecedent_data::design_layout::LayoutError
+impl core::cmp::Eq for antecedent_data::design_layout::OwnershipCopy
+impl core::cmp::Eq for antecedent_data::design_layout::OwnershipReceipt
 impl core::cmp::Ord for antecedent_data::CategoryCode
 impl core::cmp::Ord for antecedent_data::ChunkIndex
 impl core::cmp::Ord for antecedent_data::GlobalId
@@ -219,6 +225,9 @@ impl core::cmp::PartialEq for antecedent_data::VectorVariableGroups
 impl core::cmp::PartialEq for antecedent_data::WindowBoundary
 impl core::cmp::PartialEq for antecedent_data::WindowChunk
 impl core::cmp::PartialEq for antecedent_data::WindowNextAttempt
+impl core::cmp::PartialEq for antecedent_data::design_layout::LayoutError
+impl core::cmp::PartialEq for antecedent_data::design_layout::OwnershipCopy
+impl core::cmp::PartialEq for antecedent_data::design_layout::OwnershipReceipt
 impl core::cmp::PartialOrd for antecedent_data::CategoryCode
 impl core::cmp::PartialOrd for antecedent_data::ChunkIndex
 impl core::cmp::PartialOrd for antecedent_data::GlobalId
@@ -243,6 +252,7 @@ impl core::error::Error for antecedent_data::BorrowError
 impl core::error::Error for antecedent_data::DataError
 impl core::error::Error for antecedent_data::GlobalIndexError
 impl core::error::Error for antecedent_data::LagRefusal
+impl core::error::Error for antecedent_data::design_layout::LayoutError
 impl core::fmt::Debug for antecedent_data::ArrowFrameView
 impl core::fmt::Debug for antecedent_data::ArrowLoadResult
 impl core::fmt::Debug for antecedent_data::BooleanColumn
@@ -314,11 +324,15 @@ impl core::fmt::Debug for antecedent_data::WindowBoundary
 impl core::fmt::Debug for antecedent_data::WindowChunk
 impl core::fmt::Debug for antecedent_data::WindowNextAttempt
 impl core::fmt::Debug for antecedent_data::arrow_adapter::FrozenArrowStudy
+impl core::fmt::Debug for antecedent_data::design_layout::LayoutError
+impl core::fmt::Debug for antecedent_data::design_layout::OwnershipCopy
+impl core::fmt::Debug for antecedent_data::design_layout::OwnershipReceipt
 impl core::fmt::Display for antecedent_data::BorrowError
 impl core::fmt::Display for antecedent_data::DataError
 impl core::fmt::Display for antecedent_data::GlobalIndexError
 impl core::fmt::Display for antecedent_data::LagRefusal
 impl core::fmt::Display for antecedent_data::PopulationUnit
+impl core::fmt::Display for antecedent_data::design_layout::LayoutError
 impl core::hash::Hash for antecedent_data::CalendarSpan
 impl core::hash::Hash for antecedent_data::CategoryCode
 impl core::hash::Hash for antecedent_data::ChunkIndex
@@ -360,6 +374,8 @@ impl core::marker::Copy for antecedent_data::TimeRange
 impl core::marker::Copy for antecedent_data::UnitAccounting
 impl core::marker::Copy for antecedent_data::UnknownCategoryPolicy
 impl core::marker::Copy for antecedent_data::WindowBoundary
+impl core::marker::Copy for antecedent_data::design_layout::LayoutError
+impl core::marker::Copy for antecedent_data::design_layout::OwnershipCopy
 impl core::marker::Freeze for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Freeze for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Freeze for antecedent_data::ArrowLoadResult [auto]
@@ -433,6 +449,9 @@ impl core::marker::Freeze for antecedent_data::WindowChunk [auto]
 impl core::marker::Freeze for antecedent_data::WindowNextAttempt [auto]
 impl core::marker::Freeze for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
 impl core::marker::Freeze for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl core::marker::Freeze for antecedent_data::design_layout::LayoutError [auto]
+impl core::marker::Freeze for antecedent_data::design_layout::OwnershipCopy [auto]
+impl core::marker::Freeze for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::marker::Send for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Send for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Send for antecedent_data::ArrowLoadResult [auto]
@@ -506,6 +525,9 @@ impl core::marker::Send for antecedent_data::WindowChunk [auto]
 impl core::marker::Send for antecedent_data::WindowNextAttempt [auto]
 impl core::marker::Send for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
 impl core::marker::Send for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl core::marker::Send for antecedent_data::design_layout::LayoutError [auto]
+impl core::marker::Send for antecedent_data::design_layout::OwnershipCopy [auto]
+impl core::marker::Send for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::marker::StructuralPartialEq for antecedent_data::BooleanColumn
 impl core::marker::StructuralPartialEq for antecedent_data::BorrowError
 impl core::marker::StructuralPartialEq for antecedent_data::CalendarSpan
@@ -557,6 +579,9 @@ impl core::marker::StructuralPartialEq for antecedent_data::VectorVariableGroups
 impl core::marker::StructuralPartialEq for antecedent_data::WindowBoundary
 impl core::marker::StructuralPartialEq for antecedent_data::WindowChunk
 impl core::marker::StructuralPartialEq for antecedent_data::WindowNextAttempt
+impl core::marker::StructuralPartialEq for antecedent_data::design_layout::LayoutError
+impl core::marker::StructuralPartialEq for antecedent_data::design_layout::OwnershipCopy
+impl core::marker::StructuralPartialEq for antecedent_data::design_layout::OwnershipReceipt
 impl core::marker::Sync for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Sync for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Sync for antecedent_data::BooleanColumn [auto]
@@ -628,6 +653,9 @@ impl core::marker::Sync for antecedent_data::WindowBoundary [auto]
 impl core::marker::Sync for antecedent_data::WindowChunk [auto]
 impl core::marker::Sync for antecedent_data::WindowNextAttempt [auto]
 impl core::marker::Sync for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
+impl core::marker::Sync for antecedent_data::design_layout::LayoutError [auto]
+impl core::marker::Sync for antecedent_data::design_layout::OwnershipCopy [auto]
+impl core::marker::Sync for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::marker::Unpin for antecedent_data::ArrowCColumn [auto]
 impl core::marker::Unpin for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Unpin for antecedent_data::ArrowLoadResult [auto]
@@ -701,6 +729,9 @@ impl core::marker::Unpin for antecedent_data::WindowChunk [auto]
 impl core::marker::Unpin for antecedent_data::WindowNextAttempt [auto]
 impl core::marker::Unpin for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
 impl core::marker::Unpin for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl core::marker::Unpin for antecedent_data::design_layout::LayoutError [auto]
+impl core::marker::Unpin for antecedent_data::design_layout::OwnershipCopy [auto]
+impl core::marker::Unpin for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::ops::deref::Deref for antecedent_data::F64Buffer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BooleanColumn [auto]
@@ -758,6 +789,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowBoundary
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowChunk [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowNextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::LayoutError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::OwnershipCopy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BooleanColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BorrowError [auto]
@@ -814,6 +848,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowBoundary [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowChunk [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowNextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::LayoutError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::OwnershipCopy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::OwnershipReceipt [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ColumnView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_data::ColumnView<'a> [auto]
@@ -822,10 +859,12 @@ impl<'a> core::clone::Clone for antecedent_data::CategoricalView<'a>
 impl<'a> core::clone::Clone for antecedent_data::ColumnView<'a>
 impl<'a> core::clone::Clone for antecedent_data::GappedSample<'a>
 impl<'a> core::clone::Clone for antecedent_data::LaggedPreparedSample<'a>
+impl<'a> core::clone::Clone for antecedent_data::design_layout::DesignLayout<'a>
 impl<'a> core::fmt::Debug for antecedent_data::CategoricalView<'a>
 impl<'a> core::fmt::Debug for antecedent_data::ColumnView<'a>
 impl<'a> core::fmt::Debug for antecedent_data::GappedSample<'a>
 impl<'a> core::fmt::Debug for antecedent_data::LaggedPreparedSample<'a>
+impl<'a> core::fmt::Debug for antecedent_data::design_layout::DesignLayout<'a>
 impl<'a> core::marker::Copy for antecedent_data::CategoricalView<'a>
 impl<'a> core::marker::Copy for antecedent_data::ColumnView<'a>
 impl<'a> core::marker::Copy for antecedent_data::LaggedPreparedSample<'a>
@@ -834,29 +873,37 @@ impl<'a> core::marker::Freeze for antecedent_data::ColumnView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_data::design_layout::DesignLayout<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::ColumnView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_data::design_layout::DesignLayout<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::ColumnView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_data::design_layout::DesignLayout<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::ColumnView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_data::design_layout::DesignLayout<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedPreparedSample<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::DesignLayout<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedPreparedSample<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::DesignLayout<'a> [auto]
 pub const <antecedent_data::DiscreteColumn>::MISSING: u32
 pub const <antecedent_data::MissingPolicy>::NAMES: [&'static str; 6]
+pub const <antecedent_data::design_layout::OwnershipCopy>::CAST: &'static str
+pub const <antecedent_data::design_layout::OwnershipCopy>::GATHER: &'static str
 pub const antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS: usize
 pub const antecedent_data::LONGER_SPAN_OF_SAME_UNIT: &str
 pub const antecedent_data::backend_boundary::POLARS_IS_INTERNAL_CONTRACT_BACKEND: bool
@@ -1213,6 +1260,19 @@ pub fn <antecedent_data::arrow_adapter::FrozenArrowStudy>::fn row_count(&self) -
 pub fn <antecedent_data::arrow_ffi::ArrowCStream>::fn from_reader(reader: alloc::boxed::Box<dyn arrow_array::record_batch::RecordBatchReader + core::marker::Send>) -> Self
 pub fn <antecedent_data::arrow_ffi::ArrowCStream>::fn into_batches(self) -> core::result::Result<(arrow_schema::schema::SchemaRef, alloc::vec::Vec<arrow_array::record_batch::RecordBatch>), antecedent_data::DataError>
 pub fn <antecedent_data::arrow_ffi::ArrowCStream>::unsafe fn from_ffi(stream: arrow_array::ffi_stream::FFI_ArrowArrayStream) -> Self
+pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn n_rows(&self) -> usize
+pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn receipt(&self) -> &antecedent_data::design_layout::OwnershipReceipt
+pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn column(&self, index: usize) -> core::option::Option<&[f64]>
+pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn from_views(columns: &[antecedent_data::ColumnView<'a>], rows: &[antecedent_data::GlobalId]) -> core::result::Result<Self, antecedent_data::design_layout::LayoutError>
+pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn get(&self, column_major_index: usize) -> core::option::Option<f64>
+pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn n_columns(&self) -> usize
+pub fn <antecedent_data::design_layout::LayoutError>::const fn column_index(self) -> usize
+pub fn <antecedent_data::design_layout::LayoutError>::const fn column_len(self) -> core::option::Option<usize>
+pub fn <antecedent_data::design_layout::LayoutError>::const fn global_id(self) -> core::option::Option<antecedent_data::GlobalId>
+pub fn <antecedent_data::design_layout::OwnershipCopy>::const fn column(self) -> usize
+pub fn <antecedent_data::design_layout::OwnershipCopy>::const fn name(self) -> &'static str
+pub fn <antecedent_data::design_layout::OwnershipReceipt>::fn copies(&self) -> &[antecedent_data::design_layout::OwnershipCopy]
+pub fn <antecedent_data::design_layout::OwnershipReceipt>::fn is_empty(&self) -> bool
 pub fn antecedent_data::arrow_adapter::tabular_from_arrow_c_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::arrow_adapter::tabular_from_record_batch(batch: &arrow_array::record_batch::RecordBatch) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::categorical::compile_contrast_matrix(domain: &antecedent_data::CategoryDomain, contrast: &antecedent_data::Contrast) -> core::result::Result<antecedent_data::ContrastMatrix, antecedent_data::DataError>
@@ -1238,6 +1298,7 @@ pub mod antecedent_data::buffer
 pub mod antecedent_data::categorical
 pub mod antecedent_data::column
 pub mod antecedent_data::dataset
+pub mod antecedent_data::design_layout
 pub mod antecedent_data::discrete
 pub mod antecedent_data::error
 pub mod antecedent_data::event
@@ -1354,6 +1415,14 @@ pub struct antecedent_data::arrow_adapter::FrozenArrowStudy
 pub struct antecedent_data::arrow_adapter::FrozenArrowStudy has private fields
 pub struct antecedent_data::arrow_ffi::ArrowCStream
 pub struct antecedent_data::arrow_ffi::ArrowCStream has private fields
+pub struct antecedent_data::design_layout::DesignLayout has private fields
+pub struct antecedent_data::design_layout::DesignLayout<'a>
+pub struct antecedent_data::design_layout::LayoutError
+pub struct antecedent_data::design_layout::LayoutError has private fields
+pub struct antecedent_data::design_layout::OwnershipCopy
+pub struct antecedent_data::design_layout::OwnershipCopy has private fields
+pub struct antecedent_data::design_layout::OwnershipReceipt
+pub struct antecedent_data::design_layout::OwnershipReceipt has private fields
 pub trait antecedent_data::ForeignBufferOwner: core::marker::Send + core::marker::Sync + core::fmt::Debug
 pub trait antecedent_data::TableView
 pub trait fn fn antecedent_data::TableView::column(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_data::ColumnView<'_>, antecedent_data::DataError>
