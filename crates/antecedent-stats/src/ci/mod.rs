@@ -8,6 +8,7 @@ mod bayes;
 mod block_shuffle;
 mod calibration;
 mod factory;
+pub mod fisher_batch;
 mod gsquared;
 mod pairwise_mv;
 mod parcorr;

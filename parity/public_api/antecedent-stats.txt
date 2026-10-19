@@ -246,6 +246,14 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::UnitSummary
 impl core::clone::Clone for antecedent_stats::adaptive_inference::WeightScheme
 impl core::clone::Clone for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::clone::Clone for antecedent_stats::ci::AttainableP
+impl core::clone::Clone for antecedent_stats::ci::fisher_batch::CovarianceOrigin
+impl core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherBatchResult
+impl core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherCacheEntry
+impl core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherCacheKey
+impl core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherConfiguration
+impl core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherCovarianceCache
+impl core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherTestSpec
+impl core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherZResult
 impl core::clone::Clone for antecedent_stats::faer_scope::FaerScope
 impl core::clone::Clone for antecedent_stats::faer_scope::FaerScopeError
 impl core::clone::Clone for antecedent_stats::gram::GramLayoutError
@@ -311,6 +319,10 @@ impl core::cmp::Eq for antecedent_stats::adaptive_inference::UncertaintyParadigm
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::UnitSummary
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::cmp::Eq for antecedent_stats::ci::AttainableP
+impl core::cmp::Eq for antecedent_stats::ci::fisher_batch::CovarianceOrigin
+impl core::cmp::Eq for antecedent_stats::ci::fisher_batch::FisherCacheKey
+impl core::cmp::Eq for antecedent_stats::ci::fisher_batch::FisherConfiguration
+impl core::cmp::Eq for antecedent_stats::ci::fisher_batch::FisherTestSpec
 impl core::cmp::Eq for antecedent_stats::faer_scope::FaerScope
 impl core::cmp::Eq for antecedent_stats::faer_scope::FaerScopeError
 impl core::cmp::Eq for antecedent_stats::gram::GramLayoutError
@@ -477,6 +489,12 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::UnitSummary
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::cmp::PartialEq for antecedent_stats::ci::AttainableP
+impl core::cmp::PartialEq for antecedent_stats::ci::fisher_batch::CovarianceOrigin
+impl core::cmp::PartialEq for antecedent_stats::ci::fisher_batch::FisherBatchResult
+impl core::cmp::PartialEq for antecedent_stats::ci::fisher_batch::FisherCacheKey
+impl core::cmp::PartialEq for antecedent_stats::ci::fisher_batch::FisherConfiguration
+impl core::cmp::PartialEq for antecedent_stats::ci::fisher_batch::FisherTestSpec
+impl core::cmp::PartialEq for antecedent_stats::ci::fisher_batch::FisherZResult
 impl core::cmp::PartialEq for antecedent_stats::faer_scope::FaerScope
 impl core::cmp::PartialEq for antecedent_stats::faer_scope::FaerScopeError
 impl core::cmp::PartialEq for antecedent_stats::gram::GramLayoutError
@@ -753,6 +771,14 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::UnitSummary
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::WeightScheme
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::fmt::Debug for antecedent_stats::ci::AttainableP
+impl core::fmt::Debug for antecedent_stats::ci::fisher_batch::CovarianceOrigin
+impl core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherBatchResult
+impl core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherCacheEntry
+impl core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherCacheKey
+impl core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherConfiguration
+impl core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherCovarianceCache
+impl core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherTestSpec
+impl core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherZResult
 impl core::fmt::Debug for antecedent_stats::faer_scope::FaerScope
 impl core::fmt::Debug for antecedent_stats::faer_scope::FaerScopeError
 impl core::fmt::Debug for antecedent_stats::gram::GramLayoutError
@@ -801,6 +827,10 @@ impl core::hash::Hash for antecedent_stats::SignificanceMethod
 impl core::hash::Hash for antecedent_stats::adaptive_inference::SequenceKind
 impl core::hash::Hash for antecedent_stats::adaptive_inference::UncertaintyParadigm
 impl core::hash::Hash for antecedent_stats::ci::AttainableP
+impl core::hash::Hash for antecedent_stats::ci::fisher_batch::CovarianceOrigin
+impl core::hash::Hash for antecedent_stats::ci::fisher_batch::FisherCacheKey
+impl core::hash::Hash for antecedent_stats::ci::fisher_batch::FisherConfiguration
+impl core::hash::Hash for antecedent_stats::ci::fisher_batch::FisherTestSpec
 impl core::marker::Copy for antecedent_stats::BasisKind
 impl core::marker::Copy for antecedent_stats::BayesFactorCi
 impl core::marker::Copy for antecedent_stats::BetweenStudyMethod
@@ -903,6 +933,8 @@ impl core::marker::Copy for antecedent_stats::adaptive_inference::UnitSummary
 impl core::marker::Copy for antecedent_stats::adaptive_inference::WeightScheme
 impl core::marker::Copy for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::marker::Copy for antecedent_stats::ci::AttainableP
+impl core::marker::Copy for antecedent_stats::ci::fisher_batch::CovarianceOrigin
+impl core::marker::Copy for antecedent_stats::ci::fisher_batch::FisherZResult
 impl core::marker::Copy for antecedent_stats::faer_scope::FaerScope
 impl core::marker::Copy for antecedent_stats::faer_scope::FaerScopeError
 impl core::marker::Copy for antecedent_stats::gram::GramLayoutError
@@ -1113,6 +1145,14 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::UnitSummary 
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Freeze for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Freeze for antecedent_stats::ci::fisher_batch::CovarianceOrigin [auto]
+impl core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherBatchResult [auto]
+impl core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherCacheEntry [auto]
+impl core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherCacheKey [auto]
+impl core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherConfiguration [auto]
+impl core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherCovarianceCache [auto]
+impl core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherTestSpec [auto]
+impl core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherZResult [auto]
 impl core::marker::Freeze for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::marker::Freeze for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Freeze for antecedent_stats::gram::GramLayoutError [auto]
@@ -1339,6 +1379,14 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::UnitSummary [a
 impl core::marker::Send for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Send for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Send for antecedent_stats::ci::fisher_batch::CovarianceOrigin [auto]
+impl core::marker::Send for antecedent_stats::ci::fisher_batch::FisherBatchResult [auto]
+impl core::marker::Send for antecedent_stats::ci::fisher_batch::FisherCacheEntry [auto]
+impl core::marker::Send for antecedent_stats::ci::fisher_batch::FisherCacheKey [auto]
+impl core::marker::Send for antecedent_stats::ci::fisher_batch::FisherConfiguration [auto]
+impl core::marker::Send for antecedent_stats::ci::fisher_batch::FisherCovarianceCache [auto]
+impl core::marker::Send for antecedent_stats::ci::fisher_batch::FisherTestSpec [auto]
+impl core::marker::Send for antecedent_stats::ci::fisher_batch::FisherZResult [auto]
 impl core::marker::Send for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::marker::Send for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Send for antecedent_stats::gram::GramLayoutError [auto]
@@ -1526,6 +1574,12 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::WeightScheme
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::WithinUnitCorrelation
 impl core::marker::StructuralPartialEq for antecedent_stats::ci::AttainableP
+impl core::marker::StructuralPartialEq for antecedent_stats::ci::fisher_batch::CovarianceOrigin
+impl core::marker::StructuralPartialEq for antecedent_stats::ci::fisher_batch::FisherBatchResult
+impl core::marker::StructuralPartialEq for antecedent_stats::ci::fisher_batch::FisherCacheKey
+impl core::marker::StructuralPartialEq for antecedent_stats::ci::fisher_batch::FisherConfiguration
+impl core::marker::StructuralPartialEq for antecedent_stats::ci::fisher_batch::FisherTestSpec
+impl core::marker::StructuralPartialEq for antecedent_stats::ci::fisher_batch::FisherZResult
 impl core::marker::StructuralPartialEq for antecedent_stats::faer_scope::FaerScope
 impl core::marker::StructuralPartialEq for antecedent_stats::faer_scope::FaerScopeError
 impl core::marker::StructuralPartialEq for antecedent_stats::gram::GramLayoutError
@@ -1752,6 +1806,14 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::UnitSummary [a
 impl core::marker::Sync for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Sync for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Sync for antecedent_stats::ci::fisher_batch::CovarianceOrigin [auto]
+impl core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherBatchResult [auto]
+impl core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherCacheEntry [auto]
+impl core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherCacheKey [auto]
+impl core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherConfiguration [auto]
+impl core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherCovarianceCache [auto]
+impl core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherTestSpec [auto]
+impl core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherZResult [auto]
 impl core::marker::Sync for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::marker::Sync for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Sync for antecedent_stats::gram::GramLayoutError [auto]
@@ -1978,6 +2040,14 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::UnitSummary [
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::marker::Unpin for antecedent_stats::ci::AttainableP [auto]
+impl core::marker::Unpin for antecedent_stats::ci::fisher_batch::CovarianceOrigin [auto]
+impl core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherBatchResult [auto]
+impl core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherCacheEntry [auto]
+impl core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherCacheKey [auto]
+impl core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherConfiguration [auto]
+impl core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherCovarianceCache [auto]
+impl core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherTestSpec [auto]
+impl core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherZResult [auto]
 impl core::marker::Unpin for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::marker::Unpin for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::marker::Unpin for antecedent_stats::gram::GramLayoutError [auto]
@@ -2204,6 +2274,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::AttainableP [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::CovarianceOrigin [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherBatchResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherCacheEntry [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherCacheKey [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherConfiguration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherCovarianceCache [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherTestSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherZResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::GramLayoutError [auto]
@@ -2430,6 +2508,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::WeightScheme [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::WithinUnitCorrelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::AttainableP [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::CovarianceOrigin [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherBatchResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherCacheEntry [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherCacheKey [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherConfiguration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherCovarianceCache [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherTestSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherZResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_scope::FaerScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_scope::FaerScopeError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::GramLayoutError [auto]
@@ -2464,6 +2550,8 @@ impl<'a> core::clone::Clone for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::clone::Clone for antecedent_stats::SandwichKind<'a>
 impl<'a> core::clone::Clone for antecedent_stats::adaptive_inference::ArmEvidence<'a>
 impl<'a> core::clone::Clone for antecedent_stats::adaptive_inference::PosteriorRequest<'a>
+impl<'a> core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherBatch<'a>
+impl<'a> core::clone::Clone for antecedent_stats::ci::fisher_batch::FisherSample<'a>
 impl<'a> core::clone::Clone for antecedent_stats::gram::ColumnMajorDesign<'a>
 impl<'a> core::clone::Clone for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::clone::Clone for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
@@ -2478,6 +2566,8 @@ impl<'a> core::fmt::Debug for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::SandwichKind<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::adaptive_inference::ArmEvidence<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::adaptive_inference::PosteriorRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherBatch<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::ci::fisher_batch::FisherSample<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::gram::ColumnMajorDesign<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
@@ -2491,6 +2581,8 @@ impl<'a> core::marker::Copy for antecedent_stats::PredictorMatrix<'a>
 impl<'a> core::marker::Copy for antecedent_stats::SandwichKind<'a>
 impl<'a> core::marker::Copy for antecedent_stats::adaptive_inference::ArmEvidence<'a>
 impl<'a> core::marker::Copy for antecedent_stats::adaptive_inference::PosteriorRequest<'a>
+impl<'a> core::marker::Copy for antecedent_stats::ci::fisher_batch::FisherBatch<'a>
+impl<'a> core::marker::Copy for antecedent_stats::ci::fisher_batch::FisherSample<'a>
 impl<'a> core::marker::Copy for antecedent_stats::gram::ColumnMajorDesign<'a>
 impl<'a> core::marker::Copy for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::marker::Copy for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
@@ -2505,6 +2597,8 @@ impl<'a> core::marker::Freeze for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::gram::DesignRow<'a> [auto]
@@ -2520,6 +2614,8 @@ impl<'a> core::marker::Send for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::gram::DesignRow<'a> [auto]
@@ -2535,6 +2631,8 @@ impl<'a> core::marker::Sync for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::gram::DesignRow<'a> [auto]
@@ -2550,6 +2648,8 @@ impl<'a> core::marker::Unpin for antecedent_stats::PredictorMatrix<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::gram::DesignRow<'a> [auto]
@@ -2565,6 +2665,8 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::Predictor
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::DesignRow<'a> [auto]
@@ -2580,6 +2682,8 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::PredictorMat
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::SandwichKind<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ArmEvidence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::PosteriorRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherBatch<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::fisher_batch::FisherSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::DesignRow<'a> [auto]
@@ -2673,6 +2777,7 @@ pub enum antecedent_stats::adaptive_inference::Functional
 pub enum antecedent_stats::adaptive_inference::LookDecision
 pub enum antecedent_stats::adaptive_inference::SequenceKind
 pub enum antecedent_stats::adaptive_inference::StopReason
+pub enum antecedent_stats::ci::fisher_batch::CovarianceOrigin
 pub enum antecedent_stats::synthesis_transport::SummaryOrigin
 pub field antecedent_stats::BlockTest::x_cols: &'a [usize]
 pub field antecedent_stats::BlockTest::y_cols: &'a [usize]
@@ -3307,6 +3412,40 @@ pub field antecedent_stats::adaptive_inference::TerminalAtom::look: usize
 pub field antecedent_stats::adaptive_inference::TerminalAtom::observed: alloc::vec::Vec<u16>
 pub field antecedent_stats::adaptive_inference::TerminalAtom::probability: f64
 pub field antecedent_stats::adaptive_inference::TerminalAtom::rule_stopped: bool
+pub field antecedent_stats::ci::fisher_batch::FisherBatch::sample: antecedent_stats::ci::fisher_batch::FisherSample<'a>
+pub field antecedent_stats::ci::fisher_batch::FisherBatch::tests: &'a [antecedent_stats::ci::fisher_batch::FisherTestSpec]
+pub field antecedent_stats::ci::fisher_batch::FisherBatchResult::covariance_passes: usize
+pub field antecedent_stats::ci::fisher_batch::FisherBatchResult::results: alloc::vec::Vec<antecedent_stats::ci::fisher_batch::FisherZResult>
+pub field antecedent_stats::ci::fisher_batch::FisherCacheEntry::columns: alloc::vec::Vec<usize>
+pub field antecedent_stats::ci::fisher_batch::FisherCacheEntry::key: antecedent_stats::ci::fisher_batch::FisherCacheKey
+pub field antecedent_stats::ci::fisher_batch::FisherCacheEntry::origin: antecedent_stats::ci::fisher_batch::CovarianceOrigin
+pub field antecedent_stats::ci::fisher_batch::FisherCacheEntry::result: antecedent_stats::ci::fisher_batch::FisherZResult
+pub field antecedent_stats::ci::fisher_batch::FisherCacheEntry::rows: alloc::vec::Vec<usize>
+pub field antecedent_stats::ci::fisher_batch::FisherCacheEntry::spec: antecedent_stats::ci::fisher_batch::FisherTestSpec
+pub field antecedent_stats::ci::fisher_batch::FisherCacheKey::configuration: antecedent_stats::ci::fisher_batch::FisherConfiguration
+pub field antecedent_stats::ci::fisher_batch::FisherCacheKey::data_id: u64
+pub field antecedent_stats::ci::fisher_batch::FisherCacheKey::lag: u32
+pub field antecedent_stats::ci::fisher_batch::FisherCacheKey::mask_id: u64
+pub field antecedent_stats::ci::fisher_batch::FisherConfiguration::conditioning: alloc::vec::Vec<usize>
+pub field antecedent_stats::ci::fisher_batch::FisherConfiguration::level_bits: u64
+pub field antecedent_stats::ci::fisher_batch::FisherConfiguration::x: usize
+pub field antecedent_stats::ci::fisher_batch::FisherConfiguration::y: usize
+pub field antecedent_stats::ci::fisher_batch::FisherSample::columns: &'a [&'a [f64]]
+pub field antecedent_stats::ci::fisher_batch::FisherSample::data_id: u64
+pub field antecedent_stats::ci::fisher_batch::FisherSample::lag: u32
+pub field antecedent_stats::ci::fisher_batch::FisherSample::level: f64
+pub field antecedent_stats::ci::fisher_batch::FisherSample::mask: core::option::Option<&'a [bool]>
+pub field antecedent_stats::ci::fisher_batch::FisherSample::mask_id: u64
+pub field antecedent_stats::ci::fisher_batch::FisherTestSpec::conditioning: alloc::vec::Vec<usize>
+pub field antecedent_stats::ci::fisher_batch::FisherTestSpec::x: usize
+pub field antecedent_stats::ci::fisher_batch::FisherTestSpec::y: usize
+pub field antecedent_stats::ci::fisher_batch::FisherZResult::ci: (f64, f64)
+pub field antecedent_stats::ci::fisher_batch::FisherZResult::df: f64
+pub field antecedent_stats::ci::fisher_batch::FisherZResult::n: usize
+pub field antecedent_stats::ci::fisher_batch::FisherZResult::p_value: f64
+pub field antecedent_stats::ci::fisher_batch::FisherZResult::r: f64
+pub field antecedent_stats::ci::fisher_batch::FisherZResult::statistic: f64
+pub field antecedent_stats::ci::fisher_batch::FisherZResult::z: f64
 pub field antecedent_stats::longitudinal_regime::RegimeValueSummary::effective_sample_size: f64
 pub field antecedent_stats::longitudinal_regime::RegimeValueSummary::matched_observed_fraction: f64
 pub field antecedent_stats::longitudinal_regime::RegimeValueSummary::maximum_weight: f64
@@ -3669,6 +3808,14 @@ pub fn <antecedent_stats::adaptive_inference::TerminalAtom>::fn cell_units(&self
 pub fn <antecedent_stats::adaptive_inference::UncertaintyParadigm>::const fn as_str(self) -> &'static str
 pub fn <antecedent_stats::adaptive_inference::UnitAssignment>::const fn is_adaptive(&self) -> bool
 pub fn <antecedent_stats::adaptive_inference::WeightScheme>::const fn as_str(self) -> &'static str
+pub fn <antecedent_stats::ci::fisher_batch::FisherCacheEntry>::fn reuse(&self, sample: &antecedent_stats::ci::fisher_batch::FisherSample<'_>, spec: &antecedent_stats::ci::fisher_batch::FisherTestSpec) -> core::result::Result<antecedent_stats::ci::fisher_batch::FisherZResult, antecedent_stats::StatsError>
+pub fn <antecedent_stats::ci::fisher_batch::FisherCacheKey>::fn new(data_id: u64, mask_id: u64, lag: u32, spec: &antecedent_stats::ci::fisher_batch::FisherTestSpec, level: f64) -> Self
+pub fn <antecedent_stats::ci::fisher_batch::FisherCovarianceCache>::const fn capacity(&self) -> usize
+pub fn <antecedent_stats::ci::fisher_batch::FisherCovarianceCache>::const fn with_capacity(capacity: usize) -> Self
+pub fn <antecedent_stats::ci::fisher_batch::FisherCovarianceCache>::fn get(&self, key: &antecedent_stats::ci::fisher_batch::FisherCacheKey) -> core::option::Option<&antecedent_stats::ci::fisher_batch::FisherCacheEntry>
+pub fn <antecedent_stats::ci::fisher_batch::FisherCovarianceCache>::fn is_empty(&self) -> bool
+pub fn <antecedent_stats::ci::fisher_batch::FisherCovarianceCache>::fn len(&self) -> usize
+pub fn <antecedent_stats::ci::fisher_batch::FisherCovarianceCache>::fn run(&mut self, batch: &antecedent_stats::ci::fisher_batch::FisherBatch<'_>) -> core::result::Result<antecedent_stats::ci::fisher_batch::FisherBatchResult, antecedent_stats::StatsError>
 pub fn <antecedent_stats::dcor::DistanceY<'a>>::fn correlate(&self, x: &[f64]) -> f64
 pub fn <antecedent_stats::dcor::DistanceY<'a>>::fn new(y: &'a [f64]) -> Self
 pub fn <antecedent_stats::faer_scope::FaerScope>::const fn scratch_budget(self) -> u64
@@ -3922,6 +4069,7 @@ pub mod antecedent_stats::adaptive_inference::procedure_simulation
 pub mod antecedent_stats::adaptive_inference::procedure_uncertainty
 pub mod antecedent_stats::adaptive_inference::weighting
 pub mod antecedent_stats::ci
+pub mod antecedent_stats::ci::fisher_batch
 pub mod antecedent_stats::cluster
 pub mod antecedent_stats::covariance
 pub mod antecedent_stats::dcor
@@ -4132,6 +4280,17 @@ pub struct antecedent_stats::adaptive_inference::StagewiseInference
 pub struct antecedent_stats::adaptive_inference::StagewiseLook
 pub struct antecedent_stats::adaptive_inference::StopFractions
 pub struct antecedent_stats::adaptive_inference::TerminalAtom
+pub struct antecedent_stats::ci::fisher_batch::FisherBatch<'a>
+pub struct antecedent_stats::ci::fisher_batch::FisherBatchResult
+pub struct antecedent_stats::ci::fisher_batch::FisherCacheEntry
+pub struct antecedent_stats::ci::fisher_batch::FisherCacheEntry has private fields
+pub struct antecedent_stats::ci::fisher_batch::FisherCacheKey
+pub struct antecedent_stats::ci::fisher_batch::FisherConfiguration
+pub struct antecedent_stats::ci::fisher_batch::FisherCovarianceCache
+pub struct antecedent_stats::ci::fisher_batch::FisherCovarianceCache has private fields
+pub struct antecedent_stats::ci::fisher_batch::FisherSample<'a>
+pub struct antecedent_stats::ci::fisher_batch::FisherTestSpec
+pub struct antecedent_stats::ci::fisher_batch::FisherZResult
 pub struct antecedent_stats::dcor::DistanceY has private fields
 pub struct antecedent_stats::dcor::DistanceY<'a>
 pub struct antecedent_stats::faer_scope::FaerScope
@@ -4809,6 +4968,8 @@ pub variant antecedent_stats::adaptive_inference::WithinUnitCorrelation::Compoun
 pub variant antecedent_stats::ci::AttainableP::AnalyticOrBlockShuffle
 pub variant antecedent_stats::ci::AttainableP::NonparametricPermutation
 pub variant antecedent_stats::ci::AttainableP::Zero
+pub variant antecedent_stats::ci::fisher_batch::CovarianceOrigin::CompleteData
+pub variant antecedent_stats::ci::fisher_batch::CovarianceOrigin::Testwise
 pub variant antecedent_stats::faer_scope::FaerScopeError::ScratchOverBudget { required_bytes: u64, budget_bytes: u64 }
 pub variant antecedent_stats::faer_scope::FaerScopeError::ScratchOverflow
 pub variant antecedent_stats::faer_scope::FaerScopeError::ZeroWorkers
