@@ -18,6 +18,7 @@ pub mod portable;
 pub mod posterior_reduce;
 pub mod rng;
 pub mod scalar;
+pub mod scalar_reference;
 pub mod special;
 pub mod view;
 pub mod welford;
@@ -44,6 +45,11 @@ pub use rng::{
     unbiased_index,
 };
 pub use scalar::{kish_ess, sanitize_weight};
+pub use scalar_reference::{
+    ArchIsa, ArchRefusal, REDUCTION_ABS_TOLERANCE, ReductionError, WeightedMask,
+    portable_masked_weighted_sum, refuse_arch_promotion, scalar_masked_weighted_sum,
+    within_reduction_tolerance,
+};
 pub use special::{
     NORMAL_Q975, erf, erfc, log_norm_cdf, log_norm_pdf, log_norm_sf, mills_left_tail, norm_cdf,
     norm_inv, norm_pdf, norm_sf,
