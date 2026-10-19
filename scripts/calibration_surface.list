@@ -295,6 +295,91 @@ identity.counterfactual_transport crates/antecedent-identify/src/sid/counterfact
 identity.counterfactual_transport crates/antecedent-identify/src/sid/counterfactual_transport/
 key identity.counterfactual_transport query CounterfactualEventQuery
 
+# ---- 3.0 sources: longer path wins over the directory line -----------------
+# Shared numerical code stays core, so every record carries it: operators,
+# sampling design, measurement counters, rng keys, data identity, and the
+# cyclic-graph / condensation substrate. Evidence, an identification path, and
+# an estimator invalidate only records whose fields carry that facet. No
+# current coverage record names these routes; a key is the field spelling that
+# will, and it does not match a record that exists today.
+core crates/antecedent-core/src/operator.rs
+core crates/antecedent-core/src/physical_operator.rs
+core crates/antecedent-core/src/sampling_design.rs
+core crates/antecedent-core/src/measurement_record.rs
+core crates/antecedent-core/src/rng_key.rs
+core crates/antecedent-data/src/source.rs
+core crates/antecedent-data/src/source_snapshot.rs
+core crates/antecedent-data/src/column_closure.rs
+core crates/antecedent-data/src/lazy_identity.rs
+core crates/antecedent-graph/src/cyclic.rs
+core crates/antecedent-graph/src/scc.rs
+identity.scientific_target crates/antecedent-core/src/scientific_target.rs
+key identity.scientific_target query ScientificTarget
+key identity.scientific_target estimator scientific_target scientific_target.*
+identity.sigma_separation crates/antecedent-graph/src/sigma_separation.rs
+key identity.sigma_separation query SigmaSeparation
+key identity.sigma_separation estimator sigma_separation sigma_separation.*
+identity.compiled_product crates/antecedent-identify/src/compiled_product.rs
+key identity.compiled_product query CompiledIdentificationProduct
+key identity.compiled_product estimator compiled_product compiled_product.*
+estimator.linear_solution crates/antecedent-model/src/linear_solution.rs
+key estimator.linear_solution estimator linear.solution linear.solution.*
+estimator.experimental_recovery crates/antecedent-identify/src/experimental_recovery.rs
+key estimator.experimental_recovery estimator hyttinen_eberhardt_hoyer.*
+evidence crates/antecedent-contract/src/evidence_envelope.rs
+evidence crates/antecedent-contract/src/evidence_ports.rs
+evidence crates/antecedent-contract/src/dependence.rs
+evidence crates/antecedent-contract/src/evidence_effects.rs
+key evidence estimator evidence.envelope.* evidence.dependence.*
+key evidence dependence evidence.dependence.*
+# Crate root re-exports the types. It does not run them for a record that
+# does not carry this facet.
+allow evidence crates/antecedent-contract/src/lib.rs AxisInterval CovarianceCombination CovarianceTerms DecisionRequest DependenceContract DependenceError DependenceSource DependenceSourceId DependenceStatus EvidenceBinding EvidenceCalibration EvidenceEnvelope EvidenceEnvelopeError EvidenceOrigins EvidencePort EvidencePortError EvidenceSupport FactorDisclosure SharedFactor SharedFactorId SharedFactorKind SharedFactorSets UncertaintyAxes UncertaintyAxis WorldTime dependence evidence_envelope evidence_ports
+# Local helpers and identity tags share bare names with this facet. They do not call it.
+allow evidence crates/antecedent-contract/src/joint_law_rule.rs blank
+allow evidence crates/antecedent-contract/src/joint_alignment.rs NextAttempt
+allow evidence crates/antecedent-contract/src/measurement.rs blank
+allow evidence crates/antecedent-contract/src/mechanism_composition.rs blank
+allow evidence crates/antecedent-contract/src/observation_query.rs blank
+allow evidence crates/antecedent-counterfactual/src/temporal_cross_world.rs witness
+allow evidence crates/antecedent-counterfactual/src/transported_path_specific.rs witness
+allow evidence crates/antecedent-design/src/decision_robust_artifact.rs blank
+allow evidence crates/antecedent-design/src/decision_transported_source.rs blank
+allow evidence crates/antecedent-design/src/transport_sensitivity.rs blank
+allow evidence crates/antecedent-design/src/z_transport_planner.rs witness
+allow evidence crates/antecedent-estimate/src/mechanism_discrepancy.rs blank
+allow evidence crates/antecedent-estimate/src/recovery_sampled.rs witness
+allow evidence crates/antecedent-estimate/src/transport.rs witness
+allow evidence crates/antecedent-io-core/src/causal_artifact.rs witness
+allow evidence crates/antecedent-io-core/src/cohort_decision.rs IDENTITY_TAG
+allow evidence crates/antecedent-io-core/src/counterfactual_transport_wire.rs witness
+allow evidence crates/antecedent-io-core/src/cross_world_artifact.rs witness
+allow evidence crates/antecedent-io-core/src/migrate.rs witness
+allow evidence crates/antecedent-io-core/src/temporal_counterfactual_artifact.rs witness
+allow evidence crates/antecedent-io-core/src/transport_catalog_wire.rs blank
+allow evidence crates/antecedent-io-core/src/transport_interference_wire.rs witness
+allow evidence crates/antecedent-io-core/src/transported_counterfactual_artifact.rs witness
+allow evidence crates/antecedent-io/src/admg_conditional_transport_artifact.rs witness
+allow evidence crates/antecedent-io/src/counterfactual_transport_artifact.rs witness
+allow evidence crates/antecedent-io/src/recovery_chain_artifact.rs witness
+allow evidence crates/antecedent/src/analysis/checked_temporal_class_response.rs witness
+allow evidence crates/antecedent/src/analysis/counterfactual_transport.rs witness
+allow evidence crates/antecedent/src/analysis/decision_claims.rs blank
+allow evidence crates/antecedent/src/analysis/discovered_transport_estimate.rs IDENTITY_TAG
+allow evidence crates/antecedent/src/analysis/execute/checked_graph_posterior_response.rs witness
+allow evidence crates/antecedent/src/analysis/execute/class_posterior_response.rs witness
+allow evidence crates/antecedent/src/analysis/execute/temporal_class_mediation_posterior.rs witness
+allow evidence crates/antecedent/src/analysis/execute/temporal_path.rs witness
+allow evidence crates/antecedent/src/analysis/execute/temporal_posterior_response.rs witness
+allow evidence crates/antecedent/src/analysis/prepared/prepare.rs witness
+allow evidence crates/antecedent/src/analysis/prepared/prepare_identification.rs witness
+allow evidence crates/antecedent/src/analysis/recovery.rs witness
+allow evidence crates/antecedent/src/analysis/recovery_chain.rs witness
+allow evidence crates/antecedent/src/cross_world/artifact.rs witness
+allow evidence crates/antecedent/src/cross_world/mod.rs witness
+allow evidence crates/antecedent/src/identify_api.rs witness
+allow evidence crates/antecedent/src/strategy_table/dispatch.rs witness
+
 # ---- core: toolchain, manifests, shared libraries, the harness -------------
 core Cargo.toml
 core Cargo.lock
