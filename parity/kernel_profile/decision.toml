@@ -1,0 +1,12 @@
+# N18 promotion decision. This file records a deferral. It stores no new timings.
+
+schema = 1
+item = "N18"
+decision = "deferred"
+simd_promoted = false
+arch_simd_compiled = false
+n17 = "unwritten"
+basis = "parity/kernel_profile/measurement.toml"
+measured_commit = "8f69473d8"
+host = "Apple M1 Max, arm64, macOS 26.5.2 (25F84)"
+why = "N15 measured scalar fadd d on all four kernels and set simd_decision = not_promoted. N17 was not built, so there is no architecture kernel to evaluate. The portable bodies stay the implementation."

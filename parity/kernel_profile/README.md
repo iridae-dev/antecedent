@@ -47,3 +47,7 @@ cargo bench -p antecedent-kernels --bench partial_correlation
 `python3 scripts/bench_regression.py [CRITERION_DIR] [RESOURCE_DIR]` exists. It checks Criterion relative change for the release lanes. It does not profile these kernels.
 
 LLVM remarks for this record: `RUSTFLAGS="-C remark=loop-vectorize -C debuginfo=1" cargo rustc -p antecedent-kernels --release --lib -- --emit asm` and the same command for `antecedent-stats` printed no loop-vectorize remark. The assembly inspection is in `measurement.toml`.
+
+## Promotion (N18)
+
+`decision.toml` defers explicit SIMD. N17 was not built, so there is no AVX2 or NEON kernel to compare. `ARCH_SIMD_COMPILED` stays `false`. The portable bodies measured in `measurement.toml` remain the implementation.
