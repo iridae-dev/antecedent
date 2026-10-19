@@ -54,6 +54,8 @@
 #[non_exhaustive] pub enum antecedent_core::TransportSupportCoordinate
 #[non_exhaustive] pub enum antecedent_core::ValueExpr
 #[non_exhaustive] pub enum antecedent_core::execution::AdmissionError
+#[non_exhaustive] pub enum antecedent_core::execution_facts::ExecutionFactError
+#[non_exhaustive] pub enum antecedent_core::execution_facts::ExecutionFactStatus
 #[non_exhaustive] pub enum antecedent_core::inspect::InspectionRefusal
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ArmBinding
 #[non_exhaustive] pub enum antecedent_core::measurement_model::DifferentialAxis
@@ -412,6 +414,15 @@ impl core::clone::Clone for antecedent_core::execution_attempt::AttemptReport
 impl core::clone::Clone for antecedent_core::execution_attempt::ObservationToken
 impl core::clone::Clone for antecedent_core::execution_attempt::Operation
 impl core::clone::Clone for antecedent_core::execution_attempt::OperationCounts
+impl core::clone::Clone for antecedent_core::execution_facts::ExecutionBackend
+impl core::clone::Clone for antecedent_core::execution_facts::ExecutionCounts
+impl core::clone::Clone for antecedent_core::execution_facts::ExecutionFactError
+impl core::clone::Clone for antecedent_core::execution_facts::ExecutionFactStatus
+impl core::clone::Clone for antecedent_core::execution_facts::ExecutionFacts
+impl core::clone::Clone for antecedent_core::execution_facts::ExecutionResources
+impl core::clone::Clone for antecedent_core::execution_facts::MeasuredExecution
+impl core::clone::Clone for antecedent_core::execution_facts::OutputRetention
+impl core::clone::Clone for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::clone::Clone for antecedent_core::inspect::EstimatedResources
 impl core::clone::Clone for antecedent_core::inspect::EvidenceTransformation
 impl core::clone::Clone for antecedent_core::inspect::EvidenceTransformations
@@ -752,6 +763,15 @@ impl core::cmp::Eq for antecedent_core::execution::AdmissionRequest
 impl core::cmp::Eq for antecedent_core::execution_attempt::AttemptReport
 impl core::cmp::Eq for antecedent_core::execution_attempt::Operation
 impl core::cmp::Eq for antecedent_core::execution_attempt::OperationCounts
+impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionBackend
+impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionCounts
+impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionFactError
+impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionFactStatus
+impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionFacts
+impl core::cmp::Eq for antecedent_core::execution_facts::ExecutionResources
+impl core::cmp::Eq for antecedent_core::execution_facts::MeasuredExecution
+impl core::cmp::Eq for antecedent_core::execution_facts::OutputRetention
+impl core::cmp::Eq for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::cmp::Eq for antecedent_core::inspect::EstimatedResources
 impl core::cmp::Eq for antecedent_core::inspect::EvidenceTransformation
 impl core::cmp::Eq for antecedent_core::inspect::EvidenceTransformations
@@ -1175,6 +1195,15 @@ impl core::cmp::PartialEq for antecedent_core::execution::AdmissionRequest
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::AttemptReport
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::Operation
 impl core::cmp::PartialEq for antecedent_core::execution_attempt::OperationCounts
+impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionBackend
+impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionCounts
+impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionFactError
+impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionFactStatus
+impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionFacts
+impl core::cmp::PartialEq for antecedent_core::execution_facts::ExecutionResources
+impl core::cmp::PartialEq for antecedent_core::execution_facts::MeasuredExecution
+impl core::cmp::PartialEq for antecedent_core::execution_facts::OutputRetention
+impl core::cmp::PartialEq for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::cmp::PartialEq for antecedent_core::inspect::EstimatedResources
 impl core::cmp::PartialEq for antecedent_core::inspect::EvidenceTransformation
 impl core::cmp::PartialEq for antecedent_core::inspect::EvidenceTransformations
@@ -1329,6 +1358,9 @@ impl core::default::Default for antecedent_core::SyntheticPanelMethod
 impl core::default::Default for antecedent_core::execution_attempt::AttemptReport
 impl core::default::Default for antecedent_core::execution_attempt::ObservationToken
 impl core::default::Default for antecedent_core::execution_attempt::OperationCounts
+impl core::default::Default for antecedent_core::execution_facts::ExecutionCounts
+impl core::default::Default for antecedent_core::execution_facts::ExecutionResources
+impl core::default::Default for antecedent_core::execution_facts::OutputRetention
 impl core::default::Default for antecedent_core::inspect::InspectionInputs
 impl core::default::Default for antecedent_core::recalc::ResumeContext
 impl core::default::Default for antecedent_core::recalc::StageIdentities
@@ -1354,6 +1386,7 @@ impl core::error::Error for antecedent_core::ScientificTargetError
 impl core::error::Error for antecedent_core::TemporalIndexError
 impl core::error::Error for antecedent_core::ToleranceError
 impl core::error::Error for antecedent_core::execution::AdmissionError
+impl core::error::Error for antecedent_core::execution_facts::ExecutionFactError
 impl core::error::Error for antecedent_core::inspect::InspectionRefusal
 impl core::error::Error for antecedent_core::parallel_axis::ParallelPlanError
 impl core::error::Error for antecedent_core::search_budget::SearchBudgetError
@@ -1692,6 +1725,15 @@ impl core::fmt::Debug for antecedent_core::execution::AdmissionRequest
 impl core::fmt::Debug for antecedent_core::execution_attempt::AttemptReport
 impl core::fmt::Debug for antecedent_core::execution_attempt::Operation
 impl core::fmt::Debug for antecedent_core::execution_attempt::OperationCounts
+impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionBackend
+impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionCounts
+impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionFactError
+impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionFactStatus
+impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionFacts
+impl core::fmt::Debug for antecedent_core::execution_facts::ExecutionResources
+impl core::fmt::Debug for antecedent_core::execution_facts::MeasuredExecution
+impl core::fmt::Debug for antecedent_core::execution_facts::OutputRetention
+impl core::fmt::Debug for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::fmt::Debug for antecedent_core::inspect::EstimatedResources
 impl core::fmt::Debug for antecedent_core::inspect::EvidenceTransformation
 impl core::fmt::Debug for antecedent_core::inspect::EvidenceTransformations
@@ -1837,6 +1879,9 @@ impl core::fmt::Display for antecedent_core::Value
 impl core::fmt::Display for antecedent_core::VariableId
 impl core::fmt::Display for antecedent_core::VarianceRule
 impl core::fmt::Display for antecedent_core::execution::AdmissionError
+impl core::fmt::Display for antecedent_core::execution_facts::ExecutionFactError
+impl core::fmt::Display for antecedent_core::execution_facts::ExecutionFactStatus
+impl core::fmt::Display for antecedent_core::execution_facts::OutputRetention
 impl core::fmt::Display for antecedent_core::inspect::InspectionRefusal
 impl core::fmt::Display for antecedent_core::parallel_axis::ParallelAxis
 impl core::fmt::Display for antecedent_core::parallel_axis::ParallelPlanError
@@ -2062,6 +2107,14 @@ impl core::hash::Hash for antecedent_core::WorldSpec
 impl core::hash::Hash for antecedent_core::execution::AdmissionError
 impl core::hash::Hash for antecedent_core::execution::AdmissionRemainder
 impl core::hash::Hash for antecedent_core::execution::AdmissionRequest
+impl core::hash::Hash for antecedent_core::execution_facts::ExecutionBackend
+impl core::hash::Hash for antecedent_core::execution_facts::ExecutionCounts
+impl core::hash::Hash for antecedent_core::execution_facts::ExecutionFactStatus
+impl core::hash::Hash for antecedent_core::execution_facts::ExecutionFacts
+impl core::hash::Hash for antecedent_core::execution_facts::ExecutionResources
+impl core::hash::Hash for antecedent_core::execution_facts::MeasuredExecution
+impl core::hash::Hash for antecedent_core::execution_facts::OutputRetention
+impl core::hash::Hash for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::hash::Hash for antecedent_core::inspect::EstimatedResources
 impl core::hash::Hash for antecedent_core::inspect::EvidenceTransformation
 impl core::hash::Hash for antecedent_core::inspect::EvidenceTransformations
@@ -2261,6 +2314,12 @@ impl core::marker::Copy for antecedent_core::execution::AdmissionRemainder
 impl core::marker::Copy for antecedent_core::execution::AdmissionRequest
 impl core::marker::Copy for antecedent_core::execution_attempt::Operation
 impl core::marker::Copy for antecedent_core::execution_attempt::OperationCounts
+impl core::marker::Copy for antecedent_core::execution_facts::ExecutionCounts
+impl core::marker::Copy for antecedent_core::execution_facts::ExecutionFactError
+impl core::marker::Copy for antecedent_core::execution_facts::ExecutionFactStatus
+impl core::marker::Copy for antecedent_core::execution_facts::ExecutionResources
+impl core::marker::Copy for antecedent_core::execution_facts::OutputRetention
+impl core::marker::Copy for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::marker::Copy for antecedent_core::inspect::EstimatedResources
 impl core::marker::Copy for antecedent_core::inspect::InspectionRefusal
 impl core::marker::Copy for antecedent_core::inspect::UncertaintyDemand
@@ -2643,6 +2702,15 @@ impl core::marker::Freeze for antecedent_core::execution::AdmissionRequest [auto
 impl core::marker::Freeze for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Freeze for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionBackend [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionCounts [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionFactError [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionFactStatus [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionFacts [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::ExecutionResources [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::MeasuredExecution [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::OutputRetention [auto]
+impl core::marker::Freeze for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::marker::Freeze for antecedent_core::inspect::EstimatedResources [auto]
 impl core::marker::Freeze for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::marker::Freeze for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -3053,6 +3121,15 @@ impl core::marker::Send for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Send for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Send for antecedent_core::execution_facts::ExecutionBackend [auto]
+impl core::marker::Send for antecedent_core::execution_facts::ExecutionCounts [auto]
+impl core::marker::Send for antecedent_core::execution_facts::ExecutionFactError [auto]
+impl core::marker::Send for antecedent_core::execution_facts::ExecutionFactStatus [auto]
+impl core::marker::Send for antecedent_core::execution_facts::ExecutionFacts [auto]
+impl core::marker::Send for antecedent_core::execution_facts::ExecutionResources [auto]
+impl core::marker::Send for antecedent_core::execution_facts::MeasuredExecution [auto]
+impl core::marker::Send for antecedent_core::execution_facts::OutputRetention [auto]
+impl core::marker::Send for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::marker::Send for antecedent_core::inspect::EstimatedResources [auto]
 impl core::marker::Send for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::marker::Send for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -3446,6 +3523,15 @@ impl core::marker::StructuralPartialEq for antecedent_core::execution::Admission
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::AttemptReport
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::Operation
 impl core::marker::StructuralPartialEq for antecedent_core::execution_attempt::OperationCounts
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::ExecutionBackend
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::ExecutionCounts
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::ExecutionFactError
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::ExecutionFactStatus
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::ExecutionFacts
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::ExecutionResources
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::MeasuredExecution
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::OutputRetention
+impl core::marker::StructuralPartialEq for antecedent_core::execution_facts::PhysicalExecutionIdentity
 impl core::marker::StructuralPartialEq for antecedent_core::inspect::EstimatedResources
 impl core::marker::StructuralPartialEq for antecedent_core::inspect::EvidenceTransformation
 impl core::marker::StructuralPartialEq for antecedent_core::inspect::EvidenceTransformations
@@ -3854,6 +3940,15 @@ impl core::marker::Sync for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Sync for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::ExecutionBackend [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::ExecutionCounts [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::ExecutionFactError [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::ExecutionFactStatus [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::ExecutionFacts [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::ExecutionResources [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::MeasuredExecution [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::OutputRetention [auto]
+impl core::marker::Sync for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::marker::Sync for antecedent_core::inspect::EstimatedResources [auto]
 impl core::marker::Sync for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::marker::Sync for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -4264,6 +4359,15 @@ impl core::marker::Unpin for antecedent_core::execution::AdmissionRequest [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::Operation [auto]
 impl core::marker::Unpin for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionBackend [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionCounts [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionFactError [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionFactStatus [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionFacts [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::ExecutionResources [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::MeasuredExecution [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::OutputRetention [auto]
+impl core::marker::Unpin for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::marker::Unpin for antecedent_core::inspect::EstimatedResources [auto]
 impl core::marker::Unpin for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::marker::Unpin for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -4675,6 +4779,15 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution::Adm
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionBackend [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionFactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionFactStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionFacts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::ExecutionResources [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::MeasuredExecution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::OutputRetention [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::EstimatedResources [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -5084,6 +5197,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution::Admiss
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::AttemptReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::Operation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_attempt::OperationCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionBackend [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionFactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionFactStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionFacts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::ExecutionResources [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::MeasuredExecution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::OutputRetention [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::execution_facts::PhysicalExecutionIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::EstimatedResources [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::EvidenceTransformation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::inspect::EvidenceTransformations [auto]
@@ -5357,6 +5479,7 @@ pub enum antecedent_core::ValueType
 pub enum antecedent_core::VariableDomain
 pub enum antecedent_core::VarianceRule
 pub enum antecedent_core::execution_attempt::Operation
+pub enum antecedent_core::execution_facts::OutputRetention
 pub enum antecedent_core::measurement_model::MeasurementParameters
 pub enum antecedent_core::measurement_model::MeasurementRoute
 pub enum antecedent_core::parallel_axis::ParallelAxis
@@ -6838,6 +6961,49 @@ pub fn <antecedent_core::execution_attempt::AttemptReport>::fn is_complete(&self
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn is_empty(&self) -> bool
 pub fn <antecedent_core::execution_attempt::AttemptReport>::fn operations(&self) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_core::execution_attempt::Operation, antecedent_core::execution_attempt::OperationCounts)> + '_
 pub fn <antecedent_core::execution_attempt::OperationCounts>::fn unfinished(self) -> u64
+pub fn <antecedent_core::execution_facts::ExecutionBackend>::const fn kernel(&self) -> antecedent_core::KernelPolicy
+pub fn <antecedent_core::execution_facts::ExecutionBackend>::const fn new(name: alloc::string::String, kernel: antecedent_core::KernelPolicy) -> Self
+pub fn <antecedent_core::execution_facts::ExecutionBackend>::fn name(&self) -> &str
+pub fn <antecedent_core::execution_facts::ExecutionCounts>::const fn cache_hits(self) -> u64
+pub fn <antecedent_core::execution_facts::ExecutionCounts>::const fn copies(self) -> u64
+pub fn <antecedent_core::execution_facts::ExecutionCounts>::const fn fits(self) -> u64
+pub fn <antecedent_core::execution_facts::ExecutionCounts>::const fn new(scans: u64, copies: u64, fits: u64, tests: u64, cache_hits: u64) -> Self
+pub fn <antecedent_core::execution_facts::ExecutionCounts>::const fn scans(self) -> u64
+pub fn <antecedent_core::execution_facts::ExecutionCounts>::const fn tests(self) -> u64
+pub fn <antecedent_core::execution_facts::ExecutionCounts>::fn try_add(self, extra: Self) -> core::result::Result<Self, antecedent_core::execution_facts::ExecutionFactError>
+pub fn <antecedent_core::execution_facts::ExecutionFactStatus>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::execution_facts::ExecutionFactStatus>::const fn publishes_claim(self) -> bool
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn backend(&self) -> &antecedent_core::execution_facts::ExecutionBackend
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn counts(&self) -> antecedent_core::execution_facts::ExecutionCounts
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn declare_numerical_policy_changes_scientific_contract(self, changes: bool) -> Self
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn measured(&self) -> &antecedent_core::execution_facts::MeasuredExecution
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn new(measured: antecedent_core::execution_facts::MeasuredExecution, scientific_identity: core::option::Option<antecedent_core::SemanticDigest>, numerical_policy_changes_scientific_contract: bool) -> Self
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn publishes_claim(&self) -> bool
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn resources(&self) -> antecedent_core::execution_facts::ExecutionResources
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn retention(&self) -> antecedent_core::execution_facts::OutputRetention
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn scientific_contract_changed(&self) -> bool
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn scientific_identity(&self) -> core::option::Option<antecedent_core::SemanticDigest>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn status(&self) -> antecedent_core::execution_facts::ExecutionFactStatus
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::const fn with_scientific_identity(self, scientific_identity: core::option::Option<antecedent_core::SemanticDigest>) -> Self
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn physical_identity(&self) -> antecedent_core::execution_facts::PhysicalExecutionIdentity
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn rebuild(self, measured: antecedent_core::execution_facts::MeasuredExecution) -> Self
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn try_add_counts(&mut self, extra: antecedent_core::execution_facts::ExecutionCounts) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
+pub fn <antecedent_core::execution_facts::ExecutionFacts>::fn try_add_resources(&mut self, extra: antecedent_core::execution_facts::ExecutionResources) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
+pub fn <antecedent_core::execution_facts::ExecutionResources>::const fn memory_bytes(self) -> u64
+pub fn <antecedent_core::execution_facts::ExecutionResources>::const fn new(threads: u64, memory_bytes: u64, spill_bytes: u64) -> Self
+pub fn <antecedent_core::execution_facts::ExecutionResources>::const fn spill_bytes(self) -> u64
+pub fn <antecedent_core::execution_facts::ExecutionResources>::const fn threads(self) -> u64
+pub fn <antecedent_core::execution_facts::ExecutionResources>::fn try_add(self, extra: Self) -> core::result::Result<Self, antecedent_core::execution_facts::ExecutionFactError>
+pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn backend(&self) -> &antecedent_core::execution_facts::ExecutionBackend
+pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn counts(&self) -> antecedent_core::execution_facts::ExecutionCounts
+pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn new(counts: antecedent_core::execution_facts::ExecutionCounts, retention: antecedent_core::execution_facts::OutputRetention, resources: antecedent_core::execution_facts::ExecutionResources, backend: antecedent_core::execution_facts::ExecutionBackend, status: antecedent_core::execution_facts::ExecutionFactStatus) -> Self
+pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn resources(&self) -> antecedent_core::execution_facts::ExecutionResources
+pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn retention(&self) -> antecedent_core::execution_facts::OutputRetention
+pub fn <antecedent_core::execution_facts::MeasuredExecution>::const fn status(&self) -> antecedent_core::execution_facts::ExecutionFactStatus
+pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_counts(&mut self, extra: antecedent_core::execution_facts::ExecutionCounts) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
+pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_resources(&mut self, extra: antecedent_core::execution_facts::ExecutionResources) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
+pub fn <antecedent_core::execution_facts::OutputRetention>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::execution_facts::PhysicalExecutionIdentity>::const fn digest(self) -> antecedent_core::SemanticDigest
 pub fn <antecedent_core::inspect::EstimatedResources>::const fn declared(memory: antecedent_core::MemoryBudget, estimated_bytes: u64) -> Self
 pub fn <antecedent_core::inspect::EstimatedResources>::const fn estimated_bytes(self) -> u64
 pub fn <antecedent_core::inspect::EstimatedResources>::const fn memory(self) -> antecedent_core::MemoryBudget
@@ -7009,6 +7175,7 @@ pub mod antecedent_core::diagnostic
 pub mod antecedent_core::error
 pub mod antecedent_core::execution
 pub mod antecedent_core::execution_attempt
+pub mod antecedent_core::execution_facts
 pub mod antecedent_core::identification
 pub mod antecedent_core::identity
 pub mod antecedent_core::ids
@@ -7364,6 +7531,18 @@ pub struct antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 pub struct antecedent_core::execution_attempt::ObservationToken has private fields
 pub struct antecedent_core::execution_attempt::OperationCounts
 pub struct antecedent_core::execution_attempt::OperationGuard has private fields
+pub struct antecedent_core::execution_facts::ExecutionBackend
+pub struct antecedent_core::execution_facts::ExecutionBackend has private fields
+pub struct antecedent_core::execution_facts::ExecutionCounts
+pub struct antecedent_core::execution_facts::ExecutionCounts has private fields
+pub struct antecedent_core::execution_facts::ExecutionFacts
+pub struct antecedent_core::execution_facts::ExecutionFacts has private fields
+pub struct antecedent_core::execution_facts::ExecutionResources
+pub struct antecedent_core::execution_facts::ExecutionResources has private fields
+pub struct antecedent_core::execution_facts::MeasuredExecution
+pub struct antecedent_core::execution_facts::MeasuredExecution has private fields
+pub struct antecedent_core::execution_facts::PhysicalExecutionIdentity
+pub struct antecedent_core::execution_facts::PhysicalExecutionIdentity has private fields
 pub struct antecedent_core::inspect::EstimatedResources
 pub struct antecedent_core::inspect::EstimatedResources has private fields
 pub struct antecedent_core::inspect::EvidenceTransformation
@@ -8456,6 +8635,13 @@ pub variant antecedent_core::execution_attempt::Operation::ProgramCompilation
 pub variant antecedent_core::execution_attempt::Operation::ProviderBinding
 pub variant antecedent_core::execution_attempt::Operation::ProviderInvocation
 pub variant antecedent_core::execution_attempt::Operation::ScoreConstruction
+pub variant antecedent_core::execution_facts::ExecutionFactError::Overflow
+pub variant antecedent_core::execution_facts::ExecutionFactStatus::Cancelled
+pub variant antecedent_core::execution_facts::ExecutionFactStatus::Completed
+pub variant antecedent_core::execution_facts::ExecutionFactStatus::Failed
+pub variant antecedent_core::execution_facts::OutputRetention::DiskBacked
+pub variant antecedent_core::execution_facts::OutputRetention::FullReusable
+pub variant antecedent_core::execution_facts::OutputRetention::SummaryOnly
 pub variant antecedent_core::inspect::InspectionRefusal::BlankName
 pub variant antecedent_core::inspect::InspectionRefusal::MissingAssumptions
 pub variant antecedent_core::inspect::InspectionRefusal::MissingBackendPolicy
