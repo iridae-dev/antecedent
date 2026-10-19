@@ -30,25 +30,27 @@ pub enum RetentionPolicy {
 impl RetentionPolicy {
     /// Result mode this component requirement already is.
     ///
-    /// [`Self::RawHistory`] and [`Self::BoundedWindow`] keep reusable rows, so
-    /// both are [`RetentionMode::FullReusable`]. A window still reports its cap
-    /// through [`Self::max_retained_rows`]; mapping the policy to a mode does
-    /// not drop that cap, and the mode's operations refer to the retained
-    /// window. [`Self::SufficientStatisticsOnly`] is [`RetentionMode::SummaryOnly`].
-    /// [`RetentionMode::DiskBacked`] is never implied. Disk-backed output has
-    /// to be declared on its own.
+    /// [`Self::RawHistory`] and a [`Self::BoundedWindow`] that retains at least
+    /// one row are [`RetentionMode::FullReusable`]. A window of zero rows
+    /// retains nothing, so it is [`RetentionMode::SummaryOnly`], the same mode
+    /// as [`Self::SufficientStatisticsOnly`]. A positive window still reports
+    /// its cap through [`Self::max_retained_rows`]. [`RetentionMode::DiskBacked`]
+    /// is never implied. Disk-backed output has to be declared on its own.
     #[must_use]
     pub const fn result_mode(self) -> RetentionMode {
         match self {
+            Self::BoundedWindow { max_rows: 0 } | Self::SufficientStatisticsOnly => {
+                RetentionMode::SummaryOnly
+            }
             Self::RawHistory | Self::BoundedWindow { .. } => RetentionMode::FullReusable,
-            Self::SufficientStatisticsOnly => RetentionMode::SummaryOnly,
         }
     }
 
     /// Row cap this policy already states.
     ///
-    /// `None` is full raw history, which has no cap. `Some(0)` is sufficient
-    /// statistics, which retain no rows. `Some(max_rows)` is a bounded window.
+    /// `None` is full raw history, which has no cap. `Some(0)` retains no rows:
+    /// sufficient statistics, or a window whose cap is zero. `Some(max_rows)`
+    /// with `max_rows > 0` is a bounded window.
     #[must_use]
     pub const fn max_retained_rows(self) -> Option<u64> {
         match self {
@@ -60,8 +62,8 @@ impl RetentionPolicy {
 
     /// Later operations this policy's result mode can no longer serve.
     ///
-    /// Empty for raw history and for a bounded window. Sufficient statistics
-    /// report the summary-only losses.
+    /// Empty for raw history and for a window that retains rows. Sufficient
+    /// statistics, and a window of zero rows, report the summary-only losses.
     #[must_use]
     pub const fn no_longer_serves(self) -> &'static [RetainedOperation] {
         self.result_mode().no_longer_serves()
@@ -410,5 +412,12 @@ mod tests {
         assert!(summary.require(RetainedOperation::RowReconstruction).is_err());
         assert!(summary.require(RetainedOperation::RefitFromRetainedRows).is_err());
         assert!(raw.require(RetainedOperation::ReadDiskArtifact).is_err());
+        let empty_window = RetentionPolicy::BoundedWindow { max_rows: 0 };
+        assert_eq!(empty_window.result_mode(), RetentionMode::SummaryOnly);
+        assert_eq!(empty_window.max_retained_rows(), Some(0));
+        assert_eq!(empty_window.no_longer_serves(), summary.no_longer_serves());
+        assert!(empty_window.require(RetainedOperation::RowReconstruction).is_err());
+        assert!(empty_window.require(RetainedOperation::ExactRowEviction).is_err());
+        assert!(empty_window.require(RetainedOperation::ReuseSummary).is_ok());
     }
 }

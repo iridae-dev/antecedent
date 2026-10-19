@@ -11,9 +11,6 @@ use crate::error::StateError;
 use crate::retention::RetentionPolicy;
 use crate::suff_stats::LinearOlsSuffStats;
 
-/// Rebuild Gram from the ring every this many appends to limit subtract drift.
-const REBUILD_EVERY: u64 = 64;
-
 /// Rolling window diagnostics for a linear-Gaussian mechanism.
 ///
 /// Maintains a bounded design/response ring and OLS sufficient statistics for the
@@ -48,7 +45,6 @@ pub struct RollingMechanismDiagnostics {
     charged_bytes: u64,
     ols: LinearOlsSuffStats,
     ring: VecDeque<(Vec<f64>, f64)>,
-    appends_since_rebuild: u64,
 }
 
 impl RollingMechanismDiagnostics {
@@ -79,7 +75,6 @@ impl RollingMechanismDiagnostics {
             charged_bytes: 0,
             ols: LinearOlsSuffStats::new(ncols),
             ring: VecDeque::with_capacity(window),
-            appends_since_rebuild: 0,
         })
     }
 
@@ -111,10 +106,6 @@ impl RollingMechanismDiagnostics {
         self.ols.append_row(row, y)?;
         self.ring.push_back((row.to_vec(), y));
         self.n = self.ring.len() as u64;
-        self.appends_since_rebuild = self.appends_since_rebuild.saturating_add(1);
-        if self.appends_since_rebuild >= REBUILD_EVERY {
-            self.rebuild_ols_from_ring()?;
-        }
         self.bytes = self.bytes_estimate();
         Ok(())
     }
@@ -166,8 +157,7 @@ impl RollingMechanismDiagnostics {
         let p = self.ols.ncols as f64;
         self.beta = beta;
         self.residual_sse = sse;
-        // Window σ² is SSE/(n−p) from the same residuals as residual_sse.
-        // IncrementalOLS Welford scatter is append-only and refuses after eviction.
+        // Window σ² is SSE/(n−p) at the fit replayed from the ring.
         self.residual_var = if n > p { Some(sse / (n - p)) } else { None };
         self.mean_abs_residual = mean_abs / n;
         self.max_abs_cusum =
@@ -198,42 +188,27 @@ impl RollingMechanismDiagnostics {
     }
 
     fn evict_oldest(&mut self) -> Result<(), StateError> {
-        let Some((row, y)) = self.ring.pop_front() else {
+        let Some(removed) = self.ring.pop_front() else {
             return Ok(());
         };
-        subtract_row(&mut self.ols, &row, y)?;
+        if let Err(error) = self.rebuild_ols_from_ring() {
+            self.ring.push_front(removed);
+            return Err(error);
+        }
         self.n = self.ring.len() as u64;
         Ok(())
     }
 
+    /// Replay the retained window. The summary stays sufficient statistics:
+    /// the rows live in the ring, and a Gram downdate is not an eviction.
     fn rebuild_ols_from_ring(&mut self) -> Result<(), StateError> {
         let mut ols = LinearOlsSuffStats::new(self.ols.ncols);
-        ols.retention = RetentionPolicy::BoundedWindow { max_rows: self.window as u64 };
         for (row, y) in &self.ring {
             ols.append_row(row, *y)?;
         }
         self.ols = ols;
-        self.appends_since_rebuild = 0;
         Ok(())
     }
-}
-
-fn subtract_row(ols: &mut LinearOlsSuffStats, row: &[f64], y: f64) -> Result<(), StateError> {
-    if row.len() != ols.ncols {
-        return Err(StateError::Shape(format!("row len {} != ncols {}", row.len(), ols.ncols)));
-    }
-    if ols.n == 0 {
-        return Err(StateError::Numerical("cannot subtract from empty OLS".into()));
-    }
-    for i in 0..ols.ncols {
-        for j in 0..ols.ncols {
-            ols.xtx[i * ols.ncols + j] -= row[i] * row[j];
-        }
-        ols.xty[i] -= row[i] * y;
-    }
-    ols.yty -= y * y;
-    ols.n = ols.n.saturating_sub(1);
-    Ok(())
 }
 
 /// Insert a diagnostics slot into a map while respecting [`CacheBudget`].
@@ -380,5 +355,36 @@ mod tests {
     fn shape_mismatch_errors() {
         let mut roll = RollingMechanismDiagnostics::new(2, 4).unwrap();
         assert!(roll.append_row(&[1.0], 0.0).is_err());
+    }
+
+    #[test]
+    fn eviction_replays_the_window() {
+        let mut roll = RollingMechanismDiagnostics::new(2, 4).unwrap();
+        let mut rows = Vec::new();
+        let mut responses = Vec::new();
+        for i in 0..10 {
+            let row = [1.0e12, f64::from(i)];
+            let y = 1.0e12 + 0.5 * f64::from(i);
+            roll.append_row(&row, y).unwrap();
+            rows.extend_from_slice(&row);
+            responses.push(y);
+        }
+        roll.refresh_summaries().unwrap();
+        let start = responses.len() - roll.window;
+        let mut batch = LinearOlsSuffStats::new(2);
+        batch.append_batch(&rows[start * 2..], &responses[start..]).unwrap();
+        let beta = batch.solve_beta().unwrap();
+        assert_eq!(roll.beta[0].to_bits(), beta[0].to_bits());
+        assert_eq!(roll.beta[1].to_bits(), beta[1].to_bits());
+        let replayed = roll.ols.residual_variance(&roll.beta);
+        let fresh = batch.residual_variance(&beta);
+        assert_eq!(replayed.map(f64::to_bits), fresh.map(f64::to_bits));
+        assert_eq!(roll.ols.retention, RetentionPolicy::SufficientStatisticsOnly);
+        assert!(
+            roll.ols
+                .retention
+                .require(crate::retention::RetainedOperation::ExactRowEviction)
+                .is_err()
+        );
     }
 }

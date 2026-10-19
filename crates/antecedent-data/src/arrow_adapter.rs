@@ -1001,7 +1001,7 @@ fn same_column_kind(previous: &OwnedColumn, next: &OwnedColumn) -> Result<(), Da
         | (OwnedColumn::Boolean(_), OwnedColumn::Boolean(_)) => true,
         (OwnedColumn::FixedVector(left), OwnedColumn::FixedVector(right)) => left.dim == right.dim,
         (OwnedColumn::Categorical(left), OwnedColumn::Categorical(right)) => {
-            same_domain(&left.domain, &right.domain)
+            left.domain == right.domain
         }
         _ => false,
     };
@@ -1012,12 +1012,6 @@ fn same_column_kind(previous: &OwnedColumn, next: &OwnedColumn) -> Result<(), Da
             message: "Arrow chunks of one column disagree in type or category domain".into(),
         })
     }
-}
-
-fn same_domain(left: &CategoryDomain, right: &CategoryDomain) -> bool {
-    left.ordered == right.ordered
-        && left.levels.len() == right.levels.len()
-        && left.levels.iter().zip(right.levels.iter()).all(|(a, b)| a.label == b.label)
 }
 
 fn concat_chunks(chunks: &[OwnedColumn]) -> Result<OwnedColumn, DataError> {
@@ -1560,5 +1554,41 @@ mod tests {
             ArrowCColumn::from_arrow_array("s", &bad).unwrap(),
         ]);
         assert!(loaded.is_err());
+    }
+
+    #[test]
+    fn categorical_chunks_keep_the_reference_and_the_domain_id() {
+        fn chunk(domain_id: u32, reference: u32) -> OwnedColumn {
+            let domain = Arc::new(
+                CategoryDomain::try_new(
+                    CategoryDomainId::from_raw(domain_id),
+                    vec![
+                        CategoryLevel { label: Arc::<str>::from("a") },
+                        CategoryLevel { label: Arc::<str>::from("b") },
+                    ],
+                    false,
+                    Some(CategoryCode::from_raw(reference)),
+                    UnknownCategoryPolicy::Fail,
+                )
+                .unwrap(),
+            );
+            OwnedColumn::Categorical(
+                CategoricalColumn::try_new(
+                    VariableId::from_raw(1),
+                    vec![CategoryCode::from_raw(0)],
+                    ValidityBitmap::all_valid(1),
+                    domain,
+                )
+                .unwrap(),
+            )
+        }
+
+        let matched = concat_chunks(&[chunk(7, 0), chunk(7, 0)]).unwrap();
+        let OwnedColumn::Categorical(column) = matched else {
+            panic!("categorical");
+        };
+        assert_eq!(column.domain.reference, Some(CategoryCode::from_raw(0)));
+        assert!(concat_chunks(&[chunk(7, 0), chunk(7, 1)]).is_err());
+        assert!(concat_chunks(&[chunk(7, 0), chunk(8, 0)]).is_err());
     }
 }

@@ -251,16 +251,37 @@ pub(crate) fn rss_and_xtwr(
     xtwr.fill(0.0);
     let mut rss = 0.0;
     for r in 0..nrows {
-        let offset = design.offsets.map_or(0.0, |o| o[r]);
-        let mut pred = offset;
-        for c in 0..ncols {
-            pred += design.x_colmajor[c * nrows + r] * beta[c];
+        let offset = design.offsets.map_or(0.0, |offsets| offsets[r]);
+        if !offset.is_finite() {
+            return Err(non_finite_summary_input("offset", r));
         }
-        let resid = design.y[r] - pred;
-        let w = design.weights.map_or(1.0, |ww| ww[r]);
-        rss += w * resid * resid;
+        let y = design.y[r];
+        if !y.is_finite() {
+            return Err(non_finite_summary_input("design row", r));
+        }
+        let adjusted = y - offset;
+        if !adjusted.is_finite() {
+            return Err(non_finite_summary_input("design row", r));
+        }
+        let mut pred = 0.0;
         for c in 0..ncols {
-            xtwr[c] += w * design.x_colmajor[c * nrows + r] * resid;
+            let x = design.x_colmajor[c * nrows + r];
+            if !x.is_finite() {
+                return Err(non_finite_summary_input("design row", r));
+            }
+            pred += x * beta[c];
+        }
+        let resid = adjusted - pred;
+        let weight = design.weights.map_or(1.0, |weights| weights[r]);
+        if !weight.is_finite() {
+            return Err(non_finite_summary_input("weight", r));
+        }
+        if weight < 0.0 {
+            return Err(negative_weight(r));
+        }
+        rss += weight * resid * resid;
+        for c in 0..ncols {
+            xtwr[c] += weight * design.x_colmajor[c * nrows + r] * resid;
         }
     }
     if !rss.is_finite() {
@@ -1199,5 +1220,30 @@ mod tests {
             lambda: -0.3,
             tol: 1e-8,
         });
+    }
+
+    #[test]
+    fn row_scanner_centers_before_the_predictor_and_refuses_a_negative_weight() {
+        let offset = 1.0e12;
+        let x = vec![1.0, 1.0, 0.0, 1.0];
+        let y = vec![offset + 0.25, offset - 0.5];
+        let offsets = vec![offset, offset];
+        let weights = [1.0, 2.0];
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 2,
+            ncols: 2,
+            y: &y,
+            weights: Some(&weights),
+            offsets: Some(&offsets),
+        };
+        let mut score = [0.0, 0.0];
+        let rss = rss_and_xtwr(design, &[0.0, 0.0], &mut score).unwrap();
+        let centered: f64 = 0.25 * 0.25 + 2.0 * 0.5 * 0.5;
+        assert_eq!(rss.to_bits(), centered.to_bits());
+        let negative = [-1.0, 1.0];
+        let refused = BayesDesignRef { weights: Some(&negative), ..design };
+        let error = rss_and_xtwr(refused, &[0.0, 0.0], &mut score).unwrap_err();
+        assert!(error.to_string().contains("negative weight"));
     }
 }

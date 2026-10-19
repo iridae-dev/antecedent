@@ -198,20 +198,19 @@ struct ClusterIndex {
 impl ClusterIndex {
     fn build(cluster_ids: &[u32]) -> Result<Self, DataError> {
         let n = cluster_ids.len();
-        let mut members = Vec::with_capacity(n);
-        for index in 0..n {
-            members.push(row_id(index)?);
+        let mut keyed = Vec::with_capacity(n);
+        for (index, &label) in cluster_ids.iter().enumerate() {
+            keyed.push((label, row_id(index)?));
         }
-        members.sort_by_key(|id| cluster_ids[usize::try_from(id.get()).unwrap_or(0)]);
+        keyed.sort_by_key(|(label, _)| *label);
         let mut offsets = vec![0usize];
         for k in 1..n {
-            let left = usize::try_from(members[k].get()).unwrap_or(0);
-            let right = usize::try_from(members[k - 1].get()).unwrap_or(0);
-            if cluster_ids[left] != cluster_ids[right] {
+            if keyed[k].0 != keyed[k - 1].0 {
                 offsets.push(k);
             }
         }
         offsets.push(n);
+        let members = keyed.into_iter().map(|(_, id)| id).collect();
         Ok(Self { members, offsets })
     }
 
@@ -245,15 +244,18 @@ fn fill_indexes_prepared(
             });
         }
         ResamplingPlan::MovingBlock { length } | ResamplingPlan::CircularBlock { length } => {
-            out.resize(n, GlobalId::new(0));
+            let mut indexes = vec![0usize; n];
             fill_block_slice(
                 n,
                 length,
                 matches!(plan, ResamplingPlan::CircularBlock { .. }),
                 rng,
-                out,
-                |i| row_id(i).unwrap_or(GlobalId::new(0)),
+                &mut indexes,
+                Ok,
             )?;
+            for index in indexes {
+                out.push(row_id(index)?);
+            }
         }
         ResamplingPlan::StationaryBlock { expected_length } => {
             fill_stationary(n, expected_length, rng, out)?;
@@ -312,7 +314,7 @@ pub fn fill_circular_block_indexes(
             context: "fill_circular_block_indexes out",
         });
     }
-    fill_block_slice(n, length, true, rng, out, |i| i)
+    fill_block_slice(n, length, true, rng, out, Ok)
 }
 
 fn fill_block_slice<T: Copy>(
@@ -321,7 +323,7 @@ fn fill_block_slice<T: Copy>(
     circular: bool,
     rng: &mut CausalRng,
     out: &mut [T],
-    cast: impl Fn(usize) -> T,
+    cast: impl Fn(usize) -> Result<T, DataError>,
 ) -> Result<(), DataError> {
     if length == 0 {
         return Err(DataError::InvalidArgument { message: "block length must be > 0".into() });
@@ -338,7 +340,7 @@ fn fill_block_slice<T: Copy>(
         let take = length.min(n - written);
         for k in 0..take {
             let idx = if circular { (start + k) % n } else { start + k };
-            out[written + k] = cast(idx);
+            out[written + k] = cast(idx)?;
         }
         written += take;
     }

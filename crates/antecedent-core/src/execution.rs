@@ -469,8 +469,8 @@ pub enum AdmissionError {
         /// Bound that elapsed.
         bound: Duration,
     },
-    /// The study was cancelled. A held lease from that study was released.
-    #[error("admission stopped because cancellation released the lease")]
+    /// The study was cancelled before this admission completed.
+    #[error("admission stopped because the study was cancelled")]
     Cancelled,
     /// The parent lease no longer holds a remainder.
     #[error("admission lease is already released")]
