@@ -46,6 +46,7 @@ pub mod resample;
 pub mod sample;
 pub mod sample_policy;
 pub mod selection;
+mod source;
 pub mod split;
 pub mod storage;
 pub mod surrogate;
