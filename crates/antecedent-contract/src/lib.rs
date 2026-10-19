@@ -23,6 +23,7 @@ pub mod claim;
 pub mod composition_provenance;
 pub mod composition_verification;
 pub mod dependence;
+pub mod evidence_effects;
 pub mod evidence_envelope;
 pub mod evidence_ledger;
 pub mod evidence_obligation;
@@ -67,6 +68,11 @@ pub use dependence::{
     CovarianceCombination, CovarianceTerms, DependenceContract, DependenceError, DependenceSource,
     DependenceSourceId, DependenceStatus, FactorDisclosure, SharedFactor, SharedFactorId,
     SharedFactorKind, SharedFactorSets,
+};
+pub use evidence_effects::{
+    EFFECT_IDENTITY_VERSION, EffectId, EvidenceEffect, EvidenceEffectError, EvidenceEffectLedger,
+    EvidenceOperator, MAX_RECORDED_EFFECTS, NextAttempt as EffectNextAttempt, NumericalAdmission,
+    RecordedEffect,
 };
 pub use evidence_envelope::{
     AxisInterval, EvidenceBinding, EvidenceCalibration, EvidenceEnvelope, EvidenceEnvelopeError,

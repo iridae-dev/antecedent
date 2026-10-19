@@ -1,0 +1,1327 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+//! Operators that change what the evidence ledger counts, recorded before any
+//! numerical combination.
+//!
+//! Pooling, hierarchical borrowing and updating, transport, bridges, frozen
+//! reuse, repeated observation use, mixtures, marginalization, and envelopes
+//! are separate [`EvidenceOperator`]s. Each [`EvidenceEffect`] is one of those
+//! operators applied to ledger subjects ([`SourceId`] and [`ResultId`]).
+//! [`EvidenceEffectLedger::try_combine`] admits a numerical combination only
+//! after that effect has been recorded. Until then the refusal's next attempt
+//! is to record the effect, then combine.
+//!
+//! One operator does not stand in for another. A mixture is not a pool, a
+//! bridge is not transport, and an envelope is not a marginal. The five
+//! operators the evidence ledger already names as a [`SynthesisKind`] still
+//! need their own effect here; bridge, mixture, marginalization, and envelope
+//! extend the ledger and have no synthesis kind. This module does not pool,
+//! update a posterior, transport a functional, or compute an envelope.
+
+use std::collections::BTreeSet;
+use std::error::Error;
+use std::fmt;
+use std::sync::Arc;
+
+use antecedent_core::{CanonicalWriter, SemanticDigest};
+
+use crate::evidence_ledger::{
+    MAX_COMBINATION_SOURCES, MAX_RESULTS, MAX_TEXT_BYTES, ResultId, SourceId, SynthesisKind,
+};
+
+const IDENTITY_TAG: &str = "antecedent.contract.evidence_effect.v1";
+
+/// Version word written into every effect identity.
+pub const EFFECT_IDENTITY_VERSION: u64 = 1;
+
+/// Most distinct effects one ledger records.
+///
+/// The same bound as the evidence ledger's results.
+pub const MAX_RECORDED_EFFECTS: usize = MAX_RESULTS;
+
+const NOT_RECORDED_DETAIL: &str = "evidence_effects.effect_not_recorded";
+const NOT_INTERCHANGEABLE_DETAIL: &str = "evidence_effects.operators_not_interchangeable";
+const TOO_FEW_DETAIL: &str = "evidence_effects.too_few_subjects";
+const TOO_MANY_DETAIL: &str = "evidence_effects.too_many_sources";
+const DUPLICATE_DETAIL: &str = "evidence_effects.duplicate_source";
+const SHARED_DETAIL: &str = "evidence_effects.shared_source";
+const BLANK_DETAIL: &str = "evidence_effects.blank_text";
+const TEXT_DETAIL: &str = "evidence_effects.text_too_long";
+const LIMIT_DETAIL: &str = "evidence_effects.limit";
+
+const TOO_MANY_MESSAGE: &str = "a combination names too many sources";
+const DUPLICATE_MESSAGE: &str = "a source is listed twice";
+const BLANK_MESSAGE: &str = "a label is blank";
+const TEXT_MESSAGE: &str = "a label is longer than the ledger allows";
+const LIMIT_MESSAGE: &str = "the effect ledger cannot record another effect";
+
+/// One evidence operator. None stands in for another.
+///
+/// Declaration order is the order of [`Self::ALL`].
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum EvidenceOperator {
+    /// Combine summaries of separate sources into one pooled summary.
+    Pooling,
+    /// Borrow from a hierarchical prior, or update that hierarchy with likelihood.
+    ///
+    /// Borrowing and updating are this operator. Neither is pooling.
+    HierarchicalBorrowing,
+    /// Carry claims into a target population alongside native target evidence.
+    Transport,
+    /// Map a source claim onto a different scientific question.
+    ///
+    /// A bridge is not transport.
+    Bridge,
+    /// Cite an existing result again without updating it.
+    FrozenReuse,
+    /// Use the same observations in a later stage of one workflow.
+    RepeatedObservationUse,
+    /// Mix component laws under declared weights.
+    ///
+    /// A mixture is not a pool.
+    Mixture,
+    /// Integrate a joint result down to a marginal.
+    Marginalization,
+    /// Keep a set or assumption range.
+    ///
+    /// An envelope is not a marginal.
+    Envelope,
+}
+
+impl EvidenceOperator {
+    /// Every operator, in declaration order.
+    pub const ALL: [Self; 9] = [
+        Self::Pooling,
+        Self::HierarchicalBorrowing,
+        Self::Transport,
+        Self::Bridge,
+        Self::FrozenReuse,
+        Self::RepeatedObservationUse,
+        Self::Mixture,
+        Self::Marginalization,
+        Self::Envelope,
+    ];
+
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pooling => "pooling",
+            Self::HierarchicalBorrowing => "hierarchical_borrowing",
+            Self::Transport => "transport",
+            Self::Bridge => "bridge",
+            Self::FrozenReuse => "frozen_reuse",
+            Self::RepeatedObservationUse => "repeated_observation_use",
+            Self::Mixture => "mixture",
+            Self::Marginalization => "marginalization",
+            Self::Envelope => "envelope",
+        }
+    }
+
+    /// Parse the spelling of [`Self::as_str`].
+    #[must_use = "an unknown name is not an operator"]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|operator| operator.as_str() == name)
+    }
+
+    /// Ledger synthesis this operator extends, when the ledger already names it.
+    ///
+    /// Bridge, mixture, marginalization, and envelope have no synthesis kind.
+    /// A synthesis kind is not a recorded effect and does not admit numerical
+    /// combination.
+    #[must_use = "bridge, mixture, marginalization, and envelope have no synthesis kind"]
+    pub const fn synthesis_kind(self) -> Option<SynthesisKind> {
+        match self {
+            Self::Pooling => Some(SynthesisKind::StatisticalPooling),
+            Self::HierarchicalBorrowing => Some(SynthesisKind::BayesianBorrowing),
+            Self::Transport => Some(SynthesisKind::CausalTransport),
+            Self::FrozenReuse => Some(SynthesisKind::EvidenceReuse),
+            Self::RepeatedObservationUse => Some(SynthesisKind::RepeatedObservationUse),
+            Self::Bridge | Self::Mixture | Self::Marginalization | Self::Envelope => None,
+        }
+    }
+
+    /// Whether a recorded effect of `self` may be combined as `requested`.
+    ///
+    /// Only the same operator licenses the combination.
+    #[must_use]
+    pub const fn licenses(self, requested: Self) -> bool {
+        matches!(
+            (self, requested),
+            (Self::Pooling, Self::Pooling)
+                | (Self::HierarchicalBorrowing, Self::HierarchicalBorrowing)
+                | (Self::Transport, Self::Transport)
+                | (Self::Bridge, Self::Bridge)
+                | (Self::FrozenReuse, Self::FrozenReuse)
+                | (Self::RepeatedObservationUse, Self::RepeatedObservationUse)
+                | (Self::Mixture, Self::Mixture)
+                | (Self::Marginalization, Self::Marginalization)
+                | (Self::Envelope, Self::Envelope)
+        )
+    }
+
+    /// Refuse to combine a recorded effect of `self` as `requested`.
+    ///
+    /// `None` means the operators are the same. That is not an admission:
+    /// numerical combination still waits on [`EvidenceEffectLedger::try_combine`].
+    ///
+    /// The error names the next attempt: record `requested`, then combine.
+    #[must_use = "a different operator is a failed attempt"]
+    pub fn substitution_refusal(self, requested: Self) -> Option<EvidenceEffectError> {
+        if self.licenses(requested) {
+            None
+        } else {
+            Some(EvidenceEffectError::not_interchangeable(self, requested))
+        }
+    }
+}
+
+impl fmt::Display for EvidenceOperator {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// The attempt a refused numerical combination names.
+///
+/// [`Self::PHRASE`] is the whole attempt: record the effect, then combine.
+/// [`Self::operator`] is the effect that attempt records.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct NextAttempt {
+    operator: EvidenceOperator,
+}
+
+impl NextAttempt {
+    /// Wording of the next attempt.
+    pub const PHRASE: &'static str = "record the effect, then combine";
+
+    /// Record `operator`, then combine under that same operator.
+    #[must_use]
+    pub const fn record_then_combine(operator: EvidenceOperator) -> Self {
+        Self { operator }
+    }
+
+    /// The effect the next attempt records.
+    #[must_use]
+    pub const fn operator(self) -> EvidenceOperator {
+        self.operator
+    }
+}
+
+impl fmt::Display for NextAttempt {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(Self::PHRASE)
+    }
+}
+
+/// Identity of one recorded effect.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct EffectId(SemanticDigest);
+
+impl EffectId {
+    /// Wrap a digest.
+    #[must_use]
+    pub const fn from_digest(digest: SemanticDigest) -> Self {
+        Self(digest)
+    }
+
+    /// The underlying digest.
+    #[must_use]
+    pub const fn digest(self) -> SemanticDigest {
+        self.0
+    }
+}
+
+impl fmt::Display for EffectId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0.to_hex())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum EffectBody {
+    Pooling(Box<[SourceId]>),
+    HierarchicalBorrowing { priors: Box<[SourceId]>, likelihood: Box<[SourceId]> },
+    Transport { transported: Box<[SourceId]>, native: Box<[SourceId]> },
+    Bridge { source: SourceId, contract: Arc<str> },
+    FrozenReuse(ResultId),
+    RepeatedObservationUse { sources: Box<[SourceId]>, stage: Arc<str> },
+    Mixture(Box<[SourceId]>),
+    Marginalization(ResultId),
+    Envelope(Box<[SourceId]>),
+}
+
+/// One operator applied to evidence-ledger subjects.
+///
+/// Constructed only in a form the ledger can record. Source order does not
+/// change the effect. Numerical combination of the effect waits until
+/// [`EvidenceEffectLedger::record`] has stored it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceEffect {
+    body: EffectBody,
+}
+
+impl EvidenceEffect {
+    /// Pool `sources`. At least two, each listed once.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when fewer than two sources are named, a source is
+    /// listed twice, or the list exceeds [`MAX_COMBINATION_SOURCES`].
+    #[must_use = "an effect the ledger cannot record is refused"]
+    pub fn pooling(
+        sources: impl IntoIterator<Item = SourceId>,
+    ) -> Result<Self, EvidenceEffectError> {
+        let sources = canonical_sources(sources, 2, "pooling needs at least two sources")?;
+        Ok(Self { body: EffectBody::Pooling(sources) })
+    }
+
+    /// Hierarchically borrow `priors` into `likelihood`, or update that hierarchy.
+    ///
+    /// A source cannot be both a prior and a likelihood. This is not a pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either list is empty, a source is repeated, a
+    /// source is in both lists, or either list exceeds [`MAX_COMBINATION_SOURCES`].
+    #[must_use = "an effect the ledger cannot record is refused"]
+    pub fn hierarchical_borrowing(
+        priors: impl IntoIterator<Item = SourceId>,
+        likelihood: impl IntoIterator<Item = SourceId>,
+    ) -> Result<Self, EvidenceEffectError> {
+        let priors = canonical_sources(
+            priors,
+            1,
+            "hierarchical borrowing needs a prior and a likelihood source",
+        )?;
+        let likelihood = canonical_sources(
+            likelihood,
+            1,
+            "hierarchical borrowing needs a prior and a likelihood source",
+        )?;
+        require_disjoint(&priors, &likelihood, "a source cannot be both a prior and a likelihood")?;
+        Ok(Self { body: EffectBody::HierarchicalBorrowing { priors, likelihood } })
+    }
+
+    /// Transport `transported` claims onto `native` target evidence.
+    ///
+    /// A source cannot be both transported and native. This is not a bridge.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either list is empty, a source is repeated, a
+    /// source is in both lists, or either list exceeds [`MAX_COMBINATION_SOURCES`].
+    #[must_use = "an effect the ledger cannot record is refused"]
+    pub fn transport(
+        transported: impl IntoIterator<Item = SourceId>,
+        native: impl IntoIterator<Item = SourceId>,
+    ) -> Result<Self, EvidenceEffectError> {
+        let transported = canonical_sources(
+            transported,
+            1,
+            "transport needs a transported source and a native source",
+        )?;
+        let native = canonical_sources(
+            native,
+            1,
+            "transport needs a transported source and a native source",
+        )?;
+        require_disjoint(&transported, &native, "a source cannot be both transported and native")?;
+        Ok(Self { body: EffectBody::Transport { transported, native } })
+    }
+
+    /// Bridge `source` under `contract`.
+    ///
+    /// `contract` is the bridge's own name. Transport does not record it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `contract` is blank or longer than [`MAX_TEXT_BYTES`].
+    #[must_use = "an effect the ledger cannot record is refused"]
+    pub fn bridge(
+        source: SourceId,
+        contract: impl AsRef<str>,
+    ) -> Result<Self, EvidenceEffectError> {
+        let contract = checked_text(contract.as_ref())?;
+        Ok(Self { body: EffectBody::Bridge { source, contract } })
+    }
+
+    /// Cite `result` again, frozen. The citation does not update it.
+    #[must_use = "the effect has to be recorded before combination"]
+    pub fn frozen_reuse(result: ResultId) -> Self {
+        Self { body: EffectBody::FrozenReuse(result) }
+    }
+
+    /// Use `sources` again at `stage`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no source is named, a source is listed twice, the
+    /// list exceeds [`MAX_COMBINATION_SOURCES`], or `stage` is blank or longer
+    /// than [`MAX_TEXT_BYTES`].
+    #[must_use = "an effect the ledger cannot record is refused"]
+    pub fn repeated_observation_use(
+        sources: impl IntoIterator<Item = SourceId>,
+        stage: impl AsRef<str>,
+    ) -> Result<Self, EvidenceEffectError> {
+        let sources = canonical_sources(sources, 1, "repeated observation use needs a source")?;
+        let stage = checked_text(stage.as_ref())?;
+        Ok(Self { body: EffectBody::RepeatedObservationUse { sources, stage } })
+    }
+
+    /// Mix `components`. At least two. This is not a pool of those sources.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when fewer than two components are named, a source is
+    /// listed twice, or the list exceeds [`MAX_COMBINATION_SOURCES`].
+    #[must_use = "an effect the ledger cannot record is refused"]
+    pub fn mixture(
+        components: impl IntoIterator<Item = SourceId>,
+    ) -> Result<Self, EvidenceEffectError> {
+        let components =
+            canonical_sources(components, 2, "a mixture needs at least two components")?;
+        Ok(Self { body: EffectBody::Mixture(components) })
+    }
+
+    /// Marginalize the joint `result`. This is not an envelope.
+    #[must_use = "the effect has to be recorded before combination"]
+    pub fn marginalization(result: ResultId) -> Self {
+        Self { body: EffectBody::Marginalization(result) }
+    }
+
+    /// Envelope `sources`. This is not a marginal of those sources.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no source is named, a source is listed twice, or
+    /// the list exceeds [`MAX_COMBINATION_SOURCES`].
+    #[must_use = "an effect the ledger cannot record is refused"]
+    pub fn envelope(
+        sources: impl IntoIterator<Item = SourceId>,
+    ) -> Result<Self, EvidenceEffectError> {
+        let sources = canonical_sources(sources, 1, "an envelope needs a source")?;
+        Ok(Self { body: EffectBody::Envelope(sources) })
+    }
+
+    /// The operator this effect records.
+    #[must_use]
+    pub const fn operator(&self) -> EvidenceOperator {
+        match &self.body {
+            EffectBody::Pooling(_) => EvidenceOperator::Pooling,
+            EffectBody::HierarchicalBorrowing { .. } => EvidenceOperator::HierarchicalBorrowing,
+            EffectBody::Transport { .. } => EvidenceOperator::Transport,
+            EffectBody::Bridge { .. } => EvidenceOperator::Bridge,
+            EffectBody::FrozenReuse(_) => EvidenceOperator::FrozenReuse,
+            EffectBody::RepeatedObservationUse { .. } => EvidenceOperator::RepeatedObservationUse,
+            EffectBody::Mixture(_) => EvidenceOperator::Mixture,
+            EffectBody::Marginalization(_) => EvidenceOperator::Marginalization,
+            EffectBody::Envelope(_) => EvidenceOperator::Envelope,
+        }
+    }
+
+    /// Identity of this effect. Source order is already canonical.
+    #[must_use]
+    pub fn identity(&self) -> EffectId {
+        let mut writer = CanonicalWriter::new(IDENTITY_TAG);
+        writer.word(EFFECT_IDENTITY_VERSION).text(self.operator().as_str());
+        match &self.body {
+            EffectBody::Pooling(sources)
+            | EffectBody::Mixture(sources)
+            | EffectBody::Envelope(sources) => {
+                write_sources(&mut writer, sources);
+            }
+            EffectBody::HierarchicalBorrowing { priors, likelihood } => {
+                write_sources(&mut writer, priors);
+                write_sources(&mut writer, likelihood);
+            }
+            EffectBody::Transport { transported, native } => {
+                write_sources(&mut writer, transported);
+                write_sources(&mut writer, native);
+            }
+            EffectBody::Bridge { source, contract } => {
+                writer.bytes(source.digest().as_bytes()).text(contract);
+            }
+            EffectBody::FrozenReuse(result) | EffectBody::Marginalization(result) => {
+                writer.bytes(result.digest().as_bytes());
+            }
+            EffectBody::RepeatedObservationUse { sources, stage } => {
+                write_sources(&mut writer, sources);
+                writer.text(stage);
+            }
+        }
+        EffectId(SemanticDigest::from_bytes(writer.finish()))
+    }
+
+    /// Sources of a pooling effect.
+    #[must_use = "only a pooling effect has pooling sources"]
+    pub fn pooling_sources(&self) -> Option<&[SourceId]> {
+        match &self.body {
+            EffectBody::Pooling(sources) => Some(sources.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Prior sources of a hierarchical borrowing effect.
+    #[must_use = "only hierarchical borrowing has prior sources"]
+    pub fn borrowing_priors(&self) -> Option<&[SourceId]> {
+        match &self.body {
+            EffectBody::HierarchicalBorrowing { priors, .. } => Some(priors.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Likelihood sources of a hierarchical borrowing effect.
+    #[must_use = "only hierarchical borrowing has likelihood sources"]
+    pub fn borrowing_likelihood(&self) -> Option<&[SourceId]> {
+        match &self.body {
+            EffectBody::HierarchicalBorrowing { likelihood, .. } => Some(likelihood.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Transported sources of a transport effect.
+    #[must_use = "only transport has transported sources"]
+    pub fn transported_sources(&self) -> Option<&[SourceId]> {
+        match &self.body {
+            EffectBody::Transport { transported, .. } => Some(transported.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Native sources of a transport effect.
+    #[must_use = "only transport has native sources"]
+    pub fn native_sources(&self) -> Option<&[SourceId]> {
+        match &self.body {
+            EffectBody::Transport { native, .. } => Some(native.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Source claim of a bridge effect.
+    #[must_use = "only a bridge has a bridge source"]
+    pub const fn bridge_source(&self) -> Option<SourceId> {
+        match &self.body {
+            EffectBody::Bridge { source, .. } => Some(*source),
+            _ => None,
+        }
+    }
+
+    /// Contract name of a bridge effect.
+    #[must_use = "only a bridge has a bridge contract"]
+    pub fn bridge_contract(&self) -> Option<&str> {
+        match &self.body {
+            EffectBody::Bridge { contract, .. } => Some(contract.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Result cited by a frozen reuse.
+    #[must_use = "only frozen reuse cites a frozen result"]
+    pub const fn frozen_result(&self) -> Option<ResultId> {
+        match &self.body {
+            EffectBody::FrozenReuse(result) => Some(*result),
+            _ => None,
+        }
+    }
+
+    /// Sources of a repeated observation use.
+    #[must_use = "only repeated observation use has those sources"]
+    pub fn repeated_sources(&self) -> Option<&[SourceId]> {
+        match &self.body {
+            EffectBody::RepeatedObservationUse { sources, .. } => Some(sources.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Stage name of a repeated observation use.
+    #[must_use = "only repeated observation use has a stage"]
+    pub fn repeated_stage(&self) -> Option<&str> {
+        match &self.body {
+            EffectBody::RepeatedObservationUse { stage, .. } => Some(stage.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Components of a mixture.
+    #[must_use = "only a mixture has mixture components"]
+    pub fn mixture_components(&self) -> Option<&[SourceId]> {
+        match &self.body {
+            EffectBody::Mixture(components) => Some(components.as_ref()),
+            _ => None,
+        }
+    }
+
+    /// Joint result a marginalization integrates.
+    #[must_use = "only marginalization has a marginalized result"]
+    pub const fn marginalized_result(&self) -> Option<ResultId> {
+        match &self.body {
+            EffectBody::Marginalization(result) => Some(*result),
+            _ => None,
+        }
+    }
+
+    /// Sources of an envelope.
+    #[must_use = "only an envelope has envelope sources"]
+    pub fn envelope_sources(&self) -> Option<&[SourceId]> {
+        match &self.body {
+            EffectBody::Envelope(sources) => Some(sources.as_ref()),
+            _ => None,
+        }
+    }
+}
+
+/// An effect stored on the ledger, with the identity combination checks.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecordedEffect {
+    id: EffectId,
+    effect: EvidenceEffect,
+}
+
+impl RecordedEffect {
+    /// Identity of the recorded effect.
+    #[must_use]
+    pub const fn id(&self) -> EffectId {
+        self.id
+    }
+
+    /// The effect that was recorded.
+    #[must_use]
+    pub const fn effect(&self) -> &EvidenceEffect {
+        &self.effect
+    }
+}
+
+/// Admission to run a numerical combination of one recorded effect.
+///
+/// The admission carries no estimate, posterior, interval, or envelope bound.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NumericalAdmission {
+    effect: EffectId,
+    operator: EvidenceOperator,
+}
+
+impl NumericalAdmission {
+    /// The recorded effect this admission is for.
+    #[must_use]
+    pub const fn effect_id(self) -> EffectId {
+        self.effect
+    }
+
+    /// The operator that was recorded and combined.
+    #[must_use]
+    pub const fn operator(self) -> EvidenceOperator {
+        self.operator
+    }
+
+    /// Synthesis kind to account on the existing ledger, when this operator has one.
+    #[must_use = "bridge, mixture, marginalization, and envelope have no synthesis kind"]
+    pub const fn synthesis_kind(self) -> Option<SynthesisKind> {
+        self.operator.synthesis_kind()
+    }
+}
+
+/// Effects recorded before numerical combination.
+///
+/// This extends the evidence ledger's subjects. It does not replace
+/// [`crate::evidence_ledger::EvidenceLedger`] and it does not compute numbers.
+/// Record the effect, then combine.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvidenceEffectLedger {
+    recorded: Vec<RecordedEffect>,
+}
+
+impl EvidenceEffectLedger {
+    /// An empty effect ledger.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { recorded: Vec::new() }
+    }
+
+    /// Effects in the order they were first recorded.
+    #[must_use = "recorded effects are what combination checks"]
+    pub fn recorded(&self) -> &[RecordedEffect] {
+        &self.recorded
+    }
+
+    /// The effect stored at `id`.
+    #[must_use = "a missing effect has not been recorded"]
+    pub fn get(&self, id: EffectId) -> Option<&EvidenceEffect> {
+        self.recorded.iter().find_map(|entry| (entry.id == id).then_some(&entry.effect))
+    }
+
+    /// Record `effect`. Recording the same effect again returns its identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the ledger already holds [`MAX_RECORDED_EFFECTS`]
+    /// distinct effects.
+    #[must_use = "recording the effect is what later combination checks"]
+    pub fn record(&mut self, effect: EvidenceEffect) -> Result<EffectId, EvidenceEffectError> {
+        let id = effect.identity();
+        if self.get(id).is_some() {
+            return Ok(id);
+        }
+        if self.recorded.len() >= MAX_RECORDED_EFFECTS {
+            return Err(EvidenceEffectError::limit());
+        }
+        self.recorded.push(RecordedEffect { id, effect });
+        Ok(id)
+    }
+
+    /// Admit numerical combination of `effect`.
+    ///
+    /// Succeeds only when this ledger already holds that effect. A different
+    /// operator on the same subjects is not that effect.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the effect is not recorded. The next attempt is
+    /// to record it, then combine. When a different operator is already
+    /// recorded on the same subjects, the error names that the operators are
+    /// not interchangeable and the next attempt is to record this effect,
+    /// then combine.
+    #[must_use = "numerical combination without a recorded effect is refused"]
+    pub fn try_combine(
+        &self,
+        effect: &EvidenceEffect,
+    ) -> Result<NumericalAdmission, EvidenceEffectError> {
+        let id = effect.identity();
+        if self.get(id).is_some() {
+            return Ok(NumericalAdmission { effect: id, operator: effect.operator() });
+        }
+        if let Some(other) = different_operator_on_same_subjects(&self.recorded, effect) {
+            return Err(EvidenceEffectError::not_interchangeable(
+                other.operator(),
+                effect.operator(),
+            ));
+        }
+        Err(EvidenceEffectError::not_recorded(effect.operator()))
+    }
+
+    /// Combine the recorded effect `id` as `requested`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `id` is not on the ledger. The next attempt is
+    /// to record `requested`, then combine. When `id` was recorded under a
+    /// different operator, the error names that the operators are not
+    /// interchangeable and the next attempt is to record `requested`, then
+    /// combine.
+    #[must_use = "a different operator does not admit this combination"]
+    pub fn try_combine_as(
+        &self,
+        id: EffectId,
+        requested: EvidenceOperator,
+    ) -> Result<NumericalAdmission, EvidenceEffectError> {
+        match self.get(id) {
+            None => Err(EvidenceEffectError::not_recorded(requested)),
+            Some(effect) if effect.operator().licenses(requested) => {
+                Ok(NumericalAdmission { effect: id, operator: requested })
+            }
+            Some(effect) => {
+                Err(EvidenceEffectError::not_interchangeable(effect.operator(), requested))
+            }
+        }
+    }
+}
+
+impl Default for EvidenceEffectLedger {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A refused effect or a refused numerical combination.
+///
+/// A missing or substituted combination stores the next attempt. A malformed
+/// effect does not.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[must_use = "the next attempt is to record the effect, then combine"]
+pub struct EvidenceEffectError {
+    code: &'static str,
+    detail: &'static str,
+    message: String,
+    next: Option<NextAttempt>,
+    recorded: Option<EvidenceOperator>,
+    requested: Option<EvidenceOperator>,
+}
+
+impl EvidenceEffectError {
+    /// Registered reason code.
+    #[must_use]
+    pub const fn code(&self) -> &'static str {
+        self.code
+    }
+
+    /// Namespaced detail, `evidence_effects.<rule>`.
+    #[must_use]
+    pub const fn detail(&self) -> &'static str {
+        self.detail
+    }
+
+    /// What was refused, including the next attempt when combination was refused.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        self.message.as_str()
+    }
+
+    /// The refusal as `(code, detail, explanation)`.
+    #[must_use]
+    pub fn refusal(&self) -> (&'static str, &'static str, &str) {
+        (self.code, self.detail, self.message.as_str())
+    }
+
+    /// The next attempt, when combination was refused.
+    ///
+    /// Present when the effect was not recorded or another operator was
+    /// offered in its place. The attempt is [`NextAttempt::PHRASE`].
+    #[must_use = "the next attempt is to record the effect, then combine"]
+    pub const fn next_attempt(&self) -> Option<NextAttempt> {
+        self.next
+    }
+
+    /// Operator already recorded, when this refusal is a substitution.
+    #[must_use = "a substitution names the operator that was recorded"]
+    pub const fn recorded_operator(&self) -> Option<EvidenceOperator> {
+        self.recorded
+    }
+
+    /// Operator the combination asked for, when combination was refused.
+    #[must_use = "a refused combination names the operator it asked for"]
+    pub const fn requested_operator(&self) -> Option<EvidenceOperator> {
+        self.requested
+    }
+
+    fn invalid(detail: &'static str, message: &'static str) -> Self {
+        Self {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            detail,
+            message: message.to_owned(),
+            next: None,
+            recorded: None,
+            requested: None,
+        }
+    }
+
+    fn shared(detail: &'static str, message: &'static str) -> Self {
+        Self {
+            code: antecedent_core::reason_code!("evidence_double_counted"),
+            detail,
+            message: message.to_owned(),
+            next: None,
+            recorded: None,
+            requested: None,
+        }
+    }
+
+    fn limit() -> Self {
+        Self::invalid(LIMIT_DETAIL, LIMIT_MESSAGE)
+    }
+
+    fn not_recorded(operator: EvidenceOperator) -> Self {
+        let next = NextAttempt::record_then_combine(operator);
+        let mut message = String::from("numerical combination of `");
+        message.push_str(operator.as_str());
+        message.push_str("` is refused until the effect is recorded; next attempt: ");
+        message.push_str(NextAttempt::PHRASE);
+        Self {
+            code: antecedent_core::reason_code!("cell_not_licensed"),
+            detail: NOT_RECORDED_DETAIL,
+            message,
+            next: Some(next),
+            recorded: None,
+            requested: Some(operator),
+        }
+    }
+
+    fn not_interchangeable(recorded: EvidenceOperator, requested: EvidenceOperator) -> Self {
+        let next = NextAttempt::record_then_combine(requested);
+        let mut message = String::from(substitution_sentence(recorded, requested));
+        message.push_str(" (`");
+        message.push_str(recorded.as_str());
+        message.push_str("` is not `");
+        message.push_str(requested.as_str());
+        message.push_str("`); next attempt: ");
+        message.push_str(NextAttempt::PHRASE);
+        Self {
+            code: antecedent_core::reason_code!("distribution_meaning_mismatch"),
+            detail: NOT_INTERCHANGEABLE_DETAIL,
+            message,
+            next: Some(next),
+            recorded: Some(recorded),
+            requested: Some(requested),
+        }
+    }
+}
+
+impl fmt::Display for EvidenceEffectError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}: {}", self.detail, self.message)
+    }
+}
+
+impl Error for EvidenceEffectError {}
+
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+enum SubjectKey {
+    Source(SourceId),
+    Result(ResultId),
+}
+
+fn write_sources(writer: &mut CanonicalWriter, sources: &[SourceId]) {
+    writer.word(sources.len() as u64);
+    for source in sources {
+        writer.bytes(source.digest().as_bytes());
+    }
+}
+
+fn canonical_sources(
+    sources: impl IntoIterator<Item = SourceId>,
+    minimum: usize,
+    too_few_message: &'static str,
+) -> Result<Box<[SourceId]>, EvidenceEffectError> {
+    let mut sources: Vec<SourceId> = sources.into_iter().collect();
+    if sources.len() < minimum {
+        return Err(EvidenceEffectError::invalid(TOO_FEW_DETAIL, too_few_message));
+    }
+    if sources.len() > MAX_COMBINATION_SOURCES {
+        return Err(EvidenceEffectError::invalid(TOO_MANY_DETAIL, TOO_MANY_MESSAGE));
+    }
+    sources.sort_unstable();
+    let mut index = 1;
+    while index < sources.len() {
+        if sources[index] == sources[index - 1] {
+            return Err(EvidenceEffectError::shared(DUPLICATE_DETAIL, DUPLICATE_MESSAGE));
+        }
+        index += 1;
+    }
+    Ok(sources.into_boxed_slice())
+}
+
+fn require_disjoint(
+    left: &[SourceId],
+    right: &[SourceId],
+    message: &'static str,
+) -> Result<(), EvidenceEffectError> {
+    let mut left_index = 0;
+    let mut right_index = 0;
+    while left_index < left.len() && right_index < right.len() {
+        if left[left_index] == right[right_index] {
+            return Err(EvidenceEffectError::shared(SHARED_DETAIL, message));
+        }
+        if left[left_index] < right[right_index] {
+            left_index += 1;
+        } else {
+            right_index += 1;
+        }
+    }
+    Ok(())
+}
+
+fn checked_text(text: &str) -> Result<Arc<str>, EvidenceEffectError> {
+    if text.trim().is_empty() {
+        return Err(EvidenceEffectError::invalid(BLANK_DETAIL, BLANK_MESSAGE));
+    }
+    if text.len() > MAX_TEXT_BYTES {
+        return Err(EvidenceEffectError::invalid(TEXT_DETAIL, TEXT_MESSAGE));
+    }
+    Ok(Arc::from(text))
+}
+
+const fn substitution_sentence(
+    recorded: EvidenceOperator,
+    requested: EvidenceOperator,
+) -> &'static str {
+    match (recorded, requested) {
+        (EvidenceOperator::Mixture, EvidenceOperator::Pooling)
+        | (EvidenceOperator::Pooling, EvidenceOperator::Mixture) => "a mixture is not a pool",
+        (EvidenceOperator::Bridge, EvidenceOperator::Transport)
+        | (EvidenceOperator::Transport, EvidenceOperator::Bridge) => "a bridge is not transport",
+        (EvidenceOperator::Envelope, EvidenceOperator::Marginalization)
+        | (EvidenceOperator::Marginalization, EvidenceOperator::Envelope) => {
+            "an envelope is not a marginal"
+        }
+        (
+            EvidenceOperator::Pooling
+            | EvidenceOperator::HierarchicalBorrowing
+            | EvidenceOperator::Transport
+            | EvidenceOperator::Bridge
+            | EvidenceOperator::FrozenReuse
+            | EvidenceOperator::RepeatedObservationUse
+            | EvidenceOperator::Mixture
+            | EvidenceOperator::Marginalization
+            | EvidenceOperator::Envelope,
+            EvidenceOperator::Pooling
+            | EvidenceOperator::HierarchicalBorrowing
+            | EvidenceOperator::Transport
+            | EvidenceOperator::Bridge
+            | EvidenceOperator::FrozenReuse
+            | EvidenceOperator::RepeatedObservationUse
+            | EvidenceOperator::Mixture
+            | EvidenceOperator::Marginalization
+            | EvidenceOperator::Envelope,
+        ) => "two effects are not interchangeable",
+    }
+}
+
+fn insert_sources(key: &mut BTreeSet<SubjectKey>, sources: &[SourceId]) {
+    for source in sources {
+        key.insert(SubjectKey::Source(*source));
+    }
+}
+
+fn subject_key(effect: &EvidenceEffect) -> BTreeSet<SubjectKey> {
+    let mut key = BTreeSet::new();
+    match &effect.body {
+        EffectBody::Pooling(sources)
+        | EffectBody::Mixture(sources)
+        | EffectBody::Envelope(sources)
+        | EffectBody::RepeatedObservationUse { sources, .. } => insert_sources(&mut key, sources),
+        EffectBody::HierarchicalBorrowing { priors, likelihood } => {
+            insert_sources(&mut key, priors);
+            insert_sources(&mut key, likelihood);
+        }
+        EffectBody::Transport { transported, native } => {
+            insert_sources(&mut key, transported);
+            insert_sources(&mut key, native);
+        }
+        EffectBody::Bridge { source, .. } => {
+            key.insert(SubjectKey::Source(*source));
+        }
+        EffectBody::FrozenReuse(result) | EffectBody::Marginalization(result) => {
+            key.insert(SubjectKey::Result(*result));
+        }
+    }
+    key
+}
+
+fn different_operator_on_same_subjects<'a>(
+    recorded: &'a [RecordedEffect],
+    requested: &EvidenceEffect,
+) -> Option<&'a EvidenceEffect> {
+    let requested_key = subject_key(requested);
+    for entry in recorded {
+        if entry.effect.operator().licenses(requested.operator()) {
+            continue;
+        }
+        if subject_key(&entry.effect) == requested_key {
+            return Some(&entry.effect);
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EvidenceEffect, EvidenceEffectLedger, EvidenceOperator, NextAttempt};
+    use crate::evidence_ledger::{
+        MAX_COMBINATION_SOURCES, MAX_TEXT_BYTES, ResultId, SourceId, SynthesisKind,
+    };
+    use antecedent_core::SemanticDigest;
+
+    const fn source_at(index: u16) -> SourceId {
+        let pair = index.to_le_bytes();
+        let mut bytes = [0u8; 32];
+        bytes[0] = pair[0];
+        bytes[1] = pair[1];
+        SourceId::from_digest(SemanticDigest::from_bytes(bytes))
+    }
+
+    const fn result_at(index: u16) -> ResultId {
+        let pair = index.to_le_bytes();
+        let mut bytes = [0u8; 32];
+        bytes[30] = pair[0];
+        bytes[31] = pair[1];
+        ResultId::from_digest(SemanticDigest::from_bytes(bytes))
+    }
+
+    const fn sentence(recorded: EvidenceOperator, requested: EvidenceOperator) -> &'static str {
+        match (recorded, requested) {
+            (EvidenceOperator::Mixture, EvidenceOperator::Pooling)
+            | (EvidenceOperator::Pooling, EvidenceOperator::Mixture) => "a mixture is not a pool",
+            (EvidenceOperator::Bridge, EvidenceOperator::Transport)
+            | (EvidenceOperator::Transport, EvidenceOperator::Bridge) => {
+                "a bridge is not transport"
+            }
+            (EvidenceOperator::Envelope, EvidenceOperator::Marginalization)
+            | (EvidenceOperator::Marginalization, EvidenceOperator::Envelope) => {
+                "an envelope is not a marginal"
+            }
+            (
+                EvidenceOperator::Pooling
+                | EvidenceOperator::HierarchicalBorrowing
+                | EvidenceOperator::Transport
+                | EvidenceOperator::Bridge
+                | EvidenceOperator::FrozenReuse
+                | EvidenceOperator::RepeatedObservationUse
+                | EvidenceOperator::Mixture
+                | EvidenceOperator::Marginalization
+                | EvidenceOperator::Envelope,
+                EvidenceOperator::Pooling
+                | EvidenceOperator::HierarchicalBorrowing
+                | EvidenceOperator::Transport
+                | EvidenceOperator::Bridge
+                | EvidenceOperator::FrozenReuse
+                | EvidenceOperator::RepeatedObservationUse
+                | EvidenceOperator::Mixture
+                | EvidenceOperator::Marginalization
+                | EvidenceOperator::Envelope,
+            ) => "two effects are not interchangeable",
+        }
+    }
+
+    fn sample_effects() -> Vec<EvidenceEffect> {
+        vec![
+            EvidenceEffect::pooling([source_at(1), source_at(2)]).expect("pooling"),
+            EvidenceEffect::hierarchical_borrowing([source_at(3)], [source_at(4)])
+                .expect("hierarchical borrowing"),
+            EvidenceEffect::transport([source_at(5)], [source_at(6)]).expect("transport"),
+            EvidenceEffect::bridge(source_at(7), "surrogate-to-endpoint").expect("bridge"),
+            EvidenceEffect::frozen_reuse(result_at(8)),
+            EvidenceEffect::repeated_observation_use([source_at(9)], "validation")
+                .expect("repeated"),
+            EvidenceEffect::mixture([source_at(10), source_at(11)]).expect("mixture"),
+            EvidenceEffect::marginalization(result_at(12)),
+            EvidenceEffect::envelope([source_at(13), source_at(14)]).expect("envelope"),
+        ]
+    }
+
+    #[test]
+    fn each_operator_records_an_effect_before_combination() {
+        let forward = EvidenceEffect::pooling([source_at(1), source_at(2)]).expect("forward");
+        let backward = EvidenceEffect::pooling([source_at(2), source_at(1)]).expect("backward");
+        assert_eq!(forward, backward);
+        assert_eq!(forward.identity(), backward.identity());
+
+        assert_eq!(
+            EvidenceOperator::Pooling.synthesis_kind(),
+            Some(SynthesisKind::StatisticalPooling)
+        );
+        assert_eq!(
+            EvidenceOperator::HierarchicalBorrowing.synthesis_kind(),
+            Some(SynthesisKind::BayesianBorrowing)
+        );
+        assert_eq!(
+            EvidenceOperator::Transport.synthesis_kind(),
+            Some(SynthesisKind::CausalTransport)
+        );
+        assert_eq!(
+            EvidenceOperator::FrozenReuse.synthesis_kind(),
+            Some(SynthesisKind::EvidenceReuse)
+        );
+        assert_eq!(
+            EvidenceOperator::RepeatedObservationUse.synthesis_kind(),
+            Some(SynthesisKind::RepeatedObservationUse)
+        );
+        assert_eq!(EvidenceOperator::Bridge.synthesis_kind(), None);
+        assert_eq!(EvidenceOperator::Mixture.synthesis_kind(), None);
+        assert_eq!(EvidenceOperator::Marginalization.synthesis_kind(), None);
+        assert_eq!(EvidenceOperator::Envelope.synthesis_kind(), None);
+        assert!(EvidenceOperator::from_name("statistical_pooling").is_none());
+        assert!(EvidenceOperator::from_name("marginal").is_none());
+
+        let effects = sample_effects();
+        assert_eq!(effects.len(), EvidenceOperator::ALL.len());
+        let mut seen = vec![false; EvidenceOperator::ALL.len()];
+        let mut ledger = EvidenceEffectLedger::new();
+        for effect in &effects {
+            let operator = effect.operator();
+            assert_eq!(EvidenceOperator::from_name(operator.as_str()), Some(operator));
+            let index =
+                EvidenceOperator::ALL.iter().position(|item| *item == operator).expect("listed");
+            assert!(!seen[index], "{}", operator.as_str());
+            seen[index] = true;
+
+            let missing = ledger.try_combine(effect).expect_err("before record");
+            assert_eq!(missing.code(), "cell_not_licensed");
+            assert_eq!(missing.detail(), "evidence_effects.effect_not_recorded");
+            assert!(missing.message().contains(NextAttempt::PHRASE));
+            assert_eq!(missing.next_attempt().expect("next").operator(), operator);
+
+            let id = ledger.record(effect.clone()).expect("record");
+            assert_eq!(ledger.record(effect.clone()).expect("idempotent"), id);
+            let admission = ledger.try_combine(effect).expect("after record");
+            assert_eq!(admission.effect_id(), id);
+            assert_eq!(admission.operator(), operator);
+            assert_eq!(admission.synthesis_kind(), operator.synthesis_kind());
+            let same = ledger.try_combine_as(id, operator).expect("same operator");
+            assert_eq!(same.effect_id(), id);
+        }
+        assert!(seen.iter().all(|flag| *flag));
+        assert_eq!(ledger.recorded().len(), EvidenceOperator::ALL.len());
+
+        let pool = &effects[0];
+        assert!(pool.pooling_sources().is_some());
+        assert!(pool.mixture_components().is_none());
+        let mixture = &effects[6];
+        assert!(mixture.mixture_components().is_some());
+        assert!(mixture.pooling_sources().is_none());
+        assert!(effects[3].bridge_source().is_some());
+        assert!(effects[3].transported_sources().is_none());
+        assert!(effects[2].transported_sources().is_some());
+        assert!(effects[2].bridge_contract().is_none());
+        assert!(effects[8].envelope_sources().is_some());
+        assert!(effects[8].marginalized_result().is_none());
+        assert!(effects[7].marginalized_result().is_some());
+        assert!(effects[7].envelope_sources().is_none());
+        assert!(effects[1].borrowing_priors().is_some());
+        assert!(effects[1].borrowing_likelihood().is_some());
+        assert!(effects[4].frozen_result().is_some());
+        assert_eq!(effects[5].repeated_stage(), Some("validation"));
+    }
+
+    #[test]
+    fn combination_without_a_recorded_effect_is_refused() {
+        let effect = EvidenceEffect::pooling([source_at(1), source_at(2)]).expect("pool");
+        let mut ledger = EvidenceEffectLedger::new();
+        let err = ledger.try_combine(&effect).expect_err("no effect");
+        assert_eq!(err.code(), "cell_not_licensed");
+        assert_eq!(err.detail(), "evidence_effects.effect_not_recorded");
+        assert_eq!(
+            err.refusal(),
+            ("cell_not_licensed", "evidence_effects.effect_not_recorded", err.message(),)
+        );
+        assert!(err.message().contains("refused until the effect is recorded"));
+        assert!(err.message().contains(NextAttempt::PHRASE));
+        assert_eq!(err.next_attempt().expect("next").to_string(), NextAttempt::PHRASE);
+        assert_eq!(err.next_attempt().expect("next").operator(), EvidenceOperator::Pooling);
+        assert!(err.recorded_operator().is_none());
+        assert_eq!(err.requested_operator(), Some(EvidenceOperator::Pooling));
+        assert!(antecedent_core::reason_code::is_runtime_refusal(err.code()));
+        assert!(ledger.recorded().is_empty());
+
+        let id = ledger.record(effect.clone()).expect("record");
+        let admission = ledger.try_combine(&effect).expect("recorded");
+        assert_eq!(admission.effect_id(), id);
+        assert_eq!(admission.operator(), EvidenceOperator::Pooling);
+        assert_eq!(admission.synthesis_kind(), Some(SynthesisKind::StatisticalPooling));
+    }
+
+    #[test]
+    fn mixture_is_not_a_pool_and_bridge_is_not_transport() {
+        let sources = [source_at(1), source_at(2)];
+        let mixture = EvidenceEffect::mixture(sources).expect("mixture");
+        let pool = EvidenceEffect::pooling(sources).expect("pool");
+        assert_ne!(mixture, pool);
+        assert_ne!(mixture.identity(), pool.identity());
+        assert!(mixture.pooling_sources().is_none());
+        assert!(pool.mixture_components().is_none());
+        assert!(!EvidenceOperator::Mixture.licenses(EvidenceOperator::Pooling));
+        assert!(!EvidenceOperator::Bridge.licenses(EvidenceOperator::Transport));
+        assert!(!EvidenceOperator::Envelope.licenses(EvidenceOperator::Marginalization));
+
+        let mut ledger = EvidenceEffectLedger::new();
+        let mixture_id = ledger.record(mixture).expect("record mixture");
+        let err = ledger.try_combine(&pool).expect_err("pool");
+        assert_eq!(err.code(), "distribution_meaning_mismatch");
+        assert_eq!(err.detail(), "evidence_effects.operators_not_interchangeable");
+        assert!(err.message().contains("a mixture is not a pool"));
+        assert!(err.message().contains(NextAttempt::PHRASE));
+        assert_eq!(err.recorded_operator(), Some(EvidenceOperator::Mixture));
+        assert_eq!(err.requested_operator(), Some(EvidenceOperator::Pooling));
+        assert_eq!(err.next_attempt().expect("next").operator(), EvidenceOperator::Pooling);
+        assert!(antecedent_core::reason_code::is_runtime_refusal(err.code()));
+
+        let as_pool =
+            ledger.try_combine_as(mixture_id, EvidenceOperator::Pooling).expect_err("as pool");
+        assert!(as_pool.message().contains("a mixture is not a pool"));
+        assert_eq!(as_pool.next_attempt().expect("next").operator(), EvidenceOperator::Pooling);
+
+        let bridge = EvidenceEffect::bridge(source_at(3), "endpoint").expect("bridge");
+        let bridge_id = ledger.record(bridge).expect("record bridge");
+        let as_transport = ledger
+            .try_combine_as(bridge_id, EvidenceOperator::Transport)
+            .expect_err("bridge as transport");
+        assert!(as_transport.message().contains("a bridge is not transport"));
+        assert_eq!(as_transport.recorded_operator(), Some(EvidenceOperator::Bridge));
+        assert_eq!(as_transport.requested_operator(), Some(EvidenceOperator::Transport));
+        assert_eq!(
+            as_transport.next_attempt().expect("next").operator(),
+            EvidenceOperator::Transport
+        );
+
+        let envelope = EvidenceEffect::envelope([source_at(4)]).expect("envelope");
+        let envelope_id = ledger.record(envelope).expect("record envelope");
+        let as_marginal = ledger
+            .try_combine_as(envelope_id, EvidenceOperator::Marginalization)
+            .expect_err("envelope as marginal");
+        assert!(as_marginal.message().contains("an envelope is not a marginal"));
+        assert_eq!(as_marginal.recorded_operator(), Some(EvidenceOperator::Envelope));
+        assert_eq!(as_marginal.requested_operator(), Some(EvidenceOperator::Marginalization));
+        assert_eq!(
+            as_marginal.next_attempt().expect("next").operator(),
+            EvidenceOperator::Marginalization
+        );
+
+        let reused = EvidenceEffect::frozen_reuse(result_at(1));
+        let marginal = EvidenceEffect::marginalization(result_at(1));
+        assert_ne!(reused.identity(), marginal.identity());
+        ledger.record(reused).expect("record reuse");
+        let not_marginal = ledger.try_combine(&marginal).expect_err("reuse is not a marginal");
+        assert!(not_marginal.message().contains("two effects are not interchangeable"));
+        assert!(not_marginal.message().contains(NextAttempt::PHRASE));
+        assert_eq!(not_marginal.recorded_operator(), Some(EvidenceOperator::FrozenReuse));
+        assert_eq!(not_marginal.requested_operator(), Some(EvidenceOperator::Marginalization));
+
+        let pool_id = ledger.record(pool.clone()).expect("record pool");
+        let admission = ledger.try_combine(&pool).expect("pool recorded");
+        assert_eq!(admission.effect_id(), pool_id);
+        assert_ne!(admission.effect_id(), mixture_id);
+    }
+
+    #[test]
+    fn operators_are_not_interchangeable() {
+        for recorded in EvidenceOperator::ALL {
+            for requested in EvidenceOperator::ALL {
+                let refusal = recorded.substitution_refusal(requested);
+                if recorded.licenses(requested) {
+                    assert!(refusal.is_none());
+                    continue;
+                }
+                let err = refusal.expect("distinct operators");
+                assert!(err.message().contains(NextAttempt::PHRASE));
+                assert_eq!(err.recorded_operator(), Some(recorded));
+                assert_eq!(err.requested_operator(), Some(requested));
+                assert_eq!(err.next_attempt().expect("next").operator(), requested);
+                assert!(err.message().contains(sentence(recorded, requested)), "{}", err.message(),);
+            }
+        }
+    }
+
+    #[test]
+    fn malformed_effects_are_refused() {
+        let few = EvidenceEffect::pooling([source_at(1)]).expect_err("one source");
+        assert_eq!(few.detail(), "evidence_effects.too_few_subjects");
+        assert_eq!(few.code(), "invalid_argument");
+        assert!(few.next_attempt().is_none());
+
+        let twice = EvidenceEffect::mixture([source_at(1), source_at(1)]).expect_err("twice");
+        assert_eq!(twice.code(), "evidence_double_counted");
+        assert_eq!(twice.detail(), "evidence_effects.duplicate_source");
+
+        let shared = EvidenceEffect::hierarchical_borrowing([source_at(1)], [source_at(1)])
+            .expect_err("prior and likelihood");
+        assert_eq!(shared.detail(), "evidence_effects.shared_source");
+        assert_eq!(shared.code(), "evidence_double_counted");
+
+        let native = EvidenceEffect::transport([source_at(2)], [source_at(2)]).expect_err("native");
+        assert_eq!(native.detail(), "evidence_effects.shared_source");
+        assert!(native.message().contains("transported and native"));
+
+        let blank = EvidenceEffect::bridge(source_at(1), " ").expect_err("blank");
+        assert_eq!(blank.detail(), "evidence_effects.blank_text");
+        assert!(blank.next_attempt().is_none());
+
+        let long = "y".repeat(MAX_TEXT_BYTES + 1);
+        let oversized =
+            EvidenceEffect::repeated_observation_use([source_at(1)], &long).expect_err("long");
+        assert_eq!(oversized.detail(), "evidence_effects.text_too_long");
+
+        let many: Vec<SourceId> =
+            (0..=u16::try_from(MAX_COMBINATION_SOURCES).expect("bound")).map(source_at).collect();
+        let too_many = EvidenceEffect::envelope(many).expect_err("too many");
+        assert_eq!(too_many.detail(), "evidence_effects.too_many_sources");
+    }
+}
