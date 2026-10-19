@@ -1,0 +1,90 @@
+# N15 kernel profile. This file is the plan. It is not a measurement.
+# It stores no timings and no SIMD decision. status = "registered_not_measured"
+# means the kernel is named and has not been profiled.
+#
+# A kernel is profiled on its own, after a layout contract for that kernel
+# exists. A portable-layout measurement is what can justify explicit SIMD.
+# Until that measurement exists, the decision is unmade.
+# N16's scalar reference and tolerance must exist before promotion.
+# An upstream change to an owning source requires a remeasure.
+# Matching, CI, and family work do not supply this record.
+
+schema = 1
+item = "N15"
+measured = false
+simd_decision = "unmade"
+promotion_requires = "N16 scalar reference and tolerance must exist before promotion"
+remeasure = "An upstream change to an owning source requires a remeasure. An earlier record is not reused."
+alongside = "Run beside unrelated matching, CI, and family work. Those benches are not this profile."
+historical_baseline = "benches/baselines/kernel_reductions.md is a different record. It is not an N15 measurement and it is not this SIMD decision."
+
+[[kernel]]
+id = "fused_reductions"
+status = "registered_not_measured"
+role = "fused reductions"
+owner = "crates/antecedent-kernels/src/portable.rs"
+symbols = [
+    "masked_sum",
+    "masked_mean",
+    "masked_variance",
+    "masked_covariance",
+]
+scalar_reference = "crates/antecedent-kernels/src/scalar.rs (same names). N16 owns the scalar reference and the tolerance."
+source_layout = "Unmasked unit-stride F64VectorView via as_slice(). A mask, or a view that is not a contiguous slice, calls the scalar function."
+layout_contract = "absent"
+simd_decision = "unmade"
+explicit_simd = "unmade until a portable-layout measurement of this kernel exists"
+notes = "pearson_fused in crates/antecedent-kernels/src/parcorr.rs calls pearson. It is not a separate reduction body."
+
+[[kernel]]
+id = "bitmap_mask"
+status = "registered_not_measured"
+role = "bitmap/mask handling"
+owner = "crates/antecedent-kernels/src/scalar.rs"
+symbols = [
+    "masked_sum",
+    "masked_mean",
+    "masked_variance",
+    "masked_covariance",
+]
+mask_type = "crates/antecedent-kernels/src/view.rs BitMaskView"
+scalar_reference = "These functions are the scalar mask loops. N16 still has to define the tolerance before promotion."
+source_layout = "BitMaskView is a packed bitmap, 1 = included, least-significant bit first. portable.rs has no mask loop; a Some mask calls these functions."
+layout_contract = "absent"
+simd_decision = "unmade"
+explicit_simd = "unmade until a portable-layout measurement of this kernel exists"
+notes = "ValidityBitmap in crates/antecedent-data/src/column.rs borrows this view through as_mask_view. scan_against_validity is a column invariant scan, not this kernel."
+
+[[kernel]]
+id = "score_gram"
+status = "registered_not_measured"
+role = "score/Gram accumulation"
+owner = "crates/antecedent-stats/src/gram.rs"
+symbols = [
+    "form_xtx",
+    "form_xty",
+    "accumulate_xtx",
+    "accumulate_xtx_xty_row",
+]
+scalar_reference = "The functions above are the scalar accumulation. N16's tolerance must exist before promotion."
+source_layout = "X is column-major. The Gram and X'y are row-major. accumulate_xtx_xty_row adds one design row into both."
+layout_contract = "absent"
+simd_decision = "unmade"
+explicit_simd = "unmade until a portable-layout measurement of this kernel exists"
+notes = "score_coefficient_covariance in crates/antecedent-stats/src/covariance.rs calls form_xtx. Its private form_xtwx and accumulate_xx are the weighted score sandwich, not this kernel. form_gram in crates/antecedent-kernels/src/parcorr.rs is the partial-correlation Gram, not this kernel."
+
+[[kernel]]
+id = "column_scaling"
+status = "registered_not_measured"
+role = "column scaling"
+owner = "crates/antecedent-kernels/src/scalar.rs"
+symbols = [
+    "standardize_inplace",
+]
+public_entry = "crates/antecedent-kernels/src/dispatch.rs standardize_inplace"
+scalar_reference = "standardize_inplace in this file is the scalar body. N16's tolerance must exist before promotion."
+source_layout = "One contiguous f64 column. Subtract the mean and divide by max(sample standard deviation, eps). crates/antecedent-stats/src/design.rs standardize_columns applies it to selected columns of a column-major design."
+layout_contract = "absent"
+simd_decision = "unmade"
+explicit_simd = "unmade until a portable-layout measurement of this kernel exists"
+notes = "crates/antecedent-kernels/src/portable.rs standardize_inplace calls the scalar function. It is not a separate portable body. scale_column in crates/antecedent-kernels/src/parcorr.rs and symmetric_scales / equilibrate_into in crates/antecedent-kernels/src/gram.rs are different operations."
