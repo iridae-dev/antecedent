@@ -15,6 +15,7 @@
 #[non_exhaustive] pub enum antecedent_design::decision_transported_source::TransportedRefusal
 #[non_exhaustive] pub enum antecedent_design::design_ranking_artifact::DesignRankingArtifactError
 #[non_exhaustive] pub enum antecedent_design::evsi::EvsiError
+#[non_exhaustive] pub enum antecedent_design::evsi::FutureStudyError
 #[non_exhaustive] pub enum antecedent_design::inverse_forward_source::ForwardSourceRefusal
 #[non_exhaustive] pub enum antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 #[non_exhaustive] pub enum antecedent_design::prior_signal::PriorSignalError
@@ -396,18 +397,28 @@ impl core::clone::Clone for antecedent_design::design_ranking_artifact::ReplayKi
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::SearchWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::SignalRequestWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::UtilityWire
+impl core::clone::Clone for antecedent_design::evsi::AffineStateUtility
 impl core::clone::Clone for antecedent_design::evsi::CostToUtilityMap
 impl core::clone::Clone for antecedent_design::evsi::EvsiCandidate
 impl core::clone::Clone for antecedent_design::evsi::EvsiCandidateRow
 impl core::clone::Clone for antecedent_design::evsi::EvsiError
 impl core::clone::Clone for antecedent_design::evsi::EvsiReport
 impl core::clone::Clone for antecedent_design::evsi::EvsiRequest
+impl core::clone::Clone for antecedent_design::evsi::FutureStudyError
+impl core::clone::Clone for antecedent_design::evsi::FutureStudyProgram
+impl core::clone::Clone for antecedent_design::evsi::FutureStudyValue
 impl core::clone::Clone for antecedent_design::evsi::IntegrationMethod
 impl core::clone::Clone for antecedent_design::evsi::IntegrationReport
+impl core::clone::Clone for antecedent_design::evsi::NormalMeanFutureData
+impl core::clone::Clone for antecedent_design::evsi::NormalMeanKnownVarianceUpdate
+impl core::clone::Clone for antecedent_design::evsi::NormalPosterior
+impl core::clone::Clone for antecedent_design::evsi::NormalStateBelief
 impl core::clone::Clone for antecedent_design::evsi::RankingBasis
 impl core::clone::Clone for antecedent_design::evsi::SearchReceipt
 impl core::clone::Clone for antecedent_design::evsi::SourceOverlapDiagnostics
+impl core::clone::Clone for antecedent_design::evsi::StudyAction
 impl core::clone::Clone for antecedent_design::evsi::StudyCostSpec
+impl core::clone::Clone for antecedent_design::evsi::UpdatedDecision
 impl core::clone::Clone for antecedent_design::functional_source::LawFunctionalArtifact
 impl core::clone::Clone for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::clone::Clone for antecedent_design::inverse_forward_source::ComposedFamily
@@ -759,10 +770,13 @@ impl core::cmp::Eq for antecedent_design::decision_transported_source::Transport
 impl core::cmp::Eq for antecedent_design::design_ranking_artifact::ReplayKind
 impl core::cmp::Eq for antecedent_design::design_ranking_artifact::SearchWire
 impl core::cmp::Eq for antecedent_design::evsi::EvsiError
+impl core::cmp::Eq for antecedent_design::evsi::FutureStudyError
 impl core::cmp::Eq for antecedent_design::evsi::IntegrationMethod
+impl core::cmp::Eq for antecedent_design::evsi::NormalMeanKnownVarianceUpdate
 impl core::cmp::Eq for antecedent_design::evsi::RankingBasis
 impl core::cmp::Eq for antecedent_design::evsi::SearchReceipt
 impl core::cmp::Eq for antecedent_design::evsi::SourceOverlapDiagnostics
+impl core::cmp::Eq for antecedent_design::evsi::StudyAction
 impl core::cmp::Eq for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::cmp::Eq for antecedent_design::inverse_forward_source::ForwardRepresentation
 impl core::cmp::Eq for antecedent_design::inverse_forward_source::ForwardSourceKind
@@ -1158,16 +1172,26 @@ impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::Replay
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::SearchWire
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::SignalRequestWire
 impl core::cmp::PartialEq for antecedent_design::design_ranking_artifact::UtilityWire
+impl core::cmp::PartialEq for antecedent_design::evsi::AffineStateUtility
 impl core::cmp::PartialEq for antecedent_design::evsi::CostToUtilityMap
 impl core::cmp::PartialEq for antecedent_design::evsi::EvsiCandidateRow
 impl core::cmp::PartialEq for antecedent_design::evsi::EvsiError
 impl core::cmp::PartialEq for antecedent_design::evsi::EvsiReport
+impl core::cmp::PartialEq for antecedent_design::evsi::FutureStudyError
+impl core::cmp::PartialEq for antecedent_design::evsi::FutureStudyProgram
+impl core::cmp::PartialEq for antecedent_design::evsi::FutureStudyValue
 impl core::cmp::PartialEq for antecedent_design::evsi::IntegrationMethod
 impl core::cmp::PartialEq for antecedent_design::evsi::IntegrationReport
+impl core::cmp::PartialEq for antecedent_design::evsi::NormalMeanFutureData
+impl core::cmp::PartialEq for antecedent_design::evsi::NormalMeanKnownVarianceUpdate
+impl core::cmp::PartialEq for antecedent_design::evsi::NormalPosterior
+impl core::cmp::PartialEq for antecedent_design::evsi::NormalStateBelief
 impl core::cmp::PartialEq for antecedent_design::evsi::RankingBasis
 impl core::cmp::PartialEq for antecedent_design::evsi::SearchReceipt
 impl core::cmp::PartialEq for antecedent_design::evsi::SourceOverlapDiagnostics
+impl core::cmp::PartialEq for antecedent_design::evsi::StudyAction
 impl core::cmp::PartialEq for antecedent_design::evsi::StudyCostSpec
+impl core::cmp::PartialEq for antecedent_design::evsi::UpdatedDecision
 impl core::cmp::PartialEq for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::cmp::PartialEq for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::cmp::PartialEq for antecedent_design::inverse_forward_source::ComposedResponse
@@ -1462,6 +1486,7 @@ impl core::error::Error for antecedent_design::decision_evaluation::EvaluationEr
 impl core::error::Error for antecedent_design::decision_reliability::ReliabilityError
 impl core::error::Error for antecedent_design::decision_transported_source::TransportedRefusal
 impl core::error::Error for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
+impl core::error::Error for antecedent_design::evsi::FutureStudyError
 impl core::error::Error for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::error::Error for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 impl core::error::Error for antecedent_design::proposal_receipt::ProposalReceiptError
@@ -1795,16 +1820,26 @@ impl core::fmt::Debug for antecedent_design::design_ranking_artifact::ReplayKind
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::SearchWire
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::SignalRequestWire
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::UtilityWire
+impl core::fmt::Debug for antecedent_design::evsi::AffineStateUtility
 impl core::fmt::Debug for antecedent_design::evsi::CostToUtilityMap
 impl core::fmt::Debug for antecedent_design::evsi::EvsiCandidateRow
 impl core::fmt::Debug for antecedent_design::evsi::EvsiError
 impl core::fmt::Debug for antecedent_design::evsi::EvsiReport
+impl core::fmt::Debug for antecedent_design::evsi::FutureStudyError
+impl core::fmt::Debug for antecedent_design::evsi::FutureStudyProgram
+impl core::fmt::Debug for antecedent_design::evsi::FutureStudyValue
 impl core::fmt::Debug for antecedent_design::evsi::IntegrationMethod
 impl core::fmt::Debug for antecedent_design::evsi::IntegrationReport
+impl core::fmt::Debug for antecedent_design::evsi::NormalMeanFutureData
+impl core::fmt::Debug for antecedent_design::evsi::NormalMeanKnownVarianceUpdate
+impl core::fmt::Debug for antecedent_design::evsi::NormalPosterior
+impl core::fmt::Debug for antecedent_design::evsi::NormalStateBelief
 impl core::fmt::Debug for antecedent_design::evsi::RankingBasis
 impl core::fmt::Debug for antecedent_design::evsi::SearchReceipt
 impl core::fmt::Debug for antecedent_design::evsi::SourceOverlapDiagnostics
+impl core::fmt::Debug for antecedent_design::evsi::StudyAction
 impl core::fmt::Debug for antecedent_design::evsi::StudyCostSpec
+impl core::fmt::Debug for antecedent_design::evsi::UpdatedDecision
 impl core::fmt::Debug for antecedent_design::functional_source::LawFunctionalArtifact
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::ComposedFamily
@@ -2036,6 +2071,7 @@ impl core::fmt::Display for antecedent_design::decision_evaluation::EvaluationEr
 impl core::fmt::Display for antecedent_design::decision_reliability::ReliabilityError
 impl core::fmt::Display for antecedent_design::decision_transported_source::TransportedRefusal
 impl core::fmt::Display for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
+impl core::fmt::Display for antecedent_design::evsi::FutureStudyError
 impl core::fmt::Display for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::fmt::Display for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 impl core::fmt::Display for antecedent_design::proposal_receipt::ProposalReceiptError
@@ -2178,9 +2214,16 @@ impl core::marker::Copy for antecedent_design::decision_transported_source::Tran
 impl core::marker::Copy for antecedent_design::decision_transported_source::TransportedRoute
 impl core::marker::Copy for antecedent_design::design_ranking_artifact::RankConfigWire
 impl core::marker::Copy for antecedent_design::design_ranking_artifact::ReplayKind
+impl core::marker::Copy for antecedent_design::evsi::FutureStudyError
+impl core::marker::Copy for antecedent_design::evsi::FutureStudyValue
 impl core::marker::Copy for antecedent_design::evsi::IntegrationMethod
 impl core::marker::Copy for antecedent_design::evsi::IntegrationReport
+impl core::marker::Copy for antecedent_design::evsi::NormalMeanFutureData
+impl core::marker::Copy for antecedent_design::evsi::NormalMeanKnownVarianceUpdate
+impl core::marker::Copy for antecedent_design::evsi::NormalPosterior
+impl core::marker::Copy for antecedent_design::evsi::NormalStateBelief
 impl core::marker::Copy for antecedent_design::evsi::RankingBasis
+impl core::marker::Copy for antecedent_design::evsi::UpdatedDecision
 impl core::marker::Copy for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::marker::Copy for antecedent_design::inverse_forward_source::ForwardRepresentation
 impl core::marker::Copy for antecedent_design::inverse_forward_source::ForwardSourceKind
@@ -2559,18 +2602,28 @@ impl core::marker::Freeze for antecedent_design::design_ranking_artifact::Replay
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::UtilityWire [auto]
+impl core::marker::Freeze for antecedent_design::evsi::AffineStateUtility [auto]
 impl core::marker::Freeze for antecedent_design::evsi::CostToUtilityMap [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiCandidate [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiError [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiReport [auto]
 impl core::marker::Freeze for antecedent_design::evsi::EvsiRequest [auto]
+impl core::marker::Freeze for antecedent_design::evsi::FutureStudyError [auto]
+impl core::marker::Freeze for antecedent_design::evsi::FutureStudyProgram [auto]
+impl core::marker::Freeze for antecedent_design::evsi::FutureStudyValue [auto]
 impl core::marker::Freeze for antecedent_design::evsi::IntegrationMethod [auto]
 impl core::marker::Freeze for antecedent_design::evsi::IntegrationReport [auto]
+impl core::marker::Freeze for antecedent_design::evsi::NormalMeanFutureData [auto]
+impl core::marker::Freeze for antecedent_design::evsi::NormalMeanKnownVarianceUpdate [auto]
+impl core::marker::Freeze for antecedent_design::evsi::NormalPosterior [auto]
+impl core::marker::Freeze for antecedent_design::evsi::NormalStateBelief [auto]
 impl core::marker::Freeze for antecedent_design::evsi::RankingBasis [auto]
 impl core::marker::Freeze for antecedent_design::evsi::SearchReceipt [auto]
 impl core::marker::Freeze for antecedent_design::evsi::SourceOverlapDiagnostics [auto]
+impl core::marker::Freeze for antecedent_design::evsi::StudyAction [auto]
 impl core::marker::Freeze for antecedent_design::evsi::StudyCostSpec [auto]
+impl core::marker::Freeze for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Freeze for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::ComposedFamily [auto]
@@ -3119,18 +3172,28 @@ impl core::marker::Send for antecedent_design::design_ranking_artifact::ReplayKi
 impl core::marker::Send for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::UtilityWire [auto]
+impl core::marker::Send for antecedent_design::evsi::AffineStateUtility [auto]
 impl core::marker::Send for antecedent_design::evsi::CostToUtilityMap [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiCandidate [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiError [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiReport [auto]
 impl core::marker::Send for antecedent_design::evsi::EvsiRequest [auto]
+impl core::marker::Send for antecedent_design::evsi::FutureStudyError [auto]
+impl core::marker::Send for antecedent_design::evsi::FutureStudyProgram [auto]
+impl core::marker::Send for antecedent_design::evsi::FutureStudyValue [auto]
 impl core::marker::Send for antecedent_design::evsi::IntegrationMethod [auto]
 impl core::marker::Send for antecedent_design::evsi::IntegrationReport [auto]
+impl core::marker::Send for antecedent_design::evsi::NormalMeanFutureData [auto]
+impl core::marker::Send for antecedent_design::evsi::NormalMeanKnownVarianceUpdate [auto]
+impl core::marker::Send for antecedent_design::evsi::NormalPosterior [auto]
+impl core::marker::Send for antecedent_design::evsi::NormalStateBelief [auto]
 impl core::marker::Send for antecedent_design::evsi::RankingBasis [auto]
 impl core::marker::Send for antecedent_design::evsi::SearchReceipt [auto]
 impl core::marker::Send for antecedent_design::evsi::SourceOverlapDiagnostics [auto]
+impl core::marker::Send for antecedent_design::evsi::StudyAction [auto]
 impl core::marker::Send for antecedent_design::evsi::StudyCostSpec [auto]
+impl core::marker::Send for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Send for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::ComposedFamily [auto]
@@ -3636,16 +3699,26 @@ impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_art
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::SearchWire
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::SignalRequestWire
 impl core::marker::StructuralPartialEq for antecedent_design::design_ranking_artifact::UtilityWire
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::AffineStateUtility
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::CostToUtilityMap
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::EvsiCandidateRow
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::EvsiError
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::EvsiReport
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::FutureStudyError
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::FutureStudyProgram
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::FutureStudyValue
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::IntegrationMethod
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::IntegrationReport
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::NormalMeanFutureData
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::NormalMeanKnownVarianceUpdate
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::NormalPosterior
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::NormalStateBelief
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::RankingBasis
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::SearchReceipt
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::SourceOverlapDiagnostics
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::StudyAction
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::StudyCostSpec
+impl core::marker::StructuralPartialEq for antecedent_design::evsi::UpdatedDecision
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_forward_source::ComposedResponse
@@ -4173,18 +4246,28 @@ impl core::marker::Sync for antecedent_design::design_ranking_artifact::ReplayKi
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::UtilityWire [auto]
+impl core::marker::Sync for antecedent_design::evsi::AffineStateUtility [auto]
 impl core::marker::Sync for antecedent_design::evsi::CostToUtilityMap [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiCandidate [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiError [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiReport [auto]
 impl core::marker::Sync for antecedent_design::evsi::EvsiRequest [auto]
+impl core::marker::Sync for antecedent_design::evsi::FutureStudyError [auto]
+impl core::marker::Sync for antecedent_design::evsi::FutureStudyProgram [auto]
+impl core::marker::Sync for antecedent_design::evsi::FutureStudyValue [auto]
 impl core::marker::Sync for antecedent_design::evsi::IntegrationMethod [auto]
 impl core::marker::Sync for antecedent_design::evsi::IntegrationReport [auto]
+impl core::marker::Sync for antecedent_design::evsi::NormalMeanFutureData [auto]
+impl core::marker::Sync for antecedent_design::evsi::NormalMeanKnownVarianceUpdate [auto]
+impl core::marker::Sync for antecedent_design::evsi::NormalPosterior [auto]
+impl core::marker::Sync for antecedent_design::evsi::NormalStateBelief [auto]
 impl core::marker::Sync for antecedent_design::evsi::RankingBasis [auto]
 impl core::marker::Sync for antecedent_design::evsi::SearchReceipt [auto]
 impl core::marker::Sync for antecedent_design::evsi::SourceOverlapDiagnostics [auto]
+impl core::marker::Sync for antecedent_design::evsi::StudyAction [auto]
 impl core::marker::Sync for antecedent_design::evsi::StudyCostSpec [auto]
+impl core::marker::Sync for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Sync for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::ComposedFamily [auto]
@@ -4734,18 +4817,28 @@ impl core::marker::Unpin for antecedent_design::design_ranking_artifact::ReplayK
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::UtilityWire [auto]
+impl core::marker::Unpin for antecedent_design::evsi::AffineStateUtility [auto]
 impl core::marker::Unpin for antecedent_design::evsi::CostToUtilityMap [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiCandidate [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiError [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiReport [auto]
 impl core::marker::Unpin for antecedent_design::evsi::EvsiRequest [auto]
+impl core::marker::Unpin for antecedent_design::evsi::FutureStudyError [auto]
+impl core::marker::Unpin for antecedent_design::evsi::FutureStudyProgram [auto]
+impl core::marker::Unpin for antecedent_design::evsi::FutureStudyValue [auto]
 impl core::marker::Unpin for antecedent_design::evsi::IntegrationMethod [auto]
 impl core::marker::Unpin for antecedent_design::evsi::IntegrationReport [auto]
+impl core::marker::Unpin for antecedent_design::evsi::NormalMeanFutureData [auto]
+impl core::marker::Unpin for antecedent_design::evsi::NormalMeanKnownVarianceUpdate [auto]
+impl core::marker::Unpin for antecedent_design::evsi::NormalPosterior [auto]
+impl core::marker::Unpin for antecedent_design::evsi::NormalStateBelief [auto]
 impl core::marker::Unpin for antecedent_design::evsi::RankingBasis [auto]
 impl core::marker::Unpin for antecedent_design::evsi::SearchReceipt [auto]
 impl core::marker::Unpin for antecedent_design::evsi::SourceOverlapDiagnostics [auto]
+impl core::marker::Unpin for antecedent_design::evsi::StudyAction [auto]
 impl core::marker::Unpin for antecedent_design::evsi::StudyCostSpec [auto]
+impl core::marker::Unpin for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Unpin for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::ComposedFamily [auto]
@@ -5294,16 +5387,26 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranki
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::UtilityWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::AffineStateUtility [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::CostToUtilityMap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::FutureStudyError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::FutureStudyProgram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::FutureStudyValue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::IntegrationMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::IntegrationReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::NormalMeanFutureData [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::NormalMeanKnownVarianceUpdate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::NormalPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::NormalStateBelief [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::RankingBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::SearchReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::SourceOverlapDiagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::StudyAction [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::StudyCostSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::ComposedFamily [auto]
@@ -5847,16 +5950,26 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::SearchWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::SignalRequestWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::UtilityWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::AffineStateUtility [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::CostToUtilityMap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiCandidateRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::FutureStudyError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::FutureStudyProgram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::FutureStudyValue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::IntegrationMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::IntegrationReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::NormalMeanFutureData [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::NormalMeanKnownVarianceUpdate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::NormalPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::NormalStateBelief [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::RankingBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::SearchReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::SourceOverlapDiagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::StudyAction [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::StudyCostSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::ComposedFamily [auto]
@@ -7886,12 +7999,20 @@ pub field antecedent_design::evsi::EvsiRequest::require_net_value: bool
 pub field antecedent_design::evsi::EvsiRequest::rng_seed: u64
 pub field antecedent_design::evsi::EvsiRequest::tie_tolerance: f64
 pub field antecedent_design::evsi::EvsiRequest::utility_unit: alloc::string::String
+pub field antecedent_design::evsi::FutureStudyValue::gross_evsi: f64
+pub field antecedent_design::evsi::FutureStudyValue::integration: antecedent_design::evsi::IntegrationMethod
+pub field antecedent_design::evsi::FutureStudyValue::net_value: core::option::Option<f64>
+pub field antecedent_design::evsi::FutureStudyValue::preposterior_expected_utility: f64
+pub field antecedent_design::evsi::FutureStudyValue::prior_expected_utility: f64
+pub field antecedent_design::evsi::FutureStudyValue::study_cost: core::option::Option<f64>
 pub field antecedent_design::evsi::IntegrationReport::converged: bool
 pub field antecedent_design::evsi::IntegrationReport::early_stopped: bool
 pub field antecedent_design::evsi::IntegrationReport::ess: core::option::Option<f64>
 pub field antecedent_design::evsi::IntegrationReport::method: antecedent_design::evsi::IntegrationMethod
 pub field antecedent_design::evsi::IntegrationReport::replicates: u64
 pub field antecedent_design::evsi::IntegrationReport::stderr: f64
+pub field antecedent_design::evsi::NormalPosterior::mean: f64
+pub field antecedent_design::evsi::NormalPosterior::variance: f64
 pub field antecedent_design::evsi::SearchReceipt::evaluated: usize
 pub field antecedent_design::evsi::SearchReceipt::supplied: usize
 pub field antecedent_design::evsi::SearchReceipt::truncated: bool
@@ -7900,6 +8021,10 @@ pub field antecedent_design::evsi::SourceOverlapDiagnostics::observations_checke
 pub field antecedent_design::evsi::SourceOverlapDiagnostics::overlapping: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::evsi::StudyCostSpec::amount: f64
 pub field antecedent_design::evsi::StudyCostSpec::unit: alloc::string::String
+pub field antecedent_design::evsi::UpdatedDecision::action_index: usize
+pub field antecedent_design::evsi::UpdatedDecision::expected_utility: f64
+pub field antecedent_design::evsi::UpdatedDecision::posterior_mean: f64
+pub field antecedent_design::evsi::UpdatedDecision::posterior_variance: f64
 pub field antecedent_design::inverse_forward_source::ComposedActionResponse::action_id: alloc::string::String
 pub field antecedent_design::inverse_forward_source::ComposedActionResponse::coordinate: antecedent_contract::quantity::ScientificQuantity
 pub field antecedent_design::inverse_forward_source::ComposedActionResponse::level_values: alloc::vec::Vec<(alloc::string::String, f64)>
@@ -9047,9 +9172,25 @@ pub fn <antecedent_design::design_ranking_artifact::DesignRankingArtifactWire>::
 pub fn <antecedent_design::design_ranking_artifact::DesignRankingArtifactWire>::fn reseal_ranking(&mut self) -> core::result::Result<(), antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn <antecedent_design::design_ranking_artifact::DesignRankingArtifactWire>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::design_ranking_artifact::ReplayKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_design::evsi::AffineStateUtility>::fn try_new(intercept: alloc::vec::Vec<f64>, slope: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_design::evsi::FutureStudyError>
 pub fn <antecedent_design::evsi::EvsiError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::evsi::EvsiEvidence<'a>>::const fn new(ledger: &'a antecedent_contract::evidence_ledger::ledger::EvidenceLedger, prior: antecedent_contract::evidence_ledger::ids::SourceId, candidates: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::evidence_ledger::ids::SourceId>) -> Self
+pub fn <antecedent_design::evsi::FutureStudyProgram>::const fn study_cost(&self) -> core::option::Option<f64>
+pub fn <antecedent_design::evsi::FutureStudyProgram>::fn actions(&self) -> &[antecedent_design::evsi::StudyAction]
+pub fn <antecedent_design::evsi::FutureStudyProgram>::fn evaluate_future_study(&self) -> core::result::Result<antecedent_design::evsi::FutureStudyValue, antecedent_design::evsi::FutureStudyError>
+pub fn <antecedent_design::evsi::FutureStudyProgram>::fn gross_evsi(&self) -> core::result::Result<f64, antecedent_design::evsi::FutureStudyError>
+pub fn <antecedent_design::evsi::FutureStudyProgram>::fn try_new(belief: antecedent_design::evsi::NormalStateBelief, future_data: antecedent_design::evsi::NormalMeanFutureData, update: antecedent_design::evsi::NormalMeanKnownVarianceUpdate, actions: alloc::vec::Vec<antecedent_design::evsi::StudyAction>, utility: antecedent_design::evsi::AffineStateUtility, study_cost: core::option::Option<f64>) -> core::result::Result<Self, antecedent_design::evsi::FutureStudyError>
+pub fn <antecedent_design::evsi::FutureStudyProgram>::fn updated_decision(&self, sample_mean: f64) -> core::result::Result<antecedent_design::evsi::UpdatedDecision, antecedent_design::evsi::FutureStudyError>
 pub fn <antecedent_design::evsi::IntegrationMethod>::const fn as_str(self) -> &'static str
+pub fn <antecedent_design::evsi::NormalMeanFutureData>::const fn noise_variance(self) -> f64
+pub fn <antecedent_design::evsi::NormalMeanFutureData>::const fn sample_size(self) -> u64
+pub fn <antecedent_design::evsi::NormalMeanFutureData>::const fn try_new(sample_size: u64, noise_variance: f64) -> core::result::Result<Self, antecedent_design::evsi::FutureStudyError>
+pub fn <antecedent_design::evsi::NormalMeanKnownVarianceUpdate>::const fn update(self, belief: antecedent_design::evsi::NormalStateBelief, data: antecedent_design::evsi::NormalMeanFutureData, sample_mean: f64) -> core::result::Result<antecedent_design::evsi::NormalPosterior, antecedent_design::evsi::FutureStudyError>
+pub fn <antecedent_design::evsi::NormalStateBelief>::const fn mean(self) -> f64
+pub fn <antecedent_design::evsi::NormalStateBelief>::const fn try_new(mean: f64, variance: f64) -> core::result::Result<Self, antecedent_design::evsi::FutureStudyError>
+pub fn <antecedent_design::evsi::NormalStateBelief>::const fn variance(self) -> f64
+pub fn <antecedent_design::evsi::StudyAction>::fn id(&self) -> &str
+pub fn <antecedent_design::evsi::StudyAction>::fn try_new(id: &str) -> core::result::Result<Self, antecedent_design::evsi::FutureStudyError>
 pub fn <antecedent_design::functional_source::LawFunctionalArtifact>::fn consume(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::functional_source::LawFunctionalArtifact>::fn consume_expected(bytes: &[u8], expected: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::functional_source::LawFunctionalArtifact>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
@@ -9684,6 +9825,8 @@ pub struct antecedent_design::design_ranking_artifact::RankConfigWire
 pub struct antecedent_design::design_ranking_artifact::SealInputs<'a, A>
 pub struct antecedent_design::design_ranking_artifact::SearchWire
 pub struct antecedent_design::design_ranking_artifact::SignalRequestWire
+pub struct antecedent_design::evsi::AffineStateUtility
+pub struct antecedent_design::evsi::AffineStateUtility has private fields
 pub struct antecedent_design::evsi::CostToUtilityMap
 pub struct antecedent_design::evsi::EvsiCandidate
 pub struct antecedent_design::evsi::EvsiCandidateRow
@@ -9691,10 +9834,22 @@ pub struct antecedent_design::evsi::EvsiEvidence has private fields
 pub struct antecedent_design::evsi::EvsiEvidence<'a>
 pub struct antecedent_design::evsi::EvsiReport
 pub struct antecedent_design::evsi::EvsiRequest
+pub struct antecedent_design::evsi::FutureStudyProgram
+pub struct antecedent_design::evsi::FutureStudyProgram has private fields
+pub struct antecedent_design::evsi::FutureStudyValue
 pub struct antecedent_design::evsi::IntegrationReport
+pub struct antecedent_design::evsi::NormalMeanFutureData
+pub struct antecedent_design::evsi::NormalMeanFutureData has private fields
+pub struct antecedent_design::evsi::NormalMeanKnownVarianceUpdate
+pub struct antecedent_design::evsi::NormalPosterior
+pub struct antecedent_design::evsi::NormalStateBelief
+pub struct antecedent_design::evsi::NormalStateBelief has private fields
 pub struct antecedent_design::evsi::SearchReceipt
 pub struct antecedent_design::evsi::SourceOverlapDiagnostics
+pub struct antecedent_design::evsi::StudyAction
+pub struct antecedent_design::evsi::StudyAction has private fields
 pub struct antecedent_design::evsi::StudyCostSpec
+pub struct antecedent_design::evsi::UpdatedDecision
 pub struct antecedent_design::functional_source::LawFunctionalArtifact
 pub struct antecedent_design::functional_source::LawFunctionalArtifact has private fields
 pub struct antecedent_design::inverse_forward_source::ComposedActionResponse
@@ -10668,6 +10823,15 @@ pub variant antecedent_design::evsi::EvsiError::Signal(antecedent_design::signal
 pub variant antecedent_design::evsi::EvsiError::SourceOverlap(alloc::vec::Vec<alloc::string::String>)
 pub variant antecedent_design::evsi::EvsiError::SourceOverlapUnknown { candidate: alloc::string::String, reason: alloc::string::String }
 pub variant antecedent_design::evsi::EvsiError::Unscored(alloc::string::String)
+pub variant antecedent_design::evsi::FutureStudyError::BlankAction
+pub variant antecedent_design::evsi::FutureStudyError::DuplicateAction
+pub variant antecedent_design::evsi::FutureStudyError::EmptyActions
+pub variant antecedent_design::evsi::FutureStudyError::InvalidBelief
+pub variant antecedent_design::evsi::FutureStudyError::InvalidCost
+pub variant antecedent_design::evsi::FutureStudyError::InvalidFutureData
+pub variant antecedent_design::evsi::FutureStudyError::InvalidObservation
+pub variant antecedent_design::evsi::FutureStudyError::InvalidUtility
+pub variant antecedent_design::evsi::FutureStudyError::NonFiniteValue
 pub variant antecedent_design::evsi::IntegrationMethod::Exact
 pub variant antecedent_design::evsi::IntegrationMethod::ExternallyComputed
 pub variant antecedent_design::evsi::IntegrationMethod::MonteCarlo
