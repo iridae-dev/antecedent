@@ -1,0 +1,25 @@
+feature_id = "core.inference_realization"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A General Framework for Updating Belief Distributions", doi = "10.48550/arXiv.1306.6430", sections = ["Section 2", "Section 3", "display (8)"] },
+]
+
+implementation_deviations = [
+ "Generalized Bayes records the loss, the prior, and a finite learning rate w strictly greater than zero, the weight in Bissiri, Holmes, and Walker (2016) display (8). It does not compute the minimizer of the expected loss.",
+ "w = 0 is refused. A missing learning rate is not an ordinary Bayesian likelihood.",
+ "The record does not inherit Sections 1, 1.1, 1.2, 2.1, 2.2, 2.3, 3.1 through 3.5, or 4 through 6. It does not inherit the calibration or coherence proof.",
+ "Ordinary Bayesian likelihood, score frequentist, generalized Bayes, and a partial-identification envelope do not convert into one another. A posterior sample refuses an envelope.",
+ "A prior's observational identification is refused. The next attempts are an identifying restriction, or an ordinary Bayesian likelihood under the declared likelihood. The assumption branch has its own digest. The posterior digest stays likelihood plus prior.",
+ "No causal-identification claim follows from recording the generalized-Bayes triple.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "inline unit tests (crates/antecedent-core/src/inference_realization.rs)",
+]

@@ -48,6 +48,7 @@ pub mod execution_attempt;
 pub mod identification;
 pub mod identity;
 pub mod ids;
+pub mod inference_realization;
 pub mod interval;
 pub mod intervention;
 pub mod measurement_model;
@@ -103,6 +104,15 @@ pub use identity::{
 pub use ids::{
     CategoryDomainId, ComponentId, DistributionRef, DynamicRuleId, EnvironmentId, Lag, ModelId,
     QueryId, RegimeId, StateVersion, VariableId,
+};
+pub use inference_realization::{
+    ASSUMPTION_BRANCH_TAG, AssumptionBranch, DeclarationError, GENERALIZED_BAYES_TAG,
+    GeneralizedBayes, IdentifyingRestriction, LearningRate, LikelihoodModel, LossModel,
+    MissingLearningRate, NextIdentificationAttempt, ORDINARY_BAYESIAN_LIKELIHOOD_TAG,
+    OrdinaryBayesianLikelihood, PARTIAL_IDENTIFICATION_ENVELOPE_TAG, PartialIdentificationEnvelope,
+    PosteriorSample, PosteriorSampleKind, PosteriorSampleRefusal, Prior,
+    PriorIdentificationRefusal, RealizationKind, RefusedSampleKind, RestrictedPosterior,
+    SCORE_FREQUENTIST_TAG, SampleNextAttempt, ScoreFrequentist, ScoreModel,
 };
 pub use interval::IntervalMethod;
 pub use intervention::{
