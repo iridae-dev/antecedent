@@ -7,6 +7,8 @@
 
 #![allow(unsafe_code)]
 
+use antecedent_data::arrow_adapter::ArrowFrameView;
+use antecedent_data::arrow_ffi::{ArrowCStream, FfiArrowArrayStream};
 use antecedent_data::{ArrowCColumn, FfiArrowArray, FfiArrowSchema};
 use pyo3::exceptions::PyBufferError;
 use pyo3::prelude::*;
@@ -112,10 +114,35 @@ pub(crate) fn arrow_c_columns(
     Ok(cdi_cols)
 }
 
-/// Move CDI structs out of an object exporting `__arrow_c_array__`.
+/// Move CDI structs out of an `__arrow_c_array__` exporter or a `(schema, array)` capsule pair.
 fn take_arrow_c_array(obj: &Bound<'_, PyAny>) -> PyResult<(FfiArrowArray, FfiArrowSchema)> {
-    let export = obj.call_method0("__arrow_c_array__")?;
-    let tuple = export.cast::<pyo3::types::PyTuple>()?;
+    if let Ok(tuple) = obj.cast::<pyo3::types::PyTuple>() {
+        if tuple.len() == 2 && tuple.get_item(0)?.is_instance_of::<PyCapsule>() {
+            return move_array_capsules(tuple);
+        }
+    }
+    if obj.hasattr("__arrow_c_array__")? {
+        let export = obj.call_method0("__arrow_c_array__")?;
+        let tuple = export.cast::<pyo3::types::PyTuple>()?;
+        return move_array_capsules(tuple);
+    }
+    if obj.hasattr("__arrow_c_stream__")? || obj.is_instance_of::<PyCapsule>() {
+        let frame = arrow_frame_from_py(obj)?;
+        let chunks = frame.n_chunks();
+        return Err(CausalDataError::new_err(format!(
+            "Arrow stream import kept {chunks} chunk(s) and was not flattened into one array; \
+             use ingest_arrow_frame"
+        )));
+    }
+    Err(CausalDataError::new_err(
+        "expected an Arrow C Data array exporter, a (schema, array) capsule pair, or an Arrow \
+         stream",
+    ))
+}
+
+fn move_array_capsules(
+    tuple: &Bound<'_, pyo3::types::PyTuple>,
+) -> PyResult<(FfiArrowArray, FfiArrowSchema)> {
     if tuple.len() != 2 {
         return Err(CausalDataError::new_err(
             "__arrow_c_array__ must return (schema_capsule, array_capsule)",
@@ -143,4 +170,31 @@ fn take_arrow_c_array(obj: &Bound<'_, PyAny>) -> PyResult<(FfiArrowArray, FfiArr
         std::ptr::write(array_ptr, FfiArrowArray::empty());
     }
     Ok((array, schema))
+}
+
+/// Import an Arrow C Stream capsule, or an object with `__arrow_c_stream__`,
+/// without concatenating record batches.
+pub(crate) fn arrow_frame_from_py(obj: &Bound<'_, PyAny>) -> PyResult<ArrowFrameView> {
+    let stream = take_arrow_c_stream(obj)?;
+    ArrowFrameView::from_stream(stream).map_err(|err| CausalDataError::new_err(err.to_string()))
+}
+
+fn take_arrow_c_stream(obj: &Bound<'_, PyAny>) -> PyResult<ArrowCStream> {
+    let capsule = if obj.is_instance_of::<PyCapsule>() {
+        obj.clone().cast_into::<PyCapsule>()?
+    } else {
+        obj.call_method0("__arrow_c_stream__")?.cast_into::<PyCapsule>()?
+    };
+    let name = c"arrow_array_stream";
+    let ptr = capsule.pointer_checked(Some(name))?.as_ptr().cast::<FfiArrowArrayStream>();
+    if ptr.is_null() {
+        return Err(CausalDataError::new_err("null Arrow C Stream capsule pointer"));
+    }
+    // SAFETY: the capsule exports a valid stream. We move it out and leave a released
+    // empty stream so the capsule destructor is a no-op.
+    let stream = unsafe { std::ptr::read(ptr) };
+    unsafe {
+        std::ptr::write(ptr, FfiArrowArrayStream::empty());
+    }
+    Ok(unsafe { ArrowCStream::from_ffi(stream) })
 }

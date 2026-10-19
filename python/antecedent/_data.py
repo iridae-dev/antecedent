@@ -229,6 +229,138 @@ def _arrow_float64(column: Any, name: str | None = None) -> Any:
     )
 
 
+class ArrowChunkColumn:
+    """One logical column kept as Arrow chunks.
+
+    ``__arrow_c_array__`` concatenates. Until a consumer calls it, ``chunks`` is
+    the stream's batches, including an empty chunk.
+    """
+
+    def __init__(self, chunks: Sequence[Any], name: str) -> None:
+        if not chunks:
+            raise CausalValueError(
+                f"column {name!r} has no Arrow chunks",
+                reason_code="invalid_argument",
+            )
+        self.name = name
+        self.chunks = tuple(chunks)
+
+    def __len__(self) -> int:
+        return sum(len(chunk) for chunk in self.chunks)
+
+    def __arrow_c_array__(self, requested_schema: Any = None) -> Any:
+        import pyarrow as pa
+
+        if len(self.chunks) == 1:
+            column = self.chunks[0]
+        else:
+            column = pa.chunked_array(list(self.chunks)).combine_chunks()
+        return column.__arrow_c_array__(requested_schema)
+
+    def __arrow_c_stream__(self, requested_schema: Any = None) -> Any:
+        import pyarrow as pa
+
+        return pa.chunked_array(list(self.chunks)).__arrow_c_stream__(requested_schema)
+
+
+def _is_capsule(obj: Any) -> bool:
+    """True for an Arrow PyCapsule, including the ``arrow_array_stream`` capsule."""
+    name = type(obj).__name__
+    return name in {"PyCapsule", "Capsule"} or name.endswith("Capsule")
+
+
+def _is_capsule_pair(obj: Any) -> bool:
+    return (
+        isinstance(obj, tuple)
+        and len(obj) == 2
+        and _is_capsule(obj[0])
+        and _is_capsule(obj[1])
+    )
+
+
+def _arrow_chunks(column: Any) -> list[Any] | None:
+    """Chunk list when the column already exposes one. Does not combine."""
+    chunks = getattr(column, "chunks", None)
+    if isinstance(chunks, Sequence) and not isinstance(chunks, (str, bytes)) and len(chunks) > 0:
+        return list(chunks)
+    return None
+
+
+def _export_numeric(column: Any, name: str) -> Any:
+    """Float64 view of a column. Several chunks stay several chunks."""
+    chunks = _arrow_chunks(column)
+    if chunks is not None:
+        exported = [_arrow_float64(chunk, name) for chunk in chunks]
+        if len(exported) == 1:
+            return exported[0]
+        return ArrowChunkColumn(exported, name)
+    if hasattr(column, "combine_chunks"):
+        column = column.combine_chunks()
+    return _arrow_float64(column, name)
+
+
+def _preserve_exact(column: Any, name: str | None = None) -> Any:
+    """Keep integer ids, timestamps, dictionary categories, and float64 as themselves."""
+    try:
+        import pyarrow as pa
+    except ImportError:
+        return column
+    try:
+        col = column if isinstance(column, (pa.Array, pa.ChunkedArray)) else pa.array(column)
+    except (TypeError, ValueError, pa.ArrowException):
+        return column
+    kind = col.type
+    if (
+        pa.types.is_integer(kind)
+        or pa.types.is_timestamp(kind)
+        or pa.types.is_dictionary(kind)
+        or pa.types.is_float64(kind)
+    ):
+        return col
+    label = f" {name!r}" if name is not None else ""
+    raise _refuse_column(
+        f"column{label} has type {kind}; integer ids, timestamps, dictionary categories, and "
+        "float64 values are kept exactly (encode other types explicitly)"
+    )
+
+
+def _export_exact(column: Any, name: str) -> ArrowChunkColumn:
+    """Exact typed chunks. A chunked column is not combined."""
+    preserved = _preserve_exact(column, name)
+    chunks = _arrow_chunks(preserved)
+    if chunks is None:
+        chunks = [preserved]
+    else:
+        chunks = [_preserve_exact(chunk, name) for chunk in chunks]
+    return ArrowChunkColumn(chunks, name)
+
+
+def _array_from_capsules(schema_capsule: Any, array_capsule: Any) -> Any:
+    import pyarrow as pa
+
+    importer = getattr(pa.Array, "_import_from_c_capsule", None)
+    if importer is None:
+        raise CausalTypeError(
+            "this PyArrow build cannot import an Arrow C Data capsule pair",
+            reason_code="invalid_argument",
+        )
+    return importer(schema_capsule, array_capsule)
+
+
+def _table_from_arrow_export(data: Any) -> Any:
+    """Record batches from a stream, a stream capsule, or a schema/array capsule pair.
+
+    ``read_all`` keeps each batch as a chunk. Pandas indexes are not columns.
+    """
+    import pyarrow as pa
+
+    if _is_capsule_pair(data):
+        return pa.table({"value": _array_from_capsules(data[0], data[1])})
+    if hasattr(data, "iloc"):
+        return pa.Table.from_pandas(data, preserve_index=False)
+    return pa.RecordBatchReader.from_stream(data).read_all()
+
+
 def try_as_arrow_c_columns(
     data: Any,
 ) -> tuple[list[str], list[Any]] | None:
@@ -246,7 +378,7 @@ def try_as_arrow_c_columns(
         names = list(data.keys())
         cols = [data[n] for n in names]
         if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
-            return names, [_arrow_float64(c, n) for n, c in zip(names, cols, strict=True)]
+            return names, [_export_numeric(c, str(n)) for n, c in zip(names, cols, strict=True)]
         return None
 
     # PyArrow Table / RecordBatch style
@@ -256,14 +388,9 @@ def try_as_arrow_c_columns(
         names_attr = getattr(schema, "names", None) if schema is not None else None
     if names_attr is not None and hasattr(data, "column"):
         names = [str(n) for n in list(names_attr)]
-        cols = [data.column(i) for i in range(len(names))]
-        flat: list[Any] = []
-        for c in cols:
-            if hasattr(c, "combine_chunks"):
-                c = c.combine_chunks()
-            flat.append(c)
-        if flat and all(hasattr(c, "__arrow_c_array__") for c in flat):
-            return names, [_arrow_float64(c, n) for n, c in zip(names, flat, strict=True)]
+        cols = [_export_numeric(data.column(i), names[i]) for i in range(len(names))]
+        if cols and all(_exports_arrow_array(c) for c in cols):
+            return names, cols
         return None
 
     # Frame columns that export CDI, but not pandas (it has to_numpy and
@@ -273,30 +400,104 @@ def try_as_arrow_c_columns(
             names = [str(c) for c in data.columns]
             cols = [data[c] for c in data.columns]
             if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
-                return names, [_arrow_float64(c, n) for n, c in zip(names, cols, strict=True)]
+                return names, [_export_numeric(c, n) for n, c in zip(names, cols, strict=True)]
         except (AttributeError, KeyError, TypeError):
             pass  # not a column-indexable frame; try a table-level stream next
 
-    # Table-level Arrow PyCapsule (Polars, DuckDB); the same float64 cast as above.
-    if hasattr(data, "__arrow_c_stream__"):
+    # Table-level Arrow PyCapsule (Polars, DuckDB) or a bare stream/array capsule.
+    # Batches stay chunks. The numeric route still casts each chunk to float64.
+    if _is_capsule(data) or _is_capsule_pair(data) or hasattr(data, "__arrow_c_stream__"):
         try:
-            import pyarrow as pa
+            table = _table_from_arrow_export(data)
         except ImportError:
             return None
-        # pandas would export a non-default index as an extra column; the index is
-        # not data, so it is never exported.
-        table = (
-            pa.Table.from_pandas(data, preserve_index=False)
-            if hasattr(data, "iloc")
-            else pa.table(data)
-        )
         names = [str(n) for n in table.column_names]
-        cols = [
-            _arrow_float64(table.column(i).combine_chunks(), names[i]) for i in range(len(names))
-        ]
+        cols = [_export_numeric(table.column(i), names[i]) for i in range(len(names))]
         if names:
             return names, cols
     return None
+
+
+def ingest_arrow_frame(data: Any) -> tuple[list[str], list[ArrowChunkColumn]] | None:
+    """Chunk-preserving frame of exact ids, timestamps, categories, and float64.
+
+    Integer columns stay integers (a unit id above 2**53 is not rounded).
+    Timestamps stay timestamps. Dictionary columns stay dictionaries, with the
+    dictionary order as the category domain. Chunks are not combined. Returns
+    None when ``data`` is not an Arrow exporter. A mutable alias of the
+    exporter is not a frozen study; freezing copies the bytes.
+    """
+    if isinstance(data, Mapping):
+        names = [str(key) for key in data]
+        cols = [data[key] for key in data]
+        if not names or not all(
+            hasattr(col, "__arrow_c_array__") or hasattr(col, "__arrow_c_stream__") for col in cols
+        ):
+            return None
+        return names, [_export_exact(col, name) for name, col in zip(names, cols, strict=True)]
+
+    names_attr = getattr(data, "column_names", None)
+    if names_attr is None:
+        schema = getattr(data, "schema", None)
+        names_attr = getattr(schema, "names", None) if schema is not None else None
+    if names_attr is not None and hasattr(data, "column"):
+        names = [str(name) for name in list(names_attr)]
+        if not names:
+            return None
+        return names, [_export_exact(data.column(i), names[i]) for i in range(len(names))]
+
+    if hasattr(data, "columns") and not hasattr(data, "to_numpy"):
+        try:
+            names = [str(name) for name in data.columns]
+            cols = [data[name] for name in data.columns]
+        except (AttributeError, KeyError, TypeError):
+            names, cols = [], []
+        if names and all(
+            hasattr(col, "__arrow_c_array__") or hasattr(col, "__arrow_c_stream__") for col in cols
+        ):
+            return names, [_export_exact(col, name) for name, col in zip(names, cols, strict=True)]
+
+    if _is_capsule(data) or _is_capsule_pair(data) or hasattr(data, "__arrow_c_stream__"):
+        try:
+            table = _table_from_arrow_export(data)
+        except ImportError:
+            return None
+        names = [str(name) for name in table.column_names]
+        if not names:
+            return None
+        return names, [_export_exact(table.column(i), names[i]) for i in range(len(names))]
+    return None
+
+
+def _exports_arrow_array(column: Any) -> bool:
+    return hasattr(column, "__arrow_c_array__") or hasattr(column, "__arrow_c_stream__")
+
+
+def test_arrow_chunk_column_keeps_pieces() -> None:
+    """Chunks stay addressable, including an empty piece, until export."""
+
+    class _Piece:
+        def __init__(self, n: int) -> None:
+            self._n = n
+
+        def __len__(self) -> int:
+            return self._n
+
+    class _Chunked:
+        chunks = (_Piece(2), _Piece(0), _Piece(4))
+
+    class _CombinedOnly:
+        def combine_chunks(self) -> _Piece:
+            return _Piece(6)
+
+    pieces = _arrow_chunks(_Chunked())
+    assert pieces is not None
+    assert [len(piece) for piece in pieces] == [2, 0, 4]
+    assert _arrow_chunks(_CombinedOnly()) is None
+    column = ArrowChunkColumn(pieces, "unit_id")
+    assert column.chunks[0] is pieces[0]
+    assert len(column) == 6
+    assert column.name == "unit_id"
 
 
 def to_f64(arr: Any, *, name: str | None = None) -> NDArray[np.float64]:

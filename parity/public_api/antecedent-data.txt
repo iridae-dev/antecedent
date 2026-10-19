@@ -7,6 +7,8 @@
 #[non_exhaustive] pub enum antecedent_data::PermutationScheme
 #[non_exhaustive] pub enum antecedent_data::ReferencePointPolicy
 impl !core::marker::Sync for antecedent_data::ArrowCColumn [auto]
+impl !core::marker::Sync for antecedent_data::arrow_ffi::ArrowCStream [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowFrameView [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowLoadResult [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::EventData [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::F64Buffer [auto]
@@ -22,6 +24,8 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelUnit [au
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PooledLaggedFrame [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TabularData [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeSeriesData [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowFrameView [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowLoadResult [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::EventData [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::F64Buffer [auto]
@@ -37,11 +41,13 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelUnit [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::PooledLaggedFrame [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::TabularData [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeSeriesData [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
 impl antecedent_data::TableView for antecedent_data::EventData
 impl antecedent_data::TableView for antecedent_data::OwnedColumnarStorage
 impl antecedent_data::TableView for antecedent_data::PanelUnitView<'_>
 impl antecedent_data::TableView for antecedent_data::TabularData
 impl antecedent_data::TableView for antecedent_data::TimeSeriesData
+impl core::clone::Clone for antecedent_data::ArrowFrameView
 impl core::clone::Clone for antecedent_data::ArrowLoadResult
 impl core::clone::Clone for antecedent_data::BooleanColumn
 impl core::clone::Clone for antecedent_data::BorrowError
@@ -111,6 +117,7 @@ impl core::clone::Clone for antecedent_data::VectorVariableGroups
 impl core::clone::Clone for antecedent_data::WindowBoundary
 impl core::clone::Clone for antecedent_data::WindowChunk
 impl core::clone::Clone for antecedent_data::WindowNextAttempt
+impl core::clone::Clone for antecedent_data::arrow_adapter::FrozenArrowStudy
 impl core::cmp::Eq for antecedent_data::BooleanColumn
 impl core::cmp::Eq for antecedent_data::BorrowError
 impl core::cmp::Eq for antecedent_data::CalendarSpan
@@ -236,6 +243,7 @@ impl core::error::Error for antecedent_data::BorrowError
 impl core::error::Error for antecedent_data::DataError
 impl core::error::Error for antecedent_data::GlobalIndexError
 impl core::error::Error for antecedent_data::LagRefusal
+impl core::fmt::Debug for antecedent_data::ArrowFrameView
 impl core::fmt::Debug for antecedent_data::ArrowLoadResult
 impl core::fmt::Debug for antecedent_data::BooleanColumn
 impl core::fmt::Debug for antecedent_data::BorrowError
@@ -305,6 +313,7 @@ impl core::fmt::Debug for antecedent_data::VectorVariableGroups
 impl core::fmt::Debug for antecedent_data::WindowBoundary
 impl core::fmt::Debug for antecedent_data::WindowChunk
 impl core::fmt::Debug for antecedent_data::WindowNextAttempt
+impl core::fmt::Debug for antecedent_data::arrow_adapter::FrozenArrowStudy
 impl core::fmt::Display for antecedent_data::BorrowError
 impl core::fmt::Display for antecedent_data::DataError
 impl core::fmt::Display for antecedent_data::GlobalIndexError
@@ -352,6 +361,7 @@ impl core::marker::Copy for antecedent_data::UnitAccounting
 impl core::marker::Copy for antecedent_data::UnknownCategoryPolicy
 impl core::marker::Copy for antecedent_data::WindowBoundary
 impl core::marker::Freeze for antecedent_data::ArrowCColumn [auto]
+impl core::marker::Freeze for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Freeze for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Freeze for antecedent_data::BooleanColumn [auto]
 impl core::marker::Freeze for antecedent_data::BorrowError [auto]
@@ -421,7 +431,10 @@ impl core::marker::Freeze for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Freeze for antecedent_data::WindowBoundary [auto]
 impl core::marker::Freeze for antecedent_data::WindowChunk [auto]
 impl core::marker::Freeze for antecedent_data::WindowNextAttempt [auto]
+impl core::marker::Freeze for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
+impl core::marker::Freeze for antecedent_data::arrow_ffi::ArrowCStream [auto]
 impl core::marker::Send for antecedent_data::ArrowCColumn [auto]
+impl core::marker::Send for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Send for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Send for antecedent_data::BooleanColumn [auto]
 impl core::marker::Send for antecedent_data::BorrowError [auto]
@@ -491,6 +504,8 @@ impl core::marker::Send for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Send for antecedent_data::WindowBoundary [auto]
 impl core::marker::Send for antecedent_data::WindowChunk [auto]
 impl core::marker::Send for antecedent_data::WindowNextAttempt [auto]
+impl core::marker::Send for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
+impl core::marker::Send for antecedent_data::arrow_ffi::ArrowCStream [auto]
 impl core::marker::StructuralPartialEq for antecedent_data::BooleanColumn
 impl core::marker::StructuralPartialEq for antecedent_data::BorrowError
 impl core::marker::StructuralPartialEq for antecedent_data::CalendarSpan
@@ -542,6 +557,7 @@ impl core::marker::StructuralPartialEq for antecedent_data::VectorVariableGroups
 impl core::marker::StructuralPartialEq for antecedent_data::WindowBoundary
 impl core::marker::StructuralPartialEq for antecedent_data::WindowChunk
 impl core::marker::StructuralPartialEq for antecedent_data::WindowNextAttempt
+impl core::marker::Sync for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Sync for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Sync for antecedent_data::BooleanColumn [auto]
 impl core::marker::Sync for antecedent_data::BorrowError [auto]
@@ -611,7 +627,9 @@ impl core::marker::Sync for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Sync for antecedent_data::WindowBoundary [auto]
 impl core::marker::Sync for antecedent_data::WindowChunk [auto]
 impl core::marker::Sync for antecedent_data::WindowNextAttempt [auto]
+impl core::marker::Sync for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
 impl core::marker::Unpin for antecedent_data::ArrowCColumn [auto]
+impl core::marker::Unpin for antecedent_data::ArrowFrameView [auto]
 impl core::marker::Unpin for antecedent_data::ArrowLoadResult [auto]
 impl core::marker::Unpin for antecedent_data::BooleanColumn [auto]
 impl core::marker::Unpin for antecedent_data::BorrowError [auto]
@@ -681,6 +699,8 @@ impl core::marker::Unpin for antecedent_data::VectorVariableGroups [auto]
 impl core::marker::Unpin for antecedent_data::WindowBoundary [auto]
 impl core::marker::Unpin for antecedent_data::WindowChunk [auto]
 impl core::marker::Unpin for antecedent_data::WindowNextAttempt [auto]
+impl core::marker::Unpin for antecedent_data::arrow_adapter::FrozenArrowStudy [auto]
+impl core::marker::Unpin for antecedent_data::arrow_ffi::ArrowCStream [auto]
 impl core::ops::deref::Deref for antecedent_data::F64Buffer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BooleanColumn [auto]
@@ -737,6 +757,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::VectorVariable
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowBoundary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowChunk [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::WindowNextAttempt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::arrow_ffi::ArrowCStream [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowCColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BooleanColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BorrowError [auto]
@@ -792,6 +813,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::VectorVariableGro
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowBoundary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowChunk [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::WindowNextAttempt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::arrow_ffi::ArrowCStream [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ColumnView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_data::ColumnView<'a> [auto]
@@ -951,7 +973,20 @@ pub field antecedent_data::UnitAccounting::dropped: usize
 pub field antecedent_data::UnitAccounting::total: usize
 pub fn <antecedent_data::ArrowCColumn>::fn from_arrow_array(name: impl core::convert::Into<alloc::string::String>, array: &dyn arrow_array::array::Array) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::fn into_array(self) -> core::result::Result<arrow_array::array::ArrayRef, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowCColumn>::fn into_chunk_arrays(self) -> core::result::Result<alloc::vec::Vec<arrow_array::array::ArrayRef>, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowCColumn>::fn n_chunks(&self) -> usize
 pub fn <antecedent_data::ArrowCColumn>::unsafe fn from_ffi(name: impl core::convert::Into<alloc::string::String>, array: arrow_data::ffi::FFI_ArrowArray, schema: arrow_schema::ffi::FFI_ArrowSchema) -> Self
+pub fn <antecedent_data::ArrowCColumn>::unsafe fn from_ffi_chunks(name: impl core::convert::Into<alloc::string::String>, chunks: alloc::vec::Vec<(arrow_data::ffi::FFI_ArrowArray, arrow_schema::ffi::FFI_ArrowSchema)>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowFrameView>::fn column_chunks(&self, index: usize) -> core::result::Result<&[antecedent_data::OwnedColumn], antecedent_data::DataError>
+pub fn <antecedent_data::ArrowFrameView>::fn contiguous(&self) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowFrameView>::fn freeze(&self) -> core::result::Result<antecedent_data::arrow_adapter::FrozenArrowStudy, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowFrameView>::fn from_c_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowFrameView>::fn from_record_batches(batches: alloc::vec::Vec<arrow_array::record_batch::RecordBatch>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowFrameView>::fn from_stream(stream: antecedent_data::arrow_ffi::ArrowCStream) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowFrameView>::fn n_chunks(&self) -> usize
+pub fn <antecedent_data::ArrowFrameView>::fn n_columns(&self) -> usize
+pub fn <antecedent_data::ArrowFrameView>::fn names(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
+pub fn <antecedent_data::ArrowFrameView>::fn row_count(&self) -> core::result::Result<usize, antecedent_data::DataError>
 pub fn <antecedent_data::BooleanColumn>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::BooleanColumn>::fn len(&self) -> usize
 pub fn <antecedent_data::BooleanColumn>::fn new(id: antecedent_core::ids::VariableId, values: impl core::convert::Into<alloc::sync::Arc<[u8]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
@@ -1171,6 +1206,12 @@ pub fn <antecedent_data::VectorVariableGroups>::fn secondary_component_ids(&self
 pub fn <antecedent_data::VectorVariableGroups>::fn try_new(groups: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<[antecedent_core::ids::VariableId]>]>>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::WindowChunk>::const fn local_rows(&self) -> core::ops::range::Range<usize>
 pub fn <antecedent_data::WindowNextAttempt>::const fn name(&self) -> &'static str
+pub fn <antecedent_data::arrow_adapter::FrozenArrowStudy>::fn bind_foreign_alias(&self, alias: antecedent_data::ArrowCColumn) -> core::result::Result<(), antecedent_data::DataError>
+pub fn <antecedent_data::arrow_adapter::FrozenArrowStudy>::fn data(&self) -> &antecedent_data::TabularData
+pub fn <antecedent_data::arrow_adapter::FrozenArrowStudy>::fn row_count(&self) -> usize
+pub fn <antecedent_data::arrow_ffi::ArrowCStream>::fn from_reader(reader: alloc::boxed::Box<dyn arrow_array::record_batch::RecordBatchReader + core::marker::Send>) -> Self
+pub fn <antecedent_data::arrow_ffi::ArrowCStream>::fn into_batches(self) -> core::result::Result<(arrow_schema::schema::SchemaRef, alloc::vec::Vec<arrow_array::record_batch::RecordBatch>), antecedent_data::DataError>
+pub fn <antecedent_data::arrow_ffi::ArrowCStream>::unsafe fn from_ffi(stream: arrow_array::ffi_stream::FFI_ArrowArrayStream) -> Self
 pub fn antecedent_data::arrow_adapter::tabular_from_arrow_c_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::arrow_adapter::tabular_from_record_batch(batch: &arrow_array::record_batch::RecordBatch) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::categorical::compile_contrast_matrix(domain: &antecedent_data::CategoryDomain, contrast: &antecedent_data::Contrast) -> core::result::Result<antecedent_data::ContrastMatrix, antecedent_data::DataError>
@@ -1221,6 +1262,8 @@ pub mod antecedent_data::temporal
 pub mod antecedent_data::vector_vars
 pub struct antecedent_data::ArrowCColumn
 pub struct antecedent_data::ArrowCColumn has private fields
+pub struct antecedent_data::ArrowFrameView
+pub struct antecedent_data::ArrowFrameView has private fields
 pub struct antecedent_data::ArrowLoadResult
 pub struct antecedent_data::BooleanColumn
 pub struct antecedent_data::CalendarSpan
@@ -1305,6 +1348,10 @@ pub struct antecedent_data::VectorVariableGroups
 pub struct antecedent_data::VectorVariableGroups has private fields
 pub struct antecedent_data::WindowChunk
 pub struct antecedent_data::WindowChunk has private fields
+pub struct antecedent_data::arrow_adapter::FrozenArrowStudy
+pub struct antecedent_data::arrow_adapter::FrozenArrowStudy has private fields
+pub struct antecedent_data::arrow_ffi::ArrowCStream
+pub struct antecedent_data::arrow_ffi::ArrowCStream has private fields
 pub trait antecedent_data::ForeignBufferOwner: core::marker::Send + core::marker::Sync + core::fmt::Debug
 pub trait antecedent_data::TableView
 pub trait fn fn antecedent_data::TableView::column(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_data::ColumnView<'_>, antecedent_data::DataError>
@@ -1317,9 +1364,11 @@ pub use antecedent_data::FfiArrowArray = arrow_ffi::FfiArrowArray
 pub use antecedent_data::FfiArrowSchema = arrow_ffi::FfiArrowSchema
 pub use antecedent_data::TemporalIndexer = temporal::TemporalIndexer
 pub use antecedent_data::TemporalNodeKey = temporal::TemporalNodeKey
+pub use antecedent_data::arrow_adapter::ArrowFrameView = antecedent_data::ArrowFrameView
 pub use antecedent_data::arrow_adapter::ArrowLoadResult = antecedent_data::ArrowLoadResult
 pub use antecedent_data::arrow_ffi::ArrowCColumn = antecedent_data::ArrowCColumn
 pub use antecedent_data::arrow_ffi::FfiArrowArray = arrow_array::ffi::FFI_ArrowArray
+pub use antecedent_data::arrow_ffi::FfiArrowArrayStream = arrow_array::ffi_stream::FFI_ArrowArrayStream
 pub use antecedent_data::arrow_ffi::FfiArrowSchema = arrow_schema::ffi::FFI_ArrowSchema
 pub use antecedent_data::buffer::F64Buffer = antecedent_data::F64Buffer
 pub use antecedent_data::buffer::ForeignBufferOwner = antecedent_data::ForeignBufferOwner

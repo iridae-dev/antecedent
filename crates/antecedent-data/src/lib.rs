@@ -65,6 +65,8 @@ mod differential;
 mod testing;
 
 #[cfg(feature = "arrow")]
+pub use arrow_adapter::ArrowFrameView;
+#[cfg(feature = "arrow")]
 pub use arrow_adapter::{ArrowLoadResult, tabular_from_arrow_c_columns, tabular_from_record_batch};
 #[cfg(feature = "arrow")]
 pub use arrow_ffi::{ArrowCColumn, FfiArrowArray, FfiArrowSchema};
