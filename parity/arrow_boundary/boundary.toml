@@ -44,6 +44,7 @@ default_backend = "none"
 
 [install]
 rust_feature_builds = "lib tests passed with default features and with --no-default-features"
-wheel = "not_run"
-clean_cpu = "not_run"
-note = "The parent runs the wheel and clean-CPU builds. This change does not, and it does not make a backend the default."
+wheel = "maturin build --release --locked --out dist produced antecedent-2.4.1-cp313-cp313-macosx_11_0_arm64.whl on this host"
+clean_cpu = "installed that wheel in a fresh CPython 3.13 venv outside the checkout; import resolved to that venv; the extension links only itself plus CoreFoundation, libiconv, libc++, and libSystem; pytest of python/tests passed 6180 and skipped 56 after mypy was installed with the wheel"
+host = "Apple M1 Max, aarch64-apple-darwin, CPython 3.13.0"
+note = "This is the host CPU wheel. The CPython 3.11–3.14 matrix remains Q19. No backend was made the default."
