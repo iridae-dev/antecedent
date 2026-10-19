@@ -1,0 +1,12 @@
+parity/support_axes.toml
+parity/support_licensed.toml
+parity/support_closed.toml
+parity/support_n_a.toml
+parity/support_graphless.toml
+parity/licensed_routes.toml
+parity/gcm.toml
+docs/guides/mechanism-selection.md
+crates/antecedent/src/analysis/execute/compile.rs
+crates/antecedent/src/gcm.rs
+crates/antecedent-model/src/program.rs
+crates/antecedent-model/src/registry/selection.rs
