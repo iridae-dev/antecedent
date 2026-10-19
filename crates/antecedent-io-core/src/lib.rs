@@ -19,6 +19,7 @@ pub mod analysis_wire;
 pub mod artifact_codec;
 mod artifact_kinds;
 pub mod bayesian_prior_recalc_artifact;
+pub mod bound_identity;
 pub mod bridge_artifact;
 pub mod calibration;
 pub mod callback_result_artifact;
