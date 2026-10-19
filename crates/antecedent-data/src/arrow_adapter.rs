@@ -114,7 +114,8 @@ fn push_record_column(
         DataError::InvalidArgument { message: "too many Arrow columns for VariableId".into() }
     })?);
     if let Some(floats) = array.as_any().downcast_ref::<Float64Array>() {
-        import.builder
+        import
+            .builder
             .add_variable(
                 Arc::<str>::from(name),
                 ValueType::Continuous,
@@ -146,7 +147,8 @@ fn push_record_column(
             DataError::InvalidArgument { message: "FixedSizeList width must fit u32".into() }
         })?)
         .ok_or(DataError::InvalidArgument { message: "FixedSizeList width must be > 0".into() })?;
-        import.builder
+        import
+            .builder
             .add_variable(
                 Arc::<str>::from(name),
                 ValueType::Vector { width, element: ScalarType::Float64 },
@@ -173,7 +175,8 @@ fn push_record_column(
         });
     };
     let (value_type, roles, domain) = schema_binding(&col)?;
-    import.builder
+    import
+        .builder
         .add_variable(
             Arc::<str>::from(name),
             value_type,
@@ -185,7 +188,8 @@ fn push_record_column(
         .map_err(DataError::from)?;
     let copied = owned_payload_bytes(&col)?;
     *import.bytes_copied += copied;
-    import.diagnostics
+    import
+        .diagnostics
         .push(materialization_diagnostic(MaterializationReason::ForeignBufferIncompatible, copied));
     import.columns.push(col);
     Ok(())
