@@ -5,6 +5,8 @@
 use antecedent_core::{
     AverageEffectQuery, Intervention, PopulationRegistry, TargetPopulation, VariableId,
 };
+use antecedent_data::materialize::{PreparationControls, prepare_table};
+use antecedent_data::{MissingPolicy, TableView, TabularData};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_identify::{EstimandClaim, IdentificationResult};
 
@@ -114,6 +116,43 @@ pub(crate) fn validate_ate_query_with_targets(
         return Err(EstimationError::TargetPopulation);
     }
     Ok(())
+}
+
+/// Run the accepted preparation path, then hand the estimator the same finite table.
+///
+/// The receipt must prove the table's row count. A scan described as a bounded
+/// route is refused.
+///
+/// # Errors
+///
+/// Schema, missing-value, or admission failure, or a receipt that does not prove
+/// this table.
+pub(crate) fn admit_estimator_columns<'a>(
+    data: &'a TabularData,
+    ids: &[VariableId],
+) -> Result<&'a TabularData, EstimationError> {
+    let product = prepare_table(
+        data,
+        ids,
+        MissingPolicy::CompleteCase,
+        &[],
+        PreparationControls::finite_resident(),
+    )?;
+    if product.receipt.is_bounded_end_to_end_route()
+        && product.receipt.estimator_sees_unbounded_stream()
+    {
+        return Err(EstimationError::unsupported(
+            "scan described as a bounded route while the estimator still sees it",
+        ));
+    }
+    let rows = u64::try_from(data.row_count())
+        .map_err(|_| EstimationError::data_msg("admitted row count does not fit u64"))?;
+    if product.receipt.proved_rows() != Some(rows) {
+        return Err(EstimationError::unsupported(
+            "the preparation receipt does not prove the finite table the estimator reads",
+        ));
+    }
+    Ok(data)
 }
 
 /// Intersect a complete-case mask with a [`TargetPopulation::Predicate`] selection.

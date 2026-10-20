@@ -387,6 +387,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
     ids.push(treatment);
     ids.push(outcome);
     ids.extend_from_slice(&estimand.adjustment_set);
+    let data = crate::prepare::admit_estimator_columns(data, &ids)?;
     let mut row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
     let n_full = data.row_count();
     let mut full_weights: Option<Arc<[f64]>> = None;

@@ -271,6 +271,89 @@ impl ContrastMatrix {
     }
 }
 
+/// Recorded category conversion: domain, coding, and how many float columns it yields.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CategoryConversion {
+    /// Variable the domain belongs to.
+    pub variable: antecedent_core::VariableId,
+    /// Domain id.
+    pub domain: antecedent_core::CategoryDomainId,
+    /// Whether the domain is ordered.
+    pub ordered: bool,
+    /// Contrast coding name.
+    pub coding: &'static str,
+    /// Float columns the contrast yields.
+    pub n_columns: usize,
+    /// Codes rewritten to the domain's other level.
+    pub n_remapped_unknown: usize,
+}
+
+/// Float columns produced by applying a contrast to one categorical column.
+///
+/// Each inner vector has one entry per source row. An invalid row is `NaN` in
+/// every contrast column.
+#[derive(Clone, Debug)]
+pub struct ExpandedContrast {
+    /// Source variable.
+    pub variable: antecedent_core::VariableId,
+    /// Contrast columns, each the length of the source column.
+    pub columns: Vec<Vec<f64>>,
+    /// Conversion record, without the float entries.
+    pub conversion: CategoryConversion,
+}
+
+impl CategoryConversion {
+    /// Stable coding name for `contrast`.
+    #[must_use]
+    pub const fn coding_name(contrast: &Contrast) -> &'static str {
+        match contrast {
+            Contrast::Treatment { .. } => "treatment",
+            Contrast::SumToZero => "sum_to_zero",
+            Contrast::Helmert => "helmert",
+            Contrast::Polynomial => "polynomial",
+            Contrast::FullRankIndicator => "full_rank_indicator",
+            Contrast::Custom(_) => "custom",
+        }
+    }
+}
+
+/// Expand `column` through `contrast`.
+///
+/// # Errors
+///
+/// The contrast does not apply to the domain, or a code does not index it.
+pub fn expand_contrast(
+    column: &CategoricalColumn,
+    contrast: &Contrast,
+) -> Result<ExpandedContrast, DataError> {
+    let matrix = compile_contrast_matrix(&column.domain, contrast)?;
+    let n_rows = column.len();
+    let mut columns = vec![vec![f64::NAN; n_rows]; matrix.n_columns];
+    for row in 0..n_rows {
+        if !column.validity.is_valid(row) {
+            continue;
+        }
+        let level = column.codes[row].as_usize();
+        if level >= matrix.n_levels {
+            return Err(DataError::InvalidValidity {
+                message: "category code does not index the contrast",
+            });
+        }
+        for col in 0..matrix.n_columns {
+            columns[col][row] = matrix.values[level + col * matrix.n_levels];
+        }
+    }
+    let conversion = CategoryConversion {
+        variable: column.id,
+        domain: column.domain.id,
+        ordered: column.domain.ordered,
+        coding: CategoryConversion::coding_name(contrast),
+        n_columns: matrix.n_columns,
+        n_remapped_unknown: column.n_remapped_unknown,
+    };
+    Ok(ExpandedContrast { variable: column.id, columns, conversion })
+}
+
 /// Compile a contrast into a design matrix for valid rows.
 ///
 /// Builds the contrast matrix for all contrast variants used by /1 design
@@ -445,6 +528,33 @@ mod tests {
             )
             .unwrap(),
         )
+    }
+
+    #[test]
+    fn expand_contrast_writes_indicators_and_nan_for_a_missing_row() {
+        let column = CategoricalColumn::try_new(
+            VariableId::from_raw(1),
+            Arc::<[CategoryCode]>::from(vec![
+                CategoryCode::from_raw(0),
+                CategoryCode::from_raw(1),
+                CategoryCode::from_raw(2),
+            ]),
+            ValidityBitmap::from_bytes(vec![0b101], 3).unwrap(),
+            domain(),
+        )
+        .unwrap();
+        let expanded = expand_contrast(
+            &column,
+            &Contrast::Treatment { reference: CategoryCode::from_raw(0) },
+        )
+        .unwrap();
+        assert_eq!(expanded.conversion.coding, "treatment");
+        assert_eq!(expanded.conversion.n_columns, 2);
+        assert!(expanded.columns[0][1].is_nan() && expanded.columns[1][1].is_nan());
+        assert!((expanded.columns[0][0]).abs() < 1e-12);
+        assert!((expanded.columns[1][0]).abs() < 1e-12);
+        assert!((expanded.columns[0][2]).abs() < 1e-12);
+        assert!((expanded.columns[1][2] - 1.0).abs() < 1e-12);
     }
 
     #[test]

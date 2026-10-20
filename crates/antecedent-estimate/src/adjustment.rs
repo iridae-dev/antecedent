@@ -15,7 +15,11 @@ use std::sync::Arc;
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
 };
-use antecedent_data::{TableView, TabularData};
+use antecedent_data::categorical::ExpandedContrast;
+use antecedent_data::materialize::{
+    PreparationBudget, PreparationControls, PreparationReceipt, StreamingScan, prepare_table,
+};
+use antecedent_data::{Contrast, MissingPolicy, TableView, TabularData};
 use antecedent_expr::{
     CausalExprArena, DomainRef, ExprId, ExprNode, FactorRequirement, FunctionalProgram,
     IdentifiedEstimand, OutcomeExprId, ProgramLimits, ProgramSchema, ProgramVariable,
@@ -66,6 +70,8 @@ pub struct PreparedEstimationProblem {
     /// root of its mean-one weight), so each normal-equation and sandwich formula downstream
     /// reads the sampling-weighted score `w_i x_i e_i`; `treatment` stays unweighted.
     pub sampling_weights: Option<crate::sampling_weights::SamplingWeightRecord>,
+    /// Preparation receipt for the finite table this problem was read from.
+    pub preparation: PreparationReceipt,
 }
 
 /// Receipt for a linear adjustment preparation checked against an identification result.
@@ -242,6 +248,10 @@ pub struct LinearAdjustmentAte {
     /// with the linearization (sandwich) variance; see [`crate::sampling_weights`] for the
     /// estimand, normalization and zero-weight rules. Only the OLS fit reads them.
     pub sampling_weights: Option<crate::sampling_weights::SamplingWeights>,
+    /// Byte budget for preparation. `None` admits the resident table's payload.
+    pub preparation_budget: Option<PreparationBudget>,
+    /// Explicit contrasts for categorical adjustment columns, in request order.
+    pub contrasts: Vec<(VariableId, Contrast)>,
 }
 
 impl Default for LinearAdjustmentAte {
@@ -266,7 +276,57 @@ impl LinearAdjustmentAte {
             fit_kind: LinearFitKind::Ols,
             population_registry: None,
             sampling_weights: None,
+            preparation_budget: None,
+            contrasts: Vec::new(),
         }
+    }
+
+    /// Admit preparation only when the resident payload fits `budget`.
+    #[must_use]
+    pub const fn with_preparation_budget(mut self, budget: PreparationBudget) -> Self {
+        self.preparation_budget = Some(budget);
+        self
+    }
+
+    /// Expand `id` with `contrast` during preparation.
+    #[must_use]
+    pub fn with_contrast(mut self, id: VariableId, contrast: Contrast) -> Self {
+        self.contrasts.push((id, contrast));
+        self
+    }
+
+    fn refuse_unweighted_routes(&self) -> Result<(), EstimationError> {
+        if self.sampling_weights.is_some() && !matches!(self.fit_kind, LinearFitKind::Ols) {
+            return Err(crate::sampling_weights::unsupported_route(
+                "sampling weights are read by the ordinary least-squares fit only; ridge, lasso \
+                 and Huber fits have no sampling-weighted variance",
+            ));
+        }
+        if self.sampling_weights.is_some() && matches!(self.se_kind, AnalyticSeKind::Homoskedastic)
+        {
+            return Err(crate::sampling_weights::unsupported_route(
+                "the classical homoskedastic standard error treats weights as precision and is \
+                 invalid for sampling weights; request a heteroskedasticity-robust kind \
+                 (hc0..hc3) or the cluster sandwich",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Refuse `scan`. Linear adjustment reads a finite table.
+    ///
+    /// A claimed end-to-end bound is also refused when the estimator still sees
+    /// the scan. Materialize the frame before calling [`Self::prepare`].
+    #[must_use = "the refusal is the decision not to read the scan"]
+    pub fn reject_stream(scan: &StreamingScan) -> EstimationError {
+        if scan.end_to_end_bound().is_some() && scan.estimator_sees_stream() {
+            return EstimationError::unsupported(
+                "scan described as a bounded route while the estimator still sees it",
+            );
+        }
+        EstimationError::unsupported(
+            "linear adjustment cannot stream; materialize the frame or refuse it",
+        )
     }
 
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
@@ -398,6 +458,17 @@ impl LinearAdjustmentAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
+        let mut controls = PreparationControls::finite_resident();
+        controls.budget = self.preparation_budget;
+        let prepared = prepare_table(
+            data,
+            &ids,
+            MissingPolicy::CompleteCase,
+            &self.contrasts,
+            controls,
+        )?;
+        refuse_bounded_scan(&prepared.receipt)?;
+        let preparation = prepared.receipt;
         let mut row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         crate::prepare::intersect_predicate_mask(
             &mut row_mask,
@@ -405,20 +476,7 @@ impl LinearAdjustmentAte {
             data.row_count(),
             self.population_registry.as_ref(),
         )?;
-        if self.sampling_weights.is_some() && !matches!(self.fit_kind, LinearFitKind::Ols) {
-            return Err(crate::sampling_weights::unsupported_route(
-                "sampling weights are read by the ordinary least-squares fit only; ridge, lasso \
-                 and Huber fits have no sampling-weighted variance",
-            ));
-        }
-        if self.sampling_weights.is_some() && matches!(self.se_kind, AnalyticSeKind::Homoskedastic)
-        {
-            return Err(crate::sampling_weights::unsupported_route(
-                "the classical homoskedastic standard error treats weights as precision and is \
-                 invalid for sampling weights; request a heteroskedasticity-robust kind \
-                 (hc0..hc3) or the cluster sandwich",
-            ));
-        }
+        self.refuse_unweighted_routes()?;
         let retained = self
             .sampling_weights
             .as_ref()
@@ -426,10 +484,12 @@ impl LinearAdjustmentAte {
             .transpose()?;
         let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
-        let mut covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
-        for &z in estimand.adjustment_set.iter() {
-            covs.push((z, data.float64_masked(z, &row_mask).map_err(EstimationError::from)?));
-        }
+        let covs = adjustment_covariates(
+            data,
+            &estimand.adjustment_set,
+            &prepared.expanded,
+            &row_mask,
+        )?;
         let cov_refs: Vec<(VariableId, &[f64])> =
             covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
         let selected_rows: Vec<usize> =
@@ -453,6 +513,7 @@ impl LinearAdjustmentAte {
             active,
             control,
             sampling_weights: retained.map(|retained| retained.record),
+            preparation,
         })
     }
 
@@ -1274,6 +1335,41 @@ fn huber_homoskedastic_se(
         scores.iter().map(|e| e * e).sum::<f64>() / (n - p) / (mean_curvature * mean_curvature);
     crate::util::xtx_inverse(x, nrows, ncols)
         .map_or(f64::NAN, |inv| (kappa * kappa * tau2 * inv[t_col * ncols + t_col].max(0.0)).sqrt())
+}
+
+fn refuse_bounded_scan(receipt: &PreparationReceipt) -> Result<(), EstimationError> {
+    if receipt.is_bounded_end_to_end_route() && receipt.estimator_sees_unbounded_stream() {
+        return Err(EstimationError::unsupported(
+            "scan described as a bounded route while the estimator still sees it",
+        ));
+    }
+    Ok(())
+}
+
+fn adjustment_covariates(
+    data: &TabularData,
+    adjustment: &[VariableId],
+    expanded: &[ExpandedContrast],
+    row_mask: &[bool],
+) -> Result<Vec<(VariableId, Vec<f64>)>, EstimationError> {
+    let mut covs = Vec::new();
+    for &id in adjustment {
+        if let Some(column) = expanded.iter().find(|column| column.variable == id) {
+            for values in &column.columns {
+                covs.push((id, mask_kept(values, row_mask)?));
+            }
+        } else {
+            covs.push((id, data.float64_masked(id, row_mask)?));
+        }
+    }
+    Ok(covs)
+}
+
+fn mask_kept(values: &[f64], keep: &[bool]) -> Result<Vec<f64>, EstimationError> {
+    if values.len() != keep.len() {
+        return Err(EstimationError::data_msg("contrast column length does not match the table"));
+    }
+    Ok(values.iter().zip(keep).filter_map(|(value, kept)| kept.then_some(*value)).collect())
 }
 
 /// Frisch–Waugh influence of the treatment coefficient, scaled by `delta`.
@@ -2105,5 +2201,181 @@ mod tests {
         assert!(!bootstrap_fit_failed(&EstimationError::data_msg(
             "row resample buffers must match the row map",
         )));
+    }
+
+    #[test]
+    fn prepare_records_order_schema_missing_values_and_a_proved_bound() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prepared = LinearAdjustmentAte::new().prepare(&data, &estimand, &query).unwrap();
+        let receipt = &prepared.preparation;
+        assert_eq!(receipt.path(), "direct_arrow");
+        assert_eq!(
+            receipt.schema().columns.iter().map(|column| column.name.as_ref()).collect::<Vec<_>>(),
+            ["t", "y", "z"]
+        );
+        assert_eq!(receipt.schema().columns[0].value_kind, "continuous");
+        assert!(receipt.categories().is_empty());
+        assert_eq!(receipt.missing().unwrap().proved_rows_kept(), Some(data.row_count()));
+        assert_eq!(receipt.proved_rows(), Some(u64::try_from(data.row_count()).unwrap()));
+        assert!(!receipt.estimator_sees_unbounded_stream());
+        assert!(receipt.is_bounded_end_to_end_route());
+        if receipt.is_bounded_end_to_end_route() {
+            assert!(!receipt.estimator_sees_unbounded_stream());
+        }
+    }
+
+    #[test]
+    fn a_tight_budget_refuses_preparation() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let estimator =
+            LinearAdjustmentAte::new().with_preparation_budget(PreparationBudget::new(0));
+        let message = estimator.prepare(&data, &estimand, &query).expect_err("budget").to_string();
+        assert!(message.contains("exceeds budget 0"), "{message}");
+    }
+
+    #[test]
+    fn linear_adjustment_refuses_a_scan_that_is_not_a_bounded_route() {
+        use antecedent_data::materialize::{
+            EstimatorStreamNeed, PreparationBudget, StreamDelivery, StreamQuote, deliver_stream,
+        };
+
+        let quote = StreamQuote {
+            scratch_bytes: Some(8),
+            materialize_bytes: Some(8),
+            chunk_rows: vec![4, 4],
+        };
+        let mut controls = PreparationControls::finite_resident();
+        controls.stream = EstimatorStreamNeed::CanStream;
+        controls.budget = Some(PreparationBudget::new(8));
+        let StreamDelivery::Scan(scan) =
+            deliver_stream(&quote, PreparationBudget::new(8), controls).unwrap()
+        else {
+            panic!("scan");
+        };
+        let refused = LinearAdjustmentAte::reject_stream(&scan);
+        assert!(refused.to_string().contains("cannot stream"), "{refused}");
+        if scan.end_to_end_bound().is_some() {
+            assert!(
+                !scan.estimator_sees_stream(),
+                "bound claimed while the estimator still sees an unbounded stream"
+            );
+        }
+        assert!(scan.estimator_sees_stream());
+        assert!(scan.end_to_end_bound().is_none());
+    }
+
+    fn categorical_adjustment_table() -> (TabularData, IdentifiedEstimand) {
+        use antecedent_core::CategoryDomainId;
+        use antecedent_data::{
+            CategoricalColumn, CategoryCode, CategoryDomain, CategoryLevel, UnknownCategoryPolicy,
+            ValidityBitmap,
+        };
+
+        let domain = CategoryDomain::try_new(
+            CategoryDomainId::from_raw(2),
+            vec![
+                CategoryLevel { label: Arc::from("a") },
+                CategoryLevel { label: Arc::from("b") },
+            ],
+            false,
+            Some(CategoryCode::from_raw(0)),
+            UnknownCategoryPolicy::Fail,
+        )
+        .unwrap();
+        let n = 4usize;
+        let mut builder = CausalSchemaBuilder::new();
+        builder
+            .add_variable(
+                "t",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        builder
+            .add_variable(
+                "y",
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        builder
+            .add_variable(
+                "z",
+                ValueType::Categorical,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                Some(CategoryDomainId::from_raw(2)),
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        let schema = builder.build().unwrap();
+        let columns = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::<[f64]>::from(vec![0.0, 1.0, 0.0, 1.0]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::<[f64]>::from(vec![0.0, 1.0, 1.0, 2.0]),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Categorical(
+                CategoricalColumn::try_new(
+                    VariableId::from_raw(2),
+                    vec![
+                        CategoryCode::from_raw(0),
+                        CategoryCode::from_raw(0),
+                        CategoryCode::from_raw(1),
+                        CategoryCode::from_raw(1),
+                    ],
+                    ValidityBitmap::all_valid(n),
+                    Arc::new(domain),
+                )
+                .unwrap(),
+            ),
+        ];
+        let data = TabularData::new(
+            OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap(),
+        );
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        (data, estimand)
+    }
+
+    #[test]
+    fn a_categorical_adjustment_is_expanded_before_the_design() {
+        use antecedent_data::{CategoryCode, Contrast};
+        let (data, estimand) = categorical_adjustment_table();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let estimator = LinearAdjustmentAte::new().with_contrast(
+            VariableId::from_raw(2),
+            Contrast::Treatment { reference: CategoryCode::from_raw(0) },
+        );
+        let prepared = estimator.prepare(&data, &estimand, &query).unwrap();
+        assert_eq!(prepared.design.ncols, 3);
+        assert_eq!(prepared.preparation.categories().len(), 1);
+        assert_eq!(prepared.preparation.categories()[0].coding, "treatment");
+        assert_eq!(prepared.preparation.categories()[0].n_columns, 1);
     }
 }

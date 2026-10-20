@@ -32,8 +32,15 @@ use crate::column::{
     FixedVectorColumn, Float64Column, Int64Column, OwnedColumn, TimestampColumn, ValidityBitmap,
 };
 use crate::dataset::TabularData;
+use crate::categorical::Contrast;
 use crate::error::DataError;
-use crate::materialize::{MaterializationReason, materialization_diagnostic};
+use crate::materialize::{
+    EstimatorStreamNeed, MaterializationReason, PreparationControls, PreparationProduct,
+    SchemaColumn, SchemaConversion, StreamingScan, finish_scan, materialization_diagnostic,
+    prepare_table,
+};
+use crate::missing::{ChunkMissing, MissingConversion, dropped_row_digest};
+use crate::sample_policy::MissingPolicy;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
@@ -1173,6 +1180,244 @@ fn append_validity(
     Ok(new_len)
 }
 
+/// What an estimator receives from a chunked Arrow frame.
+#[derive(Clone, Debug)]
+pub enum EstimatorFrame {
+    /// One finite table. The estimator does not see the chunks.
+    Finite {
+        /// Materialized table.
+        table: TabularData,
+        /// Schema, category, missing-value, and admission receipt.
+        product: PreparationProduct,
+        /// Copy diagnostics, including an explicit materialization when chunks were joined.
+        diagnostics: DiagnosticSet,
+    },
+    /// A scan. [`StreamingScan::end_to_end_bound`] is `None`.
+    Scan(StreamingScan),
+}
+
+impl ArrowFrameView {
+    /// Deliver this frame to an estimator.
+    ///
+    /// `order` is column indexes. Empty means schema order. An estimator that
+    /// cannot stream either receives one table or a refusal. The refusal happens
+    /// before chunks are concatenated. An estimator that can stream receives the
+    /// chunks; that scan is not a bounded end-to-end route.
+    ///
+    /// # Errors
+    ///
+    /// The backend, order, schema, category, missing-value policy, or budget
+    /// refuses the plan, or concatenation fails after admission.
+    pub fn open_for_estimator(
+        &self,
+        order: &[usize],
+        missing: MissingPolicy,
+        categories: &[(VariableId, Contrast)],
+        controls: PreparationControls,
+    ) -> Result<EstimatorFrame, DataError> {
+        controls.backend.admit().map_err(|refusal| DataError::InvalidArgument {
+            message: refusal.to_string(),
+        })?;
+        let order = resolve_order(self.n_columns(), order)?;
+        let bytes = frame_payload_bytes(self)?;
+        let budget = controls.budget.map_or(bytes, crate::materialize::PreparationBudget::bytes);
+        let noun = match controls.stream {
+            EstimatorStreamNeed::CanStream => "streaming scratch",
+            EstimatorStreamNeed::CannotStream => "materialization",
+        };
+        if bytes > budget {
+            return Err(DataError::InvalidArgument {
+                message: format!(
+                    "preparation refused: {noun} of {bytes} bytes exceeds budget {budget}"
+                ),
+            });
+        }
+        match controls.stream {
+            EstimatorStreamNeed::CanStream => Ok(EstimatorFrame::Scan(scan_frame(
+                self, &order, missing, categories, bytes, budget,
+            )?)),
+            EstimatorStreamNeed::CannotStream => {
+                materialize_frame(self, &order, missing, categories, controls, budget)
+            }
+        }
+    }
+}
+
+fn resolve_order(n_columns: usize, order: &[usize]) -> Result<Vec<usize>, DataError> {
+    let order = if order.is_empty() { (0..n_columns).collect::<Vec<_>>() } else { order.to_vec() };
+    let mut seen = vec![false; n_columns];
+    for &index in &order {
+        if index >= n_columns || seen[index] {
+            return Err(DataError::InvalidArgument {
+                message: format!(
+                    "preparation order index {index} is outside the frame or repeated"
+                ),
+            });
+        }
+        seen[index] = true;
+    }
+    Ok(order)
+}
+
+fn frame_payload_bytes(frame: &ArrowFrameView) -> Result<u64, DataError> {
+    let mut total = 0u64;
+    for column in &frame.columns {
+        for chunk in &column.chunks {
+            total = total.checked_add(owned_payload_bytes(chunk)?).ok_or_else(|| {
+                DataError::InvalidArgument { message: "column payload size overflows".into() }
+            })?;
+        }
+    }
+    Ok(total)
+}
+
+fn scan_frame(
+    frame: &ArrowFrameView,
+    order: &[usize],
+    missing: MissingPolicy,
+    categories: &[(VariableId, Contrast)],
+    bytes: u64,
+    budget: u64,
+) -> Result<StreamingScan, DataError> {
+    let schema = scan_schema(frame, order)?;
+    let categories = scan_categories(frame, order, categories)?;
+    let missing = scan_missing(frame, order, missing)?;
+    let chunk_rows = chunk_row_counts(frame)?;
+    finish_scan(schema, &categories, missing, &chunk_rows, bytes, budget)
+}
+
+fn scan_categories(
+    frame: &ArrowFrameView,
+    order: &[usize],
+    categories: &[(VariableId, Contrast)],
+) -> Result<Vec<crate::categorical::CategoryConversion>, DataError> {
+    let mut recorded = Vec::new();
+    for &index in order {
+        let Some(chunk) = frame.columns[index].chunks.first() else {
+            continue;
+        };
+        let OwnedColumn::Categorical(column) = chunk else {
+            continue;
+        };
+        let id = variable_id(index)?;
+        let Some((_, contrast)) = categories.iter().find(|(variable, _)| *variable == id) else {
+            return Err(DataError::InvalidArgument {
+                message: format!(
+                    "category conversion requires an explicit contrast for variable {id}"
+                ),
+            });
+        };
+        recorded.push(crate::categorical::expand_contrast(column, contrast)?.conversion);
+    }
+    Ok(recorded)
+}
+
+fn scan_schema(frame: &ArrowFrameView, order: &[usize]) -> Result<SchemaConversion, DataError> {
+    let mut columns = Vec::with_capacity(order.len());
+    for &index in order {
+        let column = &frame.columns[index];
+        let kind = column.chunks.first().map_or("empty", storage_kind);
+        columns.push(SchemaColumn {
+            name: Arc::<str>::from(column.name.as_str()),
+            id: variable_id(index)?,
+            value_kind: kind,
+        });
+    }
+    Ok(SchemaConversion { columns: Arc::from(columns) })
+}
+
+fn storage_kind(column: &OwnedColumn) -> &'static str {
+    match column {
+        OwnedColumn::Float64(_) => "float64",
+        OwnedColumn::Int64(_) => "int64",
+        OwnedColumn::Boolean(_) => "boolean",
+        OwnedColumn::Categorical(_) => "categorical",
+        OwnedColumn::Timestamp(_) => "timestamp",
+        OwnedColumn::FixedVector(_) => "vector",
+    }
+}
+
+fn scan_missing(
+    frame: &ArrowFrameView,
+    order: &[usize],
+    policy: MissingPolicy,
+) -> Result<MissingConversion, DataError> {
+    let mut chunks = Vec::with_capacity(frame.n_chunks());
+    for index in 0..frame.n_chunks() {
+        chunks.push(chunk_missing(frame, order, index)?);
+    }
+    MissingConversion::from_scan(policy, chunks)
+}
+
+fn chunk_missing(
+    frame: &ArrowFrameView,
+    order: &[usize],
+    index: usize,
+) -> Result<ChunkMissing, DataError> {
+    let rows = frame.columns.first().map_or(0, |column| {
+        column.chunks.get(index).map_or(0, OwnedColumn::len)
+    });
+    let mut dropped = Vec::new();
+    for row in 0..rows {
+        let invalid = order.iter().any(|&column| {
+            !frame.columns[column].chunks[index].as_view().validity().is_valid(row)
+        });
+        if invalid {
+            let row = u64::try_from(row).map_err(|_| DataError::InvalidArgument {
+                message: "chunk row does not fit u64".into(),
+            })?;
+            dropped.push(row);
+        }
+    }
+    let rows_kept = rows.checked_sub(dropped.len()).ok_or_else(|| DataError::InvalidArgument {
+        message: "chunk kept rows overflow".into(),
+    })?;
+    Ok(ChunkMissing {
+        rows_total: rows,
+        rows_kept,
+        dropped_digest: Arc::from(dropped_row_digest(rows, &dropped)),
+    })
+}
+
+fn chunk_row_counts(frame: &ArrowFrameView) -> Result<Vec<u64>, DataError> {
+    let Some(column) = frame.columns.first() else {
+        return Ok(Vec::new());
+    };
+    column
+        .chunks
+        .iter()
+        .map(|chunk| u64::try_from(chunk.len()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| DataError::InvalidArgument {
+            message: "chunk row count does not fit u64".into(),
+        })
+}
+
+fn materialize_frame(
+    frame: &ArrowFrameView,
+    order: &[usize],
+    missing: MissingPolicy,
+    categories: &[(VariableId, Contrast)],
+    controls: PreparationControls,
+    budget: u64,
+) -> Result<EstimatorFrame, DataError> {
+    let loaded = frame.contiguous()?;
+    let ids = order.iter().copied().map(variable_id).collect::<Result<Vec<_>, _>>()?;
+    let mut finite = controls;
+    finite.stream = EstimatorStreamNeed::CannotStream;
+    finite.budget = Some(crate::materialize::PreparationBudget::new(budget));
+    let product = prepare_table(&loaded.data, &ids, missing, categories, finite)?;
+    let mut diagnostics = loaded.diagnostics;
+    if frame.n_chunks() > 1 {
+        let copied = product.receipt.admission().materialized_bytes().unwrap_or(budget);
+        diagnostics.push(materialization_diagnostic(
+            MaterializationReason::EstimatorCannotStream,
+            copied,
+        ));
+    }
+    Ok(EstimatorFrame::Finite { table: loaded.data, product, diagnostics })
+}
+
 fn detach_foreign(column: &OwnedColumn) -> Result<OwnedColumn, DataError> {
     match column {
         OwnedColumn::Float64(column) if column.values.is_foreign() => {
@@ -1590,5 +1835,66 @@ mod tests {
         assert_eq!(column.domain.reference, Some(CategoryCode::from_raw(0)));
         assert!(concat_chunks(&[chunk(7, 0), chunk(7, 1)]).is_err());
         assert!(concat_chunks(&[chunk(7, 0), chunk(8, 0)]).is_err());
+    }
+
+    fn two_chunk_frame() -> ArrowFrameView {
+        use arrow_array::RecordBatch;
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Float64, true)]));
+        let first = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Float64Array::from(vec![1.0, 2.0]))],
+        )
+        .unwrap();
+        let second = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Float64Array::from(vec![3.0]))],
+        )
+        .unwrap();
+        ArrowFrameView::from_record_batches(vec![first, second]).unwrap()
+    }
+
+    #[test]
+    fn an_estimator_that_cannot_stream_materializes_or_refuses() {
+        use crate::materialize::{EstimatorStreamNeed, PreparationBudget, PreparationControls};
+        use crate::sample_policy::MissingPolicy;
+
+        let frame = two_chunk_frame();
+        let mut controls = PreparationControls::finite_resident();
+        controls.budget = Some(PreparationBudget::new(0));
+        let refused = frame.open_for_estimator(&[], MissingPolicy::CompleteCase, &[], controls);
+        let message = refused.expect_err("budget").to_string();
+        assert!(message.contains("exceeds budget 0"), "{message}");
+
+        controls.budget = None;
+        let delivered =
+            frame.open_for_estimator(&[], MissingPolicy::CompleteCase, &[], controls).unwrap();
+        let EstimatorFrame::Finite { table, product, diagnostics } = delivered else {
+            panic!("cannot-stream delivery must be a finite table");
+        };
+        assert_eq!(table.row_count(), 3);
+        assert_eq!(product.receipt.proved_rows(), Some(3));
+        assert!(!product.receipt.estimator_sees_unbounded_stream());
+        assert!(diagnostics.entries.iter().any(|entry| {
+            entry.code.contains("materialize.estimator")
+        }));
+        if product.receipt.is_bounded_end_to_end_route() {
+            assert!(!product.receipt.estimator_sees_unbounded_stream());
+        }
+
+        controls.stream = EstimatorStreamNeed::CanStream;
+        let scan =
+            frame.open_for_estimator(&[], MissingPolicy::CompleteCase, &[], controls).unwrap();
+        let EstimatorFrame::Scan(scan) = scan else {
+            panic!("a streaming estimator keeps the chunks");
+        };
+        if scan.end_to_end_bound().is_some() {
+            assert!(
+                !scan.estimator_sees_stream(),
+                "bound claimed while the estimator still sees an unbounded stream"
+            );
+        }
+        assert!(scan.estimator_sees_stream());
+        assert!(scan.end_to_end_bound().is_none());
+        assert!(!scan.receipt().missing().unwrap().population_bound);
     }
 }

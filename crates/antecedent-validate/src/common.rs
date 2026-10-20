@@ -743,6 +743,7 @@ fn panel_prepare_with_extras(
     let design =
         antecedent_stats::CompiledDesign::linear_adjustment(&all_t, &cov_refs, &all_y, &selected)
             .map_err(ValidationError::from)?;
+    let rows = all_t.len();
     Ok(antecedent_estimate::PreparedEstimationProblem {
         design,
         method: Arc::from("temporal.linear.adjustment.panel"),
@@ -754,6 +755,7 @@ fn panel_prepare_with_extras(
         active,
         control,
         sampling_weights: None,
+        preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(rows)?,
     })
 }
 

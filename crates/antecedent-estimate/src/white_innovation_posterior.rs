@@ -301,6 +301,8 @@ mod tests {
             active: 1.0,
             control: 0.0,
             sampling_weights: None,
+            preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(t.len())
+                .expect("row count fits u64"),
         }
     }
 

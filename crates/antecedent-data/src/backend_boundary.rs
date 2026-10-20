@@ -22,6 +22,81 @@
 /// a backend the default.
 pub const POLARS_IS_INTERNAL_CONTRACT_BACKEND: bool = false;
 
+/// Preparation path this repository executes.
+///
+/// The record is `parity/polars_decision/decision.toml`. Direct Arrow is that
+/// path. A lazy backend is not part of it.
+pub const ACCEPTED_PREPARATION_PATH: &str = "direct_arrow";
+
+/// Whether this crate has adopted a lazy execution backend.
+///
+/// `lazy_identity` records a view of owned storage. It does not lower a plan.
+/// Polars is not linked. Nothing else in this crate executes a lazy plan, so
+/// the preparation path does not offer one.
+pub const LAZY_BACKEND_ADOPTED: bool = false;
+
+/// Backend a preparation plan may name.
+///
+/// [`Self::DirectArrow`] is the accepted path. [`Self::Lazy`] is admitted only
+/// when [`LAZY_BACKEND_ADOPTED`] is true.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum PreparationBackend {
+    /// Copy or borrow Arrow into library-owned columns.
+    DirectArrow,
+    /// Lower the plan onto a lazy backend this crate has adopted.
+    Lazy,
+}
+
+impl PreparationBackend {
+    /// The backend the accepted preparation path uses.
+    #[must_use]
+    pub const fn accepted() -> Self {
+        Self::DirectArrow
+    }
+
+    /// Stable name. Direct Arrow spells `direct_arrow`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DirectArrow => ACCEPTED_PREPARATION_PATH,
+            Self::Lazy => "lazy",
+        }
+    }
+
+    /// Admit `self` as the preparation backend.
+    ///
+    /// # Errors
+    ///
+    /// [`PreparationBackend::Lazy`] while [`LAZY_BACKEND_ADOPTED`] is false.
+    /// Direct Arrow is admitted.
+    pub const fn admit(self) -> Result<Self, LazyBackendRefusal> {
+        match self {
+            Self::DirectArrow => Ok(self),
+            Self::Lazy => {
+                if LAZY_BACKEND_ADOPTED {
+                    Ok(self)
+                } else {
+                    Err(LazyBackendRefusal)
+                }
+            }
+        }
+    }
+}
+
+/// A lazy backend was requested and this crate has not adopted one.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LazyBackendRefusal;
+
+impl core::fmt::Display for LazyBackendRefusal {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str(
+            "preparation refused: lazy backend is not adopted; the accepted path is direct_arrow",
+        )
+    }
+}
+
+impl std::error::Error for LazyBackendRefusal {}
+
 #[cfg(test)]
 mod tests {
     const WORKSPACE_CARGO: &str = include_str!("../../../Cargo.toml");
@@ -106,6 +181,20 @@ mod tests {
         }
         assert!(!declares_polars_crate(DATA_CARGO));
         assert!(!declares_polars_crate(WORKSPACE_CARGO));
+    }
+
+    #[test]
+    fn accepted_path_is_direct_arrow_and_lazy_is_not_adopted() {
+        assert_eq!(super::ACCEPTED_PREPARATION_PATH, "direct_arrow");
+        assert!(!super::LAZY_BACKEND_ADOPTED);
+        assert_eq!(
+            super::PreparationBackend::accepted().admit().expect("direct arrow").as_str(),
+            "direct_arrow"
+        );
+        let refused = super::PreparationBackend::Lazy.admit().expect_err("no lazy backend");
+        let message = refused.to_string();
+        assert!(message.contains("lazy backend is not adopted"), "{message}");
+        assert!(message.contains("direct_arrow"), "{message}");
     }
 
     fn declares_polars_crate(manifest: &str) -> bool {

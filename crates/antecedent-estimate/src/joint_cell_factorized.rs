@@ -530,6 +530,7 @@ fn prepare_problem(
             ));
         }
     }
+    let data = crate::prepare::admit_estimator_columns(data, &ids)?;
     let mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
     let outcome_values = data.float64_masked(outcome, &mask).map_err(EstimationError::from)?;
     let n = outcome_values.len();

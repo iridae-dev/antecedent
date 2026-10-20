@@ -516,6 +516,9 @@ impl TemporalLinearAdjustment {
                 active,
                 control,
                 sampling_weights,
+                preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(
+                    selected.len(),
+                )?,
             },
             aligned,
             selection,
@@ -633,6 +636,7 @@ impl TemporalLinearAdjustment {
         let selected: Vec<usize> = (0..all_t.len()).collect();
         let design = CompiledDesign::linear_adjustment(&all_t, &cov_refs, &all_y, &selected)
             .map_err(EstimationError::from)?;
+        let rows = all_t.len();
 
         Ok((
             PreparedEstimationProblem {
@@ -646,6 +650,9 @@ impl TemporalLinearAdjustment {
                 active: first.active,
                 control: first.control,
                 sampling_weights: None,
+                preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(
+                    rows,
+                )?,
             },
             row_clusters,
             panel_times,

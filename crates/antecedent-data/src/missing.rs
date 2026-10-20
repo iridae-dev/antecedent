@@ -342,6 +342,127 @@ pub fn first_missing_cell<T: TableView>(
     Ok(None)
 }
 
+/// One chunk of a missing-value conversion.
+///
+/// Positions in [`Self::dropped_digest`] are local to the chunk. A scan of several
+/// chunks does not promote their sum into an end-to-end population bound.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChunkMissing {
+    /// Rows in the chunk.
+    pub rows_total: usize,
+    /// Rows kept under the policy.
+    pub rows_kept: usize,
+    /// Digest of the chunk's dropped local positions.
+    pub dropped_digest: Arc<str>,
+}
+
+/// Missing-value conversion for a preparation plan.
+///
+/// [`Self::population_bound`] is true only when the chunks are the whole finite
+/// table the estimator will read. A streaming scan leaves it false.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MissingConversion {
+    /// Policy that was executed.
+    pub policy: MissingPolicy,
+    /// Per-chunk accounting.
+    pub chunks: Arc<[ChunkMissing]>,
+    /// Whether `chunks` is the whole population, not a prefix of a scan.
+    pub population_bound: bool,
+}
+
+impl MissingConversion {
+    /// Convert `variables` under `policy`.
+    ///
+    /// Complete-case drops incomplete rows and records them. Error-on-missing
+    /// refuses the first missing cell. Other policies are not executed here.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variables, a policy this conversion does not execute, or a missing
+    /// cell under [`MissingPolicy::ErrorOnMissing`].
+    pub fn convert<T: TableView>(
+        table: &T,
+        analysis_mask: Option<&ValidityBitmap>,
+        variables: &[VariableId],
+        policy: MissingPolicy,
+    ) -> Result<Self, DataError> {
+        executable_policy(policy)?;
+        if policy == MissingPolicy::ErrorOnMissing {
+            refuse_error_on_missing(table, variables)?;
+        }
+        let accounting = RowAccounting::complete_case(table, analysis_mask, variables)?;
+        Ok(Self::from_accounting(policy, &accounting, true))
+    }
+
+    /// A scan prefix. `population_bound` stays false, including when every chunk
+    /// seen so far is complete.
+    ///
+    /// # Errors
+    ///
+    /// A policy this conversion does not execute, or error-on-missing with a dropped row.
+    pub fn from_scan(
+        policy: MissingPolicy,
+        chunks: impl Into<Arc<[ChunkMissing]>>,
+    ) -> Result<Self, DataError> {
+        executable_policy(policy)?;
+        let chunks = chunks.into();
+        if policy == MissingPolicy::ErrorOnMissing
+            && chunks.iter().any(|chunk| chunk.rows_kept != chunk.rows_total)
+        {
+            return Err(DataError::InvalidArgument {
+                message: "missing-value conversion found a missing cell under error-on-missing"
+                    .into(),
+            });
+        }
+        Ok(Self { policy, chunks, population_bound: false })
+    }
+
+    fn from_accounting(policy: MissingPolicy, accounting: &RowAccounting, bound: bool) -> Self {
+        let chunk = ChunkMissing {
+            rows_total: accounting.rows_total,
+            rows_kept: accounting.rows_kept,
+            dropped_digest: Arc::clone(&accounting.dropped_digest),
+        };
+        Self { policy, chunks: Arc::from([chunk]), population_bound: bound }
+    }
+
+    /// Rows kept, when this conversion is the whole population.
+    pub fn proved_rows_kept(&self) -> Option<usize> {
+        if !self.population_bound || self.chunks.len() != 1 {
+            return None;
+        }
+        Some(self.chunks[0].rows_kept)
+    }
+}
+
+fn executable_policy(policy: MissingPolicy) -> Result<(), DataError> {
+    match policy {
+        MissingPolicy::CompleteCase | MissingPolicy::ErrorOnMissing => Ok(()),
+        other => Err(DataError::InvalidArgument {
+            message: format!(
+                "missing-value conversion does not execute `{}`; executable policies are \
+                 complete_case, error",
+                other.name()
+            ),
+        }),
+    }
+}
+
+fn refuse_error_on_missing<T: TableView>(
+    table: &T,
+    variables: &[VariableId],
+) -> Result<(), DataError> {
+    let Some(cell) = first_missing_cell(table, variables)? else {
+        return Ok(());
+    };
+    Err(DataError::InvalidArgument {
+        message: policy_required_text(&cell, "missing-value conversion", &[
+            MissingPolicy::CompleteCase,
+            MissingPolicy::ErrorOnMissing,
+        ]),
+    })
+}
+
 /// The text every route's refusal of an undeclared policy shares: the first missing cell and
 /// the policies the route can execute.
 #[must_use]
@@ -455,5 +576,42 @@ mod tests {
             .map(|g| (g.label.as_ref(), g.total, g.kept, g.observed))
             .collect();
         assert_eq!(groups, [("a", 3, 1, 1), ("b", 3, 2, 2)]);
+    }
+
+    #[test]
+    fn complete_case_conversion_records_the_population_and_error_on_missing_refuses() {
+        let data = table();
+        let converted = MissingConversion::convert(
+            &data,
+            None,
+            &ids(),
+            MissingPolicy::CompleteCase,
+        )
+        .unwrap();
+        assert!(converted.population_bound);
+        assert_eq!(converted.proved_rows_kept(), Some(3));
+        assert_eq!(converted.policy, MissingPolicy::CompleteCase);
+        let refused =
+            MissingConversion::convert(&data, None, &ids(), MissingPolicy::ErrorOnMissing);
+        assert!(refused.is_err());
+        let pairwise =
+            MissingConversion::convert(&data, None, &ids(), MissingPolicy::PairwiseAvailable);
+        let message = pairwise.expect_err("pairwise is not executed").to_string();
+        assert!(message.contains("does not execute `pairwise_available`"), "{message}");
+    }
+
+    #[test]
+    fn a_scan_conversion_is_not_a_population_bound() {
+        let scan = MissingConversion::from_scan(
+            MissingPolicy::CompleteCase,
+            [ChunkMissing {
+                rows_total: 4,
+                rows_kept: 4,
+                dropped_digest: Arc::from(dropped_row_digest(4, &[])),
+            }],
+        )
+        .unwrap();
+        assert!(!scan.population_bound);
+        assert_eq!(scan.proved_rows_kept(), None);
     }
 }

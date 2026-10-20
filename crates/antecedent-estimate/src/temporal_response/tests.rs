@@ -1037,6 +1037,10 @@ fn fitted_horizon(
         treatment_delta: 1.0,
         target_population: TargetPopulation::AllObserved,
         treatment: Arc::from(treatment.to_vec()),
+        preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(
+            treatment.len(),
+        )
+        .expect("row count fits u64"),
         active: 1.0,
         control: 0.0,
         sampling_weights: None,
