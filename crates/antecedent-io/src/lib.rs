@@ -167,6 +167,7 @@ pub mod nested_markov_artifact;
 pub mod nested_markov_bayesian_artifact;
 pub mod posterior_convert;
 pub mod recovery_artifact;
+pub mod release_migration;
 pub mod sampled_counterfactual_transport_artifact;
 pub mod sampled_recovery_artifact;
 pub mod scenario_covariance_artifact;

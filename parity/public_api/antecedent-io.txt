@@ -254,6 +254,11 @@ impl core::clone::Clone for antecedent_io::recovery_chain_artifact::ChainWitness
 impl core::clone::Clone for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain
 impl core::clone::Clone for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::clone::Clone for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire
+impl core::clone::Clone for antecedent_io::release_migration::AxisStanding
+impl core::clone::Clone for antecedent_io::release_migration::ManifestRouteStatus
+impl core::clone::Clone for antecedent_io::release_migration::MigrationError
+impl core::clone::Clone for antecedent_io::release_migration::RouteAxis
+impl core::clone::Clone for antecedent_io::release_migration::TargetShape
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::clone::Clone for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire
@@ -431,6 +436,11 @@ impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::ChainQueryWire
 impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::ChainWitnessCheckWire
 impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::ChainWitnessWire
 impl core::cmp::Eq for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
+impl core::cmp::Eq for antecedent_io::release_migration::AxisStanding
+impl core::cmp::Eq for antecedent_io::release_migration::ManifestRouteStatus
+impl core::cmp::Eq for antecedent_io::release_migration::MigrationError
+impl core::cmp::Eq for antecedent_io::release_migration::RouteAxis
+impl core::cmp::Eq for antecedent_io::release_migration::TargetShape
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::cmp::Eq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity
@@ -647,6 +657,11 @@ impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::ChainRecov
 impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::ChainWitnessCheckWire
 impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::ChainWitnessWire
 impl core::cmp::PartialEq for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
+impl core::cmp::PartialEq for antecedent_io::release_migration::AxisStanding
+impl core::cmp::PartialEq for antecedent_io::release_migration::ManifestRouteStatus
+impl core::cmp::PartialEq for antecedent_io::release_migration::MigrationError
+impl core::cmp::PartialEq for antecedent_io::release_migration::RouteAxis
+impl core::cmp::PartialEq for antecedent_io::release_migration::TargetShape
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::cmp::PartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire
@@ -802,6 +817,7 @@ impl core::error::Error for antecedent_io::nonlinear_mediation_artifact::Nonline
 impl core::error::Error for antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifactError
 impl core::error::Error for antecedent_io::recovery_artifact::RecoveryArtifactError
 impl core::error::Error for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
+impl core::error::Error for antecedent_io::release_migration::MigrationError
 impl core::error::Error for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::error::Error for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactError
 impl core::error::Error for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
@@ -1028,6 +1044,11 @@ impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::ChainWitnessWi
 impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain
 impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
 impl core::fmt::Debug for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire
+impl core::fmt::Debug for antecedent_io::release_migration::AxisStanding
+impl core::fmt::Debug for antecedent_io::release_migration::ManifestRouteStatus
+impl core::fmt::Debug for antecedent_io::release_migration::MigrationError
+impl core::fmt::Debug for antecedent_io::release_migration::RouteAxis
+impl core::fmt::Debug for antecedent_io::release_migration::TargetShape
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 impl core::fmt::Debug for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
@@ -1154,11 +1175,17 @@ impl core::fmt::Display for antecedent_io::nonlinear_mediation_artifact::Nonline
 impl core::fmt::Display for antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifactError
 impl core::fmt::Display for antecedent_io::recovery_artifact::RecoveryArtifactError
 impl core::fmt::Display for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
+impl core::fmt::Display for antecedent_io::release_migration::MigrationError
+impl core::fmt::Display for antecedent_io::release_migration::RouteAxis
 impl core::fmt::Display for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::fmt::Display for antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactError
 impl core::fmt::Display for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
 impl core::fmt::Display for antecedent_io::stream_artifact::StreamArtifactError
 impl core::fmt::Display for antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
+impl core::hash::Hash for antecedent_io::release_migration::AxisStanding
+impl core::hash::Hash for antecedent_io::release_migration::ManifestRouteStatus
+impl core::hash::Hash for antecedent_io::release_migration::RouteAxis
+impl core::hash::Hash for antecedent_io::release_migration::TargetShape
 impl core::marker::Copy for antecedent_io::PosteriorPayload
 impl core::marker::Copy for antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits
 impl core::marker::Copy for antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits
@@ -1188,6 +1215,11 @@ impl core::marker::Copy for antecedent_io::predictive_assessment_artifact::Predi
 impl core::marker::Copy for antecedent_io::recovery_artifact::RecoveryConsumeLimits
 impl core::marker::Copy for antecedent_io::recovery_chain_artifact::ChainLawWire
 impl core::marker::Copy for antecedent_io::recovery_chain_artifact::ChainQueryWire
+impl core::marker::Copy for antecedent_io::release_migration::AxisStanding
+impl core::marker::Copy for antecedent_io::release_migration::ManifestRouteStatus
+impl core::marker::Copy for antecedent_io::release_migration::MigrationError
+impl core::marker::Copy for antecedent_io::release_migration::RouteAxis
+impl core::marker::Copy for antecedent_io::release_migration::TargetShape
 impl core::marker::Copy for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits
 impl core::marker::Copy for antecedent_io::sampled_recovery_artifact::SampledRecoveryConsumeLimits
 impl core::marker::Copy for antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits
@@ -1429,6 +1461,11 @@ impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::ChainWitne
 impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Freeze for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::AxisStanding [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::MigrationError [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::RouteAxis [auto]
+impl core::marker::Freeze for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
 impl core::marker::Freeze for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError [auto]
@@ -1771,6 +1808,11 @@ impl core::marker::Send for antecedent_io::recovery_chain_artifact::ChainWitness
 impl core::marker::Send for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::marker::Send for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Send for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::marker::Send for antecedent_io::release_migration::AxisStanding [auto]
+impl core::marker::Send for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::marker::Send for antecedent_io::release_migration::MigrationError [auto]
+impl core::marker::Send for antecedent_io::release_migration::RouteAxis [auto]
+impl core::marker::Send for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
 impl core::marker::Send for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError [auto]
@@ -2070,6 +2112,11 @@ impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifac
 impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifact::ChainWitnessCheckWire
 impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifact::ChainWitnessWire
 impl core::marker::StructuralPartialEq for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::AxisStanding
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::ManifestRouteStatus
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::MigrationError
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::RouteAxis
+impl core::marker::StructuralPartialEq for antecedent_io::release_migration::TargetShape
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire
@@ -2389,6 +2436,11 @@ impl core::marker::Sync for antecedent_io::recovery_chain_artifact::ChainWitness
 impl core::marker::Sync for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::marker::Sync for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Sync for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::marker::Sync for antecedent_io::release_migration::AxisStanding [auto]
+impl core::marker::Sync for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::marker::Sync for antecedent_io::release_migration::MigrationError [auto]
+impl core::marker::Sync for antecedent_io::release_migration::RouteAxis [auto]
+impl core::marker::Sync for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
 impl core::marker::Sync for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError [auto]
@@ -2731,6 +2783,11 @@ impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::ChainWitnes
 impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::marker::Unpin for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::AxisStanding [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::MigrationError [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::RouteAxis [auto]
+impl core::marker::Unpin for antecedent_io::release_migration::TargetShape [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
 impl core::marker::Unpin for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError [auto]
@@ -3072,6 +3129,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::AxisStanding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::MigrationError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::RouteAxis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::release_migration::TargetShape [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError [auto]
@@ -3413,6 +3475,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_arti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_artifact::ConsumedRecoveryChain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::AxisStanding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::ManifestRouteStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::MigrationError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::RouteAxis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::release_migration::TargetShape [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError [auto]
@@ -4117,6 +4184,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::vector_treatment_a
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::vector_treatment_artifact::WaldWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::z_transport_artifact::ZTransportArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::z_transport_artifact::ZTransportPointWire
+pub const <antecedent_io::release_migration::ManifestRouteStatus>::ALL: [Self; 5]
+pub const <antecedent_io::release_migration::RouteAxis>::ALL: [Self; 4]
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_DECOMPRESSED_BYTES: u64
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_RETAINED_BYTES: u64
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_SECTIONS: u32
@@ -4253,6 +4322,7 @@ pub const antecedent_io::recovery_chain_artifact::RECOVERY_CHAIN_ARTIFACT_FEATUR
 pub const antecedent_io::recovery_chain_artifact::RECOVERY_CHAIN_ARTIFACT_VERSION: u32
 pub const antecedent_io::recovery_chain_artifact::RECOVERY_CHAIN_NONRECOVERABLE: &str
 pub const antecedent_io::recovery_chain_artifact::RECOVERY_CHAIN_RECOVERED: &str
+pub const antecedent_io::release_migration::SCORE_ROW_IDENTITY_KIND: &str
 pub const antecedent_io::sampled_counterfactual_transport_artifact::SAMPLED_COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE: &str
 pub const antecedent_io::sampled_counterfactual_transport_artifact::SAMPLED_COUNTERFACTUAL_TRANSPORT_ARTIFACT_VERSION: u32
 pub const antecedent_io::sampled_recovery_artifact::SAMPLED_RECOVERY_BCA_ARTIFACT_FEATURE: &str
@@ -4292,6 +4362,11 @@ pub const antecedent_io::z_transport_artifact::Z_TRANSPORT_ARTIFACT_FEATURE: &st
 pub const antecedent_io::z_transport_artifact::Z_TRANSPORT_ARTIFACT_VERSION: u32
 pub const antecedent_io::z_transport_artifact::Z_TRANSPORT_NO_INTERVAL: &str
 pub const fn antecedent_io::recovery_chain_artifact::nonrecoverable_detail() -> (&'static str, &'static str)
+pub const fn antecedent_io::release_migration::axis_standing(axis: antecedent_io::release_migration::RouteAxis) -> antecedent_io::release_migration::AxisStanding
+pub const fn antecedent_io::release_migration::caller_world_id_and_reference_flag_enter_identity(shape: antecedent_io::release_migration::TargetShape) -> bool
+pub const fn antecedent_io::release_migration::keep_refusal_reason(reason: &str) -> &str
+pub const fn antecedent_io::release_migration::migrate_axis(axis: antecedent_io::release_migration::RouteAxis) -> core::result::Result<(), antecedent_io::release_migration::MigrationError>
+pub const fn antecedent_io::release_migration::route_contract_standing(status: antecedent_io::release_migration::ManifestRouteStatus) -> antecedent_io::release_migration::AxisStanding
 pub enum antecedent_io::PosteriorPayload
 pub enum antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome
 pub enum antecedent_io::joint_bayesian_transport_artifact::PriorProvenanceWire
@@ -4301,6 +4376,11 @@ pub enum antecedent_io::model_codes::SourceDependenceCode
 pub enum antecedent_io::model_codes::SourceSharingCode
 pub enum antecedent_io::model_codes::VaryingBlockCode
 pub enum antecedent_io::nested_markov_bayesian_artifact::BayesianFunctional
+pub enum antecedent_io::release_migration::AxisStanding
+pub enum antecedent_io::release_migration::ManifestRouteStatus
+pub enum antecedent_io::release_migration::MigrationError
+pub enum antecedent_io::release_migration::RouteAxis
+pub enum antecedent_io::release_migration::TargetShape
 pub enum antecedent_io::scenario_covariance_artifact::CovarianceMethodWire
 pub enum antecedent_io::scenario_covariance_artifact::FunctionalWire
 pub enum antecedent_io::stream_artifact::CpuPayload<'a>
@@ -6706,6 +6786,7 @@ pub fn <antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire>::fn e
 pub fn <antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire>::fn from_nonrecoverable(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::recovery_chain::ChainRecoveryQuery, variable_names: &[alloc::string::String], witness: &antecedent_identify::recovery_chain::ChainRecoveryWitness, check: &antecedent_identify::recovery_chain::ChainWitnessCheck) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire>::fn from_recovered(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::recovery_chain::ChainRecoveryQuery, variable_names: &[alloc::string::String], plan: &antecedent_identify::recovery_chain::ChainRecoveryPlan, observed: &antecedent_estimate::recovery_chain::ChainPatternLaw, recovered: &antecedent_estimate::recovery_chain::ChainRecoveredLaw) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::release_migration::RouteAxis>::const fn as_str(self) -> &'static str
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire>::fn from_table(table: &antecedent_estimate::counterfactual_transport_sampled::counts::SampledRegimeCounts) -> Self
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCountTableWire>::fn to_table(&self) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::counts::SampledRegimeCounts, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>::const fn slot(&self) -> &'static str
@@ -6884,6 +6965,10 @@ pub fn antecedent_io::measured_inference::split_parent_set_effect::run(source: &
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, names: &[alloc::string::String], treatment: u32, outcome: u32) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::split_parent_set_effect::treatment_parent_set_under_conflicts(structure: &antecedent_discovery::selective::structure::DiscoveredStructure, evidence: &antecedent_io::measured_inference::split_parent_set_effect::ConflictEvidence<'_>, names: &[alloc::string::String], treatment: u32, outcome: u32, max_colliders: usize) -> core::result::Result<antecedent_io::measured_inference::split_parent_set_effect::TreatmentNeighbourhood, antecedent_io_core::error::IoError>
 pub fn antecedent_io::msm_sensitivity_adapter::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
+pub fn antecedent_io::release_migration::adopt_carried_target_digest(retained: &[u8; 32], current: &[u8; 32]) -> core::result::Result<[u8; 32], antecedent_io::release_migration::MigrationError>
+pub fn antecedent_io::release_migration::adopt_retained_score_row_digest(retained: &[u8; 32], row_ids: &[u64]) -> core::result::Result<[u8; 32], antecedent_io::release_migration::MigrationError>
+pub fn antecedent_io::release_migration::current_score_row_digest(row_ids: &[u64]) -> [u8; 32]
+pub fn antecedent_io::release_migration::narrow_score_row_digest(row_ids: &[u32]) -> [u8; 32]
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_io::sampled_counterfactual_transport_artifact::ConsumedSampledCounterfactualTransport, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::overlap_declaration_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, bindings: &[(antecedent_estimate::counterfactual_transport_sampled::counts::SampledTableKey, antecedent_contract::evidence_ledger::ids::SourceId)]) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::overlap::OverlapDeclaration, antecedent_io_core::error::IoError>
@@ -6929,6 +7014,7 @@ pub mod antecedent_io::posterior_convert
 pub mod antecedent_io::predictive_assessment_artifact
 pub mod antecedent_io::recovery_artifact
 pub mod antecedent_io::recovery_chain_artifact
+pub mod antecedent_io::release_migration
 pub mod antecedent_io::sampled_counterfactual_transport_artifact
 pub mod antecedent_io::sampled_recovery_artifact
 pub mod antecedent_io::scenario_covariance_artifact
@@ -8050,6 +8136,24 @@ pub variant antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError::
 pub variant antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError::Route(antecedent_identify::recovery_chain::ChainRecoveryError)
 pub variant antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError::Undecodable(alloc::string::String)
 pub variant antecedent_io::recovery_chain_artifact::RecoveryChainArtifactError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io::release_migration::AxisStanding::Migrated
+pub variant antecedent_io::release_migration::AxisStanding::StillUnmigrated
+pub variant antecedent_io::release_migration::ManifestRouteStatus::Closed
+pub variant antecedent_io::release_migration::ManifestRouteStatus::ExecutionOnly
+pub variant antecedent_io::release_migration::ManifestRouteStatus::FittingGap
+pub variant antecedent_io::release_migration::ManifestRouteStatus::Graphless
+pub variant antecedent_io::release_migration::ManifestRouteStatus::Licensed
+pub variant antecedent_io::release_migration::MigrationError::AxisStillUnmigrated { axis: antecedent_io::release_migration::RouteAxis }
+pub variant antecedent_io::release_migration::MigrationError::CarriedTargetDigestNotTranslated
+pub variant antecedent_io::release_migration::MigrationError::ScoreRowDigestNotTranslated
+pub variant antecedent_io::release_migration::RouteAxis::StaticBayesian
+pub variant antecedent_io::release_migration::RouteAxis::StaticFrequentist
+pub variant antecedent_io::release_migration::RouteAxis::TemporalBayesian
+pub variant antecedent_io::release_migration::RouteAxis::TemporalFrequentist
+pub variant antecedent_io::release_migration::TargetShape::Contrast
+pub variant antecedent_io::release_migration::TargetShape::DoseTimeSurface
+pub variant antecedent_io::release_migration::TargetShape::SingleWorld
+pub variant antecedent_io::release_migration::TargetShape::WorldCollection
 pub variant antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError::DataIdentityMismatch
 pub variant antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError::Decode(alloc::string::String)
 pub variant antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError::DerivationMismatch(alloc::string::String)
