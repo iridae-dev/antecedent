@@ -246,8 +246,8 @@ fn prepare_cells(
     if let Some(c) = continuous {
         ids.push(c.variable);
     }
-    let data = crate::prepare::admit_estimator_columns(data, &ids)?;
-    let mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+    let crate::prepare::AdmittedColumns { data, row_mask: mask, .. } =
+        crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
     let t_cols: Vec<Vec<f64>> = treatments
         .iter()
         .map(|&id| data.float64_masked(id, &mask).map_err(EstimationError::from))

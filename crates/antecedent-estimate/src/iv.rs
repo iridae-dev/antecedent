@@ -436,8 +436,8 @@ fn prepare_iv_problem(
     ids.push(outcome);
     ids.extend_from_slice(&estimand.instruments);
     ids.extend_from_slice(&estimand.adjustment_set);
-    let data = crate::prepare::admit_estimator_columns(data, &ids)?;
-    let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+    let crate::prepare::AdmittedColumns { data, row_mask, .. } =
+        crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
     let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
     let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
     let nrows = t.len();

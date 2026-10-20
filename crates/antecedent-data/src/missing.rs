@@ -427,6 +427,7 @@ impl MissingConversion {
     }
 
     /// Rows kept, when this conversion is the whole population.
+    #[must_use]
     pub fn proved_rows_kept(&self) -> Option<usize> {
         if !self.population_bound || self.chunks.len() != 1 {
             return None;

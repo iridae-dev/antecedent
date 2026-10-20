@@ -36,8 +36,8 @@ use crate::categorical::Contrast;
 use crate::error::DataError;
 use crate::materialize::{
     EstimatorStreamNeed, MaterializationReason, PreparationControls, PreparationProduct,
-    SchemaColumn, SchemaConversion, StreamingScan, finish_scan, materialization_diagnostic,
-    prepare_table,
+    SchemaColumn, SchemaConversion, SchemaValueKind, StreamingScan, finish_scan,
+    materialization_diagnostic, prepare_table,
 };
 use crate::missing::{ChunkMissing, MissingConversion, dropped_row_digest};
 use crate::sample_policy::MissingPolicy;
@@ -1192,7 +1192,7 @@ pub enum EstimatorFrame {
         /// Copy diagnostics, including an explicit materialization when chunks were joined.
         diagnostics: DiagnosticSet,
     },
-    /// A scan. [`StreamingScan::end_to_end_bound`] is `None`.
+    /// A scan. Its receipt is not a bounded end-to-end route.
     Scan(StreamingScan),
 }
 
@@ -1316,7 +1316,7 @@ fn scan_schema(frame: &ArrowFrameView, order: &[usize]) -> Result<SchemaConversi
     let mut columns = Vec::with_capacity(order.len());
     for &index in order {
         let column = &frame.columns[index];
-        let kind = column.chunks.first().map_or("empty", storage_kind);
+        let kind = column.chunks.first().map_or(SchemaValueKind::Empty, storage_kind);
         columns.push(SchemaColumn {
             name: Arc::<str>::from(column.name.as_str()),
             id: variable_id(index)?,
@@ -1326,14 +1326,14 @@ fn scan_schema(frame: &ArrowFrameView, order: &[usize]) -> Result<SchemaConversi
     Ok(SchemaConversion { columns: Arc::from(columns) })
 }
 
-fn storage_kind(column: &OwnedColumn) -> &'static str {
+const fn storage_kind(column: &OwnedColumn) -> SchemaValueKind {
     match column {
-        OwnedColumn::Float64(_) => "float64",
-        OwnedColumn::Int64(_) => "int64",
-        OwnedColumn::Boolean(_) => "boolean",
-        OwnedColumn::Categorical(_) => "categorical",
-        OwnedColumn::Timestamp(_) => "timestamp",
-        OwnedColumn::FixedVector(_) => "vector",
+        OwnedColumn::Float64(_) => SchemaValueKind::Float64,
+        OwnedColumn::Int64(_) => SchemaValueKind::Int64,
+        OwnedColumn::Boolean(_) => SchemaValueKind::Boolean,
+        OwnedColumn::Categorical(_) => SchemaValueKind::Categorical,
+        OwnedColumn::Timestamp(_) => SchemaValueKind::Timestamp,
+        OwnedColumn::FixedVector(_) => SchemaValueKind::Vector,
     }
 }
 
@@ -1405,10 +1405,10 @@ fn materialize_frame(
     let ids = order.iter().copied().map(variable_id).collect::<Result<Vec<_>, _>>()?;
     let mut finite = controls;
     finite.stream = EstimatorStreamNeed::CannotStream;
-    finite.budget = Some(crate::materialize::PreparationBudget::new(budget));
-    let product = prepare_table(&loaded.data, &ids, missing, categories, finite)?;
+    let mut product = prepare_table(&loaded.data, &ids, missing, categories, finite)?;
     let mut diagnostics = loaded.diagnostics;
     if frame.n_chunks() > 1 {
+        product = product.into_materialized_from_scan()?;
         let copied = product.receipt.admission().materialized_bytes().unwrap_or(budget);
         diagnostics.push(materialization_diagnostic(
             MaterializationReason::EstimatorCannotStream,
@@ -1874,12 +1874,12 @@ mod tests {
         assert_eq!(table.row_count(), 3);
         assert_eq!(product.receipt.proved_rows(), Some(3));
         assert!(!product.receipt.estimator_sees_unbounded_stream());
+        assert!(product.receipt.materialized_from_scan());
+        // No budget was given, so the copy is recorded as unmetered rather than admitted.
+        assert!(!product.receipt.is_bounded_end_to_end_route());
         assert!(diagnostics.entries.iter().any(|entry| {
             entry.code.contains("materialize.estimator")
         }));
-        if product.receipt.is_bounded_end_to_end_route() {
-            assert!(!product.receipt.estimator_sees_unbounded_stream());
-        }
 
         controls.stream = EstimatorStreamNeed::CanStream;
         let scan =
@@ -1887,14 +1887,8 @@ mod tests {
         let EstimatorFrame::Scan(scan) = scan else {
             panic!("a streaming estimator keeps the chunks");
         };
-        if scan.end_to_end_bound().is_some() {
-            assert!(
-                !scan.estimator_sees_stream(),
-                "bound claimed while the estimator still sees an unbounded stream"
-            );
-        }
-        assert!(scan.estimator_sees_stream());
-        assert!(scan.end_to_end_bound().is_none());
+        assert!(scan.receipt().estimator_sees_unbounded_stream());
+        assert!(!scan.receipt().is_bounded_end_to_end_route());
         assert!(!scan.receipt().missing().unwrap().population_bound);
     }
 }

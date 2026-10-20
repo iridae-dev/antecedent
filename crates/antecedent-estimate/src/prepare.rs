@@ -5,7 +5,10 @@
 use antecedent_core::{
     AverageEffectQuery, Intervention, PopulationRegistry, TargetPopulation, VariableId,
 };
-use antecedent_data::materialize::{PreparationControls, prepare_table};
+use antecedent_data::materialize::{
+    EstimatorStreamNeed, PreparationControls, PreparationProduct, PreparationReceipt,
+    prepare_table,
+};
 use antecedent_data::{MissingPolicy, TableView, TabularData};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_identify::{EstimandClaim, IdentificationResult};
@@ -118,41 +121,52 @@ pub(crate) fn validate_ate_query_with_targets(
     Ok(())
 }
 
+/// What every estimator in this crate reads: one finite table, never a scan.
+///
+/// An estimator declares this to [`admit_estimator_columns`]. A frame it cannot
+/// stream is refused or explicitly materialized before it gets here, and the
+/// receipt says which.
+pub(crate) const FINITE_TABLE_ONLY: EstimatorStreamNeed = EstimatorStreamNeed::CannotStream;
+
+/// The finite table an estimator reads, with the products of preparing it.
+pub(crate) struct AdmittedColumns<'a> {
+    /// The table the estimator reads.
+    pub data: &'a TabularData,
+    /// Complete-case mask over `data`'s rows, computed once by preparation.
+    pub row_mask: Vec<bool>,
+    /// Preparation receipt. No byte budget is compared here, so the route is not
+    /// described as bounded.
+    #[allow(dead_code, reason = "retained so callers that record a receipt can read it")]
+    pub receipt: PreparationReceipt,
+}
+
 /// Run the accepted preparation path, then hand the estimator the same finite table.
 ///
-/// The receipt must prove the table's row count. A scan described as a bounded
-/// route is refused.
+/// `stream` is the estimator's own declaration. An estimator that declares it can
+/// stream is refused here because it is being handed a table. The receipt must
+/// prove the table's row count.
 ///
 /// # Errors
 ///
-/// Schema, missing-value, or admission failure, or a receipt that does not prove
-/// this table.
+/// Schema, missing-value, or admission failure, an estimator that declares it
+/// reads a scan, or a receipt that does not prove this table.
 pub(crate) fn admit_estimator_columns<'a>(
     data: &'a TabularData,
     ids: &[VariableId],
-) -> Result<&'a TabularData, EstimationError> {
-    let product = prepare_table(
-        data,
-        ids,
-        MissingPolicy::CompleteCase,
-        &[],
-        PreparationControls::finite_resident(),
-    )?;
-    if product.receipt.is_bounded_end_to_end_route()
-        && product.receipt.estimator_sees_unbounded_stream()
-    {
-        return Err(EstimationError::unsupported(
-            "scan described as a bounded route while the estimator still sees it",
-        ));
-    }
+    stream: EstimatorStreamNeed,
+) -> Result<AdmittedColumns<'a>, EstimationError> {
+    let mut controls = PreparationControls::finite_resident();
+    controls.stream = stream;
+    let PreparationProduct { row_mask, receipt, .. } =
+        prepare_table(data, ids, MissingPolicy::CompleteCase, &[], controls)?;
     let rows = u64::try_from(data.row_count())
         .map_err(|_| EstimationError::data_msg("admitted row count does not fit u64"))?;
-    if product.receipt.proved_rows() != Some(rows) {
+    if receipt.proved_rows() != Some(rows) {
         return Err(EstimationError::unsupported(
             "the preparation receipt does not prove the finite table the estimator reads",
         ));
     }
-    Ok(data)
+    Ok(AdmittedColumns { data, row_mask, receipt })
 }
 
 /// Intersect a complete-case mask with a [`TargetPopulation::Predicate`] selection.

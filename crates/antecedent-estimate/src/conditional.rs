@@ -269,8 +269,8 @@ impl ConditionalLinearAdjustment {
             estimand.adjustment_set.iter().copied().filter(|&z| z != w_id).collect();
         let mut ids = vec![query.treatment, query.outcome, w_id];
         ids.extend_from_slice(&extra_z);
-        let data = crate::prepare::admit_estimator_columns(data, &ids)?;
-        let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let crate::prepare::AdmittedColumns { data, row_mask, .. } =
+            crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
         let t = data.float64_masked(query.treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_masked(query.outcome, &row_mask).map_err(EstimationError::from)?;
         let w = data.float64_masked(w_id, &row_mask).map_err(EstimationError::from)?;

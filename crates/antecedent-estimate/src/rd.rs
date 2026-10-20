@@ -317,8 +317,8 @@ impl SharpRegressionDiscontinuity {
         }
 
         let ids = [query.outcome, running_variable, query.treatment];
-        let data = crate::prepare::admit_estimator_columns(data, &ids)?;
-        let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let crate::prepare::AdmittedColumns { data, row_mask, .. } =
+            crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
         let outcome_full =
             data.float64_masked(query.outcome, &row_mask).map_err(EstimationError::from)?;
         let running_full =

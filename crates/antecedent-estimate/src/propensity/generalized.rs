@@ -621,8 +621,8 @@ impl PreparedLevels {
         ids.push(query.treatment);
         ids.push(query.outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let data = crate::prepare::admit_estimator_columns(data, &ids)?;
-        let mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let crate::prepare::AdmittedColumns { data, row_mask: mask, .. } =
+            crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
         let t = data.float64_masked(query.treatment, &mask).map_err(EstimationError::from)?;
         let outcome = data.float64_masked(query.outcome, &mask).map_err(EstimationError::from)?;
         let n = t.len();

@@ -17,7 +17,8 @@ use antecedent_core::{
 };
 use antecedent_data::categorical::ExpandedContrast;
 use antecedent_data::materialize::{
-    PreparationBudget, PreparationControls, PreparationReceipt, StreamingScan, prepare_table,
+    PreparationBudget, PreparationControls, PreparationProduct, PreparationReceipt, StreamingScan,
+    prepare_table,
 };
 use antecedent_data::{Contrast, MissingPolicy, TableView, TabularData};
 use antecedent_expr::{
@@ -315,15 +316,9 @@ impl LinearAdjustmentAte {
 
     /// Refuse `scan`. Linear adjustment reads a finite table.
     ///
-    /// A claimed end-to-end bound is also refused when the estimator still sees
-    /// the scan. Materialize the frame before calling [`Self::prepare`].
+    /// Materialize the frame before calling [`Self::prepare`].
     #[must_use = "the refusal is the decision not to read the scan"]
-    pub fn reject_stream(scan: &StreamingScan) -> EstimationError {
-        if scan.end_to_end_bound().is_some() && scan.estimator_sees_stream() {
-            return EstimationError::unsupported(
-                "scan described as a bounded route while the estimator still sees it",
-            );
-        }
+    pub fn reject_stream(_scan: &StreamingScan) -> EstimationError {
         EstimationError::unsupported(
             "linear adjustment cannot stream; materialize the frame or refuse it",
         )
@@ -460,16 +455,13 @@ impl LinearAdjustmentAte {
         ids.extend_from_slice(&estimand.adjustment_set);
         let mut controls = PreparationControls::finite_resident();
         controls.budget = self.preparation_budget;
-        let prepared = prepare_table(
+        let PreparationProduct { expanded, mut row_mask, receipt: preparation } = prepare_table(
             data,
             &ids,
             MissingPolicy::CompleteCase,
             &self.contrasts,
             controls,
         )?;
-        refuse_bounded_scan(&prepared.receipt)?;
-        let preparation = prepared.receipt;
-        let mut row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         crate::prepare::intersect_predicate_mask(
             &mut row_mask,
             &query.target_population,
@@ -487,7 +479,7 @@ impl LinearAdjustmentAte {
         let covs = adjustment_covariates(
             data,
             &estimand.adjustment_set,
-            &prepared.expanded,
+            &expanded,
             &row_mask,
         )?;
         let cov_refs: Vec<(VariableId, &[f64])> =
@@ -1337,15 +1329,6 @@ fn huber_homoskedastic_se(
         .map_or(f64::NAN, |inv| (kappa * kappa * tau2 * inv[t_col * ncols + t_col].max(0.0)).sqrt())
 }
 
-fn refuse_bounded_scan(receipt: &PreparationReceipt) -> Result<(), EstimationError> {
-    if receipt.is_bounded_end_to_end_route() && receipt.estimator_sees_unbounded_stream() {
-        return Err(EstimationError::unsupported(
-            "scan described as a bounded route while the estimator still sees it",
-        ));
-    }
-    Ok(())
-}
-
 fn adjustment_covariates(
     data: &TabularData,
     adjustment: &[VariableId],
@@ -1473,6 +1456,8 @@ mod tests {
         AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
         RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
     };
+    use antecedent_data::backend_boundary::PreparationBackend;
+    use antecedent_data::materialize::{AdmissionRecord, SchemaValueKind};
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
@@ -2210,20 +2195,26 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let prepared = LinearAdjustmentAte::new().prepare(&data, &estimand, &query).unwrap();
         let receipt = &prepared.preparation;
-        assert_eq!(receipt.path(), "direct_arrow");
+        assert_eq!(receipt.path(), PreparationBackend::DirectArrow);
         assert_eq!(
             receipt.schema().columns.iter().map(|column| column.name.as_ref()).collect::<Vec<_>>(),
             ["t", "y", "z"]
         );
-        assert_eq!(receipt.schema().columns[0].value_kind, "continuous");
+        assert_eq!(receipt.schema().columns[0].value_kind, SchemaValueKind::Continuous);
         assert!(receipt.categories().is_empty());
         assert_eq!(receipt.missing().unwrap().proved_rows_kept(), Some(data.row_count()));
         assert_eq!(receipt.proved_rows(), Some(u64::try_from(data.row_count()).unwrap()));
         assert!(!receipt.estimator_sees_unbounded_stream());
-        assert!(receipt.is_bounded_end_to_end_route());
-        if receipt.is_bounded_end_to_end_route() {
-            assert!(!receipt.estimator_sees_unbounded_stream());
-        }
+        // No budget was declared, so the payload is unmetered and the route is not bounded.
+        assert!(matches!(receipt.admission(), AdmissionRecord::Unmetered { .. }));
+        assert!(!receipt.is_bounded_end_to_end_route());
+
+        let budgeted = LinearAdjustmentAte::new()
+            .with_preparation_budget(PreparationBudget::new(1 << 20))
+            .prepare(&data, &estimand, &query)
+            .unwrap();
+        assert!(budgeted.preparation.is_bounded_end_to_end_route());
+        assert_eq!(budgeted.preparation.proved_rows(), receipt.proved_rows());
     }
 
     #[test]
@@ -2258,14 +2249,8 @@ mod tests {
         };
         let refused = LinearAdjustmentAte::reject_stream(&scan);
         assert!(refused.to_string().contains("cannot stream"), "{refused}");
-        if scan.end_to_end_bound().is_some() {
-            assert!(
-                !scan.estimator_sees_stream(),
-                "bound claimed while the estimator still sees an unbounded stream"
-            );
-        }
-        assert!(scan.estimator_sees_stream());
-        assert!(scan.end_to_end_bound().is_none());
+        assert!(scan.receipt().estimator_sees_unbounded_stream());
+        assert!(!scan.receipt().is_bounded_end_to_end_route());
     }
 
     fn categorical_adjustment_table() -> (TabularData, IdentifiedEstimand) {
@@ -2377,5 +2362,31 @@ mod tests {
         assert_eq!(prepared.preparation.categories().len(), 1);
         assert_eq!(prepared.preparation.categories()[0].coding, "treatment");
         assert_eq!(prepared.preparation.categories()[0].n_columns, 1);
+    }
+
+    #[test]
+    fn a_repeated_categorical_is_expanded_and_recorded_once() {
+        use antecedent_data::{CategoryCode, Contrast};
+        let (data, _) = categorical_adjustment_table();
+        let contrast = Contrast::Treatment { reference: CategoryCode::from_raw(0) };
+        let ids = [
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            VariableId::from_raw(2),
+        ];
+        let product = prepare_table(
+            &data,
+            &ids,
+            MissingPolicy::CompleteCase,
+            &[(VariableId::from_raw(2), contrast)],
+            PreparationControls::finite_resident(),
+        )
+        .unwrap();
+        assert_eq!(product.expanded.len(), 1);
+        assert_eq!(product.receipt.categories().len(), 1);
+        assert_eq!(product.receipt.schema().columns.len(), 3);
+        assert_eq!(product.receipt.category_levels().len(), 1);
+        assert_eq!(product.row_mask, vec![true; data.row_count()]);
     }
 }

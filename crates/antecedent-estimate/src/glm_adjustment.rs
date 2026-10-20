@@ -284,8 +284,8 @@ impl GlmAdjustmentAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let data = crate::prepare::admit_estimator_columns(data, &ids)?;
-        let mut row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
+        let crate::prepare::AdmittedColumns { data, mut row_mask, .. } =
+            crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
         crate::prepare::intersect_predicate_mask(
             &mut row_mask,
             &query.target_population,

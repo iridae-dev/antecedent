@@ -66,8 +66,7 @@ pub(crate) fn cluster_worker_slots(
         ));
     }
     match matrix {
-        Ok(_)
-        | Err(RouteMemoryError::ExceedsBudget { .. } | RouteMemoryError::Unrepresentable) => {
+        Ok(_) | Err(RouteMemoryError::ExceedsBudget { .. } | RouteMemoryError::Unrepresentable) => {
             Ok(slots)
         }
         Err(error) => Err(EstimationError::data_msg(error.to_string())),
@@ -110,17 +109,14 @@ pub(crate) fn admit_group_replicate_matrix(
         .admit(budget)
 }
 
-fn index_byte_width() -> u64 {
+pub(crate) fn index_byte_width() -> u64 {
     u64::try_from(size_of::<u64>()).unwrap_or(8)
 }
 
 fn index_bytes(slots: usize) -> Result<u64, EstimationError> {
-    u64::try_from(slots)
-        .ok()
-        .and_then(|slots| slots.checked_mul(index_byte_width()))
-        .ok_or_else(|| {
-            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
-        })
+    u64::try_from(slots).ok().and_then(|slots| slots.checked_mul(index_byte_width())).ok_or_else(
+        || EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity"),
+    )
 }
 
 /// Bytes of the retained `n × workers` index buffer.
@@ -1360,8 +1356,9 @@ mod tests {
         let workers = 4usize;
         let groups = 4usize;
         let replicates = 200usize;
-        let matrix_bytes = groups * replicates * size_of::<u64>();
-        let retained_bytes = n * workers * size_of::<u64>();
+        let width = usize::try_from(index_byte_width()).unwrap();
+        let matrix_bytes = groups * replicates * width;
+        let retained_bytes = n * workers * width;
         assert!(retained_bytes < matrix_bytes);
         let budget = RouteBudget::new(u64::try_from(retained_bytes).unwrap());
         let slots = cluster_worker_slots(n, workers, groups, replicates, budget).unwrap();
@@ -1376,7 +1373,7 @@ mod tests {
     fn route_budget_refuses_groups_by_replicates_before_allocation() {
         let groups = 4usize;
         let replicates = 200usize;
-        let matrix_bytes = u64::try_from(groups * replicates * size_of::<u64>()).unwrap();
+        let matrix_bytes = u64::try_from(groups * replicates).unwrap() * index_byte_width();
         let budget = RouteBudget::new(matrix_bytes - 1);
         let refused = admit_group_replicate_matrix(groups, replicates, budget).unwrap_err();
         assert!(matches!(refused, RouteMemoryError::ExceedsBudget { .. }));
@@ -1395,5 +1392,29 @@ mod tests {
         assert!(refused.to_string().contains("addressable capacity"), "{refused}");
         assert!(retained_index_bytes(n, 2).is_err());
         assert!(BootstrapIndexWave::allocate(n, 2).is_err());
+    }
+
+    #[test]
+    fn index_buffer_arithmetic_is_checked_beyond_a_wrapping_zero() {
+        let width = usize::try_from(index_byte_width()).unwrap();
+        // The slot product fits in `usize` but the byte product does not.
+        let slots_ok_bytes_overflow = usize::MAX / width + 1;
+        let refused = retained_index_slots(slots_ok_bytes_overflow, 1).unwrap_err();
+        assert!(refused.to_string().contains("addressable capacity"), "{refused}");
+        assert!(retained_index_bytes(slots_ok_bytes_overflow, 1).is_err());
+        // Slots that fit but exceed the addressable allocation limit.
+        let unaddressable = usize::try_from(isize::MAX).unwrap() / width + 1;
+        assert!(retained_index_slots(unaddressable, 1).is_err());
+        // Worker count pushes an otherwise valid row count over the limit.
+        assert!(retained_index_slots(unaddressable / 2 + 1, 2).is_err());
+        assert!(retained_index_slots(usize::MAX, usize::MAX).is_err());
+        // Cluster paths refuse before either buffer exists.
+        let budget = RouteBudget::new(u64::MAX);
+        assert!(cluster_worker_slots(unaddressable, 1, 2, 2, budget).is_err());
+        assert!(cluster_worker_slots(4, usize::MAX, 2, 2, budget).is_err());
+        // A groups-by-replicates matrix that overflows is never allocated.
+        let matrix = admit_group_replicate_matrix(usize::MAX, 2, budget).unwrap_err();
+        assert!(matches!(matrix, RouteMemoryError::Unrepresentable), "{matrix}");
+        assert!(index_bytes(usize::MAX).is_err());
     }
 }
