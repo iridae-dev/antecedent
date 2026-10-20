@@ -646,8 +646,12 @@ pub fn prepare_table(
     let order = unique_order(order);
     let schema = convert_schema(table, &order)?;
     let (expanded, levels) = convert_categories(table, &order, categories)?;
-    let missing = convert_missing(table, &order, missing)?;
-    let row_mask = table.complete_case_mask(&order)?;
+    let (missing, row_mask) = convert_missing(table, &order, missing)?;
+    if !row_mask.iter().any(|keep| *keep) {
+        return Err(DataError::EmptySelection {
+            context: "complete-case mask after validity/analysis filtering",
+        });
+    }
     let bytes = payload_bytes(table, &order, &expanded, &row_mask)?;
     let rows = fit_u64(table.row_count())?;
     let (admission, route_bound) = match controls.budget {
@@ -767,8 +771,8 @@ fn scan_receipt(
 }
 
 fn admit_backend(backend: PreparationBackend) -> Result<(), DataError> {
-    backend.admit().map(|_| ()).map_err(|refusal: LazyBackendRefusal| {
-        DataError::InvalidArgument { message: refusal.to_string() }
+    backend.admit().map(|_| ()).map_err(|refusal: LazyBackendRefusal| DataError::InvalidArgument {
+        message: refusal.to_string(),
     })
 }
 
@@ -871,8 +875,8 @@ fn convert_missing(
     table: &TabularData,
     order: &[VariableId],
     policy: MissingPolicy,
-) -> Result<MissingConversion, DataError> {
-    MissingConversion::convert(table, table.storage().analysis_mask(), order, policy)
+) -> Result<(MissingConversion, Vec<bool>), DataError> {
+    MissingConversion::convert_and_select(table, table.storage().analysis_mask(), order, policy)
 }
 
 fn physical_matches(value_type: &ValueType, column: &OwnedColumn) -> bool {
@@ -967,9 +971,8 @@ fn payload_overflow() -> DataError {
 }
 
 fn fit_u64(value: usize) -> Result<u64, DataError> {
-    u64::try_from(value).map_err(|_| DataError::InvalidArgument {
-        message: "value does not fit u64".into(),
-    })
+    u64::try_from(value)
+        .map_err(|_| DataError::InvalidArgument { message: "value does not fit u64".into() })
 }
 
 fn receipt_digest(receipt: &PreparationReceipt, chunk_rows: &[u64]) -> String {
@@ -1162,8 +1165,7 @@ mod tests {
             controls
         };
         let scan = |chunk_rows: Vec<u64>| {
-            let quote =
-                StreamQuote { scratch_bytes: Some(8), materialize_bytes: None, chunk_rows };
+            let quote = StreamQuote { scratch_bytes: Some(8), materialize_bytes: None, chunk_rows };
             let StreamDelivery::Scan(scan) =
                 deliver_stream(&quote, PreparationBudget::new(8), controls).unwrap()
             else {

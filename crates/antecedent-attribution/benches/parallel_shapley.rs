@@ -68,6 +68,7 @@ impl CoalitionPayoff for NoFork {
 fn ctx(threads: u32) -> ExecutionContext {
     let mut ctx = ExecutionContext::for_tests(7);
     ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(threads).unwrap());
+    ctx = ctx.with_admission(antecedent_core::execution::AdmissionPool::fixed(threads, u64::MAX));
     ctx
 }
 

@@ -125,6 +125,8 @@ fn main() {
     for threads in [1u32, 4] {
         let mut ctx = ExecutionContext::for_tests(5);
         ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(threads).unwrap());
+        ctx =
+            ctx.with_admission(antecedent_core::execution::AdmissionPool::fixed(threads, u64::MAX));
         let report = |name: &str, run: &dyn Fn(&mut EstimationWorkspace) -> RefutationReport| {
             let (elapsed, r) = best_of(|| run(&mut EstimationWorkspace::default()));
             println!(

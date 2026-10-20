@@ -1610,11 +1610,12 @@ mod tests {
     }
 
     #[test]
-    fn resample_scratch_above_the_hard_limit_is_refused_before_work() {
+    fn resample_scratch_above_the_admission_pool_is_refused_before_work() {
         let n = 4usize;
         let replicates = 2usize;
         let bytes = u64::try_from(n * size_of::<GlobalId>()).unwrap();
-        let mut ctx = ExecutionContext::for_tests(1);
+        let mut ctx = ExecutionContext::for_tests(1)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, bytes - 1));
         ctx.memory = MemoryBudget { soft_limit_bytes: Some(1), hard_limit_bytes: Some(bytes - 1) };
         let mut out = vec![GlobalId::new(9); n * replicates];
         let error = fill_resample_index_batch(
@@ -1627,7 +1628,7 @@ mod tests {
             &mut out,
         )
         .unwrap_err();
-        assert!(error.to_string().contains("hard byte limit"), "{error}");
+        assert!(error.to_string().contains("admission pool"), "{error}");
         assert!(out.iter().all(|id| id.get() == 9));
         assert_eq!(ctx.memory.soft_limit_bytes, Some(1));
         assert_eq!(ctx.memory.hard_limit_bytes, Some(bytes - 1));

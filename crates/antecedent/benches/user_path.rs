@@ -35,7 +35,11 @@ fn draws() -> usize {
 }
 
 fn ctx() -> ExecutionContext {
-    ExecutionContext::production_default(11)
+    let threads = std::env::var("USER_PATH_THREADS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_else(antecedent_core::default_user_threads);
+    ExecutionContext::production(11, threads)
 }
 
 fn columns(n: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
@@ -84,6 +88,15 @@ fn report(name: &str, ctx: &ExecutionContext, result: &antecedent::StudyResult) 
         result.performance.bytes_borrowed,
         result.estimate.as_effect().unwrap().ate
     );
+    eprintln!(
+        "user_path {name} stages_ns={:?} bootstrap_requested={:?} bootstrap_ok={:?} draws={:?} early_stopped={} cancelled={}",
+        result.performance.stage_timings_ns,
+        result.performance.bootstrap_replicates_requested,
+        result.performance.bootstrap_replicates_ok,
+        result.performance.n_draws,
+        result.performance.early_stopped,
+        result.performance.cancelled
+    );
 }
 
 #[allow(
@@ -95,6 +108,7 @@ fn bench_user_path(c: &mut Criterion) {
     let data = tabular(n);
     let graph = dag();
     let ctx = ctx();
+    let threads = ctx.parallelism.max_threads.get();
     if ctx.parallelism.max_threads.get() == 1 {
         eprintln!(
             "user_path threads=1 (record this; production default is capped available_parallelism)"
@@ -109,7 +123,7 @@ fn bench_user_path(c: &mut Criterion) {
         .bootstrap_replicates(bootstrap())
         .build()
         .unwrap();
-    c.bench_function("user_path_dag_ate_frequentist", |b| {
+    c.bench_function(&format!("user_path_dag_ate_frequentist/n_{n}/threads_{threads}"), |b| {
         b.iter(|| {
             black_box(frequentist.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate)
         });
@@ -139,7 +153,7 @@ fn bench_user_path(c: &mut Criterion) {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    c.bench_function("user_path_dag_ate_bayesian_laplace", |b| {
+    c.bench_function(&format!("user_path_dag_ate_bayesian_laplace/n_{n}/threads_{threads}"), |b| {
         b.iter(|| black_box(bayesian.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
     });
     report("dag_ate_bayesian_laplace", &ctx, &bayesian.run(&ctx).unwrap());
@@ -159,7 +173,7 @@ fn bench_user_path(c: &mut Criterion) {
         .bootstrap_replicates(bootstrap())
         .build()
         .unwrap();
-    c.bench_function("user_path_intervention_level", |b| {
+    c.bench_function(&format!("user_path_intervention_level/n_{n}/threads_{threads}"), |b| {
         b.iter(|| {
             black_box(intervention.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate)
         });
@@ -192,7 +206,7 @@ fn bench_user_path(c: &mut Criterion) {
         })
         .build()
         .unwrap();
-    c.bench_function("user_path_kennedy_curve", |b| {
+    c.bench_function(&format!("user_path_kennedy_curve/n_{kn}/threads_{threads}"), |b| {
         b.iter(|| black_box(curve.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
     });
     report("kennedy_curve", &ctx, &curve.run(&ctx).unwrap());
@@ -219,7 +233,7 @@ fn bench_user_path(c: &mut Criterion) {
         .bootstrap_replicates(bootstrap())
         .build()
         .unwrap();
-    c.bench_function("user_path_graph_posterior_mixture", |b| {
+    c.bench_function(&format!("user_path_graph_posterior_mixture/n_{n}/threads_{threads}"), |b| {
         b.iter(|| black_box(mixture.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
     });
     report("graph_posterior_mixture", &ctx, &mixture.run(&ctx).unwrap());
@@ -247,7 +261,7 @@ fn bench_user_path(c: &mut Criterion) {
         .bootstrap_replicates(bootstrap())
         .build()
         .unwrap();
-    c.bench_function("user_path_temporal_pulse", |b| {
+    c.bench_function(&format!("user_path_temporal_pulse/n_{n}/threads_{threads}"), |b| {
         b.iter(|| black_box(temporal.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
     });
     report("temporal_pulse", &ctx, &temporal.run(&ctx).unwrap());

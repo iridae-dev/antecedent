@@ -133,7 +133,11 @@ impl RowAccounting {
         for &id in variables {
             let validity = table.column(id)?.validity();
             let name = Arc::clone(&table.schema().get(id)?.name);
-            let missing = (0..n).filter(|&row| !validity.is_valid(row)).count();
+            let missing = if validity.is_all_valid() {
+                0
+            } else {
+                (0..n).filter(|&row| !validity.is_valid(row)).count()
+            };
             missing_by_variable.push((name, missing));
             validities.push(validity);
         }
@@ -296,10 +300,17 @@ pub fn complete_rows<T: TableView>(
     variables: &[VariableId],
 ) -> Result<Vec<bool>, DataError> {
     let n = table.row_count();
-    let mut keep: Vec<bool> =
-        (0..n).map(|row| analysis_mask.is_none_or(|mask| mask.is_valid(row))).collect();
+    let mut keep = vec![true; n];
+    if let Some(mask) = analysis_mask.filter(|mask| !mask.is_all_valid()) {
+        for (row, slot) in keep.iter_mut().enumerate() {
+            *slot = mask.is_valid(row);
+        }
+    }
     for &id in variables {
         let validity = table.column(id)?.validity();
+        if validity.is_all_valid() {
+            continue;
+        }
         for (row, slot) in keep.iter_mut().enumerate() {
             *slot = *slot && validity.is_valid(row);
         }
@@ -331,6 +342,9 @@ pub fn first_missing_cell<T: TableView>(
 ) -> Result<Option<MissingCell>, DataError> {
     for &id in variables {
         let validity = table.column(id)?.validity();
+        if validity.is_all_valid() {
+            continue;
+        }
         if let Some(row) = (0..table.row_count()).find(|&row| !validity.is_valid(row)) {
             return Ok(Some(MissingCell {
                 id,
@@ -386,12 +400,31 @@ impl MissingConversion {
         variables: &[VariableId],
         policy: MissingPolicy,
     ) -> Result<Self, DataError> {
+        Self::convert_and_select(table, analysis_mask, variables, policy)
+            .map(|(conversion, _)| conversion)
+    }
+
+    // Preparation consumes both products. Keep one selection rather than rescanning
+    // the same columns to reconstruct a mask after producing the receipt.
+    pub(crate) fn convert_and_select<T: TableView>(
+        table: &T,
+        analysis_mask: Option<&ValidityBitmap>,
+        variables: &[VariableId],
+        policy: MissingPolicy,
+    ) -> Result<(Self, Vec<bool>), DataError> {
         executable_policy(policy)?;
         if policy == MissingPolicy::ErrorOnMissing {
             refuse_error_on_missing(table, variables)?;
         }
-        let accounting = RowAccounting::complete_case(table, analysis_mask, variables)?;
-        Ok(Self::from_accounting(policy, &accounting, true))
+        let keep = complete_rows(table, analysis_mask, variables)?;
+        let accounting = RowAccounting::from_selection(
+            table,
+            analysis_mask,
+            MissingPolicy::CompleteCase,
+            variables,
+            &keep,
+        )?;
+        Ok((Self::from_accounting(policy, &accounting, true), keep))
     }
 
     /// A scan prefix. `population_bound` stays false, including when every chunk
@@ -457,10 +490,11 @@ fn refuse_error_on_missing<T: TableView>(
         return Ok(());
     };
     Err(DataError::InvalidArgument {
-        message: policy_required_text(&cell, "missing-value conversion", &[
-            MissingPolicy::CompleteCase,
-            MissingPolicy::ErrorOnMissing,
-        ]),
+        message: policy_required_text(
+            &cell,
+            "missing-value conversion",
+            &[MissingPolicy::CompleteCase, MissingPolicy::ErrorOnMissing],
+        ),
     })
 }
 
@@ -494,6 +528,70 @@ mod tests {
 
     fn ids() -> [VariableId; 2] {
         [VariableId::from_raw(0), VariableId::from_raw(1)]
+    }
+
+    #[test]
+    fn validity_fast_paths_match_scalar_selection_and_accounting() {
+        for n in [1usize, 2, 7, 8, 9, 63, 64, 65] {
+            for missing_x in [false, true] {
+                for missing_y in [false, true] {
+                    let mut x = vec![1.0; n];
+                    let mut y = vec![2.0; n];
+                    for i in 0..n {
+                        if missing_x && i % 7 == 1 {
+                            x[i] = f64::NAN;
+                        }
+                        if missing_y && i % 11 == 2 {
+                            y[i] = f64::NAN;
+                        }
+                    }
+                    for masked in [false, true] {
+                        let table = TabularData::from_f64_columns([
+                            ("x", x.as_slice()),
+                            ("y", y.as_slice()),
+                        ])
+                        .unwrap();
+                        let bytes = vec![if masked { 0x55 } else { 0xff }; n.div_ceil(8)];
+                        let mask = ValidityBitmap::from_bytes(bytes, n).unwrap();
+                        let table = table.with_analysis_mask(mask).unwrap();
+                        let expected: Vec<bool> = (0..n)
+                            .map(|i| (!masked || i % 2 == 0) && !x[i].is_nan() && !y[i].is_nan())
+                            .collect();
+                        let actual =
+                            complete_rows(&table, table.storage().analysis_mask(), &ids()).unwrap();
+                        assert_eq!(actual, expected);
+                        if expected.iter().any(|keep| *keep) {
+                            assert_eq!(table.complete_case_mask(&ids()).unwrap(), expected);
+                        } else {
+                            assert!(table.complete_case_mask(&ids()).is_err());
+                        }
+                        let accounting = RowAccounting::complete_case(
+                            &table,
+                            table.storage().analysis_mask(),
+                            &ids(),
+                        )
+                        .unwrap();
+                        let dropped: Vec<u64> = (0..n)
+                            .filter(|i| !expected[*i])
+                            .map(|i| u64::try_from(i).unwrap())
+                            .collect();
+                        assert_eq!(accounting.dropped_rows.as_ref(), dropped.as_slice());
+                        assert_eq!(
+                            accounting.rows_kept,
+                            expected.iter().filter(|keep| **keep).count()
+                        );
+                        assert_eq!(
+                            accounting.missing_by_variable[0].1,
+                            x.iter().filter(|v| v.is_nan()).count()
+                        );
+                        assert_eq!(
+                            accounting.missing_by_variable[1].1,
+                            y.iter().filter(|v| v.is_nan()).count()
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
@@ -582,13 +680,8 @@ mod tests {
     #[test]
     fn complete_case_conversion_records_the_population_and_error_on_missing_refuses() {
         let data = table();
-        let converted = MissingConversion::convert(
-            &data,
-            None,
-            &ids(),
-            MissingPolicy::CompleteCase,
-        )
-        .unwrap();
+        let converted =
+            MissingConversion::convert(&data, None, &ids(), MissingPolicy::CompleteCase).unwrap();
         assert!(converted.population_bound);
         assert_eq!(converted.proved_rows_kept(), Some(3));
         assert_eq!(converted.policy, MissingPolicy::CompleteCase);

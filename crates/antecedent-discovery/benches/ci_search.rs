@@ -126,6 +126,7 @@ fn temporal_data(p: usize, n: usize, seed: u64) -> (TimeSeriesData, Vec<Variable
 fn context(threads: u32) -> ExecutionContext {
     let mut ctx = ExecutionContext::for_tests(1);
     ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(threads).unwrap());
+    ctx = ctx.with_admission(antecedent_core::execution::AdmissionPool::fixed(threads, u64::MAX));
     ctx
 }
 
@@ -141,20 +142,22 @@ fn digest(parts: &[String]) -> u64 {
     h.finish()
 }
 
-/// Best of `RUNS` wall times; the machine running benches is rarely idle.
+/// Retain every repeat and report the median; never select the fastest run.
 const RUNS: usize = 5;
 
-fn best_of<T>(mut run: impl FnMut() -> T) -> (std::time::Duration, T) {
-    let mut best: Option<(std::time::Duration, T)> = None;
+fn measure<T>(name: &str, threads: u32, mut run: impl FnMut() -> T) -> (std::time::Duration, T) {
+    let mut samples = Vec::with_capacity(RUNS);
     for _ in 0..RUNS {
         let t = Instant::now();
         let out = run();
-        let elapsed = t.elapsed();
-        if best.as_ref().is_none_or(|(d, _)| elapsed < *d) {
-            best = Some((elapsed, out));
-        }
+        samples.push((t.elapsed(), out));
     }
-    best.unwrap()
+    println!(
+        "ci_search control={name} threads={threads} samples_ns={:?}",
+        samples.iter().map(|(time, _)| time.as_nanos()).collect::<Vec<_>>()
+    );
+    samples.sort_by_key(|(time, _)| *time);
+    samples.remove(RUNS / 2)
 }
 
 fn main() {
@@ -178,8 +181,9 @@ fn main() {
 
     for threads in [1u32, 4] {
         let ctx = context(threads);
-        let (elapsed, r) =
-            best_of(|| pc.run(&tab, &tab_vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap());
+        let (elapsed, r) = measure("pc", threads, || {
+            pc.run(&tab, &tab_vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap()
+        });
         let d = digest(&[
             links(&r.evidence.links),
             format!("{:?}", r.evidence.graph.directed_edge_count()),
@@ -190,8 +194,9 @@ fn main() {
             r.evidence.links.len()
         );
 
-        let (elapsed, r) =
-            best_of(|| plus.run(&ts, &ts_vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap());
+        let (elapsed, r) = measure("pcmci+", threads, || {
+            plus.run(&ts, &ts_vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap()
+        });
         let d = digest(&[
             links(&r.evidence.links),
             format!(
@@ -206,7 +211,7 @@ fn main() {
             r.evidence.links.len()
         );
 
-        let (elapsed, r) = best_of(|| {
+        let (elapsed, r) = measure("lpcmci", threads, || {
             lpcmci.run(&ts, &ts_vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap()
         });
         let d = digest(&[links(&r.evidence.links)]);

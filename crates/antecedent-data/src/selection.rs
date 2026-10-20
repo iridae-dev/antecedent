@@ -41,13 +41,16 @@ impl TabularData {
         out.clear();
         out.resize(n, true);
         let keep = out;
-        if let Some(mask) = self.storage().analysis_mask() {
+        if let Some(mask) = self.storage().analysis_mask().filter(|mask| !mask.is_all_valid()) {
             for (i, slot) in keep.iter_mut().enumerate() {
                 *slot = mask.is_valid(i);
             }
         }
         for &id in ids {
             let validity = self.column(id)?.validity();
+            if validity.is_all_valid() {
+                continue;
+            }
             for (i, slot) in keep.iter_mut().enumerate() {
                 if *slot && !validity.is_valid(i) {
                     *slot = false;

@@ -80,12 +80,11 @@ fn bench_pcmci(c: &mut Criterion) {
 
     c.bench_function("pcmci_n500_p4_lag2", |b| {
         b.iter(|| {
-            let _ = black_box(pcmci.run(
-                black_box(&data),
-                black_box(&vars),
-                black_box(&mut ws),
-                black_box(&ctx),
-            ));
+            let _ = black_box(
+                pcmci
+                    .run(black_box(&data), black_box(&vars), black_box(&mut ws), black_box(&ctx))
+                    .expect("PCMCI benchmark must return a complete result"),
+            );
         });
     });
 }
@@ -94,22 +93,68 @@ fn bench_pcmci_target_parallel_scaling(c: &mut Criterion) {
     // Larger target count so target-wise parallelism is meaningful.
     let (data, vars) = synth(400, 8);
     let pcmci = pcmci_config();
+    let expected = pcmci
+        .run(&data, &vars, &mut DiscoveryWorkspace::default(), &ExecutionContext::for_tests(1))
+        .expect("serial discovery truth");
     let mut group = c.benchmark_group("pcmci_target_parallel");
     for threads in [1u32, 2, 4] {
+        let mut probe = ExecutionContext::for_tests(1);
+        probe.parallelism =
+            Parallelism::bounded(NonZeroThreadCount::new(threads).expect("threads"));
+        probe = probe
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(threads, u64::MAX));
+        let result = pcmci
+            .run(&data, &vars, &mut DiscoveryWorkspace::default(), &probe)
+            .expect("parallel discovery truth");
+        assert_eq!(result.performance.ci_tests, expected.performance.ci_tests);
+        assert_eq!(result.evidence.links, expected.evidence.links);
+        eprintln!(
+            "pcmci_target_parallel threads={threads} admitted={} ci_tests={} links={} matches_serial=true",
+            probe.admission().thread_budget(),
+            result.performance.ci_tests,
+            result.evidence.links.len()
+        );
         group.bench_function(format!("threads_{threads}"), |b| {
             b.iter_custom(|iters| {
                 let mut ws = DiscoveryWorkspace::default();
                 let mut ctx = ExecutionContext::for_tests(1);
                 ctx.parallelism =
                     Parallelism::bounded(NonZeroThreadCount::new(threads).expect("threads"));
+                ctx = ctx.with_admission(antecedent_core::execution::AdmissionPool::fixed(
+                    threads,
+                    u64::MAX,
+                ));
                 let start = Instant::now();
                 for _ in 0..iters {
-                    let _ = black_box(pcmci.run(&data, &vars, &mut ws, &ctx));
+                    let _ = black_box(
+                        pcmci
+                            .run(&data, &vars, &mut ws, &ctx)
+                            .expect("PCMCI benchmark must return a complete result"),
+                    );
                 }
                 start.elapsed()
             });
         });
     }
+    // Same fixture as the historical requested-4/one-slot context. This measures
+    // the scheduler's bounded serial fallback separately from funded parallelism.
+    group.bench_function("requested_4_admitted_1", |b| {
+        b.iter_custom(|iters| {
+            let mut ws = DiscoveryWorkspace::default();
+            let mut ctx = ExecutionContext::for_tests(1);
+            ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).expect("threads"));
+            let result = pcmci.run(&data, &vars, &mut ws, &ctx).expect("capped discovery truth");
+            assert_eq!(result.evidence.links, expected.evidence.links);
+            assert_eq!(result.performance.ci_tests, expected.performance.ci_tests);
+            let start = Instant::now();
+            for _ in 0..iters {
+                black_box(
+                    pcmci.run(&data, &vars, &mut ws, &ctx).expect("complete capped discovery"),
+                );
+            }
+            start.elapsed()
+        });
+    });
     group.finish();
 }
 

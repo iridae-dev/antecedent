@@ -71,12 +71,10 @@ pub enum Determinism {
 
 /// Memory budget for planned allocations.
 ///
-/// These fields are a planner limit. No path decrements them. A root admission
-/// whose byte request is above the hard limit is refused before the pool is
-/// charged. A parallel [`ExecutionContext::map_indexed`] reserves the hard
-/// limit on its admission lease when that limit is set, capped by the pool,
-/// and reserves no RAM bytes when it is unset. The soft limit stays a planner
-/// hint.
+/// These fields are planner limits. No path decrements them. Actual byte
+/// reservations use [`AdmissionPool`], installed with [`ExecutionContext::with_admission`].
+/// A parallel [`ExecutionContext::map_indexed`] leases worker slots; its callers
+/// reserve their scratch bytes separately, so nested work can use the same account.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct MemoryBudget {
     /// Soft limit in bytes; planners should refuse or stream above this.
@@ -1444,14 +1442,15 @@ impl ExecutionContext {
     ///
     /// When `n > 1` and `max_threads > 1`, work is chunked on `thread::scope`
     /// and `f` receives [`Self::serial_inner`] so nested pools stay serial.
-    /// When `n <= 1` or the context is already serial, `f` receives `self`.
+    /// When `n <= 1` or the context is already serial, `f` receives a context
+    /// bounded by this pool's worker budget; an already compliant context is reused.
     ///
     /// The parallel path acquires one admission lease for its workers before it
     /// spawns. The lease is dropped after the workers join, including when `f`
     /// fails. Cancellation returns that lease at the next pool observation, and
     /// again when the lease is dropped. A call that cannot take the lease,
     /// including one whose context is already cancelled, evaluates `f` on the
-    /// caller and spawns nothing. A second parallel call waits until the pool
+    /// caller with a serial inner context and spawns nothing. A second parallel call waits until the pool
     /// can hold that lease. The serial path does not take a lease, so a nested
     /// map on [`Self::serial_inner`] does not wait on the outer hold.
     /// [`MemoryBudget`] is not consulted.
@@ -1505,7 +1504,22 @@ impl ExecutionContext {
         let threads = self.map_worker_count(n);
         if threads <= 1 {
             let mut scratch = make_scratch();
-            return (0..n).map(|index| f(index, self, &mut scratch)).collect();
+            // A caller can request more workers than its shared account funds.
+            // Keep nested numerical kernels within that account on the serial path too.
+            let bounded;
+            let pool_threads = self.admission.thread_budget().max(1);
+            let ctx = if self.parallelism.max_threads.get() > pool_threads {
+                bounded = Self {
+                    parallelism: Parallelism::bounded(
+                        NonZeroThreadCount::new(pool_threads).unwrap_or(NonZeroThreadCount::MIN),
+                    ),
+                    ..self.clone()
+                };
+                &bounded
+            } else {
+                self
+            };
+            return (0..n).map(|index| f(index, ctx, &mut scratch)).collect();
         }
         let Ok(worker_threads) = u32::try_from(threads) else {
             let mut scratch = make_scratch();
@@ -1513,7 +1527,8 @@ impl ExecutionContext {
         };
         let Ok(lease) = self.acquire_map_lease(worker_threads) else {
             let mut scratch = make_scratch();
-            return (0..n).map(|index| f(index, self, &mut scratch)).collect();
+            let inner = self.serial_inner();
+            return (0..n).map(|index| f(index, &inner, &mut scratch)).collect();
         };
         let inner = self.serial_inner();
         let mut slots: Vec<Option<Result<T, E>>> = (0..n).map(|_| None).collect();
@@ -2095,6 +2110,29 @@ mod tests {
     }
 
     #[test]
+    fn map_indexed_fallback_keeps_inner_parallelism_within_admission() {
+        let ctx =
+            ExecutionContext::production(1, 4).with_admission(AdmissionPool::fixed(1, u64::MAX));
+        for n in [1, 8] {
+            let threads = ctx
+                .map_indexed(n, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get()))
+                .unwrap();
+            assert_eq!(threads, vec![1; n]);
+        }
+        let ctx =
+            ExecutionContext::production(1, 4).with_admission(AdmissionPool::fixed(2, u64::MAX));
+        let threads = ctx
+            .map_indexed(1, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get()))
+            .unwrap();
+        assert_eq!(threads, vec![2]);
+        ctx.cancellation.cancel();
+        let threads = ctx
+            .map_indexed(8, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get()))
+            .unwrap();
+        assert_eq!(threads, vec![1; 8]);
+    }
+
+    #[test]
     fn map_indexed_stops_at_a_failure_and_reports_the_lowest_index() {
         let ctx = ExecutionContext::production(1, 4);
         let evaluated = AtomicUsize::new(0);
@@ -2476,7 +2514,7 @@ mod tests {
         let ctx = parallel_context(&shared, 1);
         let saw_hold = AtomicBool::new(false);
         let result = ctx.map_indexed(4, |index, _inner| {
-            if shared.available() == AdmissionRemainder::zero() {
+            if shared.available() == AdmissionRemainder::new(0, 32) {
                 saw_hold.store(true, Ordering::SeqCst);
             }
             if index == 0 { Err(index) } else { Ok(index) }
@@ -2515,7 +2553,11 @@ mod tests {
                 let now = inflight.fetch_add(1, Ordering::SeqCst).saturating_add(1);
                 peak.fetch_max(now, Ordering::SeqCst);
                 assert_eq!(shared.available().threads(), 0);
+                let scratch = inner.acquire_admission(0, 32).unwrap();
+                barrier.wait();
                 assert_eq!(shared.available().bytes(), 936);
+                barrier.wait();
+                drop(scratch);
                 barrier.wait();
                 inflight.fetch_sub(1, Ordering::SeqCst);
                 Ok::<_, ()>(index)
@@ -2530,8 +2572,8 @@ mod tests {
     }
 
     #[test]
-    fn hard_byte_limit_refuses_before_the_pool_is_charged() {
-        let shared = AdmissionPool::fixed(4, 1_000);
+    fn explicit_byte_account_refuses_before_the_pool_is_charged() {
+        let shared = AdmissionPool::fixed(4, 100);
         let mut study = ExecutionContext::for_tests(1).with_admission(shared.clone());
         study.memory = MemoryBudget { soft_limit_bytes: Some(10), hard_limit_bytes: Some(100) };
         let refused = study.acquire_admission(1, 101).unwrap_err();
@@ -2549,14 +2591,14 @@ mod tests {
             product,
             AdmissionError::ExceedsRemainder { requested_bytes: 150, remaining_bytes: 100, .. }
         ));
-        assert_eq!(shared.available(), AdmissionRemainder::new(4, 1_000));
+        assert_eq!(shared.available(), AdmissionRemainder::new(4, 100));
         assert_eq!(study.memory.soft_limit_bytes, Some(10));
         assert_eq!(study.memory.hard_limit_bytes, Some(100));
         let granted = study.acquire_admission(1, 100).unwrap();
         assert_eq!(granted.remainder().bytes(), 100);
-        assert_eq!(shared.available().bytes(), 900);
+        assert_eq!(shared.available().bytes(), 0);
         drop(granted);
-        assert_eq!(shared.available().bytes(), 1_000);
+        assert_eq!(shared.available().bytes(), 100);
         assert_eq!(study.memory.hard_limit_bytes, Some(100));
     }
 

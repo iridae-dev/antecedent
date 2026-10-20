@@ -270,6 +270,8 @@ fn parallel_matches_serial_link_set() {
     let serial = ExecutionContext::for_tests(3);
     let mut parallel = ExecutionContext::for_tests(3);
     parallel.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).expect("threads"));
+    parallel =
+        parallel.with_admission(antecedent_core::execution::AdmissionPool::fixed(4, u64::MAX));
     let a = pcmci.run(&data, &vars, &mut ws, &serial).unwrap();
     let b = pcmci.run(&data, &vars, &mut ws, &parallel).unwrap();
     let set_a: std::collections::BTreeSet<_> = a
