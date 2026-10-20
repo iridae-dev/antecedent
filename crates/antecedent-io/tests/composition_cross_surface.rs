@@ -716,8 +716,10 @@ fn gaussian_line_rows_keep_their_alignment_through_the_artifact() {
 }
 
 /// Feedback is the named modular policy. A coherent joint stores no cut, and a blank
-/// reconciliation is refused before a policy exists. The policy is a record: no public estimator
-/// takes it, so there is no cut-versus-feedback contrast to reload from an artifact.
+/// reconciliation is refused before a policy exists. This is the contract record only; the
+/// numerical cut-versus-feedback contrast reloaded from an artifact is
+/// `cut_and_feedback_reload_different_decision_variances` in
+/// `antecedent/tests/composition_cross_surface_slices.rs`, which this crate cannot depend on.
 #[test]
 fn specified_feedback_names_the_declared_policy() {
     let feedback = slice_cases::load().feedback;

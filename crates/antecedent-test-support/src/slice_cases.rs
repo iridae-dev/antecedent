@@ -175,6 +175,14 @@ pub struct Feedback {
     pub specified: String,
     /// Name of the cut policy.
     pub cut: String,
+    /// Identity of the declared cross-covariance.
+    pub covariance_id: String,
+    /// Declared correlation of the cluster margin and the temporal effect.
+    pub correlation_margin_temporal: f64,
+    /// Declared correlation of the cluster margin and the cost contrast.
+    pub correlation_margin_cost: f64,
+    /// Declared correlation of the temporal effect and the cost contrast.
+    pub correlation_temporal_cost: f64,
 }
 
 /// The recovered observation law.

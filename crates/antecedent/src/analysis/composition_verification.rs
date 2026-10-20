@@ -726,6 +726,7 @@ pub use flagship_mixed::{
 #[cfg(test)]
 mod flagship_mixed_tests {
     use antecedent_contract::bridge::SourceMappingDependence;
+    use antecedent_contract::mixed_module::{CutFeedback, MixedModulePolicy};
     use antecedent_core::ExecutionContext;
     use antecedent_expr::execution_counts::count_static_work;
     use antecedent_prob::fit_counts::count_bayesian_work;
@@ -981,6 +982,85 @@ mod flagship_mixed_tests {
         );
         assert_eq!(loaded.mean.to_bits(), decision.joint.value("mean").expect("mean").to_bits());
         assert!(load_decision(&artifact.bytes, Some(&base_artifact.identity), &context()).is_err());
+    }
+
+    fn modular(policy: CutFeedback) -> MixedModulePolicy {
+        MixedModulePolicy::declared_modular("shared cost parameter; priors reconciled", policy)
+            .expect("a non-blank reconciliation")
+    }
+
+    fn reloaded_variance(workflow: &FlagshipWorkflow) -> (f64, String) {
+        let artifact = workflow.export_decision().expect("export");
+        let loaded =
+            load_decision(&artifact.bytes, Some(&artifact.identity), &context()).expect("load");
+        (loaded.variance, artifact.identity)
+    }
+
+    #[test]
+    fn cut_and_feedback_give_different_reloaded_variances() {
+        let base = independent();
+        let dependence = declared(&base, 0.3, -0.2, 0.1);
+        let FlagshipDependence::Covariance { margin_temporal, margin_cost, temporal_cost, .. } =
+            dependence.clone()
+        else {
+            panic!("a declared covariance");
+        };
+        let run = |policy: &MixedModulePolicy| {
+            FlagshipWorkflow::execute_with_policy(&context(), dependence.clone(), policy)
+                .expect("modular workflow")
+        };
+        let cut = run(&modular(CutFeedback::Cut));
+        let feedback = run(&modular(CutFeedback::Feedback));
+        let diagonal = base.decision().margin.variance
+            + base.decision().temporal_variance
+            + base.decision().cost_variance;
+        // Coefficients (1, 1, -1) at benefit 1. Cut zeroes the cost cross-terms:
+        //   Var_cut = S_mm + S_tt + S_cc + 2 S_mt.
+        // Feedback keeps them: Var_feedback = Var_cut - 2 (S_mc + S_tc).
+        let expected_cut = diagonal + 2.0 * margin_temporal;
+        let expected_feedback = diagonal + 2.0 * (margin_temporal - margin_cost - temporal_cost);
+        let (cut_variance, cut_identity) = reloaded_variance(&cut);
+        let (feedback_variance, feedback_identity) = reloaded_variance(&feedback);
+        assert!((cut_variance - expected_cut).abs() <= 1.0e-9 * expected_cut.abs());
+        assert!(
+            (feedback_variance - expected_feedback).abs() <= 1.0e-9 * expected_feedback.abs()
+        );
+        assert!((cut_variance - feedback_variance).abs() > 1.0e-9 * cut_variance);
+        assert_ne!(cut_identity, feedback_identity);
+        // Feedback carries the same numbers as the coherent joint, but the policy
+        // is part of the sealed claim, so the identities differ.
+        let coherent = FlagshipWorkflow::execute(&context(), dependence).expect("coherent");
+        let (coherent_variance, coherent_identity) = reloaded_variance(&coherent);
+        assert!(
+            (coherent_variance - expected_feedback).abs() <= 1.0e-9 * expected_feedback.abs()
+        );
+        assert_ne!(coherent_identity, feedback_identity);
+        assert_ne!(coherent_identity, cut_identity);
+    }
+
+    #[test]
+    fn feedback_without_a_declared_covariance_is_refused_and_cut_is_independent() {
+        match FlagshipWorkflow::execute_with_policy(
+            &context(),
+            FlagshipDependence::Independent,
+            &modular(CutFeedback::Feedback),
+        ) {
+            Err(FlagshipError::Policy(_)) => {}
+            Err(other) => panic!("expected a policy refusal, got {other}"),
+            Ok(_) => panic!("feedback over independence was accepted"),
+        }
+        let base = independent();
+        let cut = FlagshipWorkflow::execute_with_policy(
+            &context(),
+            FlagshipDependence::Independent,
+            &modular(CutFeedback::Cut),
+        )
+        .expect("cut");
+        assert_eq!(
+            reloaded_variance(&cut).0.to_bits(),
+            reloaded_variance(&base).0.to_bits()
+        );
+        assert_eq!(reloaded_variance(&cut).1, reloaded_variance(&base).1);
     }
 
     #[test]

@@ -64,7 +64,11 @@
   "feedback": {
     "reconciliation": "shared theta; prior product renormalized on the overlap",
     "specified": "feedback",
-    "cut": "cut"
+    "cut": "cut",
+    "covariance_id": "feedback-cross",
+    "correlation_margin_temporal": 0.3,
+    "correlation_margin_cost": -0.2,
+    "correlation_temporal_cost": 0.1
   },
   "recovery": {
     "population": "clinic",

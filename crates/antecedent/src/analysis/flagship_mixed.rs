@@ -27,6 +27,7 @@ use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,
     BridgeScope, BridgeSource, QuantityClass, SourceMappingDependence, ValueKind,
 };
+use antecedent_contract::mixed_module::{CutFeedback, MixedModulePolicy};
 use antecedent_contract::{
     ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, ExternalRefusal, InputRole,
     PropagationOperation, QuantityRole, ReasoningView, ScientificQuantity, SlotAvailability,
@@ -94,6 +95,9 @@ pub enum FlagshipError {
     Route(&'static str),
     /// The declared cross-covariance is not a lawful covariance matrix.
     Dependence(&'static str),
+    /// The declared cut or feedback policy cannot be applied to the declared
+    /// dependence.
+    Policy(&'static str),
 }
 
 impl std::fmt::Display for FlagshipError {
@@ -108,7 +112,7 @@ impl std::fmt::Display for FlagshipError {
             Self::Decision(error) => write!(f, "decision evaluation refused: {error:?}"),
             Self::Verification(error) => write!(f, "{error}"),
             Self::Graph(detail) => write!(f, "{detail}"),
-            Self::Route(detail) | Self::Dependence(detail) => write!(f, "{detail}"),
+            Self::Route(detail) | Self::Dependence(detail) | Self::Policy(detail) => write!(f, "{detail}"),
         }
     }
 }
@@ -188,6 +192,51 @@ pub enum FlagshipDependence {
 }
 
 impl FlagshipDependence {
+    /// The dependence the cost model is fit under for `policy`.
+    ///
+    /// The cost model shares a parameter with the margin and the temporal
+    /// effect. Under a declared cut the cost posterior ignores what flows back
+    /// from those outputs, so its two cross-terms are zero; under feedback the
+    /// declared cross-terms stand. A coherent joint model keeps the declaration
+    /// as given. The cut or feedback name joins the covariance identity, so the
+    /// policy is part of the sealed claim.
+    fn under(self, policy: &MixedModulePolicy) -> Result<Self, FlagshipError> {
+        let Some(cut_feedback) = policy.cut_feedback() else {
+            return Ok(self);
+        };
+        match self {
+            Self::Independent => match cut_feedback {
+                CutFeedback::Cut => Ok(Self::Independent),
+                CutFeedback::Feedback => Err(FlagshipError::Policy(
+                    "a feedback policy declares the covariance that carries the feedback",
+                )),
+                _ => Err(FlagshipError::Policy("the cut or feedback policy is not supported")),
+            },
+            Self::Covariance { id, margin_temporal, margin_cost, temporal_cost } => {
+                if id.is_empty() {
+                    return Err(FlagshipError::Dependence(
+                        "a declared covariance names its identity",
+                    ));
+                }
+                let (margin_cost, temporal_cost) = match cut_feedback {
+                    CutFeedback::Cut => (0.0, 0.0),
+                    CutFeedback::Feedback => (margin_cost, temporal_cost),
+                    _ => {
+                        return Err(FlagshipError::Policy(
+                            "the cut or feedback policy is not supported",
+                        ));
+                    }
+                };
+                Ok(Self::Covariance {
+                    id: format!("{id}#cost_{cut_feedback}"),
+                    margin_temporal,
+                    margin_cost,
+                    temporal_cost,
+                })
+            }
+        }
+    }
+
     fn linear(&self) -> LinearDependence {
         match self {
             Self::Independent => LinearDependence::DeclaredIndependent,
@@ -397,6 +446,27 @@ impl FlagshipWorkflow {
         ctx: &ExecutionContext,
         dependence: FlagshipDependence,
     ) -> Result<Self, FlagshipError> {
+        Self::execute_with_policy(ctx, dependence, &MixedModulePolicy::coherent_joint())
+    }
+
+    /// Fit every route and the decision at benefit `1` under `dependence` and a
+    /// mixed-module `policy`.
+    ///
+    /// A cut policy zeroes the cost model's cross-terms with the margin and the
+    /// temporal effect; a feedback policy keeps the declared ones. A coherent
+    /// joint policy, and any policy over [`FlagshipDependence::Independent`]
+    /// that is a cut, give the same decision as [`Self::execute`].
+    ///
+    /// # Errors
+    /// As [`Self::execute`]; also [`FlagshipError::Policy`] when a feedback
+    /// policy is paired with [`FlagshipDependence::Independent`], which declares
+    /// no covariance to carry the feedback.
+    pub fn execute_with_policy(
+        ctx: &ExecutionContext,
+        dependence: FlagshipDependence,
+        policy: &MixedModulePolicy,
+    ) -> Result<Self, FlagshipError> {
+        let dependence = dependence.under(policy)?;
         on_route_stack(|| Self::fit(ctx, dependence))
     }
 
