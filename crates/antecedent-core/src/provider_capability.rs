@@ -15,6 +15,11 @@
 //! taken from the declared set. An empty declaration supports nothing, so the
 //! diagnostic names no next capability.
 //!
+//! [`ProviderDeclaration::probe`] asks the body to answer that same request.
+//! The declaration is not consulted. A capability the declaration lists and
+//! the body does not supply is an [`UnansweredCapability`]. The probe does not
+//! evaluate a density, update a posterior, or fit a model.
+//!
 //! Two declarations with the same name and different sets are different values.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -202,6 +207,12 @@ impl CapabilitySet {
         count
     }
 
+    /// This set plus `capability`.
+    #[must_use]
+    const fn insert(self, capability: ProviderCapability) -> Self {
+        Self { bits: self.bits | capability.mask() }
+    }
+
     /// Earliest declared capability in [`ProviderCapability::ALL`].
     ///
     /// This is a legal next request when the set is non-empty. It is `None`
@@ -224,19 +235,46 @@ impl CapabilitySet {
     }
 }
 
-/// One provider and the capabilities it actually has.
+/// Calls a provider body answers.
 ///
-/// Equality uses the id, the name, and the capability set. The same name with
-/// a different set is a different declaration.
+/// Distinct from the declared set. Listing a capability does not supply the call.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+struct ProviderBody {
+    supplied: CapabilitySet,
+}
+
+impl ProviderBody {
+    #[must_use]
+    const fn supply(self, capability: ProviderCapability) -> Self {
+        Self { supplied: self.supplied.insert(capability) }
+    }
+
+    #[must_use]
+    const fn supplies(self, capability: ProviderCapability) -> bool {
+        self.supplied.contains(capability)
+    }
+}
+
+/// One provider, the capabilities it declared, and the calls its body answers.
+///
+/// Equality uses the id, the name, the capability set, and the body. The same
+/// name with a different set or a different body is a different declaration.
+/// The body starts empty. [`Self::answering`] supplies calls.
+/// [`Self::compile`] reads the declaration only. [`Self::probe`] reads the body
+/// only.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ProviderDeclaration {
     id: ProviderId,
     name: Arc<str>,
     capabilities: CapabilitySet,
+    body: ProviderBody,
 }
 
 impl ProviderDeclaration {
     /// Declaration of provider `id` named `name` with exactly `capabilities`.
+    ///
+    /// The body answers no call. [`Self::answering`] supplies calls. Listing a
+    /// capability here does not supply one.
     ///
     /// # Errors
     ///
@@ -251,7 +289,24 @@ impl ProviderDeclaration {
         if is_blank(&name) {
             return Err(ProviderDeclarationError::BlankName);
         }
-        Ok(Self { id, name, capabilities: CapabilitySet::from_capabilities(capabilities) })
+        Ok(Self {
+            id,
+            name,
+            capabilities: CapabilitySet::from_capabilities(capabilities),
+            body: ProviderBody::default(),
+        })
+    }
+
+    /// Body that answers `calls`.
+    ///
+    /// The declaration is unchanged. A call absent from `calls` stays unanswered.
+    /// Calls already supplied stay supplied.
+    #[must_use = "the body answers these calls; the declaration is unchanged"]
+    pub fn answering(mut self, calls: impl IntoIterator<Item = ProviderCapability>) -> Self {
+        for call in calls {
+            self.body = self.body.supply(call);
+        }
+        self
     }
 
     /// Provider id.
@@ -280,8 +335,8 @@ impl ProviderDeclaration {
 
     /// Check `request` against this declaration.
     ///
-    /// The check is the whole function. It does not sample, evaluate a density,
-    /// integrate, update, or fit.
+    /// The check reads the declared set only. The body is not an input. It does
+    /// not sample, evaluate a density, integrate, update, or fit.
     ///
     /// # Errors
     ///
@@ -305,6 +360,35 @@ impl ProviderDeclaration {
             name: Arc::clone(&self.name),
             operation: capability,
             declared: self.capabilities,
+        })
+    }
+
+    /// Ask the body to answer `request`.
+    ///
+    /// The declaration is not this answer. A capability the declaration lists
+    /// and the body does not supply is unanswered. No density is evaluated, no
+    /// posterior is updated, and no model is fit.
+    ///
+    /// # Errors
+    ///
+    /// [`UnansweredCapability`] when the body does not supply `request`.
+    #[must_use = "an unanswered call is a failed probe and must be handled"]
+    pub fn probe(
+        &self,
+        request: CapabilityRequest,
+    ) -> Result<CapabilityAnswer, UnansweredCapability> {
+        let capability = request.capability();
+        if self.body.supplies(capability) {
+            return Ok(CapabilityAnswer {
+                id: self.id,
+                name: Arc::clone(&self.name),
+                capability,
+            });
+        }
+        Err(UnansweredCapability {
+            id: self.id,
+            name: Arc::clone(&self.name),
+            capability,
         })
     }
 }
@@ -450,6 +534,79 @@ impl fmt::Display for FailedCapabilityAttempt {
 
 impl std::error::Error for FailedCapabilityAttempt {}
 
+/// Answer the body returned for one capability call.
+///
+/// The probe produced this value. No density was evaluated and no model was fit.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct CapabilityAnswer {
+    id: ProviderId,
+    name: Arc<str>,
+    capability: ProviderCapability,
+}
+
+impl CapabilityAnswer {
+    /// Provider whose body answered.
+    #[must_use]
+    pub const fn provider(&self) -> ProviderId {
+        self.id
+    }
+
+    /// Provider name. This is a label, not the answer.
+    #[must_use]
+    pub fn provider_name(&self) -> &str {
+        &self.name
+    }
+
+    /// Capability the body supplied.
+    #[must_use]
+    pub const fn capability(&self) -> ProviderCapability {
+        self.capability
+    }
+}
+
+/// Probe whose call the body did not answer.
+///
+/// The declaration may list the capability. That list is not this call. No
+/// density was evaluated and no model was fit.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct UnansweredCapability {
+    id: ProviderId,
+    name: Arc<str>,
+    capability: ProviderCapability,
+}
+
+impl UnansweredCapability {
+    /// Provider that was asked.
+    #[must_use]
+    pub const fn provider(&self) -> ProviderId {
+        self.id
+    }
+
+    /// Provider name. The answer is not parsed from this string.
+    #[must_use]
+    pub fn provider_name(&self) -> &str {
+        &self.name
+    }
+
+    /// Capability the probe asked for and the body did not supply.
+    #[must_use]
+    pub const fn capability(&self) -> ProviderCapability {
+        self.capability
+    }
+}
+
+impl fmt::Display for UnansweredCapability {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "provider {} ({}) does not answer {}",
+            self.id, self.name, self.capability
+        )
+    }
+}
+
+impl std::error::Error for UnansweredCapability {}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -481,6 +638,48 @@ mod tests {
             assert_eq!(failed.legal_next(), None);
             assert!(failed.declared().is_empty());
         }
+    }
+
+    #[test]
+    fn declaration_does_not_answer_the_probe() {
+        let declared = declaration(
+            8,
+            "density",
+            [
+                ProviderCapability::Density,
+                ProviderCapability::DifferentiableLogDensity,
+                ProviderCapability::Updating,
+            ],
+        );
+        let log_density = CapabilityRequest::new(ProviderCapability::DifferentiableLogDensity);
+        assert_eq!(
+            declared.compile(log_density).unwrap().capability(),
+            ProviderCapability::DifferentiableLogDensity
+        );
+        let unanswered = declared.probe(log_density).unwrap_err();
+        assert_eq!(unanswered.provider(), ProviderId::from_raw(8));
+        assert_eq!(unanswered.provider_name(), "density");
+        assert_eq!(unanswered.capability(), ProviderCapability::DifferentiableLogDensity);
+        assert_eq!(
+            unanswered.to_string(),
+            "provider P8 (density) does not answer differentiable_log_density"
+        );
+        let update = CapabilityRequest::new(ProviderCapability::Updating);
+        assert_eq!(declared.probe(update).unwrap_err().capability(), ProviderCapability::Updating);
+
+        let answering = declared.clone().answering([
+            ProviderCapability::DifferentiableLogDensity,
+            ProviderCapability::Updating,
+        ]);
+        let answer = answering.probe(log_density).unwrap();
+        assert_eq!(answer.provider(), ProviderId::from_raw(8));
+        assert_eq!(answer.provider_name(), "density");
+        assert_eq!(answer.capability(), ProviderCapability::DifferentiableLogDensity);
+        assert_eq!(answering.probe(update).unwrap().capability(), ProviderCapability::Updating);
+        let density = CapabilityRequest::new(ProviderCapability::Density);
+        assert!(answering.probe(density).is_err());
+        assert!(answering.supports(ProviderCapability::Density));
+        assert_ne!(declared, answering);
     }
 
     #[test]

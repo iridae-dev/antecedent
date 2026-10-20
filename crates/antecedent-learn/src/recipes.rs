@@ -15,8 +15,10 @@
 //! this crate. An orthogonal-score nuisance and a frequentist g-computation
 //! plug-in mean may attach it, and the attachment stays prediction-only.
 //!
-//! Frequentist and generalized-Bayesian recipes are not likelihoods. This
-//! module does not fit a model, evaluate a density, update a posterior,
+//! A likelihood or an update also probes the provider body. The probe is the
+//! log-density or update call the recipe names. A declaration that lists the
+//! capability is not that call; the body must answer it. The probe does not
+//! fit a model. This module does not evaluate a density, update a posterior,
 //! compute a score, or integrate a functional. Row selections are physical
 //! `u64` indices. They are not converted to `usize`.
 
@@ -68,6 +70,12 @@ pub const SELECT_STUDY_DEFAULT: &str = concat!(
 
 /// Bind a provider that declares this recipe's capabilities.
 pub const BIND_MODEL_PROVIDER: &str = "bind a provider that declares this recipe's capabilities";
+
+/// Answer the log-density or update call. A declaration is not that call.
+pub const ANSWER_CAPABILITY_CALL: &str = concat!(
+    "answer the log-density or update call the recipe probes; ",
+    "listing the capability does not answer it",
+);
 
 const ESTIMATING_EQUATIONS: &[ProviderCapability] = &[ProviderCapability::EstimatingEquations];
 
@@ -298,16 +306,21 @@ impl Recipe {
         matches!(self.inference, InferenceSelection::Bayesian)
     }
 
-    /// Accept `provider` when it declares every required capability.
+    /// Accept `provider` when it declares every required capability and answers
+    /// each log-density or update call this recipe names.
     ///
     /// A Bayesian recipe refuses a prediction-only provider before the
-    /// capability list is walked. No provider operation runs.
+    /// capability list is walked. The declaration check is not the probe. The
+    /// probe then asks the body for each required log density or update. It
+    /// does not fit a model.
     ///
     /// # Errors
     ///
     /// [`RecipeError::PredictionOnlyAsLikelihood`] when this recipe is a
     /// likelihood and the provider declares only prediction.
     /// [`RecipeError::MissingCapability`] when a required capability is absent.
+    /// [`RecipeError::UnansweredCall`] when the body does not answer a required
+    /// log density or update, including when the declaration listed it.
     #[must_use = "a provider that lacks the recipe's capabilities is refused"]
     pub fn accept_provider(
         &self,
@@ -317,6 +330,7 @@ impl Recipe {
             return Err(prediction_only_likelihood(self.kind, provider));
         }
         require_capabilities(provider, self.required)?;
+        probe_required_calls(provider, self.required)?;
         Ok(AcceptedProvider { provider: provider.id(), recipe: *self })
     }
 
@@ -327,7 +341,8 @@ impl Recipe {
     /// [`RecipeError::NotALikelihood`] when the recipe is frequentist or
     /// generalized Bayesian. [`RecipeError::PredictionOnlyAsLikelihood`] when
     /// the provider declares only prediction. [`RecipeError::MissingCapability`]
-    /// when a required capability is absent.
+    /// when a required capability is absent. [`RecipeError::UnansweredCall`]
+    /// when the body does not answer a required log density or update.
     #[must_use = "a prediction-only provider is not a likelihood"]
     pub fn accept_as_likelihood(
         &self,
@@ -577,7 +592,10 @@ pub enum BoundaryUse {
     PlugInMean,
 }
 
-/// Provider accepted for a recipe. No provider operation ran.
+/// Provider accepted for a recipe.
+///
+/// The probe may have asked the body to answer a log density or an update.
+/// No model was fit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct AcceptedProvider {
     provider: ProviderId,
@@ -773,6 +791,19 @@ pub enum RecipeError {
         /// [`KEEP_PREDICTION_BOUNDARY`].
         next_attempt: &'static str,
     },
+    /// The body did not answer a log density or an update the recipe names.
+    ///
+    /// The declaration may already list that capability. The list is not the call.
+    UnansweredCall {
+        /// Provider id.
+        provider: ProviderId,
+        /// Provider name. Not a capability.
+        provider_name: String,
+        /// Log density or update the probe asked for.
+        capability: ProviderCapability,
+        /// [`ANSWER_CAPABILITY_CALL`].
+        next_attempt: &'static str,
+    },
     /// A required capability was not declared.
     MissingCapability {
         /// Provider id.
@@ -846,6 +877,12 @@ impl fmt::Display for RecipeError {
             }
             Self::PredictionBoundaryAsLikelihood { capability, next_attempt } => {
                 write!(formatter, "prediction-only boundary ({capability}) is not a likelihood")?;
+                write!(formatter, "; next attempt: {next_attempt}")
+            }
+            Self::UnansweredCall { provider, provider_name, capability, next_attempt } => {
+                write!(formatter, "provider {provider} ({provider_name})")?;
+                write!(formatter, " does not answer {capability}; ")?;
+                write!(formatter, "a declaration is not that call")?;
                 write!(formatter, "; next attempt: {next_attempt}")
             }
             Self::MissingCapability {
@@ -924,6 +961,35 @@ fn prediction_only_likelihood(kind: RecipeKind, provider: &ProviderDeclaration) 
     }
 }
 
+fn probe_required_calls(
+    provider: &ProviderDeclaration,
+    required: &[ProviderCapability],
+) -> Result<(), RecipeError> {
+    for &capability in required {
+        if !is_log_density_or_update(capability) {
+            continue;
+        }
+        if let Err(failed) = provider.probe(CapabilityRequest::new(capability)) {
+            return Err(RecipeError::UnansweredCall {
+                provider: failed.provider(),
+                provider_name: failed.provider_name().to_owned(),
+                capability: failed.capability(),
+                next_attempt: ANSWER_CAPABILITY_CALL,
+            });
+        }
+    }
+    Ok(())
+}
+
+const fn is_log_density_or_update(capability: ProviderCapability) -> bool {
+    matches!(
+        capability,
+        ProviderCapability::Density
+            | ProviderCapability::DifferentiableLogDensity
+            | ProviderCapability::Updating
+    )
+}
+
 fn require_capabilities(
     provider: &ProviderDeclaration,
     required: &[ProviderCapability],
@@ -968,13 +1034,14 @@ fn write_legal_next(
 #[cfg(test)]
 mod tests {
     use super::{
-        BIND_MODEL_PROVIDER, BoundaryUse, CoherentComponent, DECLARE_REQUIRED_CAPABILITIES,
-        InferenceSite, KEEP_PREDICTION_BOUNDARY, NAME_COMPONENT_INFERENCE, NAME_RECIPE_INFERENCE,
-        NAME_STUDY_DEFAULT, PredictionOnlyBoundary, Recipe, RecipeError, RecipeKind,
-        SELECT_DECLARED_INFERENCE, SELECT_STUDY_DEFAULT, StudyDefault,
+        ANSWER_CAPABILITY_CALL, BIND_MODEL_PROVIDER, BoundaryUse, CoherentComponent,
+        DECLARE_REQUIRED_CAPABILITIES, InferenceSite, KEEP_PREDICTION_BOUNDARY,
+        NAME_COMPONENT_INFERENCE, NAME_RECIPE_INFERENCE, NAME_STUDY_DEFAULT,
+        PredictionOnlyBoundary, Recipe, RecipeError, RecipeKind, SELECT_DECLARED_INFERENCE,
+        SELECT_STUDY_DEFAULT, StudyDefault,
     };
     use antecedent_core::{
-        InferenceSelection, ProviderCapability, ProviderDeclaration, ProviderId,
+        CapabilityRequest, InferenceSelection, ProviderCapability, ProviderDeclaration, ProviderId,
     };
 
     fn declare(id: u64, name: &str, capabilities: &[ProviderCapability]) -> ProviderDeclaration {
@@ -1159,7 +1226,8 @@ mod tests {
                 ProviderCapability::Updating,
                 ProviderCapability::Sampling,
             ],
-        );
+        )
+        .answering([ProviderCapability::Density, ProviderCapability::Updating]);
         let equations = declare(2, "ols", &[ProviderCapability::EstimatingEquations]);
 
         let bound = bayes.bind(&declared, study, &likelihood).unwrap();
@@ -1238,7 +1306,12 @@ mod tests {
                 ProviderCapability::Updating,
                 ProviderCapability::ExactIntegration,
             ],
-        );
+        )
+        .answering([
+            ProviderCapability::Density,
+            ProviderCapability::Updating,
+            ProviderCapability::ExactIntegration,
+        ]);
         let role = bayes.accept_as_likelihood(&smooth).unwrap();
         assert_eq!(role.provider(), ProviderId::from_raw(8));
         assert_eq!(role.recipe().kind(), RecipeKind::FiniteDiscrete);
@@ -1347,7 +1420,8 @@ mod tests {
                 ProviderCapability::DifferentiableLogDensity,
                 ProviderCapability::EstimatingEquations,
             ],
-        );
+        )
+        .answering([ProviderCapability::DifferentiableLogDensity]);
         assert_eq!(glm.accept_provider(&glm_provider).unwrap().provider(), ProviderId::from_raw(6));
 
         let discrete =
@@ -1465,6 +1539,71 @@ mod tests {
                 kind: RecipeKind::OrthogonalScore,
                 inference: InferenceSelection::Frequentist,
             }
+        );
+    }
+
+    #[test]
+    fn declared_log_density_without_the_call_is_refused() {
+        let glm = Recipe::new(RecipeKind::Glm, InferenceSelection::Frequentist).unwrap();
+        let declared = declare(
+            21,
+            "listed",
+            &[
+                ProviderCapability::DifferentiableLogDensity,
+                ProviderCapability::EstimatingEquations,
+            ],
+        );
+        let log_density = CapabilityRequest::new(ProviderCapability::DifferentiableLogDensity);
+        assert_eq!(declared.compile(log_density).unwrap().capability(), log_density.capability());
+        assert_eq!(
+            glm.accept_provider(&declared).unwrap_err(),
+            RecipeError::UnansweredCall {
+                provider: ProviderId::from_raw(21),
+                provider_name: "listed".to_owned(),
+                capability: ProviderCapability::DifferentiableLogDensity,
+                next_attempt: ANSWER_CAPABILITY_CALL,
+            }
+        );
+        let answering = declared.answering([ProviderCapability::DifferentiableLogDensity]);
+        assert_eq!(
+            glm.accept_provider(&answering).unwrap().provider(),
+            ProviderId::from_raw(21)
+        );
+
+        let bayes = Recipe::new(RecipeKind::LinearGaussian, InferenceSelection::Bayesian).unwrap();
+        let likelihood = declare(
+            22,
+            "likelihood",
+            &[
+                ProviderCapability::Prediction,
+                ProviderCapability::Density,
+                ProviderCapability::Updating,
+            ],
+        );
+        assert_eq!(
+            bayes.accept_as_likelihood(&likelihood).unwrap_err(),
+            RecipeError::UnansweredCall {
+                provider: ProviderId::from_raw(22),
+                provider_name: "likelihood".to_owned(),
+                capability: ProviderCapability::Density,
+                next_attempt: ANSWER_CAPABILITY_CALL,
+            }
+        );
+        let density_only = likelihood.clone().answering([ProviderCapability::Density]);
+        assert_eq!(
+            bayes.accept_provider(&density_only).unwrap_err(),
+            RecipeError::UnansweredCall {
+                provider: ProviderId::from_raw(22),
+                provider_name: "likelihood".to_owned(),
+                capability: ProviderCapability::Updating,
+                next_attempt: ANSWER_CAPABILITY_CALL,
+            }
+        );
+        let answered =
+            likelihood.answering([ProviderCapability::Density, ProviderCapability::Updating]);
+        assert_eq!(
+            bayes.accept_as_likelihood(&answered).unwrap().provider(),
+            ProviderId::from_raw(22)
         );
     }
 }
