@@ -7,6 +7,16 @@
 //! of that Gram, which is the weighted normal equation. Rows are read in batches
 //! no larger than [`CapacityOptions::batch_rows`].
 //!
+//! The cross-products are accumulated around running weighted means (a
+//! weighted Welford update per row), so the sums do not compound rounding
+//! across rows. The raw `X'WX`, `X'Wy`, and `y'Wy` are rebuilt from the
+//! centered moments once at the end. The solve still runs on the Gram, so its
+//! conditioning is the Gram's. The row stream is hashed in both passes and a
+//! source that changes between them is refused.
+//!
+//! [`OutputRetention::DiskBacked`] is refused: this route writes no spill file,
+//! so it does not offer a control whose label claims one.
+//!
 //! The mechanism-registry fitter `fit_linear_gaussian_weighted` is `pub(super)`
 //! in `antecedent-model` and is not a call site from this crate.
 //! [`antecedent_prob::gaussian_target`] is crate-private as well. This route
@@ -15,13 +25,15 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
+use std::collections::TryReserveError;
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{self, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use antecedent_core::execution_facts::OutputRetention;
 use antecedent_stats::{
-    FaerBackend, FitDiagnostics, LeastSquaresWorkspace, cholesky_spd, fit_wls, invert_square,
+    FaerBackend, FitDiagnostics, LeastSquaresWorkspace, StatsError, cholesky_spd, fit_wls,
+    invert_square,
 };
 
 const MAGIC: &[u8; 4] = b"WGOL";
@@ -47,9 +59,9 @@ pub enum CapacityControl {
 pub struct CapacityOptions {
     /// Maximum source rows materialized in one read.
     pub batch_rows: usize,
-    /// Bytes available for ownership, identity, decoders, spill, and output.
+    /// Bytes available for ownership, identity, decoders, and output.
     pub ceiling_bytes: u64,
-    /// Summary-only keeps the summary resident. Disk-backed charges it as spill.
+    /// Summary-only keeps the summary resident. Disk-backed is refused.
     pub retention: OutputRetention,
 }
 
@@ -63,9 +75,9 @@ pub struct CeilingCharges {
     pub input_ownership_bytes: u64,
     /// Digest plus the one-row staging buffer that feeds it.
     pub content_identity_bytes: u64,
-    /// Batch window, file decoder, and the reduced `fit_wls` buffers.
+    /// Batch window, file decoder, and every solver and diagnostic buffer.
     pub decoder_bytes: u64,
-    /// Declared summary bytes when retention is disk-backed. No path is stored.
+    /// Always zero: this route writes no spill file.
     pub spill_bytes: u64,
     /// Summary bytes when retention is summary-only.
     pub output_bytes: u64,
@@ -137,8 +149,75 @@ pub struct WeightedCapacityResult {
     pub source_passes: u64,
 }
 
+/// Which shape rule a design broke.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum DesignShape {
+    /// The design has no columns, or no rows to infer them from.
+    #[error("no design columns")]
+    ZeroColumns,
+    /// The weight vector is not one entry per row.
+    #[error("weights length does not match rows")]
+    WeightsLength,
+    /// The design length is not a whole number of rows.
+    #[error("design length is not rows times columns")]
+    DesignLength,
+    /// A row does not have the design width.
+    #[error("row width does not match the design")]
+    Row,
+    /// A batch window is shorter than the requested read.
+    #[error("batch window is shorter than the read")]
+    BatchWindow,
+    /// The solver returned a different number of coefficients than columns.
+    #[error("solve returned the wrong number of coefficients")]
+    SolveWidth,
+}
+
+/// Why a weight was refused.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum WeightFault {
+    /// The weight is below zero.
+    #[error("negative")]
+    Negative,
+    /// The weight is NaN or infinite.
+    #[error("not finite")]
+    NotFinite,
+}
+
+/// How a row file failed to match its layout.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum RowFileFault {
+    /// The first four bytes are not the row-file magic.
+    #[error("bad weighted-row magic")]
+    BadMagic,
+    /// The version field is not one this reader decodes.
+    #[error("unsupported weighted-row version {found}")]
+    UnsupportedVersion {
+        /// Version in the header.
+        found: u32,
+    },
+    /// A header field was shorter than its width.
+    #[error("short header")]
+    ShortHeader,
+    /// A record was shorter than its width.
+    #[error("short record")]
+    ShortRecord,
+    /// The file length is not the header length plus `nrows` whole records.
+    ///
+    /// Trailing bytes and truncation both land here.
+    #[error("file is {actual_bytes} bytes but its header describes {expected_bytes}")]
+    LengthMismatch {
+        /// Bytes the header describes.
+        expected_bytes: u64,
+        /// Bytes the file holds.
+        actual_bytes: u64,
+    },
+}
+
 /// Why a weighted capacity run refused to return a summary.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum WeightedCapacityError {
     /// `batch_rows` was zero.
@@ -155,16 +234,19 @@ pub enum WeightedCapacityError {
     /// Full reusable retention would keep every source row.
     #[error("full reusable retention would keep every source row")]
     RetentionKeepsRows,
+    /// Disk-backed retention names a spill file this route does not write.
+    #[error("disk-backed retention is unavailable: this route writes no spill file")]
+    SpillUnsupported,
     /// Column count or slice lengths do not describe one design.
     #[error("design shape: {0}")]
-    Shape(&'static str),
+    Shape(DesignShape),
     /// A weight is negative or not finite.
     #[error("weight at row {row}: {reason}")]
     Weight {
         /// Zero-based row in read order.
         row: u64,
-        /// `negative` or `not finite`.
-        reason: &'static str,
+        /// Which rule the weight broke.
+        reason: WeightFault,
     },
     /// A design entry or a response is not finite.
     #[error("non-finite design entry at row {row}")]
@@ -179,24 +261,54 @@ pub enum WeightedCapacityError {
     #[error("singular weighted Gram")]
     Singular,
     /// [`fit_wls`] refused the reduced design.
-    #[error("weighted solve: {0}")]
-    Solve(String),
-    /// The five charges do not fit in the ceiling.
-    #[error("ceiling {ceiling} cannot hold {total} bytes")]
+    #[error("weighted solve refused the reduced design")]
+    Solve(#[source] StatsError),
+    /// The charges do not fit in the ceiling.
+    #[error("ceiling {ceiling} cannot hold {total} bytes ({over_by} over)")]
     OverCeiling {
         /// Declared ceiling.
         ceiling: u64,
         /// Charges that were refused.
         total: u64,
+        /// Bytes by which the reservation exceeds the ceiling.
+        over_by: u64,
         /// The refused reservation.
         charges: CeilingCharges,
     },
     /// A byte count or a row count overflowed.
     #[error("capacity byte count overflowed")]
     Overflow,
-    /// The row file could not be read or did not match this layout.
+    /// The allocator refused a buffer this run had reserved room for.
+    #[error("could not allocate {bytes} bytes for {what}")]
+    Allocation {
+        /// Which buffer was being allocated.
+        what: &'static str,
+        /// Bytes requested.
+        bytes: u64,
+        /// The allocator's refusal.
+        #[source]
+        source: TryReserveError,
+    },
+    /// The row file could not be opened, read, or seeked.
+    #[error("row file: {context}")]
+    Io {
+        /// The operation that failed.
+        context: &'static str,
+        /// The operating-system error.
+        #[source]
+        source: io::Error,
+    },
+    /// The row file did not match this layout.
     #[error("row file: {0}")]
-    Io(String),
+    RowFile(RowFileFault),
+    /// The row stream hashed differently in the second pass.
+    #[error("source rows changed between the cross-product pass and the diagnostic pass")]
+    SourceChanged {
+        /// Identity from the cross-product pass.
+        first: [u8; 32],
+        /// Identity from the diagnostic pass.
+        second: [u8; 32],
+    },
     /// [`WeightedRowSource::prepare_decoder`] was not called for this bound.
     #[error("decoder was not prepared for this batch bound")]
     DecoderNotPrepared,
@@ -226,7 +338,7 @@ pub trait WeightedRowSource {
     ///
     /// # Errors
     ///
-    /// The bound is zero or the reservation overflows.
+    /// The bound is zero, the reservation overflows, or the allocator refuses.
     fn prepare_decoder(&mut self, batch_rows: usize) -> Result<(), WeightedCapacityError>;
 
     /// Bytes requested from the allocator for the decoder. Zero before preparation.
@@ -237,7 +349,7 @@ pub trait WeightedRowSource {
     ///
     /// # Errors
     ///
-    /// The file could not be seeked.
+    /// The file could not be seeked, or its length no longer matches its header.
     fn rewind(&mut self) -> Result<(), WeightedCapacityError>;
 
     /// Copy at most `max_rows` into the front of each slice.
@@ -281,17 +393,17 @@ impl<'a> ResidentWeightedRows<'a> {
         weights: &'a [f64],
     ) -> Result<Self, WeightedCapacityError> {
         if y.len() != weights.len() {
-            return Err(WeightedCapacityError::Shape("weights length != rows"));
+            return Err(WeightedCapacityError::Shape(DesignShape::WeightsLength));
         }
         let ncols = if y.is_empty() {
-            return Err(WeightedCapacityError::Shape("ncols"));
+            return Err(WeightedCapacityError::Shape(DesignShape::ZeroColumns));
         } else if x_rowmajor.len() % y.len() != 0 {
-            return Err(WeightedCapacityError::Shape("design length"));
+            return Err(WeightedCapacityError::Shape(DesignShape::DesignLength));
         } else {
             x_rowmajor.len() / y.len()
         };
         if ncols == 0 {
-            return Err(WeightedCapacityError::Shape("ncols"));
+            return Err(WeightedCapacityError::Shape(DesignShape::ZeroColumns));
         }
         Ok(Self { x: x_rowmajor, y, weights, ncols, nrows: y.len(), cursor: 0, bound: None })
     }
@@ -349,14 +461,11 @@ impl WeightedRowSource for ResidentWeightedRows<'_> {
         require_batch_request(max_rows, bound)?;
         require_window(max_rows, self.ncols, x_rowmajor, y, weights)?;
         let take = max_rows.min(self.nrows.saturating_sub(self.cursor));
-        for row in 0..take {
-            let src = self.cursor + row;
-            let start = row * self.ncols;
-            x_rowmajor[start..start + self.ncols]
-                .copy_from_slice(&self.x[src * self.ncols..(src + 1) * self.ncols]);
-            y[row] = self.y[src];
-            weights[row] = self.weights[src];
-        }
+        let rows = self.cursor..self.cursor + take;
+        let cells = rows.start * self.ncols..rows.end * self.ncols;
+        x_rowmajor[..take * self.ncols].copy_from_slice(&self.x[cells]);
+        y[..take].copy_from_slice(&self.y[rows.clone()]);
+        weights[..take].copy_from_slice(&self.weights[rows]);
         self.cursor += take;
         Ok(take)
     }
@@ -370,6 +479,7 @@ pub struct FileWeightedRows {
     ncols: usize,
     nrows: u64,
     rows_left: u64,
+    expected_len: u64,
     bound: Option<usize>,
     decoder: Vec<u8>,
     reserved_bytes: u64,
@@ -382,34 +492,56 @@ impl FileWeightedRows {
     ///
     /// # Errors
     ///
-    /// The header is short, the magic or version does not match, or a count
-    /// does not fit.
+    /// The header is short, the magic or version does not match, a count does
+    /// not fit, or the file length is not the header plus `nrows` whole
+    /// records (trailing bytes or truncation).
     pub fn open(path: &Path) -> Result<Self, WeightedCapacityError> {
-        let mut file = File::open(path).map_err(|err| WeightedCapacityError::Io(err.to_string()))?;
+        let mut file = File::open(path).map_err(io_failure("open the row file"))?;
         let mut header = [0_u8; HEADER_LEN];
-        file.read_exact(&mut header).map_err(|err| WeightedCapacityError::Io(err.to_string()))?;
+        file.read_exact(&mut header).map_err(io_failure("read the row-file header"))?;
         if &header[0..4] != MAGIC {
-            return Err(WeightedCapacityError::Io("bad weighted-row magic".into()));
+            return Err(WeightedCapacityError::RowFile(RowFileFault::BadMagic));
         }
         let version = read_u32(&header[4..8])?;
         if version != VERSION {
-            return Err(WeightedCapacityError::Io("unsupported weighted-row version".into()));
+            return Err(WeightedCapacityError::RowFile(RowFileFault::UnsupportedVersion {
+                found: version,
+            }));
         }
         let ncols_u = read_u32(&header[8..12])?;
         let nrows = read_u64(&header[12..20])?;
         let ncols = usize::try_from(ncols_u).map_err(|_| WeightedCapacityError::Overflow)?;
         if ncols == 0 {
-            return Err(WeightedCapacityError::Shape("ncols"));
+            return Err(WeightedCapacityError::Shape(DesignShape::ZeroColumns));
         }
-        Ok(Self {
+        let expected_len = batch_byte_len(1, ncols)?
+            .checked_mul(nrows)
+            .and_then(|body| body.checked_add(HEADER_BYTES))
+            .ok_or(WeightedCapacityError::Overflow)?;
+        let rows = Self {
             file,
             ncols,
             nrows,
             rows_left: nrows,
+            expected_len,
             bound: None,
             decoder: Vec::new(),
             reserved_bytes: 0,
-        })
+        };
+        rows.verify_length()?;
+        Ok(rows)
+    }
+
+    fn verify_length(&self) -> Result<(), WeightedCapacityError> {
+        let actual_bytes = self.file.metadata().map_err(io_failure("measure the row file"))?.len();
+        if actual_bytes == self.expected_len {
+            Ok(())
+        } else {
+            Err(WeightedCapacityError::RowFile(RowFileFault::LengthMismatch {
+                expected_bytes: self.expected_len,
+                actual_bytes,
+            }))
+        }
     }
 }
 
@@ -430,7 +562,11 @@ impl WeightedRowSource for FileWeightedRows {
         let reserved = batch_byte_len(batch_rows, self.ncols)?;
         let reserved_usize =
             usize::try_from(reserved).map_err(|_| WeightedCapacityError::Overflow)?;
-        self.decoder = Vec::with_capacity(reserved_usize);
+        let mut decoder = Vec::new();
+        decoder
+            .try_reserve_exact(reserved_usize)
+            .map_err(|source| allocation_failure("file decoder", reserved, source))?;
+        self.decoder = decoder;
         self.reserved_bytes = reserved;
         self.bound = Some(batch_rows);
         Ok(())
@@ -441,9 +577,10 @@ impl WeightedRowSource for FileWeightedRows {
     }
 
     fn rewind(&mut self) -> Result<(), WeightedCapacityError> {
+        self.verify_length()?;
         self.file
             .seek(SeekFrom::Start(HEADER_BYTES))
-            .map_err(|err| WeightedCapacityError::Io(err.to_string()))?;
+            .map_err(io_failure("seek to the first row"))?;
         self.rows_left = self.nrows;
         Ok(())
     }
@@ -472,7 +609,7 @@ impl WeightedRowSource for FileWeightedRows {
         self.decoder.resize(need, 0);
         self.file
             .read_exact(&mut self.decoder[..need])
-            .map_err(|err| WeightedCapacityError::Io(err.to_string()))?;
+            .map_err(io_failure("read a batch of records"))?;
         parse_records(&self.decoder[..need], self.ncols, take, x_rowmajor, y, weights)?;
         self.rows_left -= u64::try_from(take).map_err(|_| WeightedCapacityError::Overflow)?;
         Ok(take)
@@ -490,9 +627,12 @@ pub fn encode_weighted_row_file(
     weights: &[f64],
 ) -> Result<Vec<u8>, WeightedCapacityError> {
     if y.len() != weights.len() || y.is_empty() || x_rowmajor.len() % y.len() != 0 {
-        return Err(WeightedCapacityError::Shape("design length"));
+        return Err(WeightedCapacityError::Shape(DesignShape::DesignLength));
     }
     let ncols = x_rowmajor.len() / y.len();
+    if ncols == 0 {
+        return Err(WeightedCapacityError::Shape(DesignShape::ZeroColumns));
+    }
     let ncols_u = u32::try_from(ncols).map_err(|_| WeightedCapacityError::Overflow)?;
     let nrows = u64::try_from(y.len()).map_err(|_| WeightedCapacityError::Overflow)?;
     let mut bytes = Vec::new();
@@ -500,13 +640,10 @@ pub fn encode_weighted_row_file(
     bytes.extend_from_slice(&VERSION.to_le_bytes());
     bytes.extend_from_slice(&ncols_u.to_le_bytes());
     bytes.extend_from_slice(&nrows.to_le_bytes());
-    for row in 0..y.len() {
-        let start = row * ncols;
-        for value in &x_rowmajor[start..start + ncols] {
+    for ((x_row, response), weight) in x_rowmajor.chunks_exact(ncols).zip(y).zip(weights) {
+        for value in x_row.iter().chain([response, weight]) {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
-        bytes.extend_from_slice(&y[row].to_le_bytes());
-        bytes.extend_from_slice(&weights[row].to_le_bytes());
     }
     Ok(bytes)
 }
@@ -515,26 +652,58 @@ pub fn encode_weighted_row_file(
 ///
 /// Resident and file sources of the same rows share this function, the same
 /// retention mode, and the same charges formula. [`OutputRetention::FullReusable`]
-/// is refused: it would keep every source row.
+/// is refused: it would keep every source row. [`OutputRetention::DiskBacked`]
+/// is refused: nothing here writes a spill file.
 ///
 /// # Errors
 ///
 /// The ceiling is too small, the batch bound is zero, a weight or a row is not
-/// usable, the Gram is singular, or the source cannot be read.
+/// usable, the Gram is singular, the source cannot be read, or the source rows
+/// differ between the two passes.
 pub fn run_weighted_capacity(
     control: CapacityControl,
     source: &mut dyn WeightedRowSource,
     options: &CapacityOptions,
 ) -> Result<WeightedCapacityResult, WeightedCapacityError> {
+    let plan = plan_run(&*source, options)?;
+    source.prepare_decoder(plan.batch_rows)?;
+    source.rewind()?;
+    let mut scan = Scan::open(plan.batch_rows, plan.ncols)?;
+    let first = cross_product_pass(source, &mut scan, plan.ncols)?;
+    let solved = solve_weighted(&first.folded.cross_products, plan.ncols)?;
+    source.rewind()?;
+    let diagnostics = diagnostic_pass(source, &mut scan, &solved, first.digest)?;
+    drop(scan);
+    Assembly {
+        control,
+        retention: options.retention,
+        charges: plan.charges,
+        batches: first.batches,
+        content_identity: first.digest,
+        folded: first.folded,
+        solved,
+        diagnostics,
+    }
+    .into_result()
+}
+
+/// Checked shape, retention, and ceiling reservation for one run.
+struct RunPlan {
+    ncols: usize,
+    batch_rows: usize,
+    charges: CeilingCharges,
+}
+
+fn plan_run(
+    source: &dyn WeightedRowSource,
+    options: &CapacityOptions,
+) -> Result<RunPlan, WeightedCapacityError> {
     let ncols = source.ncols();
     if ncols == 0 {
-        return Err(WeightedCapacityError::Shape("ncols"));
+        return Err(WeightedCapacityError::Shape(DesignShape::ZeroColumns));
     }
     if options.batch_rows == 0 {
         return Err(WeightedCapacityError::BatchBound);
-    }
-    if options.retention == OutputRetention::FullReusable {
-        return Err(WeightedCapacityError::RetentionKeepsRows);
     }
     let source_decoder = source.decoder_reservation(options.batch_rows)?;
     let charges = plan_charges(ncols, options, source.input_ownership_bytes(), source_decoder)?;
@@ -542,29 +711,71 @@ pub fn run_weighted_capacity(
         return Err(WeightedCapacityError::OverCeiling {
             ceiling: options.ceiling_bytes,
             total: charges.total_bytes,
+            over_by: charges.total_bytes - options.ceiling_bytes,
             charges,
         });
     }
-    source.prepare_decoder(options.batch_rows)?;
-    source.rewind()?;
-    let mut window = Window::allocate(options.batch_rows, ncols)?;
+    Ok(RunPlan { ncols, batch_rows: options.batch_rows, charges })
+}
+
+/// Buffers both passes share: the batch window and the row hash.
+struct Scan {
+    window: Window,
+    identity: RowIdentity,
+}
+
+impl Scan {
+    fn open(batch_rows: usize, ncols: usize) -> Result<Self, WeightedCapacityError> {
+        Ok(Self {
+            window: Window::allocate(batch_rows, ncols)?,
+            identity: RowIdentity::open(ncols)?,
+        })
+    }
+}
+
+struct FirstPass {
+    folded: Folded,
+    batches: u64,
+    digest: [u8; 32],
+}
+
+fn cross_product_pass(
+    source: &mut dyn WeightedRowSource,
+    scan: &mut Scan,
+    ncols: usize,
+) -> Result<FirstPass, WeightedCapacityError> {
     let mut fold = Fold::new(ncols)?;
-    let mut identity = RowIdentity::open(ncols)?;
-    let batches = scan_rows(source, &mut window, |index, row, response, weight| {
+    let Scan { window, identity } = scan;
+    let batches = scan_rows(source, window, |index, row, response, weight| {
         fold.push(index, row, response, weight)?;
-        identity.push(row, response, weight)
+        identity.push(row, response, weight);
+        Ok(())
     })?;
     if fold.positive_rows == 0 {
         return Err(WeightedCapacityError::Empty);
     }
-    let solved = solve_weighted(&fold)?;
-    let digest = identity.finish();
-    source.rewind()?;
-    let mut diagnostics = DiagAccum::from_solve(&solved)?;
-    let _second = scan_rows(source, &mut window, |index, row, response, weight| {
-        diagnostics.push(index, row, response, weight)
+    Ok(FirstPass { folded: fold.finish(), batches, digest: identity.digest() })
+}
+
+fn diagnostic_pass(
+    source: &mut dyn WeightedRowSource,
+    scan: &mut Scan,
+    solved: &Solved,
+    expected: [u8; 32],
+) -> Result<DiagSummary, WeightedCapacityError> {
+    let mut diagnostics = DiagAccum::new(&solved.coefficients, &solved.bread)?;
+    let Scan { window, identity } = scan;
+    identity.reset();
+    scan_rows(source, window, |index, row, response, weight| {
+        diagnostics.push(index, row, response, weight)?;
+        identity.push(row, response, weight);
+        Ok(())
     })?;
-    Ok(assemble(control, options.retention, charges, batches, digest, fold, solved, diagnostics))
+    let second = identity.digest();
+    if second != expected {
+        return Err(WeightedCapacityError::SourceChanged { first: expected, second });
+    }
+    Ok(diagnostics.finish())
 }
 
 struct Window {
@@ -581,19 +792,34 @@ impl Window {
         Ok(Self {
             batch_rows,
             ncols,
-            x: zeros(cells)?,
-            y: zeros(batch_rows)?,
-            w: zeros(batch_rows)?,
+            x: zeros(cells, "batch design window")?,
+            y: zeros(batch_rows, "batch response window")?,
+            w: zeros(batch_rows, "batch weight window")?,
         })
     }
 }
 
+/// Weighted moments around running means.
+///
+/// Each positive row updates the means and the centered co-moments with the
+/// weighted Welford step, so the sums stay on the scale of the spread rather
+/// than the scale of the raw products. [`Self::finish`] rebuilds the raw
+/// cross-products once.
 struct Fold {
     ncols: usize,
-    xtwx: Vec<f64>,
-    xtwy: Vec<f64>,
-    ytwy: f64,
+    mean: Vec<f64>,
+    offset: Vec<f64>,
+    comoment: Vec<f64>,
+    cross: Vec<f64>,
+    mean_y: f64,
+    y_ss: f64,
     n_eff: f64,
+    positive_rows: u64,
+}
+
+/// Raw cross-products rebuilt from the centered moments.
+struct Folded {
+    cross_products: GaussianCrossProducts,
     positive_rows: u64,
 }
 
@@ -602,9 +828,12 @@ impl Fold {
         let gram = ncols.checked_mul(ncols).ok_or(WeightedCapacityError::Overflow)?;
         Ok(Self {
             ncols,
-            xtwx: zeros(gram)?,
-            xtwy: zeros(ncols)?,
-            ytwy: 0.0,
+            mean: zeros(ncols, "column means")?,
+            offset: zeros(ncols, "row offsets")?,
+            comoment: zeros(gram, "centered Gram")?,
+            cross: zeros(ncols, "centered cross-moment")?,
+            mean_y: 0.0,
+            y_ss: 0.0,
             n_eff: 0.0,
             positive_rows: 0,
         })
@@ -621,29 +850,70 @@ impl Fold {
         if !weight_is_positive(weight) {
             return Ok(());
         }
-        let scale = weight.sqrt();
-        let scaled_y = scale * y;
-        for (c1, &x1) in row.iter().enumerate() {
-            let sx1 = scale * x1;
-            self.xtwy[c1] += sx1 * scaled_y;
-            for (offset, &x2) in row.iter().enumerate().skip(c1) {
-                let value = sx1 * (scale * x2);
-                self.xtwx[c1 * self.ncols + offset] += value;
-                if c1 != offset {
-                    self.xtwx[offset * self.ncols + c1] += value;
-                }
-            }
+        let total = self.n_eff + weight;
+        let share = weight / total;
+        for ((offset, mean), &x) in self.offset.iter_mut().zip(self.mean.iter_mut()).zip(row) {
+            *offset = x - *mean;
+            *mean += share * *offset;
         }
-        self.ytwy += scaled_y.powi(2);
-        self.n_eff += weight;
+        let y_offset = y - self.mean_y;
+        self.mean_y += share * y_offset;
+        let y_remainder = y - self.mean_y;
+        // Upper triangle only; `finish` mirrors it.
+        for (i, (&offset, line)) in
+            self.offset.iter().zip(self.comoment.chunks_exact_mut(self.ncols)).enumerate()
+        {
+            let lead = weight * offset;
+            for ((cell, &x), &mean) in line[i..].iter_mut().zip(&row[i..]).zip(&self.mean[i..]) {
+                *cell += lead * (x - mean);
+            }
+            self.cross[i] += lead * y_remainder;
+        }
+        self.y_ss += weight * y_offset * y_remainder;
+        self.n_eff = total;
         self.positive_rows =
             self.positive_rows.checked_add(1).ok_or(WeightedCapacityError::Overflow)?;
         Ok(())
+    }
+
+    /// Raw `X'WX = C + Σw·m·m'`, `X'Wy = c + Σw·m·m_y`, `y'Wy = s + Σw·m_y²`.
+    ///
+    /// The centered buffers become the raw ones in place; the means and the
+    /// row offsets are released.
+    fn finish(self) -> Folded {
+        let Self {
+            ncols,
+            mean,
+            offset,
+            comoment: mut xtwx,
+            cross: mut xtwy,
+            mean_y,
+            y_ss,
+            n_eff,
+            positive_rows,
+        } = self;
+        drop(offset);
+        for (i, (line, &lead)) in xtwx.chunks_exact_mut(ncols).zip(&mean).enumerate() {
+            for (cell, &other) in line[i..].iter_mut().zip(&mean[i..]) {
+                *cell += n_eff * lead * other;
+            }
+        }
+        for i in 1..ncols {
+            for j in 0..i {
+                xtwx[i * ncols + j] = xtwx[j * ncols + i];
+            }
+        }
+        for (cell, &lead) in xtwy.iter_mut().zip(&mean) {
+            *cell += n_eff * lead * mean_y;
+        }
+        let ytwy = y_ss + n_eff * mean_y * mean_y;
+        Folded { cross_products: GaussianCrossProducts { n_eff, xtwx, xtwy, ytwy }, positive_rows }
     }
 }
 
 struct RowIdentity {
     hasher: blake3::Hasher,
+    ncols_tag: u32,
     staging: Vec<u8>,
 }
 
@@ -652,23 +922,33 @@ impl RowIdentity {
         let row_bytes = batch_byte_len(1, ncols)?;
         let width = usize::try_from(row_bytes).map_err(|_| WeightedCapacityError::Overflow)?;
         let mut staging = Vec::new();
-        staging.try_reserve_exact(width).map_err(|_| WeightedCapacityError::Overflow)?;
-        let mut hasher = blake3::Hasher::new_derive_key(IDENTITY_DOMAIN);
-        let ncols_u = u32::try_from(ncols).map_err(|_| WeightedCapacityError::Overflow)?;
-        hasher.update(&ncols_u.to_le_bytes());
-        Ok(Self { hasher, staging })
+        staging
+            .try_reserve_exact(width)
+            .map_err(|source| allocation_failure("row staging", row_bytes, source))?;
+        let ncols_tag = u32::try_from(ncols).map_err(|_| WeightedCapacityError::Overflow)?;
+        Ok(Self { hasher: Self::seeded(ncols_tag), ncols_tag, staging })
     }
 
-    fn push(&mut self, row: &[f64], y: f64, weight: f64) -> Result<(), WeightedCapacityError> {
+    fn seeded(ncols_tag: u32) -> blake3::Hasher {
+        let mut hasher = blake3::Hasher::new_derive_key(IDENTITY_DOMAIN);
+        hasher.update(&ncols_tag.to_le_bytes());
+        hasher
+    }
+
+    /// Start a fresh digest for the next pass without a second staging buffer.
+    fn reset(&mut self) {
+        self.hasher = Self::seeded(self.ncols_tag);
+    }
+
+    fn push(&mut self, row: &[f64], y: f64, weight: f64) {
         self.staging.clear();
-        for value in row.iter().chain(std::iter::once(&y)).chain(std::iter::once(&weight)) {
+        for value in row.iter().chain(&[y, weight]) {
             self.staging.extend_from_slice(&value.to_le_bytes());
         }
         self.hasher.update(&self.staging);
-        Ok(())
     }
 
-    fn finish(self) -> [u8; 32] {
+    fn digest(&self) -> [u8; 32] {
         self.hasher.finalize().into()
     }
 }
@@ -679,9 +959,10 @@ struct Solved {
     bread: Vec<f64>,
 }
 
-struct DiagAccum {
-    beta: Vec<f64>,
-    bread: Vec<f64>,
+/// Leverage, residual, and `HC0` meat accumulators. Borrows the solve.
+struct DiagAccum<'a> {
+    beta: &'a [f64],
+    bread: &'a [f64],
     meat: Vec<f64>,
     scratch: Vec<f64>,
     max_leverage: f64,
@@ -691,15 +972,25 @@ struct DiagAccum {
     max_abs_residual: f64,
 }
 
-impl DiagAccum {
-    fn from_solve(solved: &Solved) -> Result<Self, WeightedCapacityError> {
-        let p = solved.coefficients.len();
+/// What the diagnostic pass leaves behind once the solve borrow ends.
+struct DiagSummary {
+    meat: Vec<f64>,
+    max_leverage: f64,
+    sum_leverage: f64,
+    saturated_rows: u64,
+    weighted_rss: f64,
+    max_abs_residual: f64,
+}
+
+impl<'a> DiagAccum<'a> {
+    fn new(beta: &'a [f64], bread: &'a [f64]) -> Result<Self, WeightedCapacityError> {
+        let p = beta.len();
         let gram = p.checked_mul(p).ok_or(WeightedCapacityError::Overflow)?;
         Ok(Self {
-            beta: solved.coefficients.clone(),
-            bread: solved.bread.clone(),
-            meat: zeros(gram)?,
-            scratch: zeros(p)?,
+            beta,
+            bread,
+            meat: zeros(gram, "HC0 meat")?,
+            scratch: zeros(p, "leverage scratch")?,
             max_leverage: 0.0,
             sum_leverage: 0.0,
             saturated_rows: 0,
@@ -721,29 +1012,19 @@ impl DiagAccum {
         }
         let p = self.beta.len();
         let scale = weight.sqrt();
-        let mut predicted = 0.0;
-        for (&coef, &value) in self.beta.iter().zip(row) {
-            predicted += coef * value;
-        }
+        let predicted: f64 = self.beta.iter().zip(row).map(|(&coef, &value)| coef * value).sum();
         let residual = y - predicted;
         let scaled_residual = scale * residual;
-        for (c1, &x1) in row.iter().enumerate() {
-            let sx1 = scale * x1;
-            for (c2, &x2) in row.iter().enumerate() {
-                self.meat[c1 * p + c2] += scaled_residual.powi(2) * sx1 * (scale * x2);
+        for (line, &x1) in self.meat.chunks_exact_mut(p).zip(row) {
+            let lead = scaled_residual.powi(2) * (scale * x1);
+            for (cell, &x2) in line.iter_mut().zip(row) {
+                *cell += lead * (scale * x2);
             }
         }
-        for a in 0..p {
-            let mut acc = 0.0;
-            for b in 0..p {
-                acc += self.bread[a * p + b] * (scale * row[b]);
-            }
-            self.scratch[a] = acc;
+        for (slot, bread_row) in self.scratch.iter_mut().zip(self.bread.chunks_exact(p)) {
+            *slot = bread_row.iter().zip(row).map(|(&b, &x)| b * (scale * x)).sum();
         }
-        let mut hat = 0.0;
-        for a in 0..p {
-            hat += (scale * row[a]) * self.scratch[a];
-        }
+        let hat: f64 = row.iter().zip(&self.scratch).map(|(&x, &s)| (scale * x) * s).sum();
         self.sum_leverage += hat;
         if hat > self.max_leverage {
             self.max_leverage = hat;
@@ -759,45 +1040,67 @@ impl DiagAccum {
         }
         Ok(())
     }
+
+    fn finish(self) -> DiagSummary {
+        DiagSummary {
+            meat: self.meat,
+            max_leverage: self.max_leverage,
+            sum_leverage: self.sum_leverage,
+            saturated_rows: self.saturated_rows,
+            weighted_rss: self.weighted_rss,
+            max_abs_residual: self.max_abs_residual,
+        }
+    }
 }
 
-fn assemble(
+/// Everything the two passes produced, ready to become the result.
+struct Assembly {
     control: CapacityControl,
     retention: OutputRetention,
     charges: CeilingCharges,
     batches: u64,
     content_identity: [u8; 32],
-    fold: Fold,
+    folded: Folded,
     solved: Solved,
-    diagnostics: DiagAccum,
-) -> WeightedCapacityResult {
-    let p = solved.coefficients.len();
-    WeightedCapacityResult {
-        control,
-        retention,
-        coefficients: solved.coefficients,
-        robust_covariance: sandwich_product(&diagnostics.bread, &diagnostics.meat, p),
-        leverage: LeverageSummary {
-            max: diagnostics.max_leverage,
-            sum: diagnostics.sum_leverage,
-            saturated_rows: diagnostics.saturated_rows,
-        },
-        residual: ResidualCheck {
-            weighted_rss: diagnostics.weighted_rss,
-            max_abs_residual: diagnostics.max_abs_residual,
-            positive_weight_rows: fold.positive_rows,
-        },
-        cross_products: GaussianCrossProducts {
-            n_eff: fold.n_eff,
-            xtwx: fold.xtwx,
-            xtwy: fold.xtwy,
-            ytwy: fold.ytwy,
-        },
-        content_identity,
-        fit: solved.diagnostics,
-        charges,
-        batches,
-        source_passes: 2,
+    diagnostics: DiagSummary,
+}
+
+impl Assembly {
+    fn into_result(self) -> Result<WeightedCapacityResult, WeightedCapacityError> {
+        let Self {
+            control,
+            retention,
+            charges,
+            batches,
+            content_identity,
+            folded,
+            solved,
+            diagnostics,
+        } = self;
+        let p = solved.coefficients.len();
+        let robust_covariance = sandwich_product(&solved.bread, &diagnostics.meat, p)?;
+        Ok(WeightedCapacityResult {
+            control,
+            retention,
+            coefficients: solved.coefficients,
+            robust_covariance,
+            leverage: LeverageSummary {
+                max: diagnostics.max_leverage,
+                sum: diagnostics.sum_leverage,
+                saturated_rows: diagnostics.saturated_rows,
+            },
+            residual: ResidualCheck {
+                weighted_rss: diagnostics.weighted_rss,
+                max_abs_residual: diagnostics.max_abs_residual,
+                positive_weight_rows: folded.positive_rows,
+            },
+            cross_products: folded.cross_products,
+            content_identity,
+            fit: solved.diagnostics,
+            charges,
+            batches,
+            source_passes: 2,
+        })
     }
 }
 
@@ -809,14 +1112,15 @@ fn scan_rows(
     let mut batches = 0_u64;
     let mut index = 0_u64;
     loop {
-        let n = source.read_batch(window.batch_rows, &mut window.x, &mut window.y, &mut window.w)?;
+        let n =
+            source.read_batch(window.batch_rows, &mut window.x, &mut window.y, &mut window.w)?;
         if n == 0 {
             break;
         }
         batches = batches.checked_add(1).ok_or(WeightedCapacityError::Overflow)?;
-        for row in 0..n {
-            let start = row * window.ncols;
-            on_row(index, &window.x[start..start + window.ncols], window.y[row], window.w[row])?;
+        let rows = window.x.chunks_exact(window.ncols).zip(&window.y).zip(&window.w).take(n);
+        for ((row, &response), &weight) in rows {
+            on_row(index, row, response, weight)?;
             index = index.checked_add(1).ok_or(WeightedCapacityError::Overflow)?;
         }
     }
@@ -826,18 +1130,21 @@ fn scan_rows(
 /// `L` is the row-major Cholesky factor of `X'WX`. That buffer is also the
 /// column-major layout of `L'`. [`fit_wls`] on `L'` with right-hand side
 /// `L⁻¹ X'Wy` is the weighted normal equation.
-fn solve_weighted(fold: &Fold) -> Result<Solved, WeightedCapacityError> {
-    let p = fold.ncols;
-    let factor = cholesky_spd(&fold.xtwx, p).ok_or(WeightedCapacityError::Singular)?;
-    let reduced_y = forward_substitute(&factor, p, &fold.xtwy)?;
-    let ones = vec![1.0; p];
+fn solve_weighted(
+    cross_products: &GaussianCrossProducts,
+    p: usize,
+) -> Result<Solved, WeightedCapacityError> {
+    let factor = cholesky_spd(&cross_products.xtwx, p).ok_or(WeightedCapacityError::Singular)?;
+    let reduced_y = forward_substitute(&factor, p, &cross_products.xtwy)?;
+    let mut ones = zeros(p, "unit weights")?;
+    ones.fill(1.0);
     let mut workspace = LeastSquaresWorkspace::default();
     let fit = fit_wls(&factor, p, p, &reduced_y, &ones, &FaerBackend, &mut workspace)
-        .map_err(|err| WeightedCapacityError::Solve(err.to_string()))?;
+        .map_err(WeightedCapacityError::Solve)?;
     if fit.coefficients.len() != p {
-        return Err(WeightedCapacityError::Shape("solve width"));
+        return Err(WeightedCapacityError::Shape(DesignShape::SolveWidth));
     }
-    let bread = invert_square(&fold.xtwx, p).ok_or(WeightedCapacityError::Singular)?;
+    let bread = invert_square(&cross_products.xtwx, p).ok_or(WeightedCapacityError::Singular)?;
     Ok(Solved { coefficients: fit.coefficients, diagnostics: fit.diagnostics, bread })
 }
 
@@ -846,43 +1153,38 @@ fn forward_substitute(
     p: usize,
     rhs: &[f64],
 ) -> Result<Vec<f64>, WeightedCapacityError> {
-    let mut solved = zeros(p)?;
-    for i in 0..p {
-        let mut acc = rhs[i];
-        for j in 0..i {
-            acc -= factor[i * p + j] * solved[j];
-        }
-        let diag = factor[i * p + i];
+    let mut solved = zeros(p, "forward substitution")?;
+    for (i, (factor_row, &b)) in factor.chunks_exact(p).zip(rhs).enumerate() {
+        let diag = factor_row[i];
         if diag.partial_cmp(&0.0) != Some(Ordering::Greater) {
             return Err(WeightedCapacityError::Singular);
         }
+        let acc = factor_row[..i].iter().zip(&solved[..i]).fold(b, |acc, (&l, &s)| acc - l * s);
         solved[i] = acc / diag;
     }
     Ok(solved)
 }
 
-fn sandwich_product(bread: &[f64], meat: &[f64], ncols: usize) -> Vec<f64> {
-    let mut tmp = vec![0.0; ncols * ncols];
-    for i in 0..ncols {
-        for j in 0..ncols {
-            let mut acc = 0.0;
-            for k in 0..ncols {
-                acc += bread[i * ncols + k] * meat[k * ncols + j];
-            }
-            tmp[i * ncols + j] = acc;
+/// `bread · meat · bread` for square row-major matrices.
+fn sandwich_product(
+    bread: &[f64],
+    meat: &[f64],
+    ncols: usize,
+) -> Result<Vec<f64>, WeightedCapacityError> {
+    let cells = ncols.checked_mul(ncols).ok_or(WeightedCapacityError::Overflow)?;
+    let mut tmp = zeros(cells, "sandwich intermediate")?;
+    multiply_square(bread, meat, ncols, &mut tmp);
+    let mut out = zeros(cells, "robust covariance")?;
+    multiply_square(&tmp, bread, ncols, &mut out);
+    Ok(out)
+}
+
+fn multiply_square(left: &[f64], right: &[f64], n: usize, out: &mut [f64]) {
+    for (out_row, left_row) in out.chunks_exact_mut(n).zip(left.chunks_exact(n)) {
+        for (j, cell) in out_row.iter_mut().enumerate() {
+            *cell = left_row.iter().zip(right.iter().skip(j).step_by(n)).map(|(a, b)| a * b).sum();
         }
     }
-    let mut out = vec![0.0; ncols * ncols];
-    for i in 0..ncols {
-        for j in 0..ncols {
-            let mut acc = 0.0;
-            for k in 0..ncols {
-                acc += tmp[i * ncols + k] * bread[k * ncols + j];
-            }
-            out[i * ncols + j] = acc;
-        }
-    }
-    out
 }
 
 fn plan_charges(
@@ -892,11 +1194,12 @@ fn plan_charges(
     source_decoder_bytes: u64,
 ) -> Result<CeilingCharges, WeightedCapacityError> {
     let payload = payload_bytes(ncols)?;
-    let (output_bytes, spill_bytes) = match options.retention {
-        OutputRetention::SummaryOnly => (payload, 0),
-        OutputRetention::DiskBacked => (0, payload),
+    let output_bytes = match options.retention {
+        OutputRetention::SummaryOnly => payload,
+        OutputRetention::DiskBacked => return Err(WeightedCapacityError::SpillUnsupported),
         OutputRetention::FullReusable => return Err(WeightedCapacityError::RetentionKeepsRows),
     };
+    let spill_bytes = 0;
     let identity = content_identity_bytes(ncols)?;
     let decoder = working_bytes(options.batch_rows, ncols, source_decoder_bytes)?;
     let total_bytes = input_ownership_bytes
@@ -947,13 +1250,19 @@ fn working_bytes(
         .ok_or(WeightedCapacityError::Overflow)
 }
 
-/// Reservation for the reduced [`fit_wls`] call and the diagnostic scratch.
-/// Seven `p×p` buffers and six length-`p` buffers. This is not a measured allocation.
+/// Reservation for every buffer the fold, the solve, and the diagnostic pass
+/// allocate beyond the output payload. Twelve `p×p` buffers, twenty-four
+/// length-`p` buffers, and two hundred fifty-six floats of fixed slack. The sum is taken
+/// as if the buffers were live together, which covers the Cholesky factor,
+/// the `fit_wls` copies and its backend factorization, the inversion
+/// scratch, the meat, and the sandwich intermediate. This is a reservation, not
+/// a measured allocation.
 fn solver_bytes(ncols: usize) -> Result<u64, WeightedCapacityError> {
     let gram = ncols.checked_mul(ncols).ok_or(WeightedCapacityError::Overflow)?;
     let floats = gram
-        .checked_mul(7)
-        .and_then(|cells| cells.checked_add(ncols.checked_mul(6)?))
+        .checked_mul(12)
+        .and_then(|cells| cells.checked_add(ncols.checked_mul(24)?))
+        .and_then(|cells| cells.checked_add(256))
         .ok_or(WeightedCapacityError::Overflow)?;
     f64_bytes(floats)
 }
@@ -978,9 +1287,24 @@ fn size_u64<T>() -> Result<u64, WeightedCapacityError> {
     u64::try_from(std::mem::size_of::<T>()).map_err(|_| WeightedCapacityError::Overflow)
 }
 
-fn zeros(len: usize) -> Result<Vec<f64>, WeightedCapacityError> {
+fn allocation_failure(
+    what: &'static str,
+    bytes: u64,
+    source: TryReserveError,
+) -> WeightedCapacityError {
+    WeightedCapacityError::Allocation { what, bytes, source }
+}
+
+fn io_failure(context: &'static str) -> impl FnOnce(io::Error) -> WeightedCapacityError {
+    move |source| WeightedCapacityError::Io { context, source }
+}
+
+fn zeros(len: usize, what: &'static str) -> Result<Vec<f64>, WeightedCapacityError> {
     let mut values = Vec::new();
-    values.try_reserve_exact(len).map_err(|_| WeightedCapacityError::Overflow)?;
+    values.try_reserve_exact(len).map_err(|source| {
+        let bytes = u64::try_from(len).ok().and_then(|n| n.checked_mul(8)).unwrap_or(u64::MAX);
+        allocation_failure(what, bytes, source)
+    })?;
     values.resize(len, 0.0);
     Ok(values)
 }
@@ -993,13 +1317,13 @@ fn validate_row(
     weight: f64,
 ) -> Result<(), WeightedCapacityError> {
     if row.len() != ncols {
-        return Err(WeightedCapacityError::Shape("row"));
+        return Err(WeightedCapacityError::Shape(DesignShape::Row));
     }
     if !weight.is_finite() {
-        return Err(WeightedCapacityError::Weight { row: index, reason: "not finite" });
+        return Err(WeightedCapacityError::Weight { row: index, reason: WeightFault::NotFinite });
     }
     if weight.partial_cmp(&0.0) == Some(Ordering::Less) {
-        return Err(WeightedCapacityError::Weight { row: index, reason: "negative" });
+        return Err(WeightedCapacityError::Weight { row: index, reason: WeightFault::Negative });
     }
     if !y.is_finite() || row.iter().any(|value| !value.is_finite()) {
         return Err(WeightedCapacityError::NonFinite { row: index });
@@ -1007,6 +1331,7 @@ fn validate_row(
     Ok(())
 }
 
+#[must_use]
 fn weight_is_positive(weight: f64) -> bool {
     weight.partial_cmp(&0.0) == Some(Ordering::Greater)
 }
@@ -1028,7 +1353,7 @@ fn require_window(
 ) -> Result<(), WeightedCapacityError> {
     let cells = max_rows.checked_mul(ncols).ok_or(WeightedCapacityError::Overflow)?;
     if x_rowmajor.len() < cells || y.len() < max_rows || weights.len() < max_rows {
-        Err(WeightedCapacityError::Shape("batch window"))
+        Err(WeightedCapacityError::Shape(DesignShape::BatchWindow))
     } else {
         Ok(())
     }
@@ -1042,41 +1367,53 @@ fn parse_records(
     y: &mut [f64],
     weights: &mut [f64],
 ) -> Result<(), WeightedCapacityError> {
-    let record = ncols + 2;
-    for row in 0..take {
-        let base = row * record;
-        for col in 0..ncols {
-            x_rowmajor[row * ncols + col] = read_f64_at(bytes, base + col)?;
+    let record_bytes =
+        usize::try_from(batch_byte_len(1, ncols)?).map_err(|_| WeightedCapacityError::Overflow)?;
+    let needed = record_bytes.checked_mul(take).ok_or(WeightedCapacityError::Overflow)?;
+    if bytes.len() < needed {
+        return Err(short_record());
+    }
+    let records = bytes
+        .chunks_exact(record_bytes)
+        .zip(x_rowmajor.chunks_exact_mut(ncols))
+        .zip(y.iter_mut())
+        .zip(weights.iter_mut())
+        .take(take);
+    for (((record, x_row), y_slot), weight_slot) in records {
+        let mut cells = record.chunks_exact(8).map(decode_f64);
+        for slot in x_row {
+            *slot = cells.next().ok_or_else(short_record)??;
         }
-        y[row] = read_f64_at(bytes, base + ncols)?;
-        weights[row] = read_f64_at(bytes, base + ncols + 1)?;
+        *y_slot = cells.next().ok_or_else(short_record)??;
+        *weight_slot = cells.next().ok_or_else(short_record)??;
     }
     Ok(())
 }
 
-fn read_f64_at(bytes: &[u8], index: usize) -> Result<f64, WeightedCapacityError> {
-    let start = index.checked_mul(8).ok_or(WeightedCapacityError::Overflow)?;
-    let end = start.checked_add(8).ok_or(WeightedCapacityError::Overflow)?;
-    let chunk = bytes.get(start..end).ok_or(WeightedCapacityError::Io("short record".into()))?;
-    let bits: [u8; 8] =
-        chunk.try_into().map_err(|_| WeightedCapacityError::Io("short record".into()))?;
+fn short_record() -> WeightedCapacityError {
+    WeightedCapacityError::RowFile(RowFileFault::ShortRecord)
+}
+
+fn decode_f64(chunk: &[u8]) -> Result<f64, WeightedCapacityError> {
+    let bits: [u8; 8] = chunk.try_into().map_err(|_| short_record())?;
     Ok(f64::from_le_bytes(bits))
 }
 
 fn read_u32(bytes: &[u8]) -> Result<u32, WeightedCapacityError> {
     let chunk: [u8; 4] =
-        bytes.try_into().map_err(|_| WeightedCapacityError::Io("short header".into()))?;
+        bytes.try_into().map_err(|_| WeightedCapacityError::RowFile(RowFileFault::ShortHeader))?;
     Ok(u32::from_le_bytes(chunk))
 }
 
 fn read_u64(bytes: &[u8]) -> Result<u64, WeightedCapacityError> {
     let chunk: [u8; 8] =
-        bytes.try_into().map_err(|_| WeightedCapacityError::Io("short header".into()))?;
+        bytes.try_into().map_err(|_| WeightedCapacityError::RowFile(RowFileFault::ShortHeader))?;
     Ok(u64::from_le_bytes(chunk))
 }
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error as _;
     use std::path::PathBuf;
 
     use antecedent_core::execution_facts::OutputRetention;
@@ -1085,16 +1422,126 @@ mod tests {
     };
 
     use super::{
-        CapacityControl, CapacityOptions, FileWeightedRows, ResidentWeightedRows,
+        CapacityControl, CapacityOptions, FileWeightedRows, ResidentWeightedRows, RowFileFault,
         WeightedCapacityError, WeightedCapacityResult, WeightedRowSource, encode_weighted_row_file,
-        run_weighted_capacity,
+        run_weighted_capacity, zeros,
     };
+
+    /// Per-thread live and peak byte counts, so concurrent tests do not see
+    /// each other. Every call forwards to the system allocator unchanged.
+    #[allow(
+        unsafe_code,
+        reason = "test-only counting allocator that forwards to the system allocator"
+    )]
+    mod counting {
+        use std::alloc::{GlobalAlloc, Layout, System};
+        use std::cell::Cell;
+
+        struct Counting;
+
+        thread_local! {
+            // const-initialized: no lazy allocation, so counting cannot recurse.
+            static LIVE: Cell<isize> = const { Cell::new(0) };
+            static PEAK: Cell<isize> = const { Cell::new(0) };
+        }
+
+        fn grow(bytes: usize) {
+            let delta = isize::try_from(bytes).unwrap_or(isize::MAX);
+            let _ = LIVE.try_with(|live| {
+                let now = live.get().saturating_add(delta);
+                live.set(now);
+                let _ = PEAK.try_with(|peak| {
+                    if now > peak.get() {
+                        peak.set(now);
+                    }
+                });
+            });
+        }
+
+        fn shrink(bytes: usize) {
+            let delta = isize::try_from(bytes).unwrap_or(isize::MAX);
+            let _ = LIVE.try_with(|live| live.set(live.get().saturating_sub(delta)));
+        }
+
+        unsafe impl GlobalAlloc for Counting {
+            unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+                // SAFETY: forwarding to the system allocator with the same layout.
+                let ptr = unsafe { System.alloc(layout) };
+                if !ptr.is_null() {
+                    grow(layout.size());
+                }
+                ptr
+            }
+
+            unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+                // SAFETY: forwarding to the system allocator with the same layout.
+                let ptr = unsafe { System.alloc_zeroed(layout) };
+                if !ptr.is_null() {
+                    grow(layout.size());
+                }
+                ptr
+            }
+
+            unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+                // SAFETY: `ptr` came from this allocator with this layout.
+                let moved = unsafe { System.realloc(ptr, layout, new_size) };
+                if !moved.is_null() {
+                    shrink(layout.size());
+                    grow(new_size);
+                }
+                moved
+            }
+
+            unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+                // SAFETY: `ptr` came from this allocator with this layout.
+                unsafe { System.dealloc(ptr, layout) };
+                shrink(layout.size());
+            }
+        }
+
+        #[global_allocator]
+        static ALLOCATOR: Counting = Counting;
+
+        /// Run `work` and report the most bytes it held above where it started.
+        pub fn peak_above_start<T>(work: impl FnOnce() -> T) -> (T, u64) {
+            let start = LIVE.with(Cell::get);
+            PEAK.with(|peak| peak.set(start));
+            let out = work();
+            let peak = PEAK.with(Cell::get);
+            (out, u64::try_from(peak.saturating_sub(start)).unwrap_or(0))
+        }
+    }
 
     fn design() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
         let x = vec![1.0, 0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 4.0];
         let y = vec![1.0, 2.2, 2.8, 4.4, 100.0];
         let weights = vec![1.0, 2.0, 3.0, 4.0, 0.0];
         (x, y, weights)
+    }
+
+    /// Intercept, a centered covariate, a covariate far from zero, and a
+    /// third covariate. Every fifth row from the fourth, and the last row,
+    /// carry zero weight.
+    fn wide_design(rows: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        let (mut x, mut y, mut w) = (Vec::new(), Vec::new(), Vec::new());
+        for row in 0..rows {
+            let a = next() * 2.0 - 1.0;
+            let b = 1000.0 + 4.0 * next();
+            let c = next();
+            let noise = next() - 0.5;
+            let draw = next();
+            x.extend_from_slice(&[1.0, a, b, c]);
+            y.push(2.0 + 3.0 * a - 0.5 * (b - 1000.0) + 1.5 * c + noise);
+            w.push(if row % 5 == 3 || row + 1 == rows { 0.0 } else { 0.25 + draw });
+        }
+        (x, y, w)
     }
 
     fn options(retention: OutputRetention) -> CapacityOptions {
@@ -1175,10 +1622,7 @@ mod tests {
             self.inner.input_ownership_bytes()
         }
 
-        fn decoder_reservation(
-            &self,
-            batch_rows: usize,
-        ) -> Result<u64, WeightedCapacityError> {
+        fn decoder_reservation(&self, batch_rows: usize) -> Result<u64, WeightedCapacityError> {
             self.inner.decoder_reservation(batch_rows)
         }
 
@@ -1204,6 +1648,54 @@ mod tests {
             self.max_request = self.max_request.max(max_rows);
             self.reads = self.reads.saturating_add(1);
             self.inner.read_batch(max_rows, x_rowmajor, y, weights)
+        }
+    }
+
+    /// Serves the true rows on the first pass and a nudged first response on
+    /// every pass after it.
+    struct ChangesAfterFirstPass<'a> {
+        inner: ResidentWeightedRows<'a>,
+        rewinds: u32,
+    }
+
+    impl WeightedRowSource for ChangesAfterFirstPass<'_> {
+        fn ncols(&self) -> usize {
+            self.inner.ncols()
+        }
+
+        fn input_ownership_bytes(&self) -> u64 {
+            self.inner.input_ownership_bytes()
+        }
+
+        fn decoder_reservation(&self, batch_rows: usize) -> Result<u64, WeightedCapacityError> {
+            self.inner.decoder_reservation(batch_rows)
+        }
+
+        fn prepare_decoder(&mut self, batch_rows: usize) -> Result<(), WeightedCapacityError> {
+            self.inner.prepare_decoder(batch_rows)
+        }
+
+        fn allocated_decoder_bytes(&self) -> u64 {
+            self.inner.allocated_decoder_bytes()
+        }
+
+        fn rewind(&mut self) -> Result<(), WeightedCapacityError> {
+            self.rewinds += 1;
+            self.inner.rewind()
+        }
+
+        fn read_batch(
+            &mut self,
+            max_rows: usize,
+            x_rowmajor: &mut [f64],
+            y: &mut [f64],
+            weights: &mut [f64],
+        ) -> Result<usize, WeightedCapacityError> {
+            let took = self.inner.read_batch(max_rows, x_rowmajor, y, weights)?;
+            if took > 0 && self.rewinds >= 2 {
+                y[0] += 1.0;
+            }
+            Ok(took)
         }
     }
 
@@ -1239,12 +1731,9 @@ mod tests {
         let mut bayes_source = ResidentWeightedRows::try_new(&x, &y, &weights).expect("bayes");
         let glm =
             run_weighted_capacity(CapacityControl::Glm, &mut glm_source, &options).expect("glm");
-        let bayes = run_weighted_capacity(
-            CapacityControl::GaussianBayes,
-            &mut bayes_source,
-            &options,
-        )
-        .expect("bayes");
+        let bayes =
+            run_weighted_capacity(CapacityControl::GaussianBayes, &mut bayes_source, &options)
+                .expect("bayes");
         assert_eq!(glm.control, CapacityControl::Glm);
         assert_eq!(bayes.control, CapacityControl::GaussianBayes);
         assert_declared(&glm);
@@ -1266,32 +1755,7 @@ mod tests {
             let flat = run_weighted_capacity(control, &mut unweighted, &options).expect("unit fit");
             assert_declared(&fit);
             assert!((fit.coefficients[0] - flat.coefficients[0]).abs() > 1.0e-3);
-            let scaled = scaled_design(&x, &y, &weights);
-            let mut workspace = LeastSquaresWorkspace::default();
-            let reference = fit_wls(
-                &scaled.x,
-                scaled.nrows,
-                2,
-                &scaled.y,
-                &scaled.ones,
-                &FaerBackend,
-                &mut workspace,
-            )
-            .expect("fit_wls");
-            assert!((fit.coefficients[0] - reference.coefficients[0]).abs() < 1.0e-5);
-            assert!((fit.coefficients[1] - reference.coefficients[1]).abs() < 1.0e-5);
-            let residuals = scaled_residuals(&scaled, &fit.coefficients);
-            let robust = coefficient_covariance(
-                &scaled.x,
-                scaled.nrows,
-                2,
-                &residuals,
-                SandwichKind::Hc0,
-            )
-            .expect("hc0");
-            for (got, expected) in fit.robust_covariance.iter().zip(&robust) {
-                assert!((got - expected).abs() < 1.0e-4);
-            }
+            assert_matches_resident_oracle(&fit, &x, &y, &weights, 2);
         }
     }
 
@@ -1302,9 +1766,8 @@ mod tests {
         nrows: usize,
     }
 
-    fn scaled_design(x: &[f64], y: &[f64], weights: &[f64]) -> Scaled {
+    fn scaled_design(x: &[f64], y: &[f64], weights: &[f64], ncols: usize) -> Scaled {
         let nrows = y.len();
-        let ncols = 2;
         let mut design = vec![0.0; nrows * ncols];
         let mut response = vec![0.0; nrows];
         for row in 0..nrows {
@@ -1317,13 +1780,134 @@ mod tests {
         Scaled { x: design, y: response, ones: vec![1.0; nrows], nrows }
     }
 
-    fn scaled_residuals(scaled: &Scaled, beta: &[f64]) -> Vec<f64> {
+    fn scaled_residuals(scaled: &Scaled, ncols: usize, beta: &[f64]) -> Vec<f64> {
         (0..scaled.nrows)
             .map(|row| {
-                let predicted = beta[0] * scaled.x[row] + beta[1] * scaled.x[scaled.nrows + row];
+                let predicted: f64 =
+                    (0..ncols).map(|col| beta[col] * scaled.x[col * scaled.nrows + row]).sum();
                 scaled.y[row] - predicted
             })
             .collect()
+    }
+
+    fn assert_close(got: &[f64], want: &[f64], relative: f64, what: &str) {
+        assert_eq!(got.len(), want.len(), "{what}: length");
+        let scale = want.iter().fold(1.0_f64, |m, v| m.max(v.abs()));
+        for (g, w) in got.iter().zip(want) {
+            assert!((g - w).abs() <= relative * scale, "{what}: {g} vs {w}");
+        }
+    }
+
+    /// The resident path as the oracle: `fit_wls` on the row-scaled design,
+    /// the `HC0` covariance of that design, and the naive weighted
+    /// cross-products.
+    fn assert_matches_resident_oracle(
+        fit: &WeightedCapacityResult,
+        x: &[f64],
+        y: &[f64],
+        weights: &[f64],
+        ncols: usize,
+    ) {
+        let scaled = scaled_design(x, y, weights, ncols);
+        let mut workspace = LeastSquaresWorkspace::default();
+        let reference = fit_wls(
+            &scaled.x,
+            scaled.nrows,
+            ncols,
+            &scaled.y,
+            &scaled.ones,
+            &FaerBackend,
+            &mut workspace,
+        )
+        .expect("fit_wls");
+        assert_close(&fit.coefficients, &reference.coefficients, 1.0e-6, "coefficients");
+        let residuals = scaled_residuals(&scaled, ncols, &fit.coefficients);
+        let robust =
+            coefficient_covariance(&scaled.x, scaled.nrows, ncols, &residuals, SandwichKind::Hc0)
+                .expect("hc0");
+        assert_close(&fit.robust_covariance, &robust, 1.0e-5, "robust covariance");
+        let mut xtwx = vec![0.0; ncols * ncols];
+        let mut xtwy = vec![0.0; ncols];
+        let mut ytwy = 0.0;
+        let mut n_eff = 0.0;
+        for ((row, &response), &weight) in x.chunks_exact(ncols).zip(y).zip(weights) {
+            n_eff += weight;
+            ytwy += weight * response * response;
+            for (i, &xi) in row.iter().enumerate() {
+                xtwy[i] += weight * xi * response;
+                for (j, &xj) in row.iter().enumerate() {
+                    xtwx[i * ncols + j] += weight * xi * xj;
+                }
+            }
+        }
+        assert_close(&fit.cross_products.xtwx, &xtwx, 1.0e-9, "X'WX");
+        assert_close(&fit.cross_products.xtwy, &xtwy, 1.0e-9, "X'Wy");
+        assert_close(&[fit.cross_products.ytwy], &[ytwy], 1.0e-9, "y'Wy");
+        assert_close(&[fit.cross_products.n_eff], &[n_eff], 1.0e-12, "sum of weights");
+    }
+
+    #[test]
+    fn every_batch_size_matches_the_resident_oracle_in_both_controls_and_sources() {
+        let rows = 23;
+        let (x, y, weights) = wide_design(rows);
+        let positive = u64::try_from(weights.iter().filter(|w| **w > 0.0).count()).expect("count");
+        assert!(positive < u64::try_from(rows).expect("rows"));
+        let bytes = encode_weighted_row_file(&x, &y, &weights).expect("encode");
+        let file_guard = write_rows("equivalence", &bytes);
+        let mut first: Option<WeightedCapacityResult> = None;
+        for batch_rows in [1, 2, 5, 7, 22, 23, 64] {
+            let options = CapacityOptions {
+                batch_rows,
+                ceiling_bytes: u64::MAX,
+                retention: OutputRetention::SummaryOnly,
+            };
+            let expected_batches = u64::try_from(rows.div_ceil(batch_rows)).expect("batches");
+            for control in [CapacityControl::Glm, CapacityControl::GaussianBayes] {
+                let mut resident =
+                    ResidentWeightedRows::try_new(&x, &y, &weights).expect("resident");
+                let from_memory =
+                    run_weighted_capacity(control, &mut resident, &options).expect("resident fit");
+                let mut file = FileWeightedRows::open(&file_guard.0).expect("open");
+                let from_file =
+                    run_weighted_capacity(control, &mut file, &options).expect("file fit");
+                for fit in [&from_memory, &from_file] {
+                    assert_eq!(fit.control, control);
+                    assert_eq!(fit.retention, OutputRetention::SummaryOnly);
+                    assert_eq!(fit.batches, expected_batches);
+                    assert_eq!(fit.source_passes, 2);
+                    assert_eq!(fit.residual.positive_weight_rows, positive);
+                    assert_matches_resident_oracle(fit, &x, &y, &weights, 4);
+                }
+                same_science(&from_memory, &from_file);
+                assert_eq!(from_memory.charges.output_bytes, from_file.charges.output_bytes);
+                assert_eq!(from_file.charges.input_ownership_bytes, 0);
+                match &first {
+                    Some(reference) => same_science(reference, &from_memory),
+                    None => first = Some(from_memory),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn disk_backed_retention_is_refused_by_both_controls_and_sources() {
+        let (x, y, weights) = design();
+        let bytes = encode_weighted_row_file(&x, &y, &weights).expect("encode");
+        let file_guard = write_rows("disk-backed", &bytes);
+        let options = options(OutputRetention::DiskBacked);
+        for control in [CapacityControl::Glm, CapacityControl::GaussianBayes] {
+            let mut resident = ResidentWeightedRows::try_new(&x, &y, &weights).expect("resident");
+            assert!(matches!(
+                run_weighted_capacity(control, &mut resident, &options),
+                Err(WeightedCapacityError::SpillUnsupported)
+            ));
+            let mut file = FileWeightedRows::open(&file_guard.0).expect("open");
+            assert!(matches!(
+                run_weighted_capacity(control, &mut file, &options),
+                Err(WeightedCapacityError::SpillUnsupported)
+            ));
+            assert_eq!(file.allocated_decoder_bytes(), 0);
+        }
     }
 
     #[test]
@@ -1361,73 +1945,165 @@ mod tests {
     }
 
     #[test]
-    fn ceiling_counts_ownership_identity_decoder_spill_and_output() {
+    fn each_charge_alone_decides_the_ceiling() {
         let (x, y, weights) = design();
-        let summary_options = options(OutputRetention::SummaryOnly);
-        let mut resident = ResidentWeightedRows::try_new(&x, &y, &weights).expect("resident");
-        let summary = run_weighted_capacity(CapacityControl::Glm, &mut resident, &summary_options)
-            .expect("summary");
-        assert_eq!(summary.charges.spill_bytes, 0);
-        assert!(summary.charges.output_bytes > 0);
-        assert_eq!(summary.charges.input_ownership_bytes, 160);
-        let mut tight = summary_options;
-        tight.ceiling_bytes = summary.charges.total_bytes - summary.charges.input_ownership_bytes;
-        let mut again = ResidentWeightedRows::try_new(&x, &y, &weights).expect("again");
-        assert!(matches!(
-            run_weighted_capacity(CapacityControl::Glm, &mut again, &tight),
-            Err(WeightedCapacityError::OverCeiling { .. })
-        ));
-        tight.ceiling_bytes = summary.charges.total_bytes - summary.charges.content_identity_bytes;
-        let mut identity = ResidentWeightedRows::try_new(&x, &y, &weights).expect("identity");
-        assert!(matches!(
-            run_weighted_capacity(CapacityControl::GaussianBayes, &mut identity, &tight),
-            Err(WeightedCapacityError::OverCeiling { .. })
-        ));
-        tight.ceiling_bytes = summary.charges.total_bytes - summary.charges.decoder_bytes;
-        let mut decoder = ResidentWeightedRows::try_new(&x, &y, &weights).expect("decoder");
-        assert!(matches!(
-            run_weighted_capacity(CapacityControl::Glm, &mut decoder, &tight),
-            Err(WeightedCapacityError::OverCeiling { .. })
-        ));
-        tight.ceiling_bytes = summary.charges.total_bytes - summary.charges.output_bytes;
-        let mut output = ResidentWeightedRows::try_new(&x, &y, &weights).expect("output");
-        assert!(matches!(
-            run_weighted_capacity(CapacityControl::Glm, &mut output, &tight),
-            Err(WeightedCapacityError::OverCeiling { .. })
-        ));
-        let disk_options = options(OutputRetention::DiskBacked);
-        let mut disk_source = ResidentWeightedRows::try_new(&x, &y, &weights).expect("disk");
-        let disk =
-            run_weighted_capacity(CapacityControl::GaussianBayes, &mut disk_source, &disk_options)
-                .expect("disk");
-        assert_eq!(disk.retention, OutputRetention::DiskBacked);
-        assert_eq!(disk.charges.output_bytes, 0);
-        assert_eq!(disk.charges.spill_bytes, summary.charges.output_bytes);
-        same_science_ignoring_retention(&summary, &disk);
-        let mut below_spill = disk_options;
-        below_spill.ceiling_bytes = disk.charges.total_bytes - disk.charges.spill_bytes;
-        let mut spill = ResidentWeightedRows::try_new(&x, &y, &weights).expect("spill");
-        assert!(matches!(
-            run_weighted_capacity(CapacityControl::Glm, &mut spill, &below_spill),
-            Err(WeightedCapacityError::OverCeiling { .. })
-        ));
+        let base = options(OutputRetention::SummaryOnly);
+        let run_at = |ceiling_bytes: u64, control: CapacityControl| {
+            let mut source = ResidentWeightedRows::try_new(&x, &y, &weights).expect("source");
+            run_weighted_capacity(control, &mut source, &CapacityOptions { ceiling_bytes, ..base })
+        };
+        let summary = run_at(u64::MAX, CapacityControl::Glm).expect("summary");
+        let charges = summary.charges;
+        assert_eq!(charges.spill_bytes, 0);
+        assert_eq!(charges.input_ownership_bytes, 160);
+        let lowered = [
+            ("input ownership", charges.input_ownership_bytes),
+            ("content identity", charges.content_identity_bytes),
+            ("decoder", charges.decoder_bytes),
+            ("output", charges.output_bytes),
+        ];
+        for (index, (name, amount)) in lowered.iter().enumerate() {
+            assert!(*amount > 0, "{name} charge is zero");
+            for (other, (_, other_amount)) in lowered.iter().enumerate() {
+                assert!(
+                    index == other || amount != other_amount,
+                    "{name} charge equals another charge, so the refusal could not name it"
+                );
+            }
+            let control =
+                if index % 2 == 0 { CapacityControl::Glm } else { CapacityControl::GaussianBayes };
+            match run_at(charges.total_bytes - amount, control) {
+                Err(WeightedCapacityError::OverCeiling {
+                    ceiling,
+                    total,
+                    over_by,
+                    charges: refused,
+                }) => {
+                    assert_eq!(ceiling, charges.total_bytes - amount, "{name}");
+                    assert_eq!(total, charges.total_bytes, "{name}");
+                    assert_eq!(over_by, *amount, "{name}: the overage is the lowered charge");
+                    assert_eq!(refused, charges, "{name}: the refusal carries the reservation");
+                }
+                other => panic!("{name}: expected a ceiling refusal, got {other:?}"),
+            }
+        }
+        assert!(run_at(charges.total_bytes, CapacityControl::Glm).is_ok());
+        match run_at(charges.total_bytes - 1, CapacityControl::Glm) {
+            Err(WeightedCapacityError::OverCeiling { over_by: 1, .. }) => {}
+            other => panic!("one byte under the total must be refused by one byte: {other:?}"),
+        }
         let mut kept = ResidentWeightedRows::try_new(&x, &y, &weights).expect("kept");
-        let mut full = summary_options;
-        full.retention = OutputRetention::FullReusable;
+        let full = CapacityOptions { retention: OutputRetention::FullReusable, ..base };
         assert!(matches!(
             run_weighted_capacity(CapacityControl::Glm, &mut kept, &full),
             Err(WeightedCapacityError::RetentionKeepsRows)
         ));
     }
 
-    fn same_science_ignoring_retention(
-        left: &WeightedCapacityResult,
-        right: &WeightedCapacityResult,
-    ) {
-        assert!(bits_eq(&left.coefficients, &right.coefficients));
-        assert!(bits_eq(&left.robust_covariance, &right.robust_covariance));
-        assert_eq!(left.content_identity, right.content_identity);
-        assert_eq!(left.source_passes, right.source_passes);
-        assert_eq!(left.residual.positive_weight_rows, right.residual.positive_weight_rows);
+    #[test]
+    fn measured_peak_allocation_stays_within_the_reserved_total() {
+        let (x, y, weights) = wide_design(200);
+        let options = CapacityOptions {
+            batch_rows: 16,
+            ceiling_bytes: u64::MAX,
+            retention: OutputRetention::SummaryOnly,
+        };
+        let mut resident = ResidentWeightedRows::try_new(&x, &y, &weights).expect("resident");
+        let (resident_fit, resident_peak) = counting::peak_above_start(|| {
+            run_weighted_capacity(CapacityControl::Glm, &mut resident, &options)
+        });
+        let resident_fit = resident_fit.expect("resident fit");
+        // The borrowed slices were allocated before the measurement began.
+        let resident_reserved =
+            resident_fit.charges.total_bytes - resident_fit.charges.input_ownership_bytes;
+        assert!(resident_peak > 0);
+        assert!(
+            resident_peak <= resident_reserved,
+            "resident peak {resident_peak} exceeds the reservation {resident_reserved}"
+        );
+
+        let bytes = encode_weighted_row_file(&x, &y, &weights).expect("encode");
+        let file_guard = write_rows("peak", &bytes);
+        drop(bytes);
+        let mut file = FileWeightedRows::open(&file_guard.0).expect("open");
+        let (file_fit, file_peak) = counting::peak_above_start(|| {
+            run_weighted_capacity(CapacityControl::GaussianBayes, &mut file, &options)
+        });
+        let file_fit = file_fit.expect("file fit");
+        assert!(file_peak > 0);
+        assert!(
+            file_peak <= file_fit.charges.total_bytes,
+            "file peak {file_peak} exceeds the reservation {}",
+            file_fit.charges.total_bytes
+        );
+        same_science(&resident_fit, &file_fit);
+    }
+
+    #[test]
+    fn a_source_that_changes_between_passes_is_refused() {
+        let (x, y, weights) = wide_design(23);
+        let mut source = ChangesAfterFirstPass {
+            inner: ResidentWeightedRows::try_new(&x, &y, &weights).expect("resident"),
+            rewinds: 0,
+        };
+        let options = CapacityOptions {
+            batch_rows: 5,
+            ceiling_bytes: u64::MAX,
+            retention: OutputRetention::SummaryOnly,
+        };
+        match run_weighted_capacity(CapacityControl::Glm, &mut source, &options) {
+            Err(WeightedCapacityError::SourceChanged { first, second }) => {
+                assert_ne!(first, second)
+            }
+            other => panic!("expected a changed-source refusal, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_row_file_that_disagrees_with_its_header_is_refused() {
+        let (x, y, weights) = design();
+        let bytes = encode_weighted_row_file(&x, &y, &weights).expect("encode");
+
+        let mut trailing = bytes.clone();
+        trailing.extend_from_slice(&[0_u8; 8]);
+        let trailing_guard = write_rows("trailing", &trailing);
+        assert!(matches!(
+            FileWeightedRows::open(&trailing_guard.0),
+            Err(WeightedCapacityError::RowFile(RowFileFault::LengthMismatch { .. }))
+        ));
+
+        let truncated_guard = write_rows("truncated", &bytes[..bytes.len() - 8]);
+        match FileWeightedRows::open(&truncated_guard.0) {
+            Err(WeightedCapacityError::RowFile(RowFileFault::LengthMismatch {
+                expected_bytes,
+                actual_bytes,
+            })) => assert_eq!(expected_bytes, actual_bytes + 8),
+            other => panic!("expected a length mismatch, got {other:?}"),
+        }
+
+        let mut wrong_magic = bytes;
+        wrong_magic[0] = b'X';
+        let magic_guard = write_rows("magic", &wrong_magic);
+        assert!(matches!(
+            FileWeightedRows::open(&magic_guard.0),
+            Err(WeightedCapacityError::RowFile(RowFileFault::BadMagic))
+        ));
+    }
+
+    #[test]
+    fn errors_keep_their_source() {
+        let missing = std::env::temp_dir().join("weighted-gaussian-capacity-does-not-exist.wgol");
+        match FileWeightedRows::open(&missing) {
+            Err(error @ WeightedCapacityError::Io { .. }) => {
+                assert!(error.source().is_some());
+            }
+            other => panic!("expected an io error, got {other:?}"),
+        }
+        match zeros(usize::MAX / 16, "probe buffer") {
+            Err(error @ WeightedCapacityError::Allocation { what: "probe buffer", .. }) => {
+                assert!(error.source().is_some());
+            }
+            other => panic!("expected an allocation failure, got {other:?}"),
+        }
     }
 }

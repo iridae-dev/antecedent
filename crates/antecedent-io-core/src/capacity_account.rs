@@ -30,8 +30,9 @@ use antecedent_core::execution_facts::OutputRetention;
 
 mod weighted_gaussian_capacity;
 pub use weighted_gaussian_capacity::{
-    CapacityControl, CapacityOptions, CeilingCharges, FileWeightedRows, GaussianCrossProducts,
-    LeverageSummary, ResidualCheck, ResidentWeightedRows, WeightedCapacityError,
+    CapacityControl, CapacityOptions, CeilingCharges, DesignShape, FileWeightedRows,
+    GaussianCrossProducts, LeverageSummary, ResidualCheck, ResidentWeightedRows, RowFileFault,
+    WeightFault, WeightedCapacityError,
     WeightedCapacityResult, WeightedRowSource, encode_weighted_row_file, run_weighted_capacity,
 };
 
