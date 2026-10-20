@@ -28,6 +28,13 @@ use std::sync::Arc;
 use antecedent_core::CanonicalWriter;
 use antecedent_core::execution_facts::OutputRetention;
 
+mod weighted_gaussian_capacity;
+pub use weighted_gaussian_capacity::{
+    CapacityControl, CapacityOptions, CeilingCharges, FileWeightedRows, GaussianCrossProducts,
+    LeverageSummary, ResidualCheck, ResidentWeightedRows, WeightedCapacityError,
+    WeightedCapacityResult, WeightedRowSource, encode_weighted_row_file, run_weighted_capacity,
+};
+
 /// Largest decompression buffer this account will request.
 ///
 /// This is the container's maximum section size. It is not a higher cap.
