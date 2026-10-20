@@ -37,6 +37,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::device_reservation::{
+    admit_fold, nested_thread_request, retain_scientific_f64, scientific_tolerance, select_compute,
+    within_declared_tolerance, ComputeSelection, CpuAdmissionError, DeviceReservationPool,
+    FoldAdmission, LearnerAdmission,
+};
+use antecedent_core::scratch_pool::{ScratchKind, ScratchPool};
 use antecedent_core::ExecutionContext;
 
 use crate::error::EstimationError;
@@ -497,6 +503,121 @@ pub fn raw_contrast(
     Ok(RawContrast { active, control, difference: active.mean - control.mean, se })
 }
 
+/// Accounted width of one `f64` outcome and one `f64` treatment.
+const SAMPLE_WIDTH: u64 = 16;
+
+/// A small complete sample on the CPU `f64` path, with its uncertainty.
+///
+/// The contrast is [`raw_contrast`]. No device bytes are reserved. The fold
+/// lease and one learner lease come from `ctx`'s admission pool, and their
+/// scratch is returned on success, refusal, and cancellation. The difference
+/// stays `f64` and must sit within [`scientific_tolerance`] of that `f64`
+/// value. The neural `f32` baseline is not used.
+///
+/// # Errors
+///
+/// The errors of [`raw_contrast`]. Also `invalid_argument`
+/// (`descriptive_comparison.fold_exceeds_lease`) when the sample does not fit
+/// the shared CPU and RAM lease, `descriptive_comparison.learner_exceeds_lease`
+/// when the learner does not fit that fold, and
+/// `descriptive_comparison.admission_refused` when scratch or the byte account
+/// is refused. A cancelled `ctx` is `cancelled_no_claim`.
+#[must_use = "a refused contrast is not an estimate"]
+pub fn small_cpu_contrast(
+    outcome: &[f64],
+    treatment: &[f64],
+    ctx: &ExecutionContext,
+    device: &DeviceReservationPool,
+) -> Result<RawContrast, EstimationError> {
+    let Ok(cpu) = select_compute(ComputeSelection::Cpu) else {
+        return Err(invalid_data(
+            "accelerator selection is refused because no device is promoted",
+        ));
+    };
+    let remainder = cpu.reserve_nothing(device);
+    if remainder.device_bytes() != device.device_budget()
+        || remainder.spill_bytes() != device.spill_budget()
+        || !device_is_untouched(device)
+    {
+        return Err(invalid_data("a small serial job reserved device bytes"));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
+    }
+    let bytes = sample_bytes(outcome.len())
+        .ok_or_else(|| invalid_data("the sample byte account overflowed"))?;
+    let scratch = ScratchPool::bounded(ScratchKind::Fold, 2, 8)
+        .map_err(|_| invalid_data("the fold scratch account was refused"))?;
+    let threads = nested_thread_request(ctx.admission().available().threads());
+    let mut fold = admit_fold(ctx, &scratch, threads, bytes).map_err(cpu_admission_error)?;
+    let learner_threads = nested_thread_request(fold.held_threads());
+    let mut learner = fold
+        .admit_learner(&scratch, learner_threads, bytes)
+        .map_err(cpu_admission_error)?;
+    if release_if_cancelled(&mut learner, &mut fold, ctx) {
+        return Err(cancelled());
+    }
+    let mut contrast = raw_contrast(outcome, treatment, ctx)?;
+    if release_if_cancelled(&mut learner, &mut fold, ctx) {
+        return Err(cancelled());
+    }
+    let exact = contrast.difference;
+    contrast.difference = retain_scientific_f64(exact);
+    let Some(tolerance) = scientific_tolerance() else {
+        return Err(invalid_data("the scientific tolerance was refused"));
+    };
+    if !within_declared_tolerance(contrast.difference, exact, tolerance) {
+        return Err(invalid_data(
+            "the contrast left f64 and missed the declared numerical tolerance",
+        ));
+    }
+    if !device_is_untouched(device) {
+        return Err(invalid_data("a small serial job reserved device bytes"));
+    }
+    Ok(contrast)
+}
+
+fn device_is_untouched(device: &DeviceReservationPool) -> bool {
+    let available = device.available();
+    available.device_bytes() == device.device_budget()
+        && available.spill_bytes() == device.spill_budget()
+}
+
+fn sample_bytes(rows: usize) -> Option<u64> {
+    u64::try_from(rows).ok()?.checked_mul(SAMPLE_WIDTH)
+}
+
+fn release_if_cancelled(
+    learner: &mut LearnerAdmission,
+    fold: &mut FoldAdmission,
+    ctx: &ExecutionContext,
+) -> bool {
+    let learner_stopped = learner.observe_cancel(&ctx.cancellation);
+    let fold_stopped = fold.observe_cancel(&ctx.cancellation);
+    learner_stopped || fold_stopped
+}
+
+fn cpu_admission_error(error: CpuAdmissionError) -> EstimationError {
+    match error {
+        CpuAdmissionError::Cancelled => cancelled(),
+        CpuAdmissionError::FoldExceedsLease { .. } => refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "descriptive_comparison.fold_exceeds_lease",
+            "the fold exceeds the shared CPU and RAM lease",
+        ),
+        CpuAdmissionError::LearnerExceedsLease { .. } => refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "descriptive_comparison.learner_exceeds_lease",
+            "the learner exceeds the fold lease",
+        ),
+        _ => refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "descriptive_comparison.admission_refused",
+            "the CPU admission or its scratch was refused",
+        ),
+    }
+}
+
 /// An adjusted estimate and the estimand coding it was computed under.
 ///
 /// The comparison is licensed only for the coding the raw contrast has: active level 1,
@@ -604,4 +725,77 @@ pub fn compare_raw_adjusted(
                      standard error or interval",
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::device_reservation::DeviceReservationRemainder;
+    use antecedent_core::execution::AdmissionPool;
+
+    use super::*;
+
+    fn mean(values: &[f64]) -> f64 {
+        values.iter().copied().sum::<f64>() / values.len() as f64
+    }
+
+    #[test]
+    fn small_cpu_contrast_stays_f64_with_uncertainty() {
+        let outcome = [1.0 / 3.0, 0.25, 2.0 / 3.0, 0.5];
+        let treatment = [0.0, 0.0, 1.0, 1.0];
+        let expected = mean(&[2.0 / 3.0, 0.5]) - mean(&[1.0 / 3.0, 0.25]);
+        let device = DeviceReservationPool::fixed(128, 64);
+        let ctx = ExecutionContext::for_tests(7);
+        let pool = ctx.admission();
+        let contrast = small_cpu_contrast(&outcome, &treatment, &ctx, &device).unwrap();
+        assert_eq!(contrast.difference.to_bits(), expected.to_bits());
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the f32 round trip is the drop a non-neural contrast must not take"
+        )]
+        let narrowed = f64::from(expected as f32);
+        assert_ne!(contrast.difference.to_bits(), narrowed.to_bits());
+        let tolerance = scientific_tolerance().unwrap();
+        assert!(within_declared_tolerance(contrast.difference, expected, tolerance));
+        assert!(!within_declared_tolerance(narrowed, expected, tolerance));
+        let standard_error = contrast
+            .se
+            .available()
+            .copied()
+            .expect("the contrast published no standard error");
+        assert!(standard_error.is_finite() && standard_error > 0.0);
+        assert_eq!(device.available(), DeviceReservationRemainder::new(128, 64));
+        assert_eq!(pool.available().bytes(), pool.byte_budget());
+        assert_eq!(pool.available().threads(), pool.thread_budget());
+    }
+
+    #[test]
+    fn small_cpu_contrast_refuses_a_fold_past_the_lease() {
+        let outcome = [1.0 / 3.0, 0.25, 2.0 / 3.0, 0.5];
+        let treatment = [0.0, 0.0, 1.0, 1.0];
+        let device = DeviceReservationPool::fixed(128, 64);
+        let pool = AdmissionPool::fixed(1, 8);
+        let ctx = ExecutionContext::for_tests(7).with_admission(pool.clone());
+        let error = small_cpu_contrast(&outcome, &treatment, &ctx, &device).unwrap_err();
+        let text = error.to_string();
+        assert!(text.contains("fold_exceeds_lease"), "{text}");
+        assert_eq!(pool.available().bytes(), 8);
+        assert_eq!(pool.available().threads(), 1);
+        assert_eq!(device.available(), DeviceReservationRemainder::new(128, 64));
+    }
+
+    #[test]
+    fn cancelled_small_cpu_contrast_reserves_nothing() {
+        let outcome = [1.0 / 3.0, 0.25, 2.0 / 3.0, 0.5];
+        let treatment = [0.0, 0.0, 1.0, 1.0];
+        let device = DeviceReservationPool::fixed(128, 64);
+        let pool = AdmissionPool::fixed(1, 1_000);
+        let ctx = ExecutionContext::for_tests(7).with_admission(pool.clone());
+        ctx.cancellation.cancel();
+        let error = small_cpu_contrast(&outcome, &treatment, &ctx, &device).unwrap_err();
+        let text = error.to_string();
+        assert!(text.contains("cancelled"), "{text}");
+        assert_eq!(pool.available().bytes(), 1_000);
+        assert_eq!(pool.available().threads(), 1);
+        assert_eq!(device.available(), DeviceReservationRemainder::new(128, 64));
+    }
 }

@@ -14,6 +14,11 @@
 //! [`crate::execution::AdmissionPool`] and [`crate::MemoryBudget`] are separate
 //! accounts and are not decremented here.
 //!
+//! No accelerator is promoted. [`select_compute`] refuses one and does not grant
+//! device bytes. A small serial job on [`ComputeSelection::Cpu`] leaves this
+//! account unchanged. Its CPU and RAM lease, cancellation, and scratch cleanup
+//! stay on the admission pool.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use core::fmt;
@@ -23,6 +28,14 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use thiserror::Error;
 
 use crate::execution::CancellationToken;
+
+mod cpu_admission;
+pub use cpu_admission::{
+    admit_fold, neural_baseline, nested_thread_request, place_physical_predictions,
+    retain_scientific_f64, scientific_arithmetic, scientific_tolerance, select_compute,
+    within_declared_tolerance, ArithmeticPath, ComputeSelection, CpuAdmission, CpuAdmissionError,
+    FoldAdmission, LearnerAdmission, PredictionOrderError,
+};
 
 /// Device bytes and spill bytes requested from a reservation pool.
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
@@ -174,6 +187,9 @@ pub enum DeviceReservationError {
     /// The parent lease no longer holds a remainder.
     #[error("device reservation lease is already released")]
     Released,
+    /// An accelerator was requested. None is promoted, so no device bytes are reserved.
+    #[error("accelerator selection is refused because no device is promoted")]
+    Unpromoted,
 }
 
 /// Shared device-byte and spill-byte budget.

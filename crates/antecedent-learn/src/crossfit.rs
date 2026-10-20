@@ -2,6 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::device_reservation::{
+    admit_fold, nested_thread_request, place_physical_predictions, CpuAdmissionError, FoldAdmission,
+    LearnerAdmission,
+};
+use antecedent_core::scratch_pool::{ScratchKind, ScratchPool};
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
 use antecedent_kernels::{ViewError, shuffled_fold_assignment};
 
@@ -99,24 +104,92 @@ fn complete_fold_count(assignment: &[u16], message: &'static str) -> Result<usiz
     Ok(folds)
 }
 
+/// Accounted width of one `f64`.
+const F64_BYTES: u64 = 8;
+
 /// Scatter each fold's held-out predictions back onto physical rows.
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "callers reject row counts above u32::MAX before storing physical indexes as u32"
-)]
+///
+/// Fold completion order does not change the vector: each value is written at
+/// its physical row, and a row that is missing or repeated is refused.
 fn scatter_fold_predictions(
     n: usize,
-    parts: impl IntoIterator<Item = FoldFit>,
-) -> (Vec<f64>, Vec<LearnerProvenance>) {
-    let mut predictions = vec![0.0; n];
-    let mut model_provenance = Vec::new();
+    parts: Vec<FoldFit>,
+) -> Result<(Vec<f64>, Vec<LearnerProvenance>), LearnError> {
+    let mut pairs = Vec::with_capacity(parts.len());
+    for part in &parts {
+        pairs.push((part.valid_phys.as_slice(), part.preds.as_slice()));
+    }
+    let predictions = place_physical_predictions(n, &pairs).map_err(|_| LearnError::Shape {
+        message: "held-out predictions are not one value per physical row",
+    })?;
+    drop(pairs);
+    let mut model_provenance = Vec::with_capacity(parts.len());
     for part in parts {
         model_provenance.push(part.provenance);
-        for (row, value) in part.valid_phys.into_iter().zip(part.preds) {
-            predictions[usize::try_from(row).expect("row id")] = value;
-        }
     }
-    (predictions, model_provenance)
+    Ok((predictions, model_provenance))
+}
+
+fn fold_scratch() -> Result<ScratchPool, LearnError> {
+    ScratchPool::bounded(ScratchKind::Fold, 2, F64_BYTES).map_err(|_| LearnError::Shape {
+        message: "cross-fit scratch account overflowed",
+    })
+}
+
+fn accounted_bytes(rows: usize) -> Result<u64, LearnError> {
+    let rows = u64::try_from(rows).map_err(|_| LearnError::Shape {
+        message: "cross-fit fold byte account overflowed",
+    })?;
+    rows.checked_mul(F64_BYTES).ok_or(LearnError::Shape {
+        message: "cross-fit fold byte account overflowed",
+    })
+}
+
+fn admission_to_learn(error: CpuAdmissionError) -> LearnError {
+    match error {
+        CpuAdmissionError::Cancelled => LearnError::Unsupported {
+            message: "cross-fit stopped because the work was cancelled",
+        },
+        CpuAdmissionError::FoldExceedsLease { .. } => LearnError::Unsupported {
+            message: "cross-fit fold exceeds the shared admission lease",
+        },
+        CpuAdmissionError::LearnerExceedsLease { .. } => LearnError::Unsupported {
+            message: "cross-fit learner exceeds the fold lease",
+        },
+        CpuAdmissionError::Scratch(_) => {
+            LearnError::Unsupported { message: "cross-fit scratch is full" }
+        }
+        _ => LearnError::Unsupported { message: "cross-fit admission was refused" },
+    }
+}
+
+fn lease_fold(
+    ctx: &ExecutionContext,
+    scratch: &ScratchPool,
+    rows: usize,
+) -> Result<(FoldAdmission, LearnerAdmission), LearnError> {
+    let accounted = accounted_bytes(rows)?;
+    let threads = nested_thread_request(ctx.admission().available().threads());
+    let fold = admit_fold(ctx, scratch, threads, accounted).map_err(admission_to_learn)?;
+    let learner_threads = nested_thread_request(fold.held_threads());
+    let learner =
+        fold.admit_learner(scratch, learner_threads, accounted).map_err(admission_to_learn)?;
+    Ok((fold, learner))
+}
+
+fn stop_if_cancelled(
+    learner: &mut LearnerAdmission,
+    fold: &mut FoldAdmission,
+    ctx: &ExecutionContext,
+) -> Result<(), LearnError> {
+    let learner_stopped = learner.observe_cancel(&ctx.cancellation);
+    let fold_stopped = fold.observe_cancel(&ctx.cancellation);
+    if learner_stopped || fold_stopped {
+        return Err(LearnError::Unsupported {
+            message: "cross-fit stopped because the work was cancelled",
+        });
+    }
+    Ok(())
 }
 
 /// Cross-fit `factory` on `x` / `y`. `y` is physical-aligned.
@@ -153,7 +226,8 @@ pub(crate) fn cross_fit(
 ///
 /// # Errors
 ///
-/// Shape mismatch, fewer than two folds, an empty fold, or learner failure.
+/// Shape mismatch, fewer than two folds, an empty fold, a fold that exceeds the
+/// shared CPU and RAM lease, cancellation, or learner failure.
 #[allow(
     clippy::cast_possible_truncation,
     reason = "fold ids are u16 and at most max + 1 <= 2^16 of them exist, so the fold index fits u16"
@@ -210,7 +284,7 @@ pub fn cross_fit_with_folds_weighted(
         fit_one_fold(factory, x, y, weights, (&fold_assignment, fold as u16), inner, transformer)
     })?;
 
-    let (predictions, model_provenance) = scatter_fold_predictions(n, fold_results);
+    let (predictions, model_provenance) = scatter_fold_predictions(n, fold_results)?;
     let validation = diagnose(factory.task(), y.values(), &predictions);
     Ok(CrossFittedPrediction { predictions, fold_assignment, model_provenance, validation })
 }
@@ -221,10 +295,6 @@ struct FoldFit {
     provenance: LearnerProvenance,
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "cross_fit_with_folds rejects row counts above u32::MAX, so every row index fits u32"
-)]
 fn fit_one_fold(
     factory: &dyn LearnerFactory,
     x: DesignView<'_>,
@@ -247,6 +317,12 @@ fn fit_one_fold(
     if train.is_empty() || valid.is_empty() {
         return Err(LearnError::Shape { message: "empty cross-fit train or valid fold" });
     }
+    let rows = train.len().checked_add(valid.len()).ok_or(LearnError::Shape {
+        message: "cross-fit fold byte account overflowed",
+    })?;
+    let scratch = fold_scratch()?;
+    let (mut fold_hold, mut learner_hold) = lease_fold(ctx, &scratch, rows)?;
+    stop_if_cancelled(&mut learner_hold, &mut fold_hold, ctx)?;
     let train_view = x.with_rows(RowSelection::new(&train))?;
     let valid_view = x.with_rows(RowSelection::new(&valid))?;
     let (fitted, preds) = if let Some(tf) = transformer {
@@ -268,6 +344,7 @@ fn fit_one_fold(
         model.predict(valid_view, &mut out, ctx)?;
         (model, out)
     };
+    stop_if_cancelled(&mut learner_hold, &mut fold_hold, ctx)?;
     Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
 }
 
@@ -333,7 +410,8 @@ pub fn diagnose(task: PredictionTask, y: &[f64], pred: &[f64]) -> NuisanceDiagno
 /// Cross-fit a nuisance trained only on declared eligible rows, predicting all
 /// held-out rows. Fold assignment is shared across nuisance roles.
 /// # Errors
-/// Misaligned inputs, invalid folds, empty training roles, or provider failure.
+/// Misaligned inputs, invalid folds, empty training roles, a fold that exceeds
+/// the shared CPU and RAM lease, cancellation, or provider failure.
 #[allow(
     clippy::cast_possible_truncation,
     reason = "n is checked against u32::MAX above, so every row index fits u32"
@@ -369,12 +447,19 @@ pub fn cross_fit_selected(
         if train.is_empty() {
             return Err(LearnError::Shape { message: "empty training role in cross-fit fold" });
         }
+        let rows = train.len().checked_add(valid.len()).ok_or(LearnError::Shape {
+            message: "cross-fit fold byte account overflowed",
+        })?;
+        let scratch = fold_scratch()?;
+        let (mut fold_hold, mut learner_hold) = lease_fold(inner, &scratch, rows)?;
+        stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
         let fitted = factory.fit(x.with_rows(RowSelection::new(&train))?, y, None, inner)?;
         let mut preds = vec![0.0; valid.len()];
         fitted.predict(x.with_rows(RowSelection::new(&valid))?, &mut preds, inner)?;
+        stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
         Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
     })?;
-    let (predictions, model_provenance) = scatter_fold_predictions(n, parts);
+    let (predictions, model_provenance) = scatter_fold_predictions(n, parts)?;
     let observed: Vec<_> =
         y.values().iter().zip(eligible).filter_map(|(v, use_row)| use_row.then_some(*v)).collect();
     let predicted: Vec<_> =
@@ -394,6 +479,8 @@ pub fn cross_fit_selected(
     reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
 )]
 mod tests {
+    use antecedent_core::execution::AdmissionPool;
+
     use super::*;
     use crate::linear::LinearLearner;
     use crate::transform::Identity;
@@ -468,5 +555,38 @@ mod tests {
         for i in 0..n {
             assert!((a.predictions[i] - b.predictions[i]).abs() < 1e-10);
         }
+    }
+
+    #[test]
+    fn fold_exceeding_the_lease_is_refused() {
+        let n = 12usize;
+        let (x, y) = line(n);
+        let pool = AdmissionPool::fixed(1, 8);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let error =
+            cross_fit(&LinearLearner, view, TargetView::new(&y), 4, &ctx, None).unwrap_err();
+        assert!(
+            matches!(error, LearnError::Unsupported { message } if message.contains("lease"))
+        );
+        assert_eq!(pool.available().bytes(), 8);
+        assert_eq!(pool.available().threads(), 1);
+    }
+
+    #[test]
+    fn cancelled_cross_fit_releases_the_cpu_lease() {
+        let n = 12usize;
+        let (x, y) = line(n);
+        let pool = AdmissionPool::fixed(1, 1_000);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        ctx.cancellation.cancel();
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let error =
+            cross_fit(&LinearLearner, view, TargetView::new(&y), 4, &ctx, None).unwrap_err();
+        assert!(
+            matches!(error, LearnError::Unsupported { message } if message.contains("cancelled"))
+        );
+        assert_eq!(pool.available().bytes(), 1_000);
+        assert_eq!(pool.available().threads(), 1);
     }
 }
