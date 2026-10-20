@@ -14,8 +14,18 @@
 //!
 //! A horizon that does not end on a tick, or that runs past the last tick the
 //! cadence declares, is refused. A censoring or assignment weight that is not
-//! finite is refused. Nothing here fits a mechanism, reads a column, or scans
-//! a table.
+//! finite is refused.
+//!
+//! Delayed feedback binds that same frame to a history window, an initial law,
+//! and one transition step. A finite-horizon response of that binding is a
+//! different target from a static equilibrium, a stationary law, and a
+//! continuous-time dynamic. A pulse is a different action from a sustained
+//! window, including a window of one step. A history shorter than the delay is
+//! refused unless a truncation certificate names that same short history; the
+//! history is not extended. A search cap that does not cover the ancestry is
+//! refused, and the cap is not raised.
+//!
+//! Nothing here fits a mechanism, reads a column, or scans a table.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -25,6 +35,11 @@ use std::sync::Arc;
 use antecedent_core::{HistoryWindow, InitialLaw, is_blank};
 use antecedent_data::{SamplingRegularity, TimeIndex};
 use thiserror::Error;
+
+use crate::information_time::{
+    AvailableOutcome, CadenceTick, ForwardOnly, InformationRefusal, InformationUse,
+    RetrospectivePermission, admit_delayed_outcome,
+};
 
 /// Exclusive end of an operator, in the cadence's nanoseconds.
 ///
@@ -201,6 +216,97 @@ pub enum HistoryOperatorError {
         /// `policy`, `outcome`, or `functional`.
         field: &'static str,
     },
+    /// A delay of zero is contemporaneous transmission, not delayed feedback.
+    #[error(
+        "feedback delay is 0 ticks; next attempt: use a positive delay, or a finite horizon \
+         without delay"
+    )]
+    ContemporaneousFeedback,
+    /// An action step lies outside the half-open horizon.
+    #[error(
+        "action step {step} is outside a horizon of {horizon_steps} steps; next attempt: place \
+         it before the horizon end"
+    )]
+    ActionOutsideHorizon {
+        /// Offending step, relative to the origin.
+        step: i32,
+        /// Exclusive horizon length, in cadence steps.
+        horizon_steps: u32,
+    },
+    /// A level or a dynamic coefficient was `NaN` or infinite.
+    #[error("level {value} is not finite; next attempt: supply a finite level")]
+    NonFiniteLevel {
+        /// The refused value.
+        value: f64,
+    },
+    /// A sustained window ends before it starts.
+    #[error(
+        "sustained window {from_step}..={until_step} is inverted; next attempt: order the window"
+    )]
+    InvertedWindow {
+        /// First step.
+        from_step: i32,
+        /// Last step.
+        until_step: i32,
+    },
+    /// History is shorter than the delay and no certificate names that history.
+    ///
+    /// The retained depth is the one that was declared. It is not rewritten to
+    /// the required depth.
+    #[error(
+        "history retains {retained_ticks} ticks but delayed feedback needs {required_ticks}; \
+         next attempt: certify that truncation, or declare a history that covers the delay"
+    )]
+    UncertifiedTruncation {
+        /// Explicit history cap, in ticks. Not increased.
+        retained_ticks: u32,
+        /// Delay or action lag that the history does not cover.
+        required_ticks: u32,
+    },
+    /// Ancestry does not fit in the declared search cap.
+    ///
+    /// `cap` is the cap that was given. It is not replaced by `ancestry_steps`.
+    #[error(
+        "search cap {cap} does not cover ancestry of {ancestry_steps} steps; next attempt: \
+         report it uncertified without raising the cap"
+    )]
+    SearchNotIdentified {
+        /// Declared cap, unchanged.
+        cap: u32,
+        /// Ancestry depth that was asked about.
+        ancestry_steps: u32,
+    },
+    /// The delayed outcome is not yet available at the decision.
+    #[error("delayed feedback is not available: {refusal}")]
+    InformationRefused {
+        /// Information-time refusal. The row is not dropped.
+        refusal: InformationRefusal,
+    },
+    /// The exclusive horizon length does not fit in `u32` steps.
+    #[error("horizon length does not fit in u32 steps; next attempt: shorten the horizon")]
+    HorizonStepsUncountable,
+    /// `steps` times the interval does not fit in `u64`.
+    #[error(
+        "horizon of {steps} steps at {interval_ns} ns overflows; next attempt: shorten the horizon"
+    )]
+    HorizonEndOverflow {
+        /// Regular interval, in nanoseconds.
+        interval_ns: u64,
+        /// Requested step count.
+        steps: u32,
+    },
+    /// `1 - a` is zero, so the map has no finite fixed point.
+    #[error(
+        "autoregression has no finite fixed point; next attempt: ask for the finite-horizon \
+         response"
+    )]
+    NoFixedPoint,
+    /// `|a| >= 1`, so the unit-innovation stationary variance is not finite.
+    #[error(
+        "autoregression has no finite stationary variance; next attempt: ask for the \
+         finite-horizon response"
+    )]
+    NoStationaryVariance,
 }
 
 /// History retained on the frame. This does not read rows or fill lags.
@@ -489,6 +595,518 @@ impl TrajectoryReduction {
     }
 }
 
+/// Ticks before a feedback edge re-enters the state.
+///
+/// Zero is contemporaneous transmission and is refused here. A finite horizon
+/// with no delay uses [`Option::None`] on [`DelayedFeedbackRequest::delay`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct FeedbackDelay {
+    ticks: u32,
+}
+
+impl FeedbackDelay {
+    /// Delay of `ticks` cadence steps.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryOperatorError::ContemporaneousFeedback`] when `ticks` is zero.
+    #[must_use = "a zero delay is not delayed feedback"]
+    pub const fn delayed(ticks: u32) -> Result<Self, HistoryOperatorError> {
+        if ticks == 0 {
+            Err(HistoryOperatorError::ContemporaneousFeedback)
+        } else {
+            Ok(Self { ticks })
+        }
+    }
+
+    /// Delay in cadence steps. At least one.
+    #[must_use = "the delay is the lag the history must cover"]
+    pub const fn ticks(self) -> u32 {
+        self.ticks
+    }
+}
+
+/// Cap on a feedback-ancestry search, in steps.
+///
+/// The stored count is the cap that was declared. Certifying a deeper ancestry
+/// does not replace it with that depth.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct FeedbackSearchCap {
+    steps: u32,
+}
+
+impl FeedbackSearchCap {
+    /// Cap of `steps`.
+    #[must_use = "the cap is the bound the search was given"]
+    pub const fn declared(steps: u32) -> Self {
+        Self { steps }
+    }
+
+    /// Declared step count. Not a wider bound discovered during search.
+    #[must_use = "the cap is the bound the search was given"]
+    pub const fn steps(self) -> u32 {
+        self.steps
+    }
+}
+
+/// Named permission to use a history shorter than the delay.
+///
+/// The certificate names the retained depth. It does not lengthen the history
+/// window to the delay.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct TruncationCertificate {
+    retained_ticks: u32,
+}
+
+impl TruncationCertificate {
+    /// Certify truncation at exactly `retained_ticks`.
+    #[must_use = "a certificate names the history it truncates"]
+    pub const fn retaining(retained_ticks: u32) -> Self {
+        Self { retained_ticks }
+    }
+
+    /// Retained depth this certificate names.
+    #[must_use = "the retained depth is the history the certificate allows"]
+    pub const fn retained_ticks(self) -> u32 {
+        self.retained_ticks
+    }
+}
+
+/// Pulse or sustained action on the delayed frame.
+///
+/// A sustained window with `from_step == until_step` is still sustained. It is
+/// not a pulse.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum DelayedAction {
+    /// One step.
+    Pulse {
+        /// Step relative to the origin. Negative steps sit in the history.
+        at_step: i32,
+        /// Bit pattern of the level. `-0.0` is stored as `+0.0`.
+        level_bits: u64,
+    },
+    /// Inclusive step window.
+    Sustained {
+        /// First intervened step.
+        from_step: i32,
+        /// Last intervened step, inclusive.
+        until_step: i32,
+        /// Bit pattern of the held level. `-0.0` is stored as `+0.0`.
+        level_bits: u64,
+    },
+}
+
+impl DelayedAction {
+    /// Pulse at `at_step` with finite `level`.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryOperatorError::NonFiniteLevel`] when `level` is not finite.
+    #[must_use = "a non-finite pulse level is not an action"]
+    pub fn pulse(at_step: i32, level: f64) -> Result<Self, HistoryOperatorError> {
+        Ok(Self::Pulse { at_step, level_bits: finite_bits(level)? })
+    }
+
+    /// Sustained action on `from_step..=until_step` with finite `level`.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryOperatorError::InvertedWindow`] when `until_step < from_step`.
+    /// [`HistoryOperatorError::NonFiniteLevel`] when `level` is not finite.
+    #[must_use = "a refused sustained window is not an action"]
+    pub fn sustained(
+        from_step: i32,
+        until_step: i32,
+        level: f64,
+    ) -> Result<Self, HistoryOperatorError> {
+        if until_step < from_step {
+            return Err(HistoryOperatorError::InvertedWindow { from_step, until_step });
+        }
+        Ok(Self::Sustained { from_step, until_step, level_bits: finite_bits(level)? })
+    }
+
+    /// Level at `step`, or zero when the action is inactive there.
+    #[must_use = "an inactive step contributes no action level"]
+    pub const fn level_at(self, step: i32) -> f64 {
+        let bits = match self {
+            Self::Pulse { at_step, level_bits } if step == at_step => level_bits,
+            Self::Sustained { from_step, until_step, level_bits }
+                if step >= from_step && step <= until_step =>
+            {
+                level_bits
+            }
+            Self::Pulse { .. } | Self::Sustained { .. } => 0.0f64.to_bits(),
+        };
+        f64::from_bits(bits)
+    }
+
+    /// Level held forever by an equilibrium or stationary question.
+    ///
+    /// A pulse returns to zero. A sustained action keeps its level.
+    #[must_use = "the permanent level is the constant input of an equilibrium"]
+    pub const fn permanent_level(self) -> f64 {
+        match self {
+            Self::Pulse { .. } => 0.0,
+            Self::Sustained { level_bits, .. } => f64::from_bits(level_bits),
+        }
+    }
+}
+
+/// Which response a delayed system was asked for.
+///
+/// These are different targets. A finite-horizon rollout is not a static
+/// equilibrium, not a stationary law, and not a continuous-time dynamic.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum ResponseTarget {
+    /// State after the admitted number of transition steps.
+    FiniteHorizon,
+    /// Fixed point of the one-step map under the action's permanent level.
+    StaticEquilibrium,
+    /// Invariant mean and unit-innovation variance of that map.
+    Stationary,
+    /// Continuous-time convolution over the same horizon.
+    ContinuousTime,
+}
+
+impl ResponseTarget {
+    /// Stable name.
+    #[must_use = "the name distinguishes this target from the other three"]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FiniteHorizon => "finite_horizon",
+            Self::StaticEquilibrium => "static_equilibrium",
+            Self::Stationary => "stationary",
+            Self::ContinuousTime => "continuous_time",
+        }
+    }
+}
+
+impl std::fmt::Display for ResponseTarget {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// Coefficients of `s <- a s + b u` and the state at the origin.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct DelayedDynamics {
+    autoregression_bits: u64,
+    input_gain_bits: u64,
+    initial_state_bits: u64,
+}
+
+impl DelayedDynamics {
+    /// Finite autoregression `a`, input gain `b`, and initial state.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryOperatorError::NonFiniteLevel`] when any argument is not finite.
+    #[must_use = "a non-finite coefficient is not a delayed system"]
+    pub fn try_new(
+        autoregression: f64,
+        input_gain: f64,
+        initial_state: f64,
+    ) -> Result<Self, HistoryOperatorError> {
+        Ok(Self {
+            autoregression_bits: finite_bits(autoregression)?,
+            input_gain_bits: finite_bits(input_gain)?,
+            initial_state_bits: finite_bits(initial_state)?,
+        })
+    }
+
+    /// Autoregressive coefficient.
+    #[must_use = "the autoregression is the transition's state coefficient"]
+    pub const fn autoregression(self) -> f64 {
+        f64::from_bits(self.autoregression_bits)
+    }
+
+    /// Coefficient on the delayed action.
+    #[must_use = "the input gain scales the delayed action"]
+    pub const fn input_gain(self) -> f64 {
+        f64::from_bits(self.input_gain_bits)
+    }
+
+    /// State supplied by the initial law, as a level.
+    #[must_use = "the initial state is the law's level at the origin"]
+    pub const fn initial_state(self) -> f64 {
+        f64::from_bits(self.initial_state_bits)
+    }
+}
+
+/// Level of one requested target.
+///
+/// `target` is the question that was asked. Two responses with different
+/// targets are not interchangeable, even when a coefficient choice makes a
+/// level coincide.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct TargetResponse {
+    target: ResponseTarget,
+    level_bits: u64,
+    spread_bits: u64,
+    action: DelayedAction,
+}
+
+impl TargetResponse {
+    /// Target that was evaluated.
+    #[must_use = "the target distinguishes a finite horizon from the other laws"]
+    pub const fn target(self) -> ResponseTarget {
+        self.target
+    }
+
+    /// Bit pattern of the response level.
+    #[must_use = "the level is the response of this target"]
+    pub const fn level_bits(self) -> u64 {
+        self.level_bits
+    }
+
+    /// Response level.
+    #[must_use = "the level is the response of this target"]
+    pub const fn level(self) -> f64 {
+        f64::from_bits(self.level_bits)
+    }
+
+    /// Bit pattern of the second-moment spread.
+    ///
+    /// Zero for a finite horizon, a static equilibrium, and a continuous-time
+    /// path. The stationary target carries the unit-innovation variance.
+    #[must_use = "the spread separates a stationary law from a fixed point"]
+    pub const fn spread_bits(self) -> u64 {
+        self.spread_bits
+    }
+
+    /// Action the response was evaluated under.
+    #[must_use = "the action separates a pulse from a sustained window"]
+    pub const fn action(self) -> DelayedAction {
+        self.action
+    }
+}
+
+/// How the ancestry search was bounded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum FeedbackSearch {
+    /// Ancestry fit in the declared cap. The cap is that declaration.
+    Identified {
+        /// Cap that was given.
+        cap: FeedbackSearchCap,
+    },
+    /// No caller cap was declared. Nothing was widened to a larger cap.
+    PlannerDefault,
+}
+
+/// History, initial law, and one transition, bound to a delayed action.
+///
+/// Construction admits only a finite-horizon frame. [`Self::response`] can
+/// evaluate another target of the same coefficients; that result names its
+/// own target and is not this frame.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DelayedFeedback {
+    history: HistoryConstruction,
+    transition: Transition,
+    delay: Option<FeedbackDelay>,
+    action: DelayedAction,
+    search: FeedbackSearch,
+    information: Option<AvailableOutcome>,
+    steps: u32,
+}
+
+/// Inputs of [`DelayedFeedback::try_new`].
+///
+/// `search_cap` and `ancestry_steps` are the declared bound and the depth the
+/// caller walked. When the depth exceeds the cap, construction refuses and
+/// leaves the cap unchanged.
+#[derive(Clone, Debug)]
+pub struct DelayedFeedbackRequest {
+    /// Observation cadence.
+    pub cadence: TimeIndex,
+    /// Exclusive horizon end.
+    pub horizon: Horizon,
+    /// Initial-state law. Absence is refused.
+    pub initial_law: Option<InitialLaw>,
+    /// History window. An explicit cap shorter than the delay needs a certificate.
+    pub history: HistoryWindow,
+    /// Delay. [`None`] is a finite horizon with contemporaneous transmission.
+    pub delay: Option<FeedbackDelay>,
+    /// Pulse or sustained action.
+    pub action: DelayedAction,
+    /// Certificate for a history shorter than the delay. Absence refuses that history.
+    pub truncation: Option<TruncationCertificate>,
+    /// Declared ancestry cap. [`None`] is the planner default, not a raised cap.
+    pub search_cap: Option<FeedbackSearchCap>,
+    /// Ancestry depth the search walked. Compared with [`Self::search_cap`].
+    pub ancestry_steps: u32,
+}
+
+impl DelayedFeedback {
+    /// Bind history, the initial law, and one transition on a finite horizon.
+    ///
+    /// # Errors
+    ///
+    /// The frame errors of [`OperatorFrame::try_new`].
+    /// [`HistoryOperatorError::UncertifiedTruncation`] when an explicit history
+    /// is shorter than the delay or the action lag and `truncation` does not
+    /// name that retained depth. The history window is not lengthened.
+    /// [`HistoryOperatorError::SearchNotIdentified`] when `ancestry_steps`
+    /// exceeds `search_cap`. The cap is not replaced by the ancestry depth.
+    /// [`HistoryOperatorError::ActionOutsideHorizon`] when an action step is
+    /// at or past the horizon end.
+    /// [`HistoryOperatorError::InformationRefused`] when a non-negative action
+    /// step's delayed outcome is not available by the last included tick.
+    /// [`HistoryOperatorError::HorizonStepsUncountable`] when the horizon
+    /// length does not fit in `u32` steps.
+    #[must_use = "a refused delayed feedback is not a finite-horizon frame"]
+    pub fn try_new(request: DelayedFeedbackRequest) -> Result<Self, HistoryOperatorError> {
+        let DelayedFeedbackRequest {
+            cadence,
+            horizon,
+            initial_law,
+            history,
+            delay,
+            action,
+            truncation,
+            search_cap,
+            ancestry_steps,
+        } = request;
+        let history = HistoryConstruction::try_new(
+            cadence.clone(),
+            horizon,
+            initial_law.clone(),
+            history,
+        )?;
+        let transition = Transition::try_new(cadence, horizon, initial_law)?;
+        let steps = horizon_steps(&history)?;
+        admit_action_window(action, steps)?;
+        admit_truncation(history.history(), delay, action, truncation)?;
+        let search = admit_search(search_cap, ancestry_steps)?;
+        let information = admit_feedback_information(
+            history.frame().cadence(),
+            steps,
+            delay.map(FeedbackDelay::ticks).unwrap_or(0),
+            action,
+        )?;
+        Ok(Self { history, transition, delay, action, search, information, steps })
+    }
+
+    /// History operator. Its window is the one that was declared.
+    #[must_use = "the history is the window that was declared"]
+    pub const fn history(&self) -> &HistoryConstruction {
+        &self.history
+    }
+
+    /// Transition operator. Its step is one cadence interval.
+    #[must_use = "the transition is one cadence step of the delayed system"]
+    pub const fn transition(&self) -> &Transition {
+        &self.transition
+    }
+
+    /// Initial-state law on the shared frame.
+    #[must_use = "the initial law is the state before the first transition"]
+    pub const fn initial_law(&self) -> &InitialLaw {
+        self.history.frame().initial_law()
+    }
+
+    /// Delay, or [`None`] when transmission is contemporaneous.
+    #[must_use = "the delay is the lag between the action and the state"]
+    pub const fn delay(&self) -> Option<FeedbackDelay> {
+        self.delay
+    }
+
+    /// Action on this frame.
+    #[must_use = "the action separates a pulse from a sustained window"]
+    pub const fn action(&self) -> DelayedAction {
+        self.action
+    }
+
+    /// Exclusive horizon length, in cadence steps.
+    #[must_use = "the step count is the finite horizon"]
+    pub const fn steps(&self) -> u32 {
+        self.steps
+    }
+
+    /// Search bound. [`FeedbackSearch::Identified`] carries the declared cap.
+    #[must_use = "the search records the cap that was given"]
+    pub const fn search(&self) -> FeedbackSearch {
+        self.search
+    }
+
+    /// This frame is a finite-horizon target.
+    #[must_use = "a delayed frame is a finite horizon, not an equilibrium"]
+    pub const fn target(&self) -> ResponseTarget {
+        ResponseTarget::FiniteHorizon
+    }
+
+    /// Information-time admission of the delayed outcome, when the action step
+    /// is inside the observed cadence and the outcome has arrived.
+    #[must_use = "availability is the information-time admission of the delay"]
+    pub const fn information(&self) -> Option<AvailableOutcome> {
+        self.information
+    }
+
+    /// Evaluate `target` on these coefficients.
+    ///
+    /// The returned [`TargetResponse::target`] is `target`. A finite-horizon
+    /// result applies [`Self::transition`] once per cadence step, starting from
+    /// [`DelayedDynamics::initial_state`]. [`Self::initial_law`] names that
+    /// state and does not supply the number. The other three targets use
+    /// different maps and are not that rollout.
+    ///
+    /// # Errors
+    ///
+    /// [`HistoryOperatorError::NoFixedPoint`] for a static equilibrium or a
+    /// stationary mean when the autoregression has no finite fixed point.
+    /// [`HistoryOperatorError::NoStationaryVariance`] when the stationary
+    /// variance is not finite. [`HistoryOperatorError::NonFiniteLevel`] when a
+    /// computed level is not finite.
+    #[must_use = "a refused target is not a response of the delayed system"]
+    pub fn response(
+        &self,
+        target: ResponseTarget,
+        dynamics: DelayedDynamics,
+    ) -> Result<TargetResponse, HistoryOperatorError> {
+        let (level, spread) = match target {
+            ResponseTarget::FiniteHorizon => (finite_horizon_level(self, dynamics)?, 0.0),
+            ResponseTarget::StaticEquilibrium => {
+                (fixed_point(dynamics, self.action.permanent_level())?, 0.0)
+            }
+            ResponseTarget::Stationary => stationary_law(dynamics, self.action.permanent_level())?,
+            ResponseTarget::ContinuousTime => {
+                (continuous_level(self, dynamics)?, 0.0)
+            }
+        };
+        Ok(TargetResponse {
+            target,
+            level_bits: finite_bits(level)?,
+            spread_bits: finite_bits(spread)?,
+            action: self.action,
+        })
+    }
+}
+
+/// Horizon end, in cadence steps, for a response whose step count is `steps`.
+///
+/// An irregular cadence and a zero interval are returned as a horizon the
+/// frame refuses, rather than extended onto a tick.
+///
+/// # Errors
+///
+/// [`HistoryOperatorError::HorizonEndOverflow`] when `steps` times the regular
+/// interval does not fit in `u64`.
+#[must_use = "an overflowing horizon is not a tick the frame can admit"]
+pub fn horizon_ending_after(
+    cadence: &TimeIndex,
+    steps: u32,
+) -> Result<Horizon, HistoryOperatorError> {
+    let SamplingRegularity::Regular { interval_ns } = cadence.regularity else {
+        return Ok(Horizon::ending_at(1));
+    };
+    if interval_ns == 0 {
+        return Ok(Horizon::ending_at(1));
+    }
+    let Some(end_ns) = u64::from(steps).checked_mul(interval_ns) else {
+        return Err(HistoryOperatorError::HorizonEndOverflow { interval_ns, steps });
+    };
+    Ok(Horizon::ending_at(end_ns))
+}
+
 fn admit_horizon(cadence: &TimeIndex, horizon: Horizon) -> Result<u64, HistoryOperatorError> {
     let end_ns = horizon.end_ns();
     let SamplingRegularity::Regular { interval_ns } = cadence.regularity else {
@@ -538,6 +1156,219 @@ fn admit_weight(role: WeightRole, value: f64) -> Result<(), HistoryOperatorError
 
 fn admit_name(field: &'static str, name: Arc<str>) -> Result<Arc<str>, HistoryOperatorError> {
     if is_blank(&name) { Err(HistoryOperatorError::EmptyName { field }) } else { Ok(name) }
+}
+
+const fn finite_bits(value: f64) -> Result<u64, HistoryOperatorError> {
+    if !value.is_finite() {
+        return Err(HistoryOperatorError::NonFiniteLevel { value });
+    }
+    let bits = value.to_bits();
+    if bits == (-0.0f64).to_bits() { Ok(0.0f64.to_bits()) } else { Ok(bits) }
+}
+
+fn horizon_steps(history: &HistoryConstruction) -> Result<u32, HistoryOperatorError> {
+    let steps = history.frame().horizon().end_ns() / history.frame().interval_ns();
+    u32::try_from(steps).map_err(|_| HistoryOperatorError::HorizonStepsUncountable)
+}
+
+const fn action_bounds(action: DelayedAction) -> (i32, i32) {
+    match action {
+        DelayedAction::Pulse { at_step, .. } => (at_step, at_step),
+        DelayedAction::Sustained { from_step, until_step, .. } => (from_step, until_step),
+    }
+}
+
+fn admit_action_window(action: DelayedAction, steps: u32) -> Result<(), HistoryOperatorError> {
+    let Ok(horizon_steps) = i32::try_from(steps) else {
+        return Err(HistoryOperatorError::HorizonStepsUncountable);
+    };
+    let (from_step, until_step) = action_bounds(action);
+    if until_step >= horizon_steps || from_step > until_step {
+        return Err(HistoryOperatorError::ActionOutsideHorizon {
+            step: until_step,
+            horizon_steps: steps,
+        });
+    }
+    Ok(())
+}
+
+const fn required_history_ticks(delay: Option<FeedbackDelay>, action: DelayedAction) -> u32 {
+    let delay_ticks = match delay {
+        Some(delay) => delay.ticks(),
+        None => 0,
+    };
+    let (from_step, _) = action_bounds(action);
+    let action_lag = if from_step < 0 { from_step.unsigned_abs() } else { 0 };
+    if delay_ticks > action_lag { delay_ticks } else { action_lag }
+}
+
+fn admit_truncation(
+    history: HistoryWindow,
+    delay: Option<FeedbackDelay>,
+    action: DelayedAction,
+    truncation: Option<TruncationCertificate>,
+) -> Result<(), HistoryOperatorError> {
+    let Some(retained_ticks) = history.max_lag_steps() else {
+        return Ok(());
+    };
+    let required_ticks = required_history_ticks(delay, action);
+    if retained_ticks >= required_ticks {
+        return Ok(());
+    }
+    let certified =
+        truncation.is_some_and(|certificate| certificate.retained_ticks() == retained_ticks);
+    if certified {
+        return Ok(());
+    }
+    Err(HistoryOperatorError::UncertifiedTruncation { retained_ticks, required_ticks })
+}
+
+fn admit_search(
+    search_cap: Option<FeedbackSearchCap>,
+    ancestry_steps: u32,
+) -> Result<FeedbackSearch, HistoryOperatorError> {
+    let Some(cap) = search_cap else {
+        return Ok(FeedbackSearch::PlannerDefault);
+    };
+    if ancestry_steps > cap.steps() {
+        return Err(HistoryOperatorError::SearchNotIdentified { cap: cap.steps(), ancestry_steps });
+    }
+    Ok(FeedbackSearch::Identified { cap })
+}
+
+fn admit_feedback_information(
+    cadence: &TimeIndex,
+    steps: u32,
+    delay_ticks: u32,
+    action: DelayedAction,
+) -> Result<Option<AvailableOutcome>, HistoryOperatorError> {
+    if delay_ticks == 0 {
+        return Ok(None);
+    }
+    let (from_step, _) = action_bounds(action);
+    if from_step < 0 {
+        return Ok(None);
+    }
+    let decision = steps.checked_sub(1).ok_or(HistoryOperatorError::HorizonStepsUncountable)?;
+    let generated =
+        u32::try_from(from_step).map_err(|_| HistoryOperatorError::HorizonStepsUncountable)?;
+    match admit_delayed_outcome(
+        cadence,
+        CadenceTick::new(decision),
+        CadenceTick::new(generated),
+        delay_ticks,
+        InformationUse::Prospective,
+        RetrospectivePermission::Denied,
+        ForwardOnly::Enforced,
+    ) {
+        Ok(available) => Ok(Some(available)),
+        Err(refusal) => Err(HistoryOperatorError::InformationRefused { refusal }),
+    }
+}
+
+fn finite_horizon_level(
+    feedback: &DelayedFeedback,
+    dynamics: DelayedDynamics,
+) -> Result<f64, HistoryOperatorError> {
+    let delay = feedback.delay.map(FeedbackDelay::ticks).unwrap_or(0);
+    let mut state = dynamics.initial_state();
+    let autoregression = dynamics.autoregression();
+    let input_gain = dynamics.input_gain();
+    for step in 0..feedback.steps {
+        let source = i64::from(step) - i64::from(delay);
+        let Ok(source) = i32::try_from(source) else {
+            return Err(HistoryOperatorError::HorizonStepsUncountable);
+        };
+        let level = feedback.action.level_at(source);
+        state = autoregression * state + input_gain * level;
+        if !state.is_finite() {
+            return Err(HistoryOperatorError::NonFiniteLevel { value: state });
+        }
+    }
+    Ok(state)
+}
+
+fn fixed_point(dynamics: DelayedDynamics, permanent: f64) -> Result<f64, HistoryOperatorError> {
+    let denom = 1.0 - dynamics.autoregression();
+    if denom.to_bits() == 0.0f64.to_bits() {
+        return Err(HistoryOperatorError::NoFixedPoint);
+    }
+    let level = dynamics.input_gain() * permanent / denom;
+    if !level.is_finite() {
+        return Err(HistoryOperatorError::NonFiniteLevel { value: level });
+    }
+    Ok(level)
+}
+
+fn stationary_law(
+    dynamics: DelayedDynamics,
+    permanent: f64,
+) -> Result<(f64, f64), HistoryOperatorError> {
+    let mean = fixed_point(dynamics, permanent)?;
+    let autoregression = dynamics.autoregression();
+    let denom = 1.0 - autoregression * autoregression;
+    if !(denom > 0.0) {
+        return Err(HistoryOperatorError::NoStationaryVariance);
+    }
+    let spread = 1.0 / denom;
+    if !spread.is_finite() {
+        return Err(HistoryOperatorError::NonFiniteLevel { value: spread });
+    }
+    Ok((mean, spread))
+}
+
+fn continuous_level(
+    feedback: &DelayedFeedback,
+    dynamics: DelayedDynamics,
+) -> Result<f64, HistoryOperatorError> {
+    let level = match feedback.action {
+        DelayedAction::Pulse { at_step, level_bits } => continuous_pulse(
+            dynamics,
+            f64::from_bits(level_bits),
+            at_step,
+            feedback.delay.map(FeedbackDelay::ticks).unwrap_or(0),
+            feedback.steps,
+        ),
+        DelayedAction::Sustained { level_bits, .. } => {
+            continuous_sustained(dynamics, f64::from_bits(level_bits), feedback.steps)
+        }
+    };
+    if !level.is_finite() {
+        return Err(HistoryOperatorError::NonFiniteLevel { value: level });
+    }
+    Ok(level)
+}
+
+fn continuous_sustained(dynamics: DelayedDynamics, level: f64, steps: u32) -> f64 {
+    let duration = f64::from(steps);
+    let gain = dynamics.input_gain() * level;
+    let drift = dynamics.autoregression() - 1.0;
+    if drift.to_bits() == 0.0f64.to_bits() {
+        return gain * duration;
+    }
+    gain / -drift * (1.0 - (drift * duration).exp())
+}
+
+fn continuous_pulse(
+    dynamics: DelayedDynamics,
+    level: f64,
+    at_step: i32,
+    delay_ticks: u32,
+    steps: u32,
+) -> f64 {
+    let arrival = i64::from(at_step) + i64::from(delay_ticks);
+    let Ok(arrival) = i32::try_from(arrival) else {
+        return 0.0;
+    };
+    let Ok(steps_i) = i32::try_from(steps) else {
+        return 0.0;
+    };
+    if arrival < 0 || arrival >= steps_i {
+        return 0.0;
+    }
+    let elapsed = f64::from(steps) - f64::from(arrival);
+    let drift = dynamics.autoregression() - 1.0;
+    dynamics.input_gain() * level * (drift * elapsed).exp()
 }
 
 #[cfg(test)]
@@ -794,5 +1625,139 @@ mod tests {
         let error = Transition::try_new(regular(2, length), Horizon::ending_at(2), Some(origin()))
             .unwrap_err();
         assert_eq!(error, HistoryOperatorError::CadenceSpanOverflow { interval_ns: 2, ticks });
+    }
+
+    fn unit_dynamics() -> DelayedDynamics {
+        DelayedDynamics::try_new(0.5, 1.0, 0.0).unwrap()
+    }
+
+    fn delayed_request(action: DelayedAction) -> DelayedFeedbackRequest {
+        DelayedFeedbackRequest {
+            cadence: regular(1, 8),
+            horizon: Horizon::ending_at(3),
+            initial_law: Some(origin()),
+            history: HistoryWindow::planner_default(),
+            delay: Some(FeedbackDelay::delayed(1).unwrap()),
+            action,
+            truncation: None,
+            search_cap: Some(FeedbackSearchCap::declared(2)),
+            ancestry_steps: 2,
+        }
+    }
+
+    #[test]
+    fn finite_horizon_is_not_equilibrium_stationary_or_continuous() {
+        let action = DelayedAction::sustained(0, 2, 1.0).unwrap();
+        let feedback = DelayedFeedback::try_new(delayed_request(action)).unwrap();
+        let dynamics = unit_dynamics();
+        assert_eq!(feedback.target(), ResponseTarget::FiniteHorizon);
+        assert_eq!(feedback.initial_law().name(), Some("origin"));
+        assert_eq!(feedback.transition().step_ns(), 1);
+        assert_eq!(feedback.history().history(), HistoryWindow::planner_default());
+
+        let targets = [
+            ResponseTarget::FiniteHorizon,
+            ResponseTarget::StaticEquilibrium,
+            ResponseTarget::Stationary,
+            ResponseTarget::ContinuousTime,
+        ];
+        let responses = targets.map(|target| feedback.response(target, dynamics).unwrap());
+        for (response, target) in responses.iter().zip(targets) {
+            assert_eq!(response.target(), target);
+        }
+        for (index, response) in responses.iter().enumerate() {
+            for other in responses.iter().skip(index + 1) {
+                assert_ne!(response, other);
+            }
+        }
+        assert_eq!(responses[0].level_bits(), 1.5f64.to_bits());
+        assert_eq!(responses[1].level_bits(), 2.0f64.to_bits());
+        assert_eq!(responses[1].spread_bits(), 0.0f64.to_bits());
+        assert_eq!(responses[2].level_bits(), 2.0f64.to_bits());
+        assert_eq!(responses[2].spread_bits(), (1.0_f64 / 0.75).to_bits());
+        assert_ne!(responses[3].level_bits(), responses[0].level_bits());
+        assert_ne!(responses[3].level_bits(), responses[1].level_bits());
+    }
+
+    #[test]
+    fn pulse_and_sustained_differ_on_the_same_delayed_system() {
+        let dynamics = unit_dynamics();
+        let pulse = DelayedFeedback::try_new(delayed_request(DelayedAction::pulse(0, 1.0).unwrap()))
+            .unwrap();
+        let sustained = DelayedFeedback::try_new(delayed_request(
+            DelayedAction::sustained(0, 2, 1.0).unwrap(),
+        ))
+        .unwrap();
+        let one_step = DelayedFeedback::try_new(delayed_request(
+            DelayedAction::sustained(0, 0, 1.0).unwrap(),
+        ))
+        .unwrap();
+        let pulse_response = pulse.response(ResponseTarget::FiniteHorizon, dynamics).unwrap();
+        let sustained_response =
+            sustained.response(ResponseTarget::FiniteHorizon, dynamics).unwrap();
+        let one_step_response = one_step.response(ResponseTarget::FiniteHorizon, dynamics).unwrap();
+        assert_eq!(pulse_response.level_bits(), 0.5f64.to_bits());
+        assert_eq!(sustained_response.level_bits(), 1.5f64.to_bits());
+        assert_ne!(pulse_response, sustained_response);
+        assert_ne!(pulse_response.action(), one_step_response.action());
+        assert_ne!(pulse_response, one_step_response);
+        assert_eq!(pulse.information().unwrap().decision().get(), 2);
+        assert_eq!(pulse.information().unwrap().outcome().get(), 1);
+    }
+
+    #[test]
+    fn an_off_cadence_delayed_horizon_is_refused() {
+        let mut request = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        request.cadence = regular(10, 4);
+        request.horizon = Horizon::ending_at(25);
+        let error = DelayedFeedback::try_new(request).unwrap_err();
+        assert_crosses(error, 25);
+    }
+
+    #[test]
+    fn an_uncertified_truncation_is_refused_and_not_extended() {
+        let mut request = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        request.delay = Some(FeedbackDelay::delayed(2).unwrap());
+        request.history = HistoryWindow::max_lag(0);
+        let error = DelayedFeedback::try_new(request.clone()).unwrap_err();
+        assert_eq!(
+            error,
+            HistoryOperatorError::UncertifiedTruncation { retained_ticks: 0, required_ticks: 2 }
+        );
+        request.truncation = Some(TruncationCertificate::retaining(0));
+        let admitted = DelayedFeedback::try_new(request).unwrap();
+        assert_eq!(admitted.history().history().max_lag_steps(), Some(0));
+        assert_eq!(admitted.delay().unwrap().ticks(), 2);
+    }
+
+    #[test]
+    fn raising_the_search_cap_is_not_identification() {
+        let mut request = delayed_request(DelayedAction::pulse(-1, 1.0).unwrap());
+        request.search_cap = Some(FeedbackSearchCap::declared(2));
+        request.ancestry_steps = 5;
+        let error = DelayedFeedback::try_new(request.clone()).unwrap_err();
+        assert_eq!(error, HistoryOperatorError::SearchNotIdentified { cap: 2, ancestry_steps: 5 });
+        request.ancestry_steps = 2;
+        let admitted = DelayedFeedback::try_new(request).unwrap();
+        assert_eq!(
+            admitted.search(),
+            FeedbackSearch::Identified { cap: FeedbackSearchCap::declared(2) }
+        );
+    }
+
+    #[test]
+    fn feedback_after_the_decision_is_refused() {
+        let mut request = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        request.delay = Some(FeedbackDelay::delayed(5).unwrap());
+        let error = DelayedFeedback::try_new(request).unwrap_err();
+        assert_eq!(
+            error,
+            HistoryOperatorError::InformationRefused {
+                refusal: crate::information_time::InformationRefusal::ProspectiveFuture {
+                    decision: 2,
+                    outcome: 5,
+                }
+            }
+        );
     }
 }

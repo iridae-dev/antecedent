@@ -20,6 +20,11 @@
 //! [`ForwardOnly::NotEnforced`]. [`ForwardOnly::Enforced`] refuses that later
 //! outcome. A refusal is [`InformationRefusal`]. The row is not dropped.
 //!
+//! Delayed feedback is available `delay` ticks after it is generated.
+//! [`admit_delayed_outcome`] shifts the outcome to that arrival tick and then
+//! uses the same rule. It does not move the decision later to make the
+//! feedback visible.
+//!
 //! Nothing here fits a model.
 
 #![forbid(unsafe_code)]
@@ -254,6 +259,17 @@ pub enum InformationRefusal {
         /// Outcome index.
         outcome: u32,
     },
+    /// The generated tick plus the delay does not fit in `u32`.
+    #[error(
+        "feedback generated at {generated} plus delay {delay_ticks} overflows; next attempt: \
+         shorten the delay"
+    )]
+    DelayOverflow {
+        /// Tick the feedback was generated.
+        generated: u32,
+        /// Delay in cadence ticks.
+        delay_ticks: u32,
+    },
 }
 
 /// Admit `outcome` at `decision` for `information_use` on the observed `cadence`.
@@ -304,6 +320,42 @@ pub fn admit_outcome(
         }
     }
     Ok(AvailableOutcome { decision, outcome, information_use })
+}
+
+/// Admit feedback generated at `generated` after `delay_ticks` for `information_use`.
+///
+/// The outcome becomes available at `generated + delay_ticks`. That arrival is
+/// then judged by [`admit_outcome`]. A delay of zero is contemporaneous and
+/// does not move the tick. The decision is not moved forward to hide a late
+/// arrival.
+///
+/// # Errors
+///
+/// [`InformationRefusal::DelayOverflow`] when the arrival tick does not fit in
+/// `u32`. The errors of [`admit_outcome`] for the arrival tick, including
+/// [`InformationRefusal::ProspectiveFuture`] when the feedback arrives after
+/// the decision.
+#[must_use = "a refused delayed outcome stays on the row; it is not dropped"]
+pub fn admit_delayed_outcome(
+    cadence: &TimeIndex,
+    decision: CadenceTick,
+    generated: CadenceTick,
+    delay_ticks: u32,
+    information_use: InformationUse,
+    permission: RetrospectivePermission,
+    forward_only: ForwardOnly,
+) -> Result<AvailableOutcome, InformationRefusal> {
+    let Some(arrival) = generated.get().checked_add(delay_ticks) else {
+        return Err(InformationRefusal::DelayOverflow { generated: generated.get(), delay_ticks });
+    };
+    admit_outcome(
+        cadence,
+        decision,
+        CadenceTick::new(arrival),
+        information_use,
+        permission,
+        forward_only,
+    )
 }
 
 const fn refuse_future(
@@ -520,6 +572,56 @@ mod tests {
         assert_eq!(
             ObservedCadence::from_observed(&cadence).unwrap_err(),
             InformationRefusal::IrregularCadence,
+        );
+    }
+
+    #[test]
+    fn delayed_feedback_is_unavailable_before_it_arrives() {
+        let refusal = admit_delayed_outcome(
+            &observed(10, 8),
+            CadenceTick::new(2),
+            CadenceTick::new(1),
+            2,
+            InformationUse::Prospective,
+            RetrospectivePermission::Granted,
+            ForwardOnly::NotEnforced,
+        )
+        .unwrap_err();
+        assert_eq!(refusal, InformationRefusal::ProspectiveFuture { decision: 2, outcome: 3 });
+    }
+
+    #[test]
+    fn delayed_feedback_is_available_at_the_decision() {
+        let available = admit_delayed_outcome(
+            &observed(10, 8),
+            CadenceTick::new(3),
+            CadenceTick::new(1),
+            2,
+            InformationUse::Prospective,
+            RetrospectivePermission::Denied,
+            ForwardOnly::Enforced,
+        )
+        .unwrap();
+        assert_eq!(available.decision().get(), 3);
+        assert_eq!(available.outcome().get(), 3);
+        assert_eq!(available.information_use(), InformationUse::Prospective);
+    }
+
+    #[test]
+    fn a_delay_that_overflows_the_tick_is_refused() {
+        let refusal = admit_delayed_outcome(
+            &observed(10, 8),
+            CadenceTick::new(0),
+            CadenceTick::new(u32::MAX),
+            1,
+            InformationUse::HeldOut,
+            RetrospectivePermission::Granted,
+            ForwardOnly::NotEnforced,
+        )
+        .unwrap_err();
+        assert_eq!(
+            refusal,
+            InformationRefusal::DelayOverflow { generated: u32::MAX, delay_ticks: 1 }
         );
     }
 }
