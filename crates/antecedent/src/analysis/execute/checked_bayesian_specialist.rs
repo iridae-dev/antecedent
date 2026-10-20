@@ -66,6 +66,10 @@ impl CheckedBayesianSpecialistOperation {
     ///
     /// Identification failure or a model-scope violation the estimator itself
     /// would refuse at execution.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one admission: the estimator, the model scope, and the identified products decide whether this specialist runs"
+    )]
     #[inline(never)]
     pub(crate) fn checked(
         study: &Study,
@@ -91,10 +95,7 @@ impl CheckedBayesianSpecialistOperation {
             || !study.custom_validators.is_empty()
             || !(matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
                 || (query.outcome_functional.quantile_level().is_some()
-                    && plan
-                        .binding()
-                        .estimator
-                        .is(EstimatorId::BayesianRandomizedQuantile)))
+                    && plan.binding().estimator.is(EstimatorId::BayesianRandomizedQuantile)))
             || plan.logical.query != study.query
         {
             return Ok(None);
@@ -142,18 +143,21 @@ impl CheckedBayesianSpecialistOperation {
         }
         let target = CausalQuery::AverageEffect(query.clone());
         let cache = match family {
-            BayesianSpecialistFamily::IvJointLinear | BayesianSpecialistFamily::RandomizedQuantile => match study.identification_cache.as_ref() {
-                Some(cache) if cache.identification.query == target => Arc::clone(cache),
-                _ => {
-                    let identification = identify_static_query(identifier, graph, &target)?;
-                    require_identified(&identification)?;
-                    let estimand = select_estimand(&identification, estimator)?;
-                    Arc::new(crate::analysis::prepared::CachedStaticIdentification {
-                        identification,
-                        estimand,
-                    })
+            BayesianSpecialistFamily::IvJointLinear
+            | BayesianSpecialistFamily::RandomizedQuantile => {
+                match study.identification_cache.as_ref() {
+                    Some(cache) if cache.identification.query == target => Arc::clone(cache),
+                    _ => {
+                        let identification = identify_static_query(identifier, graph, &target)?;
+                        require_identified(&identification)?;
+                        let estimand = select_estimand(&identification, estimator)?;
+                        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                            identification,
+                            estimand,
+                        })
+                    }
                 }
-            },
+            }
             BayesianSpecialistFamily::RdLocalLinear(rd) => {
                 let identification = SharpRdIdentifier::new(SharpRdConfig::new(
                     rd.running_variable,
@@ -230,7 +234,13 @@ impl CheckedBayesianSpecialistOperation {
                 ctx,
             ),
             BayesianSpecialistFamily::RandomizedQuantile => study
-                .execute_bayesian_quantile_identified(data, &self.query, &self.physical, inputs, ctx),
+                .execute_bayesian_quantile_identified(
+                    data,
+                    &self.query,
+                    &self.physical,
+                    inputs,
+                    ctx,
+                ),
         }
     }
 }

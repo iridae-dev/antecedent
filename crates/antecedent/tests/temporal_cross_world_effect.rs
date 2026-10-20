@@ -78,6 +78,10 @@ fn queries() -> Vec<(&'static str, CausalQuery, f64)> {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one mechanism check: the pinned points, the study, and the comparison stay together"
+)]
 fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/temporal_cross_world/expected.json"

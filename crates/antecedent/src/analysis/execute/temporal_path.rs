@@ -5076,6 +5076,10 @@ impl super::Study {
         }
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one cross-world execution: the point, the draws, and the claim stay in one function"
+    )]
     pub(super) fn execute_temporal_cross_world(
         &self,
         data: &TimeSeriesData,

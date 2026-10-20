@@ -172,6 +172,10 @@ impl Study {
     }
 
     /// Posterior of the randomized quantile treatment effect from already-identified products.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one posterior: read the identified products, draw the quantile effect, and assemble the claim"
+    )]
     pub(super) fn execute_bayesian_quantile_identified(
         &self,
         data: &TabularData,

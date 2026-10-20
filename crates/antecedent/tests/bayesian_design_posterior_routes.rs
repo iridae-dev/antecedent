@@ -92,7 +92,7 @@ fn run(
 ) -> Result<(StudyResult, antecedent::PreparedStudy, ExecutionContext), antecedent::CausalError> {
     let ctx = ExecutionContext::for_tests(seed);
     let study = Study::tabular(data.clone()).query(query).inference(inference).build()?;
-    let mut prepared = study.prepare(&ctx)?;
+    let prepared = study.prepare(&ctx)?;
     let result = prepared.estimate(data, &ctx)?;
     Ok((result, prepared, ctx))
 }
@@ -559,7 +559,7 @@ fn run_quantile(
         .inference(InferenceMode::Bayesian(config))
         .refute(antecedent::RefuteSuite::None)
         .build()?;
-    let mut prepared = study.prepare(&ctx)?;
+    let prepared = study.prepare(&ctx)?;
     let result = prepared.estimate(data, &ctx)?;
     Ok((result, prepared, ctx))
 }
@@ -686,7 +686,7 @@ fn quantile_posterior_refusals_are_typed_and_name_the_next_attempt() {
         .refute(antecedent::RefuteSuite::None)
         .build()
         .unwrap();
-    let refused = study.prepare(&ctx).and_then(|mut p| p.estimate(&confounded, &ctx)).unwrap_err();
+    let refused = study.prepare(&ctx).and_then(|p| p.estimate(&confounded, &ctx)).unwrap_err();
     assert!(
         refused.to_string().contains("quantile_posterior.adjustment_not_supported"),
         "{refused}"

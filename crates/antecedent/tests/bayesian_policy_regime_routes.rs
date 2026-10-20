@@ -64,7 +64,7 @@ fn binary_policy_posterior_runs_through_the_study_flow_and_matches_hand_scores()
         .inference(bayesian())
         .build()
         .unwrap();
-    let mut prepared = study.prepare(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.estimand.method.as_ref(), "randomized.policy_value");
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.binary_policy_value"));
@@ -136,8 +136,7 @@ fn binary_policy_posterior_names_its_estimator_and_refuses_unread_shapes() {
         .query(CausalQuery::PolicyValue(policy_query()))
         .estimator(EstimatorId::BayesianBinaryPolicyValue)
         .build()
-        .err()
-        .expect("mismatch");
+        .expect_err("mismatch");
     assert_eq!(mismatch.reason_code(), Some("estimator_inference_mismatch"));
     // Predictions not declared subject-excluded are refused with the next attempt.
     let mut leaked = policy_query();
@@ -150,8 +149,7 @@ fn binary_policy_posterior_names_its_estimator_and_refuses_unread_shapes() {
         .build()
         .unwrap()
         .prepare(&ctx)
-        .err()
-        .expect("refusal");
+        .expect_err("refusal");
     // The query refuses unowned predictions before the route sees them.
     assert!(refused.to_string().contains("prediction ownership requires"), "{refused}");
     // Held-out predictions give the augmented scores [4, 8, 2, 2].
@@ -213,7 +211,7 @@ fn sequential_regime_posterior_runs_through_the_study_flow_and_matches_hand_scor
         .inference(bayesian())
         .build()
         .unwrap();
-    let mut prepared = study.prepare(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.sequential_regime_value"));
     assert!(matches!(result.estimate, PrimaryEstimate::NotAnEffect));
@@ -266,15 +264,13 @@ fn sequential_regime_posterior_refuses_other_methods_and_unowned_predictions() {
         .build()
         .unwrap()
         .prepare(&ctx)
-        .err()
-        .expect("refusal");
+        .expect_err("refusal");
     assert_eq!(refused.reason_code(), Some("route_not_supported"));
     assert!(refused.to_string().contains("Next attempt"), "{refused}");
     let selected = Study::tabular(data)
         .query(CausalQuery::LongitudinalRegime(regime_query()))
         .estimator(EstimatorId::BayesianSequentialRegimeValue)
         .build()
-        .err()
-        .expect("mismatch");
+        .expect_err("mismatch");
     assert_eq!(selected.reason_code(), Some("estimator_inference_mismatch"));
 }

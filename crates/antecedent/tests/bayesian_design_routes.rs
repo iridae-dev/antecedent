@@ -113,7 +113,7 @@ fn panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared() {
     let posterior_bytes = body.posterior_artifact.clone().unwrap();
     let (wire, draws) = antecedent_io::decode_causal_posterior_bytes(&posterior_bytes).unwrap();
     assert_eq!(wire.n_draws, 20_000);
-    let first: &[f64] = &draws[..wire.n_draws as usize];
+    let first: &[f64] = &draws[..usize::try_from(wire.n_draws).unwrap()];
     let recomputed = first.iter().sum::<f64>() / first.len() as f64;
     assert!((recomputed - got_mean).abs() < 1e-9);
     assert!(body.panel_did.is_none());
@@ -215,12 +215,12 @@ fn synthetic_fixture() -> (TabularData, SyntheticControlQuery) {
             let donor = |j: usize| {
                 j as f64
                     + 0.3 * t as f64 * (j % 3) as f64
-                    + ((t as usize * (j + 3) * 7) % 13) as f64 / 13.0
+                    + (usize::try_from(t).unwrap() * (j + 3) * 7 % 13) as f64 / 13.0
             };
             let value = if unit == 5 {
                 0.5 * donor(0)
                     + 0.5 * donor(1)
-                    + 0.02 * noise(t as usize)
+                    + 0.02 * noise(usize::try_from(t).unwrap())
                     + if t >= 9 { 3.0 } else { 0.0 }
             } else {
                 donor(unit)

@@ -86,7 +86,7 @@ fn sequential_contrast_wald_matches_the_pinned_reference_and_round_trips() {
         .query(CausalQuery::SequentialContrast(contrast_query()))
         .build()
         .unwrap();
-    let mut prepared = study.prepare(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("sequential.crossfit_contrast.wald"));
     assert!(matches!(result.estimate, PrimaryEstimate::NotAnEffect));
@@ -142,7 +142,7 @@ fn sequential_contrast_posterior_is_the_modular_dirichlet_posterior() {
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(DRAWS)))
         .build()
         .unwrap();
-    let mut prepared = study.prepare(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(
         result.logical_plan.estimator.as_deref(),
@@ -188,8 +188,7 @@ fn sequential_contrast_refusals_are_typed() {
         .prepare(&ctx)
         .unwrap()
         .estimate(&data, &ctx)
-        .err()
-        .expect("positivity");
+        .expect_err("positivity");
     assert_eq!(refused.reason_code(), Some("positivity_violated"));
     let mut repeated = contrast_query();
     repeated.first_treatment = repeated.second_treatment;
@@ -198,14 +197,14 @@ fn sequential_contrast_refusals_are_typed() {
         .query(CausalQuery::SequentialContrast(contrast_query()))
         .estimator(EstimatorId::BayesianSequentialCrossfitContrast)
         .build()
-        .err()
-        .expect("mismatch");
+        .expect_err("mismatch");
     assert_eq!(mismatch.reason_code(), Some("estimator_inference_mismatch"));
 }
 
 /// Columns h1, h2, y, treated, period, weight over nine units and three calendar periods.
 fn history_table() -> TabularData {
-    let rows: [(f64, [f64; 2], f64, f64, f64); 9] = [
+    type DesignRow = (f64, [f64; 2], f64, f64, f64);
+    let rows: [DesignRow; 9] = [
         (1.0, [1.0, 3.0], 10.0, 1.0, 1.0),
         (1.0, [1.0, 1.0], 4.0, 0.0, 1.0),
         (1.0, [3.0, 3.0], 6.0, 0.0, 1.0),
@@ -216,7 +215,7 @@ fn history_table() -> TabularData {
         (2.0, [9.0, 9.0], 20.0, 1.0, 1.0),
         (3.0, [1.0, 1.0], 3.0, 1.0, 1.0),
     ];
-    let column = |f: &dyn Fn(&(f64, [f64; 2], f64, f64, f64)) -> f64| -> Vec<f64> {
+    let column = |f: &dyn Fn(&DesignRow) -> f64| -> Vec<f64> {
         rows.iter().map(f).collect()
     };
     let (h1, h2) = (column(&|r| r.1[0]), column(&|r| r.1[1]));
@@ -315,8 +314,7 @@ fn matching_posteriors_are_the_typed_boundary_through_the_study_flow() {
         .query(CausalQuery::HistoryMatch(history_query(None)))
         .inference(bayesian)
         .build()
-        .err()
-        .expect("history boundary");
+        .expect_err("history boundary");
     assert_eq!(refused.reason_code(), Some("route_not_supported"));
     let message = refused.to_string();
     assert!(message.contains("no likelihood"), "{message}");
@@ -332,8 +330,7 @@ fn matching_posteriors_are_the_typed_boundary_through_the_study_flow() {
             .estimator(estimator)
             .bootstrap_replicates(0)
             .build()
-            .err()
-            .expect("static boundary");
+            .expect_err("static boundary");
         assert_eq!(error.reason_code(), Some("route_not_supported"));
         assert!(error.to_string().contains("covariates or a propensity score"), "{error}");
     }

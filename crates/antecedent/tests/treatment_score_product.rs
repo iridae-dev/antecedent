@@ -28,7 +28,7 @@ fn table() -> TabularData {
             if treated { 1.0 } else { 0.0 }
         })
         .collect();
-    let y: Vec<f64> = (0..200).map(|i| 1.0 + 2.0 * t[i] + 0.1 * f64::from(i as u32 % 7)).collect();
+    let y: Vec<f64> = (0..200).map(|i| 1.0 + 2.0 * t[i] + 0.1 * f64::from(u32::try_from(i).unwrap() % 7)).collect();
     TabularData::from_f64_columns([("z", z.as_slice()), ("t", t.as_slice()), ("y", y.as_slice())])
         .unwrap()
 }

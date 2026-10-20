@@ -210,7 +210,7 @@ fn start(
     data: &TimeSeriesData,
     standing: MechanismStanding,
 ) -> PeriodRefresh {
-    let first = window(0, SPLIT as i64, "snap_1");
+    let first = window(0, i64::try_from(SPLIT).unwrap(), "snap_1");
     study
         .start_period_refresh(&slice(data, 0, SPLIT), "t", &spec(standing), &first, &prior())
         .unwrap()
@@ -234,7 +234,7 @@ fn a_declared_invariant_period_extends_and_equals_one_batch_fit() {
     let mut refresh = start(&study, &data, MechanismStanding::DeclaredInvariant);
     assert_matches(&refresh, &reference(&rows(&values, 2..SPLIT), &prior()));
 
-    let second = window(SPLIT as i64, N as i64, "snap_2");
+    let second = window(i64::try_from(SPLIT).unwrap(), i64::try_from(N).unwrap(), "snap_2");
     let outcome = apply(&study, &mut refresh, &data, &second).unwrap();
     assert_eq!(outcome, PeriodRefreshOutcome::Extended { contiguous: true });
     // The rows spanning the boundary are formed: the batch over every target of the series.
@@ -249,7 +249,7 @@ fn an_undeclared_mechanism_restarts_on_the_new_period_alone() {
     let study = prepared(&data);
     let values = column(&data, "t");
     let mut refresh = start(&study, &data, MechanismStanding::Undeclared);
-    let second = window(SPLIT as i64, N as i64, "snap_2");
+    let second = window(i64::try_from(SPLIT).unwrap(), i64::try_from(N).unwrap(), "snap_2");
     let outcome = apply(&study, &mut refresh, &data, &second).unwrap();
     let PeriodRefreshOutcome::Restarted { invalidated } = outcome else {
         panic!("an undeclared mechanism must not carry its fit across periods");
@@ -281,7 +281,7 @@ fn an_overlapping_period_a_reused_snapshot_and_a_changed_prior_are_typed_refusal
         .to_string();
     assert!(error.contains("period_refresh.overlap"), "{error}");
     assert!(error.contains("supply a later period of a new snapshot"), "{error}");
-    let reused = window(SPLIT as i64, N as i64, "snap_1");
+    let reused = window(i64::try_from(SPLIT).unwrap(), i64::try_from(N).unwrap(), "snap_1");
     let error = apply(&study, &mut refresh, &data, &reused).unwrap_err().to_string();
     assert!(error.contains("reuses its snapshot"), "{error}");
     assert_eq!(refresh.summary().unwrap(), before, "a refused period changes nothing");
@@ -305,7 +305,7 @@ fn another_schema_or_a_missing_column_is_refused_before_any_fit() {
         1,
     )
     .unwrap();
-    let first = window(0, SPLIT as i64, "snap_1");
+    let first = window(0, i64::try_from(SPLIT).unwrap(), "snap_1");
     let standing = MechanismStanding::DeclaredInvariant;
     let error =
         study.start_period_refresh(&narrow, "t", &spec(standing), &first, &prior()).unwrap_err();
@@ -322,7 +322,7 @@ fn the_ledger_round_trips_and_an_independent_consumer_recomputes_it() {
     let study = prepared(&data);
     let values = column(&data, "t");
     let mut refresh = start(&study, &data, MechanismStanding::DeclaredInvariant);
-    let second = window(SPLIT as i64, N as i64, "snap_2");
+    let second = window(i64::try_from(SPLIT).unwrap(), i64::try_from(N).unwrap(), "snap_2");
     apply(&study, &mut refresh, &data, &second).unwrap();
 
     let bytes = refresh.export_ledger().unwrap();
@@ -366,7 +366,7 @@ fn a_tampered_ledger_or_a_block_used_twice_is_refused_by_the_consumer() {
     let data = autoregressive_pulse_series(N, 0.6, false, 31);
     let study = prepared(&data);
     let mut refresh = start(&study, &data, MechanismStanding::DeclaredInvariant);
-    let second = window(SPLIT as i64, N as i64, "snap_2");
+    let second = window(i64::try_from(SPLIT).unwrap(), i64::try_from(N).unwrap(), "snap_2");
     apply(&study, &mut refresh, &data, &second).unwrap();
     let good = PeriodRefreshArtifactWire::decode(&refresh.export_ledger().unwrap()).unwrap();
 

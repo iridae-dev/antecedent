@@ -118,7 +118,7 @@ fn a_latent_confounded_modifier_gives_the_stratified_difference() {
     let expected = stratified_difference(&cells);
     // The two strata have different effects, so a pooled difference or a one-stratum answer
     // would not reproduce the weighted average.
-    assert!((expected - 0.2592592592592593).abs() < 1e-12, "{expected}");
+    assert!((expected - 0.259_259_259_259_259_3).abs() < 1e-12, "{expected}");
     let ctx = ExecutionContext::for_tests(41);
     let study = Study::tabular(data.clone())
         .graph(confounded_modifier_graph())
@@ -147,6 +147,11 @@ fn a_latent_confounded_modifier_gives_the_stratified_difference() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    reason = "the quantile is inside [0, 1] and the draw count fits an index"
+)]
 fn the_bayesian_arm_is_a_dirichlet_posterior_of_the_same_contrast() {
     let cells = confounded_modifier_cells();
     let data = expand(&["z", "x", "y"], &cells);
@@ -193,6 +198,10 @@ fn frontdoor_modifier_graph() -> Admg {
 /// Counts of a law with a strong front-door effect: `P(z) = 1/2`, `P(x=1 | z) = .3 + .4 z`,
 /// `P(m=1 | x, z) = .2 + .5 x + .1 z`, `P(y=1 | m, z, x) = .15 + .5 m + .1 z + .1 x`, scaled by
 /// 4000 and rounded (the dependence of `y` on `x` stands for the latent `x <-> y` arrow).
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "each cell count is a non-negative rounded mass"
+)]
 fn frontdoor_modifier_cells() -> Vec<(Vec<f64>, usize)> {
     (0..16usize)
         .map(|i| {

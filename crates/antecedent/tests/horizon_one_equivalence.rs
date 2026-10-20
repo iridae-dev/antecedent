@@ -81,6 +81,10 @@ fn dag(nodes: u32, edges: &[(u32, u32)]) -> Dag {
     graph
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "callers build the study in the argument and this function drops it after the run"
+)]
 fn run(study: Study) -> StudyResult {
     study.run(&ctx()).unwrap()
 }
@@ -270,7 +274,7 @@ fn tempering_kappas(result: &StudyResult) -> Vec<f64> {
 // Linear adjustment (frequentist): selected rows and the sampling interval.
 // ---------------------------------------------------------------------------
 
-/// outcome: not_equivalent on the raw series, equivalent on the shared cohort.
+/// outcome: `not_equivalent` on the raw series, equivalent on the shared cohort.
 ///
 /// A lag-one window cannot form a row for the first time, so the temporal fit
 /// selects `N - 1` rows. The static route on the same lag-aligned pairs selects
@@ -342,7 +346,7 @@ fn linear_pulse_warm_up_drops_a_row_and_the_matched_static_cohort_reproduces_it(
 // Linear adjustment (Bayesian): tempered generalized posterior vs ordinary posterior.
 // ---------------------------------------------------------------------------
 
-/// outcome: equivalent point functional, not_equivalent posterior interpretation.
+/// outcome: equivalent point functional, `not_equivalent` posterior interpretation.
 ///
 /// Both posteriors are centred on the least-squares contrast of the shared rows.
 /// The temporal one tempers the Gaussian likelihood for serial dependence
@@ -411,7 +415,7 @@ fn mediation_series() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     (t, m, y)
 }
 
-/// outcome: equivalent point functional (path product), not_equivalent posterior label.
+/// outcome: equivalent point functional (path product), `not_equivalent` posterior label.
 ///
 /// The mediated effect is the product of the treatment-to-mediator slope and the
 /// mediator-to-outcome slope fitted on the shared rows. Both posteriors are
@@ -520,7 +524,7 @@ fn horizon_one_response_curve_reproduces_the_least_squares_mean_and_the_static_c
 // Counterfactual: temporal cross-world effect vs static unit-level counterfactual.
 // ---------------------------------------------------------------------------
 
-/// outcome: not_equivalent.
+/// outcome: `not_equivalent`.
 ///
 /// The static counterfactual abducts each unit's noise and publishes a unit-level
 /// payload (one effect per row, their mean) and, under Bayesian inference, a
@@ -734,7 +738,7 @@ fn ipw_regime(outcomes: &[f64], assigned: &[bool], action: bool) -> Longitudinal
     }
 }
 
-/// outcome: equivalent point contrast, not_equivalent uncertainty and licence.
+/// outcome: equivalent point contrast, `not_equivalent` uncertainty and licence.
 ///
 /// With one period the always-treat and never-treat regime values are the two
 /// Horvitz-Thompson arm means, and their difference is the static Bernoulli
@@ -965,7 +969,7 @@ fn repeated_measures(measurements: u32, rho: f64) -> RepeatedMeasuresDeclaration
     }
 }
 
-/// outcome: not_equivalent (typed refusal) at one measurement; limit case at independence.
+/// outcome: `not_equivalent` (typed refusal) at one measurement; limit case at independence.
 ///
 /// One measurement per unit is not a repeated-measures cell: the declaration is
 /// refused with the invalid measurement count, and the one-outcome-per-unit procedures

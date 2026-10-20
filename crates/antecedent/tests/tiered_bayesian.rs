@@ -1,6 +1,6 @@
 //! Bayesian `AverageEffect` under a tier background, against the analytic truths of
 //! linear Gaussian DGPs (derived beside each generator): a posterior for the one
-//! CoDetermined closure functional, and one separate posterior per Unknown scenario.
+//! `CoDetermined` closure functional, and one separate posterior per Unknown scenario.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -173,7 +173,7 @@ fn tiered_bayesian_average_effects_execute_from_the_retained_plan() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let mut prepared = builder.prepare(&ctx).unwrap();
+    let prepared = builder.prepare(&ctx).unwrap();
     drop(builder);
     let plan = &prepared.plan().logical.record;
     assert_eq!(plan.identifier.as_deref(), Some("generalized.adjustment"));
@@ -193,7 +193,7 @@ fn tiered_bayesian_average_effects_execute_from_the_retained_plan() {
         .bootstrap_replicates(0)
         .build()
         .unwrap();
-    let mut prepared = builder.prepare(&ctx).unwrap();
+    let prepared = builder.prepare(&ctx).unwrap();
     drop(builder);
     let plan = &prepared.plan().logical.record;
     assert_eq!(plan.estimator.as_deref(), Some("bayesian.gcomp"));

@@ -112,6 +112,10 @@ fn pulse(treatment: u32, outcome: u32) -> TemporalEffectQuery {
         .with_max_history_lag(Some(1))
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "callers build the study in the argument and this function drops it after the run"
+)]
 fn run(study: Study) -> StudyResult {
     study.run(&ExecutionContext::for_tests(1)).unwrap()
 }

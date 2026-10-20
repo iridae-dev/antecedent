@@ -64,7 +64,9 @@ fn run(inference: InferenceMode) -> antecedent::StudyResult {
 }
 
 fn group(x: &[f64], y: &[f64], want_x: f64, want_y: f64) -> Vec<usize> {
-    (0..x.len()).filter(|&i| x[i] == want_x && y[i] == want_y).collect()
+    (0..x.len())
+        .filter(|&i| x[i].to_bits() == want_x.to_bits() && y[i].to_bits() == want_y.to_bits())
+        .collect()
 }
 
 #[test]
