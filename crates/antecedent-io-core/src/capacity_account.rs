@@ -5,8 +5,9 @@
 //! Admission that does not fit returns an error and stores nothing: there is
 //! no side cache that can make the check succeed. Summary-only retention
 //! replaces each payload with a digest and then serves only reuse of that
-//! summary. Disk-backed output records a declared length, keeps no bytes, and
-//! serves only a read of that declaration. Neither mode writes a file.
+//! summary. Disk-backed output writes each payload to its own digest-checked
+//! file in a caller-given directory, keeps no bytes, and serves only a verified
+//! read of that file.
 //!
 //! A decompression reservation is a [`Vec`] created with `with_capacity` at
 //! the declared size. That size has to be positive and at most
@@ -14,26 +15,32 @@
 //! not change that cap and does not decode a frame.
 //!
 //! Limits. Payloads are opaque bytes. Provider envelopes, draws, and scores
-//! are not interpreted. Disk-backed output has no path. Allocator slack above
-//! a requested decompression buffer is not a second budget. A digest is not
-//! the payload it replaced.
+//! are not interpreted. Disk-backed files are not charged against the resident
+//! budget and are not removed by the account: the caller owns the directory.
+//! Allocator slack above a requested decompression buffer is not a second
+//! budget. A digest is not the payload it replaced.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code, reason = "the parent wires capacity_account into the crate root")]
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use antecedent_core::CanonicalWriter;
 use antecedent_core::execution_facts::OutputRetention;
 
+mod spill_file;
 mod weighted_gaussian_capacity;
+pub use spill_file::SpillFault;
 pub use weighted_gaussian_capacity::{
     CapacityControl, CapacityOptions, CeilingCharges, DesignShape, FileWeightedRows,
-    GaussianCrossProducts, LeverageSummary, ResidualCheck, ResidentWeightedRows, RowFileFault,
-    WeightFault, WeightedCapacityError,
-    WeightedCapacityResult, WeightedRowSource, encode_weighted_row_file, run_weighted_capacity,
+    GaussianCrossProducts, LeverageSummary, ResidentWeightedRows, ResidualCheck, RowFileFault,
+    SpillHandle, SpillOptions, SpilledCapacity, WeightFault, WeightedCapacityError,
+    WeightedCapacityOutput, WeightedCapacityResult, WeightedRowSource, encode_weighted_row_file,
+    read_spilled_summary, run_weighted_capacity,
 };
 
 /// Largest decompression buffer this account will request.
@@ -96,7 +103,7 @@ pub enum AccountedOperation {
     ReuseFullState,
     /// Reuse the retained summary.
     ReuseSummary,
-    /// Read the declared disk artifact. This account stores no path.
+    /// Read a disk artifact back and verify its length and digest.
     ReadDiskArtifact,
     /// Admit a cache entry.
     AdmitCache,
@@ -142,7 +149,7 @@ impl AccountedOperation {
             Self::InPlaceWeightOrMaskUpdate => "in-place weight or mask update",
             Self::ReuseFullState => "reuse of full state",
             Self::ReuseSummary => "reuse of the summary",
-            Self::ReadDiskArtifact => "read of the declared disk artifact",
+            Self::ReadDiskArtifact => "read of a disk artifact",
             Self::AdmitCache => "admission of a cache entry",
             Self::AdmitProviderState => "admission of provider state",
             Self::AdmitDraws => "admission of draws",
@@ -222,6 +229,23 @@ pub enum CapacityError {
     /// A count of bytes did not fit in `u64`.
     #[error("capacity account overflowed")]
     Overflow,
+    /// A spill file failed its length, digest, or layout check.
+    #[error("spill file: {0}")]
+    Spill(SpillFault),
+    /// A spill file could not be created, written, read, or removed.
+    #[error("spill file could not {context}: {kind}")]
+    SpillIo {
+        /// The step that failed.
+        context: &'static str,
+        /// The operating-system error kind.
+        kind: io::ErrorKind,
+    },
+    /// The allocator refused a spill buffer.
+    #[error("could not allocate {bytes} bytes for a spill buffer")]
+    SpillAllocation {
+        /// Bytes requested.
+        bytes: u64,
+    },
     /// A write was longer than the reserved decompression size.
     #[error("decompression write of {got} bytes exceeds the reserved {requested}")]
     WritePastReservation {
@@ -294,8 +318,35 @@ enum EntryClass {
 enum Body {
     Shared(Arc<[u8]>),
     Summary(Arc<[u8]>),
-    Disk { declared_bytes: u64 },
+    Disk(DiskRecord),
     Reserved { bytes: u64 },
+}
+
+/// Where a payload was written and what it has to hash to when read back.
+#[derive(Clone, Debug)]
+struct DiskRecord {
+    path: PathBuf,
+    payload_bytes: u64,
+    frame_bytes: u64,
+    digest: [u8; 32],
+}
+
+impl From<spill_file::IoFail> for CapacityError {
+    fn from(fail: spill_file::IoFail) -> Self {
+        Self::SpillIo { context: fail.context, kind: fail.source.kind() }
+    }
+}
+
+impl From<SpillFault> for CapacityError {
+    fn from(fault: SpillFault) -> Self {
+        Self::Spill(fault)
+    }
+}
+
+impl From<spill_file::AllocFail> for CapacityError {
+    fn from(fail: spill_file::AllocFail) -> Self {
+        Self::SpillAllocation { bytes: fail.bytes }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -337,7 +388,7 @@ impl CapacityAccount {
         self.retention
     }
 
-    /// Number of entries, including reservations and disk declarations.
+    /// Number of entries, including reservations and disk entries.
     #[must_use]
     pub fn len(&self) -> usize {
         self.entries.len()
@@ -349,7 +400,7 @@ impl CapacityAccount {
         self.entries.is_empty()
     }
 
-    /// Bytes charged right now. Disk declarations are not included.
+    /// Bytes charged right now. Disk entries are not included.
     ///
     /// # Errors
     ///
@@ -359,7 +410,7 @@ impl CapacityAccount {
         resident_of(&self.entries)
     }
 
-    /// Sum of disk declarations. These bytes are not resident.
+    /// Sum of payload bytes written to disk. These bytes are not resident.
     ///
     /// # Errors
     ///
@@ -368,8 +419,8 @@ impl CapacityAccount {
     pub fn declared_disk_bytes(&self) -> Result<u64, CapacityError> {
         let mut total = 0u64;
         for entry in self.entries.values() {
-            if let Body::Disk { declared_bytes } = entry.body {
-                total = total.checked_add(declared_bytes).ok_or(CapacityError::Overflow)?;
+            if let Body::Disk(record) = &entry.body {
+                total = total.checked_add(record.payload_bytes).ok_or(CapacityError::Overflow)?;
             }
         }
         Ok(total)
@@ -414,12 +465,12 @@ impl CapacityAccount {
         }
     }
 
-    /// Shared or summary bytes. Disk declarations and reservations have none.
+    /// Shared or summary bytes. Disk entries and reservations have none.
     #[must_use]
     pub fn stored_bytes(&self, id: u64) -> Option<Arc<[u8]>> {
         match &self.entries.get(&id)?.body {
             Body::Shared(bytes) | Body::Summary(bytes) => Some(Arc::clone(bytes)),
-            Body::Disk { .. } | Body::Reserved { .. } => None,
+            Body::Disk(_) | Body::Reserved { .. } => None,
         }
     }
 
@@ -514,7 +565,7 @@ impl CapacityAccount {
         for (id, entry) in &self.entries {
             let body = match &entry.body {
                 Body::Shared(bytes) | Body::Summary(bytes) => Body::Summary(digest_payload(bytes)),
-                Body::Disk { declared_bytes } => Body::Summary(digest_declared(*declared_bytes)),
+                Body::Disk(record) => Body::Summary(digest_declared(record.payload_bytes)),
                 Body::Reserved { .. } => return Err(CapacityError::ReservationOutstanding),
             };
             next.insert(*id, Entry { class: entry.class.clone(), body });
@@ -528,34 +579,62 @@ impl CapacityAccount {
         Ok(())
     }
 
-    /// Drop resident bytes, record their lengths, and switch to disk-backed output.
+    /// Write each resident payload to its own file in `directory`, drop the
+    /// resident bytes, and switch to disk-backed output.
     ///
-    /// No path is stored and nothing is written. Reservations must be released first.
+    /// Entry `n` is written to `entry-n.spill` as a digest-checked frame, by a
+    /// temporary name that is renamed into place and read back. The account is
+    /// unchanged and every file this call wrote is removed when any entry
+    /// fails. `directory` has to exist. Reservations must be released first.
     ///
     /// # Errors
     ///
-    /// A decompression reservation is still charged.
-    #[must_use = "a refused disk declaration leaves the payloads resident"]
-    pub fn retain_disk_backed(&mut self) -> Result<(), CapacityError> {
+    /// A decompression reservation is still charged, or a file could not be
+    /// written, synced, or verified.
+    #[must_use = "a refused disk write leaves the payloads resident"]
+    pub fn retain_disk_backed(&mut self, directory: &Path) -> Result<(), CapacityError> {
         if self.retention == OutputRetention::DiskBacked {
             return Ok(());
         }
         self.require_no_reservation()?;
+        let mut written = SpillDirectory::default();
         let mut next = BTreeMap::new();
         for (id, entry) in &self.entries {
-            let declared_bytes = match &entry.body {
-                Body::Shared(bytes) | Body::Summary(bytes) => byte_len(bytes)?,
-                Body::Disk { declared_bytes } => *declared_bytes,
+            let record = match &entry.body {
+                Body::Shared(bytes) | Body::Summary(bytes) => {
+                    written.write(directory, *id, bytes)?
+                }
+                Body::Disk(record) => record.clone(),
                 Body::Reserved { .. } => return Err(CapacityError::ReservationOutstanding),
             };
-            next.insert(
-                *id,
-                Entry { class: entry.class.clone(), body: Body::Disk { declared_bytes } },
-            );
+            next.insert(*id, Entry { class: entry.class.clone(), body: Body::Disk(record) });
         }
+        written.keep();
         self.entries = next;
         self.retention = OutputRetention::DiskBacked;
         Ok(())
+    }
+
+    /// Read a disk entry back, checking its length and digest.
+    ///
+    /// The returned bytes belong to the caller and are not charged to the
+    /// budget.
+    ///
+    /// # Errors
+    ///
+    /// Retention does not serve a disk read, the id is unknown, or the file is
+    /// missing, truncated, or changed.
+    #[must_use = "a refused read returns no bytes"]
+    pub fn read_disk_artifact(&self, id: u64) -> Result<Vec<u8>, CapacityError> {
+        self.require(AccountedOperation::ReadDiskArtifact)?;
+        let Some(Entry { body: Body::Disk(record), .. }) = self.entries.get(&id) else {
+            return Err(CapacityError::UnknownEntry { id });
+        };
+        let declared =
+            spill_file::Declared { frame_bytes: record.frame_bytes, digest: record.digest };
+        let mut frame = spill_file::read_verified::<CapacityError>(&record.path, declared)?;
+        frame.drain(..HEADER_BYTES);
+        Ok(frame)
     }
 
     /// Reserve a decompression buffer of `declared` bytes.
@@ -621,7 +700,7 @@ impl CapacityAccount {
         let key = allocation_key(bytes);
         self.entries.values().any(|entry| match &entry.body {
             Body::Shared(existing) | Body::Summary(existing) => allocation_key(existing) == key,
-            Body::Disk { .. } | Body::Reserved { .. } => false,
+            Body::Disk(_) | Body::Reserved { .. } => false,
         })
     }
 
@@ -661,7 +740,7 @@ fn resident_of(entries: &BTreeMap<u64, Entry>) -> Result<u64, CapacityError> {
                 }
                 byte_len(bytes)?
             }
-            Body::Disk { .. } => 0,
+            Body::Disk(_) => 0,
             Body::Reserved { bytes } => *bytes,
         };
         total = total.checked_add(add).ok_or(CapacityError::Overflow)?;
@@ -675,6 +754,52 @@ fn allocation_key(bytes: &Arc<[u8]>) -> usize {
 
 fn byte_len(bytes: &[u8]) -> Result<u64, CapacityError> {
     u64::try_from(bytes.len()).map_err(|_| CapacityError::Overflow)
+}
+
+const HEADER_BYTES: usize = spill_file::FRAME_HEADER_BYTES as usize;
+
+/// Files written by one `retain_disk_backed` call, removed unless kept.
+#[derive(Default)]
+struct SpillDirectory(Vec<PathBuf>);
+
+impl SpillDirectory {
+    fn write(
+        &mut self,
+        directory: &Path,
+        id: u64,
+        payload: &[u8],
+    ) -> Result<DiskRecord, CapacityError> {
+        let payload_bytes = byte_len(payload)?;
+        let mut frame = spill_file::begin_frame(payload_bytes)?;
+        frame.extend_from_slice(payload);
+        spill_file::seal_frame(&mut frame);
+        let path = directory.join(format!("entry-{id}.spill"));
+        let receipt = spill_file::commit_frame::<CapacityError>(
+            &path,
+            frame,
+            spill_file::write_whole,
+            || Ok(()),
+        )?;
+        self.0.push(path.clone());
+        Ok(DiskRecord {
+            path,
+            payload_bytes,
+            frame_bytes: receipt.frame_bytes,
+            digest: receipt.digest,
+        })
+    }
+
+    fn keep(&mut self) {
+        self.0.clear();
+    }
+}
+
+impl Drop for SpillDirectory {
+    fn drop(&mut self) {
+        for path in &self.0 {
+            let _ = spill_file::remove_file(path);
+        }
+    }
 }
 
 fn digest_payload(bytes: &[u8]) -> Arc<[u8]> {
@@ -830,17 +955,47 @@ mod tests {
         assert!(Arc::ptr_eq(&account.stored_bytes(1).expect("first"), &shared));
     }
 
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let path = std::env::temp_dir()
+                .join(format!("capacity-account-{}-{name}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).expect("create test directory");
+            Self(path)
+        }
+
+        fn entries(&self) -> Vec<String> {
+            let mut names: Vec<String> = std::fs::read_dir(&self.0)
+                .expect("read test directory")
+                .map(|entry| entry.expect("entry").file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            names
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
     #[test]
     fn disk_backed_state_is_not_resident_and_refuses_materialize() {
+        let dir = TempDir::new("disk-backed");
         let rows = payload(&[1, 2, 3, 4]);
         let mut account = CapacityAccount::new(4);
         let id = account.admit(AccountedKind::ProviderState, Arc::clone(&rows)).expect("provider");
-        account.retain_disk_backed().expect("disk");
+        account.retain_disk_backed(&dir.0).expect("disk");
         assert_eq!(account.retention(), OutputRetention::DiskBacked);
         assert_eq!(account.resident_bytes().expect("nothing resident"), 0);
         assert_eq!(account.declared_disk_bytes().expect("declared"), 4);
         assert_eq!(Arc::strong_count(&rows), 1);
         assert!(account.stored_bytes(id).is_none());
+        assert_eq!(dir.entries(), vec![format!("entry-{id}.spill")]);
+        assert_eq!(account.read_disk_artifact(id).expect("read back"), vec![1, 2, 3, 4]);
         for operation in AccountedOperation::ALL {
             let served = matches!(operation, AccountedOperation::ReadDiskArtifact);
             assert_eq!(account.require(operation).is_ok(), served, "{operation}");
@@ -856,6 +1011,52 @@ mod tests {
         assert_eq!(Arc::strong_count(&rows), before);
         assert_eq!(account.resident_bytes().expect("still empty"), 0);
         assert_eq!(account.declared_disk_bytes().expect("still declared"), 4);
+        assert!(matches!(
+            account.read_disk_artifact(id + 1),
+            Err(CapacityError::UnknownEntry { .. })
+        ));
+    }
+
+    #[test]
+    fn a_changed_or_truncated_disk_entry_is_refused_on_read() {
+        let dir = TempDir::new("tamper");
+        let mut account = CapacityAccount::new(64);
+        let id = account.admit(AccountedKind::Draws, payload(&[9; 16])).expect("draws");
+        account.retain_disk_backed(&dir.0).expect("disk");
+        let file = dir.0.join(format!("entry-{id}.spill"));
+        let original = std::fs::read(&file).expect("read frame");
+        let mut flipped = original.clone();
+        let last = flipped.len() - 1;
+        flipped[last] ^= 1;
+        std::fs::write(&file, &flipped).expect("flip a byte");
+        assert!(matches!(
+            account.read_disk_artifact(id),
+            Err(CapacityError::Spill(SpillFault::DigestMismatch))
+        ));
+        std::fs::write(&file, &original[..original.len() - 1]).expect("truncate");
+        assert!(matches!(
+            account.read_disk_artifact(id),
+            Err(CapacityError::Spill(SpillFault::LengthMismatch { .. }))
+        ));
+        std::fs::write(&file, &original).expect("restore");
+        assert_eq!(account.read_disk_artifact(id).expect("restored"), vec![9; 16]);
+    }
+
+    #[test]
+    fn a_failed_disk_write_leaves_the_account_and_the_directory_unchanged() {
+        let dir = TempDir::new("failed-write");
+        let mut account = CapacityAccount::new(64);
+        let first = account.admit(AccountedKind::Cache, payload(&[1, 2])).expect("first");
+        let second = account.admit(AccountedKind::Scores, payload(&[3, 4])).expect("second");
+        // The second entry's target is an existing directory, so its rename fails
+        // after the first entry was already written.
+        std::fs::create_dir(dir.0.join(format!("entry-{second}.spill"))).expect("block target");
+        let refusal = account.retain_disk_backed(&dir.0).expect_err("rename onto a directory");
+        assert!(matches!(refusal, CapacityError::SpillIo { .. }));
+        assert_eq!(account.retention(), OutputRetention::FullReusable);
+        assert_eq!(account.resident_bytes().expect("payloads kept"), 4);
+        assert!(account.stored_bytes(first).is_some());
+        assert_eq!(dir.entries(), vec![format!("entry-{second}.spill")]);
     }
 
     #[test]

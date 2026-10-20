@@ -14,8 +14,20 @@
 //! conditioning is the Gram's. The row stream is hashed in both passes and a
 //! source that changes between them is refused.
 //!
-//! [`OutputRetention::DiskBacked`] is refused: this route writes no spill file,
-//! so it does not offer a control whose label claims one.
+//! [`OutputRetention::SummaryOnly`] returns that summary resident.
+//! [`OutputRetention::DiskBacked`] writes the finished summary, and nothing
+//! else, to [`SpillOptions::path`] and returns a [`SpillHandle`] to it. The
+//! row batches already stream from the source in both modes, so the spill is
+//! the coefficients, the `HC0` covariance, the cross-products, the leverage and
+//! residual summaries, the identity digest, the fit diagnostics, and the
+//! charges. The file is a digest-checked frame written to a temporary name,
+//! renamed into place, and read back. [`read_spilled_summary`] returns the same
+//! [`WeightedCapacityResult`] a resident run returns, bit for bit, and refuses
+//! a file that was changed or truncated. The spill bytes are reserved from
+//! [`SpillOptions::pool`] before anything is written and are held by the
+//! handle until [`SpillHandle::remove`] or drop. A run that errors or is
+//! cancelled removes its temporary file, leaves no target, and returns the
+//! reservation.
 //!
 //! The mechanism-registry fitter `fit_linear_gaussian_weighted` is `pub(super)`
 //! in `antecedent-model` and is not a call site from this crate.
@@ -28,19 +40,27 @@ use std::cmp::Ordering;
 use std::collections::TryReserveError;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use antecedent_core::device_reservation::{
+    DeviceReservationError, DeviceReservationLease, DeviceReservationPool,
+};
+use antecedent_core::execution::CancellationToken;
 use antecedent_core::execution_facts::OutputRetention;
 use antecedent_stats::{
     FaerBackend, FitDiagnostics, LeastSquaresWorkspace, StatsError, cholesky_spd, fit_wls,
     invert_square,
 };
 
+use super::spill_file::{self, AllocFail, Declared, IoFail, SpillFault};
+
 const MAGIC: &[u8; 4] = b"WGOL";
 const VERSION: u32 = 1;
 const HEADER_LEN: usize = 20;
 const HEADER_BYTES: u64 = 20;
 const IDENTITY_DOMAIN: &str = "antecedent.capacity.weighted-gaussian.v1";
+/// Fit backends the spill layout can name. A backend outside this list is not spilled.
+const SPILL_BACKENDS: [&str; 1] = ["faer"];
 
 /// Which capacity control is being run.
 ///
@@ -55,20 +75,47 @@ pub enum CapacityControl {
 }
 
 /// Batch bound, byte ceiling, and the retention mode both controls use.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct CapacityOptions {
     /// Maximum source rows materialized in one read.
     pub batch_rows: usize,
-    /// Bytes available for ownership, identity, decoders, and output.
+    /// Bytes available for ownership, identity, decoders, spill, and output.
     pub ceiling_bytes: u64,
-    /// Summary-only keeps the summary resident. Disk-backed is refused.
+    /// Summary-only keeps the summary resident. Disk-backed spills it to
+    /// [`Self::spill`], which it requires.
     pub retention: OutputRetention,
+    /// Where a disk-backed run writes its summary.
+    pub spill: Option<SpillOptions>,
+    /// Checked once per non-empty batch in each pass, before the spill is
+    /// reserved, and before the spill file is renamed into place.
+    pub cancellation: Option<CancellationToken>,
+}
+
+impl CapacityOptions {
+    /// Options with no spill target and no cancellation token.
+    #[must_use]
+    pub const fn new(batch_rows: usize, ceiling_bytes: u64, retention: OutputRetention) -> Self {
+        Self { batch_rows, ceiling_bytes, retention, spill: None, cancellation: None }
+    }
+}
+
+/// Where a disk-backed summary goes and what it may take from the spill pool.
+#[derive(Clone, Debug)]
+pub struct SpillOptions {
+    /// Target file. Its directory has to exist; a file already there is replaced.
+    pub path: PathBuf,
+    /// Pool the spill bytes are reserved from before the file is written.
+    /// `None` leaves the ceiling as the only limit.
+    pub pool: Option<DeviceReservationPool>,
 }
 
 /// Bytes reserved against [`CapacityOptions::ceiling_bytes`].
 ///
 /// The total is the sum of the five charges. It is a reservation from the
-/// shapes, not a measurement of a host allocator.
+/// shapes, not a measurement of a host allocator. A disk-backed run charges the
+/// exact frame length as [`Self::spill_bytes`] and charges the buffer that
+/// encodes and verifies the frame, plus the finished summary it encodes, under
+/// [`Self::decoder_bytes`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CeilingCharges {
     /// Resident source bytes. A file handle charges nothing for the unread body.
@@ -77,9 +124,10 @@ pub struct CeilingCharges {
     pub content_identity_bytes: u64,
     /// Batch window, file decoder, and every solver and diagnostic buffer.
     pub decoder_bytes: u64,
-    /// Always zero: this route writes no spill file.
+    /// Frame bytes written to the spill file. Zero unless retention is disk-backed.
     pub spill_bytes: u64,
-    /// Summary bytes when retention is summary-only.
+    /// Summary bytes when retention is summary-only, or the spill handle when
+    /// retention is disk-backed.
     pub output_bytes: u64,
     /// Sum of the five charges.
     pub total_bytes: u64,
@@ -234,9 +282,18 @@ pub enum WeightedCapacityError {
     /// Full reusable retention would keep every source row.
     #[error("full reusable retention would keep every source row")]
     RetentionKeepsRows,
-    /// Disk-backed retention names a spill file this route does not write.
-    #[error("disk-backed retention is unavailable: this route writes no spill file")]
-    SpillUnsupported,
+    /// Disk-backed retention needs [`CapacityOptions::spill`].
+    #[error("disk-backed retention needs a spill path")]
+    SpillPathRequired,
+    /// The spill file failed its length, digest, or layout check.
+    #[error("spill file: {0}")]
+    Spill(#[from] SpillFault),
+    /// The spill pool refused the reservation.
+    #[error("spill reservation refused")]
+    SpillPool(#[source] DeviceReservationError),
+    /// The cancellation token was set. Nothing was written or kept.
+    #[error("the capacity run was cancelled")]
+    Cancelled,
     /// Column count or slice lengths do not describe one design.
     #[error("design shape: {0}")]
     Shape(DesignShape),
@@ -312,6 +369,128 @@ pub enum WeightedCapacityError {
     /// [`WeightedRowSource::prepare_decoder`] was not called for this bound.
     #[error("decoder was not prepared for this batch bound")]
     DecoderNotPrepared,
+}
+
+impl From<IoFail> for WeightedCapacityError {
+    fn from(fail: IoFail) -> Self {
+        Self::Io { context: fail.context, source: fail.source }
+    }
+}
+
+impl From<AllocFail> for WeightedCapacityError {
+    fn from(fail: AllocFail) -> Self {
+        Self::Allocation { what: "spill frame", bytes: fail.bytes, source: fail.source }
+    }
+}
+
+/// The spill file of a disk-backed run and the reservation that pays for it.
+///
+/// The handle names the file, the length of its frame, and the digest the
+/// frame has to carry. [`read_spilled_summary`] refuses a file that disagrees.
+/// Dropping the handle returns the pool reservation and leaves the file;
+/// [`Self::remove`] deletes the file as well.
+#[derive(Debug)]
+pub struct SpillHandle {
+    path: PathBuf,
+    frame_bytes: u64,
+    digest: [u8; 32],
+    lease: Option<DeviceReservationLease>,
+}
+
+impl SpillHandle {
+    /// Path the frame was renamed to.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Length of the whole frame in bytes.
+    #[must_use]
+    pub const fn frame_bytes(&self) -> u64 {
+        self.frame_bytes
+    }
+
+    /// Digest of the payload, as the frame carries it.
+    #[must_use]
+    pub const fn digest(&self) -> [u8; 32] {
+        self.digest
+    }
+
+    /// Whether a pool reservation is still held for this file.
+    #[must_use]
+    pub const fn holds_reservation(&self) -> bool {
+        self.lease.is_some()
+    }
+
+    /// Delete the file and return the reservation. A file already gone is not an error.
+    ///
+    /// # Errors
+    ///
+    /// The file exists and could not be removed. The reservation is returned either way.
+    pub fn remove(self) -> Result<(), WeightedCapacityError> {
+        spill_file::remove_file(&self.path)?;
+        Ok(())
+    }
+}
+
+/// What a disk-backed run keeps resident: the handle and the run's counters.
+///
+/// [`read_spilled_summary`] turns the handle back into the summary.
+#[derive(Debug)]
+pub struct SpilledCapacity {
+    /// Control that was requested.
+    pub control: CapacityControl,
+    /// Always [`OutputRetention::DiskBacked`].
+    pub retention: OutputRetention,
+    /// The spill file.
+    pub handle: SpillHandle,
+    /// Ceiling reservation for this run.
+    pub charges: CeilingCharges,
+    /// Non-empty batch reads in the cross-product pass.
+    pub batches: u64,
+    /// Cross-product pass plus the diagnostic pass.
+    pub source_passes: u64,
+    /// Streaming digest of the column count and of every `(x, y, w)` row.
+    pub content_identity: [u8; 32],
+}
+
+/// What one capacity run returns, by retention mode.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum WeightedCapacityOutput {
+    /// [`OutputRetention::SummaryOnly`]: the summary, resident.
+    Resident(WeightedCapacityResult),
+    /// [`OutputRetention::DiskBacked`]: a handle to the summary on disk.
+    Spilled(SpilledCapacity),
+}
+
+impl WeightedCapacityOutput {
+    /// Ceiling reservation for this run.
+    #[must_use]
+    pub const fn charges(&self) -> CeilingCharges {
+        match self {
+            Self::Resident(result) => result.charges,
+            Self::Spilled(spilled) => spilled.charges,
+        }
+    }
+
+    /// The resident summary, if this run kept one.
+    #[must_use]
+    pub fn into_resident(self) -> Option<WeightedCapacityResult> {
+        match self {
+            Self::Resident(result) => Some(result),
+            Self::Spilled(_) => None,
+        }
+    }
+
+    /// The spill, if this run wrote one.
+    #[must_use]
+    pub fn into_spilled(self) -> Option<SpilledCapacity> {
+        match self {
+            Self::Spilled(spilled) => Some(spilled),
+            Self::Resident(_) => None,
+        }
+    }
 }
 
 /// One batch of weighted rows, at most `max_rows` long.
@@ -652,29 +831,31 @@ pub fn encode_weighted_row_file(
 ///
 /// Resident and file sources of the same rows share this function, the same
 /// retention mode, and the same charges formula. [`OutputRetention::FullReusable`]
-/// is refused: it would keep every source row. [`OutputRetention::DiskBacked`]
-/// is refused: nothing here writes a spill file.
+/// is refused: it would keep every source row. [`OutputRetention::SummaryOnly`]
+/// returns [`WeightedCapacityOutput::Resident`]; [`OutputRetention::DiskBacked`]
+/// returns [`WeightedCapacityOutput::Spilled`]. Both carry the same numbers.
 ///
 /// # Errors
 ///
 /// The ceiling is too small, the batch bound is zero, a weight or a row is not
-/// usable, the Gram is singular, the source cannot be read, or the source rows
-/// differ between the two passes.
+/// usable, the Gram is singular, the source cannot be read, the source rows
+/// differ between the two passes, a disk-backed run has no spill path or the
+/// spill pool or the file system refuses it, or the run is cancelled.
 pub fn run_weighted_capacity(
     control: CapacityControl,
     source: &mut dyn WeightedRowSource,
     options: &CapacityOptions,
-) -> Result<WeightedCapacityResult, WeightedCapacityError> {
+) -> Result<WeightedCapacityOutput, WeightedCapacityError> {
     let plan = plan_run(&*source, options)?;
     source.prepare_decoder(plan.batch_rows)?;
     source.rewind()?;
-    let mut scan = Scan::open(plan.batch_rows, plan.ncols)?;
+    let mut scan = Scan::open(plan.batch_rows, plan.ncols, options.cancellation.clone())?;
     let first = cross_product_pass(source, &mut scan, plan.ncols)?;
     let solved = solve_weighted(&first.folded.cross_products, plan.ncols)?;
     source.rewind()?;
     let diagnostics = diagnostic_pass(source, &mut scan, &solved, first.digest)?;
     drop(scan);
-    Assembly {
+    let result = Assembly {
         control,
         retention: options.retention,
         charges: plan.charges,
@@ -684,7 +865,13 @@ pub fn run_weighted_capacity(
         solved,
         diagnostics,
     }
-    .into_result()
+    .into_result()?;
+    match options.retention {
+        OutputRetention::DiskBacked => {
+            spill_summary(result, options).map(WeightedCapacityOutput::Spilled)
+        }
+        _ => Ok(WeightedCapacityOutput::Resident(result)),
+    }
 }
 
 /// Checked shape, retention, and ceiling reservation for one run.
@@ -722,14 +909,28 @@ fn plan_run(
 struct Scan {
     window: Window,
     identity: RowIdentity,
+    cancellation: Option<CancellationToken>,
 }
 
 impl Scan {
-    fn open(batch_rows: usize, ncols: usize) -> Result<Self, WeightedCapacityError> {
+    fn open(
+        batch_rows: usize,
+        ncols: usize,
+        cancellation: Option<CancellationToken>,
+    ) -> Result<Self, WeightedCapacityError> {
         Ok(Self {
             window: Window::allocate(batch_rows, ncols)?,
             identity: RowIdentity::open(ncols)?,
+            cancellation,
         })
+    }
+}
+
+fn check_cancelled(token: Option<&CancellationToken>) -> Result<(), WeightedCapacityError> {
+    if token.is_some_and(CancellationToken::is_cancelled) {
+        Err(WeightedCapacityError::Cancelled)
+    } else {
+        Ok(())
     }
 }
 
@@ -745,12 +946,13 @@ fn cross_product_pass(
     ncols: usize,
 ) -> Result<FirstPass, WeightedCapacityError> {
     let mut fold = Fold::new(ncols)?;
-    let Scan { window, identity } = scan;
-    let batches = scan_rows(source, window, |index, row, response, weight| {
-        fold.push(index, row, response, weight)?;
-        identity.push(row, response, weight);
-        Ok(())
-    })?;
+    let Scan { window, identity, cancellation } = scan;
+    let batches =
+        scan_rows(source, window, cancellation.as_ref(), |index, row, response, weight| {
+            fold.push(index, row, response, weight)?;
+            identity.push(row, response, weight);
+            Ok(())
+        })?;
     if fold.positive_rows == 0 {
         return Err(WeightedCapacityError::Empty);
     }
@@ -764,9 +966,9 @@ fn diagnostic_pass(
     expected: [u8; 32],
 ) -> Result<DiagSummary, WeightedCapacityError> {
     let mut diagnostics = DiagAccum::new(&solved.coefficients, &solved.bread)?;
-    let Scan { window, identity } = scan;
+    let Scan { window, identity, cancellation } = scan;
     identity.reset();
-    scan_rows(source, window, |index, row, response, weight| {
+    scan_rows(source, window, cancellation.as_ref(), |index, row, response, weight| {
         diagnostics.push(index, row, response, weight)?;
         identity.push(row, response, weight);
         Ok(())
@@ -1107,6 +1309,7 @@ impl Assembly {
 fn scan_rows(
     source: &mut dyn WeightedRowSource,
     window: &mut Window,
+    cancellation: Option<&CancellationToken>,
     mut on_row: impl FnMut(u64, &[f64], f64, f64) -> Result<(), WeightedCapacityError>,
 ) -> Result<u64, WeightedCapacityError> {
     let mut batches = 0_u64;
@@ -1117,6 +1320,7 @@ fn scan_rows(
         if n == 0 {
             break;
         }
+        check_cancelled(cancellation)?;
         batches = batches.checked_add(1).ok_or(WeightedCapacityError::Overflow)?;
         let rows = window.x.chunks_exact(window.ncols).zip(&window.y).zip(&window.w).take(n);
         for ((row, &response), &weight) in rows {
@@ -1125,6 +1329,263 @@ fn scan_rows(
         }
     }
     Ok(batches)
+}
+
+fn spill_summary(
+    result: WeightedCapacityResult,
+    options: &CapacityOptions,
+) -> Result<SpilledCapacity, WeightedCapacityError> {
+    let spill = options.spill.as_ref().ok_or(WeightedCapacityError::SpillPathRequired)?;
+    spill_with(result, options.cancellation.as_ref(), spill, spill_file::write_whole)
+}
+
+/// Reserve, encode, write, and read back one summary. `write` stores the frame
+/// in the temporary file, so a test can make that step fail.
+fn spill_with(
+    result: WeightedCapacityResult,
+    cancellation: Option<&CancellationToken>,
+    spill: &SpillOptions,
+    write: impl FnOnce(&mut File, &[u8]) -> io::Result<()>,
+) -> Result<SpilledCapacity, WeightedCapacityError> {
+    check_cancelled(cancellation)?;
+    let lease = spill
+        .pool
+        .as_ref()
+        .map(|pool| pool.try_grant(0, result.charges.spill_bytes, false))
+        .transpose()
+        .map_err(WeightedCapacityError::SpillPool)?;
+    let payload_len = spill_payload_bytes(result.coefficients.len())?;
+    let mut frame = spill_file::begin_frame(payload_len)?;
+    encode_summary(&result, &mut frame)?;
+    spill_file::seal_frame(&mut frame);
+    if u64::try_from(frame.len()).ok() != Some(result.charges.spill_bytes) {
+        return Err(WeightedCapacityError::Spill(SpillFault::PayloadLayout));
+    }
+    let receipt =
+        spill_file::commit_frame::<WeightedCapacityError>(&spill.path, frame, write, || {
+            check_cancelled(cancellation)
+        })?;
+    Ok(SpilledCapacity {
+        control: result.control,
+        retention: result.retention,
+        handle: SpillHandle {
+            path: spill.path.clone(),
+            frame_bytes: receipt.frame_bytes,
+            digest: receipt.digest,
+            lease,
+        },
+        charges: result.charges,
+        batches: result.batches,
+        source_passes: result.source_passes,
+        content_identity: result.content_identity,
+    })
+}
+
+/// Read a spilled summary back.
+///
+/// The result is the one a resident run returns, with [`OutputRetention::DiskBacked`]
+/// as its retention and the charges of the spilled run. The read allocates one
+/// buffer of [`SpillHandle::frame_bytes`], which the run already charged under
+/// [`CeilingCharges::decoder_bytes`].
+///
+/// # Errors
+///
+/// The file is missing, has a length other than the handle's, or fails its
+/// magic, version, digest, or layout check.
+pub fn read_spilled_summary(
+    handle: &SpillHandle,
+) -> Result<WeightedCapacityResult, WeightedCapacityError> {
+    let declared = Declared { frame_bytes: handle.frame_bytes, digest: handle.digest };
+    let frame = spill_file::read_verified::<WeightedCapacityError>(&handle.path, declared)?;
+    let payload = spill_file::verify_frame(&frame)?;
+    decode_summary(payload)
+}
+
+fn control_code(control: CapacityControl) -> u8 {
+    match control {
+        CapacityControl::Glm => 0,
+        CapacityControl::GaussianBayes => 1,
+    }
+}
+
+fn put_f64s(out: &mut Vec<u8>, values: &[f64]) {
+    for value in values {
+        out.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
+fn put_u64(out: &mut Vec<u8>, value: u64) {
+    out.extend_from_slice(&value.to_le_bytes());
+}
+
+/// Canonical little-endian payload: control, `ncols`, the matrices and vectors,
+/// the scalar summaries, the identity, the fit diagnostics, the charges, and
+/// the counters, in that order.
+fn encode_summary(
+    result: &WeightedCapacityResult,
+    out: &mut Vec<u8>,
+) -> Result<(), WeightedCapacityError> {
+    let p = result.coefficients.len();
+    let gram = p.checked_mul(p).ok_or(WeightedCapacityError::Overflow)?;
+    let shaped = p > 0
+        && result.robust_covariance.len() == gram
+        && result.cross_products.xtwx.len() == gram
+        && result.cross_products.xtwy.len() == p;
+    if !shaped {
+        return Err(WeightedCapacityError::Spill(SpillFault::PayloadLayout));
+    }
+    let backend = SPILL_BACKENDS
+        .iter()
+        .position(|name| *name == result.fit.backend)
+        .and_then(|index| u8::try_from(index).ok())
+        .ok_or(WeightedCapacityError::Spill(SpillFault::UnknownBackend))?;
+    let ncols = u32::try_from(p).map_err(|_| WeightedCapacityError::Overflow)?;
+    let rank = u64::try_from(result.fit.rank).map_err(|_| WeightedCapacityError::Overflow)?;
+    out.push(control_code(result.control));
+    out.extend_from_slice(&ncols.to_le_bytes());
+    put_f64s(out, &result.coefficients);
+    put_f64s(out, &result.robust_covariance);
+    put_f64s(out, &result.cross_products.xtwx);
+    put_f64s(out, &result.cross_products.xtwy);
+    put_f64s(out, &[result.cross_products.n_eff, result.cross_products.ytwy]);
+    put_f64s(out, &[result.leverage.max, result.leverage.sum]);
+    put_u64(out, result.leverage.saturated_rows);
+    put_f64s(out, &[result.residual.weighted_rss, result.residual.max_abs_residual]);
+    put_u64(out, result.residual.positive_weight_rows);
+    out.extend_from_slice(&result.content_identity);
+    put_u64(out, rank);
+    out.push(u8::from(result.fit.rcond.is_some()));
+    put_f64s(out, &[result.fit.rcond.unwrap_or(0.0)]);
+    out.push(backend);
+    out.extend_from_slice(&result.fit.grow_count.to_le_bytes());
+    let charges = &result.charges;
+    for word in [
+        charges.input_ownership_bytes,
+        charges.content_identity_bytes,
+        charges.decoder_bytes,
+        charges.spill_bytes,
+        charges.output_bytes,
+        charges.total_bytes,
+        result.batches,
+        result.source_passes,
+    ] {
+        put_u64(out, word);
+    }
+    Ok(())
+}
+
+/// Cursor over a spill payload. Every read that runs past the end is a layout fault.
+struct PayloadReader<'a> {
+    rest: &'a [u8],
+}
+
+impl<'a> PayloadReader<'a> {
+    fn take(&mut self, len: usize) -> Result<&'a [u8], WeightedCapacityError> {
+        if self.rest.len() < len {
+            return Err(WeightedCapacityError::Spill(SpillFault::PayloadLayout));
+        }
+        let (head, tail) = self.rest.split_at(len);
+        self.rest = tail;
+        Ok(head)
+    }
+
+    fn array<const N: usize>(&mut self) -> Result<[u8; N], WeightedCapacityError> {
+        self.take(N)?
+            .try_into()
+            .map_err(|_| WeightedCapacityError::Spill(SpillFault::PayloadLayout))
+    }
+
+    fn u8(&mut self) -> Result<u8, WeightedCapacityError> {
+        Ok(self.array::<1>()?[0])
+    }
+
+    fn u32(&mut self) -> Result<u32, WeightedCapacityError> {
+        Ok(u32::from_le_bytes(self.array()?))
+    }
+
+    fn u64(&mut self) -> Result<u64, WeightedCapacityError> {
+        Ok(u64::from_le_bytes(self.array()?))
+    }
+
+    fn f64(&mut self) -> Result<f64, WeightedCapacityError> {
+        Ok(f64::from_le_bytes(self.array()?))
+    }
+
+    fn f64s(&mut self, len: usize, what: &'static str) -> Result<Vec<f64>, WeightedCapacityError> {
+        let raw = self.take(len.checked_mul(8).ok_or(WeightedCapacityError::Overflow)?)?;
+        let mut values = zeros(len, what)?;
+        for (slot, chunk) in values.iter_mut().zip(raw.chunks_exact(8)) {
+            *slot = decode_f64(chunk)?;
+        }
+        Ok(values)
+    }
+}
+
+fn decode_summary(payload: &[u8]) -> Result<WeightedCapacityResult, WeightedCapacityError> {
+    let layout = || WeightedCapacityError::Spill(SpillFault::PayloadLayout);
+    let mut reader = PayloadReader { rest: payload };
+    let control = match reader.u8()? {
+        0 => CapacityControl::Glm,
+        1 => CapacityControl::GaussianBayes,
+        _ => return Err(layout()),
+    };
+    let p = usize::try_from(reader.u32()?).map_err(|_| WeightedCapacityError::Overflow)?;
+    if p == 0 || u64::try_from(payload.len()).ok() != Some(spill_payload_bytes(p)?) {
+        return Err(layout());
+    }
+    let gram = p * p;
+    let coefficients = reader.f64s(p, "spilled coefficients")?;
+    let robust_covariance = reader.f64s(gram, "spilled covariance")?;
+    let xtwx = reader.f64s(gram, "spilled X'WX")?;
+    let xtwy = reader.f64s(p, "spilled X'Wy")?;
+    let (n_eff, ytwy) = (reader.f64()?, reader.f64()?);
+    let leverage =
+        LeverageSummary { max: reader.f64()?, sum: reader.f64()?, saturated_rows: reader.u64()? };
+    let residual = ResidualCheck {
+        weighted_rss: reader.f64()?,
+        max_abs_residual: reader.f64()?,
+        positive_weight_rows: reader.u64()?,
+    };
+    let content_identity = reader.array::<32>()?;
+    let rank = usize::try_from(reader.u64()?).map_err(|_| WeightedCapacityError::Overflow)?;
+    let has_rcond = match reader.u8()? {
+        0 => false,
+        1 => true,
+        _ => return Err(layout()),
+    };
+    let rcond = reader.f64()?;
+    let backend = SPILL_BACKENDS
+        .get(usize::from(reader.u8()?))
+        .copied()
+        .ok_or(WeightedCapacityError::Spill(SpillFault::UnknownBackend))?;
+    let grow_count = reader.u32()?;
+    let charges = CeilingCharges {
+        input_ownership_bytes: reader.u64()?,
+        content_identity_bytes: reader.u64()?,
+        decoder_bytes: reader.u64()?,
+        spill_bytes: reader.u64()?,
+        output_bytes: reader.u64()?,
+        total_bytes: reader.u64()?,
+    };
+    let batches = reader.u64()?;
+    let source_passes = reader.u64()?;
+    if !reader.rest.is_empty() {
+        return Err(layout());
+    }
+    Ok(WeightedCapacityResult {
+        control,
+        retention: OutputRetention::DiskBacked,
+        coefficients,
+        robust_covariance,
+        leverage,
+        residual,
+        cross_products: GaussianCrossProducts { n_eff, xtwx, xtwy, ytwy },
+        content_identity,
+        fit: FitDiagnostics::new(rank, has_rcond.then_some(rcond), backend, grow_count),
+        charges,
+        batches,
+        source_passes,
+    })
 }
 
 /// `L` is the row-major Cholesky factor of `X'WX`. That buffer is also the
@@ -1194,14 +1655,22 @@ fn plan_charges(
     source_decoder_bytes: u64,
 ) -> Result<CeilingCharges, WeightedCapacityError> {
     let payload = payload_bytes(ncols)?;
-    let output_bytes = match options.retention {
-        OutputRetention::SummaryOnly => payload,
-        OutputRetention::DiskBacked => return Err(WeightedCapacityError::SpillUnsupported),
+    let (output_bytes, spill_bytes, staging_bytes) = match options.retention {
+        OutputRetention::SummaryOnly => (payload, 0, 0),
+        OutputRetention::DiskBacked => {
+            let spill = options.spill.as_ref().ok_or(WeightedCapacityError::SpillPathRequired)?;
+            let frame = spill_frame_bytes(ncols)?;
+            // The finished summary is encoded into one frame buffer, which is
+            // dropped before the read-back allocates the next one.
+            let staging = frame.checked_add(payload).ok_or(WeightedCapacityError::Overflow)?;
+            (handle_bytes(&spill.path)?, frame, staging)
+        }
         OutputRetention::FullReusable => return Err(WeightedCapacityError::RetentionKeepsRows),
     };
-    let spill_bytes = 0;
     let identity = content_identity_bytes(ncols)?;
-    let decoder = working_bytes(options.batch_rows, ncols, source_decoder_bytes)?;
+    let decoder = working_bytes(options.batch_rows, ncols, source_decoder_bytes)?
+        .checked_add(staging_bytes)
+        .ok_or(WeightedCapacityError::Overflow)?;
     let total_bytes = input_ownership_bytes
         .checked_add(identity)
         .and_then(|sum| sum.checked_add(decoder))
@@ -1216,6 +1685,31 @@ fn plan_charges(
         output_bytes,
         total_bytes,
     })
+}
+
+/// Resident bytes of a [`SpillHandle`] naming `path`.
+fn handle_bytes(path: &Path) -> Result<u64, WeightedCapacityError> {
+    let path_bytes =
+        u64::try_from(path.as_os_str().len()).map_err(|_| WeightedCapacityError::Overflow)?;
+    size_u64::<SpillHandle>()?.checked_add(path_bytes).ok_or(WeightedCapacityError::Overflow)
+}
+
+/// Exact length of the spill payload for `ncols` columns: seven fixed `f64`
+/// values and `2p² + 2p` matrix and vector cells, eleven `u64` counters, and
+/// forty-three bytes of identity, flags, codes, and the grow count.
+fn spill_payload_bytes(ncols: usize) -> Result<u64, WeightedCapacityError> {
+    let gram = ncols.checked_mul(ncols).ok_or(WeightedCapacityError::Overflow)?;
+    let floats = gram
+        .checked_mul(2)
+        .and_then(|cells| cells.checked_add(ncols.checked_mul(2)?))
+        .and_then(|cells| cells.checked_add(7))
+        .and_then(|cells| cells.checked_add(11))
+        .ok_or(WeightedCapacityError::Overflow)?;
+    f64_bytes(floats)?.checked_add(43).ok_or(WeightedCapacityError::Overflow)
+}
+
+fn spill_frame_bytes(ncols: usize) -> Result<u64, WeightedCapacityError> {
+    spill_file::frame_len(spill_payload_bytes(ncols)?).ok_or(WeightedCapacityError::Overflow)
 }
 
 fn payload_bytes(ncols: usize) -> Result<u64, WeightedCapacityError> {
@@ -1416,16 +1910,43 @@ mod tests {
     use std::error::Error as _;
     use std::path::PathBuf;
 
+    use antecedent_core::device_reservation::DeviceReservationPool;
+    use antecedent_core::execution::CancellationToken;
     use antecedent_core::execution_facts::OutputRetention;
     use antecedent_stats::{
-        FaerBackend, LeastSquaresWorkspace, SandwichKind, coefficient_covariance, fit_wls,
+        FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace, SandwichKind,
+        coefficient_covariance, fit_glm_weighted, fit_wls,
     };
 
     use super::{
         CapacityControl, CapacityOptions, FileWeightedRows, ResidentWeightedRows, RowFileFault,
-        WeightedCapacityError, WeightedCapacityResult, WeightedRowSource, encode_weighted_row_file,
-        run_weighted_capacity, zeros,
+        SpillFault, SpillOptions, SpilledCapacity, WeightedCapacityError, WeightedCapacityOutput,
+        WeightedCapacityResult, WeightedRowSource, encode_weighted_row_file, read_spilled_summary,
+        spill_with, zeros,
     };
+
+    /// The resident summary of a run. A disk-backed run is a test failure here.
+    fn run_weighted_capacity(
+        control: CapacityControl,
+        source: &mut dyn WeightedRowSource,
+        options: &CapacityOptions,
+    ) -> Result<WeightedCapacityResult, WeightedCapacityError> {
+        match super::run_weighted_capacity(control, source, options)? {
+            WeightedCapacityOutput::Resident(result) => Ok(result),
+            WeightedCapacityOutput::Spilled(_) => panic!("expected a resident summary"),
+        }
+    }
+
+    fn run_spilled(
+        control: CapacityControl,
+        source: &mut dyn WeightedRowSource,
+        options: &CapacityOptions,
+    ) -> Result<SpilledCapacity, WeightedCapacityError> {
+        match super::run_weighted_capacity(control, source, options)? {
+            WeightedCapacityOutput::Spilled(spilled) => Ok(spilled),
+            WeightedCapacityOutput::Resident(_) => panic!("expected a spill"),
+        }
+    }
 
     /// Per-thread live and peak byte counts, so concurrent tests do not see
     /// each other. Every call forwards to the system allocator unchanged.
@@ -1545,7 +2066,7 @@ mod tests {
     }
 
     fn options(retention: OutputRetention) -> CapacityOptions {
-        CapacityOptions { batch_rows: 1, ceiling_bytes: u64::MAX, retention }
+        CapacityOptions::new(1, u64::MAX, retention)
     }
 
     fn bits_eq(left: &[f64], right: &[f64]) -> bool {
@@ -1576,6 +2097,12 @@ mod tests {
     }
 
     fn same_science(left: &WeightedCapacityResult, right: &WeightedCapacityResult) {
+        same_numbers(left, right);
+        assert_eq!(left.retention, right.retention);
+    }
+
+    /// Every number and count of the summary, compared bit for bit.
+    fn same_numbers(left: &WeightedCapacityResult, right: &WeightedCapacityResult) {
         assert!(bits_eq(&left.coefficients, &right.coefficients));
         assert!(bits_eq(&left.robust_covariance, &right.robust_covariance));
         assert!(bits_eq(&left.cross_products.xtwx, &right.cross_products.xtwx));
@@ -1585,8 +2112,13 @@ mod tests {
         assert_eq!(left.leverage.max.to_bits(), right.leverage.max.to_bits());
         assert_eq!(left.leverage.sum.to_bits(), right.leverage.sum.to_bits());
         assert_eq!(left.residual.weighted_rss.to_bits(), right.residual.weighted_rss.to_bits());
+        assert_eq!(left.leverage.saturated_rows, right.leverage.saturated_rows,);
+        assert_eq!(
+            left.residual.max_abs_residual.to_bits(),
+            right.residual.max_abs_residual.to_bits()
+        );
+        assert_eq!(left.fit, right.fit);
         assert_eq!(left.content_identity, right.content_identity);
-        assert_eq!(left.retention, right.retention);
         assert_eq!(left.source_passes, right.source_passes);
         assert_eq!(left.residual.positive_weight_rows, right.residual.positive_weight_rows);
     }
@@ -1856,11 +2388,7 @@ mod tests {
         let file_guard = write_rows("equivalence", &bytes);
         let mut first: Option<WeightedCapacityResult> = None;
         for batch_rows in [1, 2, 5, 7, 22, 23, 64] {
-            let options = CapacityOptions {
-                batch_rows,
-                ceiling_bytes: u64::MAX,
-                retention: OutputRetention::SummaryOnly,
-            };
+            let options = CapacityOptions::new(batch_rows, u64::MAX, OutputRetention::SummaryOnly);
             let expected_batches = u64::try_from(rows.div_ceil(batch_rows)).expect("batches");
             for control in [CapacityControl::Glm, CapacityControl::GaussianBayes] {
                 let mut resident =
@@ -1889,8 +2417,184 @@ mod tests {
         }
     }
 
+    /// A unique, empty directory that is removed when it goes out of scope.
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let path = std::env::temp_dir()
+                .join(format!("weighted-gaussian-spill-{}-{name}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).expect("create test directory");
+            Self(path)
+        }
+
+        fn join(&self, name: &str) -> PathBuf {
+            self.0.join(name)
+        }
+
+        fn entries(&self) -> Vec<String> {
+            let mut names: Vec<String> = std::fs::read_dir(&self.0)
+                .expect("read test directory")
+                .map(|entry| entry.expect("entry").file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            names
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn disk_options(batch_rows: usize, dir: &TempDir, file: &str) -> CapacityOptions {
+        CapacityOptions {
+            spill: Some(SpillOptions { path: dir.join(file), pool: None }),
+            ..CapacityOptions::new(batch_rows, u64::MAX, OutputRetention::DiskBacked)
+        }
+    }
+
+    fn spill_of(
+        x: &[f64],
+        y: &[f64],
+        weights: &[f64],
+        options: &CapacityOptions,
+    ) -> Result<SpilledCapacity, WeightedCapacityError> {
+        let mut source = ResidentWeightedRows::try_new(x, y, weights).expect("resident");
+        run_spilled(CapacityControl::Glm, &mut source, options)
+    }
+
+    /// The `glm` Gaussian fitter as the oracle: coefficients and weighted deviance.
+    fn assert_matches_glm_oracle(
+        fit: &WeightedCapacityResult,
+        x: &[f64],
+        y: &[f64],
+        weights: &[f64],
+        ncols: usize,
+    ) {
+        let nrows = y.len();
+        let mut colmajor = vec![0.0; nrows * ncols];
+        for (row, values) in x.chunks_exact(ncols).enumerate() {
+            for (col, &value) in values.iter().enumerate() {
+                colmajor[col * nrows + row] = value;
+            }
+        }
+        let design = GlmDesignRef { x_colmajor: &colmajor, nrows, ncols, y };
+        let mut workspace = LeastSquaresWorkspace::default();
+        let reference = fit_glm_weighted(
+            GlmFamily::GaussianIdentity,
+            design,
+            weights,
+            &FaerBackend,
+            &mut workspace,
+            &GlmOptions::default(),
+        )
+        .expect("glm oracle");
+        assert_close(&fit.coefficients, &reference.coefficients, 1.0e-6, "glm coefficients");
+        assert_close(
+            &[fit.residual.weighted_rss],
+            &[reference.deviance],
+            1.0e-6,
+            "weighted deviance",
+        );
+    }
+
     #[test]
-    fn disk_backed_retention_is_refused_by_both_controls_and_sources() {
+    fn disk_backed_summary_is_bit_identical_to_the_resident_summary() {
+        let rows = 23;
+        let (x, y, weights) = wide_design(rows);
+        let bytes = encode_weighted_row_file(&x, &y, &weights).expect("encode");
+        let file_guard = write_rows("spill-identical", &bytes);
+        let dir = TempDir::new("identical");
+        for batch_rows in [1, 7, 23] {
+            for control in [CapacityControl::Glm, CapacityControl::GaussianBayes] {
+                let summary_options =
+                    CapacityOptions::new(batch_rows, u64::MAX, OutputRetention::SummaryOnly);
+                let mut resident =
+                    ResidentWeightedRows::try_new(&x, &y, &weights).expect("resident");
+                let kept = run_weighted_capacity(control, &mut resident, &summary_options)
+                    .expect("resident fit");
+                let options = disk_options(batch_rows, &dir, "summary.spill");
+                let mut file = FileWeightedRows::open(&file_guard.0).expect("open");
+                let spilled = run_spilled(control, &mut file, &options).expect("spill");
+                assert_eq!(spilled.control, control);
+                assert_eq!(spilled.retention, OutputRetention::DiskBacked);
+                assert_eq!(spilled.batches, kept.batches);
+                assert_eq!(spilled.source_passes, 2);
+                assert_eq!(spilled.content_identity, kept.content_identity);
+                let charges = spilled.charges;
+                assert!(charges.spill_bytes > 0);
+                assert_eq!(charges.spill_bytes, spilled.handle.frame_bytes());
+                let on_disk = std::fs::metadata(spilled.handle.path()).expect("spill file").len();
+                assert_eq!(on_disk, charges.spill_bytes);
+                assert_eq!(
+                    charges.total_bytes,
+                    charges.input_ownership_bytes
+                        + charges.content_identity_bytes
+                        + charges.decoder_bytes
+                        + charges.spill_bytes
+                        + charges.output_bytes
+                );
+                assert!(charges.decoder_bytes > kept.charges.decoder_bytes);
+                assert_eq!(dir.entries(), vec!["summary.spill".to_owned()]);
+
+                let back = read_spilled_summary(&spilled.handle).expect("read back");
+                same_numbers(&kept, &back);
+                assert_eq!(back.retention, OutputRetention::DiskBacked);
+                assert_eq!(back.control, control);
+                assert_eq!(back.batches, kept.batches);
+                assert_eq!(back.charges, charges);
+                assert_matches_glm_oracle(&back, &x, &y, &weights, 4);
+                spilled.handle.remove().expect("remove");
+                assert!(dir.entries().is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn disk_backed_summary_matches_the_glm_oracle_for_the_small_design() {
+        let (x, y, weights) = design();
+        let dir = TempDir::new("oracle");
+        let spilled =
+            spill_of(&x, &y, &weights, &disk_options(1, &dir, "small.spill")).expect("spill");
+        let back = read_spilled_summary(&spilled.handle).expect("read back");
+        assert_declared(&back);
+        assert_matches_glm_oracle(&back, &x, &y, &weights, 2);
+        assert_matches_resident_oracle(&back, &x, &y, &weights, 2);
+    }
+
+    #[test]
+    fn spill_bytes_count_against_the_ceiling() {
+        let (x, y, weights) = design();
+        let dir = TempDir::new("ceiling");
+        let probe = spill_of(&x, &y, &weights, &disk_options(1, &dir, "run.spill"))
+            .expect("unbounded spill")
+            .charges;
+        assert!(probe.spill_bytes > 0);
+        let run_at = |ceiling_bytes: u64| {
+            let options = CapacityOptions { ceiling_bytes, ..disk_options(1, &dir, "run.spill") };
+            spill_of(&x, &y, &weights, &options)
+        };
+        let within = run_at(probe.total_bytes).expect("exactly the reservation fits");
+        assert_eq!(within.charges, probe);
+        within.handle.remove().expect("remove");
+        for lowered in [probe.spill_bytes, 1] {
+            match run_at(probe.total_bytes - lowered) {
+                Err(WeightedCapacityError::OverCeiling { over_by, total, charges, .. }) => {
+                    assert_eq!(over_by, lowered);
+                    assert_eq!(total, probe.total_bytes);
+                    assert_eq!(charges, probe);
+                }
+                other => panic!("expected a ceiling refusal, got {other:?}"),
+            }
+        }
+        assert_eq!(dir.entries(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn disk_backed_retention_needs_a_spill_path_for_both_controls_and_sources() {
         let (x, y, weights) = design();
         let bytes = encode_weighted_row_file(&x, &y, &weights).expect("encode");
         let file_guard = write_rows("disk-backed", &bytes);
@@ -1898,16 +2602,223 @@ mod tests {
         for control in [CapacityControl::Glm, CapacityControl::GaussianBayes] {
             let mut resident = ResidentWeightedRows::try_new(&x, &y, &weights).expect("resident");
             assert!(matches!(
-                run_weighted_capacity(control, &mut resident, &options),
-                Err(WeightedCapacityError::SpillUnsupported)
+                super::run_weighted_capacity(control, &mut resident, &options),
+                Err(WeightedCapacityError::SpillPathRequired)
             ));
             let mut file = FileWeightedRows::open(&file_guard.0).expect("open");
             assert!(matches!(
-                run_weighted_capacity(control, &mut file, &options),
-                Err(WeightedCapacityError::SpillUnsupported)
+                super::run_weighted_capacity(control, &mut file, &options),
+                Err(WeightedCapacityError::SpillPathRequired)
             ));
             assert_eq!(file.allocated_decoder_bytes(), 0);
         }
+    }
+
+    #[test]
+    fn the_spill_pool_is_reserved_before_the_write_and_returned_afterwards() {
+        let (x, y, weights) = design();
+        let dir = TempDir::new("pool");
+        let frame = spill_of(&x, &y, &weights, &disk_options(1, &dir, "probe.spill"))
+            .expect("probe")
+            .charges
+            .spill_bytes;
+        std::fs::remove_file(dir.join("probe.spill")).expect("clear probe");
+        let with_pool = |pool: &DeviceReservationPool, file: &str| {
+            let mut options = disk_options(1, &dir, file);
+            options.spill = Some(SpillOptions { path: dir.join(file), pool: Some(pool.clone()) });
+            spill_of(&x, &y, &weights, &options)
+        };
+
+        let small = DeviceReservationPool::fixed(0, frame - 1);
+        match with_pool(&small, "refused.spill") {
+            Err(WeightedCapacityError::SpillPool(_)) => {}
+            other => panic!("expected a pool refusal, got {other:?}"),
+        }
+        assert_eq!(small.available().spill_bytes(), frame - 1);
+        assert!(dir.entries().is_empty());
+
+        let pool = DeviceReservationPool::fixed(0, frame + 10);
+        let spilled = with_pool(&pool, "granted.spill").expect("granted");
+        assert!(spilled.handle.holds_reservation());
+        assert_eq!(pool.available().spill_bytes(), 10);
+        assert!(with_pool(&pool, "second.spill").is_err());
+        assert_eq!(dir.entries(), vec!["granted.spill".to_owned()]);
+        spilled.handle.remove().expect("remove");
+        assert_eq!(pool.available().spill_bytes(), frame + 10);
+        assert!(dir.entries().is_empty());
+
+        let kept = with_pool(&pool, "dropped.spill").expect("granted again");
+        let path = kept.handle.path().to_path_buf();
+        drop(kept);
+        assert_eq!(pool.available().spill_bytes(), frame + 10);
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn cancellation_leaves_no_file_and_returns_the_reservation() {
+        let (x, y, weights) = design();
+        let dir = TempDir::new("cancel");
+        let pool = DeviceReservationPool::fixed(0, 1 << 20);
+        // Five batches per pass: ten scan checks, then one before the pool is
+        // taken and one before the rename.
+        let run_with = |checks: Option<usize>| {
+            let mut options = disk_options(1, &dir, "cancelled.spill");
+            options.spill =
+                Some(SpillOptions { path: dir.join("cancelled.spill"), pool: Some(pool.clone()) });
+            options.cancellation = checks.map(CancellationToken::cancel_after_checks);
+            spill_of(&x, &y, &weights, &options)
+        };
+        for checks in [0, 3, 7, 10, 11] {
+            match run_with(Some(checks)) {
+                Err(WeightedCapacityError::Cancelled) => {}
+                other => panic!("checks {checks}: expected a cancellation, got {other:?}"),
+            }
+            assert!(dir.entries().is_empty(), "checks {checks}: files left behind");
+            assert_eq!(pool.available().spill_bytes(), 1 << 20, "checks {checks}");
+        }
+        let finished = run_with(Some(12)).expect("no check trips");
+        assert_eq!(dir.entries(), vec!["cancelled.spill".to_owned()]);
+        finished.handle.remove().expect("remove");
+        assert!(dir.entries().is_empty());
+    }
+
+    #[test]
+    fn a_failed_write_or_rename_leaves_no_temporary_or_partial_file() {
+        let (x, y, weights) = design();
+        let dir = TempDir::new("write-error");
+        let seed = spill_of(&x, &y, &weights, &disk_options(1, &dir, "seed.spill")).expect("seed");
+        let result = read_spilled_summary(&seed.handle).expect("read seed");
+        let kept = dir.entries();
+
+        let target = SpillOptions { path: dir.join("failed.spill"), pool: None };
+        let failing = |file: &mut std::fs::File, frame: &[u8]| {
+            use std::io::Write as _;
+            file.write_all(&frame[..frame.len() / 2])?;
+            Err(std::io::Error::other("injected write failure"))
+        };
+        match spill_with(result.clone(), None, &target, failing) {
+            Err(WeightedCapacityError::Io { context: "write the spill file", source }) => {
+                assert_eq!(source.to_string(), "injected write failure");
+            }
+            other => panic!("expected the injected write failure, got {other:?}"),
+        }
+        assert_eq!(dir.entries(), kept);
+
+        let blocked = SpillOptions { path: dir.join("blocked.spill"), pool: None };
+        std::fs::create_dir(&blocked.path).expect("block the target");
+        match spill_with(result, None, &blocked, super::spill_file::write_whole) {
+            Err(WeightedCapacityError::Io {
+                context: "move the spill file into place", ..
+            }) => {}
+            other => panic!("expected a rename failure, got {other:?}"),
+        }
+        let mut expected = kept;
+        expected.push("blocked.spill".to_owned());
+        expected.sort();
+        assert_eq!(dir.entries(), expected);
+    }
+
+    #[test]
+    fn a_changed_truncated_or_swapped_spill_file_is_refused_on_read() {
+        let (x, y, weights) = design();
+        let dir = TempDir::new("tamper");
+        let spilled =
+            spill_of(&x, &y, &weights, &disk_options(1, &dir, "a.spill")).expect("spill a");
+        let path = spilled.handle.path().to_path_buf();
+        let original = std::fs::read(&path).expect("read frame");
+        let refused = |bytes: &[u8]| {
+            std::fs::write(&path, bytes).expect("write tampered frame");
+            read_spilled_summary(&spilled.handle).expect_err("tampered frame")
+        };
+
+        let mut flipped = original.clone();
+        let last = flipped.len() - 1;
+        flipped[last] ^= 1;
+        assert!(matches!(
+            refused(&flipped),
+            WeightedCapacityError::Spill(SpillFault::DigestMismatch)
+        ));
+        let mut header_digest = original.clone();
+        header_digest[20] ^= 1;
+        assert!(matches!(
+            refused(&header_digest),
+            WeightedCapacityError::Spill(SpillFault::DigestMismatch)
+        ));
+        let mut magic = original.clone();
+        magic[0] ^= 1;
+        assert!(matches!(refused(&magic), WeightedCapacityError::Spill(SpillFault::BadMagic)));
+        assert!(matches!(
+            refused(&original[..original.len() - 1]),
+            WeightedCapacityError::Spill(SpillFault::LengthMismatch { .. })
+        ));
+        let mut longer = original.clone();
+        longer.push(0);
+        assert!(matches!(
+            refused(&longer),
+            WeightedCapacityError::Spill(SpillFault::LengthMismatch { .. })
+        ));
+
+        // A well-formed frame from another run has the same length and a different digest.
+        let other_y: Vec<f64> = y.iter().map(|value| value + 1.0).collect();
+        let other =
+            spill_of(&x, &other_y, &weights, &disk_options(1, &dir, "b.spill")).expect("spill b");
+        assert_eq!(other.handle.frame_bytes(), spilled.handle.frame_bytes());
+        let swapped = std::fs::read(other.handle.path()).expect("read b");
+        assert!(matches!(
+            refused(&swapped),
+            WeightedCapacityError::Spill(SpillFault::DigestMismatch)
+        ));
+
+        std::fs::write(&path, &original).expect("restore");
+        read_spilled_summary(&spilled.handle).expect("restored frame reads");
+        std::fs::remove_file(&path).expect("remove");
+        assert!(matches!(
+            read_spilled_summary(&spilled.handle),
+            Err(WeightedCapacityError::Io { .. })
+        ));
+    }
+
+    #[test]
+    fn a_disk_backed_run_fits_a_ceiling_smaller_than_the_row_data() {
+        let rows = 3000;
+        let (x, y, weights) = wide_design(rows);
+        let bytes = encode_weighted_row_file(&x, &y, &weights).expect("encode");
+        let row_file_bytes = u64::try_from(bytes.len()).expect("length");
+        let file_guard = write_rows("bounded", &bytes);
+        drop(bytes);
+        let dir = TempDir::new("bounded");
+        let run_at = |ceiling_bytes: u64| {
+            let options =
+                CapacityOptions { ceiling_bytes, ..disk_options(8, &dir, "bounded.spill") };
+            let mut file = FileWeightedRows::open(&file_guard.0).expect("open");
+            run_spilled(CapacityControl::GaussianBayes, &mut file, &options)
+        };
+        let probe = run_at(u64::MAX).expect("probe").charges;
+        assert!(
+            probe.total_bytes < row_file_bytes,
+            "ceiling {} is not below the {row_file_bytes} row bytes",
+            probe.total_bytes
+        );
+        let options = CapacityOptions {
+            ceiling_bytes: probe.total_bytes,
+            ..disk_options(8, &dir, "bounded.spill")
+        };
+        let mut file = FileWeightedRows::open(&file_guard.0).expect("open");
+        let (outcome, peak) = counting::peak_above_start(|| {
+            super::run_weighted_capacity(CapacityControl::GaussianBayes, &mut file, &options)
+        });
+        let spilled = outcome.expect("fits the ceiling").into_spilled().expect("spilled");
+        assert!(
+            peak <= spilled.charges.total_bytes,
+            "peak {peak} exceeds the reservation {}",
+            spilled.charges.total_bytes
+        );
+        let back = read_spilled_summary(&spilled.handle).expect("read back");
+        assert_matches_glm_oracle(&back, &x, &y, &weights, 4);
+        assert!(matches!(
+            run_at(probe.total_bytes - 1),
+            Err(WeightedCapacityError::OverCeiling { over_by: 1, .. })
+        ));
     }
 
     #[test]
@@ -1950,7 +2861,11 @@ mod tests {
         let base = options(OutputRetention::SummaryOnly);
         let run_at = |ceiling_bytes: u64, control: CapacityControl| {
             let mut source = ResidentWeightedRows::try_new(&x, &y, &weights).expect("source");
-            run_weighted_capacity(control, &mut source, &CapacityOptions { ceiling_bytes, ..base })
+            run_weighted_capacity(
+                control,
+                &mut source,
+                &CapacityOptions { ceiling_bytes, ..base.clone() },
+            )
         };
         let summary = run_at(u64::MAX, CapacityControl::Glm).expect("summary");
         let charges = summary.charges;
@@ -1993,7 +2908,7 @@ mod tests {
             other => panic!("one byte under the total must be refused by one byte: {other:?}"),
         }
         let mut kept = ResidentWeightedRows::try_new(&x, &y, &weights).expect("kept");
-        let full = CapacityOptions { retention: OutputRetention::FullReusable, ..base };
+        let full = CapacityOptions { retention: OutputRetention::FullReusable, ..base.clone() };
         assert!(matches!(
             run_weighted_capacity(CapacityControl::Glm, &mut kept, &full),
             Err(WeightedCapacityError::RetentionKeepsRows)
@@ -2003,11 +2918,7 @@ mod tests {
     #[test]
     fn measured_peak_allocation_stays_within_the_reserved_total() {
         let (x, y, weights) = wide_design(200);
-        let options = CapacityOptions {
-            batch_rows: 16,
-            ceiling_bytes: u64::MAX,
-            retention: OutputRetention::SummaryOnly,
-        };
+        let options = CapacityOptions::new(16, u64::MAX, OutputRetention::SummaryOnly);
         let mut resident = ResidentWeightedRows::try_new(&x, &y, &weights).expect("resident");
         let (resident_fit, resident_peak) = counting::peak_above_start(|| {
             run_weighted_capacity(CapacityControl::Glm, &mut resident, &options)
@@ -2046,11 +2957,7 @@ mod tests {
             inner: ResidentWeightedRows::try_new(&x, &y, &weights).expect("resident"),
             rewinds: 0,
         };
-        let options = CapacityOptions {
-            batch_rows: 5,
-            ceiling_bytes: u64::MAX,
-            retention: OutputRetention::SummaryOnly,
-        };
+        let options = CapacityOptions::new(5, u64::MAX, OutputRetention::SummaryOnly);
         match run_weighted_capacity(CapacityControl::Glm, &mut source, &options) {
             Err(WeightedCapacityError::SourceChanged { first, second }) => {
                 assert_ne!(first, second)
