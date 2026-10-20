@@ -1,0 +1,26 @@
+feature_id = "estimate.bayesian_temporal_lagged_instrument"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Bayesian Data Analysis, third edition", doi = "10.1201/b16018", sections = ["Gaussian linear-model posterior algebra; normal approximation at the posterior mode"] },
+  { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["Chapter 4: instrumental variables and just-identified linear IV estimation"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "Repository-specific Gaussian reduced-form posterior: T=alpha+pi Z+v and Y=c+gamma Z+u, followed by draws of gamma/pi. Independent zero-mean normal priors are on (alpha,pi,c,gamma), not directly on the treatment effect. This is distinct from the static fixed-loading structural IV posterior.",
+  "The correlated reduced-form residual covariance is a plug-in estimate with a 1e-8 variance floor; covariance-estimation uncertainty is not propagated. The four-dimensional Gaussian coefficient posterior uses prior precision plus the stacked likelihood precision.",
+  "Shares the lag-aligned independent-row likelihood, first-stage-F refusal and declared IV premises of the Wald fit. Non-finite ratio draws refuse the fit rather than being discarded. Finite posterior sample moments do not establish existence of population ratio-posterior moments; no weak-IV-robustness claim is made.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/lagged_instrument.rs",
+  "crates/antecedent/src/analysis/execute/temporal_iv_path.rs",
+  "crates/antecedent/tests/temporal_lagged_instrument_route.rs",
+  "python/tests/test_temporal_lagged_instrument.py",
+]

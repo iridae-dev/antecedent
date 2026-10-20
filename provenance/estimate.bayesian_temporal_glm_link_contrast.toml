@@ -1,0 +1,26 @@
+feature_id = "estimate.bayesian_temporal_glm_link_contrast"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Bayesian Data Analysis, third edition", doi = "10.1201/b16018", sections = ["Gaussian linear-model posterior algebra; normal approximation at the posterior mode"] },
+  { title = "Generalized Linear Models, second edition", doi = "10.1201/9780203753736", sections = ["Binomial logit/probit likelihood and Fisher information; asymptotic inference for smooth functions of coefficients"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "Uses the same independent-subject, fixed-lag Bernoulli probability-scale contrast as the frequentist temporal link model, with an explicit isotropic Gaussian coefficient prior and one local multivariate-normal Laplace approximation at the MAP.",
+  "Transforms every coefficient draw through both intervention regimes and averages rowwise probability differences, then summarizes those contrast draws. The posterior mean is not the maximum-likelihood contrast or a renamed ridge estimate. Empirical covariate-distribution uncertainty, multimodality and Laplace approximation error are not propagated.",
+  "The facade selects one earliest complete lag window per independent panel subject; a serially dependent single-series likelihood, unsupported links, and incompatible transferred/custom priors are refused. The static Bayesian/GLM references support the fitting algebra, not temporal identification, route admission or a calibration guarantee.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/temporal_link.rs",
+  "crates/antecedent-prob/src/laplace.rs",
+  "crates/antecedent/tests/panel_link_contrast_route.rs",
+  "python/tests/test_panel_link_contrast.py",
+]

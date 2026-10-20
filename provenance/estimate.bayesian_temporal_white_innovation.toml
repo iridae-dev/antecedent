@@ -1,0 +1,27 @@
+feature_id = "estimate.bayesian_temporal_white_innovation"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Bayesian Data Analysis, third edition", doi = "10.1201/b16018", sections = ["Gaussian linear-model posterior algebra; normal approximation at the posterior mode"] },
+  { title = "On a measure of lack of fit in time series models", doi = "10.1093/biomet/65.2.297", sections = ["Biometrika 65(2), 1978, pages 297\u2013303: residual-autocorrelation portmanteau statistic"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "Untempered Gaussian-identity posterior on a contiguous single-series lag-window design, conditional on a caller-declared serially independent, homoskedastic Gaussian outcome innovation. Delegates to the existing Bayesian g-computation backend with SerialDependence::Iid, rather than the default long-run-variance-tempered temporal posterior.",
+  "Only horizon one is admitted; multi-step unfolded residuals carry omitted intermediate innovations and require a different structural composition. A non-Gaussian likelihood, invalid whiteness gate or a residual-autocorrelation rejection refuses this path.",
+  "The residual gate computes Q=n(n+2) sum_(k=1..m) r_k^2/(n-k), comparing with chi-square m degrees of freedom. It does not adjust degrees of freedom for fitted temporal parameters. Its p-value is an approximate refutation diagnostic; finite power and fitted-lag attenuation mean that passing neither proves independence nor establishes likelihood correctness.",
+  "The posterior carries a declared white-innovation assumption and the test diagnostics. This provenance documents the algorithm and its limits; it does not supply missing calibration or attest the declared innovation model.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/white_innovation_posterior.rs",
+  "crates/antecedent/src/analysis/white_innovation_window.rs",
+  "crates/antecedent/tests/white_innovation_route.rs",
+  "python/tests/test_white_innovation_route.py",
+]

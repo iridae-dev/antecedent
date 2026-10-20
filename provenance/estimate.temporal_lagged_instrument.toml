@@ -1,0 +1,24 @@
+feature_id = "estimate.temporal_lagged_instrument"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["Chapter 4: instrumental variables and just-identified linear IV estimation"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "Just-identified single-instrument Wald ratio Cov(Y_t,Z_(t-lag))/Cov(T_t,Z_(t-lag)), with an intercept and homoskedastic standard error, after dropping the first lag rows. No exogenous adjustment covariates or multiple-instrument system is estimated.",
+  "Lag-aligned rows are treated as independent; there is no HAC or serial-dependence correction. Relevance, exclusion, exogeneity and the structural-effect interpretation must hold at every period; the time ordering supplies none of those premises.",
+  "The configured first-stage-F refusal is a numerical weak-instrument screen, not a weak-IV-robust confidence procedure. At least eight aligned finite rows are required. Exact zero residual variance can produce zero standard error and infinite first-stage F.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/lagged_instrument.rs",
+  "crates/antecedent/tests/temporal_lagged_instrument_route.rs",
+  "python/tests/test_temporal_lagged_instrument.py",
+]

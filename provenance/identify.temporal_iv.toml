@@ -1,0 +1,24 @@
+feature_id = "identify.temporal_iv"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Causality: Models, Reasoning, and Inference, second edition", doi = "10.1017/CBO9780511803161", sections = ["Section 5.4.3: graphical instrumental-variable criteria; static criterion only"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "Applies the existing singleton static IV graphical checks to an adaptively grown finite unfolding of a stationary temporal DAG. A lag alone proves neither exclusion nor exogeneity; graph connection is not a numerical instrument-strength certificate.",
+  "The repository-specific window algorithm grows until the treatment, outcome and candidate ancestry no longer reaches the truncated boundary. Unbounded ancestry or an exhausted growth cap remains uncertified, rather than being identified from a truncated graph.",
+  "Only a pulse or one-step sustained query is supported. The Wald estimand inherits the static identifier's parametric/homogeneity or corresponding local-effect restrictions; the static citation does not prove the temporal unfolding construction.",
+]
+
+test_sources = [
+  "crates/antecedent-identify/src/temporal_iv.rs",
+  "crates/antecedent-identify/tests/temporal_iv.rs",
+  "crates/antecedent/tests/temporal_lagged_instrument_route.rs",
+]

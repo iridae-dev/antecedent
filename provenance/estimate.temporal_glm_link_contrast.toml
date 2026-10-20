@@ -1,0 +1,25 @@
+feature_id = "estimate.temporal_glm_link_contrast"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Generalized Linear Models, second edition", doi = "10.1201/9780203753736", sections = ["Binomial logit/probit likelihood and Fisher information; asymptotic inference for smooth functions of coefficients"] },
+]
+
+upstream_implementations_observed = []
+
+implementation_deviations = [
+  "A decision-time empirical mean probability contrast under a Bernoulli logit or probit GLM. Intervention regime columns, including explicitly declared treatment-derived interactions, change together; lag columns remain observed. The link-scale treatment coefficient is not reported as the mean-scale causal contrast.",
+  "Uses unpenalized maximum likelihood and Fisher delta-method uncertainty conditional on the empirical covariate distribution. Separated fits are refused instead of silently introducing a ridge penalty. Identity and other unsupported links, missing lag columns and a single dependent series are refused.",
+  "The panel facade takes only the earliest full lag-window row from each independent subject, rather than treating pooled within-subject rows as independent. This sampling construction and temporal causal identification are additional repository contracts, not consequences of the static GLM reference. This record does not license a route or assert calibration.",
+]
+
+test_sources = [
+  "crates/antecedent-estimate/src/temporal_link.rs",
+  "crates/antecedent/src/analysis/execute/panel_link_path.rs",
+  "crates/antecedent/tests/panel_link_contrast_route.rs",
+  "python/tests/test_panel_link_contrast.py",
+]
