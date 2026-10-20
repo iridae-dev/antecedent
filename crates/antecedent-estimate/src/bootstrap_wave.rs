@@ -12,7 +12,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExecutionContext, StreamDomain};
+use antecedent_core::{
+    AdmittedRouteMemory, EncodedWidth, ExecutionContext, RouteBudget, RouteMemoryDeclaration,
+    RouteMemoryError, StreamDomain,
+};
 use antecedent_kernels::unbiased_index;
 
 use crate::error::EstimationError;
@@ -29,6 +32,92 @@ pub(crate) fn retained_index_slots(n: usize, workers: usize) -> Result<usize, Es
         .filter(|&slots| {
             slots.checked_mul(size_of::<u64>()).is_some_and(|bytes| isize::try_from(bytes).is_ok())
         })
+        .ok_or_else(|| {
+            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
+        })
+}
+
+/// Slots of one cluster-bootstrap replicate buffer per worker.
+///
+/// The retained buffer is `n` indexes times `workers`. A groups-by-replicates
+/// matrix is admitted against `budget` first. That admission allocates nothing.
+/// When the budget refuses the matrix, this still returns the worker-buffer
+/// length, and the caller must not allocate the matrix. When the worker buffer
+/// itself exceeds `budget`, this refuses before either buffer exists.
+///
+/// # Errors
+///
+/// `n * workers` is not an addressable index buffer, or that buffer exceeds
+/// `budget`. A matrix the budget refuses, or that does not fit in `u64`, is not
+/// allocated.
+pub(crate) fn cluster_worker_slots(
+    n: usize,
+    workers: usize,
+    groups: usize,
+    replicates: usize,
+    budget: RouteBudget,
+) -> Result<usize, EstimationError> {
+    let matrix = admit_group_replicate_matrix(groups, replicates, budget);
+    let slots = retained_index_slots(n, workers)?;
+    let retained_bytes = index_bytes(slots)?;
+    if retained_bytes > budget.bytes() {
+        return Err(EstimationError::data_msg(
+            "bootstrap index allocation exceeds the route budget",
+        ));
+    }
+    match matrix {
+        Ok(_)
+        | Err(RouteMemoryError::ExceedsBudget { .. } | RouteMemoryError::Unrepresentable) => {
+            Ok(slots)
+        }
+        Err(error) => Err(EstimationError::data_msg(error.to_string())),
+    }
+}
+
+/// Admit a groups-by-replicates index matrix under `budget`.
+///
+/// The estimate's total is the matrix size in bytes. This allocates nothing.
+/// A refusal is the decision not to allocate that matrix.
+///
+/// # Errors
+///
+/// [`RouteMemoryError::Unrepresentable`] when the matrix does not fit in `u64`,
+/// and [`RouteMemoryError::ExceedsBudget`] when it is larger than `budget`.
+pub(crate) fn admit_group_replicate_matrix(
+    groups: usize,
+    replicates: usize,
+    budget: RouteBudget,
+) -> Result<AdmittedRouteMemory, RouteMemoryError> {
+    let matrix_bytes = groups
+        .checked_mul(replicates)
+        .and_then(|slots| u64::try_from(slots).ok())
+        .and_then(|slots| slots.checked_mul(index_byte_width()))
+        .ok_or(RouteMemoryError::Unrepresentable)?;
+    let width = EncodedWidth::int32().bytes();
+    let Some(retained) = matrix_bytes.checked_sub(width) else {
+        return Err(RouteMemoryError::Unrepresentable);
+    };
+    RouteMemoryDeclaration::new()
+        .rows(1)
+        .encoded_column(EncodedWidth::int32())
+        .masks(0)
+        .design_expansion(0)
+        .learner_fold_copies(0, 0)
+        .solver_scratch(0)
+        .retained_scores_draws(retained)
+        .output(0)
+        .workers(1)
+        .admit(budget)
+}
+
+fn index_byte_width() -> u64 {
+    u64::try_from(size_of::<u64>()).unwrap_or(8)
+}
+
+fn index_bytes(slots: usize) -> Result<u64, EstimationError> {
+    u64::try_from(slots)
+        .ok()
+        .and_then(|slots| slots.checked_mul(index_byte_width()))
         .ok_or_else(|| {
             EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
         })
@@ -1253,5 +1342,38 @@ mod tests {
             origin += u64::try_from(count).unwrap();
             seen += count;
         }
+    }
+
+    #[test]
+    fn cluster_index_buffer_is_rows_times_workers() {
+        let n = 11usize;
+        let workers = 4usize;
+        let groups = 4usize;
+        let replicates = 200usize;
+        let matrix_bytes = groups * replicates * size_of::<u64>();
+        let retained_bytes = n * workers * size_of::<u64>();
+        assert!(retained_bytes < matrix_bytes);
+        let budget = RouteBudget::new(u64::try_from(retained_bytes).unwrap());
+        let slots = cluster_worker_slots(n, workers, groups, replicates, budget).unwrap();
+        assert_eq!(slots, n * workers);
+        assert!(slots < groups * replicates);
+        let tight = RouteBudget::new(u64::try_from(retained_bytes - 1).unwrap());
+        let refused = cluster_worker_slots(n, workers, groups, replicates, tight).unwrap_err();
+        assert!(refused.to_string().contains("route budget"), "{refused}");
+    }
+
+    #[test]
+    fn route_budget_refuses_groups_by_replicates_before_allocation() {
+        let groups = 4usize;
+        let replicates = 200usize;
+        let matrix_bytes = u64::try_from(groups * replicates * size_of::<u64>()).unwrap();
+        let budget = RouteBudget::new(matrix_bytes - 1);
+        let refused = admit_group_replicate_matrix(groups, replicates, budget).unwrap_err();
+        assert!(matches!(refused, RouteMemoryError::ExceedsBudget { .. }));
+        assert!(refused.to_string().contains("route budget"));
+        let admitted =
+            admit_group_replicate_matrix(groups, replicates, RouteBudget::new(matrix_bytes))
+                .expect("a budget of the matrix size admits the estimate and allocates nothing");
+        assert_eq!(admitted.total(), matrix_bytes);
     }
 }

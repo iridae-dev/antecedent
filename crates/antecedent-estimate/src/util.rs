@@ -10,14 +10,14 @@
     )
 )]
 
-use antecedent_core::{AdaptiveBootstrapBudget, ExecutionContext};
-use antecedent_data::{DataError, ResamplingPlan, fill_resample_index_batch};
+use antecedent_core::{AdaptiveBootstrapBudget, ExecutionContext, RouteBudget};
+use antecedent_data::{resample::fill_resample_index_replicate, ResamplingPlan};
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, StatsError, chol_solve, cholesky_spd,
     form_xtx, invert_square,
 };
 
-use crate::bootstrap_wave::{fill_worker_replicate, retained_index_slots};
+use crate::bootstrap_wave::{cluster_worker_slots, fill_worker_replicate, retained_index_slots};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 
@@ -384,6 +384,7 @@ where
 #[derive(Clone, Debug)]
 pub(crate) struct ClusterRows {
     members: Vec<Vec<antecedent_data::GlobalId>>,
+    rows: usize,
 }
 
 impl ClusterRows {
@@ -394,6 +395,7 @@ impl ClusterRows {
     /// Fewer than two clusters (a one-cluster resample is the data), or a row that does
     /// not fit in a [`antecedent_data::GlobalId`].
     pub(crate) fn new(labels: &[u32]) -> Result<Self, EstimationError> {
+        let rows = labels.len();
         let mut slot_of: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
         let mut members: Vec<Vec<antecedent_data::GlobalId>> = Vec::new();
         for (row, label) in labels.iter().enumerate() {
@@ -412,7 +414,12 @@ impl ClusterRows {
         if members.len() < 2 {
             return Err(crate::se::few_clusters(members.len()));
         }
-        Ok(Self { members })
+        Ok(Self { members, rows })
+    }
+
+    /// Rows in the sample these clusters partition.
+    pub(crate) fn row_count(&self) -> usize {
+        self.rows
     }
 
     /// Number of clusters.
@@ -439,9 +446,14 @@ impl ClusterRows {
 /// parallel evaluation are the same, and the draws are common-random-number stable under a
 /// fixed seed.
 ///
+/// Each worker writes one replicate. Retained index memory is `n` times the worker count.
+/// A groups-by-replicates matrix is admitted against the route budget before any index
+/// buffer is allocated, and that matrix is not retained.
+///
 /// # Errors
 ///
-/// Draw allocation failure, or an `Err` from `estimate`.
+/// The route budget refuses the worker buffer, the matrix size does not fit in `u64`,
+/// or an `Err` from `estimate`.
 pub(crate) fn bootstrap_se_clusters_with_scratch<S, F>(
     replicates: u32,
     ctx: &ExecutionContext,
@@ -462,40 +474,16 @@ where
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
     let n_rep = replicates as usize;
-    let len = groups
-        .checked_mul(n_rep)
-        .filter(|&len| {
-            len.checked_mul(std::mem::size_of::<antecedent_data::GlobalId>())
-                .is_some_and(|bytes| isize::try_from(bytes).is_ok())
-        })
-        .ok_or_else(|| {
-            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
-        })?;
-    let mut draws = Vec::new();
-    draws.try_reserve_exact(len).map_err(|e| {
-        EstimationError::data_msg(format!("bootstrap index allocation failed: {e}"))
-    })?;
-    draws.resize(len, antecedent_data::GlobalId::new(0));
-    if let Err(error) = fill_resample_index_batch(
-        ResamplingPlan::IidBootstrap,
-        groups,
-        n_rep,
-        None,
-        ctx,
-        stream_base,
-        &mut draws,
-    ) {
-        if ctx.cancellation.is_cancelled() && matches!(&error, DataError::Cancelled) {
-            return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
-        }
-        return Err(error.into());
-    }
+    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
+    let parallel = threads > 1 && !ctx.adaptive_bootstrap.enabled;
+    let workers = if parallel { threads } else { 1 };
+    let limit = ctx.memory.hard_limit_bytes.unwrap_or(u64::MAX);
+    // Judge the groups-by-replicates matrix, then keep one replicate per worker.
+    cluster_worker_slots(clusters.row_count(), workers, groups, n_rep, RouteBudget::new(limit))?;
     if ctx.cancellation.is_cancelled() {
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
-    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
-    let parallel = threads > 1 && !ctx.adaptive_bootstrap.enabled;
-    let rows = ReplicateRows::Clusters { draws: &draws, groups, members: &clusters.members };
+    let rows = ReplicateRows::Clusters { members: clusters.members(), ctx, stream_base };
     if parallel {
         return evaluate_bootstrap_parallel(ctx, &rows, n_rep, make_scratch, estimate);
     }
@@ -509,12 +497,12 @@ enum ReplicateRows<'a> {
     /// Each worker fills its own length-`n` buffer. The `n` by replicates matrix is not
     /// retained.
     Rows { n: usize, ctx: &'a ExecutionContext, stream_base: u64 },
-    /// `groups` cluster draws per replicate, each expanded to all of its rows in order. The
-    /// replicate is a whole-cluster resample whose length varies with the clusters drawn.
+    /// One whole-cluster replicate, drawn into the caller buffer. The groups-by-replicates
+    /// matrix is not retained. Length varies with the clusters drawn.
     Clusters {
-        draws: &'a [antecedent_data::GlobalId],
-        groups: usize,
         members: &'a [Vec<antecedent_data::GlobalId>],
+        ctx: &'a ExecutionContext,
+        stream_base: u64,
     },
 }
 
@@ -534,10 +522,29 @@ impl ReplicateRows<'_> {
                     .map_err(|_| EstimationError::data_msg("bootstrap replicate id exceeds u64"))?;
                 fill_worker_replicate(*n, replicate, ctx, *stream_base, out)?;
             }
-            Self::Clusters { draws, groups, members } => {
-                for cluster in &draws[r * groups..(r + 1) * groups] {
+            Self::Clusters { members, ctx, stream_base } => {
+                let groups = members.len();
+                let replicate = u64::try_from(r).map_err(|_| {
+                    EstimationError::data_msg("bootstrap replicate id exceeds u64")
+                })?;
+                let mut drawn = Vec::new();
+                fill_resample_index_replicate(
+                    ResamplingPlan::IidBootstrap,
+                    groups,
+                    None,
+                    ctx,
+                    *stream_base,
+                    replicate,
+                    &mut drawn,
+                )?;
+                for cluster in &drawn {
                     let slot = row(*cluster)?;
-                    for src in &members[slot] {
+                    let Some(sources) = members.get(slot) else {
+                        return Err(EstimationError::data_msg(
+                            "cluster draw is outside the observed clusters",
+                        ));
+                    };
+                    for src in sources {
                         out.push(row(*src)?);
                     }
                 }
@@ -1103,5 +1110,53 @@ mod tests {
         assert_eq!(run().se, first.se);
         // One cluster is not resamplable.
         assert!(ClusterRows::new(&[7, 7, 7]).is_err());
+    }
+
+    #[test]
+    fn cluster_bootstrap_writes_one_replicate_per_worker() {
+        let labels = [0_u32, 1, 2, 3, 1, 2, 3, 2, 3, 3, 3];
+        let clusters = ClusterRows::new(&labels).unwrap();
+        let n = clusters.row_count();
+        let groups = clusters.len();
+        let replicates = 80u32;
+        let workers = 4usize;
+        let matrix_bytes = groups * usize::try_from(replicates).unwrap() * size_of::<u64>();
+        let retained_bytes = n * workers * size_of::<u64>();
+        assert!(retained_bytes < matrix_bytes);
+        let mut ctx = ExecutionContext::production(11, u32::try_from(workers).unwrap());
+        ctx.memory.hard_limit_bytes = Some(u64::try_from(retained_bytes).unwrap());
+        let calls = AtomicU32::new(0);
+        let result = bootstrap_se_clusters_with_scratch(
+            replicates,
+            &ctx,
+            9,
+            &clusters,
+            || (),
+            |(), rows| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                assert!(!rows.is_empty());
+                Ok(Some(rows.len() as f64))
+            },
+        )
+        .unwrap();
+        assert_eq!(result.replicates_ok, replicates);
+        assert_eq!(calls.load(Ordering::Relaxed), replicates);
+        let mut refused = ctx.clone();
+        refused.memory.hard_limit_bytes = Some(u64::try_from(retained_bytes - 1).unwrap());
+        let refused_calls = AtomicU32::new(0);
+        let error = bootstrap_se_clusters_with_scratch(
+            replicates,
+            &refused,
+            9,
+            &clusters,
+            || (),
+            |(), _rows| {
+                refused_calls.fetch_add(1, Ordering::Relaxed);
+                Ok(Some(1.0_f64))
+            },
+        )
+        .unwrap_err();
+        assert_eq!(refused_calls.load(Ordering::Relaxed), 0);
+        assert!(error.to_string().contains("route budget"), "{error}");
     }
 }

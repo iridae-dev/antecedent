@@ -1,11 +1,12 @@
 //! Sampling-design contract for resampling, splitting, variance, and effective sample size.
 //!
 //! The design is an input. A time column on a table does not select it.
-//! [`SamplingDesign::IndependentSubjectTrajectories`] may use row/subject
-//! independent rules. A [`SamplingDesign::ClusteredPanel`] is resampled and
-//! split by cluster, and its effective sample size counts clusters or a declared
-//! cluster-aware size. A [`SamplingDesign::DependentTimeSeries`] keeps serial
-//! dependence and cannot use an independent variance formula.
+//! [`SamplingDesign::IndependentSubjectTrajectories`] may use subject-level
+//! rules and refuses a row-IID draw. A [`SamplingDesign::ClusteredPanel`] is
+//! resampled and split by cluster, and its effective sample size counts clusters
+//! or a declared cluster-aware size. A [`SamplingDesign::DependentTimeSeries`]
+//! keeps serial dependence, resamples contiguous blocks, and cannot use an
+//! independent variance formula.
 //!
 //! Applying a rule the design does not allow is a failed attempt. The error
 //! names that design and the rule it allows.
@@ -25,7 +26,8 @@ pub enum SamplingDesign {
     /// The `RowSubjectIid` rules treat the *subject* as the unit. When a subject
     /// contributes several rows, the rows of one trajectory are dependent: resample
     /// and split by whole subject, never by individual row. With one row per subject
-    /// the two coincide. This contract does not yet have a separate row-level rule.
+    /// the two coincide. [`ResamplingRule::RowIid`] is that row-level draw, and this
+    /// design refuses it.
     IndependentSubjectTrajectories,
     /// Rows nested in clusters. The cluster is the sampling unit.
     ClusteredPanel,
@@ -250,6 +252,11 @@ pub enum ResamplingRule {
     WholeCluster,
     /// Resample contiguous blocks so dependence inside a block stays intact.
     ContiguousBlock,
+    /// Draw each row independently. A subject trajectory is not a row.
+    ///
+    /// No design allows this. [`SamplingDesign::IndependentSubjectTrajectories`]
+    /// allows a subject draw and refuses this one.
+    RowIid,
 }
 
 impl ResamplingRule {
@@ -260,6 +267,7 @@ impl ResamplingRule {
             Self::RowSubjectIid => "row_subject_iid",
             Self::WholeCluster => "whole_cluster",
             Self::ContiguousBlock => "contiguous_block",
+            Self::RowIid => "row_iid",
         }
     }
 }
@@ -596,6 +604,7 @@ const fn same_resampling(left: ResamplingRule, right: ResamplingRule) -> bool {
         ResamplingRule::RowSubjectIid => matches!(right, ResamplingRule::RowSubjectIid),
         ResamplingRule::WholeCluster => matches!(right, ResamplingRule::WholeCluster),
         ResamplingRule::ContiguousBlock => matches!(right, ResamplingRule::ContiguousBlock),
+        ResamplingRule::RowIid => matches!(right, ResamplingRule::RowIid),
     }
 }
 
@@ -724,6 +733,17 @@ mod tests {
         assert_eq!(size.rule(), EffectiveSampleSizeRule::RowOrSubjectCount);
         assert_eq!(size.size(), 40);
 
+        let row_iid = design
+            .apply_resampling(ResamplingRule::RowIid)
+            .expect_err("a trajectory refuses a row-IID draw");
+        assert_failed(
+            &row_iid,
+            design,
+            AttemptedRule::Resampling(ResamplingRule::RowIid),
+            "row_iid resampling",
+            AllowedRule::Resampling(ResamplingRule::RowSubjectIid),
+            "row_subject_iid resampling",
+        );
         let error = design
             .apply_resampling(ResamplingRule::WholeCluster)
             .expect_err("cluster resampling is not the independent-trajectory rule");
@@ -949,6 +969,28 @@ mod tests {
         );
     }
 
+    #[test]
+    fn trajectory_design_refuses_a_row_iid_draw() {
+        let design = SamplingDesign::IndependentSubjectTrajectories;
+        let error = design
+            .apply_resampling(ResamplingRule::RowIid)
+            .expect_err("a trajectory cannot take a row bootstrap");
+        assert_failed(
+            &error,
+            design,
+            AttemptedRule::Resampling(ResamplingRule::RowIid),
+            "row_iid resampling",
+            AllowedRule::Resampling(ResamplingRule::RowSubjectIid),
+            "row_subject_iid resampling",
+        );
+        let with_time = SamplingDesignDeclaration::new(design, true);
+        let without_time = SamplingDesignDeclaration::new(design, false);
+        assert_eq!(
+            with_time.design().apply_resampling(ResamplingRule::RowIid),
+            without_time.design().apply_resampling(ResamplingRule::RowIid)
+        );
+    }
+
     /// The declaration records the time column without changing what any design allows.
     #[test]
     fn time_column_does_not_change_rule_outcomes() {
@@ -956,6 +998,7 @@ mod tests {
             ResamplingRule::RowSubjectIid,
             ResamplingRule::WholeCluster,
             ResamplingRule::ContiguousBlock,
+            ResamplingRule::RowIid,
         ];
         let variance = [
             VarianceRule::RowSubjectIid,

@@ -12,7 +12,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
+use antecedent_core::{
+    CausalRng, DeclaredSamplingDesign, ExecutionContext, ResamplingRule, SamplingDesignDeclaration,
+    SamplingDesignError, SplittingRule, StreamDomain, VariableId,
+};
 use antecedent_kernels::unbiased_index;
 
 use crate::buffer::F64Buffer;
@@ -153,6 +156,148 @@ pub(crate) fn fill_resample_indexes_grouped(
 ) -> Result<(), DataError> {
     let clusters = prepare_clusters(plan, n, cluster_ids)?;
     fill_indexes_prepared(plan, n, clusters.as_ref(), rng, out)
+}
+
+/// Draw one replicate for a declared sampling design.
+///
+/// The design selects the draw. [`SamplingDesignDeclaration::time_column_present`]
+/// is recorded and is not that selection. A trajectory design refuses a row-IID
+/// draw. A panel draws whole clusters. A series draws a contiguous block on the
+/// interior left after the embargo on each side.
+///
+/// # Errors
+///
+/// A row-IID attempt on a trajectory, an embargo on a design with no block
+/// boundary, a panel without cluster labels, a block that does not fit after
+/// the embargo, or a row id that does not fit in [`GlobalId`].
+pub fn fill_declared_resample(
+    declaration: SamplingDesignDeclaration,
+    n: usize,
+    cluster_ids: Option<&[u32]>,
+    block_length: usize,
+    embargo: u32,
+    rng: &mut CausalRng,
+    out: &mut Vec<GlobalId>,
+) -> Result<(), DataError> {
+    let design = design_independent_of_time_column(declaration);
+    match design.rules().resampling() {
+        ResamplingRule::RowSubjectIid | ResamplingRule::RowIid => Err(refuse_row_iid(design)),
+        ResamplingRule::WholeCluster => {
+            draw_whole_clusters(design, n, cluster_ids, embargo, rng, out)
+        }
+        ResamplingRule::ContiguousBlock => {
+            draw_contiguous_block(design, n, block_length, embargo, rng, out)
+        }
+    }
+}
+
+fn design_independent_of_time_column(
+    declaration: SamplingDesignDeclaration,
+) -> DeclaredSamplingDesign {
+    let with_column = SamplingDesignDeclaration::new(declaration.design(), true);
+    let without_column = SamplingDesignDeclaration::new(declaration.design(), false);
+    let selected = if declaration.time_column_present() { with_column } else { without_column };
+    debug_assert_eq!(with_column.design(), without_column.design());
+    selected.design()
+}
+
+fn refuse_row_iid(design: DeclaredSamplingDesign) -> DataError {
+    match design.apply_resampling(ResamplingRule::RowIid) {
+        Err(error) => declared_design_error(error),
+        Ok(_) => DataError::InvalidArgument {
+            message: "a trajectory design refuses a row-IID draw".into(),
+        },
+    }
+}
+
+fn draw_whole_clusters(
+    design: DeclaredSamplingDesign,
+    n: usize,
+    cluster_ids: Option<&[u32]>,
+    embargo: u32,
+    rng: &mut CausalRng,
+    out: &mut Vec<GlobalId>,
+) -> Result<(), DataError> {
+    design.apply_resampling(ResamplingRule::WholeCluster).map_err(declared_design_error)?;
+    design
+        .apply_splitting_with_embargo(SplittingRule::WholeCluster, embargo)
+        .map_err(declared_design_error)?;
+    if n == 0 {
+        return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
+    }
+    let Some(ids) = cluster_ids else {
+        return Err(DataError::InvalidArgument {
+            message: "clustered resampling requires cluster_ids".into(),
+        });
+    };
+    if ids.len() != n {
+        return Err(DataError::LengthMismatch {
+            expected: n,
+            actual: ids.len(),
+            context: "cluster_ids",
+        });
+    }
+    let clusters = ClusterIndex::build(ids)?;
+    out.clear();
+    fill_cluster_bootstrap(&clusters, rng, out)
+}
+
+fn draw_contiguous_block(
+    design: DeclaredSamplingDesign,
+    n: usize,
+    block_length: usize,
+    embargo: u32,
+    rng: &mut CausalRng,
+    out: &mut Vec<GlobalId>,
+) -> Result<(), DataError> {
+    design.apply_resampling(ResamplingRule::ContiguousBlock).map_err(declared_design_error)?;
+    let split = design
+        .apply_splitting_with_embargo(SplittingRule::ContiguousBlock, embargo)
+        .map_err(declared_design_error)?;
+    fill_embargoed_contiguous_block(n, block_length, split.embargo(), rng, out)
+}
+
+fn declared_design_error(error: SamplingDesignError) -> DataError {
+    DataError::InvalidArgument { message: error.to_string() }
+}
+
+fn fill_embargoed_contiguous_block(
+    n: usize,
+    length: usize,
+    embargo: u32,
+    rng: &mut CausalRng,
+    out: &mut Vec<GlobalId>,
+) -> Result<(), DataError> {
+    if n == 0 {
+        return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
+    }
+    let embargo = usize::try_from(embargo).map_err(|_| DataError::InvalidArgument {
+        message: "embargo does not fit in usize".into(),
+    })?;
+    let margin = embargo.checked_mul(2).ok_or_else(|| DataError::InvalidArgument {
+        message: "embargo does not fit in the series".into(),
+    })?;
+    if margin >= n {
+        return Err(DataError::InvalidArgument {
+            message: "embargo leaves no observation to draw".into(),
+        });
+    }
+    let span = n - margin;
+    if length == 0 || length > span {
+        return Err(DataError::InvalidArgument {
+            message: format!(
+                "block length {length} exceeds the series length {span} left after the embargo"
+            ),
+        });
+    }
+    let mut indexes = vec![0usize; span];
+    fill_block_slice(span, length, false, rng, &mut indexes, Ok)?;
+    out.clear();
+    out.reserve(span);
+    for index in indexes {
+        out.push(row_id(embargo + index)?);
+    }
+    Ok(())
 }
 
 /// Validate the plan / shape and, for clustered plans, build the replicate-invariant
@@ -1523,5 +1668,151 @@ mod tests {
         }
         assert!(saw_repeat, "a repeated cluster must stay two copies");
         assert!(saw_variable, "unequal clusters change the replicate length");
+    }
+
+    fn declaration(design: DeclaredSamplingDesign, time_column: bool) -> SamplingDesignDeclaration {
+        SamplingDesignDeclaration::new(design, time_column)
+    }
+
+    #[test]
+    fn trajectory_design_refuses_a_row_bootstrap() {
+        for time_column in [false, true] {
+            let mut rng = CausalRng::from_seed(9);
+            let mut out = vec![GlobalId::new(7)];
+            let error = fill_declared_resample(
+                declaration(DeclaredSamplingDesign::IndependentSubjectTrajectories, time_column),
+                6,
+                None,
+                2,
+                0,
+                &mut rng,
+                &mut out,
+            )
+            .expect_err("a trajectory cannot take a row bootstrap");
+            let message = error.to_string();
+            assert!(message.contains("independent_subject_trajectories"), "{message}");
+            assert!(message.contains("row_iid"), "{message}");
+            assert!(message.contains("row_subject_iid"), "{message}");
+            assert_eq!(out, vec![GlobalId::new(7)]);
+        }
+    }
+
+    #[test]
+    fn panel_design_draws_whole_clusters() {
+        let labels = [0_u32, 0, 1, 1, 1, 2];
+        let members: [Vec<u64>; 3] = [vec![0, 1], vec![2, 3, 4], vec![5]];
+        let mut with_time = Vec::new();
+        let mut without_time = Vec::new();
+        fill_declared_resample(
+            declaration(DeclaredSamplingDesign::ClusteredPanel, true),
+            labels.len(),
+            Some(&labels),
+            1,
+            0,
+            &mut CausalRng::from_seed(5),
+            &mut with_time,
+        )
+        .expect("a panel draws clusters");
+        fill_declared_resample(
+            declaration(DeclaredSamplingDesign::ClusteredPanel, false),
+            labels.len(),
+            Some(&labels),
+            1,
+            0,
+            &mut CausalRng::from_seed(5),
+            &mut without_time,
+        )
+        .expect("a time column does not change the panel draw");
+        assert_eq!(with_time, without_time);
+        let flat: Vec<u64> = with_time.iter().map(|id| id.get()).collect();
+        let mut cursor = 0usize;
+        let mut draws = 0usize;
+        while cursor < flat.len() {
+            let matched = members.iter().find(|member| flat[cursor..].starts_with(member));
+            let Some(member) = matched else {
+                panic!("a panel row was split from its cluster at {cursor}: {flat:?}");
+            };
+            cursor += member.len();
+            draws += 1;
+        }
+        assert_eq!(draws, members.len());
+        let embargoed = fill_declared_resample(
+            declaration(DeclaredSamplingDesign::ClusteredPanel, true),
+            labels.len(),
+            Some(&labels),
+            1,
+            2,
+            &mut CausalRng::from_seed(5),
+            &mut Vec::new(),
+        )
+        .expect_err("a panel has no block boundary for an embargo");
+        assert!(embargoed.to_string().contains("embargo"), "{embargoed}");
+    }
+
+    #[test]
+    fn series_design_draws_a_contiguous_block_and_honors_the_embargo() {
+        let n = 10usize;
+        let length = 3usize;
+        let mut block = Vec::new();
+        let mut moving = Vec::new();
+        fill_declared_resample(
+            declaration(DeclaredSamplingDesign::DependentTimeSeries, false),
+            n,
+            None,
+            length,
+            0,
+            &mut CausalRng::from_seed(4),
+            &mut block,
+        )
+        .expect("a series draws a contiguous block");
+        fill_resample_indexes(
+            ResamplingPlan::MovingBlock { length },
+            n,
+            &mut CausalRng::from_seed(4),
+            &mut moving,
+        )
+        .expect("moving block");
+        assert_eq!(block, moving);
+        let embargo = 2u32;
+        let bound = DeclaredSamplingDesign::DependentTimeSeries
+            .apply_splitting_with_embargo(SplittingRule::ContiguousBlock, embargo)
+            .expect("a series takes an embargo");
+        assert_eq!(bound.embargo(), embargo);
+        let mut with_time = Vec::new();
+        let mut without_time = Vec::new();
+        fill_declared_resample(
+            declaration(DeclaredSamplingDesign::DependentTimeSeries, true),
+            n,
+            None,
+            length,
+            embargo,
+            &mut CausalRng::from_seed(8),
+            &mut with_time,
+        )
+        .expect("embargoed block");
+        fill_declared_resample(
+            declaration(DeclaredSamplingDesign::DependentTimeSeries, false),
+            n,
+            None,
+            length,
+            embargo,
+            &mut CausalRng::from_seed(8),
+            &mut without_time,
+        )
+        .expect("a time column does not change the series draw");
+        assert_eq!(with_time, without_time);
+        let margin = usize::try_from(embargo).unwrap();
+        assert_eq!(with_time.len(), n - margin * 2);
+        for id in &with_time {
+            let row = usize::try_from(id.get()).unwrap();
+            assert!(row >= margin && row < n - margin, "embargoed row {row} was drawn");
+        }
+        for window in with_time.chunks(length) {
+            let rows: Vec<usize> =
+                window.iter().map(|id| usize::try_from(id.get()).unwrap()).collect();
+            for pair in rows.windows(2) {
+                assert_eq!(pair[1], pair[0] + 1);
+            }
+        }
     }
 }
