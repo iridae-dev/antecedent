@@ -895,9 +895,9 @@ fn counted_table(counts: &[u64; 8]) -> Result<TabularData, crate::CausalError> {
     let mut treatment = Vec::new();
     let mut confounder = Vec::new();
     let mut outcome = Vec::new();
-    for index in 0..counts.len() {
+    for (index, &count) in counts.iter().enumerate() {
         let (treatment_level, confounder_level, outcome_level) = cell_levels(index)?;
-        let copies = usize::try_from(counts[index])
+        let copies = usize::try_from(count)
             .map_err(|_| compile("a finite-discrete cell count does not fit in usize"))?;
         for _ in 0..copies {
             treatment.push(treatment_level);

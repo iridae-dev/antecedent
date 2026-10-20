@@ -339,8 +339,8 @@ pub fn expand_contrast(
                 message: "category code does not index the contrast",
             });
         }
-        for col in 0..matrix.n_columns {
-            columns[col][row] = matrix.values[level + col * matrix.n_levels];
+        for (col, column) in columns.iter_mut().enumerate() {
+            column[row] = matrix.values[level + col * matrix.n_levels];
         }
     }
     let conversion = CategoryConversion {

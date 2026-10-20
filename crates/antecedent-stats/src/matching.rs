@@ -1338,7 +1338,7 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(error, StatsError::ResourceLimit { .. }));
-        assert!(out.iter().all(|value| *value == 1.0));
+        assert!(out.iter().all(|value| value.total_cmp(&1.0).is_eq()));
         assert_eq!(many.memory.hard_limit_bytes, Some(serial_bytes));
         assert_eq!(many.memory.soft_limit_bytes, Some(1));
     }

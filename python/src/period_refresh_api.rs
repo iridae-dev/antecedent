@@ -38,7 +38,9 @@ type WindowTuple = (
     String,
 );
 /// A payload or a structured refusal.
-type Outcome<T> = PyResult<(Option<T>, Option<String>)>;
+type Refusable<T> = (Option<T>, Option<String>);
+/// A payload or a structured refusal, or a raised error.
+type Outcome<T> = PyResult<Refusable<T>>;
 
 fn refusal_json(code: &str, message: &str) -> String {
     RefusalJson::from_coded_message(code, "period_refresh", message).json()
@@ -62,11 +64,11 @@ fn state_refusal(error: &StateError, detail: &str) -> String {
     refusal_json(reason_code!("invalid_argument"), &message)
 }
 
-fn refuse<T>(detail: &str, message: &str) -> Outcome<T> {
-    Ok((
+fn refuse<T>(detail: &str, message: &str) -> Refusable<T> {
+    (
         None,
         Some(refusal_json(reason_code!("invalid_argument"), &format!("{detail}: {message}"))),
-    ))
+    )
 }
 
 fn identity_of(window: WindowTuple) -> TemporalWindowIdentity {
@@ -187,13 +189,13 @@ impl NativePeriodRefresh {
         cadence_tick: u64,
         initial_law: &str,
         values: Vec<f64>,
-    ) -> Outcome<Self> {
+    ) -> Refusable<Self> {
         let Some(cadence) = ObservationCadence::new(cadence_tick) else {
             return refuse("period_refresh.invalid_cadence", "the cadence tick must be positive");
         };
         let prior = match prior_of(prior) {
             Ok(prior) => prior,
-            Err(error) => return Ok((None, Some(state_refusal(&error, "period_refresh.prior")))),
+            Err(error) => return (None, Some(state_refusal(&error, "period_refresh.prior"))),
         };
         let standing = if invariant {
             MechanismStanding::DeclaredInvariant
@@ -202,8 +204,8 @@ impl NativePeriodRefresh {
         };
         let spec = PeriodRefreshSpec { series_id, cadence, initial_law, standing, lags };
         match PeriodRefresh::start(&spec, &identity_of(window), &prior, &values) {
-            Ok(inner) => Ok((Some(Self { inner }), None)),
-            Err(error) => Ok((None, Some(state_refusal(&error, "period_refresh.start")))),
+            Ok(inner) => (Some(Self { inner }), None),
+            Err(error) => (None, Some(state_refusal(&error, "period_refresh.start"))),
         }
     }
 
@@ -214,69 +216,69 @@ impl NativePeriodRefresh {
         cadence_tick: u64,
         initial_law: &str,
         values: Vec<f64>,
-    ) -> Outcome<String> {
+    ) -> Refusable<String> {
         let Some(cadence) = ObservationCadence::new(cadence_tick) else {
             return refuse("period_refresh.invalid_cadence", "the cadence tick must be positive");
         };
         match self.inner.refresh(&identity_of(window), cadence, initial_law, &values) {
-            Ok(outcome) => Ok((Some(outcome_json(&outcome)), None)),
-            Err(error) => Ok((None, Some(state_refusal(&error, "period_refresh.refused")))),
+            Ok(outcome) => (Some(outcome_json(&outcome)), None),
+            Err(error) => (None, Some(state_refusal(&error, "period_refresh.refused"))),
         }
     }
 
     /// The ledger and the cached results as JSON.
-    fn payload(&self) -> Outcome<String> {
+    fn payload(&self) -> Refusable<String> {
         match self.inner.ledger_wire() {
-            Ok(wire) => Ok((Some(ledger_json(&wire)), None)),
-            Err(error) => Ok((None, Some(state_refusal(&error, "period_refresh.ledger")))),
+            Ok(wire) => (Some(ledger_json(&wire)), None),
+            Err(error) => (None, Some(state_refusal(&error, "period_refresh.ledger"))),
         }
     }
 
     /// The retained ledger artifact, framed.
-    fn export_ledger(&self, py: Python<'_>) -> Outcome<Py<PyBytes>> {
+    fn export_ledger(&self, py: Python<'_>) -> Refusable<Py<PyBytes>> {
         match self.inner.export_ledger() {
-            Ok(raw) => Ok((Some(PyBytes::new(py, &frame(&raw)).unbind()), None)),
-            Err(error) => Ok((None, Some(state_refusal(&error, "period_refresh.ledger")))),
+            Ok(raw) => (Some(PyBytes::new(py, &frame(&raw)).unbind()), None),
+            Err(error) => (None, Some(state_refusal(&error, "period_refresh.ledger"))),
         }
     }
 
     /// Remove one retained row; both summaries are rebuilt from the rows that remain.
-    fn evict_row(&mut self, id: u64) -> Outcome<String> {
+    fn evict_row(&mut self, id: u64) -> Refusable<String> {
         match self.inner.evict_row(id) {
-            Ok(outcome) => Ok((Some(format!("{outcome:?}").to_lowercase()), None)),
-            Err(error) => Ok((None, Some(state_refusal(&error, "period_refresh.evict")))),
+            Ok(outcome) => (Some(format!("{outcome:?}").to_lowercase()), None),
+            Err(error) => (None, Some(state_refusal(&error, "period_refresh.evict"))),
         }
     }
 
     /// The posterior under `prior`; any prior other than the stated one is refused.
-    fn summary_under(&self, prior: PriorTuple) -> Outcome<String> {
+    fn summary_under(&self, prior: PriorTuple) -> Refusable<String> {
         let prior = match prior_of(prior) {
             Ok(prior) => prior,
-            Err(error) => return Ok((None, Some(state_refusal(&error, "period_refresh.prior")))),
+            Err(error) => return (None, Some(state_refusal(&error, "period_refresh.prior"))),
         };
         match self.inner.summary_under(&prior) {
-            Ok(summary) => Ok((Some(serde_json::json!({ "n": summary.n }).to_string()), None)),
-            Err(error) => Ok((None, Some(state_refusal(&error, "period_refresh.prior_changed")))),
+            Ok(summary) => (Some(serde_json::json!({ "n": summary.n }).to_string()), None),
+            Err(error) => (None, Some(state_refusal(&error, "period_refresh.prior_changed"))),
         }
     }
 
     /// Rebuild the posterior from every retained block under a new prior.
-    fn reprior(&mut self, prior: PriorTuple) -> Outcome<bool> {
+    fn reprior(&mut self, prior: PriorTuple) -> Refusable<bool> {
         let prior = match prior_of(prior) {
             Ok(prior) => prior,
-            Err(error) => return Ok((None, Some(state_refusal(&error, "period_refresh.prior")))),
+            Err(error) => return (None, Some(state_refusal(&error, "period_refresh.prior"))),
         };
         match self.inner.reprior(&prior) {
-            Ok(()) => Ok((Some(true), None)),
-            Err(error) => Ok((None, Some(state_refusal(&error, "period_refresh.prior")))),
+            Ok(()) => (Some(true), None),
+            Err(error) => (None, Some(state_refusal(&error, "period_refresh.prior"))),
         }
     }
 
     /// Compare the cached results with a fresh rebuild from the retained rows.
-    fn check_against_fresh(&self) -> Outcome<bool> {
+    fn check_against_fresh(&self) -> Refusable<bool> {
         match self.inner.check_against_fresh() {
-            Ok(()) => Ok((Some(true), None)),
-            Err(error) => Ok((None, Some(state_refusal(&error, "period_refresh.stale")))),
+            Ok(()) => (Some(true), None),
+            Err(error) => (None, Some(state_refusal(&error, "period_refresh.stale"))),
         }
     }
 }
