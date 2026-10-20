@@ -993,6 +993,16 @@ impl CancellationToken {
         self.flag.wake();
     }
 
+    /// Whether cancellation was requested, read without spending one of the checks a
+    /// [`Self::cancel_after_checks`] token counts.
+    ///
+    /// A hold that releases its lease on cancellation observes the request through this, so the
+    /// number of checks a cell makes stays the cell's own planned count.
+    #[must_use]
+    pub fn is_requested(&self) -> bool {
+        self.flag.cancelled.load(Ordering::SeqCst)
+    }
+
     /// Whether cancellation was requested.
     #[must_use]
     pub fn is_cancelled(&self) -> bool {

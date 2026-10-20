@@ -147,9 +147,7 @@ fn accounted_bytes(rows: usize) -> Result<u64, LearnError> {
 
 fn admission_to_learn(error: CpuAdmissionError) -> LearnError {
     match error {
-        CpuAdmissionError::Cancelled => LearnError::Unsupported {
-            message: "cross-fit stopped because the work was cancelled",
-        },
+        CpuAdmissionError::Cancelled => LearnError::Cancelled,
         CpuAdmissionError::FoldExceedsLease { .. } => LearnError::Unsupported {
             message: "cross-fit fold exceeds the shared admission lease",
         },
@@ -185,9 +183,7 @@ fn stop_if_cancelled(
     let learner_stopped = learner.observe_cancel(&ctx.cancellation);
     let fold_stopped = fold.observe_cancel(&ctx.cancellation);
     if learner_stopped || fold_stopped {
-        return Err(LearnError::Unsupported {
-            message: "cross-fit stopped because the work was cancelled",
-        });
+        return Err(LearnError::Cancelled);
     }
     Ok(())
 }
@@ -584,7 +580,7 @@ mod tests {
         let error =
             cross_fit(&LinearLearner, view, TargetView::new(&y), 4, &ctx, None).unwrap_err();
         assert!(
-            matches!(error, LearnError::Unsupported { message } if message.contains("cancelled"))
+            matches!(error, LearnError::Cancelled)
         );
         assert_eq!(pool.available().bytes(), 1_000);
         assert_eq!(pool.available().threads(), 1);

@@ -283,11 +283,11 @@ pub fn admit_fold(
     threads: u32,
     bytes: u64,
 ) -> Result<FoldAdmission, CpuAdmissionError> {
-    if ctx.cancellation.is_cancelled() {
+    if ctx.cancellation.is_requested() {
         return Err(CpuAdmissionError::Cancelled);
     }
     let lease = ctx.acquire_admission(threads, bytes).map_err(fold_error)?;
-    if ctx.cancellation.is_cancelled() {
+    if ctx.cancellation.is_requested() {
         drop(lease);
         return Err(CpuAdmissionError::Cancelled);
     }
@@ -384,7 +384,7 @@ impl Hold {
     }
 
     fn observe_cancel(&mut self, token: &crate::execution::CancellationToken) -> bool {
-        if !token.is_cancelled() {
+        if !token.is_requested() {
             return false;
         }
         self.scratch.take();
@@ -395,46 +395,48 @@ impl Hold {
     }
 }
 
-fn fold_error(error: AdmissionError) -> CpuAdmissionError {
+/// Map an admission refusal; `exceeds` builds the variant for a request over the remainder, which
+/// is the only place a fold and a learner differ.
+fn admission_error(
+    error: AdmissionError,
+    exceeds: impl FnOnce(u32, u64, u32, u64) -> CpuAdmissionError,
+) -> CpuAdmissionError {
     match error {
         AdmissionError::ExceedsRemainder {
             requested_threads,
             requested_bytes,
             remaining_threads,
             remaining_bytes,
-        } => CpuAdmissionError::FoldExceedsLease {
-            requested_threads,
-            requested_bytes,
-            remaining_threads,
-            remaining_bytes,
-        },
-        AdmissionError::Overflow => CpuAdmissionError::Overflow,
+        } => exceeds(requested_threads, requested_bytes, remaining_threads, remaining_bytes),
+        // Immediate admission does not wait, so a wait bound granted nothing.
+        AdmissionError::Overflow | AdmissionError::WaitBoundExceeded { .. } => {
+            CpuAdmissionError::Overflow
+        }
         AdmissionError::Cancelled => CpuAdmissionError::Cancelled,
         AdmissionError::Released => CpuAdmissionError::Released,
-        // Immediate admission does not wait, so a wait bound granted nothing.
-        AdmissionError::WaitBoundExceeded { .. } => CpuAdmissionError::Overflow,
     }
 }
 
+fn fold_error(error: AdmissionError) -> CpuAdmissionError {
+    admission_error(error, |requested_threads, requested_bytes, remaining_threads, remaining_bytes| {
+        CpuAdmissionError::FoldExceedsLease {
+            requested_threads,
+            requested_bytes,
+            remaining_threads,
+            remaining_bytes,
+        }
+    })
+}
+
 fn learner_error(error: AdmissionError) -> CpuAdmissionError {
-    match error {
-        AdmissionError::ExceedsRemainder {
+    admission_error(error, |requested_threads, requested_bytes, remaining_threads, remaining_bytes| {
+        CpuAdmissionError::LearnerExceedsLease {
             requested_threads,
             requested_bytes,
             remaining_threads,
             remaining_bytes,
-        } => CpuAdmissionError::LearnerExceedsLease {
-            requested_threads,
-            requested_bytes,
-            remaining_threads,
-            remaining_bytes,
-        },
-        AdmissionError::Overflow => CpuAdmissionError::Overflow,
-        AdmissionError::Cancelled => CpuAdmissionError::Cancelled,
-        AdmissionError::Released => CpuAdmissionError::Released,
-        // Immediate admission does not wait, so a wait bound granted nothing.
-        AdmissionError::WaitBoundExceeded { .. } => CpuAdmissionError::Overflow,
-    }
+        }
+    })
 }
 
 #[cfg(test)]

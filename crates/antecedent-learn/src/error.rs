@@ -32,6 +32,9 @@ pub enum LearnError {
         /// Capabilities the eventual provider must satisfy.
         required: LearnerCapabilities,
     },
+    /// The cross-fit stopped because its work was cancelled; no fold result is reported.
+    #[error("cross-fit stopped because the work was cancelled")]
+    Cancelled,
     /// Sparse or layout combination this factory cannot consume.
     #[error("unsupported design: {message}")]
     Unsupported {

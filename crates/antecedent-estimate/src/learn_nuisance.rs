@@ -26,7 +26,15 @@ use crate::error::EstimationError;
     reason = "a `map_err` adapter: the error arrives by value at every call site"
 )]
 pub(crate) fn learn_err(err: antecedent_learn::LearnError) -> EstimationError {
-    EstimationError::stats_msg(err.to_string())
+    match err {
+        antecedent_learn::LearnError::Cancelled => crate::util::refuse(
+            antecedent_core::reason_code!("cancelled_no_claim"),
+            "cross_fit.cancelled",
+            "a cross-fit fold was cancelled; no nuisance fit is reported and the stop is not a \
+             verdict on the data",
+        ),
+        other => EstimationError::stats_msg(other.to_string()),
+    }
 }
 
 /// The stop of a cancelled cross-fit: no nuisance bundle is returned or cached.
