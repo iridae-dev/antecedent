@@ -13,6 +13,10 @@ fn execution_context(
 ) -> ExecutionContext {
     let mut ctx = crate::py_execution_context_cancel(0, 1, cancel);
     ctx.memory.hard_limit_bytes = max_bytes;
+    if let Some(bytes) = max_bytes {
+        // The policy field and the shared admission account are distinct.
+        ctx = ctx.with_admission(antecedent_core::execution::AdmissionPool::fixed(1, bytes));
+    }
     ctx
 }
 

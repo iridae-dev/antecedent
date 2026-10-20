@@ -20,6 +20,10 @@ execution products; repeated export does not refit. Equilibrium worlds can
 retarget without refitting. Source refresh creates a new preparation; changed
 family targets, initial laws and policies require a fresh preparation.
 
+Rust byte ceilings use an explicit `AdmissionPool::fixed` installed with
+`ExecutionContext::with_admission`. Python `max_bytes` binds both the memory
+policy and that shared admission account, including retained output copies.
+
 The model compiler exposes typed `Mechanism`, `SimultaneousEquations` and
 `DynamicEvolution` blocks. Equilibrium blocks use existing SCC condensation;
 DAG compilation retains its topological specialization. Inspection includes
