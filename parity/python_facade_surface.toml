@@ -2570,3 +2570,57 @@ rust = "antecedent::analysis::discovered_transport_trial::verify_trial_compatibl
 kind = "fn"
 status = "missing"
 reason = "Rust-only receipt replay against the original structural report, query, datasets, support and execution seed. No Python wrapper or native binding exposes this verifier, and it must not be represented as a self-contained artifact consumer."
+
+[[entry]]
+rust = "antecedent::analysis::consume_smoothed_dose_posterior_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._smoothed_dose.consume_smoothed_dose_posterior"
+
+[[entry]]
+rust = "antecedent::analysis::matching_posterior_refusal::matching_posterior_refusal"
+kind = "fn"
+status = "internal"
+reason = "raised by the builder when a Bayesian matching study is built; Python reaches it as the route_not_supported refusal from analyze"
+
+[[entry]]
+rust = "antecedent::analysis::posterior_boundaries::require_ordinary_temporal_curve_posterior"
+kind = "fn"
+status = "bound"
+python = "antecedent.temporal.require_ordinary_temporal_curve_posterior"
+
+[[entry]]
+rust = "antecedent::analysis::posterior_boundaries::trajectory_hazard_credible_interval"
+kind = "fn"
+status = "bound"
+python = "antecedent.regimes.trajectory_hazard_credible_interval"
+
+[[entry]]
+rust = "antecedent::analysis::posterior_boundaries::trajectory_survival_bootstrap"
+kind = "fn"
+status = "bound"
+python = "antecedent.regimes.trajectory_survival_bootstrap"
+
+[[entry]]
+rust = "antecedent::analysis::posterior_boundaries::trajectory_survival_contrast"
+kind = "fn"
+status = "bound"
+python = "antecedent.regimes.trajectory_survival_contrast"
+
+[[entry]]
+rust = "antecedent::analysis::repeated_measures_posterior_report::encode_repeated_measures_posterior_report"
+kind = "fn"
+status = "bound"
+python = "antecedent.adaptive_inference.RepeatedMeasuresProcedure.export_posterior"
+
+[[entry]]
+rust = "antecedent::analysis::repeated_measures_posterior_report::load_repeated_measures_posterior_report"
+kind = "fn"
+status = "bound"
+python = "antecedent.adaptive_inference.RepeatedMeasuresProcedure.load_posterior"
+
+[[entry]]
+rust = "antecedent::analysis::repeated_measures_posterior_report::seal_report_without_validation"
+kind = "fn"
+status = "internal"
+reason = "test-only seal used by the Rust forgery test; Python has no call that seals an unvalidated report"
