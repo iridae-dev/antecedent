@@ -96,6 +96,9 @@ def main() -> None:
                         "bootstrap_requested": perf.bootstrap_replicates_requested,
                         "bootstrap_ok": perf.bootstrap_replicates_ok,
                         "posterior_draws": perf.n_draws,
+                        "design_reused": any(
+                            d.startswith("exec.design.cached:") for d in result.diagnostics
+                        ),
                         "cancelled": perf.cancelled,
                         "early_stopped": perf.early_stopped,
                     }

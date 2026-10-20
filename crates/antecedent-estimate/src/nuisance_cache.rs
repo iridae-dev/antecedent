@@ -1844,7 +1844,7 @@ impl Drop for ParallelWorkerGuard {
 }
 
 fn ambient_cache_refused() -> bool {
-    IN_PARALLEL_WORKER.with(|flag| flag.get())
+    IN_PARALLEL_WORKER.with(std::cell::Cell::get)
 }
 
 /// Whether [`with_certified_cache`] is active on this thread.

@@ -445,6 +445,26 @@ impl BayesianGComputationAte {
             weights: tempering_weights.as_deref(),
             offsets: None,
         };
+        if ctx.cache_policy.enabled
+            && ctx.cache_policy.max_bytes.is_none()
+            && ctx.memory.soft_limit_bytes.is_none()
+            && ctx.memory.hard_limit_bytes.is_none()
+            && ctx.admission.byte_budget() == u64::MAX
+            && likelihood == BayesLikelihood::GaussianIdentity
+            && whitened.is_none()
+            && tempering_weights.is_none()
+            && self.backend != BayesianBackendKind::Hmc
+        {
+            workspace
+                .laplace
+                .bind_immutable_gaussian_design(
+                    Arc::clone(&problem.design.matrix),
+                    Arc::clone(&problem.design.outcome),
+                    problem.design.nrows,
+                    problem.design.ncols,
+                )
+                .map_err(prob_err)?;
+        }
         let opts = BayesFitOptions {
             n_draws: initial_draws,
             seed: self.seed,

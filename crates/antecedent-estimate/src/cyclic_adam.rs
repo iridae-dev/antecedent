@@ -162,7 +162,10 @@ fn project(
 /// Fit exact free-system Jacobian likelihoods using deterministic minibatch streams.
 /// Validation is separately declared; it is never merged into training or used
 /// as a counterfactual selection law. No global optimum or calibration is implied.
-#[allow(clippy::too_many_lines,reason="one bounded optimizer loop retains feasibility, objective and stopping diagnostics together")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one bounded optimizer loop retains feasibility, objective and stopping diagnostics together"
+)]
 pub fn fit_cyclic_adam(
     template: &EquilibriumModel,
     parameters: &[CyclicParameter],

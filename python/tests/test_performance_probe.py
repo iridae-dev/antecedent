@@ -68,3 +68,5 @@ def test_python_performance_probe_keeps_all_repeats_and_uncertainty(repo_root, t
                 assert row["bootstrap_se"] > 0
             else:
                 assert row["posterior_draws"] == 16
+                if cell["mode"] == "prepared_estimate":
+                    assert row["design_reused"]

@@ -1351,3 +1351,52 @@ mod tests {
         assert_eq!(ctx.memory.soft_limit_bytes, None);
     }
 }
+
+/// Prints one wall-clock trial per line. Ignored unless the run asks for it.
+#[cfg(test)]
+mod bootstrap_clock_trials {
+    use std::env;
+    use std::time::Instant;
+
+    use antecedent_core::ExecutionContext;
+
+    use super::bootstrap_se_with_scratch;
+
+    fn env_u64(name: &str, default: u64) -> u64 {
+        env::var(name).ok().and_then(|value| value.parse().ok()).unwrap_or(default)
+    }
+
+    #[test]
+    #[ignore = "prints bootstrap scratch wall-clock trials"]
+    fn print_bootstrap_scratch_trials() {
+        let n = usize::try_from(env_u64("N", 10_000)).unwrap_or(10_000);
+        let replicates = u32::try_from(env_u64("REPLICATES", 50)).unwrap_or(50);
+        let threads = u32::try_from(env_u64("THREADS", 1)).unwrap_or(1);
+        let trials = usize::try_from(env_u64("TRIALS", 11)).unwrap_or(11);
+        let ctx = ExecutionContext::production(11, threads);
+        let run = || {
+            bootstrap_se_with_scratch(
+                replicates,
+                &ctx,
+                9,
+                n,
+                || (),
+                |(), idx| Ok(Some(idx.len() as f64)),
+            )
+        };
+        for _ in 0..2 {
+            run().expect("warmup");
+        }
+        println!("n={n} replicates={replicates} threads={threads} trials={trials}");
+        for trial in 0..trials {
+            let started = Instant::now();
+            let result = run().expect("trial");
+            println!(
+                "trial={trial} nanos={} replicates_ok={} cancelled={}",
+                started.elapsed().as_nanos(),
+                result.replicates_ok,
+                result.cancelled
+            );
+        }
+    }
+}

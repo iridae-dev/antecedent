@@ -55,7 +55,10 @@ fn invalid(s: &str) -> EquilibriumError {
 /// Fixed covariance and specified graph are conditional assumptions. Every
 /// proposed model must satisfy the likelihood's contraction or affine-bijection conditions.
 /// L1 fitting uses proximal backtracking and an explicit KKT score tolerance.
-#[allow(clippy::too_many_lines,reason="one bounded optimizer loop retains feasibility, objective and stopping diagnostics together")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one bounded optimizer loop retains feasibility, objective and stopping diagnostics together"
+)]
 pub fn fit_cyclic_gradient(
     template: &EquilibriumModel,
     parameters: &[CyclicParameter],

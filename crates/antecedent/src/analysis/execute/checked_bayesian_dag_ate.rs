@@ -15,6 +15,8 @@ use super::{
     select_claim, validator_not_applicable_diagnostics, with_conflict_summary,
     with_prior_sensitivity,
 };
+use std::sync::Mutex;
+
 use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
 
 /// Fitted point stage state the validate stage reuses.
@@ -23,7 +25,18 @@ struct CheckedBayesianDagAtePoint {
     prepared: antecedent_estimate::PreparedBayesianProblem,
     workspace: BayesianGCompWorkspace,
     posterior: CausalPosterior,
+    reused_design: bool,
     estimate: antecedent_estimate::EffectEstimate,
+}
+
+/// One immutable source binding and its numerical scratch. Never retains a
+/// posterior: every click resolves its prior and generates its requested draws.
+struct RetainedGaussianDesign {
+    source: [u8; 32],
+    schema: antecedent_core::CausalSchema,
+    prepared: antecedent_estimate::PreparedBayesianProblem,
+    workspace: BayesianGCompWorkspace,
+    bytes: u64,
 }
 
 /// Borrowed inputs of the validate stage.
@@ -53,6 +66,7 @@ pub(crate) struct CheckedBayesianDagAteExecution {
     validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
     draw_controls: Option<crate::PosteriorDrawControls>,
+    retained: Arc<Mutex<Option<RetainedGaussianDesign>>>,
 }
 
 /// The frozen premises of [`CheckedBayesianDagAteExecution::checked`], carried together.
@@ -101,6 +115,7 @@ impl CheckedBayesianDagAteExecution {
         next.operation.inference = InferenceMode::Bayesian(config.clone());
         next.context.inference = InferenceMode::Bayesian(config.clone());
         next.config = config;
+        next.retained = Arc::new(Mutex::new(None));
         Ok(next)
     }
 
@@ -204,6 +219,7 @@ impl CheckedBayesianDagAteExecution {
             validators,
             stage_sink,
             draw_controls,
+            retained: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -219,25 +235,68 @@ impl CheckedBayesianDagAteExecution {
         self.validators.iter().map(|validator| Arc::from(validator.name())).collect()
     }
 
+    /// Retention is optional. The cache cap charges retained buffers in full,
+    /// including shared owners, plus a metadata allowance. Finite execution RAM
+    /// policies use ordinary execution until retained state has an admission lease. One entry,
+    /// at most one million design cells, is retained per handle. Contended calls
+    /// compute independently instead of blocking cancellation on a cache lock.
+    fn retains_design(&self, ctx: &ExecutionContext) -> bool {
+        ctx.cache_policy.enabled
+            && ctx.cache_policy.max_bytes != Some(0)
+            && ctx.memory.soft_limit_bytes.is_none()
+            && ctx.memory.hard_limit_bytes.is_none()
+            && ctx.admission.byte_budget() == u64::MAX
+            && self.config.likelihood == antecedent_prob::BayesLikelihood::GaussianIdentity
+            && matches!(
+                self.config.backend,
+                antecedent_estimate::BayesianBackendKind::ConjugateGaussian
+                    | antecedent_estimate::BayesianBackendKind::Laplace
+            )
+    }
+
     /// Point and uncertainty stages: prepare the design, resolve the prior, fit, and record
     /// the outcome-model assumption, with the stage clock and events around them.
     fn estimate_point(
         &self,
-        projected: &TabularData,
+        tables: (&TabularData, &TabularData),
         estimand_est: &antecedent_identify::IdentifiedEstimand,
         query_est: &antecedent_core::AverageEffectQuery,
         status: IdentificationStatus,
         clock: &mut super::super::stage::StageClock,
         ctx: &ExecutionContext,
     ) -> Result<CheckedBayesianDagAtePoint, CausalError> {
+        let (projected, source) = tables;
         clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
         let mut fitter = bayesian_gcomp(&self.config, ctx);
-        let prepared =
-            fitter.prepare(projected, estimand_est, query_est).map_err(CausalError::from)?;
+        let retained = self.retained.try_lock().ok().and_then(|mut slot| slot.take());
+        let retained = retained.filter(|entry| {
+            self.retains_design(ctx)
+                && entry.bytes <= ctx.cache_policy.max_bytes.unwrap_or(u64::MAX)
+                && entry.schema == *source.schema()
+                && entry.source == source.storage().content_digest()
+        });
+        let reused_design = retained.is_some();
+        let (prepared, mut workspace) = match retained {
+            Some(entry) => (entry.prepared, entry.workspace),
+            None => (
+                fitter.prepare(projected, estimand_est, query_est).map_err(CausalError::from)?,
+                BayesianGCompWorkspace::default(),
+            ),
+        };
         let (prior, conflict) =
             resolve_bayesian_prior_with_conflict(&self.config, &prepared, Some(ctx))?;
         fitter.prior = prior;
-        let mut workspace = BayesianGCompWorkspace::default();
+        if self.retains_design(ctx) {
+            workspace
+                .laplace
+                .bind_immutable_gaussian_design(
+                    Arc::clone(&prepared.design.matrix),
+                    Arc::clone(&prepared.design.outcome),
+                    prepared.design.nrows,
+                    prepared.design.ncols,
+                )
+                .map_err(CausalError::from)?;
+        }
         let controlled = self.draw_controls.is_some();
         let mut posterior =
             fitter.fit(&prepared, status, &mut workspace, ctx).map_err(|error| {
@@ -274,7 +333,14 @@ impl CheckedBayesianDagAteExecution {
             self.stage_sink.as_ref(),
             &super::super::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
         );
-        Ok(CheckedBayesianDagAtePoint { fitter, prepared, workspace, posterior, estimate })
+        Ok(CheckedBayesianDagAtePoint {
+            fitter,
+            prepared,
+            workspace,
+            posterior,
+            reused_design,
+            estimate,
+        })
     }
 
     /// Validate stage: refutation suite, prior / posterior predictive checks, and under the
@@ -381,22 +447,35 @@ impl CheckedBayesianDagAteExecution {
                 estimand: estimand.clone(),
             },
         );
-        let full_cols = data.schema().len();
         let (projected, query_est, estimand_est) =
             project_for_ate_estimate(data, query, &estimand)?;
-        let projected_cols = projected.schema().len();
 
-        let CheckedBayesianDagAtePoint { fitter, prepared, mut workspace, posterior, estimate } =
-            self.estimate_point(
-                &projected,
-                &estimand_est,
-                &query_est,
-                identification.status,
-                &mut clock,
-                ctx,
-            )?;
+        let CheckedBayesianDagAtePoint {
+            fitter,
+            prepared,
+            mut workspace,
+            posterior,
+            reused_design,
+            estimate,
+        } = self.estimate_point(
+            (&projected, data),
+            &estimand_est,
+            &query_est,
+            identification.status,
+            &mut clock,
+            ctx,
+        )?;
         let mut diagnostics = Vec::new();
-        if let Some(projection) = projection_diagnostic(full_cols, projected_cols) {
+        if reused_design {
+            diagnostics.push(Diagnostic::new(
+                "exec.design.cached", antecedent_core::DiagnosticKind::Execution,
+                antecedent_core::DiagnosticSeverity::Info,
+                "immutable source design and numerical workspace reused; prior and posterior draws recomputed",
+            ));
+        }
+        if let Some(projection) =
+            projection_diagnostic(data.schema().len(), projected.schema().len())
+        {
             diagnostics.push(projection);
         }
         if let Some(conflict) = posterior.conflict_summary.as_ref() {
@@ -428,6 +507,9 @@ impl CheckedBayesianDagAteExecution {
                 predictive_checks: predictive_checks.clone(),
             },
         );
+        if !ctx.cancellation.is_requested() {
+            self.retain_design(data, prepared, workspace, ctx);
+        }
         let draws = u32::try_from(posterior.draws.n_draws).ok();
         let early_stopped = posterior.early_stopped;
         let args = IdentifiedExecuteFinish::new(
@@ -455,4 +537,69 @@ impl CheckedBayesianDagAteExecution {
         });
         Ok(finish_identified_execute_with_context(&self.context, Some(data), args))
     }
+    fn retain_design(
+        &self,
+        data: &TabularData,
+        prepared: antecedent_estimate::PreparedBayesianProblem,
+        workspace: BayesianGCompWorkspace,
+        ctx: &ExecutionContext,
+    ) {
+        let bytes = retained_design_bytes(&prepared, &workspace);
+        if self.retains_design(ctx)
+            && bytes <= ctx.cache_policy.max_bytes.unwrap_or(u64::MAX)
+            && prepared.design.contrasts.is_empty()
+            && prepared.design.smooths.is_empty()
+            && prepared.design.standardization.entries.is_empty()
+            && prepared.unit_ids.is_none()
+            && matches!(prepared.serial_dependence, antecedent_estimate::SerialDependence::Iid)
+            && prepared.design.matrix.len() <= 1_000_000
+            && self.config.n_draws.saturating_mul(prepared.design.ncols) <= 1_000_000
+        {
+            if let Ok(mut slot) = self.retained.try_lock() {
+                *slot = Some(RetainedGaussianDesign {
+                    source: data.storage().content_digest(),
+                    schema: data.schema().clone(),
+                    prepared,
+                    workspace,
+                    bytes,
+                });
+            }
+        }
+    }
+}
+
+/// Conservative logical charge for this raw, iid design realization. Shared
+/// schema/graph metadata is already retained by the operation; new coefficient
+/// labels, receipt strings, buffer capacities and allocation headers are charged.
+fn retained_design_bytes(
+    prepared: &antecedent_estimate::PreparedBayesianProblem,
+    workspace: &BayesianGCompWorkspace,
+) -> u64 {
+    let d = &prepared.design;
+    let mut bytes = 4096usize.saturating_add(workspace.laplace.retained_buffer_bytes());
+    for len in [
+        d.matrix.len(),
+        d.outcome.len(),
+        d.row_selection.len(),
+        workspace.eval.effects.capacity(),
+        workspace.eval.row.capacity(),
+    ] {
+        bytes = bytes.saturating_add(len.saturating_mul(8));
+    }
+    bytes = bytes.saturating_add(d.ncols.saturating_mul(128));
+    bytes = bytes
+        .saturating_add(prepared.method.len())
+        .saturating_add(prepared.adjustment_set.len().saturating_mul(4));
+    if let Some(names) = &prepared.coef_names {
+        for name in names.iter() {
+            bytes = bytes.saturating_add(name.len()).saturating_add(32);
+        }
+    }
+    if let Some(summary) = &prepared.preparation {
+        bytes = bytes
+            .saturating_add(summary.backend.capacity())
+            .saturating_add(summary.route_bound.capacity())
+            .saturating_add(summary.receipt_digest.capacity());
+    }
+    u64::try_from(bytes).unwrap_or(u64::MAX)
 }

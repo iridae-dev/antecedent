@@ -38,30 +38,8 @@ impl DenseLinearAlgebra for FaerBackend {
         antecedent_core::execution_attempt::run_operation(
             antecedent_core::execution_attempt::Operation::LeastSquaresSolve,
             || {
-                if y.len() != nrows {
-                    return Err(StatsError::Shape { message: "y length != nrows" });
-                }
-                if x_colmajor.len() < nrows.saturating_mul(ncols) {
-                    return Err(StatsError::Shape { message: "X buffer too short" });
-                }
-                if nrows < ncols {
-                    return Err(StatsError::Shape { message: "nrows < ncols" });
-                }
+                let (coefficients, rank, rcond) = solve_full_rank(x_colmajor, nrows, ncols, y)?;
                 workspace.prepare(nrows, ncols);
-
-                // Equilibrate columns before QR so predictor units do not determine
-                // numerical rank. Solve in these coordinates, then restore coefficients.
-                let mut scales = Vec::new();
-                write_column_scales(x_colmajor, nrows, ncols, &mut scales);
-                let scope = serial_scope();
-                let mut scratch = FactorScratch::new();
-                let factored =
-                    factor_equilibrated(x_colmajor, nrows, ncols, &scales, scope, &mut scratch)?;
-                let (rank, rcond) = factored.rank_and_rcond(nrows);
-                if rank < ncols {
-                    return Err(StatsError::RankDeficient { rank, ncols });
-                }
-                let coefficients = solve_equilibrated(&factored, y, &scales, scope, &mut scratch)?;
                 let rss = write_residuals(
                     x_colmajor,
                     nrows,
@@ -85,6 +63,31 @@ impl DenseLinearAlgebra for FaerBackend {
 }
 
 impl FaerBackend {
+    /// Solve full-rank least squares when only the coefficients are consumed.
+    ///
+    /// Uses the same equilibrated, column-pivoted QR and numerical-rank check as
+    /// the full fit, without allocating or evaluating unused residual vectors.
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch or a rank-deficient design.
+    pub fn least_squares_coefficients(
+        &self,
+        x_colmajor: &[f64],
+        nrows: usize,
+        ncols: usize,
+        y: &[f64],
+    ) -> Result<Vec<f64>, StatsError> {
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::LeastSquaresSolve,
+            || {
+                let (coefficients, _, _) = solve_full_rank(x_colmajor, nrows, ncols, y)?;
+                crate::fit_counts::completed_solve();
+                Ok(coefficients)
+            },
+        )
+    }
+
     /// Minimum-norm least squares `β = X⁺ y` through a thin SVD, for designs that may be rank
     /// deficient.
     ///
@@ -117,6 +120,35 @@ impl FaerBackend {
         min_norm_on_column_major(x_colmajor, nrows, ncols, y, serial_scope(), &mut scratch, 0)
             .map(|(fit, _factors)| fit)
     }
+}
+
+/// Shared factorization, rank decision and solve for both output contracts.
+fn solve_full_rank(
+    x: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+) -> Result<(Vec<f64>, usize, Option<f64>), StatsError> {
+    if y.len() != nrows {
+        return Err(StatsError::Shape { message: "y length != nrows" });
+    }
+    if x.len() < nrows.saturating_mul(ncols) {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    if nrows < ncols {
+        return Err(StatsError::Shape { message: "nrows < ncols" });
+    }
+    let mut scales = Vec::new();
+    write_column_scales(x, nrows, ncols, &mut scales);
+    let scope = serial_scope();
+    let mut scratch = FactorScratch::new();
+    let factored = factor_equilibrated(x, nrows, ncols, &scales, scope, &mut scratch)?;
+    let (rank, rcond) = factored.rank_and_rcond(nrows);
+    if rank < ncols {
+        return Err(StatsError::RankDeficient { rank, ncols });
+    }
+    let coefficients = solve_equilibrated(&factored, y, &scales, scope, &mut scratch)?;
+    Ok((coefficients, rank, rcond))
 }
 
 /// Column-pivoted QR kept with the design that produced it.
@@ -621,6 +653,35 @@ fn thin_svd_in_scope(
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn coefficients_only_matches_full_qr_including_rank_refusal() {
+        for n in [8, 31, 128] {
+            for scale in [1e-9, 1.0, 1e9] {
+                let mut x = vec![1.0; n * 3];
+                let y: Vec<_> = (0..n)
+                    .map(|i| {
+                        x[n + i] = scale * i as f64;
+                        x[2 * n + i] = ((i * 17) % 23) as f64;
+                        2.0 + 0.7 * i as f64 + 0.3 * x[2 * n + i]
+                    })
+                    .collect();
+                let full = FaerBackend
+                    .least_squares(&x, n, 3, &y, &mut LeastSquaresWorkspace::default())
+                    .unwrap();
+                let coefs = FaerBackend.least_squares_coefficients(&x, n, 3, &y).unwrap();
+                assert_eq!(coefs, full.coefficients);
+            }
+        }
+        let x = [1.0; 8];
+        let y = [1.0; 4];
+        assert!(matches!(
+            FaerBackend.least_squares_coefficients(&x, 4, 2, &y),
+            Err(StatsError::RankDeficient { .. })
+        ));
+        assert!(FaerBackend.least_squares_coefficients(&x, 4, 2, &y[..3]).is_err());
+        assert!(FaerBackend.least_squares_coefficients(&x[..7], 4, 2, &y).is_err());
+    }
 
     #[test]
     fn counted_bytes_saturates_instead_of_wrapping() {

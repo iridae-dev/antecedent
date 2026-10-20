@@ -1199,6 +1199,9 @@ impl CheckedAipwOperation {
 /// procedure. `default_id` preserves the progressive point/uncertainty stages.
 #[derive(Clone)]
 pub(crate) struct CheckedLinearOperation {
+    /// Immutable table binding of the retained checked design. Equal bindings
+    /// need no new projection, missing-data pass, or design construction.
+    pub(super) source: TabularData,
     pub(crate) fitter: antecedent_estimate::LinearAdjustmentAte,
     pub(crate) preparation: antecedent_estimate::CheckedLinearAdjustmentAte,
     pub(crate) default_id: bool,
@@ -1381,8 +1384,15 @@ impl CheckedLinearOperation {
     }
 
     pub(super) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
+        if self.source.schema() == data.schema()
+            && self.source.storage().content_digest() == data.storage().content_digest()
+        {
+            self.check_checked_target()?;
+            return Ok(self.clone());
+        }
         let preparation = self.fitter.rebind_checked(&self.preparation, data)?;
         Ok(Self {
+            source: data.clone(),
             fitter: self.fitter.clone(),
             preparation,
             default_id: self.default_id,

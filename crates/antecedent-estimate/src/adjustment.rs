@@ -999,6 +999,12 @@ impl LinearAdjustmentAte {
                 x_boot[c * n + r] = problem.design.matrix[c * rows + src];
             }
         }
+        if self.fit_kind == LinearFitKind::Ols {
+            return self
+                .backend
+                .least_squares_coefficients(x_boot, n, p, y_boot)
+                .map_err(EstimationError::from);
+        }
         Ok(solve_linear(self.fit_kind, self.backend, x_boot, n, p, y_boot, &mut workspace.ols)?
             .coefficients)
     }

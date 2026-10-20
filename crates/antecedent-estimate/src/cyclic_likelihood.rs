@@ -843,7 +843,10 @@ pub fn bootstrap_cyclic_structure(
 /// Repeat the entire sparse selection/refit procedure under IID-within-regime
 /// resampling. Model/edge-selection variation is retained, not replaced by
 /// conditional-on-selected-model standard errors. No coverage claim is made.
-#[allow(clippy::too_many_arguments,reason="declared sampling design extends the existing whole-selection API")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "declared sampling design extends the existing whole-selection API"
+)]
 pub fn bootstrap_cyclic_structure_with_design(
     template: &EquilibriumModel,
     training: &[RegimeRow],

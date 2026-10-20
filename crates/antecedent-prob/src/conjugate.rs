@@ -160,7 +160,9 @@ fn fit_conjugate_gaussian_resolved(
 ) -> Result<BayesFitResult, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    validate_design(BayesLikelihood::GaussianIdentity, design)?;
+    if workspace.immutable_gaussian_key(design).is_none() {
+        validate_design(BayesLikelihood::GaussianIdentity, design)?;
+    }
 
     workspace.prepare(nrows, ncols, options.n_draws);
 
@@ -242,12 +244,17 @@ fn ensure_conjugate_gram(
     design: BayesDesignRef<'_>,
     workspace: &mut LaplaceWorkspace,
 ) -> (f64, f64) {
-    let key = crate::backend::ConjugateGramKey::from_design(&design);
+    if let Some(moments) = workspace.restore_immutable_gaussian_moments(design) {
+        return moments;
+    }
+    let key = workspace
+        .immutable_gaussian_key(design)
+        .unwrap_or_else(|| crate::backend::ConjugateGramKey::from_design(&design));
     let n2 = design.ncols.saturating_mul(design.ncols);
     let nrows = design.nrows;
     let ncols = design.ncols;
 
-    // Cache only XᵀX (+ n_eff from weights). Always recompute Xᵀy / yᵀy: SBC
+    // Borrowed designs cache only XᵀX (+ n_eff from weights). Recompute Xᵀy / yᵀy: SBC
     // reallocates equal-length outcome buffers that allocators often recycle to
     // the same address, so a y-pointer key would restore a stale likelihood.
     let xtx_hit = workspace.conjugate_key == Some(key) && workspace.conjugate_xtx.len() == n2;
@@ -301,6 +308,7 @@ fn ensure_conjugate_gram(
         }
         xty[c1] = acc;
     }
+    workspace.cache_immutable_gaussian_moments(design, yty, n_eff);
     (yty, n_eff)
 }
 
@@ -824,6 +832,49 @@ mod tests {
         assert_eq!(fit.draws.n_quantities(), 3);
         let sig = fit.draws.column(2).unwrap();
         assert!(sig.iter().all(|&s| s > 0.0));
+    }
+
+    #[test]
+    fn owned_gaussian_moments_match_cold_fits_across_draws_and_outcomes() {
+        let (x, y) = simple_design();
+        let x: Arc<[f64]> = Arc::from(x);
+        let mut workspace = LaplaceWorkspace::default();
+        let prior = PriorSet::weakly_informative(2);
+        for shift in [0.0, 3.0, -2.0] {
+            let y: Arc<[f64]> = Arc::from(y.iter().map(|v| v + shift).collect::<Vec<_>>());
+            workspace
+                .bind_immutable_gaussian_design(Arc::clone(&x), Arc::clone(&y), y.len(), 2)
+                .unwrap();
+            let design = BayesDesignRef {
+                x_colmajor: &x,
+                y: &y,
+                nrows: y.len(),
+                ncols: 2,
+                weights: None,
+                offsets: None,
+            };
+            for (seed, n_draws) in [(3, 64), (4, 128), (3, 64)] {
+                let opts = BayesFitOptions { seed, n_draws, ..BayesFitOptions::default() };
+                let warm = fit_conjugate_gaussian(design, &prior, &opts, &mut workspace).unwrap();
+                let cold =
+                    fit_conjugate_gaussian(design, &prior, &opts, &mut LaplaceWorkspace::default())
+                        .unwrap();
+                assert_eq!(warm.map, cold.map);
+                assert_eq!(warm.draws.values, cold.draws.values);
+                let weights = vec![2.0; y.len()];
+                let weighted = BayesDesignRef { weights: Some(&weights), ..design };
+                let changed =
+                    fit_conjugate_gaussian(weighted, &prior, &opts, &mut workspace).unwrap();
+                let reference = fit_conjugate_gaussian(
+                    weighted,
+                    &prior,
+                    &opts,
+                    &mut LaplaceWorkspace::default(),
+                )
+                .unwrap();
+                assert_eq!(changed.draws.values, reference.draws.values);
+            }
+        }
     }
 
     #[test]

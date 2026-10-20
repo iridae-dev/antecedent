@@ -6,8 +6,7 @@ use antecedent_core::{
     AverageEffectQuery, Intervention, PopulationRegistry, TargetPopulation, VariableId,
 };
 use antecedent_data::materialize::{
-    EstimatorStreamNeed, PreparationControls, PreparationProduct, PreparationReceipt,
-    prepare_table,
+    EstimatorStreamNeed, PreparationControls, PreparationProduct, PreparationReceipt, prepare_table,
 };
 use antecedent_data::{MissingPolicy, TableView, TabularData};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};

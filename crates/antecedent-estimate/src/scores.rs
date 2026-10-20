@@ -79,7 +79,20 @@ impl PartialEq for ScoreTable {
             intervened,
             preparation: _,
         } = self;
-        *observed_arm == other.observed_arm && *propensities == other.propensities && *observed_outcome == other.observed_outcome && *n_rows == other.n_rows && *row_index == other.row_index && *fold_ids == other.fold_ids && *n_folds == other.n_folds && *scores == other.scores && *columns == other.columns && *adjustment_set == other.adjustment_set && *nuisance_provenance == other.nuisance_provenance && *propensity_clip == other.propensity_clip && *treatment == other.treatment && *intervened == other.intervened
+        *observed_arm == other.observed_arm
+            && *propensities == other.propensities
+            && *observed_outcome == other.observed_outcome
+            && *n_rows == other.n_rows
+            && *row_index == other.row_index
+            && *fold_ids == other.fold_ids
+            && *n_folds == other.n_folds
+            && *scores == other.scores
+            && *columns == other.columns
+            && *adjustment_set == other.adjustment_set
+            && *nuisance_provenance == other.nuisance_provenance
+            && *propensity_clip == other.propensity_clip
+            && *treatment == other.treatment
+            && *intervened == other.intervened
     }
 }
 

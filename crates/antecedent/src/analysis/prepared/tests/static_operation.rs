@@ -141,6 +141,11 @@ fn checked_linear_click_uses_retained_default_uncertainty_after_study_changes() 
     };
     assert!(operation.default_id);
     assert_eq!(operation.fitter.bootstrap_replicates, 0);
+    let rebound = operation.rebind(&data).unwrap();
+    assert!(Arc::ptr_eq(
+        &operation.preparation.problem().design.matrix,
+        &rebound.preparation.problem().design.matrix
+    ));
     let first = prepared.estimate(&data, &context).unwrap();
     assert!((first.effect() - 2.0).abs() < 0.2);
     assert!(first.estimate.as_effect().unwrap().se_bootstrap().is_none());
@@ -276,4 +281,87 @@ fn checked_rd_retains_cutoff_target_and_bandwidth_on_refresh() {
     );
     let refreshed = prepared.refresh(data, &context).unwrap();
     assert!((refreshed.effect() - first.effect()).abs() < 1e-10);
+}
+
+#[test]
+fn gaussian_design_reuse_rebinds_rows_and_recomputes_draws() {
+    use crate::{BayesianConfig, InferenceMode};
+    let data = data();
+    let graph =
+        Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+    let query = AverageEffectQuery::with_levels(
+        data.schema().id_of("t").unwrap(),
+        data.schema().id_of("y").unwrap(),
+        0.0,
+        1.0,
+    );
+    let study = Study::tabular(data.clone())
+        .graph(graph)
+        .query(query)
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::production(24, 1);
+    let prepared = study.prepare(&ctx).unwrap();
+    let cached = |r: &crate::StudyResult| {
+        r.diagnostics.iter().any(|d| d.code.as_ref() == "exec.design.cached")
+    };
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    assert!(!cached(&first));
+    let second = prepared.estimate(&data, &ctx).unwrap();
+    assert!(cached(&second));
+    assert_eq!(
+        first.posterior.as_ref().unwrap().draws.values,
+        second.posterior.as_ref().unwrap().draws.values
+    );
+    assert_eq!(second.performance.n_draws, Some(64));
+    // The Python public default is a bounded 4 MB cache, not an unlimited one.
+    let mut python_budget = ctx.clone();
+    python_budget.cache_policy = antecedent_core::CachePolicy::enabled(Some(4_000_000));
+    assert!(cached(&prepared.estimate(&data, &python_budget).unwrap()));
+    let mut tiny_budget = ctx.clone();
+    tiny_budget.cache_policy = antecedent_core::CachePolicy::enabled(Some(1));
+    assert!(!cached(&prepared.estimate(&data, &tiny_budget).unwrap()));
+    assert!(!cached(&prepared.estimate(&data, &python_budget).unwrap()));
+    assert!(cached(&prepared.estimate(&data, &python_budget).unwrap()));
+
+    let different_seed = ExecutionContext::production(25, 1);
+    let third = prepared.estimate(&data, &different_seed).unwrap();
+    assert!(cached(&third));
+    assert_ne!(
+        second.posterior.as_ref().unwrap().draws.values,
+        third.posterior.as_ref().unwrap().draws.values
+    );
+    let mut no_cache = ctx.clone();
+    no_cache.cache_policy = antecedent_core::CachePolicy::disabled();
+    let cold = prepared.estimate(&data, &no_cache).unwrap();
+    assert!(!cached(&cold));
+    assert_eq!(
+        first.posterior.as_ref().unwrap().draws.values,
+        cold.posterior.as_ref().unwrap().draws.values
+    );
+    assert!(!cached(&prepared.estimate(&data, &ctx).unwrap()));
+
+    // A new outcome, under the same schema and shape, must replace the binding.
+    let t: Vec<_> = (0..512).map(|i| (i % 2) as f64).collect();
+    let z: Vec<_> = (0..512).map(|i| ((i * 37 % 101) as f64 - 50.0) / 50.0).collect();
+    let y: Vec<_> =
+        (0..512).map(|i| 4.0 * t[i] + z[i] + ((i * 13 % 47) as f64 - 23.0) / 100.0).collect();
+    let changed = TabularData::try_from_schema_f64(
+        data.schema().clone(),
+        [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+    )
+    .unwrap();
+    let changed_result = prepared.estimate(&changed, &ctx).unwrap();
+    assert!(!cached(&changed_result));
+    assert!((changed_result.effect() - 4.0).abs() < 0.2);
+    assert!(cached(&prepared.estimate(&changed, &ctx).unwrap()));
+    let mut bounded = ctx.clone();
+    bounded.cache_policy = antecedent_core::CachePolicy::enabled(Some(0));
+    assert!(!cached(&prepared.estimate(&changed, &bounded).unwrap()));
+    assert!(!cached(&prepared.estimate(&changed, &ctx).unwrap()));
+    let cancelled = ctx.clone();
+    cancelled.cancellation.cancel();
+    assert!(prepared.estimate(&changed, &cancelled).is_err());
 }

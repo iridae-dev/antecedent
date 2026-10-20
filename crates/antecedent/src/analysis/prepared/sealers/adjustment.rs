@@ -60,6 +60,7 @@ pub(super) fn checked_linear(cx: &SealContext<'_>) -> SealOutcome {
             let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
             Some(CheckedLinearOperation {
+                source: data.clone(),
                 fitter,
                 preparation,
                 default_id,
@@ -627,7 +628,9 @@ pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
                 cache: Arc::clone(cache),
                 identifier: crate::strategy_table::IdentifierId::GeneralizedAdjustment,
                 estimator: match inference {
-                    InferenceMode::Frequentist => crate::strategy_table::EstimatorId::LinearAdjustmentAte,
+                    InferenceMode::Frequentist => {
+                        crate::strategy_table::EstimatorId::LinearAdjustmentAte
+                    }
                     InferenceMode::Bayesian(_) => crate::strategy_table::EstimatorId::BayesianGcomp,
                 },
                 physical: plan.clone(),

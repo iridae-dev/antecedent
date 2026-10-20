@@ -64,7 +64,11 @@ pub fn fit_laplace_glm(
 ) -> Result<BayesFitResult, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    validate_design(likelihood, design)?;
+    if likelihood != BayesLikelihood::GaussianIdentity
+        || workspace.immutable_gaussian_key(design).is_none()
+    {
+        validate_design(likelihood, design)?;
+    }
     workspace.prepare(nrows, ncols, options.n_draws);
 
     if likelihood == BayesLikelihood::GaussianIdentity {
