@@ -1,8 +1,10 @@
 //! Full result assembly for a sealed temporal DAG mean response operation.
 //!
-//! A delayed-feedback target publishes the finite-horizon response of the
-//! history, initial-state, and transition operators. That value is not the
-//! fitted dose-by-horizon surface.
+//! A response with a declared feedback mechanism publishes the finite-horizon
+//! response of the history, initial-state, and transition operators at every
+//! requested horizon. That value is not the fitted dose-by-horizon surface. A
+//! response with no declared feedback mechanism publishes the fitted surface,
+//! whatever the action lag.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -13,14 +15,15 @@ use super::{
     Instant, OverlapPolicy, PhysicalExecutionPlan, Strategy, StudyResult, TableView,
     TimeSeriesData, bayesian_gcomp, elapsed_ns, provenance_ids, push_conflict_diagnostics,
 };
-use antecedent_core::{HistoryWindow, IdentificationStatus, InitialLaw, TemporalPolicy};
+use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::require_primary_pair;
+use antecedent_core::{HistoryWindow, IdentificationStatus, TemporalPolicy};
 use antecedent_data::TimeIndex;
 use antecedent_model::history_operators::{
     DelayedAction, DelayedDynamics, DelayedFeedback, DelayedFeedbackRequest, FeedbackDelay,
-    FeedbackSearchCap, HistoryOperatorError, ResponseTarget, TargetResponse, horizon_ending_after,
+    FeedbackSearchCap, HistoryOperatorError, ResponseTarget, TargetResponse, TruncationCertificate,
+    horizon_ending_after,
 };
-use crate::analysis::prepared::Inspect;
-use crate::analysis::proof_support::require_primary_pair;
 
 /// Checked operation together with the immutable logical/physical result context.
 ///
@@ -33,6 +36,36 @@ pub(crate) struct CheckedTemporalResponseExecution {
     physical: std::sync::Arc<PhysicalExecutionPlan>,
     identification: IdentificationResult,
     estimand: IdentifiedEstimand,
+    feedback: Option<FeedbackMechanism>,
+}
+
+/// Feedback mechanism declared for a response.
+///
+/// The delay is the feedback delay: ticks before the action re-enters the
+/// state. It is not the action lag, which is the negative start of the policy.
+/// The level is the dose the pulse or sustained policy holds. The dynamics are
+/// the fitted transition and carry the initial law the frame binds.
+#[derive(Clone, Debug)]
+pub(crate) struct FeedbackMechanism {
+    delay: FeedbackDelay,
+    level: f64,
+    dynamics: DelayedDynamics,
+}
+
+impl FeedbackMechanism {
+    /// Declare a feedback delay of `delay_ticks`, held `level`, and `dynamics`.
+    ///
+    /// A zero delay is contemporaneous transmission and a non-finite level is
+    /// not a dose; both are refused.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn declared(
+        delay_ticks: u32,
+        level: f64,
+        dynamics: DelayedDynamics,
+    ) -> Result<Self, HistoryOperatorError> {
+        DelayedAction::pulse(0, level)?;
+        Ok(Self { delay: FeedbackDelay::delayed(delay_ticks)?, level, dynamics })
+    }
 }
 
 impl std::fmt::Debug for CheckedTemporalResponseExecution {
@@ -69,7 +102,17 @@ impl CheckedTemporalResponseExecution {
         identification.status = status;
         identification.required_assumptions = assumptions;
         let estimand = operation.primary_estimand()?.clone();
-        Ok(Self { operation, result_context, physical, identification, estimand })
+        Ok(Self { operation, result_context, physical, identification, estimand, feedback: None })
+    }
+
+    /// Attach the feedback mechanism the response is declared to have.
+    ///
+    /// Without one the fitted dose-by-horizon surface is published.
+    #[cfg_attr(not(test), allow(dead_code))]
+    #[must_use]
+    pub(crate) fn with_feedback(mut self, feedback: FeedbackMechanism) -> Self {
+        self.feedback = Some(feedback);
+        self
     }
 
     /// Retained response plan for refresh validation and descriptor inspection.
@@ -218,36 +261,6 @@ impl CheckedTemporalResponseExecution {
         diagnostics
     }
 
-    /// Study payload for a delayed-feedback target.
-    ///
-    /// The scalar is the finite-horizon rollout. Equilibrium, stationary, and
-    /// continuous-time maps are not substituted for it.
-    fn finite_horizon_causal_response(&self, horizon_steps: u32, level: f64) -> CausalResponse {
-        let horizon = f64::from(horizon_steps);
-        CausalResponse {
-            estimand: self.operation.query().functional.clone(),
-            identification_status: self.identification.status,
-            estimate: antecedent_core::ResponseIdentification::PointIdentified(
-                antecedent_core::ResponseValue::Scalar(level),
-            ),
-            uncertainty: antecedent_core::ResponseUncertainty::None,
-            support: antecedent_core::SupportReport {
-                status: antecedent_core::SupportStatus::MissingEvidence,
-                query_region: antecedent_core::SupportRegion {
-                    minima: Arc::from([horizon]),
-                    maxima: Arc::from([horizon]),
-                },
-                diagnostics: Vec::new(),
-                warnings: Vec::new(),
-                point_status: None,
-            },
-            assumptions: self.identification.required_assumptions.clone(),
-            provenance_id: Arc::from("model.delayed_feedback.finite_horizon"),
-            horizon_identification: None,
-            interaction_structurally_zero: false,
-        }
-    }
-
     /// Execute and assemble the ordinary, portable `StudyResult` contract.
     pub(crate) fn execute(
         &self,
@@ -259,15 +272,6 @@ impl CheckedTemporalResponseExecution {
             self.operation.query().temporal.as_ref().ok_or_else(|| CausalError::Compile {
                 message: "checked temporal response lost its temporal specification".into(),
             })?;
-        let searched_steps = self
-            .operation
-            .evidence()
-            .iter()
-            .map(|member| member.indexer().history())
-            .max()
-            .unwrap_or(0);
-        let feedback = admit_delayed_finite_horizon(data.time_index(), temporal, searched_steps)
-            .map_err(causal_refusal)?;
         super::enforce_temporal_response_memory_budget(
             self.operation.query(),
             temporal,
@@ -275,11 +279,22 @@ impl CheckedTemporalResponseExecution {
             ctx,
         )?;
         let (treatment, outcome) = require_primary_pair(&self.operation.query().functional)?;
-        let (mut response, conflict_summary) = if feedback.delay().is_some() {
-            let dynamics = delayed_transition().map_err(causal_refusal)?;
-            let finite =
-                temporal_target_response(&feedback, ResponseTarget::FiniteHorizon, dynamics)?;
-            (self.finite_horizon_causal_response(temporal.max_horizon(), finite.level()), None)
+        let (mut response, conflict_summary) = if let Some(mechanism) = &self.feedback {
+            let searched_steps = self
+                .operation
+                .evidence()
+                .iter()
+                .map(|member| member.indexer().history())
+                .max()
+                .unwrap_or(0);
+            let levels =
+                finite_horizon_levels(data.time_index(), temporal, searched_steps, mechanism)?;
+            let response = finite_horizon_causal_response(
+                &self.operation.query().functional,
+                &self.identification,
+                &levels,
+            );
+            (response, None)
         } else {
             self.execute_response_surface(data, temporal, (treatment, outcome), ctx)?
         };
@@ -340,18 +355,43 @@ impl CheckedTemporalResponseExecution {
     }
 }
 
-/// Admit the finite-horizon delayed frame the response will be estimated on.
+/// Rollout level at one requested horizon.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct HorizonLevel {
+    horizon_steps: u32,
+    level: f64,
+}
+
+/// Retained-history certificate, computed from the sealed proofs.
+///
+/// An explicit history cap is certified when every requested horizon's proof
+/// fit inside it, so shortening to the cap drops no identifying history. A
+/// proof that needed more history leaves the cap uncertified, and a delay or
+/// action lag deeper than the cap is refused.
+fn truncation_certificate(
+    temporal: &antecedent_core::TemporalResponseSpec,
+    proven_history: u32,
+) -> Option<TruncationCertificate> {
+    let retained = temporal.max_history_lag?;
+    (proven_history <= retained).then(|| TruncationCertificate::retaining(retained))
+}
+
+/// Admit the finite-horizon delayed frame at `steps` the response will be
+/// estimated on.
 ///
 /// The history window, initial law, and one transition come from the history
-/// operators. An off-cadence horizon, an uncertified truncation, and an
-/// ancestry deeper than the declared search cap are refusals. The cap is not
-/// replaced by the depth the identifier walked.
+/// operators. The initial law is the one the dynamics were declared for. The
+/// feedback delay is the mechanism's; the action lag stays the negative start
+/// of the policy. An off-cadence horizon, an uncertified truncation, feedback
+/// arriving after the horizon, and an ancestry deeper than the declared search
+/// cap are refusals. The cap is not replaced by the depth the identifier walked.
 fn admit_delayed_finite_horizon(
     cadence: &TimeIndex,
     temporal: &antecedent_core::TemporalResponseSpec,
+    steps: u32,
     searched_steps: u32,
+    mechanism: &FeedbackMechanism,
 ) -> Result<DelayedFeedback, HistoryOperatorError> {
-    let steps = temporal.max_horizon();
     let horizon = horizon_ending_after(cadence, steps)?;
     let history = match temporal.max_history_lag {
         Some(lag) => HistoryWindow::max_lag(lag),
@@ -360,22 +400,82 @@ fn admit_delayed_finite_horizon(
     DelayedFeedback::try_new(DelayedFeedbackRequest {
         cadence: cadence.clone(),
         horizon,
-        initial_law: Some(InitialLaw::contemporaneous_observed()),
+        initial_law: Some(mechanism.dynamics.initial_law().clone()),
         history,
-        delay: feedback_delay(&temporal.policy)?,
-        action: delayed_action(&temporal.policy)?,
-        truncation: None,
+        delay: Some(mechanism.delay),
+        action: delayed_action(&temporal.policy, mechanism.level)?,
+        truncation: truncation_certificate(temporal, searched_steps),
         search_cap: temporal.max_history_lag.map(FeedbackSearchCap::declared),
         ancestry_steps: searched_steps,
     })
 }
 
-/// Transition coefficients of the delayed-feedback response.
+/// Finite-horizon rollout at every requested horizon, in request order.
+fn finite_horizon_levels(
+    cadence: &TimeIndex,
+    temporal: &antecedent_core::TemporalResponseSpec,
+    searched_steps: u32,
+    mechanism: &FeedbackMechanism,
+) -> Result<Vec<HorizonLevel>, CausalError> {
+    temporal
+        .horizons
+        .iter()
+        .map(|&steps| {
+            let feedback =
+                admit_delayed_finite_horizon(cadence, temporal, steps, searched_steps, mechanism)
+                    .map_err(causal_refusal)?;
+            let finite = temporal_target_response(
+                &feedback,
+                ResponseTarget::FiniteHorizon,
+                &mechanism.dynamics,
+            )?;
+            Ok(HorizonLevel { horizon_steps: steps, level: finite.level() })
+        })
+        .collect()
+}
+
+/// Study payload for a declared feedback mechanism.
 ///
-/// The published level rolls this map forward from the initial state. It is
-/// not a dose-by-horizon fit.
-fn delayed_transition() -> Result<DelayedDynamics, HistoryOperatorError> {
-    DelayedDynamics::try_new(0.5, 1.0, 0.0)
+/// One horizon publishes its scalar rollout. Several publish a surface over the
+/// requested horizons. Equilibrium, stationary, and continuous-time maps are
+/// not substituted for it.
+fn finite_horizon_causal_response(
+    functional: &antecedent_core::ResponseFunctional,
+    identification: &IdentificationResult,
+    levels: &[HorizonLevel],
+) -> CausalResponse {
+    let horizons: Vec<f64> = levels.iter().map(|point| f64::from(point.horizon_steps)).collect();
+    let means: Vec<f64> = levels.iter().map(|point| point.level).collect();
+    let value = match means.as_slice() {
+        [level] => antecedent_core::ResponseValue::Scalar(*level),
+        _ => antecedent_core::ResponseValue::Surface {
+            grid: Arc::from(horizons.as_slice()),
+            dimension: 1,
+            mean: Arc::from(means.as_slice()),
+        },
+    };
+    let first = horizons.first().copied().unwrap_or(f64::NAN);
+    let last = horizons.last().copied().unwrap_or(f64::NAN);
+    CausalResponse {
+        estimand: functional.clone(),
+        identification_status: identification.status,
+        estimate: antecedent_core::ResponseIdentification::PointIdentified(value),
+        uncertainty: antecedent_core::ResponseUncertainty::None,
+        support: antecedent_core::SupportReport {
+            status: antecedent_core::SupportStatus::MissingEvidence,
+            query_region: antecedent_core::SupportRegion {
+                minima: Arc::from([first]),
+                maxima: Arc::from([last]),
+            },
+            diagnostics: Vec::new(),
+            warnings: Vec::new(),
+            point_status: None,
+        },
+        assumptions: identification.required_assumptions.clone(),
+        provenance_id: Arc::from("model.delayed_feedback.finite_horizon"),
+        horizon_identification: None,
+        interaction_structurally_zero: false,
+    }
 }
 
 /// Publish the finite-horizon response of an admitted delayed frame.
@@ -385,7 +485,7 @@ fn delayed_transition() -> Result<DelayedDynamics, HistoryOperatorError> {
 fn temporal_target_response(
     feedback: &DelayedFeedback,
     target: ResponseTarget,
-    dynamics: DelayedDynamics,
+    dynamics: &DelayedDynamics,
 ) -> Result<TargetResponse, CausalError> {
     if target != ResponseTarget::FiniteHorizon {
         return Err(CausalError::Compile {
@@ -403,25 +503,14 @@ fn temporal_target_response(
     Ok(response)
 }
 
-fn feedback_delay(policy: &TemporalPolicy) -> Result<Option<FeedbackDelay>, HistoryOperatorError> {
-    let origin = match policy {
-        TemporalPolicy::Pulse { at } => *at,
-        TemporalPolicy::Sustained { from, .. } => *from,
-        _ => {
-            return Err(HistoryOperatorError::ActionOutsideHorizon { step: 0, horizon_steps: 1 });
-        }
-    };
-    if origin >= 0 {
-        return Ok(None);
-    }
-    Ok(Some(FeedbackDelay::delayed(origin.unsigned_abs())?))
-}
-
-fn delayed_action(policy: &TemporalPolicy) -> Result<DelayedAction, HistoryOperatorError> {
+fn delayed_action(
+    policy: &TemporalPolicy,
+    level: f64,
+) -> Result<DelayedAction, HistoryOperatorError> {
     match policy {
-        TemporalPolicy::Pulse { at } => DelayedAction::pulse(*at, 1.0),
-        TemporalPolicy::Sustained { from, until } => DelayedAction::sustained(*from, *until, 1.0),
-        _ => Err(HistoryOperatorError::ActionOutsideHorizon { step: 0, horizon_steps: 1 }),
+        TemporalPolicy::Pulse { at } => DelayedAction::pulse(*at, level),
+        TemporalPolicy::Sustained { from, until } => DelayedAction::sustained(*from, *until, level),
+        _ => Err(HistoryOperatorError::ActionNotDelayable),
     }
 }
 
@@ -597,7 +686,7 @@ mod tests {
         let result = execution.execute(&data, &ctx).unwrap();
 
         assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
-        assert_eq!(result.estimate.as_effect().unwrap().ate.to_bits(), 1.0f64.to_bits());
+        assert!(result.estimate.as_effect().unwrap().ate.is_nan()); // curves have no scalar contrast
         assert_eq!(result.logical_plan.plan_id.as_ref(), "temporal_response");
         assert_eq!(result.response().unwrap().estimand, query.functional);
         assert_eq!(
@@ -610,19 +699,21 @@ mod tests {
             reference.identification.required_assumptions
         );
         let antecedent_core::ResponseIdentification::PointIdentified(
-            antecedent_core::ResponseValue::Scalar(level),
+            antecedent_core::ResponseValue::Surface { mean, grid, .. },
         ) = &result.response().unwrap().estimate
         else {
-            panic!("delayed feedback published a dose-by-horizon fit");
+            panic!("mean-curve result has a point-identified surface");
         };
-        assert_eq!(level.to_bits(), 1.0f64.to_bits());
-        assert_eq!(
-            result.response().unwrap().provenance_id.as_ref(),
-            "model.delayed_feedback.finite_horizon"
-        );
+        assert_eq!(grid.as_ref(), [-0.5, 1.0, 0.0, 1.0, 0.5, 1.0]);
+        for (value, level) in mean.iter().zip([-0.5, 0.0, 0.5]) {
+            assert!((value - (1.5 + 2.0 * level)).abs() < 0.08);
+        }
         assert!(matches!(
             result.response().unwrap().uncertainty,
-            antecedent_core::ResponseUncertainty::None
+            antecedent_core::ResponseUncertainty::PointwiseBand {
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                ..
+            }
         ));
         assert!(result.provenance.nodes.len() >= 2);
         assert!(
@@ -632,7 +723,7 @@ mod tests {
                 .any(|d| d.code.as_ref() == "refute.temporal_response.skipped")
         );
         assert!(
-            result
+            !result
                 .diagnostics
                 .iter()
                 .any(|d| d.code.as_ref() == "model.delayed_feedback.finite_horizon")
@@ -640,9 +731,11 @@ mod tests {
     }
 
     use super::{
-        DelayedDynamics, DelayedFeedback, HistoryOperatorError, ResponseTarget,
-        admit_delayed_finite_horizon, causal_refusal, temporal_target_response,
+        DelayedDynamics, DelayedFeedback, FeedbackMechanism, HistoryOperatorError, HorizonLevel,
+        ResponseTarget, admit_delayed_finite_horizon, causal_refusal,
+        finite_horizon_causal_response, finite_horizon_levels, temporal_target_response,
     };
+    use antecedent_core::InitialLaw;
     use antecedent_data::{SamplingRegularity, TimeIndex};
 
     fn cadence(interval_ns: u64, length: usize) -> TimeIndex {
@@ -657,53 +750,166 @@ mod tests {
         TemporalResponseSpec::new(horizons, policy, max_history_lag).unwrap()
     }
 
-    fn admitted_pair() -> (DelayedFeedback, DelayedFeedback) {
-        let series = cadence(1, 8);
-        let pulse = response_spec(TemporalPolicy::pulse(-1), vec![3], Some(2));
-        let sustained = response_spec(TemporalPolicy::sustained(-1, 2), vec![3], Some(2));
-        let pulse = admit_delayed_finite_horizon(&series, &pulse, 2).unwrap();
-        let sustained = admit_delayed_finite_horizon(&series, &sustained, 2).unwrap();
-        (pulse, sustained)
+    fn dynamics_for(law: InitialLaw) -> DelayedDynamics {
+        DelayedDynamics::try_new(0.5, 1.0, 1.0, law, 0.0).unwrap()
+    }
+
+    fn mechanism() -> FeedbackMechanism {
+        FeedbackMechanism::declared(1, 1.0, dynamics_for(InitialLaw::contemporaneous_observed()))
+            .unwrap()
+    }
+
+    fn admit_at(
+        policy: TemporalPolicy,
+        steps: u32,
+        max_history_lag: Option<u32>,
+        searched_steps: u32,
+    ) -> Result<DelayedFeedback, HistoryOperatorError> {
+        let spec = response_spec(policy, vec![steps], max_history_lag);
+        admit_delayed_finite_horizon(&cadence(1, 8), &spec, steps, searched_steps, &mechanism())
+    }
+
+    fn rollout(feedback: &DelayedFeedback) -> f64 {
+        temporal_target_response(feedback, ResponseTarget::FiniteHorizon, &mechanism().dynamics)
+            .unwrap()
+            .level()
     }
 
     #[test]
     fn temporal_response_keeps_finite_horizon_apart_from_other_targets() {
-        let (_pulse, sustained) = admitted_pair();
-        let dynamics = DelayedDynamics::try_new(0.5, 1.0, 0.0).unwrap();
+        let sustained = admit_at(TemporalPolicy::sustained(0, 1), 3, Some(2), 2).unwrap();
+        let dynamics = mechanism().dynamics;
         let finite =
-            temporal_target_response(&sustained, ResponseTarget::FiniteHorizon, dynamics).unwrap();
+            temporal_target_response(&sustained, ResponseTarget::FiniteHorizon, &dynamics).unwrap();
         assert_eq!(finite.target(), ResponseTarget::FiniteHorizon);
-        assert_eq!(finite.level_bits(), 1.75f64.to_bits());
+        assert_eq!(finite.level_bits(), 1.5f64.to_bits());
         for target in [
             ResponseTarget::StaticEquilibrium,
             ResponseTarget::Stationary,
             ResponseTarget::ContinuousTime,
         ] {
-            let other = sustained.response(target, dynamics).unwrap();
+            let other = sustained.response(target, &dynamics).unwrap();
             assert_ne!(other.target(), finite.target());
             assert_ne!(other, finite);
-            let refused = temporal_target_response(&sustained, target, dynamics).unwrap_err();
+            let refused = temporal_target_response(&sustained, target, &dynamics).unwrap_err();
             assert!(matches!(refused, CausalError::Compile { .. }));
         }
     }
 
     #[test]
-    fn temporal_response_pulse_differs_from_sustained() {
-        let (pulse, sustained) = admitted_pair();
-        let dynamics = DelayedDynamics::try_new(0.5, 1.0, 0.0).unwrap();
-        let pulse =
-            temporal_target_response(&pulse, ResponseTarget::FiniteHorizon, dynamics).unwrap();
-        let sustained =
-            temporal_target_response(&sustained, ResponseTarget::FiniteHorizon, dynamics).unwrap();
-        let one_step_spec = response_spec(TemporalPolicy::sustained(-1, -1), vec![3], Some(2));
-        let one_step = admit_delayed_finite_horizon(&cadence(1, 8), &one_step_spec, 2).unwrap();
-        let one_step =
-            temporal_target_response(&one_step, ResponseTarget::FiniteHorizon, dynamics).unwrap();
-        assert_eq!(pulse.level_bits(), 0.25f64.to_bits());
-        assert_eq!(sustained.level_bits(), 1.75f64.to_bits());
-        assert_ne!(pulse, sustained);
+    fn temporal_response_pulse_differs_from_sustained_windows_shorter_than_the_horizon() {
+        let pulse = admit_at(TemporalPolicy::pulse(0), 3, Some(2), 2).unwrap();
+        let sustained = admit_at(TemporalPolicy::sustained(0, 1), 3, Some(2), 2).unwrap();
+        let one_step = admit_at(TemporalPolicy::sustained(0, 0), 3, Some(2), 2).unwrap();
+        assert_eq!(rollout(&pulse).to_bits(), 0.5f64.to_bits());
+        assert_eq!(rollout(&sustained).to_bits(), 1.5f64.to_bits());
+        assert_eq!(rollout(&one_step).to_bits(), 0.5f64.to_bits());
         assert_ne!(pulse.action(), one_step.action());
-        assert_ne!(pulse, one_step);
+        assert_ne!(pulse.action(), sustained.action());
+    }
+
+    #[test]
+    fn the_action_lag_is_not_the_feedback_delay() {
+        // The same delay of one tick, with the action sitting zero and two steps back.
+        let at_origin = admit_at(TemporalPolicy::pulse(0), 3, None, 0).unwrap();
+        let lagged = admit_at(TemporalPolicy::pulse(-2), 3, None, 0).unwrap();
+        assert_eq!(at_origin.delay(), lagged.delay());
+        assert_eq!(at_origin.delay().unwrap().ticks(), 1);
+        assert_eq!(rollout(&at_origin).to_bits(), 0.5f64.to_bits());
+        // The lagged pulse arrives at -1, before the origin, and leaves no input in the horizon.
+        assert_eq!(rollout(&lagged).to_bits(), 0.0f64.to_bits());
+    }
+
+    #[test]
+    fn temporal_response_refuses_feedback_arriving_after_the_horizon() {
+        let error = admit_at(TemporalPolicy::sustained(0, 2), 3, None, 0).unwrap_err();
+        assert!(matches!(error, HistoryOperatorError::InformationRefused { .. }));
+        assert!(matches!(causal_refusal(error), CausalError::Compile { .. }));
+        let negative = admit_at(TemporalPolicy::pulse(-1), 3, None, 0).unwrap();
+        assert!(negative.information().is_some());
+    }
+
+    #[test]
+    fn temporal_response_refuses_dynamics_for_another_initial_law() {
+        let feedback = admit_at(TemporalPolicy::pulse(0), 3, None, 0).unwrap();
+        assert_eq!(feedback.initial_law(), mechanism().dynamics.initial_law());
+        let other = dynamics_for(InitialLaw::named("other").unwrap());
+        let refused =
+            temporal_target_response(&feedback, ResponseTarget::FiniteHorizon, &other).unwrap_err();
+        assert!(matches!(refused, CausalError::Compile { .. }));
+    }
+
+    #[test]
+    fn temporal_response_refuses_a_dynamic_policy_and_a_zero_delay() {
+        let dynamic = TemporalPolicy::dynamic(antecedent_core::DynamicRuleId::from_raw(1), [0]);
+        let spec = TemporalResponseSpec {
+            horizons: Arc::from([3]),
+            policy: dynamic,
+            max_history_lag: None,
+        };
+        let error =
+            admit_delayed_finite_horizon(&cadence(1, 8), &spec, 3, 0, &mechanism()).unwrap_err();
+        assert_eq!(error, HistoryOperatorError::ActionNotDelayable);
+        let zero = FeedbackMechanism::declared(
+            0,
+            1.0,
+            dynamics_for(InitialLaw::contemporaneous_observed()),
+        )
+        .unwrap_err();
+        assert_eq!(zero, HistoryOperatorError::ContemporaneousFeedback);
+    }
+
+    #[test]
+    fn temporal_response_publishes_every_requested_horizon() {
+        let spec = response_spec(TemporalPolicy::pulse(-1), vec![1, 2, 3], None);
+        let levels = finite_horizon_levels(&cadence(1, 8), &spec, 0, &mechanism()).unwrap();
+        assert_eq!(
+            levels,
+            [
+                HorizonLevel { horizon_steps: 1, level: 1.0 },
+                HorizonLevel { horizon_steps: 2, level: 0.5 },
+                HorizonLevel { horizon_steps: 3, level: 0.25 },
+            ]
+        );
+        let functional = ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([0.0])),
+            ),
+        };
+        let identification = identification_for_publication();
+        let published = finite_horizon_causal_response(&functional, &identification, &levels);
+        let antecedent_core::ResponseIdentification::PointIdentified(
+            antecedent_core::ResponseValue::Surface { grid, mean, dimension },
+        ) = &published.estimate
+        else {
+            panic!("several horizons publish a surface over the horizons");
+        };
+        assert_eq!(
+            (grid.as_ref(), mean.as_ref(), *dimension),
+            (&[1.0, 2.0, 3.0][..], &[1.0, 0.5, 0.25][..], 1)
+        );
+        assert_eq!(published.support.query_region.minima.as_ref(), [1.0]);
+        assert_eq!(published.support.query_region.maxima.as_ref(), [3.0]);
+        let single = finite_horizon_causal_response(&functional, &identification, &levels[..1]);
+        assert!(matches!(
+            single.estimate,
+            antecedent_core::ResponseIdentification::PointIdentified(
+                antecedent_core::ResponseValue::Scalar(level)
+            ) if level.to_bits() == 1.0f64.to_bits()
+        ));
+    }
+
+    fn identification_for_publication() -> IdentificationResult {
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let mut graph = TemporalDag::empty();
+        let t_lag = ensure_lagged(&mut graph, t, Lag::from_raw(1)).unwrap();
+        let y_now = ensure_lagged(&mut graph, y, Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(t_lag, y_now).unwrap();
+        let effect = TemporalEffectQuery::pulse(t, y, 1.0).with_horizon_steps(1);
+        TemporalBackdoorIdentifier::new().identify_temporal(&graph, &effect).unwrap().result
     }
 
     fn published_finite_horizon(policy: TemporalPolicy) -> f64 {
@@ -764,7 +970,8 @@ mod tests {
         let physical = logical.compile_physical_with_graph(&ctx, Some(graph)).unwrap();
         let execution =
             CheckedTemporalResponseExecution::checked(operation, context, Arc::new(physical))
-                .unwrap();
+                .unwrap()
+                .with_feedback(mechanism());
         let result = execution.execute(&data, &ctx).unwrap();
         let antecedent_core::ResponseIdentification::PointIdentified(
             antecedent_core::ResponseValue::Scalar(level),
@@ -778,13 +985,18 @@ mod tests {
             "model.delayed_feedback.finite_horizon"
         );
         let spec = query.temporal.as_ref().unwrap();
-        let admitted =
-            admit_delayed_finite_horizon(data.time_index(), spec, identified.indexer.history())
-                .unwrap();
+        let admitted = admit_delayed_finite_horizon(
+            data.time_index(),
+            spec,
+            horizon,
+            identified.indexer.history(),
+            &mechanism(),
+        )
+        .unwrap();
         let operator = temporal_target_response(
             &admitted,
             ResponseTarget::FiniteHorizon,
-            DelayedDynamics::try_new(0.5, 1.0, 0.0).unwrap(),
+            &mechanism().dynamics,
         )
         .unwrap();
         assert_eq!(level.to_bits(), operator.level_bits());
@@ -792,26 +1004,36 @@ mod tests {
     }
 
     #[test]
-    fn published_pulse_matches_the_finite_horizon_rollout() {
+    fn a_declared_feedback_mechanism_publishes_the_finite_horizon_rollout() {
         let pulse = published_finite_horizon(TemporalPolicy::pulse(-1));
-        assert!(pulse.is_finite());
+        assert_eq!(pulse.to_bits(), 1.0f64.to_bits());
     }
 
     #[test]
     fn temporal_response_refuses_an_off_cadence_horizon() {
         let irregular = TimeIndex { regularity: SamplingRegularity::Irregular, length: 8 };
         let spec = response_spec(TemporalPolicy::pulse(-1), vec![1], None);
-        let error = admit_delayed_finite_horizon(&irregular, &spec, 0).unwrap_err();
-        assert!(matches!(
+        let error =
+            admit_delayed_finite_horizon(&irregular, &spec, 1, 0, &mechanism()).unwrap_err();
+        assert_eq!(
             error,
-            HistoryOperatorError::HorizonCrossesCadence { end_ns: 1, interval_ns: None, .. }
-        ));
+            HistoryOperatorError::CadenceWithoutInterval { interval_ns: None, steps: 1 }
+        );
+        let past = admit_delayed_finite_horizon(&cadence(1, 8), &spec, 9, 0, &mechanism());
+        assert!(matches!(past, Err(HistoryOperatorError::HorizonCrossesCadence { end_ns: 9, .. })));
     }
 
     #[test]
-    fn temporal_response_refuses_an_uncertified_truncation() {
-        let spec = response_spec(TemporalPolicy::pulse(-1), vec![1], Some(0));
-        let error = admit_delayed_finite_horizon(&cadence(1, 8), &spec, 0).unwrap_err();
+    fn temporal_response_certifies_a_truncation_the_proofs_fit_inside() {
+        // The delay of one tick is deeper than the retained zero, and the proofs fit in zero.
+        let admitted = admit_at(TemporalPolicy::pulse(-1), 1, Some(0), 0).unwrap();
+        assert_eq!(admitted.history().history().max_lag_steps(), Some(0));
+        assert_eq!(admitted.delay().unwrap().ticks(), 1);
+    }
+
+    #[test]
+    fn temporal_response_refuses_a_truncation_the_proofs_do_not_fit_inside() {
+        let error = admit_at(TemporalPolicy::pulse(-1), 1, Some(0), 2).unwrap_err();
         assert_eq!(
             error,
             HistoryOperatorError::UncertifiedTruncation { retained_ticks: 0, required_ticks: 1 }
@@ -820,8 +1042,7 @@ mod tests {
 
     #[test]
     fn temporal_response_does_not_identify_a_raised_search_cap() {
-        let spec = response_spec(TemporalPolicy::pulse(-1), vec![1], Some(2));
-        let error = admit_delayed_finite_horizon(&cadence(1, 8), &spec, 5).unwrap_err();
+        let error = admit_at(TemporalPolicy::pulse(-1), 1, Some(2), 5).unwrap_err();
         assert_eq!(error, HistoryOperatorError::SearchNotIdentified { cap: 2, ancestry_steps: 5 });
         match causal_refusal(error) {
             CausalError::NotIdentified { status, search_capped, .. } => {

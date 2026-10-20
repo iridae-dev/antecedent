@@ -233,6 +233,9 @@ pub enum HistoryOperatorError {
         /// Exclusive horizon length, in cadence steps.
         horizon_steps: u32,
     },
+    /// A dynamic schedule is neither a pulse nor a sustained window.
+    #[error("action is a dynamic schedule; next attempt: declare a pulse or a sustained window")]
+    ActionNotDelayable,
     /// A level or a dynamic coefficient was `NaN` or infinite.
     #[error("level {value} is not finite; next attempt: supply a finite level")]
     NonFiniteLevel {
@@ -295,18 +298,51 @@ pub enum HistoryOperatorError {
         /// Requested step count.
         steps: u32,
     },
-    /// `1 - a` is zero, so the map has no finite fixed point.
+    /// `a` is one, so the map has no finite fixed point.
     #[error(
         "autoregression has no finite fixed point; next attempt: ask for the finite-horizon \
          response"
     )]
     NoFixedPoint,
-    /// `|a| >= 1`, so the unit-innovation stationary variance is not finite.
+    /// `|a| >= 1` and not one, so the map has no stable fixed point or stationary law.
     #[error(
-        "autoregression has no finite stationary variance; next attempt: ask for the \
+        "autoregression {autoregression} is not stable (|a| >= 1); next attempt: ask for the \
          finite-horizon response"
     )]
-    NoStationaryVariance,
+    UnstableAutoregression {
+        /// The refused coefficient.
+        autoregression: f64,
+    },
+    /// The innovation variance is negative.
+    #[error(
+        "innovation variance {value} is negative; next attempt: supply a variance of zero or more"
+    )]
+    NegativeInnovationVariance {
+        /// The refused value.
+        value: f64,
+    },
+    /// The coefficients were declared for a different initial law than the frame's.
+    #[error(
+        "dynamics declare initial law {dynamics:?} but the frame binds {frame:?}; next attempt: \
+         declare the state of the frame's law"
+    )]
+    InitialLawMismatch {
+        /// Initial law bound to the delayed frame.
+        frame: InitialLaw,
+        /// Initial law the dynamics were declared for.
+        dynamics: InitialLaw,
+    },
+    /// The cadence has no regular positive interval to convert steps into nanoseconds.
+    #[error(
+        "a horizon of {steps} steps has no end on a cadence with interval {interval_ns:?} ns; \
+         next attempt: declare a regular positive cadence"
+    )]
+    CadenceWithoutInterval {
+        /// Regular interval, or [`None`] when the cadence is irregular.
+        interval_ns: Option<u64>,
+        /// Requested step count.
+        steps: u32,
+    },
 }
 
 /// History retained on the frame. This does not read rows or fill lags.
@@ -762,7 +798,7 @@ pub enum ResponseTarget {
     FiniteHorizon,
     /// Fixed point of the one-step map under the action's permanent level.
     StaticEquilibrium,
-    /// Invariant mean and unit-innovation variance of that map.
+    /// Invariant mean and innovation-driven variance of that map.
     Stationary,
     /// Continuous-time convolution over the same horizon.
     ContinuousTime,
@@ -787,48 +823,80 @@ impl std::fmt::Display for ResponseTarget {
     }
 }
 
-/// Coefficients of `s <- a s + b u` and the state at the origin.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+/// Coefficients of `s <- a s + b u + e`, the innovation variance of `e`, and
+/// the state at the origin.
+///
+/// The initial state is the level of one [`InitialLaw`]. The dynamics carry
+/// that law, and [`DelayedFeedback::response`] refuses dynamics declared for a
+/// different law than the frame binds.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct DelayedDynamics {
     autoregression_bits: u64,
     input_gain_bits: u64,
+    innovation_variance_bits: u64,
+    initial_law: InitialLaw,
     initial_state_bits: u64,
 }
 
 impl DelayedDynamics {
-    /// Finite autoregression `a`, input gain `b`, and initial state.
+    /// Finite autoregression `a`, input gain `b`, innovation variance, and the
+    /// level of `initial_law` at the origin.
     ///
     /// # Errors
     ///
-    /// [`HistoryOperatorError::NonFiniteLevel`] when any argument is not finite.
+    /// [`HistoryOperatorError::NonFiniteLevel`] when any number is not finite.
+    /// [`HistoryOperatorError::NegativeInnovationVariance`] when the variance
+    /// is below zero.
     #[must_use = "a non-finite coefficient is not a delayed system"]
     pub fn try_new(
         autoregression: f64,
         input_gain: f64,
+        innovation_variance: f64,
+        initial_law: InitialLaw,
         initial_state: f64,
     ) -> Result<Self, HistoryOperatorError> {
+        let innovation_variance_bits = finite_bits(innovation_variance)?;
+        if innovation_variance < 0.0 {
+            return Err(HistoryOperatorError::NegativeInnovationVariance {
+                value: innovation_variance,
+            });
+        }
         Ok(Self {
             autoregression_bits: finite_bits(autoregression)?,
             input_gain_bits: finite_bits(input_gain)?,
+            innovation_variance_bits,
+            initial_law,
             initial_state_bits: finite_bits(initial_state)?,
         })
     }
 
     /// Autoregressive coefficient.
     #[must_use = "the autoregression is the transition's state coefficient"]
-    pub const fn autoregression(self) -> f64 {
+    pub const fn autoregression(&self) -> f64 {
         f64::from_bits(self.autoregression_bits)
     }
 
     /// Coefficient on the delayed action.
     #[must_use = "the input gain scales the delayed action"]
-    pub const fn input_gain(self) -> f64 {
+    pub const fn input_gain(&self) -> f64 {
         f64::from_bits(self.input_gain_bits)
     }
 
-    /// State supplied by the initial law, as a level.
+    /// Variance of the transition's innovation.
+    #[must_use = "the innovation variance sets the stationary spread"]
+    pub const fn innovation_variance(&self) -> f64 {
+        f64::from_bits(self.innovation_variance_bits)
+    }
+
+    /// Law whose level at the origin is [`Self::initial_state`].
+    #[must_use = "the law names the state the rollout starts from"]
+    pub const fn initial_law(&self) -> &InitialLaw {
+        &self.initial_law
+    }
+
+    /// Level of [`Self::initial_law`] at the origin.
     #[must_use = "the initial state is the law's level at the origin"]
-    pub const fn initial_state(self) -> f64 {
+    pub const fn initial_state(&self) -> f64 {
         f64::from_bits(self.initial_state_bits)
     }
 }
@@ -868,7 +936,8 @@ impl TargetResponse {
     /// Bit pattern of the second-moment spread.
     ///
     /// Zero for a finite horizon, a static equilibrium, and a continuous-time
-    /// path. The stationary target carries the unit-innovation variance.
+    /// path. The stationary target carries the variance implied by the
+    /// dynamics' innovation variance.
     #[must_use = "the spread separates a stationary law from a fixed point"]
     pub const fn spread_bits(self) -> u64 {
         self.spread_bits
@@ -949,8 +1018,10 @@ impl DelayedFeedback {
     /// exceeds `search_cap`. The cap is not replaced by the ancestry depth.
     /// [`HistoryOperatorError::ActionOutsideHorizon`] when an action step is
     /// at or past the horizon end.
-    /// [`HistoryOperatorError::InformationRefused`] when a non-negative action
-    /// step's delayed outcome is not available by the last included tick.
+    /// [`HistoryOperatorError::InformationRefused`] when the delayed outcome of
+    /// the last intervened step arrives after the last included tick. Arrival
+    /// is `until_step + delay`; a window that arrives before the origin is
+    /// admitted at the origin.
     /// [`HistoryOperatorError::HorizonStepsUncountable`] when the horizon
     /// length does not fit in `u32` steps.
     #[must_use = "a refused delayed feedback is not a finite-horizon frame"]
@@ -966,12 +1037,8 @@ impl DelayedFeedback {
             search_cap,
             ancestry_steps,
         } = request;
-        let history = HistoryConstruction::try_new(
-            cadence.clone(),
-            horizon,
-            initial_law.clone(),
-            history,
-        )?;
+        let history =
+            HistoryConstruction::try_new(cadence.clone(), horizon, initial_law.clone(), history)?;
         let transition = Transition::try_new(cadence, horizon, initial_law)?;
         let steps = horizon_steps(&history)?;
         admit_action_window(action, steps)?;
@@ -980,7 +1047,7 @@ impl DelayedFeedback {
         let information = admit_feedback_information(
             history.frame().cadence(),
             steps,
-            delay.map(FeedbackDelay::ticks).unwrap_or(0),
+            delay.map_or(0, FeedbackDelay::ticks),
             action,
         )?;
         Ok(Self { history, transition, delay, action, search, information, steps })
@@ -1045,31 +1112,43 @@ impl DelayedFeedback {
     ///
     /// The returned [`TargetResponse::target`] is `target`. A finite-horizon
     /// result applies [`Self::transition`] once per cadence step, starting from
-    /// [`DelayedDynamics::initial_state`]. [`Self::initial_law`] names that
-    /// state and does not supply the number. The other three targets use
-    /// different maps and are not that rollout.
+    /// [`DelayedDynamics::initial_state`], which is the level of the frame's
+    /// [`Self::initial_law`]. The other three targets use different maps and
+    /// are not that rollout.
     ///
     /// # Errors
     ///
+    /// [`HistoryOperatorError::InitialLawMismatch`] when the dynamics were
+    /// declared for a different initial law than the frame binds.
     /// [`HistoryOperatorError::NoFixedPoint`] for a static equilibrium or a
-    /// stationary mean when the autoregression has no finite fixed point.
-    /// [`HistoryOperatorError::NoStationaryVariance`] when the stationary
-    /// variance is not finite. [`HistoryOperatorError::NonFiniteLevel`] when a
-    /// computed level is not finite.
+    /// stationary mean when the autoregression is one.
+    /// [`HistoryOperatorError::UnstableAutoregression`] when `|a| >= 1` and
+    /// not one, for those same two targets.
+    /// [`HistoryOperatorError::NonFiniteLevel`] when a computed level is not
+    /// finite.
     #[must_use = "a refused target is not a response of the delayed system"]
     pub fn response(
         &self,
         target: ResponseTarget,
-        dynamics: DelayedDynamics,
+        dynamics: &DelayedDynamics,
     ) -> Result<TargetResponse, HistoryOperatorError> {
-        let (level, spread) = match target {
-            ResponseTarget::FiniteHorizon => (finite_horizon_level(self, dynamics)?, 0.0),
-            ResponseTarget::StaticEquilibrium => {
-                (fixed_point(dynamics, self.action.permanent_level())?, 0.0)
+        if dynamics.initial_law() != self.initial_law() {
+            return Err(HistoryOperatorError::InitialLawMismatch {
+                frame: self.initial_law().clone(),
+                dynamics: dynamics.initial_law().clone(),
+            });
+        }
+        let LevelSpread { level, spread } = match target {
+            ResponseTarget::FiniteHorizon => {
+                LevelSpread { level: finite_horizon_level(self, dynamics)?, spread: 0.0 }
             }
+            ResponseTarget::StaticEquilibrium => LevelSpread {
+                level: fixed_point(dynamics, self.action.permanent_level())?,
+                spread: 0.0,
+            },
             ResponseTarget::Stationary => stationary_law(dynamics, self.action.permanent_level())?,
             ResponseTarget::ContinuousTime => {
-                (continuous_level(self, dynamics)?, 0.0)
+                LevelSpread { level: continuous_level(self, dynamics)?, spread: 0.0 }
             }
         };
         Ok(TargetResponse {
@@ -1083,11 +1162,13 @@ impl DelayedFeedback {
 
 /// Horizon end, in cadence steps, for a response whose step count is `steps`.
 ///
-/// An irregular cadence and a zero interval are returned as a horizon the
-/// frame refuses, rather than extended onto a tick.
+/// An irregular cadence and a zero interval have no step length, so they are
+/// refused here rather than extended onto a tick.
 ///
 /// # Errors
 ///
+/// [`HistoryOperatorError::CadenceWithoutInterval`] when the cadence is
+/// irregular or its interval is zero.
 /// [`HistoryOperatorError::HorizonEndOverflow`] when `steps` times the regular
 /// interval does not fit in `u64`.
 #[must_use = "an overflowing horizon is not a tick the frame can admit"]
@@ -1096,10 +1177,10 @@ pub fn horizon_ending_after(
     steps: u32,
 ) -> Result<Horizon, HistoryOperatorError> {
     let SamplingRegularity::Regular { interval_ns } = cadence.regularity else {
-        return Ok(Horizon::ending_at(1));
+        return Err(HistoryOperatorError::CadenceWithoutInterval { interval_ns: None, steps });
     };
     if interval_ns == 0 {
-        return Ok(Horizon::ending_at(1));
+        return Err(HistoryOperatorError::CadenceWithoutInterval { interval_ns: Some(0), steps });
     }
     let Some(end_ns) = u64::from(steps).checked_mul(interval_ns) else {
         return Err(HistoryOperatorError::HorizonEndOverflow { interval_ns, steps });
@@ -1245,18 +1326,19 @@ fn admit_feedback_information(
     if delay_ticks == 0 {
         return Ok(None);
     }
-    let (from_step, _) = action_bounds(action);
-    if from_step < 0 {
-        return Ok(None);
-    }
+    let (_, until_step) = action_bounds(action);
+    // The last intervened step arrives last, so it binds the admission. An
+    // arrival before the origin is already in the history and is judged at the
+    // origin tick.
+    let arrival = (i64::from(until_step) + i64::from(delay_ticks)).max(0);
+    let arrival =
+        u32::try_from(arrival).map_err(|_| HistoryOperatorError::HorizonStepsUncountable)?;
     let decision = steps.checked_sub(1).ok_or(HistoryOperatorError::HorizonStepsUncountable)?;
-    let generated =
-        u32::try_from(from_step).map_err(|_| HistoryOperatorError::HorizonStepsUncountable)?;
     match admit_delayed_outcome(
         cadence,
         CadenceTick::new(decision),
-        CadenceTick::new(generated),
-        delay_ticks,
+        CadenceTick::new(arrival),
+        0,
         InformationUse::Prospective,
         RetrospectivePermission::Denied,
         ForwardOnly::Enforced,
@@ -1266,11 +1348,17 @@ fn admit_feedback_information(
     }
 }
 
+/// Level and second-moment spread of one evaluated target.
+struct LevelSpread {
+    level: f64,
+    spread: f64,
+}
+
 fn finite_horizon_level(
     feedback: &DelayedFeedback,
-    dynamics: DelayedDynamics,
+    dynamics: &DelayedDynamics,
 ) -> Result<f64, HistoryOperatorError> {
-    let delay = feedback.delay.map(FeedbackDelay::ticks).unwrap_or(0);
+    let delay = feedback.delay.map_or(0, FeedbackDelay::ticks);
     let mut state = dynamics.initial_state();
     let autoregression = dynamics.autoregression();
     let input_gain = dynamics.input_gain();
@@ -1288,12 +1376,20 @@ fn finite_horizon_level(
     Ok(state)
 }
 
-fn fixed_point(dynamics: DelayedDynamics, permanent: f64) -> Result<f64, HistoryOperatorError> {
-    let denom = 1.0 - dynamics.autoregression();
-    if denom.to_bits() == 0.0f64.to_bits() {
+fn admit_stable(dynamics: &DelayedDynamics) -> Result<(), HistoryOperatorError> {
+    let autoregression = dynamics.autoregression();
+    if autoregression.abs() < 1.0 {
+        return Ok(());
+    }
+    if autoregression.to_bits() == 1.0f64.to_bits() {
         return Err(HistoryOperatorError::NoFixedPoint);
     }
-    let level = dynamics.input_gain() * permanent / denom;
+    Err(HistoryOperatorError::UnstableAutoregression { autoregression })
+}
+
+fn fixed_point(dynamics: &DelayedDynamics, permanent: f64) -> Result<f64, HistoryOperatorError> {
+    admit_stable(dynamics)?;
+    let level = dynamics.input_gain() * permanent / (1.0 - dynamics.autoregression());
     if !level.is_finite() {
         return Err(HistoryOperatorError::NonFiniteLevel { value: level });
     }
@@ -1301,56 +1397,81 @@ fn fixed_point(dynamics: DelayedDynamics, permanent: f64) -> Result<f64, History
 }
 
 fn stationary_law(
-    dynamics: DelayedDynamics,
+    dynamics: &DelayedDynamics,
     permanent: f64,
-) -> Result<(f64, f64), HistoryOperatorError> {
-    let mean = fixed_point(dynamics, permanent)?;
+) -> Result<LevelSpread, HistoryOperatorError> {
+    let level = fixed_point(dynamics, permanent)?;
     let autoregression = dynamics.autoregression();
-    let denom = 1.0 - autoregression * autoregression;
-    if !(denom > 0.0) {
-        return Err(HistoryOperatorError::NoStationaryVariance);
-    }
-    let spread = 1.0 / denom;
+    let spread = dynamics.innovation_variance() / (1.0 - autoregression * autoregression);
     if !spread.is_finite() {
         return Err(HistoryOperatorError::NonFiniteLevel { value: spread });
     }
-    Ok((mean, spread))
+    Ok(LevelSpread { level, spread })
 }
 
 fn continuous_level(
     feedback: &DelayedFeedback,
-    dynamics: DelayedDynamics,
+    dynamics: &DelayedDynamics,
 ) -> Result<f64, HistoryOperatorError> {
-    let level = match feedback.action {
+    let delay_ticks = feedback.delay.map_or(0, FeedbackDelay::ticks);
+    let decay = continuous_decay(dynamics, f64::from(feedback.steps));
+    let driven = match feedback.action {
         DelayedAction::Pulse { at_step, level_bits } => continuous_pulse(
             dynamics,
             f64::from_bits(level_bits),
             at_step,
-            feedback.delay.map(FeedbackDelay::ticks).unwrap_or(0),
+            delay_ticks,
             feedback.steps,
         ),
-        DelayedAction::Sustained { level_bits, .. } => {
-            continuous_sustained(dynamics, f64::from_bits(level_bits), feedback.steps)
-        }
+        DelayedAction::Sustained { from_step, until_step, level_bits } => continuous_sustained(
+            dynamics,
+            f64::from_bits(level_bits),
+            (from_step, until_step),
+            delay_ticks,
+            feedback.steps,
+        ),
     };
+    let level = dynamics.initial_state() * decay + driven;
     if !level.is_finite() {
         return Err(HistoryOperatorError::NonFiniteLevel { value: level });
     }
     Ok(level)
 }
 
-fn continuous_sustained(dynamics: DelayedDynamics, level: f64, steps: u32) -> f64 {
-    let duration = f64::from(steps);
+/// Decay of the initial state over `duration` steps, `exp((a - 1) duration)`.
+fn continuous_decay(dynamics: &DelayedDynamics, duration: f64) -> f64 {
+    ((dynamics.autoregression() - 1.0) * duration).exp()
+}
+
+/// Convolution of the held action with the continuous kernel.
+///
+/// Only the sustained window, shifted by the delay and cut to the horizon,
+/// drives the state. A window that arrives at or after the horizon, or ends
+/// before the origin, contributes nothing.
+fn continuous_sustained(
+    dynamics: &DelayedDynamics,
+    level: f64,
+    (from_step, until_step): (i32, i32),
+    delay_ticks: u32,
+    steps: u32,
+) -> f64 {
+    let horizon = f64::from(steps);
+    let shift = f64::from(delay_ticks);
+    let start = (f64::from(from_step) + shift).max(0.0);
+    let end = (f64::from(until_step) + 1.0 + shift).min(horizon);
+    if end <= start {
+        return 0.0;
+    }
     let gain = dynamics.input_gain() * level;
     let drift = dynamics.autoregression() - 1.0;
     if drift.to_bits() == 0.0f64.to_bits() {
-        return gain * duration;
+        return gain * (end - start);
     }
-    gain / -drift * (1.0 - (drift * duration).exp())
+    gain * ((drift * (horizon - start)).exp() - (drift * (horizon - end)).exp()) / drift
 }
 
 fn continuous_pulse(
-    dynamics: DelayedDynamics,
+    dynamics: &DelayedDynamics,
     level: f64,
     at_step: i32,
     delay_ticks: u32,
@@ -1367,8 +1488,7 @@ fn continuous_pulse(
         return 0.0;
     }
     let elapsed = f64::from(steps) - f64::from(arrival);
-    let drift = dynamics.autoregression() - 1.0;
-    dynamics.input_gain() * level * (drift * elapsed).exp()
+    dynamics.input_gain() * level * continuous_decay(dynamics, elapsed)
 }
 
 #[cfg(test)]
@@ -1628,7 +1748,12 @@ mod tests {
     }
 
     fn unit_dynamics() -> DelayedDynamics {
-        DelayedDynamics::try_new(0.5, 1.0, 0.0).unwrap()
+        dynamics(0.5, 1.0, 1.0)
+    }
+
+    fn dynamics(autoregression: f64, input_gain: f64, innovation_variance: f64) -> DelayedDynamics {
+        DelayedDynamics::try_new(autoregression, input_gain, innovation_variance, origin(), 0.0)
+            .unwrap()
     }
 
     fn delayed_request(action: DelayedAction) -> DelayedFeedbackRequest {
@@ -1647,7 +1772,7 @@ mod tests {
 
     #[test]
     fn finite_horizon_is_not_equilibrium_stationary_or_continuous() {
-        let action = DelayedAction::sustained(0, 2, 1.0).unwrap();
+        let action = DelayedAction::sustained(0, 1, 1.0).unwrap();
         let feedback = DelayedFeedback::try_new(delayed_request(action)).unwrap();
         let dynamics = unit_dynamics();
         assert_eq!(feedback.target(), ResponseTarget::FiniteHorizon);
@@ -1661,7 +1786,7 @@ mod tests {
             ResponseTarget::Stationary,
             ResponseTarget::ContinuousTime,
         ];
-        let responses = targets.map(|target| feedback.response(target, dynamics).unwrap());
+        let responses = targets.map(|target| feedback.response(target, &dynamics).unwrap());
         for (response, target) in responses.iter().zip(targets) {
             assert_eq!(response.target(), target);
         }
@@ -1682,20 +1807,20 @@ mod tests {
     #[test]
     fn pulse_and_sustained_differ_on_the_same_delayed_system() {
         let dynamics = unit_dynamics();
-        let pulse = DelayedFeedback::try_new(delayed_request(DelayedAction::pulse(0, 1.0).unwrap()))
-            .unwrap();
-        let sustained = DelayedFeedback::try_new(delayed_request(
-            DelayedAction::sustained(0, 2, 1.0).unwrap(),
-        ))
-        .unwrap();
-        let one_step = DelayedFeedback::try_new(delayed_request(
-            DelayedAction::sustained(0, 0, 1.0).unwrap(),
-        ))
-        .unwrap();
-        let pulse_response = pulse.response(ResponseTarget::FiniteHorizon, dynamics).unwrap();
+        let pulse =
+            DelayedFeedback::try_new(delayed_request(DelayedAction::pulse(0, 1.0).unwrap()))
+                .unwrap();
+        let sustained =
+            DelayedFeedback::try_new(delayed_request(DelayedAction::sustained(0, 1, 1.0).unwrap()))
+                .unwrap();
+        let one_step =
+            DelayedFeedback::try_new(delayed_request(DelayedAction::sustained(0, 0, 1.0).unwrap()))
+                .unwrap();
+        let pulse_response = pulse.response(ResponseTarget::FiniteHorizon, &dynamics).unwrap();
         let sustained_response =
-            sustained.response(ResponseTarget::FiniteHorizon, dynamics).unwrap();
-        let one_step_response = one_step.response(ResponseTarget::FiniteHorizon, dynamics).unwrap();
+            sustained.response(ResponseTarget::FiniteHorizon, &dynamics).unwrap();
+        let one_step_response =
+            one_step.response(ResponseTarget::FiniteHorizon, &dynamics).unwrap();
         assert_eq!(pulse_response.level_bits(), 0.5f64.to_bits());
         assert_eq!(sustained_response.level_bits(), 1.5f64.to_bits());
         assert_ne!(pulse_response, sustained_response);
@@ -1758,6 +1883,164 @@ mod tests {
                     outcome: 5,
                 }
             }
+        );
+    }
+
+    fn long_request(action: DelayedAction) -> DelayedFeedbackRequest {
+        let mut request = delayed_request(action);
+        request.horizon = Horizon::ending_at(8);
+        request
+    }
+
+    #[test]
+    fn a_window_shorter_than_the_horizon_drives_only_its_own_steps() {
+        let held = dynamics(1.0, 2.0, 1.0);
+        let short =
+            DelayedFeedback::try_new(long_request(DelayedAction::sustained(1, 3, 1.0).unwrap()))
+                .unwrap();
+        let long =
+            DelayedFeedback::try_new(long_request(DelayedAction::sustained(1, 5, 1.0).unwrap()))
+                .unwrap();
+        let pulse =
+            DelayedFeedback::try_new(long_request(DelayedAction::pulse(1, 1.0).unwrap())).unwrap();
+        let finite = |feedback: &DelayedFeedback| {
+            feedback.response(ResponseTarget::FiniteHorizon, &held).unwrap().level()
+        };
+        let continuous = |feedback: &DelayedFeedback| {
+            feedback.response(ResponseTarget::ContinuousTime, &held).unwrap().level()
+        };
+        // Three held steps of gain two, whichever way they are integrated.
+        assert_eq!(finite(&short).to_bits(), 6.0f64.to_bits());
+        assert_eq!(continuous(&short).to_bits(), 6.0f64.to_bits());
+        assert_eq!(finite(&long).to_bits(), 10.0f64.to_bits());
+        assert_eq!(continuous(&long).to_bits(), 10.0f64.to_bits());
+        assert_eq!(finite(&pulse).to_bits(), 2.0f64.to_bits());
+        assert_ne!(finite(&pulse).to_bits(), finite(&short).to_bits());
+    }
+
+    #[test]
+    fn a_decaying_window_agrees_with_the_rollout_as_the_step_shrinks() {
+        // With a near one the continuous kernel is the held sum.
+        let near = dynamics(1.0 - 1e-9, 1.0, 1.0);
+        let window =
+            DelayedFeedback::try_new(long_request(DelayedAction::sustained(2, 4, 1.0).unwrap()))
+                .unwrap();
+        let finite = window.response(ResponseTarget::FiniteHorizon, &near).unwrap().level();
+        let continuous = window.response(ResponseTarget::ContinuousTime, &near).unwrap().level();
+        assert!((finite - continuous).abs() < 1e-6);
+    }
+
+    #[test]
+    fn feedback_arriving_after_the_last_included_tick_is_refused() {
+        // The last intervened step arrives at 2 + 1 = 3, past the decision at 2.
+        let error =
+            DelayedFeedback::try_new(delayed_request(DelayedAction::sustained(0, 2, 1.0).unwrap()))
+                .unwrap_err();
+        assert_eq!(
+            error,
+            HistoryOperatorError::InformationRefused {
+                refusal: crate::information_time::InformationRefusal::ProspectiveFuture {
+                    decision: 2,
+                    outcome: 3,
+                }
+            }
+        );
+        // A window that starts in the history is still judged on its last step.
+        let mut late = delayed_request(DelayedAction::sustained(-2, 1, 1.0).unwrap());
+        late.delay = Some(FeedbackDelay::delayed(5).unwrap());
+        assert!(matches!(
+            DelayedFeedback::try_new(late).unwrap_err(),
+            HistoryOperatorError::InformationRefused { .. }
+        ));
+        let pulse = delayed_request(DelayedAction::pulse(-3, 1.0).unwrap());
+        let admitted = DelayedFeedback::try_new(pulse).unwrap();
+        // The arrival at -2 is already in the history and is judged at the origin.
+        assert_eq!(admitted.information().unwrap().outcome().get(), 0);
+        let inside = delayed_request(DelayedAction::sustained(-2, 1, 1.0).unwrap());
+        let admitted = DelayedFeedback::try_new(inside).unwrap();
+        assert_eq!(admitted.information().unwrap().outcome().get(), 2);
+    }
+
+    #[test]
+    fn an_unstable_autoregression_has_no_equilibrium_or_stationary_law() {
+        let action = DelayedAction::sustained(0, 1, 1.0).unwrap();
+        let feedback = DelayedFeedback::try_new(delayed_request(action)).unwrap();
+        for autoregression in [1.5, -1.0, -2.0] {
+            let unstable = dynamics(autoregression, 1.0, 1.0);
+            for target in [ResponseTarget::StaticEquilibrium, ResponseTarget::Stationary] {
+                assert_eq!(
+                    feedback.response(target, &unstable).unwrap_err(),
+                    HistoryOperatorError::UnstableAutoregression { autoregression }
+                );
+            }
+            // The finite rollout never needed the map to be stable.
+            assert!(feedback.response(ResponseTarget::FiniteHorizon, &unstable).is_ok());
+        }
+        assert_eq!(
+            feedback
+                .response(ResponseTarget::StaticEquilibrium, &dynamics(1.0, 1.0, 1.0))
+                .unwrap_err(),
+            HistoryOperatorError::NoFixedPoint
+        );
+    }
+
+    #[test]
+    fn the_stationary_spread_comes_from_the_innovation_variance() {
+        let action = DelayedAction::sustained(0, 1, 1.0).unwrap();
+        let feedback = DelayedFeedback::try_new(delayed_request(action)).unwrap();
+        let wide = feedback.response(ResponseTarget::Stationary, &dynamics(0.5, 1.0, 3.0)).unwrap();
+        assert_eq!(wide.spread_bits(), (3.0_f64 / 0.75).to_bits());
+        let still =
+            feedback.response(ResponseTarget::Stationary, &dynamics(0.5, 1.0, 0.0)).unwrap();
+        assert_eq!(still.spread_bits(), 0.0f64.to_bits());
+        let negative = DelayedDynamics::try_new(0.5, 1.0, -1.0, origin(), 0.0).unwrap_err();
+        assert_eq!(negative, HistoryOperatorError::NegativeInnovationVariance { value: -1.0 });
+    }
+
+    #[test]
+    fn dynamics_for_another_initial_law_are_refused() {
+        let action = DelayedAction::sustained(0, 1, 1.0).unwrap();
+        let feedback = DelayedFeedback::try_new(delayed_request(action)).unwrap();
+        let other = InitialLaw::named("other").unwrap();
+        for law in [other, InitialLaw::contemporaneous_observed()] {
+            let declared = DelayedDynamics::try_new(0.5, 1.0, 1.0, law.clone(), 0.0).unwrap();
+            for target in [
+                ResponseTarget::FiniteHorizon,
+                ResponseTarget::StaticEquilibrium,
+                ResponseTarget::Stationary,
+                ResponseTarget::ContinuousTime,
+            ] {
+                assert_eq!(
+                    feedback.response(target, &declared).unwrap_err(),
+                    HistoryOperatorError::InitialLawMismatch {
+                        frame: origin(),
+                        dynamics: law.clone()
+                    }
+                );
+            }
+        }
+        let matching = DelayedDynamics::try_new(0.5, 1.0, 1.0, origin(), 2.0).unwrap();
+        let response = feedback.response(ResponseTarget::FiniteHorizon, &matching).unwrap();
+        // The state rolls 2 -> 1 -> 1.5 -> 1.75 with the delayed input from the second step.
+        assert_eq!(matching.initial_law(), feedback.initial_law());
+        assert_eq!(response.level_bits(), 1.75f64.to_bits());
+    }
+
+    #[test]
+    fn an_irregular_or_zero_cadence_has_no_horizon_end() {
+        let irregular = TimeIndex { regularity: SamplingRegularity::Irregular, length: 4 };
+        assert_eq!(
+            horizon_ending_after(&irregular, 2).unwrap_err(),
+            HistoryOperatorError::CadenceWithoutInterval { interval_ns: None, steps: 2 }
+        );
+        assert_eq!(
+            horizon_ending_after(&regular(0, 4), 2).unwrap_err(),
+            HistoryOperatorError::CadenceWithoutInterval { interval_ns: Some(0), steps: 2 }
+        );
+        assert_eq!(horizon_ending_after(&regular(10, 4), 2).unwrap(), Horizon::ending_at(20));
+        assert_eq!(
+            horizon_ending_after(&regular(u64::MAX, 4), 2).unwrap_err(),
+            HistoryOperatorError::HorizonEndOverflow { interval_ns: u64::MAX, steps: 2 }
         );
     }
 }
