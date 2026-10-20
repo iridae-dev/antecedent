@@ -1,0 +1,8 @@
+{
+  "generator": "examples/python/general_cyclic_systems.py",
+  "generator_sha256": "c515c93375d73670d5cba077be3412793132baeaf4994cbe381be9de2e2d58fb",
+  "artifact_sha256": "255560e41bd0f66fee7489c7d063cd6dc7d87da580b2b38bc4fdbc2311e200f4",
+  "fresh_process_cpu_replay": true,
+  "calibration": "separate_unmeasured",
+  "attestation": "separate_not_performed"
+}

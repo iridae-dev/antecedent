@@ -1,0 +1,90 @@
+feature_id = "cyclic.general_systems"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [
+ {title = "Adam: A Method for Stochastic Optimization", url = "https://arxiv.org/abs/1412.6980v9", sections = ["Version 9, 30 January 2017; Algorithm 1, independent bounded projected minibatch implementation"]},
+ {title = "A family of embedded Runge-Kutta formulae", url = "https://doi.org/10.1016/0771-050X(80)90013-3", doi = "10.1016/0771-050X(80)90013-3", sections = ["Dormand and Prince 1980, RK5(4) tableau; independently implemented stages and error control"]},
+ {title = "Foundations of Structural Causal Models with Cycles and Latent Variables", url = "https://arxiv.org/abs/1611.06221v6", doi = "10.48550/arXiv.1611.06221", sections = ["Version 6, 22 November 2021; additive-noise abduction, solutions and distinct interventional solvability"]},
+ {title = "Causal Calculus in the Presence of Cycles, Latent Confounders and Selection Bias", url = "https://proceedings.mlr.press/v115/forre20a.html", sections = ["PMLR 115, 2020 / arXiv:1901.00433v2 (3 July 2019); checked revision history 20 October 2026; Theorems 5.2/7.2/9.10, Algorithm 1, Corollary 8.4(4)"]},
+ {title = "Constraint-Based Causal Discovery using Partial Ancestral Graphs in the presence of Cycles", url = "https://proceedings.mlr.press/v124/m-mooij20a.html", sections = ["PMLR 124, 2020; checked against corrected arXiv:2005.00610v3 (15 September 2023), inline proofs and typo corrections; Propositions 4/5/6/7/8(i); cyclic FCI interpretation under simple sigma-faithful SCM assumptions"]},
+ {title = "NODAGS-Flow: Nonlinear Cyclic Causal Structure Learning", url = "https://proceedings.mlr.press/v206/sethuraman23a.html", sections = ["PMLR 206, 2023; additive-noise equilibrium change-of-variables likelihood; no neural source port"]},
+ {title = "Bicycle: Intervention-Based Causal Discovery with Cycles", url = "https://proceedings.mlr.press/v236/rohbeck24a.html", sections = ["PMLR 236, 2024; Equations 1-4, Section 4.1 and Appendix A.1; Gaussian stationary synthetic protocol, shared drift/forcing/diffusion likelihood; no count-likelihood variational estimator"]},
+ {title = "Causal Reasoning with Bipartite Graphical Causal Models", url = "https://arxiv.org/abs/2608.19831v1", sections = ["PMLR 337 / arXiv:2608.19831v1, 2026; Definitions 3/5/13/33, Lemma 42: matching/SCC causal ordering, determinism-aware B-separation and domain-selector invariance"]},
+]
+implementation_deviations = [
+ "Dense capped built-in mechanism families; arbitrary callbacks are not serialized.",
+ "Global contraction is a sufficient row-norm certificate. Damped Newton roots alone remain uncertified; affine bijection uses a separate outward-rounded inverse-residual proof.",
+ "Polynomial systems use independently implemented outward-rounded interval/Krawczyk isolation; domain completeness is withheld on unresolved boxes.",
+ "Coordinate likelihood fitting is local with specified covariance. Bayesian draws are conditional on specified structure and covariance. No nominal calibration claims.",
+ "Continuous-time ODE/OU semantics remain distinct from static equilibrium SCMs.",
+ "Joint parameter/factual abduction includes training likelihood, factual structural density, measurement likelihood and normal parameter prior; its diagnostics cover all sampled coordinates.",
+ "Typed mechanism, simultaneous-equation and dynamic execution blocks extend the existing model compiler; no scheduling result proves solvability or identification.",
+ "Named clamps, mechanism changes/replacements and shocks retain distinct identities; numerical/certificate response failures preserve original draw positions.",
+ "BGCM graphical reasoning is theorem-scoped; finite polynomial candidate fitting is not a general latent BGCM estimator.",
+ "Generalized ID is observation-only with explicit ioSCM/product-density premises; procedure failure is not non-identifiability.",
+]
+upstream_implementations_observed = []
+test_sources = ["inline crate unit tests registered in parity/v3_test_registry.toml, including exhaustive small incidence graphs against independent closed-form Gaussian truths", "python/tests/test_cyclic.py"]
+
+[[reference_fixture]]
+id = "overlapping-nonlinear-loops"
+source = "examples/python/general_cyclic_systems.py"
+truth = "Independent scalar fixed-point generator with correlated Gaussian disturbances; single-intervention training and held-out joint intervention; shared-noise factual counterfactual; fresh-process refit/replay."
+
+[[reference_fixture]]
+id = "cyclic-id-frontdoor-and-scc-kernels"
+source = "crates/antecedent-identify/src/cyclic_id.rs"
+truth = "Independent binary joint tables and a latent binary frontdoor generator; verifies the executable generalized-ID IR numerically, including SCC joint kernels."
+
+[[reference_fixture]]
+id = "exhaustive-cyclic-fci"
+source = "crates/antecedent-discovery/src/cyclic_fci.rs"
+truth = "All 512 three-node directed/bidirected configurations; oracle skeleton and ancestral-mark soundness. Existing sigma-separation tests independently compare walk and acyclification engines."
+
+[[reference_fixture]]
+id = "bipartite-linear-gaussian-truth"
+source = "crates/antecedent-graph/src/bipartite.rs"
+truth = "Exhaustive small equation incidence patterns against closed-form independently solved Gaussian equations; determinism-aware conditional covariance and equation-order invariance."
+
+[[reference_fixture]]
+id = "joint-factual-parameter-abduction"
+source = "crates/antecedent-estimate/src/cyclic_likelihood.rs"
+truth = "Conjugate Gaussian posterior with noisy factual measurement; training and factual evidence both update parameters, preserving parameter/disturbance coupling."
+
+[[reference_fixture]]
+id = "joint-multiple-equilibrium-selection"
+source = "crates/antecedent-estimate/src/polynomial_scm.rs"
+truth = "Independent finite cubic/quadratic branch laws with identical interventional marginals but counterfactual means +1.2 and -1.2; noisy factual posterior 0.8/0.2; parameter posterior 64/65; intervention-induced undefined mass one; explicit unresolved and impossible evidence."
+
+[[reference_fixture]]
+id = "compositional-free-system-score"
+source = "crates/antecedent-model/src/nonlinear_equilibrium.rs"
+truth = "Central-difference reference for every intercept, legacy weight and compositional parameter score, with self-feedback, correlated disturbances and a clamped free system. Forward/reverse tape derivatives have separate finite-difference checks."
+
+[[reference_fixture]]
+id = "typed-cyclic-functional-replay"
+source = "crates/antecedent-io/src/cyclic_functional.rs"
+truth = "Independent binary joint table; source graph and exact functional binding, intervention probabilities 0.2 and 0.5, explicit positivity failure, out-of-band source identity rejection and artifact replay."
+
+[[reference_fixture]]
+id = "cyclic-calculus-gaussian-exhaustive"
+source = "crates/antecedent-identify/src/cyclic_calculus.rs"
+truth = "Every verified observation/action/exchange rewrite on all 512 three-node mixed graphs, all ordered query pairs and optional fixed/conditioned third variable, compared with independent dense Gaussian conditioning and intervention algebra."
+
+[[reference_fixture]]
+id = "ou-shared-equation-score"
+source = "crates/antecedent-estimate/src/ou_mechanisms.rs"
+truth = "Independent central differences for shared drift, forcing and diffusion scores with equation replacements; stationary laws additionally compared against SciPy continuous Lyapunov solutions in paper protocols."
+
+[[reference_fixture]]
+id = "paper-synthetic-protocols"
+source = "examples/python/cyclic_paper_experiments.py"
+truth = "Independent NumPy equilibrium generators and SciPy OU laws, declared published feature/sample sizes, disjoint validation/test joint interventions, original optimizer failure diagnostics and fresh-process CPU artifact reconstruction. Reduced smoke mode is explicitly not a paper reproduction."
+
+[[reference_fixture]]
+id = "continuous-identified-density-composition"
+source = "crates/antecedent-io/src/cyclic_gaussian_functional.rs"
+truth = "Independent latent Gaussian frontdoor structural law gives do(X=1) outcome N(0.4,2.13); checked continuous IR products/ratios and analytic Gaussian integrals agree. IID Gaussian MLE moments, invalid assignments, source mismatch and refit/replay are checked separately."

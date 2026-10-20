@@ -1,0 +1,145 @@
+{
+  "identity": "76d14e4372d8ad78e30039ff8c87a0503e091e05052f140e91cb313dced16f45",
+  "fit": {
+    "model": {
+      "equations": [
+        {
+          "id": "a",
+          "intercept": 0.0,
+          "weights": [
+            0.0,
+            0.302294921875,
+            0.20202636718750003
+          ],
+          "activation": "tanh"
+        },
+        {
+          "id": "b",
+          "intercept": 0.0,
+          "weights": [
+            0.25262451171875006,
+            0.0,
+            0.0
+          ],
+          "activation": "tanh"
+        },
+        {
+          "id": "c",
+          "intercept": 0.0,
+          "weights": [
+            -0.19727783203125004,
+            0.0,
+            0.0
+          ],
+          "activation": "tanh"
+        }
+      ],
+      "noise_covariance": [
+        0.0009,
+        0.00027,
+        0.0,
+        0.00027,
+        0.0009,
+        0.0,
+        0.0,
+        0.0,
+        0.0009
+      ]
+    },
+    "log_likelihood": 759.464213827745,
+    "objective": 759.464213827745,
+    "sweeps": 28,
+    "converged": true,
+    "evaluations": 225
+  },
+  "worlds": [
+    [
+      {
+        "values": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "residual": 0.0,
+        "iterations": 0,
+        "globally_unique": true,
+        "existence_certified": true,
+        "numerical_converged": true,
+        "dynamic_stability": null,
+        "jacobian_condition_estimate": 2.348739197332169,
+        "blocks": [
+          [
+            0,
+            1,
+            2
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "values": [
+          0.12003852571990714,
+          0.8,
+          -0.6
+        ],
+        "residual": 0.0,
+        "iterations": 1,
+        "globally_unique": true,
+        "existence_certified": true,
+        "numerical_converged": true,
+        "dynamic_stability": null,
+        "jacobian_condition_estimate": 1.0,
+        "blocks": [
+          [
+            0
+          ]
+        ]
+      }
+    ]
+  ],
+  "counterfactuals": [
+    {
+      "values": [
+        0.2,
+        0.3,
+        -0.1
+      ],
+      "residual": 0.0,
+      "iterations": 0,
+      "globally_unique": true,
+      "existence_certified": true,
+      "numerical_converged": true,
+      "dynamic_stability": null,
+      "jacobian_condition_estimate": 2.3401876953777867,
+      "blocks": [
+        [
+          0,
+          1,
+          2
+        ]
+      ]
+    },
+    {
+      "values": [
+        0.2496691848726274,
+        0.8,
+        -0.6
+      ],
+      "residual": 0.0,
+      "iterations": 1,
+      "globally_unique": true,
+      "existence_certified": true,
+      "numerical_converged": true,
+      "dynamic_stability": null,
+      "jacobian_condition_estimate": 1.0,
+      "blocks": [
+        [
+          0
+        ]
+      ]
+    }
+  ],
+  "claim": "specified_or_fitted_model_conditional",
+  "calibration": "unmeasured"
+}

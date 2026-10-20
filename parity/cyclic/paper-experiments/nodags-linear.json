@@ -1,0 +1,969 @@
+{
+  "manifest": {
+    "lane": "nodags-linear",
+    "full": true,
+    "trials": 5,
+    "max_iterations": 1000,
+    "script_sha256": "c646e1e0c7e0f6239515e41158f2c2a50c93f22975cee806ece5107bc8930549",
+    "protocol": "independent_paper_derived_data_and_native_public_workflows",
+    "calibration": "separate_not_assessed",
+    "attestation": "separate_not_performed"
+  },
+  "trials": [
+    {
+      "lane": "nodags-linear",
+      "seed": 0,
+      "mode": "paper_size",
+      "paper": "https://proceedings.mlr.press/v206/sethuraman23a/sethuraman23a.pdf",
+      "paper_sections": [
+        "5.1",
+        "B.1",
+        "B.3"
+      ],
+      "nodes": 20,
+      "samples_per_single_intervention": 5000,
+      "training_rows": 100000,
+      "validation_targets": [
+        [
+          1,
+          19
+        ],
+        [
+          3,
+          6,
+          15
+        ],
+        [
+          2,
+          3,
+          17
+        ],
+        [
+          12,
+          18
+        ],
+        [
+          8,
+          12,
+          16
+        ],
+        [
+          0,
+          7,
+          12
+        ],
+        [
+          10,
+          13
+        ],
+        [
+          0,
+          3,
+          18
+        ],
+        [
+          9,
+          15
+        ],
+        [
+          6,
+          13
+        ]
+      ],
+      "test_targets": [
+        [
+          7,
+          13
+        ],
+        [
+          3,
+          8
+        ],
+        [
+          5,
+          9,
+          17
+        ],
+        [
+          3,
+          9,
+          10
+        ],
+        [
+          7,
+          17
+        ],
+        [
+          5,
+          18
+        ],
+        [
+          2,
+          3,
+          13
+        ],
+        [
+          0,
+          1,
+          11
+        ],
+        [
+          11,
+          17
+        ],
+        [
+          6,
+          14
+        ],
+        [
+          17,
+          19
+        ],
+        [
+          3,
+          8,
+          11
+        ],
+        [
+          0,
+          13
+        ],
+        [
+          2,
+          18
+        ],
+        [
+          7,
+          9,
+          11
+        ],
+        [
+          12,
+          17
+        ],
+        [
+          2,
+          15,
+          16
+        ],
+        [
+          7,
+          15
+        ],
+        [
+          6,
+          7
+        ],
+        [
+          12,
+          15,
+          17
+        ]
+      ],
+      "heldout_regimes_disjoint_from_training": true,
+      "attempts": [
+        {
+          "penalty_per_row": 0.001,
+          "validation_nll": 0.730486343417133,
+          "converged": true,
+          "score_per_row": 0.0009430674021793652,
+          "iterations": 24,
+          "line_search_exhausted": false
+        },
+        {
+          "penalty_per_row": 0.01,
+          "validation_nll": 0.7305453917847367,
+          "converged": true,
+          "score_per_row": 0.0008313703326142786,
+          "iterations": 23,
+          "line_search_exhausted": false
+        }
+      ],
+      "fit_converged": true,
+      "auprc": 0.9784007679726943,
+      "weight_rmse": 0.0029166515508540517,
+      "heldout_nll_per_free_coordinate": 0.7300788800436887,
+      "oracle_nll_per_free_coordinate": 0.7300109492750174,
+      "null_nll_per_free_coordinate": 0.7793242094289207,
+      "deviations": [
+        "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
+        "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
+        "Exact full Jacobians and proximal likelihood fitting in the data-generating single-layer family; no copied neural-mask or stochastic logdet code.",
+        "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
+      ],
+      "artifact": {
+        "identity": "1829c2c99ab7fd78cb1e6a12b4ef8974c29b78e5d4882002d7d587d4d1a95fc0",
+        "bytes": 20015622,
+        "artifact_sha256": "f470a6d0bdf35e48e6b00ffa0dca7cb761d450b9ed4b433376952e57d7c1f33e",
+        "fresh_process_cpu_replay": true
+      },
+      "wall_seconds": 21.52225675014779
+    },
+    {
+      "lane": "nodags-linear",
+      "seed": 1,
+      "mode": "paper_size",
+      "paper": "https://proceedings.mlr.press/v206/sethuraman23a/sethuraman23a.pdf",
+      "paper_sections": [
+        "5.1",
+        "B.1",
+        "B.3"
+      ],
+      "nodes": 20,
+      "samples_per_single_intervention": 5000,
+      "training_rows": 100000,
+      "validation_targets": [
+        [
+          4,
+          5,
+          10
+        ],
+        [
+          7,
+          8,
+          13
+        ],
+        [
+          9,
+          12,
+          15
+        ],
+        [
+          10,
+          16
+        ],
+        [
+          14,
+          17
+        ],
+        [
+          2,
+          11,
+          18
+        ],
+        [
+          10,
+          14
+        ],
+        [
+          6,
+          7,
+          13
+        ],
+        [
+          18,
+          19
+        ],
+        [
+          2,
+          11
+        ]
+      ],
+      "test_targets": [
+        [
+          5,
+          9,
+          10
+        ],
+        [
+          2,
+          7,
+          17
+        ],
+        [
+          8,
+          15,
+          16
+        ],
+        [
+          4,
+          19
+        ],
+        [
+          12,
+          13,
+          16
+        ],
+        [
+          16,
+          19
+        ],
+        [
+          8,
+          16
+        ],
+        [
+          7,
+          10,
+          12
+        ],
+        [
+          11,
+          19
+        ],
+        [
+          0,
+          6,
+          7
+        ],
+        [
+          1,
+          7
+        ],
+        [
+          8,
+          11
+        ],
+        [
+          0,
+          17
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          4,
+          11
+        ],
+        [
+          11,
+          14
+        ],
+        [
+          7,
+          13,
+          19
+        ],
+        [
+          3,
+          18
+        ],
+        [
+          5,
+          9,
+          12
+        ],
+        [
+          10,
+          12,
+          19
+        ]
+      ],
+      "heldout_regimes_disjoint_from_training": true,
+      "attempts": [
+        {
+          "penalty_per_row": 0.001,
+          "validation_nll": 0.7277769353040919,
+          "converged": true,
+          "score_per_row": 0.0007490578293555131,
+          "iterations": 31,
+          "line_search_exhausted": false
+        },
+        {
+          "penalty_per_row": 0.01,
+          "validation_nll": 0.7278141453813076,
+          "converged": true,
+          "score_per_row": 0.0009436390255829747,
+          "iterations": 23,
+          "line_search_exhausted": false
+        }
+      ],
+      "fit_converged": true,
+      "auprc": 0.977646451047309,
+      "weight_rmse": 0.002716099151113809,
+      "heldout_nll_per_free_coordinate": 0.7280210566544776,
+      "oracle_nll_per_free_coordinate": 0.7279498728651171,
+      "null_nll_per_free_coordinate": 0.7709765205882446,
+      "deviations": [
+        "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
+        "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
+        "Exact full Jacobians and proximal likelihood fitting in the data-generating single-layer family; no copied neural-mask or stochastic logdet code.",
+        "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
+      ],
+      "artifact": {
+        "identity": "d6a2a6f450f8d557c2aa143f74f9a9020a857fa436c569e6bbe1b2aa2e0c0bf2",
+        "bytes": 20014470,
+        "artifact_sha256": "374991f14512e70ebb7f555ef1a4c86f3b834a0bf77f852113adee5156375f09",
+        "fresh_process_cpu_replay": true
+      },
+      "wall_seconds": 21.717637792229652
+    },
+    {
+      "lane": "nodags-linear",
+      "seed": 2,
+      "mode": "paper_size",
+      "paper": "https://proceedings.mlr.press/v206/sethuraman23a/sethuraman23a.pdf",
+      "paper_sections": [
+        "5.1",
+        "B.1",
+        "B.3"
+      ],
+      "nodes": 20,
+      "samples_per_single_intervention": 5000,
+      "training_rows": 100000,
+      "validation_targets": [
+        [
+          2,
+          4
+        ],
+        [
+          6,
+          15,
+          19
+        ],
+        [
+          14,
+          17
+        ],
+        [
+          0,
+          10,
+          14
+        ],
+        [
+          4,
+          6,
+          12
+        ],
+        [
+          0,
+          4,
+          11
+        ],
+        [
+          8,
+          18
+        ],
+        [
+          3,
+          9,
+          13
+        ],
+        [
+          9,
+          10
+        ],
+        [
+          0,
+          11,
+          19
+        ]
+      ],
+      "test_targets": [
+        [
+          3,
+          11
+        ],
+        [
+          1,
+          2,
+          8
+        ],
+        [
+          3,
+          13,
+          14
+        ],
+        [
+          3,
+          5,
+          8
+        ],
+        [
+          7,
+          10,
+          14
+        ],
+        [
+          9,
+          14
+        ],
+        [
+          2,
+          11
+        ],
+        [
+          4,
+          13
+        ],
+        [
+          11,
+          16
+        ],
+        [
+          13,
+          14,
+          17
+        ],
+        [
+          2,
+          14
+        ],
+        [
+          8,
+          17
+        ],
+        [
+          2,
+          7
+        ],
+        [
+          2,
+          11,
+          16
+        ],
+        [
+          0,
+          17
+        ],
+        [
+          0,
+          9,
+          18
+        ],
+        [
+          5,
+          15,
+          17
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          4,
+          8
+        ],
+        [
+          7,
+          10,
+          16
+        ]
+      ],
+      "heldout_regimes_disjoint_from_training": true,
+      "attempts": [
+        {
+          "penalty_per_row": 0.001,
+          "validation_nll": 0.7264335458281633,
+          "converged": true,
+          "score_per_row": 0.0008744702826079404,
+          "iterations": 25,
+          "line_search_exhausted": false
+        },
+        {
+          "penalty_per_row": 0.01,
+          "validation_nll": 0.7265072960376069,
+          "converged": true,
+          "score_per_row": 0.0007181365982781289,
+          "iterations": 21,
+          "line_search_exhausted": false
+        }
+      ],
+      "fit_converged": true,
+      "auprc": 0.9829749103942652,
+      "weight_rmse": 0.002635011649007662,
+      "heldout_nll_per_free_coordinate": 0.7291577868194952,
+      "oracle_nll_per_free_coordinate": 0.7290973542038286,
+      "null_nll_per_free_coordinate": 0.7809641610918053,
+      "deviations": [
+        "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
+        "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
+        "Exact full Jacobians and proximal likelihood fitting in the data-generating single-layer family; no copied neural-mask or stochastic logdet code.",
+        "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
+      ],
+      "artifact": {
+        "identity": "9c4dfb8f37c9ba25780626cd1be31447896b56418e768c7f6cb578255efb824c",
+        "bytes": 20015313,
+        "artifact_sha256": "7022d3f0d4f695412ce3f64e13ecd9e116c2c54d9930e960b06915d84b31a97f",
+        "fresh_process_cpu_replay": true
+      },
+      "wall_seconds": 26.036067083012313
+    },
+    {
+      "lane": "nodags-linear",
+      "seed": 3,
+      "mode": "paper_size",
+      "paper": "https://proceedings.mlr.press/v206/sethuraman23a/sethuraman23a.pdf",
+      "paper_sections": [
+        "5.1",
+        "B.1",
+        "B.3"
+      ],
+      "nodes": 20,
+      "samples_per_single_intervention": 5000,
+      "training_rows": 100000,
+      "validation_targets": [
+        [
+          6,
+          17
+        ],
+        [
+          3,
+          18,
+          19
+        ],
+        [
+          9,
+          10
+        ],
+        [
+          3,
+          12,
+          13
+        ],
+        [
+          6,
+          7,
+          18
+        ],
+        [
+          15,
+          17
+        ],
+        [
+          6,
+          16,
+          18
+        ],
+        [
+          2,
+          17
+        ],
+        [
+          5,
+          19
+        ],
+        [
+          2,
+          8,
+          12
+        ]
+      ],
+      "test_targets": [
+        [
+          7,
+          10,
+          17
+        ],
+        [
+          7,
+          17
+        ],
+        [
+          6,
+          9
+        ],
+        [
+          7,
+          8,
+          15
+        ],
+        [
+          6,
+          13,
+          18
+        ],
+        [
+          2,
+          7,
+          8
+        ],
+        [
+          0,
+          9
+        ],
+        [
+          4,
+          5,
+          16
+        ],
+        [
+          0,
+          18
+        ],
+        [
+          1,
+          4,
+          15
+        ],
+        [
+          0,
+          7
+        ],
+        [
+          8,
+          15
+        ],
+        [
+          11,
+          12
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          13,
+          15,
+          17
+        ],
+        [
+          6,
+          11
+        ],
+        [
+          5,
+          11,
+          13
+        ],
+        [
+          2,
+          13,
+          17
+        ],
+        [
+          3,
+          6,
+          11
+        ],
+        [
+          7,
+          9,
+          19
+        ]
+      ],
+      "heldout_regimes_disjoint_from_training": true,
+      "attempts": [
+        {
+          "penalty_per_row": 0.001,
+          "validation_nll": 0.7265384582294966,
+          "converged": true,
+          "score_per_row": 0.000948588172194452,
+          "iterations": 38,
+          "line_search_exhausted": false
+        },
+        {
+          "penalty_per_row": 0.01,
+          "validation_nll": 0.7265671738096152,
+          "converged": true,
+          "score_per_row": 0.00041164745036698975,
+          "iterations": 27,
+          "line_search_exhausted": false
+        }
+      ],
+      "fit_converged": true,
+      "auprc": 0.9489271548095076,
+      "weight_rmse": 0.002468696422770413,
+      "heldout_nll_per_free_coordinate": 0.7257606195052628,
+      "oracle_nll_per_free_coordinate": 0.7256874114986726,
+      "null_nll_per_free_coordinate": 0.8288857706405924,
+      "deviations": [
+        "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
+        "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
+        "Exact full Jacobians and proximal likelihood fitting in the data-generating single-layer family; no copied neural-mask or stochastic logdet code.",
+        "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
+      ],
+      "artifact": {
+        "identity": "6cd46f57350390af5f646ef5e49f4cc3fad7ecd296afb84457bc4f7a5d8c36f3",
+        "bytes": 20012789,
+        "artifact_sha256": "4e7b14733da0c133981cbe65ec4da63043b9c35b839d0995412160a20675543e",
+        "fresh_process_cpu_replay": true
+      },
+      "wall_seconds": 11.153372125234455
+    },
+    {
+      "lane": "nodags-linear",
+      "seed": 4,
+      "mode": "paper_size",
+      "paper": "https://proceedings.mlr.press/v206/sethuraman23a/sethuraman23a.pdf",
+      "paper_sections": [
+        "5.1",
+        "B.1",
+        "B.3"
+      ],
+      "nodes": 20,
+      "samples_per_single_intervention": 5000,
+      "training_rows": 100000,
+      "validation_targets": [
+        [
+          8,
+          9,
+          15
+        ],
+        [
+          2,
+          11,
+          19
+        ],
+        [
+          1,
+          6,
+          10
+        ],
+        [
+          2,
+          7,
+          10
+        ],
+        [
+          0,
+          4,
+          17
+        ],
+        [
+          3,
+          8,
+          11
+        ],
+        [
+          1,
+          13,
+          19
+        ],
+        [
+          0,
+          18
+        ],
+        [
+          3,
+          6,
+          18
+        ],
+        [
+          2,
+          14
+        ]
+      ],
+      "test_targets": [
+        [
+          12,
+          15,
+          18
+        ],
+        [
+          1,
+          14,
+          15
+        ],
+        [
+          5,
+          6
+        ],
+        [
+          9,
+          17
+        ],
+        [
+          8,
+          12
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          8,
+          14,
+          15
+        ],
+        [
+          6,
+          7,
+          16
+        ],
+        [
+          5,
+          9,
+          13
+        ],
+        [
+          7,
+          13
+        ],
+        [
+          5,
+          7,
+          8
+        ],
+        [
+          4,
+          18,
+          19
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          4,
+          8
+        ],
+        [
+          9,
+          14
+        ],
+        [
+          7,
+          14,
+          16
+        ],
+        [
+          2,
+          13,
+          19
+        ],
+        [
+          7,
+          8
+        ],
+        [
+          12,
+          13
+        ],
+        [
+          6,
+          18
+        ]
+      ],
+      "heldout_regimes_disjoint_from_training": true,
+      "attempts": [
+        {
+          "penalty_per_row": 0.001,
+          "validation_nll": 0.7292837329980493,
+          "converged": true,
+          "score_per_row": 0.0006082085868234194,
+          "iterations": 31,
+          "line_search_exhausted": false
+        },
+        {
+          "penalty_per_row": 0.01,
+          "validation_nll": 0.7293004362436024,
+          "converged": true,
+          "score_per_row": 0.0008004128956114345,
+          "iterations": 29,
+          "line_search_exhausted": false
+        }
+      ],
+      "fit_converged": true,
+      "auprc": 0.9748538011695906,
+      "weight_rmse": 0.0026302226539330386,
+      "heldout_nll_per_free_coordinate": 0.730344459786589,
+      "oracle_nll_per_free_coordinate": 0.7302865775335544,
+      "null_nll_per_free_coordinate": 0.7658511831133068,
+      "deviations": [
+        "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
+        "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
+        "Exact full Jacobians and proximal likelihood fitting in the data-generating single-layer family; no copied neural-mask or stochastic logdet code.",
+        "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
+      ],
+      "artifact": {
+        "identity": "147f7c5346586c15ac829aa2e3e112e6991e3d60b1e86715a9c2ecda244c4f89",
+        "bytes": 20016031,
+        "artifact_sha256": "d64d4b1d938c1a3f18a3cba8c2b7b38c1b550936a5e666f3dbc6e115357b33b2",
+        "fresh_process_cpu_replay": true
+      },
+      "wall_seconds": 9.3041918752715
+    }
+  ]
+}

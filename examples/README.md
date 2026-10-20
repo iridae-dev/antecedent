@@ -45,6 +45,12 @@ All datasets are simulated. Runtime estimates assume a warm installed environmen
 | **Sequential Bayes** — Use one batch’s results as prior evidence for the next <details><summary>Claim scope</summary>Posterior evidence transferred between compatible analyses under their declared models and evidence policy.</details> | intermediate / up to 5 min | none | [python](python/sequential_bayes.py) · [rust](rust/sequential_bayes.rs) |
 | **Can last quarter's campaign inform this quarter's sales analysis?** — Transfer historical campaign evidence and update it with current observations. <details><summary>Claim scope</summary>Historical treatment-effect posterior transfer with target compatibility and new-data updating.</details> | intermediate / up to 5 min | pandas, matplotlib, ipykernel | [notebook](notebooks/sales_campaign_prior_transfer.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.1/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
 
+## Cyclic systems
+
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **Independent cyclic paper protocols** — Reproduce applicable nonlinear and stochastic feedback synthetic experiments with held-out joint interventions and fresh CPU artifact replay. <details><summary>Claim scope</summary>Specified synthetic likelihood experiments with explicit deviations, optimizer diagnostics and independent numerical references; no calibration or latent recovery claim</details> | advanced / paper-size runs vary with feature and sample counts | numpy, scipy | [python](python/cyclic_paper_experiments.py) |
+
 ## Decisions and composition
 
 | Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
@@ -105,6 +111,12 @@ All datasets are simulated. Runtime estimates assume a warm installed environmen
 | --- | --- | --- | --- |
 | **DoWhy handoff** — Exchange a reviewed backdoor graph with DoWhy (optional dependency) <details><summary>Claim scope</summary>Reviewed backdoor graph exchange; each library owns its own fit and scientific interpretation.</details> | intermediate / up to 1 min | pandas, dowhy (optional) | [python](python/dowhy_handoff.py) |
 | **EconML handoff** — Compare adjusted average effects with EconML CATE predictions (optional dependency) <details><summary>Claim scope</summary>Antecedent supplies adjustment columns; the optional EconML fit owns its conditional-effect output.</details> | intermediate / up to 1 min | econml (optional) | [python](python/econml_cate_handoff.py) |
+
+## Mechanisms and counterfactuals
+
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **General cyclic systems (3.0 development)** — Fit overlapping nonlinear feedback loops, query a held-out joint intervention and replay a shared-noise counterfactual artifact. <details><summary>Claim scope</summary>Specified-structure/covariance nonlinear equilibrium likelihood and shared-disturbance counterfactuals; calibration unmeasured.</details> | advanced / up to 1 min | none | [python](python/general_cyclic_systems.py) |
 
 ## Temporal and longitudinal
 

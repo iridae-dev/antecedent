@@ -2624,3 +2624,9 @@ rust = "antecedent::analysis::repeated_measures_posterior_report::seal_report_wi
 kind = "fn"
 status = "internal"
 reason = "test-only seal used by the Rust forgery test; Python has no call that seals an unvalidated report"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::load_decision"
+kind = "fn"
+status = "missing"
+reason = "Existing mixed-decision replay entry surfaced by regenerated API inventory; the Python composition-verification consumer does not expose this separate Rust-typed mixed-decision workflow. Unrelated to the cyclic implementation."

@@ -272,6 +272,10 @@ impl core::clone::Clone for antecedent_identify::counterfactual_id::Counterfactu
 impl core::clone::Clone for antecedent_identify::cross_world::CounterfactualNode
 impl core::clone::Clone for antecedent_identify::cross_world::CrossWorldRefusal
 impl core::clone::Clone for antecedent_identify::cross_world::CrossWorldWitness
+impl core::clone::Clone for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::clone::Clone for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::clone::Clone for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::clone::Clone for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::clone::Clone for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::clone::Clone for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::clone::Clone for antecedent_identify::discovered_transport::EnvelopeMember
@@ -293,7 +297,15 @@ impl core::clone::Clone for antecedent_identify::experiment_moments::RegimeIncon
 impl core::clone::Clone for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::clone::Clone for antecedent_identify::experimental_recovery::AssembledCoefficientRecovery
 impl core::clone::Clone for antecedent_identify::experimental_recovery::DeclarationRecovery
+impl core::clone::Clone for antecedent_identify::experimental_recovery::DrawAdmissibility
 impl core::clone::Clone for antecedent_identify::experimental_recovery::FiniteSampleConditioning
+impl core::clone::Clone for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
+impl core::clone::Clone for antecedent_identify::experimental_recovery::JointRecoveryDraw
+impl core::clone::Clone for antecedent_identify::experimental_recovery::PointCollapseRefusal
+impl core::clone::Clone for antecedent_identify::experimental_recovery::RecoveredCoefficientPoint
+impl core::clone::Clone for antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty
+impl core::clone::Clone for antecedent_identify::experimental_recovery::RecoveryDrawInput
+impl core::clone::Clone for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::clone::Clone for antecedent_identify::experimental_recovery::UniquenessRestriction
 impl core::clone::Clone for antecedent_identify::history_identification::CertifiedHistory
 impl core::clone::Clone for antecedent_identify::history_identification::FeedbackAncestor
@@ -493,6 +505,10 @@ impl core::cmp::Eq for antecedent_identify::counterfactual_id::CounterfactualNod
 impl core::cmp::Eq for antecedent_identify::cross_world::CounterfactualNode
 impl core::cmp::Eq for antecedent_identify::cross_world::CrossWorldRefusal
 impl core::cmp::Eq for antecedent_identify::cross_world::CrossWorldWitness
+impl core::cmp::Eq for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::cmp::Eq for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::cmp::Eq for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::cmp::Eq for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::cmp::Eq for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::cmp::Eq for antecedent_identify::discovered_transport::EnvelopeStatus
 impl core::cmp::Eq for antecedent_identify::discovered_transport::UnresolvedPair
@@ -502,7 +518,10 @@ impl core::cmp::Eq for antecedent_identify::experiment_moments::MissingPair
 impl core::cmp::Eq for antecedent_identify::experiment_moments::MomentAssemblyRefusal
 impl core::cmp::Eq for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::DeclarationRecovery
+impl core::cmp::Eq for antecedent_identify::experimental_recovery::DrawAdmissibility
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::FiniteSampleConditioning
+impl core::cmp::Eq for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
+impl core::cmp::Eq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::UniquenessRestriction
 impl core::cmp::Eq for antecedent_identify::history_identification::CertifiedHistory
 impl core::cmp::Eq for antecedent_identify::history_identification::FeedbackAncestor
@@ -720,6 +739,10 @@ impl core::cmp::PartialEq for antecedent_identify::counterfactual_id::Counterfac
 impl core::cmp::PartialEq for antecedent_identify::cross_world::CounterfactualNode
 impl core::cmp::PartialEq for antecedent_identify::cross_world::CrossWorldRefusal
 impl core::cmp::PartialEq for antecedent_identify::cross_world::CrossWorldWitness
+impl core::cmp::PartialEq for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::cmp::PartialEq for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::cmp::PartialEq for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::cmp::PartialEq for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::EnvelopeMember
@@ -741,7 +764,15 @@ impl core::cmp::PartialEq for antecedent_identify::experiment_moments::RegimeInc
 impl core::cmp::PartialEq for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::AssembledCoefficientRecovery
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::DeclarationRecovery
+impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::DrawAdmissibility
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::FiniteSampleConditioning
+impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
+impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::JointRecoveryDraw
+impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::PointCollapseRefusal
+impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::RecoveredCoefficientPoint
+impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty
+impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::RecoveryDrawInput
+impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::UniquenessRestriction
 impl core::cmp::PartialEq for antecedent_identify::history_identification::CertifiedHistory
 impl core::cmp::PartialEq for antecedent_identify::history_identification::FeedbackAncestor
@@ -830,7 +861,10 @@ impl core::error::Error for antecedent_identify::ProductRefusal
 impl core::error::Error for antecedent_identify::RecoveryError
 impl core::error::Error for antecedent_identify::StudyPlanRefusal
 impl core::error::Error for antecedent_identify::counterfactual_id::CounterfactualIdRefusal
+impl core::error::Error for antecedent_identify::cyclic_id::CyclicIdError
 impl core::error::Error for antecedent_identify::discovered_transport::DiscoveredTransportError
+impl core::error::Error for antecedent_identify::experimental_recovery::PointCollapseRefusal
+impl core::error::Error for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::error::Error for antecedent_identify::history_identification::HistoryIdentificationRefusal
 impl core::error::Error for antecedent_identify::sid::cpdag_completion::CpdagScenarioError
 impl core::error::Error for antecedent_identify::sid::scenario_invariance::InvarianceReportError
@@ -1081,6 +1115,11 @@ impl core::fmt::Debug for antecedent_identify::counterfactual_id::Counterfactual
 impl core::fmt::Debug for antecedent_identify::cross_world::CounterfactualNode
 impl core::fmt::Debug for antecedent_identify::cross_world::CrossWorldRefusal
 impl core::fmt::Debug for antecedent_identify::cross_world::CrossWorldWitness
+impl core::fmt::Debug for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::fmt::Debug for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::fmt::Debug for antecedent_identify::cyclic_id::CyclicIdError
+impl core::fmt::Debug for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::fmt::Debug for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::fmt::Debug for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::fmt::Debug for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::fmt::Debug for antecedent_identify::discovered_transport::EnvelopeMember
@@ -1102,7 +1141,15 @@ impl core::fmt::Debug for antecedent_identify::experiment_moments::RegimeInconsi
 impl core::fmt::Debug for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::AssembledCoefficientRecovery
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::DeclarationRecovery
+impl core::fmt::Debug for antecedent_identify::experimental_recovery::DrawAdmissibility
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::FiniteSampleConditioning
+impl core::fmt::Debug for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
+impl core::fmt::Debug for antecedent_identify::experimental_recovery::JointRecoveryDraw
+impl core::fmt::Debug for antecedent_identify::experimental_recovery::PointCollapseRefusal
+impl core::fmt::Debug for antecedent_identify::experimental_recovery::RecoveredCoefficientPoint
+impl core::fmt::Debug for antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty
+impl core::fmt::Debug for antecedent_identify::experimental_recovery::RecoveryDrawInput
+impl core::fmt::Debug for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::UniquenessRestriction
 impl core::fmt::Debug for antecedent_identify::history_identification::CertifiedHistory
 impl core::fmt::Debug for antecedent_identify::history_identification::FeedbackAncestor
@@ -1169,10 +1216,13 @@ impl core::fmt::Display for antecedent_identify::RegimeRefusalReason
 impl core::fmt::Display for antecedent_identify::SourceIdentity
 impl core::fmt::Display for antecedent_identify::StudyPlanRefusal
 impl core::fmt::Display for antecedent_identify::counterfactual_id::CounterfactualIdRefusal
+impl core::fmt::Display for antecedent_identify::cyclic_id::CyclicIdError
 impl core::fmt::Display for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::fmt::Display for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::fmt::Display for antecedent_identify::experiment_moments::MomentAssemblyRefusal
 impl core::fmt::Display for antecedent_identify::experiment_moments::RegimeInconsistency
+impl core::fmt::Display for antecedent_identify::experimental_recovery::PointCollapseRefusal
+impl core::fmt::Display for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::fmt::Display for antecedent_identify::history_identification::HistoryIdentificationRefusal
 impl core::fmt::Display for antecedent_identify::sid::cpdag_completion::CpdagScenarioError
 impl core::fmt::Display for antecedent_identify::sid::scenario_invariance::InvarianceReportError
@@ -1214,7 +1264,10 @@ impl core::hash::Hash for antecedent_identify::experiment_moments::ConstraintRow
 impl core::hash::Hash for antecedent_identify::experiment_moments::MissingPair
 impl core::hash::Hash for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::hash::Hash for antecedent_identify::experimental_recovery::DeclarationRecovery
+impl core::hash::Hash for antecedent_identify::experimental_recovery::DrawAdmissibility
 impl core::hash::Hash for antecedent_identify::experimental_recovery::FiniteSampleConditioning
+impl core::hash::Hash for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
+impl core::hash::Hash for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::hash::Hash for antecedent_identify::experimental_recovery::UniquenessRestriction
 impl core::hash::Hash for antecedent_identify::history_identification::FeedbackAncestor
 impl core::hash::Hash for antecedent_identify::history_identification::HistoryIdentificationTarget
@@ -1265,13 +1318,21 @@ impl core::marker::Copy for antecedent_identify::counterfactual_id::CfSymbol
 impl core::marker::Copy for antecedent_identify::counterfactual_id::CfValue
 impl core::marker::Copy for antecedent_identify::counterfactual_id::CounterfactualIdSearchRecord
 impl core::marker::Copy for antecedent_identify::counterfactual_id::CounterfactualIdShape
+impl core::marker::Copy for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::marker::Copy for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::marker::Copy for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::marker::Copy for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::marker::Copy for antecedent_identify::discovered_transport::EnvelopeStatus
 impl core::marker::Copy for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::marker::Copy for antecedent_identify::experiment_moments::ConstraintRow
 impl core::marker::Copy for antecedent_identify::experiment_moments::MissingPair
 impl core::marker::Copy for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::marker::Copy for antecedent_identify::experimental_recovery::DeclarationRecovery
+impl core::marker::Copy for antecedent_identify::experimental_recovery::DrawAdmissibility
 impl core::marker::Copy for antecedent_identify::experimental_recovery::FiniteSampleConditioning
+impl core::marker::Copy for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
+impl core::marker::Copy for antecedent_identify::experimental_recovery::PointCollapseRefusal
+impl core::marker::Copy for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::marker::Copy for antecedent_identify::experimental_recovery::UniquenessRestriction
 impl core::marker::Copy for antecedent_identify::history_identification::FeedbackAncestor
 impl core::marker::Copy for antecedent_identify::history_identification::HistoryIdentificationRefusal
@@ -1526,6 +1587,13 @@ impl core::marker::Freeze for antecedent_identify::counterfactual_id::Counterfac
 impl core::marker::Freeze for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::marker::Freeze for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::marker::Freeze for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -1547,7 +1615,15 @@ impl core::marker::Freeze for antecedent_identify::experiment_moments::RegimeInc
 impl core::marker::Freeze for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::AssembledCoefficientRecovery [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::DeclarationRecovery [auto]
+impl core::marker::Freeze for antecedent_identify::experimental_recovery::DrawAdmissibility [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
+impl core::marker::Freeze for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw [auto]
+impl core::marker::Freeze for antecedent_identify::experimental_recovery::JointRecoveryDraw [auto]
+impl core::marker::Freeze for antecedent_identify::experimental_recovery::PointCollapseRefusal [auto]
+impl core::marker::Freeze for antecedent_identify::experimental_recovery::RecoveredCoefficientPoint [auto]
+impl core::marker::Freeze for antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty [auto]
+impl core::marker::Freeze for antecedent_identify::experimental_recovery::RecoveryDrawInput [auto]
+impl core::marker::Freeze for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
 impl core::marker::Freeze for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::marker::Freeze for antecedent_identify::history_identification::FeedbackAncestor [auto]
@@ -1848,6 +1924,13 @@ impl core::marker::Send for antecedent_identify::counterfactual_id::Counterfactu
 impl core::marker::Send for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::marker::Send for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::marker::Send for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::marker::Send for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::marker::Send for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::marker::Send for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -1869,7 +1952,15 @@ impl core::marker::Send for antecedent_identify::experiment_moments::RegimeIncon
 impl core::marker::Send for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::AssembledCoefficientRecovery [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::DeclarationRecovery [auto]
+impl core::marker::Send for antecedent_identify::experimental_recovery::DrawAdmissibility [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
+impl core::marker::Send for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw [auto]
+impl core::marker::Send for antecedent_identify::experimental_recovery::JointRecoveryDraw [auto]
+impl core::marker::Send for antecedent_identify::experimental_recovery::PointCollapseRefusal [auto]
+impl core::marker::Send for antecedent_identify::experimental_recovery::RecoveredCoefficientPoint [auto]
+impl core::marker::Send for antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty [auto]
+impl core::marker::Send for antecedent_identify::experimental_recovery::RecoveryDrawInput [auto]
+impl core::marker::Send for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
 impl core::marker::Send for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::marker::Send for antecedent_identify::history_identification::FeedbackAncestor [auto]
@@ -2095,6 +2186,10 @@ impl core::marker::StructuralPartialEq for antecedent_identify::counterfactual_i
 impl core::marker::StructuralPartialEq for antecedent_identify::cross_world::CounterfactualNode
 impl core::marker::StructuralPartialEq for antecedent_identify::cross_world::CrossWorldRefusal
 impl core::marker::StructuralPartialEq for antecedent_identify::cross_world::CrossWorldWitness
+impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_calculus::CyclicCalculusRule
+impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_id::CyclicIdPremises
+impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::EnvelopeMember
@@ -2116,7 +2211,15 @@ impl core::marker::StructuralPartialEq for antecedent_identify::experiment_momen
 impl core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::AssembledCoefficientRecovery
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::DeclarationRecovery
+impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::DrawAdmissibility
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::FiniteSampleConditioning
+impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
+impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::JointRecoveryDraw
+impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::PointCollapseRefusal
+impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::RecoveredCoefficientPoint
+impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty
+impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::RecoveryDrawInput
+impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::UniquenessRestriction
 impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::CertifiedHistory
 impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::FeedbackAncestor
@@ -2396,6 +2499,13 @@ impl core::marker::Sync for antecedent_identify::counterfactual_id::Counterfactu
 impl core::marker::Sync for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::marker::Sync for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::marker::Sync for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -2417,7 +2527,15 @@ impl core::marker::Sync for antecedent_identify::experiment_moments::RegimeIncon
 impl core::marker::Sync for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::AssembledCoefficientRecovery [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::DeclarationRecovery [auto]
+impl core::marker::Sync for antecedent_identify::experimental_recovery::DrawAdmissibility [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
+impl core::marker::Sync for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw [auto]
+impl core::marker::Sync for antecedent_identify::experimental_recovery::JointRecoveryDraw [auto]
+impl core::marker::Sync for antecedent_identify::experimental_recovery::PointCollapseRefusal [auto]
+impl core::marker::Sync for antecedent_identify::experimental_recovery::RecoveredCoefficientPoint [auto]
+impl core::marker::Sync for antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty [auto]
+impl core::marker::Sync for antecedent_identify::experimental_recovery::RecoveryDrawInput [auto]
+impl core::marker::Sync for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
 impl core::marker::Sync for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::marker::Sync for antecedent_identify::history_identification::FeedbackAncestor [auto]
@@ -2718,6 +2836,13 @@ impl core::marker::Unpin for antecedent_identify::counterfactual_id::Counterfact
 impl core::marker::Unpin for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::marker::Unpin for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::marker::Unpin for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -2739,7 +2864,15 @@ impl core::marker::Unpin for antecedent_identify::experiment_moments::RegimeInco
 impl core::marker::Unpin for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::AssembledCoefficientRecovery [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::DeclarationRecovery [auto]
+impl core::marker::Unpin for antecedent_identify::experimental_recovery::DrawAdmissibility [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
+impl core::marker::Unpin for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw [auto]
+impl core::marker::Unpin for antecedent_identify::experimental_recovery::JointRecoveryDraw [auto]
+impl core::marker::Unpin for antecedent_identify::experimental_recovery::PointCollapseRefusal [auto]
+impl core::marker::Unpin for antecedent_identify::experimental_recovery::RecoveredCoefficientPoint [auto]
+impl core::marker::Unpin for antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty [auto]
+impl core::marker::Unpin for antecedent_identify::experimental_recovery::RecoveryDrawInput [auto]
+impl core::marker::Unpin for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
 impl core::marker::Unpin for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::marker::Unpin for antecedent_identify::history_identification::FeedbackAncestor [auto]
@@ -3040,6 +3173,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::counterfac
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -3061,7 +3201,15 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::AssembledCoefficientRecovery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::DeclarationRecovery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::DrawAdmissibility [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::JointRecoveryDraw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::PointCollapseRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::RecoveredCoefficientPoint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::RecoveryDrawInput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::FeedbackAncestor [auto]
@@ -3362,6 +3510,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::counterfactua
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cross_world::CounterfactualNode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cross_world::CrossWorldRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cross_world::CrossWorldWitness [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusApplication [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusRule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_calculus::CyclicCalculusStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::CyclicIdError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::CyclicIdPremises [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::EnvelopeMember [auto]
@@ -3383,7 +3538,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_mo
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::AssembledCoefficientRecovery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::DeclarationRecovery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::DrawAdmissibility [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::JointRecoveryDraw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::PointCollapseRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::RecoveredCoefficientPoint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::RecoveryDrawInput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::FeedbackAncestor [auto]
@@ -3478,6 +3641,7 @@ impl serde_core::ser::Serialize for antecedent_identify::counterfactual_id::Coun
 impl serde_core::ser::Serialize for antecedent_identify::counterfactual_id::CounterfactualObstruction
 impl serde_core::ser::Serialize for antecedent_identify::cross_world::CounterfactualNode
 impl serde_core::ser::Serialize for antecedent_identify::cross_world::CrossWorldWitness
+impl serde_core::ser::Serialize for antecedent_identify::cyclic_calculus::CyclicCalculusRule
 impl serde_core::ser::Serialize for antecedent_identify::sid::Rule
 impl serde_core::ser::Serialize for antecedent_identify::sid::SHedgeRecord
 impl serde_core::ser::Serialize for antecedent_identify::sid::SelectionForestRecord
@@ -3597,6 +3761,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::counterfactu
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::counterfactual_id::CounterfactualObstruction
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::cross_world::CounterfactualNode
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::cross_world::CrossWorldWitness
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::cyclic_calculus::CyclicCalculusRule
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::sid::Rule
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::sid::SHedgeRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::sid::SelectionForestRecord
@@ -3770,6 +3935,10 @@ pub enum antecedent_identify::counterfactual_id::CfValue
 pub enum antecedent_identify::counterfactual_id::CounterfactualFunctional
 pub enum antecedent_identify::counterfactual_id::CounterfactualIdShape
 pub enum antecedent_identify::counterfactual_id::CounterfactualObstruction
+pub enum antecedent_identify::cyclic_calculus::CyclicCalculusRule
+pub enum antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+pub enum antecedent_identify::cyclic_id::CyclicIdError
+pub enum antecedent_identify::cyclic_id::CyclicIdStatus
 pub enum antecedent_identify::discovered_transport::EnvelopeStatus
 pub enum antecedent_identify::discovered_transport::MemberVerdict
 pub enum antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
@@ -3778,7 +3947,10 @@ pub enum antecedent_identify::experiment_moments::MomentAssemblyRefusal
 pub enum antecedent_identify::experiment_moments::RegimeInconsistency
 pub enum antecedent_identify::experimental_recovery::AssembledCoefficientRecovery
 pub enum antecedent_identify::experimental_recovery::DeclarationRecovery
+pub enum antecedent_identify::experimental_recovery::DrawAdmissibility
 pub enum antecedent_identify::experimental_recovery::FiniteSampleConditioning
+pub enum antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
+pub enum antecedent_identify::experimental_recovery::UncertaintyFault
 pub enum antecedent_identify::experimental_recovery::UniquenessRestriction
 pub enum antecedent_identify::history_identification::HistoryIdentification
 pub enum antecedent_identify::history_identification::HistoryIdentificationRefusal
@@ -4428,6 +4600,16 @@ pub field antecedent_identify::cross_world::CrossWorldWitness::outcome: u32
 pub field antecedent_identify::cross_world::CrossWorldWitness::query_text: alloc::string::String
 pub field antecedent_identify::cross_world::CrossWorldWitness::rerouted_edges: alloc::vec::Vec<(u32, u32, u8)>
 pub field antecedent_identify::cross_world::CrossWorldWitness::treatment: u32
+pub field antecedent_identify::cyclic_calculus::CyclicCalculusApplication::derivation: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_identify::cyclic_calculus::CyclicCalculusApplication::program: core::option::Option<antecedent_expr::program::FunctionalProgram>
+pub field antecedent_identify::cyclic_calculus::CyclicCalculusApplication::sigma_checks: usize
+pub field antecedent_identify::cyclic_calculus::CyclicCalculusApplication::status: antecedent_identify::cyclic_calculus::CyclicCalculusStatus
+pub field antecedent_identify::cyclic_id::CyclicIdPremises::io_scm: bool
+pub field antecedent_identify::cyclic_id::CyclicIdPremises::scc_product_density: bool
+pub field antecedent_identify::cyclic_id::CyclicIdentification::derivation: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_identify::cyclic_id::CyclicIdentification::premises: antecedent_identify::cyclic_id::CyclicIdPremises
+pub field antecedent_identify::cyclic_id::CyclicIdentification::program: core::option::Option<antecedent_expr::program::FunctionalProgram>
+pub field antecedent_identify::cyclic_id::CyclicIdentification::status: antecedent_identify::cyclic_id::CyclicIdStatus
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::code: &'static str
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::detail: &'static str
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::exhausted_search_bounds: usize
@@ -4491,6 +4673,15 @@ pub field antecedent_identify::experiment_moments::TargetConstraintBlock::source
 pub field antecedent_identify::experiment_moments::TargetConstraintBlock::target: antecedent_core::ids::VariableId
 pub field antecedent_identify::experiment_moments::UnitColumn::unit: antecedent_core::ids::VariableId
 pub field antecedent_identify::experiment_moments::UnitColumn::values: &'a [f64]
+pub field antecedent_identify::experimental_recovery::PointCollapseRefusal::draws: usize
+pub field antecedent_identify::experimental_recovery::PointCollapseRefusal::inadmissible_mass: f64
+pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::coefficients: alloc::vec::Vec<(antecedent_identify::DirectCoefficient, f64)>
+pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::intercept: alloc::vec::Vec<f64>
+pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::marked_inadmissible: bool
+pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::noise_covariance: alloc::vec::Vec<f64>
+pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::noise_mean: alloc::vec::Vec<f64>
+pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::unresolved: alloc::vec::Vec<antecedent_identify::UnresolvedDirection>
+pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::weight: f64
 pub field antecedent_identify::sid::SHedgeCertificate::larger: antecedent_identify::sid::SelectionForest
 pub field antecedent_identify::sid::SHedgeCertificate::smaller: antecedent_identify::sid::SelectionForest
 pub field antecedent_identify::sid::SHedgeRecord::evidence_setting: alloc::string::String
@@ -5046,6 +5237,24 @@ pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnv
 pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::fn status(&self) -> antecedent_identify::discovered_transport::EnvelopeStatus
 pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::fn unresolved(&self) -> &[antecedent_identify::discovered_transport::UnresolvedPair]
 pub fn <antecedent_identify::experimental_recovery::AssembledCoefficientRecovery>::fn coefficients(&self) -> core::option::Option<&[f64]>
+pub fn <antecedent_identify::experimental_recovery::JointRecoveryDraw>::const fn admissibility(&self) -> antecedent_identify::experimental_recovery::DrawAdmissibility
+pub fn <antecedent_identify::experimental_recovery::JointRecoveryDraw>::const fn is_inadmissible(&self) -> bool
+pub fn <antecedent_identify::experimental_recovery::JointRecoveryDraw>::const fn marked_inadmissible(&self) -> bool
+pub fn <antecedent_identify::experimental_recovery::JointRecoveryDraw>::const fn weight(&self) -> f64
+pub fn <antecedent_identify::experimental_recovery::JointRecoveryDraw>::fn coefficients(&self) -> &[(antecedent_identify::DirectCoefficient, f64)]
+pub fn <antecedent_identify::experimental_recovery::JointRecoveryDraw>::fn intercept(&self) -> &[f64]
+pub fn <antecedent_identify::experimental_recovery::JointRecoveryDraw>::fn noise_covariance(&self) -> &[f64]
+pub fn <antecedent_identify::experimental_recovery::JointRecoveryDraw>::fn noise_mean(&self) -> &[f64]
+pub fn <antecedent_identify::experimental_recovery::JointRecoveryDraw>::fn unresolved(&self) -> &[antecedent_identify::UnresolvedDirection]
+pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientPoint>::fn coefficients(&self) -> &[(antecedent_identify::DirectCoefficient, f64)]
+pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientPoint>::fn noise_covariance(&self) -> &[f64]
+pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientPoint>::fn plug_in(coefficients: alloc::vec::Vec<(antecedent_identify::DirectCoefficient, f64)>, noise_covariance: alloc::vec::Vec<f64>) -> Self
+pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn draws(&self) -> &[antecedent_identify::experimental_recovery::JointRecoveryDraw]
+pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn inadmissible_mass(&self) -> f64
+pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn nodes(&self) -> &[antecedent_core::ids::VariableId]
+pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn retain(nodes: &[antecedent_core::ids::VariableId], draws: alloc::vec::Vec<antecedent_identify::experimental_recovery::RecoveryDrawInput>) -> core::result::Result<Self, antecedent_identify::experimental_recovery::UncertaintyFault>
+pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn total_mass(&self) -> f64
+pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn try_collapse(&self) -> core::result::Result<antecedent_identify::experimental_recovery::RecoveredCoefficientPoint, antecedent_identify::experimental_recovery::PointCollapseRefusal>
 pub fn <antecedent_identify::history_identification::CertifiedHistory>::const fn initial_law(&self) -> &antecedent_core::scientific_target::InitialLaw
 pub fn <antecedent_identify::history_identification::CertifiedHistory>::const fn search_bound(&self) -> antecedent_identify::history_identification::HistorySearchBound
 pub fn <antecedent_identify::history_identification::CertifiedHistory>::fn ancestry(&self) -> &[antecedent_identify::history_identification::FeedbackAncestor]
@@ -5134,6 +5343,10 @@ pub fn antecedent_identify::bind_transport_derivation(arena: &mut antecedent_exp
 pub fn antecedent_identify::bind_z_transport_catalog(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, derivation: &antecedent_identify::ZTransportDerivation, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::BoundZTransportFunctional, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::counterfactual_id::decide_counterfactual_id(problem: &antecedent_identify::counterfactual_id::CounterfactualIdProblem, query: &antecedent_core::query::counterfactual_event::CounterfactualEventQuery, limits: antecedent_core::search::SearchLimits, memory_limit_bytes: u64, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::counterfactual_id::CounterfactualIdDerivation, antecedent_identify::counterfactual_id::CounterfactualIdRefusal>
 pub fn antecedent_identify::cross_world::check_cross_world(graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::cross_world::CrossWorldQuery) -> core::result::Result<antecedent_identify::cross_world::CrossWorldWitness, antecedent_identify::cross_world::CrossWorldRefusal>
+pub fn antecedent_identify::cyclic_calculus::apply_cyclic_calculus(graph: &antecedent_graph::cyclic::CyclicMixedGraph, rule: antecedent_identify::cyclic_calculus::CyclicCalculusRule, x: &[usize], y: &[usize], z: &[usize], w: &[usize], io_scm: bool, standard_measurable_spaces: bool, max_checks: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::cyclic_calculus::CyclicCalculusApplication, antecedent_identify::cyclic_id::CyclicIdError>
+pub fn antecedent_identify::cyclic_calculus::identify_cyclic_adjustment(graph: &antecedent_graph::cyclic::CyclicMixedGraph, outcomes: &[usize], treatments: &[usize], adjustment: &[usize], continuous: bool, premises: antecedent_identify::cyclic_id::CyclicIdPremises) -> core::result::Result<core::option::Option<antecedent_expr::program::FunctionalProgram>, antecedent_identify::cyclic_id::CyclicIdError>
+pub fn antecedent_identify::cyclic_id::cyclic_backdoor_valid(graph: &antecedent_graph::cyclic::CyclicMixedGraph, outcomes: &[usize], treatments: &[usize], adjustment: &[usize], premises: antecedent_identify::cyclic_id::CyclicIdPremises) -> core::result::Result<bool, antecedent_identify::cyclic_id::CyclicIdError>
+pub fn antecedent_identify::cyclic_id::identify_cyclic(graph: &antecedent_graph::cyclic::CyclicMixedGraph, outcomes: &[usize], treatments: &[usize], premises: antecedent_identify::cyclic_id::CyclicIdPremises, continuous: bool, max_steps: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::cyclic_id::CyclicIdentification, antecedent_identify::cyclic_id::CyclicIdError>
 pub fn antecedent_identify::dag_to_admg(dag: &antecedent_graph::dag::Dag) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::decide_admg_conditional_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ConditionalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ConditionalTransportDecision, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::decide_chain_recovery(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ChainRecoveryQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ChainRecoveryDecision, antecedent_identify::ChainRecoveryError>
@@ -5155,6 +5368,7 @@ pub fn antecedent_identify::experiment_moments::assemble_experiment_constraints(
 pub fn antecedent_identify::experiment_moments::constraint_column_report(block: &antecedent_identify::experiment_moments::TargetConstraintBlock) -> antecedent_identify::experiment_moments::ConstraintColumnReport
 pub fn antecedent_identify::experiment_moments::experiment_constraint_bytes(units: u64, regimes: u64, constraint_rows: u64, max_rows: u64) -> core::result::Result<u64, antecedent_identify::experiment_moments::MomentAssemblyRefusal>
 pub fn antecedent_identify::experiment_regime::validate_regime_contract(contract: &antecedent_identify::RegimeContract) -> antecedent_identify::RegimeContractDecision
+pub fn antecedent_identify::experimental_recovery::joint_draw_from_blocks(nodes: &[antecedent_core::ids::VariableId], blocks: &[antecedent_identify::experimental_recovery::AssembledCoefficientRecovery], intercept: alloc::vec::Vec<f64>, noise_mean: alloc::vec::Vec<f64>, noise_covariance: alloc::vec::Vec<f64>, weight: f64) -> core::result::Result<antecedent_identify::experimental_recovery::JointRecoveryDraw, antecedent_identify::experimental_recovery::UncertaintyFault>
 pub fn antecedent_identify::experimental_recovery::recover_assembled_coefficients(block: &antecedent_identify::experiment_moments::TargetConstraintBlock, asserted_rank: core::option::Option<&antecedent_identify::DeclaredEquationRank>, weak_stability: antecedent_identify::WeakStability) -> antecedent_identify::experimental_recovery::AssembledCoefficientRecovery
 pub fn antecedent_identify::history_identification::identify_history(target: antecedent_identify::history_identification::HistoryIdentificationTarget, graph: &antecedent_graph::temporal::TemporalDag, focus: antecedent_core::temporal::TemporalNodeKey, initial_law: core::option::Option<&antecedent_core::scientific_target::InitialLaw>, bound: antecedent_identify::history_identification::HistorySearchBound) -> core::result::Result<antecedent_identify::history_identification::HistoryIdentification, antecedent_identify::history_identification::HistoryIdentificationRefusal>
 pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
@@ -5211,6 +5425,8 @@ pub mod antecedent_identify::bounds
 pub mod antecedent_identify::compiled_product
 pub mod antecedent_identify::counterfactual_id
 pub mod antecedent_identify::cross_world
+pub mod antecedent_identify::cyclic_calculus
+pub mod antecedent_identify::cyclic_id
 pub mod antecedent_identify::discovered_transport
 pub mod antecedent_identify::discovered_transport_temporal
 pub mod antecedent_identify::efficient
@@ -5464,6 +5680,9 @@ pub struct antecedent_identify::counterfactual_id::CounterfactualIdSearchRecord
 pub struct antecedent_identify::counterfactual_id::CounterfactualNodeRecord
 pub struct antecedent_identify::cross_world::CounterfactualNode
 pub struct antecedent_identify::cross_world::CrossWorldRefusal
+pub struct antecedent_identify::cyclic_calculus::CyclicCalculusApplication
+pub struct antecedent_identify::cyclic_id::CyclicIdPremises
+pub struct antecedent_identify::cyclic_id::CyclicIdentification
 pub struct antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 pub struct antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a>
 pub struct antecedent_identify::discovered_transport::EnvelopeMember
@@ -5485,6 +5704,14 @@ pub struct antecedent_identify::experiment_moments::MissingPair
 pub struct antecedent_identify::experiment_moments::RegimeSample<'a>
 pub struct antecedent_identify::experiment_moments::TargetConstraintBlock
 pub struct antecedent_identify::experiment_moments::UnitColumn<'a>
+pub struct antecedent_identify::experimental_recovery::JointRecoveryDraw
+pub struct antecedent_identify::experimental_recovery::JointRecoveryDraw has private fields
+pub struct antecedent_identify::experimental_recovery::PointCollapseRefusal
+pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientPoint
+pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientPoint has private fields
+pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty
+pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty has private fields
+pub struct antecedent_identify::experimental_recovery::RecoveryDrawInput
 pub struct antecedent_identify::history_identification::CertifiedHistory
 pub struct antecedent_identify::history_identification::CertifiedHistory has private fields
 pub struct antecedent_identify::history_identification::FeedbackAncestor
@@ -6120,6 +6347,17 @@ pub variant antecedent_identify::counterfactual_id::CounterfactualIdShape::Effec
 pub variant antecedent_identify::counterfactual_id::CounterfactualIdShape::ExactZero
 pub variant antecedent_identify::counterfactual_id::CounterfactualObstruction::ConflictingSubscripts { graph: antecedent_identify::counterfactual_id::CounterfactualGraphRecord, variable: u32, subscript: antecedent_identify::counterfactual_id::CfValue, event: core::option::Option<antecedent_identify::counterfactual_id::CfValue> }
 pub variant antecedent_identify::counterfactual_id::CounterfactualObstruction::Hedge { node_count: usize, directed: alloc::vec::Vec<(u32, u32)>, bidirected: alloc::vec::Vec<(u32, u32)>, treatments: alloc::vec::Vec<u32>, outcomes: alloc::vec::Vec<u32>, f: alloc::vec::Vec<u32>, f_prime: alloc::vec::Vec<u32> }
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusRule::Action
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusRule::Exchange
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusRule::Observation
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusStatus::BudgetExhausted
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusStatus::NotLicensedByCriterion
+pub variant antecedent_identify::cyclic_calculus::CyclicCalculusStatus::Verified
+pub variant antecedent_identify::cyclic_id::CyclicIdError::Invalid(alloc::string::String)
+pub variant antecedent_identify::cyclic_id::CyclicIdError::Resource(alloc::string::String)
+pub variant antecedent_identify::cyclic_id::CyclicIdStatus::BudgetExhausted
+pub variant antecedent_identify::cyclic_id::CyclicIdStatus::Identified
+pub variant antecedent_identify::cyclic_id::CyclicIdStatus::NotIdentifiedByProcedure
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Estimation(alloc::string::String)
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Identification(antecedent_identify::IdentificationError)
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Refused(antecedent_identify::discovered_transport::DiscoveredTransportRefusal)
@@ -6158,9 +6396,25 @@ pub variant antecedent_identify::experimental_recovery::AssembledCoefficientReco
 pub variant antecedent_identify::experimental_recovery::AssembledCoefficientRecovery::NotAConstraint
 pub variant antecedent_identify::experimental_recovery::AssembledCoefficientRecovery::NullDirections { target: antecedent_core::ids::VariableId, sources: alloc::vec::Vec<antecedent_core::ids::VariableId>, column_rank: usize, directions: alloc::vec::Vec<alloc::vec::Vec<f64>>, full_rank_was_asserted: bool }
 pub variant antecedent_identify::experimental_recovery::DeclarationRecovery::NoCoefficients
+pub variant antecedent_identify::experimental_recovery::DrawAdmissibility::Admissible
+pub variant antecedent_identify::experimental_recovery::DrawAdmissibility::Inadmissible(antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw)
 pub variant antecedent_identify::experimental_recovery::FiniteSampleConditioning::FiniteConditionNumber
 pub variant antecedent_identify::experimental_recovery::FiniteSampleConditioning::NotDeclared
 pub variant antecedent_identify::experimental_recovery::FiniteSampleConditioning::SampleFullColumnRank
+pub variant antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw::IncompleteMechanism
+pub variant antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw::Marked
+pub variant antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw::NoiseNotJoint
+pub variant antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw::NonFiniteParameter
+pub variant antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw::StructuralDiagonal
+pub variant antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw::UnresolvedDirections
+pub variant antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw::WeightNotMass
+pub variant antecedent_identify::experimental_recovery::UncertaintyFault::BlockInconsistent { block: usize, column_rank: usize }
+pub variant antecedent_identify::experimental_recovery::UncertaintyFault::BlockNotAConstraint { block: usize }
+pub variant antecedent_identify::experimental_recovery::UncertaintyFault::BlockShape { block: usize, target: antecedent_core::ids::VariableId, sources: usize, values: usize }
+pub variant antecedent_identify::experimental_recovery::UncertaintyFault::DuplicateNode
+pub variant antecedent_identify::experimental_recovery::UncertaintyFault::EmptyNodes
+pub variant antecedent_identify::experimental_recovery::UncertaintyFault::NoDraws
+pub variant antecedent_identify::experimental_recovery::UncertaintyFault::UnsortedNodes
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::BackgroundZero
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::Faithfulness
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::MinimumNormCompletion
