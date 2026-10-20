@@ -9,6 +9,7 @@
 #[non_exhaustive] pub enum antecedent_model::discretized_scm::DiscretizationMethod
 #[non_exhaustive] pub enum antecedent_model::history_operators::HistoryOperatorError
 #[non_exhaustive] pub enum antecedent_model::information_time::InformationRefusal
+#[non_exhaustive] pub enum antecedent_model::intervention_request::InterventionRequestError
 #[non_exhaustive] pub enum antecedent_model::observation_query::ObservationQueryError
 #[non_exhaustive] pub enum antecedent_model::observation_query::UnreachableBound
 #[non_exhaustive] pub enum antecedent_model::scc_compile::SccCompileError
@@ -167,6 +168,27 @@ impl core::clone::Clone for antecedent_model::information_time::ForwardOnly
 impl core::clone::Clone for antecedent_model::information_time::InformationRefusal
 impl core::clone::Clone for antecedent_model::information_time::InformationUse
 impl core::clone::Clone for antecedent_model::information_time::RetrospectivePermission
+impl core::clone::Clone for antecedent_model::intervention_request::ClampTarget
+impl core::clone::Clone for antecedent_model::intervention_request::HardClampIdentity
+impl core::clone::Clone for antecedent_model::intervention_request::HardClampRequest
+impl core::clone::Clone for antecedent_model::intervention_request::InitialStateChangeRequest
+impl core::clone::Clone for antecedent_model::intervention_request::InitialStateIdentity
+impl core::clone::Clone for antecedent_model::intervention_request::InitialStateTarget
+impl core::clone::Clone for antecedent_model::intervention_request::InterventionBinding
+impl core::clone::Clone for antecedent_model::intervention_request::InterventionKind
+impl core::clone::Clone for antecedent_model::intervention_request::InterventionRequest
+impl core::clone::Clone for antecedent_model::intervention_request::InterventionRequestError
+impl core::clone::Clone for antecedent_model::intervention_request::MechanismShiftIdentity
+impl core::clone::Clone for antecedent_model::intervention_request::MechanismShiftRequest
+impl core::clone::Clone for antecedent_model::intervention_request::MechanismTarget
+impl core::clone::Clone for antecedent_model::intervention_request::PulseIdentity
+impl core::clone::Clone for antecedent_model::intervention_request::PulseRequest
+impl core::clone::Clone for antecedent_model::intervention_request::PulseTarget
+impl core::clone::Clone for antecedent_model::intervention_request::RevalidatedFreeBlock
+impl core::clone::Clone for antecedent_model::intervention_request::SustainedActionRequest
+impl core::clone::Clone for antecedent_model::intervention_request::SustainedIdentity
+impl core::clone::Clone for antecedent_model::intervention_request::SustainedTarget
+impl core::clone::Clone for antecedent_model::linear_solution::SolvabilityRefusal
 impl core::clone::Clone for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::clone::Clone for antecedent_model::mechanism_transport::MechanismRole
 impl core::clone::Clone for antecedent_model::mechanism_transport::MechanismTransportRequest
@@ -260,6 +282,26 @@ impl core::cmp::Eq for antecedent_model::information_time::ForwardOnly
 impl core::cmp::Eq for antecedent_model::information_time::InformationRefusal
 impl core::cmp::Eq for antecedent_model::information_time::InformationUse
 impl core::cmp::Eq for antecedent_model::information_time::RetrospectivePermission
+impl core::cmp::Eq for antecedent_model::intervention_request::ClampTarget
+impl core::cmp::Eq for antecedent_model::intervention_request::HardClampIdentity
+impl core::cmp::Eq for antecedent_model::intervention_request::HardClampRequest
+impl core::cmp::Eq for antecedent_model::intervention_request::InitialStateChangeRequest
+impl core::cmp::Eq for antecedent_model::intervention_request::InitialStateIdentity
+impl core::cmp::Eq for antecedent_model::intervention_request::InitialStateTarget
+impl core::cmp::Eq for antecedent_model::intervention_request::InterventionBinding
+impl core::cmp::Eq for antecedent_model::intervention_request::InterventionKind
+impl core::cmp::Eq for antecedent_model::intervention_request::InterventionRequest
+impl core::cmp::Eq for antecedent_model::intervention_request::InterventionRequestError
+impl core::cmp::Eq for antecedent_model::intervention_request::MechanismShiftIdentity
+impl core::cmp::Eq for antecedent_model::intervention_request::MechanismShiftRequest
+impl core::cmp::Eq for antecedent_model::intervention_request::MechanismTarget
+impl core::cmp::Eq for antecedent_model::intervention_request::PulseIdentity
+impl core::cmp::Eq for antecedent_model::intervention_request::PulseRequest
+impl core::cmp::Eq for antecedent_model::intervention_request::PulseTarget
+impl core::cmp::Eq for antecedent_model::intervention_request::SustainedActionRequest
+impl core::cmp::Eq for antecedent_model::intervention_request::SustainedIdentity
+impl core::cmp::Eq for antecedent_model::intervention_request::SustainedTarget
+impl core::cmp::Eq for antecedent_model::linear_solution::SolvabilityRefusal
 impl core::cmp::Eq for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::cmp::Eq for antecedent_model::mechanism_transport::MechanismRole
 impl core::cmp::Eq for antecedent_model::observation_query::Direction
@@ -387,6 +429,27 @@ impl core::cmp::PartialEq for antecedent_model::information_time::ForwardOnly
 impl core::cmp::PartialEq for antecedent_model::information_time::InformationRefusal
 impl core::cmp::PartialEq for antecedent_model::information_time::InformationUse
 impl core::cmp::PartialEq for antecedent_model::information_time::RetrospectivePermission
+impl core::cmp::PartialEq for antecedent_model::intervention_request::ClampTarget
+impl core::cmp::PartialEq for antecedent_model::intervention_request::HardClampIdentity
+impl core::cmp::PartialEq for antecedent_model::intervention_request::HardClampRequest
+impl core::cmp::PartialEq for antecedent_model::intervention_request::InitialStateChangeRequest
+impl core::cmp::PartialEq for antecedent_model::intervention_request::InitialStateIdentity
+impl core::cmp::PartialEq for antecedent_model::intervention_request::InitialStateTarget
+impl core::cmp::PartialEq for antecedent_model::intervention_request::InterventionBinding
+impl core::cmp::PartialEq for antecedent_model::intervention_request::InterventionKind
+impl core::cmp::PartialEq for antecedent_model::intervention_request::InterventionRequest
+impl core::cmp::PartialEq for antecedent_model::intervention_request::InterventionRequestError
+impl core::cmp::PartialEq for antecedent_model::intervention_request::MechanismShiftIdentity
+impl core::cmp::PartialEq for antecedent_model::intervention_request::MechanismShiftRequest
+impl core::cmp::PartialEq for antecedent_model::intervention_request::MechanismTarget
+impl core::cmp::PartialEq for antecedent_model::intervention_request::PulseIdentity
+impl core::cmp::PartialEq for antecedent_model::intervention_request::PulseRequest
+impl core::cmp::PartialEq for antecedent_model::intervention_request::PulseTarget
+impl core::cmp::PartialEq for antecedent_model::intervention_request::RevalidatedFreeBlock
+impl core::cmp::PartialEq for antecedent_model::intervention_request::SustainedActionRequest
+impl core::cmp::PartialEq for antecedent_model::intervention_request::SustainedIdentity
+impl core::cmp::PartialEq for antecedent_model::intervention_request::SustainedTarget
+impl core::cmp::PartialEq for antecedent_model::linear_solution::SolvabilityRefusal
 impl core::cmp::PartialEq for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::cmp::PartialEq for antecedent_model::mechanism_transport::MechanismRole
 impl core::cmp::PartialEq for antecedent_model::mechanism_transport::MechanismTransportRequest
@@ -447,6 +510,7 @@ impl core::error::Error for antecedent_model::compose::CompositionError
 impl core::error::Error for antecedent_model::discretized_scm_artifact::ArtifactRefusal
 impl core::error::Error for antecedent_model::history_operators::HistoryOperatorError
 impl core::error::Error for antecedent_model::information_time::InformationRefusal
+impl core::error::Error for antecedent_model::intervention_request::InterventionRequestError
 impl core::error::Error for antecedent_model::observation_query::ObservationQueryError
 impl core::error::Error for antecedent_model::scc_compile::SccCompileError
 impl core::fmt::Debug for antecedent_model::BasisTerm
@@ -589,6 +653,27 @@ impl core::fmt::Debug for antecedent_model::information_time::ForwardOnly
 impl core::fmt::Debug for antecedent_model::information_time::InformationRefusal
 impl core::fmt::Debug for antecedent_model::information_time::InformationUse
 impl core::fmt::Debug for antecedent_model::information_time::RetrospectivePermission
+impl core::fmt::Debug for antecedent_model::intervention_request::ClampTarget
+impl core::fmt::Debug for antecedent_model::intervention_request::HardClampIdentity
+impl core::fmt::Debug for antecedent_model::intervention_request::HardClampRequest
+impl core::fmt::Debug for antecedent_model::intervention_request::InitialStateChangeRequest
+impl core::fmt::Debug for antecedent_model::intervention_request::InitialStateIdentity
+impl core::fmt::Debug for antecedent_model::intervention_request::InitialStateTarget
+impl core::fmt::Debug for antecedent_model::intervention_request::InterventionBinding
+impl core::fmt::Debug for antecedent_model::intervention_request::InterventionKind
+impl core::fmt::Debug for antecedent_model::intervention_request::InterventionRequest
+impl core::fmt::Debug for antecedent_model::intervention_request::InterventionRequestError
+impl core::fmt::Debug for antecedent_model::intervention_request::MechanismShiftIdentity
+impl core::fmt::Debug for antecedent_model::intervention_request::MechanismShiftRequest
+impl core::fmt::Debug for antecedent_model::intervention_request::MechanismTarget
+impl core::fmt::Debug for antecedent_model::intervention_request::PulseIdentity
+impl core::fmt::Debug for antecedent_model::intervention_request::PulseRequest
+impl core::fmt::Debug for antecedent_model::intervention_request::PulseTarget
+impl core::fmt::Debug for antecedent_model::intervention_request::RevalidatedFreeBlock
+impl core::fmt::Debug for antecedent_model::intervention_request::SustainedActionRequest
+impl core::fmt::Debug for antecedent_model::intervention_request::SustainedIdentity
+impl core::fmt::Debug for antecedent_model::intervention_request::SustainedTarget
+impl core::fmt::Debug for antecedent_model::linear_solution::SolvabilityRefusal
 impl core::fmt::Debug for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::fmt::Debug for antecedent_model::mechanism_transport::MechanismRole
 impl core::fmt::Debug for antecedent_model::mechanism_transport::MechanismTransportRequest
@@ -622,6 +707,9 @@ impl core::fmt::Display for antecedent_model::discretized_scm_artifact::Artifact
 impl core::fmt::Display for antecedent_model::history_operators::HistoryOperatorError
 impl core::fmt::Display for antecedent_model::history_operators::WeightRole
 impl core::fmt::Display for antecedent_model::information_time::InformationRefusal
+impl core::fmt::Display for antecedent_model::intervention_request::InterventionKind
+impl core::fmt::Display for antecedent_model::intervention_request::InterventionRequestError
+impl core::fmt::Display for antecedent_model::linear_solution::SolvabilityRefusal
 impl core::fmt::Display for antecedent_model::observation_query::ObservationQueryError
 impl core::fmt::Display for antecedent_model::scc_compile::SccCompileError
 impl core::hash::Hash for antecedent_model::BasisTerm
@@ -649,6 +737,17 @@ impl core::hash::Hash for antecedent_model::information_time::ForwardOnly
 impl core::hash::Hash for antecedent_model::information_time::InformationRefusal
 impl core::hash::Hash for antecedent_model::information_time::InformationUse
 impl core::hash::Hash for antecedent_model::information_time::RetrospectivePermission
+impl core::hash::Hash for antecedent_model::intervention_request::ClampTarget
+impl core::hash::Hash for antecedent_model::intervention_request::HardClampIdentity
+impl core::hash::Hash for antecedent_model::intervention_request::InitialStateIdentity
+impl core::hash::Hash for antecedent_model::intervention_request::InitialStateTarget
+impl core::hash::Hash for antecedent_model::intervention_request::InterventionKind
+impl core::hash::Hash for antecedent_model::intervention_request::MechanismShiftIdentity
+impl core::hash::Hash for antecedent_model::intervention_request::MechanismTarget
+impl core::hash::Hash for antecedent_model::intervention_request::PulseIdentity
+impl core::hash::Hash for antecedent_model::intervention_request::PulseTarget
+impl core::hash::Hash for antecedent_model::intervention_request::SustainedIdentity
+impl core::hash::Hash for antecedent_model::intervention_request::SustainedTarget
 impl core::hash::Hash for antecedent_model::mechanism_transport::MechanismRole
 impl core::hash::Hash for antecedent_model::observation_query::Direction
 impl core::hash::Hash for antecedent_model::observation_query::UnreachableBound
@@ -690,6 +789,11 @@ impl core::marker::Copy for antecedent_model::information_time::ForwardOnly
 impl core::marker::Copy for antecedent_model::information_time::InformationRefusal
 impl core::marker::Copy for antecedent_model::information_time::InformationUse
 impl core::marker::Copy for antecedent_model::information_time::RetrospectivePermission
+impl core::marker::Copy for antecedent_model::intervention_request::InterventionKind
+impl core::marker::Copy for antecedent_model::intervention_request::PulseIdentity
+impl core::marker::Copy for antecedent_model::intervention_request::PulseTarget
+impl core::marker::Copy for antecedent_model::intervention_request::SustainedIdentity
+impl core::marker::Copy for antecedent_model::intervention_request::SustainedTarget
 impl core::marker::Copy for antecedent_model::mechanism_transport::MechanismRole
 impl core::marker::Copy for antecedent_model::observation_query::BetaBernoulli
 impl core::marker::Copy for antecedent_model::observation_query::Direction
@@ -838,6 +942,27 @@ impl core::marker::Freeze for antecedent_model::information_time::ForwardOnly [a
 impl core::marker::Freeze for antecedent_model::information_time::InformationRefusal [auto]
 impl core::marker::Freeze for antecedent_model::information_time::InformationUse [auto]
 impl core::marker::Freeze for antecedent_model::information_time::RetrospectivePermission [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::ClampTarget [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::HardClampIdentity [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::HardClampRequest [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::InitialStateChangeRequest [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::InitialStateIdentity [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::InitialStateTarget [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::InterventionBinding [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::InterventionKind [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::InterventionRequest [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::InterventionRequestError [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::MechanismShiftIdentity [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::MechanismShiftRequest [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::MechanismTarget [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::PulseIdentity [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::PulseRequest [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::PulseTarget [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::RevalidatedFreeBlock [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::SustainedActionRequest [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::SustainedIdentity [auto]
+impl core::marker::Freeze for antecedent_model::intervention_request::SustainedTarget [auto]
+impl core::marker::Freeze for antecedent_model::linear_solution::SolvabilityRefusal [auto]
 impl core::marker::Freeze for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::marker::Freeze for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::marker::Freeze for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -1002,6 +1127,27 @@ impl core::marker::Send for antecedent_model::information_time::ForwardOnly [aut
 impl core::marker::Send for antecedent_model::information_time::InformationRefusal [auto]
 impl core::marker::Send for antecedent_model::information_time::InformationUse [auto]
 impl core::marker::Send for antecedent_model::information_time::RetrospectivePermission [auto]
+impl core::marker::Send for antecedent_model::intervention_request::ClampTarget [auto]
+impl core::marker::Send for antecedent_model::intervention_request::HardClampIdentity [auto]
+impl core::marker::Send for antecedent_model::intervention_request::HardClampRequest [auto]
+impl core::marker::Send for antecedent_model::intervention_request::InitialStateChangeRequest [auto]
+impl core::marker::Send for antecedent_model::intervention_request::InitialStateIdentity [auto]
+impl core::marker::Send for antecedent_model::intervention_request::InitialStateTarget [auto]
+impl core::marker::Send for antecedent_model::intervention_request::InterventionBinding [auto]
+impl core::marker::Send for antecedent_model::intervention_request::InterventionKind [auto]
+impl core::marker::Send for antecedent_model::intervention_request::InterventionRequest [auto]
+impl core::marker::Send for antecedent_model::intervention_request::InterventionRequestError [auto]
+impl core::marker::Send for antecedent_model::intervention_request::MechanismShiftIdentity [auto]
+impl core::marker::Send for antecedent_model::intervention_request::MechanismShiftRequest [auto]
+impl core::marker::Send for antecedent_model::intervention_request::MechanismTarget [auto]
+impl core::marker::Send for antecedent_model::intervention_request::PulseIdentity [auto]
+impl core::marker::Send for antecedent_model::intervention_request::PulseRequest [auto]
+impl core::marker::Send for antecedent_model::intervention_request::PulseTarget [auto]
+impl core::marker::Send for antecedent_model::intervention_request::RevalidatedFreeBlock [auto]
+impl core::marker::Send for antecedent_model::intervention_request::SustainedActionRequest [auto]
+impl core::marker::Send for antecedent_model::intervention_request::SustainedIdentity [auto]
+impl core::marker::Send for antecedent_model::intervention_request::SustainedTarget [auto]
+impl core::marker::Send for antecedent_model::linear_solution::SolvabilityRefusal [auto]
 impl core::marker::Send for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::marker::Send for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::marker::Send for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -1133,6 +1279,27 @@ impl core::marker::StructuralPartialEq for antecedent_model::information_time::F
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::InformationRefusal
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::InformationUse
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::RetrospectivePermission
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::ClampTarget
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::HardClampIdentity
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::HardClampRequest
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::InitialStateChangeRequest
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::InitialStateIdentity
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::InitialStateTarget
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::InterventionBinding
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::InterventionKind
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::InterventionRequest
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::InterventionRequestError
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::MechanismShiftIdentity
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::MechanismShiftRequest
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::MechanismTarget
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::PulseIdentity
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::PulseRequest
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::PulseTarget
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::RevalidatedFreeBlock
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::SustainedActionRequest
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::SustainedIdentity
+impl core::marker::StructuralPartialEq for antecedent_model::intervention_request::SustainedTarget
+impl core::marker::StructuralPartialEq for antecedent_model::linear_solution::SolvabilityRefusal
 impl core::marker::StructuralPartialEq for antecedent_model::mechanism_transport::MechanismDisposition
 impl core::marker::StructuralPartialEq for antecedent_model::mechanism_transport::MechanismRole
 impl core::marker::StructuralPartialEq for antecedent_model::mechanism_transport::MechanismTransportRequest
@@ -1296,6 +1463,27 @@ impl core::marker::Sync for antecedent_model::information_time::ForwardOnly [aut
 impl core::marker::Sync for antecedent_model::information_time::InformationRefusal [auto]
 impl core::marker::Sync for antecedent_model::information_time::InformationUse [auto]
 impl core::marker::Sync for antecedent_model::information_time::RetrospectivePermission [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::ClampTarget [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::HardClampIdentity [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::HardClampRequest [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::InitialStateChangeRequest [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::InitialStateIdentity [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::InitialStateTarget [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::InterventionBinding [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::InterventionKind [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::InterventionRequest [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::InterventionRequestError [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::MechanismShiftIdentity [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::MechanismShiftRequest [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::MechanismTarget [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::PulseIdentity [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::PulseRequest [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::PulseTarget [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::RevalidatedFreeBlock [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::SustainedActionRequest [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::SustainedIdentity [auto]
+impl core::marker::Sync for antecedent_model::intervention_request::SustainedTarget [auto]
+impl core::marker::Sync for antecedent_model::linear_solution::SolvabilityRefusal [auto]
 impl core::marker::Sync for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::marker::Sync for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::marker::Sync for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -1460,6 +1648,27 @@ impl core::marker::Unpin for antecedent_model::information_time::ForwardOnly [au
 impl core::marker::Unpin for antecedent_model::information_time::InformationRefusal [auto]
 impl core::marker::Unpin for antecedent_model::information_time::InformationUse [auto]
 impl core::marker::Unpin for antecedent_model::information_time::RetrospectivePermission [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::ClampTarget [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::HardClampIdentity [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::HardClampRequest [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::InitialStateChangeRequest [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::InitialStateIdentity [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::InitialStateTarget [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::InterventionBinding [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::InterventionKind [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::InterventionRequest [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::InterventionRequestError [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::MechanismShiftIdentity [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::MechanismShiftRequest [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::MechanismTarget [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::PulseIdentity [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::PulseRequest [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::PulseTarget [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::RevalidatedFreeBlock [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::SustainedActionRequest [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::SustainedIdentity [auto]
+impl core::marker::Unpin for antecedent_model::intervention_request::SustainedTarget [auto]
+impl core::marker::Unpin for antecedent_model::linear_solution::SolvabilityRefusal [auto]
 impl core::marker::Unpin for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::marker::Unpin for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::marker::Unpin for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -1616,6 +1825,27 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_t
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::InformationRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::InformationUse [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::RetrospectivePermission [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::ClampTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::HardClampIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::HardClampRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::InitialStateChangeRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::InitialStateIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::InitialStateTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::InterventionBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::InterventionKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::InterventionRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::InterventionRequestError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::MechanismShiftIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::MechanismShiftRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::MechanismTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::PulseIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::PulseRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::PulseTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::RevalidatedFreeBlock [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::SustainedActionRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::SustainedIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::intervention_request::SustainedTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::linear_solution::SolvabilityRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -1772,6 +2002,27 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::InformationRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::InformationUse [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::RetrospectivePermission [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::ClampTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::HardClampIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::HardClampRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::InitialStateChangeRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::InitialStateIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::InitialStateTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::InterventionBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::InterventionKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::InterventionRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::InterventionRequestError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::MechanismShiftIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::MechanismShiftRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::MechanismTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::PulseIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::PulseRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::PulseTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::RevalidatedFreeBlock [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::SustainedActionRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::SustainedIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::intervention_request::SustainedTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::linear_solution::SolvabilityRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::mechanism_transport::MechanismDisposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::mechanism_transport::MechanismRole [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::mechanism_transport::MechanismTransportRequest [auto]
@@ -1995,6 +2246,10 @@ pub enum antecedent_model::history_operators::WeightRole
 pub enum antecedent_model::information_time::ForwardOnly
 pub enum antecedent_model::information_time::InformationUse
 pub enum antecedent_model::information_time::RetrospectivePermission
+pub enum antecedent_model::intervention_request::InterventionBinding
+pub enum antecedent_model::intervention_request::InterventionKind
+pub enum antecedent_model::intervention_request::InterventionRequest
+pub enum antecedent_model::linear_solution::SolvabilityRefusal
 pub enum antecedent_model::mechanism_transport::MechanismRole
 pub enum antecedent_model::observation_query::Direction
 pub field antecedent_model::CompiledCausalModel::graph: alloc::sync::Arc<antecedent_graph::dag::Dag>
@@ -2285,6 +2540,47 @@ pub field antecedent_model::discretized_scm_artifact::ArtifactRefusal::detail: &
 pub field antecedent_model::discretized_scm_artifact::ArtifactRefusal::reason_code: &'static str
 pub field antecedent_model::discretized_scm_artifact::ArtifactRefusal::remedy: &'static str
 pub field antecedent_model::discretized_scm_artifact::ArtifactRefusal::subject: alloc::string::String
+pub field antecedent_model::intervention_request::ClampTarget::dimension: usize
+pub field antecedent_model::intervention_request::ClampTarget::indices: alloc::vec::Vec<usize>
+pub field antecedent_model::intervention_request::HardClampIdentity::dimension: usize
+pub field antecedent_model::intervention_request::HardClampIdentity::indices: alloc::vec::Vec<usize>
+pub field antecedent_model::intervention_request::HardClampIdentity::level_bits: alloc::vec::Vec<u64>
+pub field antecedent_model::intervention_request::HardClampRequest::identity: antecedent_model::intervention_request::HardClampIdentity
+pub field antecedent_model::intervention_request::HardClampRequest::target: antecedent_model::intervention_request::ClampTarget
+pub field antecedent_model::intervention_request::InitialStateChangeRequest::identity: antecedent_model::intervention_request::InitialStateIdentity
+pub field antecedent_model::intervention_request::InitialStateChangeRequest::target: antecedent_model::intervention_request::InitialStateTarget
+pub field antecedent_model::intervention_request::InitialStateIdentity::law_name: alloc::string::String
+pub field antecedent_model::intervention_request::InitialStateIdentity::level_bits: u64
+pub field antecedent_model::intervention_request::InitialStateTarget::law_name: alloc::string::String
+pub field antecedent_model::intervention_request::MechanismShiftIdentity::dimension: usize
+pub field antecedent_model::intervention_request::MechanismShiftIdentity::from_node: usize
+pub field antecedent_model::intervention_request::MechanismShiftIdentity::into_node: usize
+pub field antecedent_model::intervention_request::MechanismShiftIdentity::replacement_bits: u64
+pub field antecedent_model::intervention_request::MechanismShiftRequest::identity: antecedent_model::intervention_request::MechanismShiftIdentity
+pub field antecedent_model::intervention_request::MechanismShiftRequest::target: antecedent_model::intervention_request::MechanismTarget
+pub field antecedent_model::intervention_request::MechanismTarget::dimension: usize
+pub field antecedent_model::intervention_request::MechanismTarget::from_node: usize
+pub field antecedent_model::intervention_request::MechanismTarget::into_node: usize
+pub field antecedent_model::intervention_request::PulseIdentity::at: i32
+pub field antecedent_model::intervention_request::PulseIdentity::dimension: usize
+pub field antecedent_model::intervention_request::PulseIdentity::level_bits: u64
+pub field antecedent_model::intervention_request::PulseIdentity::node: usize
+pub field antecedent_model::intervention_request::PulseRequest::identity: antecedent_model::intervention_request::PulseIdentity
+pub field antecedent_model::intervention_request::PulseRequest::target: antecedent_model::intervention_request::PulseTarget
+pub field antecedent_model::intervention_request::PulseTarget::at: i32
+pub field antecedent_model::intervention_request::PulseTarget::dimension: usize
+pub field antecedent_model::intervention_request::PulseTarget::node: usize
+pub field antecedent_model::intervention_request::SustainedActionRequest::identity: antecedent_model::intervention_request::SustainedIdentity
+pub field antecedent_model::intervention_request::SustainedActionRequest::target: antecedent_model::intervention_request::SustainedTarget
+pub field antecedent_model::intervention_request::SustainedIdentity::dimension: usize
+pub field antecedent_model::intervention_request::SustainedIdentity::from: i32
+pub field antecedent_model::intervention_request::SustainedIdentity::level_bits: u64
+pub field antecedent_model::intervention_request::SustainedIdentity::node: usize
+pub field antecedent_model::intervention_request::SustainedIdentity::until: i32
+pub field antecedent_model::intervention_request::SustainedTarget::dimension: usize
+pub field antecedent_model::intervention_request::SustainedTarget::from: i32
+pub field antecedent_model::intervention_request::SustainedTarget::node: usize
+pub field antecedent_model::intervention_request::SustainedTarget::until: i32
 pub field antecedent_model::mechanism_transport::MechanismDisposition::artifact_id: alloc::string::String
 pub field antecedent_model::mechanism_transport::MechanismDisposition::evidence_id: alloc::string::String
 pub field antecedent_model::mechanism_transport::MechanismDisposition::fitted_population: alloc::string::String
@@ -2577,6 +2873,20 @@ pub fn <antecedent_model::information_time::CadenceTick>::const fn new(tick: u32
 pub fn <antecedent_model::information_time::DeclaredCadence>::const fn interval_ns(self) -> u64
 pub fn <antecedent_model::information_time::DeclaredCadence>::const fn tick_count(self) -> u32
 pub fn <antecedent_model::information_time::DeclaredCadence>::const fn try_new(interval_ns: u64, tick_count: u32) -> core::result::Result<Self, antecedent_model::information_time::InformationRefusal>
+pub fn <antecedent_model::intervention_request::HardClampIdentity>::fn levels(&self) -> alloc::vec::Vec<f64>
+pub fn <antecedent_model::intervention_request::InterventionKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_model::intervention_request::InterventionKind>::const fn clamp_refusal(self) -> core::option::Option<&'static str>
+pub fn <antecedent_model::intervention_request::InterventionRequest>::const fn kind(&self) -> antecedent_model::intervention_request::InterventionKind
+pub fn <antecedent_model::intervention_request::InterventionRequest>::fn binding(&self) -> antecedent_model::intervention_request::InterventionBinding
+pub fn <antecedent_model::intervention_request::InterventionRequest>::fn hard_clamp(dimension: usize, nodes: &[usize], values: &[f64]) -> core::result::Result<Self, antecedent_model::intervention_request::InterventionRequestError>
+pub fn <antecedent_model::intervention_request::InterventionRequest>::fn initial_state(law_name: &str, level: f64) -> core::result::Result<Self, antecedent_model::intervention_request::InterventionRequestError>
+pub fn <antecedent_model::intervention_request::InterventionRequest>::fn mechanism_shift(dimension: usize, into_node: usize, from_node: usize, replacement: f64) -> core::result::Result<Self, antecedent_model::intervention_request::InterventionRequestError>
+pub fn <antecedent_model::intervention_request::InterventionRequest>::fn pulse(dimension: usize, node: usize, at: i32, level: f64) -> core::result::Result<Self, antecedent_model::intervention_request::InterventionRequestError>
+pub fn <antecedent_model::intervention_request::InterventionRequest>::fn sustained(dimension: usize, node: usize, from: i32, until: i32, level: f64) -> core::result::Result<Self, antecedent_model::intervention_request::InterventionRequestError>
+pub fn <antecedent_model::intervention_request::RevalidatedFreeBlock>::const fn block(&self) -> &antecedent_model::QueryBlock
+pub fn <antecedent_model::intervention_request::RevalidatedFreeBlock>::const fn identification(&self) -> antecedent_model::IdentificationStatus
+pub fn <antecedent_model::intervention_request::RevalidatedFreeBlock>::const fn physical_stability(&self) -> antecedent_model::PhysicalStability
+pub fn <antecedent_model::intervention_request::RevalidatedFreeBlock>::const fn solver(&self) -> antecedent_model::SolverConvergence
 pub fn <antecedent_model::mechanism_transport::MechanismRole>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::mechanism_transport::TransportedLinearGaussian>::fn dispositions(&self) -> &[antecedent_model::mechanism_transport::MechanismDisposition]
 pub fn <antecedent_model::mechanism_transport::TransportedLinearGaussian>::fn identity(&self) -> [u8; 32]
@@ -2641,8 +2951,12 @@ pub fn antecedent_model::falsify::falsify_graph(dag: &antecedent_graph::dag::Dag
 pub fn antecedent_model::history_slot(n_nodes: usize, dense: usize, lag: u32) -> usize
 pub fn antecedent_model::infer_noise_column(slot: &antecedent_model::MechanismSlot, value: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::infer_noise_column_rng(slot: &antecedent_model::MechanismSlot, value: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64], rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_model::NoiseInferenceMode, antecedent_model::ModelError>
+pub fn antecedent_model::intervention_request::compile_under_request(component: &antecedent_model::CyclicComponent, model: &antecedent_model::LinearStructuralMap, disturbance: &antecedent_model::scc_compile::GaussianDisturbance, request: &antecedent_model::intervention_request::InterventionRequest, budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::scc_compile::CompiledEquilibrium, antecedent_model::intervention_request::InterventionRequestError>
+pub fn antecedent_model::intervention_request::hard_clamp_of(request: &antecedent_model::intervention_request::InterventionRequest) -> core::result::Result<(&antecedent_model::HardClamp, alloc::vec::Vec<f64>), antecedent_model::intervention_request::InterventionRequestError>
+pub fn antecedent_model::intervention_request::revalidate_solvability(model: &antecedent_model::LinearStructuralMap, request: &antecedent_model::intervention_request::InterventionRequest) -> core::result::Result<antecedent_model::intervention_request::RevalidatedFreeBlock, antecedent_model::intervention_request::InterventionRequestError>
 pub fn antecedent_model::kalman_filter(y: &[f64], a: f64, process_var: f64, obs_var: f64, x0: f64, p0: f64) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>, alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
 pub fn antecedent_model::lgssm::rts_smooth(a: f64, x_f: &[f64], p_f: &[f64], x_pred: &[f64], p_pred: &[f64]) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
+pub fn antecedent_model::linear_solution::revalidate_free_block(model: &antecedent_model::LinearStructuralMap, clamp: &antecedent_model::HardClamp) -> core::result::Result<antecedent_model::QueryBlock, antecedent_model::LinearSolutionError>
 pub fn antecedent_model::log_prob_column(slot: &antecedent_model::MechanismSlot, values: &[f64], parents: antecedent_model::ParentBatch<'_>, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
 pub fn antecedent_model::mechanism::noise_inference_mode_of(slot: &antecedent_model::MechanismSlot) -> antecedent_model::NoiseInferenceMode
 pub fn antecedent_model::mechanism::sample_noise_column(slot: &antecedent_model::MechanismSlot, n_rows: usize, rng: &mut antecedent_core::execution::CausalRng, output: &mut [f64]) -> core::result::Result<(), antecedent_model::ModelError>
@@ -2689,6 +3003,7 @@ pub mod antecedent_model::evaluate
 pub mod antecedent_model::falsify
 pub mod antecedent_model::history_operators
 pub mod antecedent_model::information_time
+pub mod antecedent_model::intervention_request
 pub mod antecedent_model::lgssm
 pub mod antecedent_model::linear_solution
 pub mod antecedent_model::mechanism
@@ -2832,6 +3147,24 @@ pub struct antecedent_model::information_time::CadenceTick
 pub struct antecedent_model::information_time::CadenceTick has private fields
 pub struct antecedent_model::information_time::DeclaredCadence
 pub struct antecedent_model::information_time::DeclaredCadence has private fields
+pub struct antecedent_model::intervention_request::ClampTarget
+pub struct antecedent_model::intervention_request::HardClampIdentity
+pub struct antecedent_model::intervention_request::HardClampRequest
+pub struct antecedent_model::intervention_request::HardClampRequest has private fields
+pub struct antecedent_model::intervention_request::InitialStateChangeRequest
+pub struct antecedent_model::intervention_request::InitialStateIdentity
+pub struct antecedent_model::intervention_request::InitialStateTarget
+pub struct antecedent_model::intervention_request::MechanismShiftIdentity
+pub struct antecedent_model::intervention_request::MechanismShiftRequest
+pub struct antecedent_model::intervention_request::MechanismTarget
+pub struct antecedent_model::intervention_request::PulseIdentity
+pub struct antecedent_model::intervention_request::PulseRequest
+pub struct antecedent_model::intervention_request::PulseTarget
+pub struct antecedent_model::intervention_request::RevalidatedFreeBlock
+pub struct antecedent_model::intervention_request::RevalidatedFreeBlock has private fields
+pub struct antecedent_model::intervention_request::SustainedActionRequest
+pub struct antecedent_model::intervention_request::SustainedIdentity
+pub struct antecedent_model::intervention_request::SustainedTarget
 pub struct antecedent_model::mechanism_transport::MechanismDisposition
 pub struct antecedent_model::mechanism_transport::MechanismTransportRequest
 pub struct antecedent_model::mechanism_transport::TransportedFunctionalUncertainty
@@ -3068,6 +3401,7 @@ pub variant antecedent_model::IdentificationStatus::NotMarkedUnidentified
 pub variant antecedent_model::LinearSolutionError::ClampDimension { clamp: usize, model: usize }
 pub variant antecedent_model::LinearSolutionError::ClampOutOfRange { node: usize, dimension: usize }
 pub variant antecedent_model::LinearSolutionError::DuplicateClamp { node: usize }
+pub variant antecedent_model::LinearSolutionError::FreeBlockNotSolvable { refusal: antecedent_model::linear_solution::SolvabilityRefusal }
 pub variant antecedent_model::LinearSolutionError::NonFiniteCoefficient { into_node: usize, from_node: usize }
 pub variant antecedent_model::LinearSolutionError::NonFiniteIntercept { node: usize }
 pub variant antecedent_model::LinearSolutionError::NonzeroDiagonal { node: usize, next_attempt: &'static str }
@@ -3249,6 +3583,35 @@ pub variant antecedent_model::information_time::InformationUse::Prospective
 pub variant antecedent_model::information_time::InformationUse::TrainingNuisance
 pub variant antecedent_model::information_time::RetrospectivePermission::Denied
 pub variant antecedent_model::information_time::RetrospectivePermission::Granted
+pub variant antecedent_model::intervention_request::InterventionBinding::HardClamp { target: antecedent_model::intervention_request::ClampTarget, identity: antecedent_model::intervention_request::HardClampIdentity }
+pub variant antecedent_model::intervention_request::InterventionBinding::InitialStateChange { target: antecedent_model::intervention_request::InitialStateTarget, identity: antecedent_model::intervention_request::InitialStateIdentity }
+pub variant antecedent_model::intervention_request::InterventionBinding::MechanismShift { target: antecedent_model::intervention_request::MechanismTarget, identity: antecedent_model::intervention_request::MechanismShiftIdentity }
+pub variant antecedent_model::intervention_request::InterventionBinding::Pulse { target: antecedent_model::intervention_request::PulseTarget, identity: antecedent_model::intervention_request::PulseIdentity }
+pub variant antecedent_model::intervention_request::InterventionBinding::SustainedAction { target: antecedent_model::intervention_request::SustainedTarget, identity: antecedent_model::intervention_request::SustainedIdentity }
+pub variant antecedent_model::intervention_request::InterventionKind::HardClamp
+pub variant antecedent_model::intervention_request::InterventionKind::InitialStateChange
+pub variant antecedent_model::intervention_request::InterventionKind::MechanismShift
+pub variant antecedent_model::intervention_request::InterventionKind::Pulse
+pub variant antecedent_model::intervention_request::InterventionKind::SustainedAction
+pub variant antecedent_model::intervention_request::InterventionRequest::HardClamp(antecedent_model::intervention_request::HardClampRequest)
+pub variant antecedent_model::intervention_request::InterventionRequest::InitialStateChange(antecedent_model::intervention_request::InitialStateChangeRequest)
+pub variant antecedent_model::intervention_request::InterventionRequest::MechanismShift(antecedent_model::intervention_request::MechanismShiftRequest)
+pub variant antecedent_model::intervention_request::InterventionRequest::Pulse(antecedent_model::intervention_request::PulseRequest)
+pub variant antecedent_model::intervention_request::InterventionRequest::SustainedAction(antecedent_model::intervention_request::SustainedActionRequest)
+pub variant antecedent_model::intervention_request::InterventionRequestError::Compile(antecedent_model::scc_compile::SccCompileError)
+pub variant antecedent_model::intervention_request::InterventionRequestError::DiagonalMechanism { node: usize }
+pub variant antecedent_model::intervention_request::InterventionRequestError::EmptyInitialLaw
+pub variant antecedent_model::intervention_request::InterventionRequestError::InvertedWindow { from: i32, until: i32 }
+pub variant antecedent_model::intervention_request::InterventionRequestError::NodeOutOfRange { node: usize, dimension: usize }
+pub variant antecedent_model::intervention_request::InterventionRequestError::NonFiniteLevel
+pub variant antecedent_model::intervention_request::InterventionRequestError::NotSolvable { refusal: antecedent_model::linear_solution::SolvabilityRefusal }
+pub variant antecedent_model::intervention_request::InterventionRequestError::Shape { message: &'static str }
+pub variant antecedent_model::intervention_request::InterventionRequestError::Solution(antecedent_model::LinearSolutionError)
+pub variant antecedent_model::intervention_request::InterventionRequestError::UnsupportedSemantic { kind: antecedent_model::intervention_request::InterventionKind, next_attempt: &'static str }
+pub variant antecedent_model::intervention_request::InterventionRequestError::ValueCount { nodes: usize, values: usize }
+pub variant antecedent_model::linear_solution::SolvabilityRefusal::NonFinite
+pub variant antecedent_model::linear_solution::SolvabilityRefusal::NumericallySingular { members: alloc::vec::Vec<usize> }
+pub variant antecedent_model::linear_solution::SolvabilityRefusal::Singular { members: alloc::vec::Vec<usize> }
 pub variant antecedent_model::mechanism_transport::MechanismRole::NativeInTarget
 pub variant antecedent_model::mechanism_transport::MechanismRole::Transported
 pub variant antecedent_model::observation_query::Direction::Lower

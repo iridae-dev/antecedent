@@ -16,6 +16,9 @@
 //! the block to factor. They do not form `(I - K_FF)⁻¹`. `ε_F` stays the
 //! marginal disturbance on the free variables: clamping is not conditioning
 //! on the factual value of a clamped variable.
+//! [`revalidate_free_block`] repeats the decision on the clamp's free block.
+//! A singular or non-finite block is a refusal. An ill-conditioned block stays
+//! ill-conditioned and is not reported unique.
 //!
 //! Each assessment keeps four statuses apart:
 //!
@@ -151,6 +154,48 @@ pub enum LinearSolutionError {
         /// Dimension of the map.
         model: usize,
     },
+    /// The free block after a hard clamp is singular or non-finite.
+    ///
+    /// This is a refusal of the intervened block. It does not mark the model
+    /// unidentified: the status on a completed assessment stays
+    /// [`IdentificationStatus::NotMarkedUnidentified`].
+    #[error("free block after the clamp is not solvable: {refusal}")]
+    FreeBlockNotSolvable {
+        /// Which solvability failure was rechecked.
+        refusal: SolvabilityRefusal,
+    },
+}
+
+/// Why the free block that remains after a hard clamp has no solution to return.
+///
+/// [`Uniqueness::IllConditioned`] is not one of these failures. A large condition
+/// number is a status of a block that still has a unique solution.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SolvabilityRefusal {
+    /// The closed form of `(I - K_FF)` is exactly singular.
+    Singular {
+        /// Free indices, ascending.
+        members: Vec<usize>,
+    },
+    /// A strongly connected block failed the shared pivot test.
+    NumericallySingular {
+        /// Free variables of that block, ascending.
+        members: Vec<usize>,
+    },
+    /// A closed form of the free block was not finite.
+    NonFinite,
+}
+
+impl std::fmt::Display for SolvabilityRefusal {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Singular { members } => write!(formatter, "singular free block {members:?}"),
+            Self::NumericallySingular { members } => {
+                write!(formatter, "numerically singular free block {members:?}")
+            }
+            Self::NonFinite => formatter.write_str("non-finite free block"),
+        }
+    }
 }
 
 /// Row-major structural map `X = KX + c + ε` with a zero diagonal.
@@ -578,6 +623,73 @@ pub fn assess(
     })
 }
 
+/// Recheck solvability of the free block `clamp` leaves.
+///
+/// The original system is not reused. The result is the intervened
+/// [`QueryBlock`] from [`assess`]: [`Uniqueness::Unique`] and
+/// [`Uniqueness::IllConditioned`] are returned as assessed, and an open block
+/// larger than the closed form stays [`Uniqueness::Undetermined`]. A singular
+/// block, a numerically singular block, and a non-finite closed form are
+/// [`LinearSolutionError::FreeBlockNotSolvable`]. That refusal does not mark
+/// the model unidentified. No inverse is stored, and no iterative solver runs.
+///
+/// # Errors
+///
+/// [`LinearSolutionError::ClampDimension`] or [`LinearSolutionError::FreeBlockNotSolvable`].
+#[must_use = "a refused free block is not a solution"]
+pub fn revalidate_free_block(
+    model: &LinearStructuralMap,
+    clamp: &HardClamp,
+) -> Result<QueryBlock, LinearSolutionError> {
+    let assessment = assess(model, clamp)?;
+    if let Some(refusal) = solvability_refusal(&assessment.intervened) {
+        return Err(LinearSolutionError::FreeBlockNotSolvable { refusal });
+    }
+    Ok(assessment.intervened)
+}
+
+fn solvability_refusal(block: &QueryBlock) -> Option<SolvabilityRefusal> {
+    if small_block_non_finite(&block.factor.k_ff, block.factor.free.len()) {
+        return Some(SolvabilityRefusal::NonFinite);
+    }
+    match &block.uniqueness {
+        Uniqueness::Singular(_) => {
+            Some(SolvabilityRefusal::Singular { members: block.factor.free.clone() })
+        }
+        Uniqueness::NumericallySingular { members } => {
+            Some(SolvabilityRefusal::NumericallySingular { members: members.clone() })
+        }
+        Uniqueness::IllConditioned { kappa } if !kappa.is_finite() => {
+            Some(SolvabilityRefusal::NonFinite)
+        }
+        Uniqueness::Unique
+        | Uniqueness::IllConditioned { .. }
+        | Uniqueness::Undetermined { .. } => None,
+    }
+}
+
+/// `true` when the 2×2 or 3×3 closed form of `I - K_FF` is not finite.
+fn small_block_non_finite(k_ff: &[f64], order: usize) -> bool {
+    match order {
+        2 => {
+            let product = k_ff[1] * k_ff[2];
+            !product.is_finite() || !(1.0 - product).is_finite()
+        }
+        3 => {
+            let mut eye_minus = [0.0; 9];
+            for row in 0..3 {
+                for col in 0..3 {
+                    let coefficient = k_ff[row * 3 + col];
+                    eye_minus[row * 3 + col] =
+                        if row == col { 1.0 - coefficient } else { -coefficient };
+                }
+            }
+            !determinant3(&eye_minus).is_finite()
+        }
+        _ => false,
+    }
+}
+
 /// The family certificate of `model` with every variable free.
 pub(crate) fn family_certificate(model: &LinearStructuralMap) -> FamilyCertificate {
     certify_family(model, &free_indices(model.n, &[]))
@@ -914,7 +1026,8 @@ mod tests {
     use super::{
         Conditioning, ConsistencyWitness, FamilyCertificate, HardClamp, IdentificationStatus,
         LinearSolutionError, LinearStructuralMap, NONZERO_DIAGONAL_NEXT_ATTEMPT, NextAttempt,
-        PhysicalStability, SolverConvergence, Uniqueness, assess,
+        PhysicalStability, SolvabilityRefusal, SolverConvergence, Uniqueness, assess,
+        revalidate_free_block,
     };
 
     fn close(left: f64, right: f64) -> bool {
@@ -1185,6 +1298,45 @@ mod tests {
         assert!(report.family.is_admitted());
         assert!(matches!(report.original.uniqueness, Uniqueness::Unique));
         assert!(matches!(report.original.conditioning, Conditioning::NotEstimated { .. }));
+    }
+
+    #[test]
+    fn revalidate_free_block_refuses_a_singular_clamp() {
+        // A = B + C, B = A, C = A. do(C) leaves the singular pair (A, B).
+        let model = map(vec![0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0], vec![0.0, 0.0, 0.0]);
+        let clamp = HardClamp::try_new(3, &[2]).expect("clamp C");
+        let err = revalidate_free_block(&model, &clamp).expect_err("singular free block");
+        assert_eq!(
+            err,
+            LinearSolutionError::FreeBlockNotSolvable {
+                refusal: SolvabilityRefusal::Singular { members: vec![0, 1] },
+            }
+        );
+    }
+
+    #[test]
+    fn revalidate_free_block_keeps_ill_conditioning_distinct() {
+        // det(I - K) = 1e-9 clears the pivot floor. kappa = 4e9 stays ill-conditioned.
+        let ill = map(vec![0.0, 1.0, 1.0 - 1.0e-9, 0.0], vec![0.0, 0.0]);
+        let block =
+            revalidate_free_block(&ill, &HardClamp::none(2).expect("none")).expect("solvable");
+        match block.uniqueness {
+            Uniqueness::IllConditioned { kappa } => {
+                assert!((3.9e9..4.1e9).contains(&kappa), "kappa {kappa}");
+            }
+            other => panic!("uniqueness {other:?}"),
+        }
+
+        // The second pivot is about 1e-13, below the floor, and the determinant is not zero.
+        let near = map(vec![0.0, 1.0, 1.0 + 1.0e-13, 0.0], vec![0.0, 0.0]);
+        let err = revalidate_free_block(&near, &HardClamp::none(2).expect("none"))
+            .expect_err("numerically singular");
+        assert_eq!(
+            err,
+            LinearSolutionError::FreeBlockNotSolvable {
+                refusal: SolvabilityRefusal::NumericallySingular { members: vec![0, 1] },
+            }
+        );
     }
 
     fn matmul3(left: &[f64], right: &[f64]) -> [f64; 9] {

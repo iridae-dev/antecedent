@@ -15,10 +15,12 @@ implementation_deviations = [
  "A nonzero diagonal is refused and names the next attempt. It is not normalized.",
  "Disturbance covariance between components is kept. A hard clamp substitutes constants and leaves the free block its marginal disturbance covariance.",
  "A numerically singular (pivot at or below the equilibrated floor, the test assess shares) or non-finite block is a refusal. The result stays NotMarkedUnidentified. Physical stability is unclaimed. No iterative solver is recorded.",
+ "A hard clamp is rechecked before the free block is solved. Exact singularity, numerical singularity, and a non-finite block are refusals. An ill-conditioned block stays ill-conditioned. A mechanism shift, a pulse, a sustained action, and an initial-state change are different requests and are refused instead of being compiled as that clamp.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
  "inline unit tests (crates/antecedent-model/src/scc_compile.rs)",
+ "inline unit tests (crates/antecedent-model/src/intervention_request.rs)",
 ]

@@ -18,7 +18,11 @@
 //! agree on which blocks are refused. A numerically singular or non-finite block
 //! is a refusal. No root is selected, and the refusal is not a completed
 //! mechanism. Numerically singular is weaker than exactly singular: a pivot below
-//! the floor does not show that the determinant is zero.
+//! the floor does not show that the determinant is zero. After the budget admits
+//! the compile, [`revalidate_free_block`](crate::linear_solution::revalidate_free_block)
+//! rechecks the clamp's free block before any block is overwritten. Singular and
+//! numerically singular free blocks are refused there. An ill-conditioned block
+//! is not one of those refusals.
 //!
 //! `ε` is Gaussian with mean `μ` and covariance `Σ`. Entries of `Σ` between
 //! components are kept. Along the condensation,
@@ -48,8 +52,9 @@ use thiserror::Error;
 
 use crate::cyclic_component::{CyclicComponent, ModelBinding, SCC_COMPILE_ATTEMPT};
 use crate::linear_solution::{
-    FREE_BLOCK_EQUATION, HardClamp, IdentificationStatus, LinearStructuralMap, PhysicalStability,
-    SolverConvergence, free_indices, pivots_regular,
+    FREE_BLOCK_EQUATION, HardClamp, IdentificationStatus, LinearSolutionError, LinearStructuralMap,
+    PhysicalStability, SolvabilityRefusal, SolverConvergence, free_indices, pivots_regular,
+    revalidate_free_block,
 };
 
 /// Work and bytes a compilation may spend on the factorizations and diagnostics.
@@ -417,8 +422,8 @@ pub fn gaussian_equilibrium_admission(
 /// # Errors
 ///
 /// A component bound to a different model, a dimension mismatch, a non-finite or asymmetric or
-/// indefinite disturbance, a numerically singular or non-finite block, or an admission charge
-/// above `budget`.
+/// indefinite disturbance, a singular, numerically singular, or non-finite free block, or an
+/// admission charge above `budget`. The solvability recheck runs only after the budget admits.
 #[must_use = "a compile error is a refusal, not an equilibrium"]
 pub fn compile_gaussian_equilibrium(
     component: &CyclicComponent,
@@ -490,6 +495,7 @@ fn compile_checked(
         });
     }
     require_psd(disturbance.covariance(), n)?;
+    rechecked_solvability(model, clamp)?;
     let mut assigned = vec![None; n];
     for (&node, &value) in clamp.indices().iter().zip(clamp_values) {
         assigned[node] = Some(value);
@@ -508,6 +514,36 @@ fn compile_checked(
         blocks: solved.blocks,
         admission: planned.cost,
     })
+}
+
+/// Refuse a clamp whose free block is singular or non-finite before factorization.
+fn rechecked_solvability(
+    model: &LinearStructuralMap,
+    clamp: &HardClamp,
+) -> Result<(), SccCompileError> {
+    match revalidate_free_block(model, clamp) {
+        Ok(_) => Ok(()),
+        Err(LinearSolutionError::FreeBlockNotSolvable { refusal }) => match refusal {
+            SolvabilityRefusal::NonFinite => Err(SccCompileError::NonFiniteEquilibrium),
+            SolvabilityRefusal::Singular { members }
+            | SolvabilityRefusal::NumericallySingular { members } => {
+                Err(SccCompileError::NumericallySingularBlock { members })
+            }
+        },
+        Err(LinearSolutionError::ClampDimension { clamp, model }) => {
+            Err(SccCompileError::ClampDimension { clamp, model })
+        }
+        Err(
+            LinearSolutionError::Shape { .. }
+            | LinearSolutionError::NonzeroDiagonal { .. }
+            | LinearSolutionError::NonFiniteCoefficient { .. }
+            | LinearSolutionError::NonFiniteIntercept { .. }
+            | LinearSolutionError::ClampOutOfRange { .. }
+            | LinearSolutionError::DuplicateClamp { .. },
+        ) => Err(SccCompileError::Shape {
+            message: "free-block solvability recheck was not a clamp of this model",
+        }),
+    }
 }
 
 struct PlannedSchedule {
