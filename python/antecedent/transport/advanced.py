@@ -206,6 +206,7 @@ from ._period_refresh import (
     PeriodPrior,
     PeriodRefresh,
     PeriodRefreshOutcome,
+    PeriodRefreshSummary,
     PeriodWindow,
     consume_period_refresh_artifact,
 )
@@ -392,6 +393,7 @@ __all__ = [
     "PeriodPrior",
     "PeriodRefresh",
     "PeriodRefreshOutcome",
+    "PeriodRefreshSummary",
     "PeriodWindow",
     "consume_period_refresh_artifact",
     "consume_temporal_initial_state_artifact",

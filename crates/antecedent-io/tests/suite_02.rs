@@ -5,6 +5,8 @@
 
 #[path = "nonlinear_mediation_artifact.rs"]
 mod nonlinear_mediation_artifact;
+#[path = "period_refresh_summary_artifact.rs"]
+mod period_refresh_summary_artifact;
 #[path = "predictive_assessment_artifact.rs"]
 mod predictive_assessment_artifact;
 #[path = "recalc_receipt_artifact.rs"]

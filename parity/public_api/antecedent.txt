@@ -652,6 +652,7 @@ impl core::clone::Clone for antecedent::period_refresh::PeriodRefresh
 impl core::clone::Clone for antecedent::period_refresh::PeriodRefreshOutcome
 impl core::clone::Clone for antecedent::period_refresh::RefreshBlock
 impl core::clone::Clone for antecedent::period_refresh::RefreshEvent
+impl core::clone::Clone for antecedent::period_refresh::SummaryOnlyFit
 impl core::clone::Clone for antecedent::planner::LogicalAnalysisPlan
 impl core::clone::Clone for antecedent::planner::PhysicalExecutionPlan
 impl core::clone::Clone for antecedent::result::InterferenceInference
@@ -1887,6 +1888,7 @@ impl core::fmt::Debug for antecedent::period_refresh::PeriodRefresh
 impl core::fmt::Debug for antecedent::period_refresh::PeriodRefreshOutcome
 impl core::fmt::Debug for antecedent::period_refresh::RefreshBlock
 impl core::fmt::Debug for antecedent::period_refresh::RefreshEvent
+impl core::fmt::Debug for antecedent::period_refresh::SummaryOnlyFit
 impl core::fmt::Debug for antecedent::planner::LogicalAnalysisPlan
 impl core::fmt::Debug for antecedent::planner::PhysicalExecutionPlan
 impl core::fmt::Debug for antecedent::result::InterferenceInference
@@ -2631,6 +2633,7 @@ impl core::marker::Freeze for antecedent::period_refresh::PeriodRefresh [auto]
 impl core::marker::Freeze for antecedent::period_refresh::PeriodRefreshOutcome [auto]
 impl core::marker::Freeze for antecedent::period_refresh::RefreshBlock [auto]
 impl core::marker::Freeze for antecedent::period_refresh::RefreshEvent [auto]
+impl core::marker::Freeze for antecedent::period_refresh::SummaryOnlyFit [auto]
 impl core::marker::Freeze for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::marker::Freeze for antecedent::result::InterferenceInference [auto]
 impl core::marker::Freeze for antecedent::result::InterferencePointwiseInterval [auto]
@@ -3224,6 +3227,7 @@ impl core::marker::Send for antecedent::period_refresh::PeriodRefresh [auto]
 impl core::marker::Send for antecedent::period_refresh::PeriodRefreshOutcome [auto]
 impl core::marker::Send for antecedent::period_refresh::RefreshBlock [auto]
 impl core::marker::Send for antecedent::period_refresh::RefreshEvent [auto]
+impl core::marker::Send for antecedent::period_refresh::SummaryOnlyFit [auto]
 impl core::marker::Send for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::marker::Send for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::marker::Send for antecedent::result::InterferenceInference [auto]
@@ -4187,6 +4191,7 @@ impl core::marker::Sync for antecedent::period_refresh::PeriodRefresh [auto]
 impl core::marker::Sync for antecedent::period_refresh::PeriodRefreshOutcome [auto]
 impl core::marker::Sync for antecedent::period_refresh::RefreshBlock [auto]
 impl core::marker::Sync for antecedent::period_refresh::RefreshEvent [auto]
+impl core::marker::Sync for antecedent::period_refresh::SummaryOnlyFit [auto]
 impl core::marker::Sync for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::marker::Sync for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::marker::Sync for antecedent::result::InterferenceInference [auto]
@@ -4781,6 +4786,7 @@ impl core::marker::Unpin for antecedent::period_refresh::PeriodRefresh [auto]
 impl core::marker::Unpin for antecedent::period_refresh::PeriodRefreshOutcome [auto]
 impl core::marker::Unpin for antecedent::period_refresh::RefreshBlock [auto]
 impl core::marker::Unpin for antecedent::period_refresh::RefreshEvent [auto]
+impl core::marker::Unpin for antecedent::period_refresh::SummaryOnlyFit [auto]
 impl core::marker::Unpin for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::marker::Unpin for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::marker::Unpin for antecedent::result::InterferenceInference [auto]
@@ -5361,6 +5367,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::Per
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::PeriodRefreshOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::RefreshBlock [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::RefreshEvent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::period_refresh::SummaryOnlyFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::InterferenceInference [auto]
@@ -5938,6 +5945,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::Period
 impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::PeriodRefreshOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::RefreshBlock [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::RefreshEvent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::period_refresh::SummaryOnlyFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::LogicalAnalysisPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::PhysicalExecutionPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::InterferenceInference [auto]
@@ -10104,6 +10112,7 @@ pub fn <antecedent::period_refresh::PeriodRefresh>::fn check_against_fresh(&self
 pub fn <antecedent::period_refresh::PeriodRefresh>::fn events(&self) -> &[antecedent::period_refresh::RefreshEvent]
 pub fn <antecedent::period_refresh::PeriodRefresh>::fn evict_row(&mut self, id: u64) -> core::result::Result<antecedent_state::ols_refresh::RefreshOutcome, antecedent_state::error::StateError>
 pub fn <antecedent::period_refresh::PeriodRefresh>::fn export_ledger(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::PeriodRefresh>::fn export_summary_only(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_state::error::StateError>
 pub fn <antecedent::period_refresh::PeriodRefresh>::fn ledger_wire(&self) -> core::result::Result<antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire, antecedent_state::error::StateError>
 pub fn <antecedent::period_refresh::PeriodRefresh>::fn refresh(&mut self, window: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, cadence: antecedent_estimate::temporal_refresh::ObservationCadence, initial_law: &str, values: &[f64]) -> core::result::Result<antecedent::period_refresh::PeriodRefreshOutcome, antecedent_state::error::StateError>
 pub fn <antecedent::period_refresh::PeriodRefresh>::fn reprior(&mut self, prior: &antecedent_state::conjugate_refresh::ConjugateOlsPrior) -> core::result::Result<(), antecedent_state::error::StateError>
@@ -10111,6 +10120,21 @@ pub fn <antecedent::period_refresh::PeriodRefresh>::fn series_id(&self) -> &str
 pub fn <antecedent::period_refresh::PeriodRefresh>::fn start(spec: &antecedent::period_refresh::PeriodRefreshSpec<'_>, window: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, prior: &antecedent_state::conjugate_refresh::ConjugateOlsPrior, values: &[f64]) -> core::result::Result<Self, antecedent_state::error::StateError>
 pub fn <antecedent::period_refresh::PeriodRefresh>::fn summary(&self) -> core::result::Result<antecedent_state::conjugate_refresh::ConjugateOlsSummary, antecedent_state::error::StateError>
 pub fn <antecedent::period_refresh::PeriodRefresh>::fn summary_under(&self, prior: &antecedent_state::conjugate_refresh::ConjugateOlsPrior) -> core::result::Result<antecedent_state::conjugate_refresh::ConjugateOlsSummary, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::const fn ledger(&self) -> antecedent_state::ols_refresh::OlsLedgerState
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::const fn n(&self) -> u64
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::const fn residual_variance(&self) -> core::option::Option<f64>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::const fn retention(&self) -> antecedent_state::retention::RetentionMode
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn beta(&self) -> core::option::Option<&[f64]>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn consume(bytes: &[u8]) -> core::result::Result<Self, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn evict_row(&self, _id: u64) -> core::result::Result<(), antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn from_fit(fit: &antecedent_state::ols_refresh::OlsRefresh) -> core::result::Result<Self, antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn refit_from_rows(&self) -> core::result::Result<(), antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn replay_rows(&self) -> core::result::Result<(), antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn require(&self, operation: antecedent_state::retention::RetainedOperation) -> core::result::Result<(), antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn set_mask(&self, _id: u64, _masked: bool) -> core::result::Result<(), antecedent_state::error::StateError>
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn source(&self) -> &str
+pub fn <antecedent::period_refresh::SummaryOnlyFit>::fn source_digest(&self) -> &str
 pub fn <antecedent::planner::LogicalAnalysisPlan>::fn compile_physical(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::planner::LogicalAnalysisPlan>::fn compile_physical_with_all_graphs(&self, ctx: &antecedent_core::execution::ExecutionContext, resolved_temporal_graph: core::option::Option<antecedent_graph::temporal::TemporalDag>, resolved_static_graph: core::option::Option<antecedent_graph::dag::Dag>, resolved_static_pag: core::option::Option<antecedent_graph::pag::Pag>) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::planner::LogicalAnalysisPlan>::fn compile_physical_with_graph(&self, ctx: &antecedent_core::execution::ExecutionContext, resolved_temporal_graph: core::option::Option<antecedent_graph::temporal::TemporalDag>) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
@@ -11242,6 +11266,8 @@ pub struct antecedent::period_refresh::PeriodRefresh has private fields
 pub struct antecedent::period_refresh::PeriodRefreshSpec<'a>
 pub struct antecedent::period_refresh::RefreshBlock
 pub struct antecedent::period_refresh::RefreshEvent
+pub struct antecedent::period_refresh::SummaryOnlyFit
+pub struct antecedent::period_refresh::SummaryOnlyFit has private fields
 pub struct antecedent::planner::LogicalAnalysisPlan
 pub struct antecedent::planner::PhysicalExecutionPlan
 pub struct antecedent::result::InterferenceInference

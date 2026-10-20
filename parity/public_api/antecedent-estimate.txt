@@ -8728,6 +8728,7 @@ pub field antecedent_estimate::CausalPosterior::diagnostics: antecedent_prob::di
 pub field antecedent_estimate::CausalPosterior::draws: antecedent_prob::posterior::PosteriorDraws
 pub field antecedent_estimate::CausalPosterior::early_stopped: bool
 pub field antecedent_estimate::CausalPosterior::identification: antecedent_core::identification::IdentificationStatus
+pub field antecedent_estimate::CausalPosterior::preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>
 pub field antecedent_estimate::CausalPosterior::prior_sensitivity: core::option::Option<antecedent_prob::diagnostics::PriorSensitivitySummary>
 pub field antecedent_estimate::CausalPosterior::subsampled_out_mass: f64
 pub field antecedent_estimate::CausalPosterior::summaries: antecedent_prob::posterior::PosteriorSummary
@@ -8986,6 +8987,7 @@ pub field antecedent_estimate::FactorizedJointFit::degenerate_conditionals: usiz
 pub field antecedent_estimate::FactorizedJointFit::folds: usize
 pub field antecedent_estimate::FactorizedJointFit::n_rows: usize
 pub field antecedent_estimate::FactorizedJointFit::normalization: alloc::vec::Vec<antecedent_estimate::NormalizationCheck>
+pub field antecedent_estimate::FactorizedJointFit::preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>
 pub field antecedent_estimate::FactorizedJointFit::scores: antecedent_estimate::ScoreTable
 pub field antecedent_estimate::FactorizedJointFit::sensitivity: antecedent_estimate::OrderingSensitivity
 pub field antecedent_estimate::FactorizedJointFit::treatments: alloc::vec::Vec<antecedent_core::ids::VariableId>
@@ -9275,6 +9277,7 @@ pub field antecedent_estimate::PreparedBayesianProblem::control: f64
 pub field antecedent_estimate::PreparedBayesianProblem::design: antecedent_stats::design::CompiledDesign
 pub field antecedent_estimate::PreparedBayesianProblem::method: alloc::sync::Arc<str>
 pub field antecedent_estimate::PreparedBayesianProblem::overlap: antecedent_estimate::OverlapPolicy
+pub field antecedent_estimate::PreparedBayesianProblem::preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>
 pub field antecedent_estimate::PreparedBayesianProblem::serial_dependence: antecedent_estimate::SerialDependence
 pub field antecedent_estimate::PreparedBayesianProblem::unit_ids: core::option::Option<alloc::vec::Vec<u32>>
 pub field antecedent_estimate::PreparedEstimationProblem::active: f64
@@ -9557,6 +9560,7 @@ pub field antecedent_estimate::ScoreTable::n_rows: usize
 pub field antecedent_estimate::ScoreTable::nuisance_provenance: alloc::sync::Arc<str>
 pub field antecedent_estimate::ScoreTable::observed_arm: alloc::sync::Arc<[u32]>
 pub field antecedent_estimate::ScoreTable::observed_outcome: alloc::sync::Arc<[f64]>
+pub field antecedent_estimate::ScoreTable::preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>
 pub field antecedent_estimate::ScoreTable::propensities: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::ScoreTable::propensity_clip: core::option::Option<f64>
 pub field antecedent_estimate::ScoreTable::row_index: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
@@ -11751,6 +11755,7 @@ pub fn <antecedent_estimate::CausalForest>::fn with_cluster_ids(self, labels: al
 pub fn <antecedent_estimate::CausalForest>::fn with_source_cluster_ids(self, labels: alloc::vec::Vec<u32>) -> Self
 pub fn <antecedent_estimate::CausalPosterior>::fn effect_column(&self) -> core::option::Option<usize>
 pub fn <antecedent_estimate::CausalPosterior>::fn probability_below(&self, threshold: f64) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::CausalPosterior>::fn with_preparation(self, preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>) -> Self
 pub fn <antecedent_estimate::CellDispersion>::fn extend(&mut self, other: Self)
 pub fn <antecedent_estimate::CellDispersion>::fn from_influences(influences: &[alloc::vec::Vec<f64>], block: usize) -> Self
 pub fn <antecedent_estimate::CellDispersion>::fn from_scores(scores: &[&[f64]], block: usize) -> Self
@@ -12051,6 +12056,7 @@ pub fn <antecedent_estimate::OverlapReport>::fn from_propensities(propensities: 
 pub fn <antecedent_estimate::PenalizedReport>::fn is_empty(&self) -> bool
 pub fn <antecedent_estimate::PreparationSummary>::fn from_parts(backend: alloc::string::String, route_bound: alloc::string::String, rows_admitted: core::option::Option<u64>, receipt_digest: alloc::string::String) -> Self
 pub fn <antecedent_estimate::PreparationSummary>::fn from_receipt(receipt: &antecedent_data::materialize::PreparationReceipt) -> Self
+pub fn <antecedent_estimate::PreparedBayesianProblem>::fn with_preparation(self, preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>) -> Self
 pub fn <antecedent_estimate::PreparedBayesianProblem>::fn with_serial_dependence(self, dependence: antecedent_estimate::SerialDependence) -> Self
 pub fn <antecedent_estimate::PreparedFunctionalDistribution>::fn factor_snapshot(&self) -> core::result::Result<antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PreparedFunctionalDistribution>::fn program(&self) -> &antecedent_expr::program::FunctionalProgram

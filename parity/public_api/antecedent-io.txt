@@ -253,9 +253,11 @@ impl core::clone::Clone for antecedent_io::period_refresh_artifact::LeastSquares
 impl core::clone::Clone for antecedent_io::period_refresh_artifact::PeriodEventWire
 impl core::clone::Clone for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
 impl core::clone::Clone for antecedent_io::period_refresh_artifact::PeriodRefreshReplay
+impl core::clone::Clone for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire
 impl core::clone::Clone for antecedent_io::period_refresh_artifact::PosteriorWire
 impl core::clone::Clone for antecedent_io::period_refresh_artifact::PriorWire
 impl core::clone::Clone for antecedent_io::period_refresh_artifact::RowWire
+impl core::clone::Clone for antecedent_io::period_refresh_artifact::SummaryLedgerWire
 impl core::clone::Clone for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl core::clone::Clone for antecedent_io::predictive_assessment_artifact::DesignWire
 impl core::clone::Clone for antecedent_io::predictive_assessment_artifact::FitWire
@@ -456,6 +458,7 @@ impl core::cmp::Eq for antecedent_io::nonlinear_mediation_artifact::MediationMod
 impl core::cmp::Eq for antecedent_io::nonlinear_mediation_artifact::MediationPremiseRecord
 impl core::cmp::Eq for antecedent_io::nonlinear_mediation_artifact::MediationPremisesWire
 impl core::cmp::Eq for antecedent_io::nonlinear_mediation_artifact::NonlinearMediationIdentity
+impl core::cmp::Eq for antecedent_io::period_refresh_artifact::SummaryLedgerWire
 impl core::cmp::Eq for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl core::cmp::Eq for antecedent_io::predictive_assessment_artifact::DesignWire
 impl core::cmp::Eq for antecedent_io::predictive_assessment_artifact::FitWire
@@ -697,9 +700,11 @@ impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::LeastSquar
 impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PeriodEventWire
 impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
 impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PeriodRefreshReplay
+impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire
 impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PosteriorWire
 impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::PriorWire
 impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::RowWire
+impl core::cmp::PartialEq for antecedent_io::period_refresh_artifact::SummaryLedgerWire
 impl core::cmp::PartialEq for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl core::cmp::PartialEq for antecedent_io::predictive_assessment_artifact::DesignWire
 impl core::cmp::PartialEq for antecedent_io::predictive_assessment_artifact::FitWire
@@ -1114,9 +1119,11 @@ impl core::fmt::Debug for antecedent_io::period_refresh_artifact::LeastSquaresWi
 impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PeriodEventWire
 impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
 impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PeriodRefreshReplay
+impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire
 impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PosteriorWire
 impl core::fmt::Debug for antecedent_io::period_refresh_artifact::PriorWire
 impl core::fmt::Debug for antecedent_io::period_refresh_artifact::RowWire
+impl core::fmt::Debug for antecedent_io::period_refresh_artifact::SummaryLedgerWire
 impl core::fmt::Debug for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl core::fmt::Debug for antecedent_io::predictive_assessment_artifact::DesignWire
 impl core::fmt::Debug for antecedent_io::predictive_assessment_artifact::FitWire
@@ -1321,6 +1328,7 @@ impl core::marker::Copy for antecedent_io::nested_markov_artifact::NestedParamet
 impl core::marker::Copy for antecedent_io::nested_markov_artifact::NestedResidualsWire
 impl core::marker::Copy for antecedent_io::nested_markov_bayesian_artifact::BayesianFunctional
 impl core::marker::Copy for antecedent_io::nested_markov_bayesian_artifact::Limits
+impl core::marker::Copy for antecedent_io::period_refresh_artifact::SummaryLedgerWire
 impl core::marker::Copy for antecedent_io::predictive_assessment_artifact::PredictiveAssessmentConsumeLimits
 impl core::marker::Copy for antecedent_io::recovery_artifact::RecoveryConsumeLimits
 impl core::marker::Copy for antecedent_io::recovery_chain_artifact::ChainLawWire
@@ -1567,9 +1575,11 @@ impl core::marker::Freeze for antecedent_io::period_refresh_artifact::LeastSquar
 impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
 impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire [auto]
 impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
 impl core::marker::Freeze for antecedent_io::period_refresh_artifact::PriorWire [auto]
 impl core::marker::Freeze for antecedent_io::period_refresh_artifact::RowWire [auto]
+impl core::marker::Freeze for antecedent_io::period_refresh_artifact::SummaryLedgerWire [auto]
 impl core::marker::Freeze for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::marker::Freeze for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::marker::Freeze for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -1945,9 +1955,11 @@ impl core::marker::Send for antecedent_io::period_refresh_artifact::LeastSquares
 impl core::marker::Send for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
 impl core::marker::Send for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
 impl core::marker::Send for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::marker::Send for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire [auto]
 impl core::marker::Send for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
 impl core::marker::Send for antecedent_io::period_refresh_artifact::PriorWire [auto]
 impl core::marker::Send for antecedent_io::period_refresh_artifact::RowWire [auto]
+impl core::marker::Send for antecedent_io::period_refresh_artifact::SummaryLedgerWire [auto]
 impl core::marker::Send for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::marker::Send for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::marker::Send for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -2286,9 +2298,11 @@ impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifac
 impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PeriodEventWire
 impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
 impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PeriodRefreshReplay
+impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire
 impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PosteriorWire
 impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::PriorWire
 impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::RowWire
+impl core::marker::StructuralPartialEq for antecedent_io::period_refresh_artifact::SummaryLedgerWire
 impl core::marker::StructuralPartialEq for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl core::marker::StructuralPartialEq for antecedent_io::predictive_assessment_artifact::DesignWire
 impl core::marker::StructuralPartialEq for antecedent_io::predictive_assessment_artifact::FitWire
@@ -2634,9 +2648,11 @@ impl core::marker::Sync for antecedent_io::period_refresh_artifact::LeastSquares
 impl core::marker::Sync for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
 impl core::marker::Sync for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
 impl core::marker::Sync for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::marker::Sync for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire [auto]
 impl core::marker::Sync for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
 impl core::marker::Sync for antecedent_io::period_refresh_artifact::PriorWire [auto]
 impl core::marker::Sync for antecedent_io::period_refresh_artifact::RowWire [auto]
+impl core::marker::Sync for antecedent_io::period_refresh_artifact::SummaryLedgerWire [auto]
 impl core::marker::Sync for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::marker::Sync for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::marker::Sync for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -3012,9 +3028,11 @@ impl core::marker::Unpin for antecedent_io::period_refresh_artifact::LeastSquare
 impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
 impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire [auto]
 impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
 impl core::marker::Unpin for antecedent_io::period_refresh_artifact::PriorWire [auto]
 impl core::marker::Unpin for antecedent_io::period_refresh_artifact::RowWire [auto]
+impl core::marker::Unpin for antecedent_io::period_refresh_artifact::SummaryLedgerWire [auto]
 impl core::marker::Unpin for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::marker::Unpin for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::marker::Unpin for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -3389,9 +3407,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::PriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::RowWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::period_refresh_artifact::SummaryLedgerWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -3766,9 +3786,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_arti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PeriodEventWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PeriodRefreshReplay [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PosteriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::PriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::RowWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::period_refresh_artifact::SummaryLedgerWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::predictive_assessment_artifact::DependenceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::predictive_assessment_artifact::DesignWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::predictive_assessment_artifact::FitWire [auto]
@@ -4081,9 +4103,11 @@ impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::Bloc
 impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::LeastSquaresWire
 impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::PeriodEventWire
 impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
+impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire
 impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::PosteriorWire
 impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::PriorWire
 impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::RowWire
+impl serde_core::ser::Serialize for antecedent_io::period_refresh_artifact::SummaryLedgerWire
 impl serde_core::ser::Serialize for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl serde_core::ser::Serialize for antecedent_io::predictive_assessment_artifact::DesignWire
 impl serde_core::ser::Serialize for antecedent_io::predictive_assessment_artifact::FitWire
@@ -4457,9 +4481,11 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_art
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::LeastSquaresWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::PeriodEventWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::PosteriorWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::PriorWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::RowWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::period_refresh_artifact::SummaryLedgerWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::predictive_assessment_artifact::DependenceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::predictive_assessment_artifact::DesignWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::predictive_assessment_artifact::FitWire
@@ -4709,6 +4735,10 @@ pub const antecedent_io::period_refresh_artifact::PERIOD_EXTENDED: &str
 pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_FEATURE: &str
 pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_KIND: &str
 pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_VERSION: u32
+pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_SUMMARY_FEATURE: &str
+pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_SUMMARY_KIND: &str
+pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_SUMMARY_RETENTION: &str
+pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_SUMMARY_VERSION: u32
 pub const antecedent_io::period_refresh_artifact::PERIOD_RESTARTED: &str
 pub const antecedent_io::period_refresh_artifact::PERIOD_START: &str
 pub const antecedent_io::predictive_assessment_artifact::MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES: usize
@@ -6197,6 +6227,21 @@ pub field antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire::ver
 pub field antecedent_io::period_refresh_artifact::PeriodRefreshReplay::least_squares: antecedent_io::period_refresh_artifact::LeastSquaresWire
 pub field antecedent_io::period_refresh_artifact::PeriodRefreshReplay::live_snapshots: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::period_refresh_artifact::PeriodRefreshReplay::posterior: antecedent_io::period_refresh_artifact::PosteriorWire
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::beta: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::kind: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::ledger: antecedent_io::period_refresh_artifact::SummaryLedgerWire
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::n: u64
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::ncols: u32
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::required_features: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::residual_variance: core::option::Option<f64>
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::retention: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::seal: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::source: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::source_digest: alloc::string::String
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::version: u32
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::xtx: alloc::vec::Vec<f64>
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::xty: alloc::vec::Vec<f64>
+pub field antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire::yty: f64
 pub field antecedent_io::period_refresh_artifact::PosteriorWire::mean: alloc::vec::Vec<f64>
 pub field antecedent_io::period_refresh_artifact::PosteriorWire::n: u64
 pub field antecedent_io::period_refresh_artifact::PosteriorWire::precision: alloc::vec::Vec<f64>
@@ -6209,6 +6254,9 @@ pub field antecedent_io::period_refresh_artifact::PriorWire::shape: f64
 pub field antecedent_io::period_refresh_artifact::RowWire::id: u64
 pub field antecedent_io::period_refresh_artifact::RowWire::x: alloc::vec::Vec<f64>
 pub field antecedent_io::period_refresh_artifact::RowWire::y: f64
+pub field antecedent_io::period_refresh_artifact::SummaryLedgerWire::effective_n: u64
+pub field antecedent_io::period_refresh_artifact::SummaryLedgerWire::live_rows: u64
+pub field antecedent_io::period_refresh_artifact::SummaryLedgerWire::rows: u64
 pub field antecedent_io::predictive_assessment_artifact::DependenceWire::kind: alloc::string::String
 pub field antecedent_io::predictive_assessment_artifact::DependenceWire::labels: alloc::vec::Vec<u32>
 pub field antecedent_io::predictive_assessment_artifact::DependenceWire::time_index: alloc::vec::Vec<u64>
@@ -7342,6 +7390,12 @@ pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn d
 pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn require_prior(&self, prior: &antecedent_io::period_refresh_artifact::PriorWire) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire>::fn verify(&self) -> core::result::Result<antecedent_io::period_refresh_artifact::PeriodRefreshReplay, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire>::fn checked(self) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire>::fn compute_seal(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire>::fn consume(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire>::fn verify(&self) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn <antecedent_io::period_refresh_artifact::PriorWire>::fn digest(&self) -> alloc::string::String
 pub fn <antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifact>::fn from_bytes(bytes: &[u8], expected: core::option::Option<&antecedent_validate::predictive_assessment::identity::AssessmentIdentity>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifactError>
 pub fn <antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifact>::fn from_bytes_with_limits(bytes: &[u8], expected: core::option::Option<&antecedent_validate::predictive_assessment::identity::AssessmentIdentity>, limits: antecedent_io::predictive_assessment_artifact::PredictiveAssessmentConsumeLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_io::predictive_assessment_artifact::PredictiveAssessmentArtifactError>
@@ -7854,9 +7908,13 @@ pub struct antecedent_io::period_refresh_artifact::LeastSquaresWire
 pub struct antecedent_io::period_refresh_artifact::PeriodEventWire
 pub struct antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire
 pub struct antecedent_io::period_refresh_artifact::PeriodRefreshReplay
+pub struct antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire
+pub struct antecedent_io::period_refresh_artifact::PeriodRefreshSummaryWire
 pub struct antecedent_io::period_refresh_artifact::PosteriorWire
 pub struct antecedent_io::period_refresh_artifact::PriorWire
 pub struct antecedent_io::period_refresh_artifact::RowWire
+pub struct antecedent_io::period_refresh_artifact::SummaryLedgerWire
+pub struct antecedent_io::period_refresh_artifact::SummaryLedgerWire
 pub struct antecedent_io::predictive_assessment_artifact::DependenceWire
 pub struct antecedent_io::predictive_assessment_artifact::DesignWire
 pub struct antecedent_io::predictive_assessment_artifact::FitWire
@@ -8164,6 +8222,7 @@ pub use antecedent_io::PolicyValueWire = antecedent_io_core::PolicyValueWire
 pub use antecedent_io::PopulationFactorWire = transport_interference_wire::PopulationFactorWire
 pub use antecedent_io::PosteriorAtomGraphWire = antecedent_io_core::PosteriorAtomGraphWire
 pub use antecedent_io::PosteriorAtomIdentityWire = antecedent_io_core::PosteriorAtomIdentityWire
+pub use antecedent_io::PosteriorPreparationWire = antecedent_io_core::PosteriorPreparationWire
 pub use antecedent_io::PosteriorQuantityWire = antecedent_io_core::PosteriorQuantityWire
 pub use antecedent_io::PosteriorRowWire = antecedent_io_core::PosteriorRowWire
 pub use antecedent_io::PriorArtifactBody = antecedent_io_core::PriorArtifactBody

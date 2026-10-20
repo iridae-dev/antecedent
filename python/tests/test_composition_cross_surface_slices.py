@@ -2,7 +2,7 @@
 
 Scientific inputs and hand values are `conformance/cross_surface/slice_cases.json`.
 Each case drops the producer and reads an independently loaded artifact.
-Specified feedback has no Python binding; the Rust contract test covers it. The finite-discrete
+Specified feedback has no Python binding; the Rust slice tests cover it. The finite-discrete
 static cells are built through the statistical stage from rows of the fixture's counts. The
 finite-discrete horizon cells have no facade producer and are covered from the law artifact in
 the Rust io tests.
@@ -486,7 +486,8 @@ def _operation_message(name: str) -> str:
 
 def test_reduced_retention_serves_only_the_summary():
     from antecedent import _native
-    from antecedent.errors import CausalStateError
+    from antecedent.errors import CausalSerializationError, CausalStateError
+    from test_temporal_extensions import started
 
     retention = CASES["retention"]
     mode = _native.RetentionMode.summary_only()
@@ -494,12 +495,52 @@ def test_reduced_retention_serves_only_the_summary():
     reuse = _native.RetainedOperation.reuse_summary()
     assert mode.serves(reuse)
     mode.require(reuse)
-    # The Python surface has no least-squares summary to serve, so the served quantity is covered
-    # on the Rust surface; here each unavailable operation is refused with its reason.
+
+    # Export the summary-only form of a live fit, drop the producer, and load it independently.
+    producer = started(invariant=True)
+    live = producer.least_squares
+    full_ledger = producer.export()
+    artifact = producer.export_summary_only()
+    del producer
+    consumer = transport.PeriodRefreshSummary.consume(artifact)
+    assert consumer.retention == retention["reduced"]
+    assert consumer.n == live.n
+    assert consumer.beta == pytest.approx(live.beta, abs=1e-9)
+    assert consumer.residual_variance == pytest.approx(live.residual_variance, abs=1e-9)
+
+    # What the rows would have served is refused, naming the mode and the operation.
+    refusals = {
+        "row_reconstruction": consumer.replay_rows,
+        "refit_from_retained_rows": consumer.refit_from_rows,
+        "exact_row_eviction": lambda: consumer.evict_row(0),
+        "in_place_weight_or_mask_update": lambda: consumer.set_mask(0, True),
+    }
     for name in retention["unserved"]:
         operation = getattr(_native.RetainedOperation, name)()
         assert not mode.serves(operation), name
         with pytest.raises(
+            TemporalExtensionRefusal,
+            match=f"summary-only cannot serve {_operation_message(name)}",
+        ):
+            refusals[name]()
+        with pytest.raises(
             CausalStateError, match=f"summary-only cannot serve {_operation_message(name)}"
         ):
             mode.require(operation)
+    # A refused operation leaves the served summary as it was.
+    assert consumer.n == live.n
+
+    # A changed byte never yields a different summary, and neither form is read as the other.
+    for position in range(len(artifact)):
+        changed = bytearray(artifact)
+        changed[position] ^= 0x01
+        try:
+            other = transport.PeriodRefreshSummary.consume(bytes(changed))
+        except (TemporalExtensionRefusal, CausalSerializationError):
+            continue
+        assert other.beta == consumer.beta
+        assert other.n == consumer.n
+    with pytest.raises((TemporalExtensionRefusal, CausalSerializationError)):
+        transport.consume_period_refresh_artifact(artifact)
+    with pytest.raises(TemporalExtensionRefusal, match="summary_only"):
+        transport.PeriodRefreshSummary.consume(full_ledger)

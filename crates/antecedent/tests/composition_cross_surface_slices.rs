@@ -63,7 +63,9 @@ use antecedent_identify::{
     BoundTransportFunctional, CatalogTransportResult, ClassicalTransportQuery, RecoveredEffectQuery,
     RecoveryLimits, SidLimits, identify_catalog_transport,
 };
+use antecedent::period_refresh::SummaryOnlyFit;
 use antecedent_io::measured_inference::MeasuredInference;
+use antecedent_io::period_refresh_artifact::PeriodRefreshArtifactWire;
 use antecedent_io::recovery_artifact::RecoveryConsumeLimits;
 use antecedent_io::temporal_interval_artifact::{
     TemporalIntervalArtifactWire, TemporalIntervalConsumeLimits,
@@ -941,9 +943,10 @@ fn line_summary(gaussian: &Gaussian) -> OlsRefresh {
     OlsRefresh::from_rows("line", 2, rows).unwrap()
 }
 
-/// Summary-only retention serves the same summary as full retention and refuses, with its
-/// reason, every operation that needs the rows. There is no artifact format for the summary, so
-/// the summary is read from the live fit.
+/// Summary-only retention serves the same summary as full retention, through an artifact an
+/// independent consumer loads after the producer is gone, and refuses, with its reason, every
+/// operation that needs the rows. A tampered artifact and a full ledger read as a summary are
+/// refused, and the summary is never read as the full ledger.
 #[test]
 fn reduced_retention_serves_only_the_summary() {
     let cases = slice_cases::load();
@@ -956,17 +959,31 @@ fn reduced_retention_serves_only_the_summary() {
     assert!(mode.require(RetainedOperation::ReuseSummary).is_ok());
 
     let full = line_summary(&cases.gaussian);
-    let mut summary_only = line_summary(&cases.gaussian).into_summary_only();
+    let producer = line_summary(&cases.gaussian).into_summary_only();
     assert_eq!(full.retention(), RetentionMode::FullReusable);
-    assert_eq!(summary_only.retention(), mode);
+    assert_eq!(producer.retention(), mode);
     assert!(!full.rows().is_empty());
-    assert!(summary_only.rows().is_empty());
+    assert!(producer.rows().is_empty());
+    // A fit that still holds its rows is not exported as a summary.
+    assert!(SummaryOnlyFit::from_fit(&full).is_err());
 
-    // The served quantity is the same and equals the line.
-    let served = summary_only.snapshot();
-    assert_eq!(served, full.snapshot());
-    let beta = served.beta.as_ref().expect("the line has a nonsingular design");
+    // Export, drop the producer, and consume the bytes.
+    let served = producer.snapshot();
+    let bytes = SummaryOnlyFit::from_fit(&producer).unwrap().export().unwrap();
+    drop(producer);
+    let consumer = SummaryOnlyFit::consume(&bytes).unwrap();
+    assert_eq!(consumer.retention(), mode);
+
+    // The served quantity equals the full-retention summary of the same line.
+    let reference = full.snapshot();
+    assert_eq!(consumer.n(), reference.n);
+    assert_eq!(consumer.source_digest(), reference.source_digest);
+    assert_eq!(consumer.ledger(), reference.ledger);
+    let beta = consumer.beta().expect("the line has a nonsingular design");
+    assert_all_close(beta, reference.beta.as_ref().unwrap(), 1e-9);
     assert_all_close(beta, &[cases.gaussian.intercept, cases.gaussian.effect], 1e-9);
+    assert_eq!(consumer.residual_variance(), reference.residual_variance);
+    assert_eq!(served, reference);
 
     // What the rows would have served is refused, naming the mode and the operation.
     for name in unserved {
@@ -975,19 +992,92 @@ fn reduced_retention_serves_only_the_summary() {
         assert!(full.fresh_snapshot().is_ok());
         let reason = format!("{mode} cannot serve {operation}");
         let error = match operation {
-            RetainedOperation::RefitFromRetainedRows => summary_only.fresh_snapshot().unwrap_err(),
-            RetainedOperation::ExactRowEviction => summary_only.evict_row(0).unwrap_err(),
+            RetainedOperation::RefitFromRetainedRows => consumer.refit_from_rows().unwrap_err(),
+            RetainedOperation::ExactRowEviction => consumer.evict_row(0).unwrap_err(),
             RetainedOperation::InPlaceWeightOrMaskUpdate => {
-                summary_only.set_mask(0, true).unwrap_err()
+                consumer.set_mask(0, true).unwrap_err()
             }
-            RetainedOperation::RowReconstruction => {
-                assert!(mode.require(operation).is_err());
-                continue;
-            }
+            RetainedOperation::RowReconstruction => consumer.replay_rows().unwrap_err(),
             other => panic!("{other} has no summary operation to refuse"),
         };
         assert!(error.to_string().contains(&reason), "{error}");
     }
     // A refused operation leaves the served summary as it was.
-    assert_eq!(summary_only.snapshot(), served);
+    assert_eq!(consumer.beta(), Some(beta));
+
+    // A changed byte never yields a different summary.
+    for position in 0..bytes.len() {
+        let mut changed = bytes.clone();
+        changed[position] ^= 0x01;
+        if let Ok(other) = SummaryOnlyFit::consume(&changed) {
+            assert_eq!(other.beta(), consumer.beta(), "byte {position}");
+            assert_eq!(other.n(), consumer.n(), "byte {position}");
+        }
+    }
+
+    // The summary is not the full ledger, in either direction.
+    let downgrade = PeriodRefreshArtifactWire::consume(&bytes).unwrap_err().to_string();
+    assert!(downgrade.contains("summary_only"), "{downgrade}");
+}
+
+/// The specified cut and feedback policies change the decision. The cost model shares a parameter
+/// with the margin and the temporal effect: a cut drops its two cross-terms and feedback keeps
+/// them. With coefficients `(1, 1, -1)` at benefit 1 and the diagonal `D = S_mm + S_tt + S_cc`,
+/// `Var_cut = D + 2 S_mt` and `Var_feedback = D + 2 (S_mt - S_mc - S_tc)`, where each `S` is the
+/// fixture's correlation times the routes' published standard deviations. Both variances are read
+/// back from the exported artifact.
+#[test]
+fn cut_and_feedback_reload_different_decision_variances() {
+    use antecedent::analysis::{FlagshipDependence, FlagshipError, FlagshipWorkflow, load_decision};
+    use antecedent_contract::mixed_module::{CutFeedback, MixedModulePolicy};
+
+    let feedback = slice_cases::load().feedback;
+    let ctx = ExecutionContext::for_tests(0xF1A6);
+    let base = FlagshipWorkflow::execute(&ctx, FlagshipDependence::Independent).expect("base");
+    let decision = base.decision();
+    let (margin, temporal, cost) =
+        (decision.margin.variance, decision.temporal_variance, decision.cost_variance);
+    let margin_temporal = feedback.correlation_margin_temporal * (margin * temporal).sqrt();
+    let margin_cost = feedback.correlation_margin_cost * (margin * cost).sqrt();
+    let temporal_cost = feedback.correlation_temporal_cost * (temporal * cost).sqrt();
+    let diagonal = margin + temporal + cost;
+    let expected = [
+        (CutFeedback::from_name(&feedback.cut).unwrap(), diagonal + 2.0 * margin_temporal),
+        (
+            CutFeedback::from_name(&feedback.specified).unwrap(),
+            diagonal + 2.0 * (margin_temporal - margin_cost - temporal_cost),
+        ),
+    ];
+    let dependence = || FlagshipDependence::Covariance {
+        id: feedback.covariance_id.clone(),
+        margin_temporal,
+        margin_cost,
+        temporal_cost,
+    };
+    let mut reloaded = Vec::new();
+    for (policy, variance) in expected {
+        let declared = MixedModulePolicy::declared_modular(&feedback.reconciliation, policy)
+            .expect("a non-blank reconciliation");
+        let workflow = FlagshipWorkflow::execute_with_policy(&ctx, dependence(), &declared)
+            .expect("modular workflow");
+        let artifact = workflow.export_decision().expect("export");
+        drop(workflow);
+        let loaded = load_decision(&artifact.bytes, Some(&artifact.identity), &ctx).expect("load");
+        assert!((loaded.variance - variance).abs() <= 1.0e-9 * variance.abs(), "{policy}");
+        reloaded.push((loaded.variance, artifact.identity));
+    }
+    assert!((reloaded[0].0 - reloaded[1].0).abs() > 1.0e-9 * reloaded[0].0);
+    assert_ne!(reloaded[0].1, reloaded[1].1);
+
+    let feedback_policy =
+        MixedModulePolicy::declared_modular(&feedback.reconciliation, CutFeedback::Feedback)
+            .expect("policy");
+    assert!(matches!(
+        FlagshipWorkflow::execute_with_policy(
+            &ctx,
+            FlagshipDependence::Independent,
+            &feedback_policy
+        ),
+        Err(FlagshipError::Policy(_))
+    ));
 }

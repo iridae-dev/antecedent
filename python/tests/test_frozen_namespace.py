@@ -702,6 +702,7 @@ _EXPECTED_STAGE_ALL = {
         "PeriodPrior",
         "PeriodRefresh",
         "PeriodRefreshOutcome",
+        "PeriodRefreshSummary",
         "PeriodWindow",
         "consume_period_refresh_artifact",
         "consume_temporal_initial_state_artifact",

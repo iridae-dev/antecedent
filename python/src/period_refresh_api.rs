@@ -7,7 +7,9 @@
 //! comes back as structured JSON for the Python layer to raise as its own exception type.
 use crate::bridge::RefusalJson;
 use antecedent::consume_period_refresh_artifact as consume_ledger;
-use antecedent::period_refresh::{PeriodRefresh, PeriodRefreshOutcome, PeriodRefreshSpec};
+use antecedent::period_refresh::{
+    PeriodRefresh, PeriodRefreshOutcome, PeriodRefreshSpec, SummaryOnlyFit,
+};
 use antecedent_core::reason_code;
 use antecedent_estimate::temporal_refresh::{
     MechanismStanding, ObservationCadence, ObservationPeriod, TemporalWindowIdentity,
@@ -19,6 +21,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 const LEDGER_PREFIX: &[u8] = b"ANTECEDENT-PERIOD-REFRESH\x01";
+const SUMMARY_PREFIX: &[u8] = b"ANTECEDENT-PERIOD-REFRESH-SUMMARY\x01";
 
 /// `(mean, precision, shape, rate)`.
 type PriorTuple = (Vec<f64>, Vec<f64>, f64, f64);
@@ -127,7 +130,11 @@ fn consume_outcome<T>(result: Result<T, IoError>) -> Outcome<T> {
 }
 
 fn frame(raw: &[u8]) -> Vec<u8> {
-    let mut framed = LEDGER_PREFIX.to_vec();
+    framed_with(LEDGER_PREFIX, raw)
+}
+
+fn framed_with(prefix: &[u8], raw: &[u8]) -> Vec<u8> {
+    let mut framed = prefix.to_vec();
     framed.extend_from_slice(raw);
     framed
 }
@@ -242,6 +249,14 @@ impl NativePeriodRefresh {
         }
     }
 
+    /// The summary-only artifact of the least-squares fit, framed. This fit keeps its rows.
+    fn export_summary_only(&self, py: Python<'_>) -> Refusable<Py<PyBytes>> {
+        match self.inner.export_summary_only() {
+            Ok(raw) => (Some(PyBytes::new(py, &framed_with(SUMMARY_PREFIX, &raw)).unbind()), None),
+            Err(error) => (None, Some(state_refusal(&error, "period_refresh.summary_only"))),
+        }
+    }
+
     /// Remove one retained row; both summaries are rebuilt from the rows that remain.
     fn evict_row(&mut self, id: u64) -> Refusable<String> {
         match self.inner.evict_row(id) {
@@ -283,6 +298,78 @@ impl NativePeriodRefresh {
     }
 }
 
+/// A least-squares summary read from its summary-only artifact: it serves the summary and
+/// refuses every operation that needs rows.
+#[pyclass(skip_from_py_object)]
+struct NativePeriodRefreshSummary {
+    inner: SummaryOnlyFit,
+}
+
+#[pymethods]
+impl NativePeriodRefreshSummary {
+    /// Decode and verify a framed summary-only artifact.
+    #[staticmethod]
+    fn consume(artifact: &[u8]) -> Refusable<Self> {
+        let Some(raw) = artifact.strip_prefix(SUMMARY_PREFIX) else {
+            return refuse(
+                "period_refresh.summary_only",
+                "this is not a summary-only period refresh artifact; a full ledger is read with \
+                 the ledger consumer",
+            );
+        };
+        match SummaryOnlyFit::consume(raw) {
+            Ok(inner) => (Some(Self { inner }), None),
+            Err(error) => (None, Some(state_refusal(&error, "period_refresh.summary_only"))),
+        }
+    }
+
+    /// The retained summary as JSON.
+    fn payload(&self) -> String {
+        let ledger = self.inner.ledger();
+        serde_json::json!({
+            "retention": self.inner.retention().as_str(),
+            "source": self.inner.source(),
+            "n": self.inner.n(),
+            "beta": self.inner.beta(),
+            "residual_variance": self.inner.residual_variance(),
+            "source_digest": self.inner.source_digest(),
+            "ledger": {
+                "rows": ledger.rows,
+                "live_rows": ledger.live_rows,
+                "effective_n": ledger.effective_n,
+            },
+        })
+        .to_string()
+    }
+
+    /// Refit from retained rows; always refused.
+    fn refit_from_rows(&self) -> Refusable<bool> {
+        refused_operation(self.inner.refit_from_rows())
+    }
+
+    /// Evict one row; always refused.
+    fn evict_row(&self, id: u64) -> Refusable<bool> {
+        refused_operation(self.inner.evict_row(id))
+    }
+
+    /// Change a mask; always refused.
+    fn set_mask(&self, id: u64, masked: bool) -> Refusable<bool> {
+        refused_operation(self.inner.set_mask(id, masked))
+    }
+
+    /// Replay the rows of the summary; always refused.
+    fn replay_rows(&self) -> Refusable<bool> {
+        refused_operation(self.inner.replay_rows())
+    }
+}
+
+fn refused_operation(result: Result<(), StateError>) -> Refusable<bool> {
+    match result {
+        Ok(()) => (Some(true), None),
+        Err(error) => (None, Some(state_refusal(&error, "period_refresh.retention"))),
+    }
+}
+
 /// Independently recompute a framed ledger artifact from its retained blocks.
 #[pyfunction]
 fn consume_period_refresh_artifact(artifact: &[u8]) -> Outcome<String> {
@@ -313,6 +400,7 @@ fn consume_period_refresh_artifact(artifact: &[u8]) -> Outcome<String> {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<NativePeriodRefresh>()?;
+    module.add_class::<NativePeriodRefreshSummary>()?;
     module.add_function(wrap_pyfunction!(consume_period_refresh_artifact, module)?)?;
     Ok(())
 }

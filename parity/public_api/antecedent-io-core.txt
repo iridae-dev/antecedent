@@ -243,6 +243,7 @@ impl core::clone::Clone for antecedent_io_core::PolicyValueWire
 impl core::clone::Clone for antecedent_io_core::PopulationFactorWire
 impl core::clone::Clone for antecedent_io_core::PosteriorAtomGraphWire
 impl core::clone::Clone for antecedent_io_core::PosteriorAtomIdentityWire
+impl core::clone::Clone for antecedent_io_core::PosteriorPreparationWire
 impl core::clone::Clone for antecedent_io_core::PosteriorQuantityWire
 impl core::clone::Clone for antecedent_io_core::PosteriorRowWire
 impl core::clone::Clone for antecedent_io_core::PriorArtifactBody
@@ -855,6 +856,7 @@ impl core::cmp::Eq for antecedent_io_core::ParticipantBindingWire
 impl core::cmp::Eq for antecedent_io_core::PayloadDigestWire
 impl core::cmp::Eq for antecedent_io_core::PhysicalExecutionPlanWire
 impl core::cmp::Eq for antecedent_io_core::PopulationFactorWire
+impl core::cmp::Eq for antecedent_io_core::PosteriorPreparationWire
 impl core::cmp::Eq for antecedent_io_core::PosteriorQuantityWire
 impl core::cmp::Eq for antecedent_io_core::PriorArtifactBody
 impl core::cmp::Eq for antecedent_io_core::PriorCatalog
@@ -1309,6 +1311,7 @@ impl core::cmp::PartialEq for antecedent_io_core::PolicyValueWire
 impl core::cmp::PartialEq for antecedent_io_core::PopulationFactorWire
 impl core::cmp::PartialEq for antecedent_io_core::PosteriorAtomGraphWire
 impl core::cmp::PartialEq for antecedent_io_core::PosteriorAtomIdentityWire
+impl core::cmp::PartialEq for antecedent_io_core::PosteriorPreparationWire
 impl core::cmp::PartialEq for antecedent_io_core::PosteriorQuantityWire
 impl core::cmp::PartialEq for antecedent_io_core::PosteriorRowWire
 impl core::cmp::PartialEq for antecedent_io_core::PriorArtifactBody
@@ -2090,6 +2093,7 @@ impl core::fmt::Debug for antecedent_io_core::PolicyValueWire
 impl core::fmt::Debug for antecedent_io_core::PopulationFactorWire
 impl core::fmt::Debug for antecedent_io_core::PosteriorAtomGraphWire
 impl core::fmt::Debug for antecedent_io_core::PosteriorAtomIdentityWire
+impl core::fmt::Debug for antecedent_io_core::PosteriorPreparationWire
 impl core::fmt::Debug for antecedent_io_core::PosteriorQuantityWire
 impl core::fmt::Debug for antecedent_io_core::PosteriorRowWire
 impl core::fmt::Debug for antecedent_io_core::PriorArtifactBody
@@ -2933,6 +2937,7 @@ impl core::marker::Freeze for antecedent_io_core::PolicyValueWire [auto]
 impl core::marker::Freeze for antecedent_io_core::PopulationFactorWire [auto]
 impl core::marker::Freeze for antecedent_io_core::PosteriorAtomGraphWire [auto]
 impl core::marker::Freeze for antecedent_io_core::PosteriorAtomIdentityWire [auto]
+impl core::marker::Freeze for antecedent_io_core::PosteriorPreparationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::PosteriorQuantityWire [auto]
 impl core::marker::Freeze for antecedent_io_core::PosteriorRowWire [auto]
 impl core::marker::Freeze for antecedent_io_core::PriorArtifactBody [auto]
@@ -3626,6 +3631,7 @@ impl core::marker::Send for antecedent_io_core::PolicyValueWire [auto]
 impl core::marker::Send for antecedent_io_core::PopulationFactorWire [auto]
 impl core::marker::Send for antecedent_io_core::PosteriorAtomGraphWire [auto]
 impl core::marker::Send for antecedent_io_core::PosteriorAtomIdentityWire [auto]
+impl core::marker::Send for antecedent_io_core::PosteriorPreparationWire [auto]
 impl core::marker::Send for antecedent_io_core::PosteriorQuantityWire [auto]
 impl core::marker::Send for antecedent_io_core::PosteriorRowWire [auto]
 impl core::marker::Send for antecedent_io_core::PriorArtifactBody [auto]
@@ -4314,6 +4320,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::PolicyValueWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::PopulationFactorWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::PosteriorAtomGraphWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::PosteriorAtomIdentityWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::PosteriorPreparationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::PosteriorQuantityWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::PosteriorRowWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::PriorArtifactBody
@@ -4969,6 +4976,7 @@ impl core::marker::Sync for antecedent_io_core::PolicyValueWire [auto]
 impl core::marker::Sync for antecedent_io_core::PopulationFactorWire [auto]
 impl core::marker::Sync for antecedent_io_core::PosteriorAtomGraphWire [auto]
 impl core::marker::Sync for antecedent_io_core::PosteriorAtomIdentityWire [auto]
+impl core::marker::Sync for antecedent_io_core::PosteriorPreparationWire [auto]
 impl core::marker::Sync for antecedent_io_core::PosteriorQuantityWire [auto]
 impl core::marker::Sync for antecedent_io_core::PosteriorRowWire [auto]
 impl core::marker::Sync for antecedent_io_core::PriorArtifactBody [auto]
@@ -5662,6 +5670,7 @@ impl core::marker::Unpin for antecedent_io_core::PolicyValueWire [auto]
 impl core::marker::Unpin for antecedent_io_core::PopulationFactorWire [auto]
 impl core::marker::Unpin for antecedent_io_core::PosteriorAtomGraphWire [auto]
 impl core::marker::Unpin for antecedent_io_core::PosteriorAtomIdentityWire [auto]
+impl core::marker::Unpin for antecedent_io_core::PosteriorPreparationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::PosteriorQuantityWire [auto]
 impl core::marker::Unpin for antecedent_io_core::PosteriorRowWire [auto]
 impl core::marker::Unpin for antecedent_io_core::PriorArtifactBody [auto]
@@ -6355,6 +6364,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::PolicyValue
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::PopulationFactorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::PosteriorAtomGraphWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::PosteriorAtomIdentityWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::PosteriorPreparationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::PosteriorQuantityWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::PosteriorRowWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::PriorArtifactBody [auto]
@@ -7048,6 +7058,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::PolicyValueWir
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::PopulationFactorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::PosteriorAtomGraphWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::PosteriorAtomIdentityWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::PosteriorPreparationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::PosteriorQuantityWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::PosteriorRowWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::PriorArtifactBody [auto]
@@ -7721,6 +7732,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::PolicyValueWire
 impl serde_core::ser::Serialize for antecedent_io_core::PopulationFactorWire
 impl serde_core::ser::Serialize for antecedent_io_core::PosteriorAtomGraphWire
 impl serde_core::ser::Serialize for antecedent_io_core::PosteriorAtomIdentityWire
+impl serde_core::ser::Serialize for antecedent_io_core::PosteriorPreparationWire
 impl serde_core::ser::Serialize for antecedent_io_core::PosteriorQuantityWire
 impl serde_core::ser::Serialize for antecedent_io_core::PosteriorRowWire
 impl serde_core::ser::Serialize for antecedent_io_core::PriorMapping
@@ -8292,6 +8304,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::PolicyValueWi
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::PopulationFactorWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::PosteriorAtomGraphWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::PosteriorAtomIdentityWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::PosteriorPreparationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::PosteriorQuantityWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::PosteriorRowWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::PriorMapping
@@ -9181,6 +9194,7 @@ pub field antecedent_io_core::CausalPosteriorWire::hessian_condition: f64
 pub field antecedent_io_core::CausalPosteriorWire::identification: alloc::string::String
 pub field antecedent_io_core::CausalPosteriorWire::mean: alloc::vec::Vec<f64>
 pub field antecedent_io_core::CausalPosteriorWire::n_draws: u32
+pub field antecedent_io_core::CausalPosteriorWire::preparation: core::option::Option<antecedent_io_core::PosteriorPreparationWire>
 pub field antecedent_io_core::CausalPosteriorWire::q025: alloc::vec::Vec<f64>
 pub field antecedent_io_core::CausalPosteriorWire::q975: alloc::vec::Vec<f64>
 pub field antecedent_io_core::CausalPosteriorWire::quantities: alloc::vec::Vec<antecedent_io_core::PosteriorQuantityWire>
@@ -9853,6 +9867,10 @@ pub field antecedent_io_core::PosteriorAtomIdentityWire::execution_key: u64
 pub field antecedent_io_core::PosteriorAtomIdentityWire::format: u16
 pub field antecedent_io_core::PosteriorAtomIdentityWire::graph: antecedent_io_core::PosteriorAtomGraphWire
 pub field antecedent_io_core::PosteriorAtomIdentityWire::weight_bits: u64
+pub field antecedent_io_core::PosteriorPreparationWire::backend: alloc::string::String
+pub field antecedent_io_core::PosteriorPreparationWire::receipt_digest: alloc::string::String
+pub field antecedent_io_core::PosteriorPreparationWire::route_bound: alloc::string::String
+pub field antecedent_io_core::PosteriorPreparationWire::rows_admitted: core::option::Option<u64>
 pub field antecedent_io_core::PosteriorRowWire::calibration: alloc::string::String
 pub field antecedent_io_core::PosteriorRowWire::coordinates: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io_core::PosteriorRowWire::covariance: core::option::Option<alloc::vec::Vec<f64>>
@@ -13132,6 +13150,7 @@ pub struct antecedent_io_core::PhysicalExecutionPlanWire
 pub struct antecedent_io_core::PolicyValueWire
 pub struct antecedent_io_core::PopulationFactorWire
 pub struct antecedent_io_core::PosteriorAtomIdentityWire
+pub struct antecedent_io_core::PosteriorPreparationWire
 pub struct antecedent_io_core::PosteriorRowWire
 pub struct antecedent_io_core::PriorCatalog
 pub struct antecedent_io_core::PriorSetIdentityWire
@@ -13929,6 +13948,7 @@ pub use antecedent_io_core::plan_wire::performance_to_wire = antecedent_io_core:
 pub use antecedent_io_core::plan_wire::physical_plan_from_wire = antecedent_io_core::physical_plan_from_wire
 pub use antecedent_io_core::plan_wire::physical_plan_to_wire = antecedent_io_core::physical_plan_to_wire
 pub use antecedent_io_core::posterior::CausalPosteriorWire = antecedent_io_core::CausalPosteriorWire
+pub use antecedent_io_core::posterior::PosteriorPreparationWire = antecedent_io_core::PosteriorPreparationWire
 pub use antecedent_io_core::posterior::PosteriorQuantityWire = antecedent_io_core::PosteriorQuantityWire
 pub use antecedent_io_core::posterior::decode_causal_posterior_bytes = antecedent_io_core::decode_causal_posterior_bytes
 pub use antecedent_io_core::posterior::decode_posterior_artifact = antecedent_io_core::decode_posterior_artifact

@@ -380,13 +380,27 @@ impl PeriodRefreshArtifactWire {
     /// # Errors
     /// An unsupported version, a decoding failure, or a foreign feature or kind.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let wire: Self = crate::decode_with_version(bytes, |version| {
+        let decoded: Result<Self, IoError> = crate::decode_with_version(bytes, |version| {
             if version == PERIOD_REFRESH_ARTIFACT_VERSION {
                 Ok(())
             } else {
                 Err(IoError::UnsupportedVersion { version })
             }
-        })?;
+        });
+        let wire = match decoded {
+            Ok(wire) => wire,
+            Err(error) => {
+                if PeriodRefreshSummaryWire::decode(bytes).is_ok() {
+                    return Err(refused(
+                        "summary_only",
+                        "this is the summary-only form, which keeps no rows, so it cannot be \
+                         read as the full ledger; load it with the summary-only reader, or \
+                         export the full ledger from a fit that still retains its rows",
+                    ));
+                }
+                return Err(error);
+            }
+        };
         if wire.required_features != [PERIOD_REFRESH_ARTIFACT_FEATURE]
             || wire.kind != PERIOD_REFRESH_ARTIFACT_KIND
         {
@@ -607,6 +621,193 @@ impl PeriodRefreshArtifactWire {
                     ));
                 }
             }
+        }
+        Ok(())
+    }
+}
+
+/// The summary-only artifact format this reader writes and accepts.
+pub const PERIOD_REFRESH_SUMMARY_VERSION: u32 = 1;
+/// The feature marker of the summary-only format.
+pub const PERIOD_REFRESH_SUMMARY_FEATURE: &str = "period_refresh_summary_v1";
+/// The summary-only artifact kind; it is not the kind of the full ledger.
+pub const PERIOD_REFRESH_SUMMARY_KIND: &str = crate::artifact_kinds::PERIOD_REFRESH_SUMMARY;
+/// The retention word a summary-only artifact states.
+pub const PERIOD_REFRESH_SUMMARY_RETENTION: &str = "summary-only";
+
+const SUMMARY_SEAL_TAG: &str = "period_refresh_summary_seal_v1";
+
+/// Row counts of a retained summary.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SummaryLedgerWire {
+    /// Rows the summary was built from, masked or not.
+    pub rows: u64,
+    /// Rows that entered the summary.
+    pub live_rows: u64,
+    /// Sum of the counts of the live rows; equals `n`.
+    pub effective_n: u64,
+}
+
+/// The summary-only form of a refreshed least-squares fit.
+///
+/// It carries the retained summary (Gram, cross-product, squared responses, observation count,
+/// coefficients, residual variance), the source digest and the row counts, and states its
+/// retention. No row and no block is in it, so a consumer can serve the summary and nothing that
+/// needs rows. It is a different kind from the full ledger, so the full reader refuses it and
+/// the summary reader refuses a full ledger: neither form is read as the other.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PeriodRefreshSummaryWire {
+    /// Format version.
+    pub version: u32,
+    /// Required features.
+    pub required_features: Vec<String>,
+    /// Artifact kind.
+    pub kind: String,
+    /// Retention the producer reduced to; always `summary-only`.
+    pub retention: String,
+    /// Source the summarized rows belonged to.
+    pub source: String,
+    /// Number of columns of the design.
+    pub ncols: u32,
+    /// Observation count.
+    pub n: u64,
+    /// Row-major Gram.
+    pub xtx: Vec<f64>,
+    /// Cross-product.
+    pub xty: Vec<f64>,
+    /// Sum of squared responses.
+    pub yty: f64,
+    /// Least-squares coefficients, absent when the Gram is singular.
+    pub beta: Option<Vec<f64>>,
+    /// Residual variance, absent when there are not more rows than columns.
+    pub residual_variance: Option<f64>,
+    /// Digest of the source and the ordered rows the summary was built from.
+    pub source_digest: String,
+    /// Row counts.
+    pub ledger: SummaryLedgerWire,
+    /// Seal over every other field.
+    pub seal: String,
+}
+
+impl PeriodRefreshSummaryWire {
+    /// Everything but the seal, sealed.
+    ///
+    /// # Errors
+    /// Encoding failure.
+    pub fn compute_seal(&self) -> Result<String, IoError> {
+        let mut body = self.clone();
+        body.seal = String::new();
+        crate::digest_hex(IdentityDomain::TransportCertificate, &(SUMMARY_SEAL_TAG, body))
+    }
+
+    /// Seal a summary assembled from its parts and verify it once, so a producer never writes
+    /// an artifact its consumer would refuse.
+    ///
+    /// # Errors
+    /// Encoding failure or any refusal of [`Self::verify`].
+    pub fn checked(mut self) -> Result<Self, IoError> {
+        self.seal = self.compute_seal()?;
+        self.verify()?;
+        Ok(self)
+    }
+
+    /// Encode as CBOR.
+    ///
+    /// # Errors
+    /// Encoding failure.
+    pub fn export(&self) -> Result<Vec<u8>, IoError> {
+        crate::to_cbor(self)
+    }
+
+    /// Decode, refusing any other version, feature or kind first.
+    ///
+    /// # Errors
+    /// An unsupported version, a decoding failure (a full ledger does not decode as a summary),
+    /// or a foreign feature or kind.
+    pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == PERIOD_REFRESH_SUMMARY_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
+        if wire.required_features != [PERIOD_REFRESH_SUMMARY_FEATURE]
+            || wire.kind != PERIOD_REFRESH_SUMMARY_KIND
+        {
+            return Err(mismatch(PREFIX, "unsupported_semantics"));
+        }
+        Ok(wire)
+    }
+
+    /// Decode and verify.
+    ///
+    /// # Errors
+    /// See [`Self::decode`] and [`Self::verify`].
+    pub fn consume(bytes: &[u8]) -> Result<Self, IoError> {
+        let wire = Self::decode(bytes)?;
+        wire.verify()?;
+        Ok(wire)
+    }
+
+    /// Check the seal, the stated retention, the shapes, the ledger, and that the stored
+    /// coefficients and residual variance are what the stored Gram and cross-product give.
+    ///
+    /// # Errors
+    /// A changed seal, a retention other than summary-only, a malformed summary, or a stored
+    /// result the summary does not reproduce.
+    pub fn verify(&self) -> Result<(), IoError> {
+        if self.compute_seal()? != self.seal {
+            return Err(mismatch(PREFIX, "seal"));
+        }
+        if self.retention != PERIOD_REFRESH_SUMMARY_RETENTION {
+            return Err(mismatch(PREFIX, "retention"));
+        }
+        let p = usize::try_from(self.ncols).map_err(|_| mismatch(PREFIX, "ncols"))?;
+        let finite = self.xtx.iter().chain(&self.xty).all(|v| v.is_finite());
+        if p == 0
+            || self.xtx.len() != p * p
+            || self.xty.len() != p
+            || !finite
+            || !(self.yty.is_finite() && self.yty >= 0.0)
+            || self.source_digest.is_empty()
+        {
+            return Err(mismatch(PREFIX, "summary_shape"));
+        }
+        if self.ledger.effective_n != self.n
+            || self.ledger.live_rows > self.ledger.rows
+            || self.ledger.live_rows > self.n
+        {
+            return Err(mismatch(PREFIX, "ledger"));
+        }
+        let expected_beta = if self.n == 0 {
+            None
+        } else {
+            invert_square(&self.xtx, p).map(|inverse| multiply(&inverse, p, &self.xty))
+        };
+        match (&expected_beta, &self.beta) {
+            (None, None) => {}
+            (Some(expected), Some(stored)) if all_close(expected, stored) => {}
+            _ => return Err(mismatch(PREFIX, "least_squares")),
+        }
+        let enough = usize::try_from(self.n).is_ok_and(|n| n > p);
+        let expected_variance = match (&expected_beta, enough) {
+            (Some(beta), true) => {
+                let dof = self.n as f64 - p as f64;
+                let curvature = dot(beta, &multiply(&self.xtx, p, beta));
+                let sse = self.yty - 2.0 * dot(beta, &self.xty) + curvature;
+                Some((sse / dof, self.yty / dof))
+            }
+            _ => None,
+        };
+        match (expected_variance, self.residual_variance) {
+            (None, None) => {}
+            (Some((expected, scale)), Some(stored))
+                if (expected - stored).abs()
+                    <= 1e-6 * (1.0 + expected.abs().max(stored.abs())) + 1e-9 * scale => {}
+            _ => return Err(mismatch(PREFIX, "residual_variance")),
         }
         Ok(())
     }

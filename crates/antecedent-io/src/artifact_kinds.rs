@@ -14,6 +14,7 @@ pub(crate) const MARGINAL_SENSITIVITY_MODEL: &str = "marginal_sensitivity_model"
 pub(crate) const MECHANISM_DISCREPANCY: &str = "mechanism_discrepancy_v1";
 pub(crate) const NONLINEAR_MEDIATION: &str = "nonlinear_mediation_v1";
 pub(crate) const PERIOD_REFRESH_LEDGER: &str = "period_refresh_ledger_v1";
+pub(crate) const PERIOD_REFRESH_SUMMARY: &str = "period_refresh_summary_v1";
 pub(crate) const PREDICTIVE_ASSESSMENT: &str = "predictive_assessment_v1";
 pub(crate) const SAMPLED_COUNTERFACTUAL_TRANSPORT: &str = "sampled_counterfactual_transport_v1";
 pub(crate) const TEMPORAL_DEPENDENT_INTERVAL: &str = "temporal_dependent_interval_internal";
@@ -26,7 +27,7 @@ mod tests {
     use super::{
         ADAPTIVE_INFERENCE_RESULT, CATEGORICAL_TREATMENT, EFFECT_CONSTANCY, LATENT_CLASS_EFFECTS,
         LEARNED_TRIAL, MARGINAL_SENSITIVITY_MODEL, MECHANISM_DISCREPANCY, NONLINEAR_MEDIATION,
-        PERIOD_REFRESH_LEDGER, PREDICTIVE_ASSESSMENT, SAMPLED_COUNTERFACTUAL_TRANSPORT,
+        PERIOD_REFRESH_LEDGER, PERIOD_REFRESH_SUMMARY, PREDICTIVE_ASSESSMENT, SAMPLED_COUNTERFACTUAL_TRANSPORT,
         TEMPORAL_DEPENDENT_INTERVAL, TEMPORAL_INITIAL_STATE, TEMPORAL_NEW_PERIOD_REFRESH,
         VECTOR_TREATMENT,
     };
@@ -43,6 +44,7 @@ mod tests {
             MECHANISM_DISCREPANCY,
             NONLINEAR_MEDIATION,
             PERIOD_REFRESH_LEDGER,
+            PERIOD_REFRESH_SUMMARY,
             PREDICTIVE_ASSESSMENT,
             SAMPLED_COUNTERFACTUAL_TRANSPORT,
             TEMPORAL_DEPENDENT_INTERVAL,

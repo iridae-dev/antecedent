@@ -23,12 +23,14 @@ target. Rust owns every rule; refusals raise
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
 from .._columns import coerce_fields
 from .._native import NativePeriodRefresh as _NativePeriodRefresh
+from .._native import NativePeriodRefreshSummary as _NativeSummary
 from .._native import consume_period_refresh_artifact as _consume_ledger
 from ..errors import CausalTypeError, CausalValueError
 from ._temporal_extensions import _consumed, _index
@@ -326,6 +328,103 @@ class PeriodRefresh:
             raise CausalValueError("the native export returned nothing")
         return bytes(data)
 
+    def export_summary_only(self) -> bytes:
+        """The summary-only artifact of the least-squares fit, framed. This fit keeps its rows.
+
+        :meth:`PeriodRefreshSummary.consume` reads it back; it is not a ledger and
+        :func:`consume_period_refresh_artifact` refuses it.
+        """
+        data, refusal = self._native.export_summary_only()
+        if refusal is not None:
+            _consumed(None, refusal)
+        if data is None:
+            raise CausalValueError("the native export returned nothing")
+        return bytes(data)
+
+
+class PeriodRefreshSummary:
+    """The least-squares summary of a period refresh read from its summary-only artifact.
+
+    It serves the retained summary (observation count, coefficients, residual variance, source
+    digest and row counts) and keeps no rows. Refitting from rows, evicting a row, changing a
+    mask and replaying the rows are refused with the retention mode and the operation named.
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(self, native: Any) -> None:
+        self._native = native
+
+    @classmethod
+    def consume(cls, artifact: bytes) -> PeriodRefreshSummary:
+        """Decode and verify a summary-only artifact; any change to it is refused."""
+        if not isinstance(artifact, bytes):
+            raise CausalTypeError("artifact must be bytes")
+        native, refusal = _NativeSummary.consume(artifact)
+        if refusal is not None:
+            _consumed(None, refusal)
+        if native is None:
+            raise CausalValueError("the native consumer returned nothing")
+        return cls(native)
+
+    def _payload(self) -> dict[str, Any]:
+        decoded: dict[str, Any] = json.loads(self._native.payload())
+        return decoded
+
+    @property
+    def retention(self) -> str:
+        """The retention the artifact states: ``summary-only``."""
+        return str(self._payload()["retention"])
+
+    @property
+    def source(self) -> str:
+        """The source the summarized rows belonged to."""
+        return str(self._payload()["source"])
+
+    @property
+    def n(self) -> int:
+        """The observation count."""
+        return int(self._payload()["n"])
+
+    @property
+    def beta(self) -> tuple[float, ...] | None:
+        """The least-squares coefficients, when the design is nonsingular."""
+        beta = self._payload()["beta"]
+        return None if beta is None else tuple(beta)
+
+    @property
+    def residual_variance(self) -> float | None:
+        """The residual variance, when there are more rows than columns."""
+        variance = self._payload()["residual_variance"]
+        return None if variance is None else float(variance)
+
+    @property
+    def source_digest(self) -> str:
+        """The digest of the source and the ordered rows the summary was built from."""
+        return str(self._payload()["source_digest"])
+
+    def refit_from_rows(self) -> None:
+        """Refused: no rows are retained."""
+        self._refused(self._native.refit_from_rows())
+
+    def evict_row(self, row_id: int) -> None:
+        """Refused: no rows are retained."""
+        self._refused(self._native.evict_row(_index("row_id", row_id, limit=_U64)))
+
+    def set_mask(self, row_id: int, masked: bool) -> None:
+        """Refused: no rows are retained."""
+        self._refused(self._native.set_mask(_index("row_id", row_id, limit=_U64), bool(masked)))
+
+    def replay_rows(self) -> None:
+        """Refused: no rows are retained."""
+        self._refused(self._native.replay_rows())
+
+    @staticmethod
+    def _refused(result: tuple[bool | None, str | None]) -> None:
+        _, refusal = result
+        if refusal is not None:
+            _consumed(None, refusal)
+
 
 @dataclass(frozen=True, slots=True)
 class ConsumedPeriodRefresh:
@@ -375,6 +474,7 @@ __all__ = [
     "PeriodPrior",
     "PeriodRefresh",
     "PeriodRefreshOutcome",
+    "PeriodRefreshSummary",
     "PeriodWindow",
     "consume_period_refresh_artifact",
 ]

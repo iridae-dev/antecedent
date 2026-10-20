@@ -34,15 +34,18 @@ use antecedent_estimate::temporal_refresh::{
     refresh_survival,
 };
 use antecedent_io::period_refresh_artifact::{
-    BlockWire, LeastSquaresWire, PERIOD_EXTENDED, PERIOD_REFRESH_ARTIFACT_FEATURE,
+    BlockWire, LeastSquaresWire, PERIOD_REFRESH_SUMMARY_FEATURE, PERIOD_REFRESH_SUMMARY_KIND,
+    PERIOD_REFRESH_SUMMARY_RETENTION, PERIOD_REFRESH_SUMMARY_VERSION, PeriodRefreshSummaryWire,
+    SummaryLedgerWire, PERIOD_EXTENDED, PERIOD_REFRESH_ARTIFACT_FEATURE,
     PERIOD_REFRESH_ARTIFACT_KIND, PERIOD_REFRESH_ARTIFACT_VERSION, PERIOD_RESTARTED, PERIOD_START,
     PeriodEventWire, PeriodRefreshArtifactWire, PosteriorWire, PriorWire, RowWire, product_label,
     standing_label,
 };
 use antecedent_io::temporal_refresh_artifact::WindowIdentityWire;
+use antecedent_state::retention::{RetainedOperation, RetentionMode};
 use antecedent_state::{
-    ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary, LinearOlsSuffStats, OlsRefresh,
-    RefreshOutcome, RefreshRow, StateError, merge_within_tolerance,
+    ConjugateOlsPosterior, ConjugateOlsPrior, ConjugateOlsSummary, LinearOlsSuffStats,
+    OlsLedgerState, OlsRefresh, RefreshOutcome, RefreshRow, StateError, merge_within_tolerance,
 };
 
 /// How a period refresh reached the cached results.
@@ -549,6 +552,15 @@ impl PeriodRefresh {
         self.ledger_wire()?.export().map_err(|error| estimation(&error))
     }
 
+    /// Export the least-squares fit of this mechanism in its summary-only form, which keeps no
+    /// rows; see [`SummaryOnlyFit`]. This mechanism keeps its rows and is not changed.
+    ///
+    /// # Errors
+    /// A singular fit, or an encoding failure.
+    pub fn export_summary_only(&self) -> Result<Vec<u8>, StateError> {
+        SummaryOnlyFit::from_fit(&self.fit.clone().into_summary_only())?.export()
+    }
+
     /// Compare the cached least-squares result with a fresh rebuild from the retained rows, and
     /// the cached posterior with the batch posterior of those rows under the stated prior.
     ///
@@ -566,5 +578,173 @@ impl PeriodRefresh {
             ));
         }
         Ok(())
+    }
+}
+
+/// The retained summary of a least-squares fit that stopped retaining its rows, as read from its
+/// artifact by a consumer that never held the rows.
+///
+/// It serves the summary: observation count, coefficients, residual variance, source digest and
+/// row counts. Every operation that needs rows (a refit from rows, the eviction of a row, a
+/// change of mask or weight, the replay of rows) is refused with the typed retention refusal,
+/// which names the mode and the operation. The artifact is a different kind from the full
+/// ledger, so a summary is never read as a full ledger.
+#[derive(Clone, Debug)]
+pub struct SummaryOnlyFit {
+    wire: PeriodRefreshSummaryWire,
+}
+
+impl SummaryOnlyFit {
+    /// The summary-only artifact of `fit`, which must already be reduced with
+    /// [`OlsRefresh::into_summary_only`]. A fit that still retains rows is refused rather than
+    /// reduced silently.
+    ///
+    /// # Errors
+    /// The fit retains its rows, its Gram is singular, or the summary does not verify.
+    pub fn from_fit(fit: &OlsRefresh) -> Result<Self, StateError> {
+        if fit.retention() != RetentionMode::SummaryOnly {
+            return Err(invalid(format!(
+                "{} is not summary-only; reduce the fit with into_summary_only before exporting \
+                 its summary",
+                fit.retention()
+            )));
+        }
+        let snapshot = fit.snapshot();
+        let ncols = u32::try_from(fit.stats().ncols).map_err(|_| invalid("too many columns"))?;
+        let wire = PeriodRefreshSummaryWire {
+            version: PERIOD_REFRESH_SUMMARY_VERSION,
+            required_features: vec![PERIOD_REFRESH_SUMMARY_FEATURE.into()],
+            kind: PERIOD_REFRESH_SUMMARY_KIND.into(),
+            retention: PERIOD_REFRESH_SUMMARY_RETENTION.into(),
+            source: snapshot.source.to_string(),
+            ncols,
+            n: snapshot.n,
+            xtx: snapshot.xtx,
+            xty: snapshot.xty,
+            yty: snapshot.yty,
+            beta: snapshot.beta,
+            residual_variance: snapshot.residual_variance,
+            source_digest: snapshot.source_digest,
+            ledger: SummaryLedgerWire {
+                rows: snapshot.ledger.rows,
+                live_rows: snapshot.ledger.live_rows,
+                effective_n: snapshot.ledger.effective_n,
+            },
+            seal: String::new(),
+        }
+        .checked()
+        .map_err(|error| estimation(&error))?;
+        Ok(Self { wire })
+    }
+
+    /// Encode the artifact.
+    ///
+    /// # Errors
+    /// An encoding failure.
+    pub fn export(&self) -> Result<Vec<u8>, StateError> {
+        self.wire.export().map_err(|error| estimation(&error))
+    }
+
+    /// Decode and verify a summary-only artifact: the seal, the stated retention, the shapes and
+    /// that the stored coefficients and residual variance are what the stored summary gives.
+    ///
+    /// # Errors
+    /// Any tamper, a full ledger, or a malformed summary.
+    pub fn consume(bytes: &[u8]) -> Result<Self, StateError> {
+        PeriodRefreshSummaryWire::consume(bytes)
+            .map(|wire| Self { wire })
+            .map_err(|error| estimation(&error))
+    }
+
+    /// Retention of the result: always summary-only.
+    #[must_use]
+    pub const fn retention(&self) -> RetentionMode {
+        RetentionMode::SummaryOnly
+    }
+
+    /// Source the summarized rows belonged to.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        &self.wire.source
+    }
+
+    /// Observation count.
+    #[must_use]
+    pub const fn n(&self) -> u64 {
+        self.wire.n
+    }
+
+    /// Least-squares coefficients, when the Gram is nonsingular.
+    #[must_use]
+    pub fn beta(&self) -> Option<&[f64]> {
+        self.wire.beta.as_deref()
+    }
+
+    /// Residual variance, when there are more rows than columns.
+    #[must_use]
+    pub const fn residual_variance(&self) -> Option<f64> {
+        self.wire.residual_variance
+    }
+
+    /// Digest of the source and the ordered rows the summary was built from.
+    #[must_use]
+    pub fn source_digest(&self) -> &str {
+        &self.wire.source_digest
+    }
+
+    /// Row counts of the summary.
+    #[must_use]
+    pub const fn ledger(&self) -> OlsLedgerState {
+        OlsLedgerState {
+            rows: self.wire.ledger.rows,
+            live_rows: self.wire.ledger.live_rows,
+            effective_n: self.wire.ledger.effective_n,
+        }
+    }
+
+    /// Accept `operation` under summary-only retention, or refuse it with the mode and the
+    /// operation named.
+    ///
+    /// # Errors
+    /// The operation needs rows.
+    pub fn require(&self, operation: RetainedOperation) -> Result<(), StateError> {
+        self.retention().require(operation).map_err(|_| {
+            invalid(format!(
+                "{} cannot serve {operation}; reload the rows of this source and rebuild from them",
+                self.retention()
+            ))
+        })
+    }
+
+    /// Fit again from retained rows. Refused: no rows are retained.
+    ///
+    /// # Errors
+    /// Always.
+    pub fn refit_from_rows(&self) -> Result<(), StateError> {
+        self.require(RetainedOperation::RefitFromRetainedRows)
+    }
+
+    /// Evict one row. Refused: no rows are retained.
+    ///
+    /// # Errors
+    /// Always.
+    pub fn evict_row(&self, _id: u64) -> Result<(), StateError> {
+        self.require(RetainedOperation::ExactRowEviction)
+    }
+
+    /// Change the mask or weight of one row. Refused: no rows are retained.
+    ///
+    /// # Errors
+    /// Always.
+    pub fn set_mask(&self, _id: u64, _masked: bool) -> Result<(), StateError> {
+        self.require(RetainedOperation::InPlaceWeightOrMaskUpdate)
+    }
+
+    /// Replay the rows the summary was built from. Refused: no rows are retained.
+    ///
+    /// # Errors
+    /// Always.
+    pub fn replay_rows(&self) -> Result<(), StateError> {
+        self.require(RetainedOperation::RowReconstruction)
     }
 }

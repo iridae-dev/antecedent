@@ -355,3 +355,24 @@ parameter summaries inside a measured envelope: only the named endpoints in
 the [measured scope](population-time-uncertainty.md) receive that standing.
 A general `antecedent.load` call is not a substitute for this method-specific
 consumer.
+
+### Summary-only period refresh
+
+A period-refresh fit that stopped retaining its rows has its own artifact, a different kind
+(`period_refresh_summary_v1`) from the full ledger (`period_refresh_ledger_v1`), so full-retention
+bytes and their reader are unchanged. The sealed content is the retained least-squares summary
+(Gram, cross-product, squared responses, observation count, coefficients, residual variance),
+the source digest, the row counts and the stated retention (`summary-only`). It holds no row and
+no block.
+
+An independent consumer (`SummaryOnlyFit::consume` in Rust,
+`PeriodRefreshSummary.consume` in Python) checks the seal and the retention, then checks that the
+stored coefficients and residual variance are what the stored summary gives. It serves the
+observation count, coefficients, residual variance, source digest and row counts. A refit from
+rows, the eviction of a row, a mask or weight change and the replay of rows are refused with the
+retention mode and the operation named (`summary-only cannot serve ...`); there are no rows to
+rebuild from. The two forms are never read as each other: the full-ledger reader refuses a
+summary artifact (`period_refresh.summary_only`), and the summary reader refuses a full ledger.
+Export it from a fit already reduced with `into_summary_only` (`SummaryOnlyFit::from_fit`), or
+from a live period refresh with `PeriodRefresh.export_summary_only`, which leaves that fit's rows
+in place. The summary form carries no posterior and no period ledger; those need the rows.

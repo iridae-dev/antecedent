@@ -4,7 +4,9 @@
 
 use std::collections::BTreeSet;
 
-use antecedent::period_refresh::{PeriodRefresh, PeriodRefreshOutcome, PeriodRefreshSpec};
+use antecedent::period_refresh::{
+    PeriodRefresh, PeriodRefreshOutcome, PeriodRefreshSpec, SummaryOnlyFit,
+};
 use antecedent_estimate::temporal_refresh::{
     MechanismStanding, ObservationCadence, ObservationPeriod, TemporalWindowIdentity, WindowProduct,
 };
@@ -235,4 +237,22 @@ fn a_stated_prior_of_the_wrong_width_is_refused() {
     let first = window(0, 6, "snap_1", &units());
     let spec = spec(MechanismStanding::DeclaredInvariant, "law_1");
     assert!(PeriodRefresh::start(&spec, &first, &narrow, &S[0..6]).is_err());
+}
+
+#[test]
+fn the_summary_only_export_serves_the_least_squares_fit_and_is_not_the_ledger() {
+    let refresh = start(MechanismStanding::DeclaredInvariant);
+    let fit = refresh.fit().snapshot();
+    let summary_bytes = refresh.export_summary_only().unwrap();
+    let ledger_bytes = refresh.export_ledger().unwrap();
+    // The producer still retains its rows.
+    assert!(!refresh.fit().rows().is_empty());
+    let consumer = SummaryOnlyFit::consume(&summary_bytes).unwrap();
+    assert_eq!(consumer.n(), fit.n);
+    assert_eq!(consumer.beta(), fit.beta.as_deref());
+    assert_eq!(consumer.residual_variance(), fit.residual_variance);
+    assert_eq!(consumer.source_digest(), fit.source_digest);
+    // Neither form is read as the other.
+    assert!(SummaryOnlyFit::consume(&ledger_bytes).is_err());
+    assert!(antecedent::consume_period_refresh_artifact(&summary_bytes).is_err());
 }
