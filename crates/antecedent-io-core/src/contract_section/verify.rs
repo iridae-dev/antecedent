@@ -1103,6 +1103,8 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                 && slot.matrix_coordinate.is_none()
                 && key.query == "Unknown"
                 && (key.interval_method == "none"
+                    || (key.inference.eq_ignore_ascii_case("bayesian")
+                        && key.interval_method == "posterior_quantile")
                     || (matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
                         && key.interval_method == "analytic_se"
                         && key.dependence == "cluster"))

@@ -762,7 +762,7 @@ fn apply_design_contract(
                     | EstimatorId::BayesianSwitchback
             )
         })
-        || carry.estimator_spec.is_some()
+        || carry.estimator_spec.as_ref().is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_)))
     {
         return Err(CausalError::Unsupported {
             message: "design-based query estimators are fixed; custom estimators are not accepted",

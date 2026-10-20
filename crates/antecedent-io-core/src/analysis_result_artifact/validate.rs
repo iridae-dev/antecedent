@@ -248,8 +248,12 @@ pub(super) fn validate_result(
             "analysis scalar estimate must be finite when present".into(),
         ));
     }
-    if matches!(result.query, crate::CausalQueryWire::ContinuousDoseResponse(_))
-        != (result.continuous_dose_response.is_some() || result.posterior_row.is_some())
+    let dose_query = matches!(result.query, crate::CausalQueryWire::ContinuousDoseResponse(_));
+    let dose_section = result.continuous_dose_response.is_some();
+    // A posterior row also rides on survival and quantile results, so only the dose query
+    // is required to carry a dose section or a row, and only it may carry the dose section.
+    if (dose_query && !dose_section && result.posterior_row.is_none())
+        || (!dose_query && dose_section)
     {
         return Err(IoError::Convert(
             "continuous-dose query and result section must appear together".into(),
