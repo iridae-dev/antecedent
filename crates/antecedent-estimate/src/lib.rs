@@ -57,6 +57,7 @@ pub mod frontdoor_functional;
 pub mod functional_distribution;
 pub mod gcomp;
 pub mod glm_adjustment;
+pub mod history_match;
 pub mod population_aipw;
 pub mod population_atc;
 pub use antecedent_stats::identified_set;
