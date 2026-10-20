@@ -211,7 +211,9 @@ pub(crate) use checked_temporal_graph_posterior_response::{
 };
 pub use composition_verification::{
     CompositionVerification, CompositionVerificationRefusal, ConsumedCompositionVerification,
-    consume_composition_verification_artifact,
+    DecisionArtifact, FlagshipDependence, FlagshipError, FlagshipWorkflow, LoadedDecision,
+    MixedDecision, PeriodReplay, PriorReplay, UtilityReplay,
+    consume_composition_verification_artifact, load_decision,
 };
 pub use cost::{
     BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,

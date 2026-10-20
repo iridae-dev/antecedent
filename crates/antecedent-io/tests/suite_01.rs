@@ -43,6 +43,8 @@ mod external_binding_wire;
 mod external_claim_artifact;
 #[path = "external_column_claim_artifact.rs"]
 mod external_column_claim_artifact;
+#[path = "flagship_decision_artifact.rs"]
+mod flagship_decision_artifact;
 #[path = "frozen_scores_artifact.rs"]
 mod frozen_scores_artifact;
 #[path = "joint_bayesian_source_dependence_ledger.rs"]

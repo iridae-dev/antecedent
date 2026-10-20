@@ -386,6 +386,10 @@ name = "composition_cross_surface_slices"
 path = "tests/composition_cross_surface_slices.rs"
 
 [[test]]
+name = "flagship_decision_fixture"
+path = "tests/flagship_decision_fixture.rs"
+
+[[test]]
 name = "joint_law_composed_interval_calibration"
 path = "tests/joint_law_composed_interval_calibration.rs"
 

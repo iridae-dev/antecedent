@@ -7,9 +7,11 @@
 //! is the conjugate Gaussian posterior. The margin is an affine scientific
 //! bridge with declared mapping uncertainty and slope-source covariance. The
 //! decision is the expectation of an affine utility of their joint linear
-//! combination. The three inputs are estimated apart, so that independence is
-//! the recorded dependence and the cross-terms are zero. The bridge dependence
-//! stays on the margin.
+//! combination. The three inputs are estimated apart, so independence is the
+//! default recorded dependence and the cross-terms are zero. A caller who has
+//! a declared joint covariance supplies its identity and off-diagonal terms
+//! instead, and the matrix is checked symmetric and positive semidefinite
+//! before it is used. The bridge dependence stays on the margin.
 //!
 //! A new utility recomputes the decision and refits no trial, mechanism, or
 //! posterior. A new prior refits the cost posterior. A new period refits the
@@ -41,6 +43,10 @@ use antecedent_design::decision_contract::{
 use antecedent_design::decision_eval::{DecisionEvalError, DecisionResult, MeanSource};
 use antecedent_estimate::temporal_dependent_interval::{DependentIntervalConfig, IntervalMethod};
 
+use super::{
+    CompositionGraph, CompositionNode, CompositionVerification, CompositionVerificationRefusal,
+    DependencyKind, NodeKind, ObservedEffect,
+};
 use crate::analysis::joint_law_propagation::{
     JointLawPropagationRefusal, LinearDependence, MomentInput, PropagationClaim,
     consume_joint_law_propagation_artifact, propagate_linear_moments,
@@ -55,10 +61,6 @@ use crate::analysis::recalc_temporal::{
     TemporalUnitWire, execute_temporal_with_receipt,
 };
 use crate::analysis::scientific_bridge::{PreparedScientificBridge, ScientificBridgeRefusal};
-use super::{
-    CompositionGraph, CompositionNode, CompositionVerification, CompositionVerificationRefusal,
-    DependencyKind, NodeKind, ObservedEffect,
-};
 
 use crate::{BayesianConfig, Study};
 
@@ -90,6 +92,8 @@ pub enum FlagshipError {
     Graph(String),
     /// A route did not return the object this workflow requires.
     Route(&'static str),
+    /// The declared cross-covariance is not a lawful covariance matrix.
+    Dependence(&'static str),
 }
 
 impl std::fmt::Display for FlagshipError {
@@ -104,7 +108,7 @@ impl std::fmt::Display for FlagshipError {
             Self::Decision(error) => write!(f, "decision evaluation refused: {error:?}"),
             Self::Verification(error) => write!(f, "{error}"),
             Self::Graph(detail) => write!(f, "{detail}"),
-            Self::Route(detail) => write!(f, "{detail}"),
+            Self::Route(detail) | Self::Dependence(detail) => write!(f, "{detail}"),
         }
     }
 }
@@ -159,6 +163,104 @@ impl From<CompositionVerificationRefusal> for FlagshipError {
     }
 }
 
+/// Tolerance on the symmetry and positive semidefiniteness of the joint
+/// covariance, relative to the scale of its diagonal.
+const COVARIANCE_TOLERANCE: f64 = 1.0e-12;
+
+/// How the cluster margin, the temporal effect, and the cost contrast depend
+/// on one another.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FlagshipDependence {
+    /// Estimated apart and declared independent: every cross-term is zero.
+    Independent,
+    /// A declared joint covariance. The diagonal stays what each route
+    /// published; these are the off-diagonal terms.
+    Covariance {
+        /// Identity of the covariance declaration.
+        id: String,
+        /// Covariance of the cluster-trial margin and the temporal effect.
+        margin_temporal: f64,
+        /// Covariance of the cluster-trial margin and the cost contrast.
+        margin_cost: f64,
+        /// Covariance of the temporal effect and the cost contrast.
+        temporal_cost: f64,
+    },
+}
+
+impl FlagshipDependence {
+    fn linear(&self) -> LinearDependence {
+        match self {
+            Self::Independent => LinearDependence::DeclaredIndependent,
+            Self::Covariance { id, .. } => LinearDependence::Covariance { id: id.clone() },
+        }
+    }
+
+    fn covariance(
+        &self,
+        margin_variance: f64,
+        temporal_variance: f64,
+        cost_variance: f64,
+    ) -> Result<[f64; 9], FlagshipError> {
+        let Self::Covariance { id, margin_temporal, margin_cost, temporal_cost } = self else {
+            return Ok(block_covariance(margin_variance, temporal_variance, cost_variance));
+        };
+        if id.is_empty() {
+            return Err(FlagshipError::Dependence("a declared covariance names its identity"));
+        }
+        let cross = [*margin_temporal, *margin_cost, *temporal_cost];
+        if cross.iter().any(|term| !term.is_finite()) {
+            return Err(FlagshipError::Dependence("a declared covariance term is finite"));
+        }
+        let variances = [margin_variance, temporal_variance, cost_variance];
+        if variances.iter().any(|variance| !variance.is_finite() || *variance < 0.0) {
+            return Err(FlagshipError::Dependence("a route variance is finite and not negative"));
+        }
+        let matrix = [
+            margin_variance,
+            *margin_temporal,
+            *margin_cost,
+            *margin_temporal,
+            temporal_variance,
+            *temporal_cost,
+            *margin_cost,
+            *temporal_cost,
+            cost_variance,
+        ];
+        require_positive_semidefinite(&matrix)?;
+        Ok(matrix)
+    }
+}
+
+/// Require the symmetric `3 x 3` row-major `matrix` to be positive
+/// semidefinite within [`COVARIANCE_TOLERANCE`] of its diagonal scale.
+fn require_positive_semidefinite(matrix: &[f64; 9]) -> Result<(), FlagshipError> {
+    let at = |row: usize, column: usize| matrix[row * 3 + column];
+    let scale = (0..3).map(|i| at(i, i)).fold(0.0_f64, f64::max);
+    let slack = COVARIANCE_TOLERANCE * scale;
+    for i in 0..3 {
+        for j in (i + 1)..3 {
+            if (at(i, j) - at(j, i)).abs() > slack {
+                return Err(FlagshipError::Dependence("a declared covariance is symmetric"));
+            }
+        }
+    }
+    // Leading and trailing principal minors of every order: a symmetric matrix
+    // is positive semidefinite exactly when all principal minors are not negative.
+    let first = |i: usize| at(i, i);
+    let second = |i: usize, j: usize| at(i, i) * at(j, j) - at(i, j) * at(j, i);
+    let determinant = at(0, 0) * (at(1, 1) * at(2, 2) - at(1, 2) * at(2, 1))
+        - at(0, 1) * (at(1, 0) * at(2, 2) - at(1, 2) * at(2, 0))
+        + at(0, 2) * (at(1, 0) * at(2, 1) - at(1, 1) * at(2, 0));
+    let lawful = (0..3).all(|i| first(i) >= -slack)
+        && [(0, 1), (0, 2), (1, 2)].iter().all(|&(i, j)| second(i, j) >= -slack * scale)
+        && determinant >= -slack * scale * scale;
+    if lawful {
+        Ok(())
+    } else {
+        Err(FlagshipError::Dependence("a declared covariance is positive semidefinite"))
+    }
+}
+
 /// The cluster-randomized contrast the decision keeps.
 #[derive(Clone, Debug)]
 struct ClusterFit {
@@ -175,7 +277,7 @@ pub struct MixedDecision {
     pub joint: PropagationClaim,
     /// Affine margin, including mapping uncertainty and source dependence.
     pub margin: antecedent_contract::bridge::PropagatedUncertainty,
-    /// Recorded independence of the margin, the period effect, and the cost.
+    /// Recorded dependence of the margin, the period effect, and the cost.
     pub dependence: LinearDependence,
     /// Point value the bridge derived before the delta method.
     pub bridge_value: f64,
@@ -263,15 +365,42 @@ pub struct FlagshipWorkflow {
     cost_sd: f64,
     cost_draws: usize,
     benefit: f64,
+    dependence: FlagshipDependence,
     decision: MixedDecision,
 }
 
+/// Stack the first fit of every route runs on. The nested study, temporal, and
+/// posterior frames together exceed the default test thread stack, so the fit
+/// runs on a thread of this size and returns its result. Later replays stay on
+/// the caller's thread because the work counters they report are per thread.
+const ROUTE_STACK_BYTES: usize = 16 * 1024 * 1024;
+
+fn on_route_stack<T: Send>(
+    run: impl FnOnce() -> Result<T, FlagshipError> + Send,
+) -> Result<T, FlagshipError> {
+    std::thread::scope(|scope| {
+        let handle = std::thread::Builder::new()
+            .stack_size(ROUTE_STACK_BYTES)
+            .spawn_scoped(scope, run)
+            .map_err(|_| FlagshipError::Route("the route thread could not start"))?;
+        handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    })
+}
+
 impl FlagshipWorkflow {
-    /// Fit every route and the decision at benefit `1`.
+    /// Fit every route and the decision at benefit `1` under `dependence`.
     ///
     /// # Errors
-    /// A route, bridge, joint combination, or decision refusal.
-    pub fn execute(ctx: &ExecutionContext) -> Result<Self, FlagshipError> {
+    /// A route, bridge, joint combination, or decision refusal, or a declared
+    /// covariance that is not symmetric and positive semidefinite.
+    pub fn execute(
+        ctx: &ExecutionContext,
+        dependence: FlagshipDependence,
+    ) -> Result<Self, FlagshipError> {
+        on_route_stack(|| Self::fit(ctx, dependence))
+    }
+
+    fn fit(ctx: &ExecutionContext, dependence: FlagshipDependence) -> Result<Self, FlagshipError> {
         let cluster = fit_cluster(ctx)?;
         let temporal_request = temporal_request(1.0);
         let mut temporal = TemporalSession::new();
@@ -287,6 +416,7 @@ impl FlagshipWorkflow {
             bayesian_out.law.mean,
             bayesian_out.law.standard_deviation,
             1.0,
+            &dependence,
             ctx,
         )?;
         Ok(Self {
@@ -303,6 +433,7 @@ impl FlagshipWorkflow {
             cost_sd: bayesian_out.law.standard_deviation,
             cost_draws: bayesian_out.law.draws,
             benefit: 1.0,
+            dependence,
             decision,
         })
     }
@@ -515,6 +646,7 @@ impl FlagshipWorkflow {
             cost.mean,
             cost.standard_deviation,
             benefit,
+            &self.dependence,
             ctx,
         )?;
         self.temporal_effect = temporal_effect;
@@ -578,9 +710,9 @@ fn fit_cluster(ctx: &ExecutionContext) -> Result<ClusterFit, FlagshipError> {
         ("control", "treated"),
     );
     let result = Study::tabular(data).query(query).build()?.run(ctx)?;
-    let estimate = result.randomized_effect().ok_or(FlagshipError::Route(
-        "the cluster trial produced no randomized effect",
-    ))?;
+    let estimate = result
+        .randomized_effect()
+        .ok_or(FlagshipError::Route("the cluster trial produced no randomized effect"))?;
     if estimate.assignment_design.as_ref() != "cluster" {
         return Err(FlagshipError::Route("the trial did not take the cluster assignment route"));
     }
@@ -601,18 +733,7 @@ fn temporal_request(benefit: f64) -> TemporalRequest {
         units.push(TemporalUnitWire { unit_id, histories: complete_binary_histories(unit_id) });
     }
     TemporalRequest {
-        edges: vec![
-            (0, 1),
-            (0, 2),
-            (0, 3),
-            (0, 4),
-            (1, 2),
-            (1, 3),
-            (1, 4),
-            (2, 3),
-            (2, 4),
-            (3, 4),
-        ],
+        edges: vec![(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)],
         bidirected: vec![],
         selection_targets: vec![0],
         horizon: 2,
@@ -720,6 +841,7 @@ fn compose(
     cost_mean: f64,
     cost_sd: f64,
     benefit: f64,
+    dependence: &FlagshipDependence,
     ctx: &ExecutionContext,
 ) -> Result<MixedDecision, FlagshipError> {
     let (margin, bridge_value) = margin_of(cluster)?;
@@ -729,29 +851,29 @@ fn compose(
             "a joint input is missing the variance its route published",
         ));
     }
-    let dependence = LinearDependence::DeclaredIndependent;
+    let linear = dependence.linear();
     let inputs = [
         moment("margin", "cluster-trial", margin.mean),
         moment("temporal_drift", "temporal-panel", temporal_effect),
         moment("bayesian_cost", "bayesian-cost", cost_mean),
     ];
-    let covariance = block_covariance(margin.variance, temporal_variance, cost_variance);
+    let covariance = dependence.covariance(margin.variance, temporal_variance, cost_variance)?;
     let joint = propagate_linear_moments(
         PropagationOperation::WeightedSum,
         &inputs,
         &[benefit, 1.0, -1.0],
         &covariance,
-        &dependence,
+        &linear,
         ctx,
     )?;
-    let mean = joint.value("mean").ok_or(FlagshipError::Route(
-        "the joint combination did not return a mean",
-    ))?;
+    let mean = joint
+        .value("mean")
+        .ok_or(FlagshipError::Route("the joint combination did not return a mean"))?;
     Ok(MixedDecision {
         evaluation: evaluate_mean(mean)?,
         joint,
         margin,
-        dependence,
+        dependence: linear,
         bridge_value,
         temporal_variance,
         cost_variance,
@@ -772,17 +894,7 @@ const fn block_covariance(
     temporal_variance: f64,
     cost_variance: f64,
 ) -> [f64; 9] {
-    [
-        margin_variance,
-        0.0,
-        0.0,
-        0.0,
-        temporal_variance,
-        0.0,
-        0.0,
-        0.0,
-        cost_variance,
-    ]
+    [margin_variance, 0.0, 0.0, 0.0, temporal_variance, 0.0, 0.0, 0.0, cost_variance]
 }
 
 fn margin_of(
@@ -793,9 +905,8 @@ fn margin_of(
     let prepared = PreparedScientificBridge::prepare(contract)?;
     let claim = source_claim(cluster.effect);
     let derived = prepared.derive(&BridgeSource { claim: &claim, quantity: &quantity })?;
-    let margin = prepared
-        .contract()
-        .propagate_affine_uncertainty(cluster.effect, cluster.variance)?;
+    let margin =
+        prepared.contract().propagate_affine_uncertainty(cluster.effect, cluster.variance)?;
     Ok((margin, derived.value()))
 }
 
@@ -948,9 +1059,11 @@ fn decision_contract(quantity: ScientificQuantity) -> DecisionContract {
 }
 
 fn claim_graph(workflow: &FlagshipWorkflow) -> Result<CompositionGraph, FlagshipError> {
-    let mean = workflow.decision.joint.value("mean").ok_or(FlagshipError::Route(
-        "the joint combination did not return a mean",
-    ))?;
+    let mean = workflow
+        .decision
+        .joint
+        .value("mean")
+        .ok_or(FlagshipError::Route("the joint combination did not return a mean"))?;
     let mut graph = CompositionGraph::new();
     let nodes = [
         ("cluster_trial", NodeKind::Claim, workflow.cluster.effect.to_bits()),
@@ -960,7 +1073,7 @@ fn claim_graph(workflow: &FlagshipWorkflow) -> Result<CompositionGraph, Flagship
         ("decision", NodeKind::Decision, mean.to_bits()),
     ];
     for (key, kind, bits) in nodes {
-        graph.add_node(claim_node(key, kind, bits)).map_err(graph_error)?;
+        graph.add_node(claim_node(key, kind, bits)).map_err(|error| graph_error(&error))?;
     }
     let edges = [
         ("margin_bridge", "cluster_trial", DependencyKind::Data),
@@ -969,7 +1082,7 @@ fn claim_graph(workflow: &FlagshipWorkflow) -> Result<CompositionGraph, Flagship
         ("decision", "bayesian_cost", DependencyKind::Evidence),
     ];
     for (downstream, upstream, kind) in edges {
-        graph.add_edge(downstream, upstream, kind).map_err(graph_error)?;
+        graph.add_edge(downstream, upstream, kind).map_err(|error| graph_error(&error))?;
     }
     Ok(graph)
 }
@@ -980,7 +1093,7 @@ fn claim_node(key: &str, kind: NodeKind, bits: u64) -> CompositionNode {
     CompositionNode::new(key, kind, SemanticDigest::from_bytes(writer.finish()))
 }
 
-fn graph_error(error: super::GraphError) -> FlagshipError {
+fn graph_error(error: &super::GraphError) -> FlagshipError {
     FlagshipError::Graph(error.to_string())
 }
 
