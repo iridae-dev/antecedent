@@ -64,6 +64,17 @@
 //! records first ([`registry_record_identity`]) and treats one that does not
 //! name a currently attesting record as a requirement without a record.
 //!
+//! # Flagship
+//!
+//! [`FlagshipWorkflow`] runs one decision on the cluster-randomized trial, the
+//! checked temporal period effect, the conjugate cost posterior, and an affine
+//! endpoint-to-margin bridge. Each input contributes the variance its route
+//! published. The three inputs are estimated apart, so their recorded
+//! dependence is independence. The bridge keeps its slope-source covariance.
+//! A utility change refits nothing. A prior change refits the cost posterior.
+//! A period change refits the temporal mechanisms. Withdrawing the trial
+//! withdraws the margin and the decision and leaves the temporal and cost claims.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
@@ -702,4 +713,189 @@ pub fn consume_composition_verification_artifact(
     CompositionVerificationArtifact::from_bytes(bytes, expected_identity)
         .map(|artifact| ConsumedCompositionVerification { artifact })
         .map_err(|e| CompositionVerificationRefusal::artifact(&e))
+}
+
+#[path = "flagship_mixed.rs"]
+mod flagship_mixed;
+
+pub use flagship_mixed::{
+    DecisionArtifact, FlagshipError, FlagshipWorkflow, LoadedDecision, MixedDecision,
+    PeriodReplay, PriorReplay, UtilityReplay, load_decision,
+};
+
+#[cfg(test)]
+mod flagship_mixed_tests {
+    use antecedent_contract::bridge::SourceMappingDependence;
+    use antecedent_core::ExecutionContext;
+    use antecedent_expr::execution_counts::count_static_work;
+    use antecedent_prob::fit_counts::count_bayesian_work;
+    use antecedent_stats::fit_counts::count_least_squares_solves;
+
+    use super::{FlagshipWorkflow, Revalidation, load_decision};
+    use crate::analysis::LinearDependence;
+
+    fn on_large_stack(run: impl FnOnce() + Send + 'static) {
+        std::thread::Builder::new()
+            .stack_size(8 * 1024 * 1024)
+            .spawn(run)
+            .expect("spawn the workflow test")
+            .join()
+            .expect("the workflow test panicked");
+    }
+
+    fn context() -> ExecutionContext {
+        ExecutionContext::for_tests(0xF1A6)
+    }
+
+    #[test]
+    fn decision_keeps_lawful_dependence_and_joint_uncertainty() {
+        on_large_stack(|| {
+            let workflow = FlagshipWorkflow::execute(&context()).expect("workflow");
+            let decision = workflow.decision();
+            assert_eq!(workflow.cluster_design(), "cluster");
+            assert!(workflow.cluster_uncertainty().contains("cluster"));
+            assert!(workflow.cluster_variance() > 0.0);
+            assert_eq!(workflow.temporal_means(), 2);
+            assert!(workflow.cost_draws() > 0);
+            assert!(matches!(decision.dependence, LinearDependence::DeclaredIndependent));
+            assert!(matches!(
+                decision.margin.dependence,
+                SourceMappingDependence::SlopeCovariance { covariance, .. }
+                    if covariance.to_bits() != 0.0f64.to_bits()
+            ));
+            let mean = decision.joint.value("mean").expect("joint mean");
+            let variance = decision.joint.value("variance").expect("joint variance");
+            let margin = decision.margin.variance;
+            let temporal = decision.temporal_variance;
+            let cost = decision.cost_variance;
+            let mut expected = 0.0;
+            expected += margin;
+            expected += temporal;
+            expected += cost;
+            let mut dropped = 0.0;
+            dropped += margin;
+            dropped += cost;
+            assert!(temporal > 0.0);
+            assert_eq!(variance.to_bits(), expected.to_bits());
+            assert_ne!(variance.to_bits(), dropped.to_bits());
+            assert_ne!(decision.margin.mean.to_bits(), decision.margin.plug_in_mean.to_bits());
+            let act = decision.evaluation.actions.iter().find(|action| action.id == "act");
+            assert_eq!(act.expect("act").expected_utility.to_bits(), mean.to_bits());
+            assert_eq!(decision.joint.route(), "linear_moments");
+        });
+    }
+
+    #[test]
+    fn utility_only_change_performs_zero_causal_refits() {
+        on_large_stack(|| {
+            let mut workflow = FlagshipWorkflow::execute(&context()).expect("workflow");
+            let effect = workflow.cluster_effect().to_bits();
+            let temporal = workflow.temporal_effect().to_bits();
+            let temporal_variance = workflow.decision().temporal_variance.to_bits();
+            let cost = workflow.cost_mean().to_bits();
+            let before = workflow.decision().joint.value("mean").expect("mean").to_bits();
+            let (((replay, bayesian), temporal_work), solves) = count_least_squares_solves(|| {
+                count_static_work(|| {
+                    count_bayesian_work(|| workflow.utility_only(3.0, &context()).expect("utility"))
+                })
+            });
+            assert_eq!(solves, 0);
+            assert_eq!(bayesian.model_fits, 0);
+            assert_eq!(bayesian.posterior_draws, 0);
+            assert_eq!(temporal_work.factor_builds, 0);
+            assert_eq!(replay.temporal_factor_builds, 0);
+            assert_eq!(replay.temporal_identifications, 0);
+            assert_eq!(replay.bayesian_model_fits, 0);
+            assert_eq!(replay.bayesian_posterior_draws, 0);
+            assert_eq!(replay.bayesian_identifications, 0);
+            assert_eq!(workflow.cluster_trials(), 1);
+            assert_eq!(workflow.cluster_effect().to_bits(), effect);
+            assert_eq!(workflow.temporal_effect().to_bits(), temporal);
+            assert_eq!(workflow.decision().temporal_variance.to_bits(), temporal_variance);
+            assert_eq!(workflow.cost_mean().to_bits(), cost);
+            assert_ne!(workflow.decision().joint.value("mean").expect("mean").to_bits(), before);
+        });
+    }
+
+    #[test]
+    fn prior_change_invalidates_only_the_cost_posterior() {
+        on_large_stack(|| {
+            let mut workflow = FlagshipWorkflow::execute(&context()).expect("workflow");
+            let effect = workflow.cluster_effect().to_bits();
+            let temporal = workflow.temporal_effect().to_bits();
+            let temporal_variance = workflow.decision().temporal_variance.to_bits();
+            let cost = workflow.cost_mean().to_bits();
+            let ((replay, temporal_work), bayesian) = count_bayesian_work(|| {
+                count_static_work(|| workflow.prior_change(10.0, &context()).expect("prior"))
+            });
+            assert!(replay.score_recomputed);
+            assert!(replay.identification_reused);
+            assert!(replay.bayesian_model_fits > 0);
+            assert_eq!(replay.bayesian_identifications, 0);
+            assert_eq!(bayesian.model_fits, replay.bayesian_model_fits);
+            assert_eq!(temporal_work.factor_builds, 0);
+            assert_eq!(workflow.cluster_trials(), 1);
+            assert_eq!(workflow.cluster_effect().to_bits(), effect);
+            assert_eq!(workflow.temporal_effect().to_bits(), temporal);
+            assert_eq!(workflow.decision().temporal_variance.to_bits(), temporal_variance);
+            assert_ne!(workflow.cost_mean().to_bits(), cost);
+        });
+    }
+
+    #[test]
+    fn period_change_invalidates_only_the_temporal_products() {
+        on_large_stack(|| {
+            let mut workflow = FlagshipWorkflow::execute(&context()).expect("workflow");
+            let effect = workflow.cluster_effect().to_bits();
+            let cost = workflow.cost_mean().to_bits();
+            let (replay, bayesian) = count_bayesian_work(|| {
+                workflow.period_change((0, 49), &context()).expect("period")
+            });
+            assert!(replay.score_recomputed);
+            assert!(replay.identification_reused);
+            assert!(replay.temporal_factor_builds > 0);
+            assert_eq!(replay.temporal_identifications, 0);
+            assert_eq!(bayesian.model_fits, 0);
+            assert_eq!(bayesian.posterior_draws, 0);
+            assert_eq!(workflow.cluster_trials(), 1);
+            assert_eq!(workflow.cluster_effect().to_bits(), effect);
+            assert_eq!(workflow.cost_mean().to_bits(), cost);
+            assert!(workflow.decision().temporal_variance > 0.0);
+        });
+    }
+
+    #[test]
+    fn withdrawal_removes_the_affected_claim_and_leaves_the_temporal_claim() {
+        on_large_stack(|| {
+            let workflow = FlagshipWorkflow::execute(&context()).expect("workflow");
+            let verification = workflow.withdraw_cluster().expect("withdrawal");
+            let class = |key: &str| verification.classify(key).expect(key).class;
+            assert_eq!(class("cluster_trial"), Revalidation::Withdrawn);
+            assert_eq!(class("margin_bridge"), Revalidation::Withdrawn);
+            assert_eq!(class("decision"), Revalidation::Withdrawn);
+            assert_eq!(class("temporal_drift"), Revalidation::StillValid);
+            assert_eq!(class("bayesian_cost"), Revalidation::StillValid);
+        });
+    }
+
+    #[test]
+    fn loaded_artifact_reproduces_the_decision() {
+        on_large_stack(|| {
+            let workflow = FlagshipWorkflow::execute(&context()).expect("workflow");
+            let artifact = workflow.export_decision().expect("export");
+            let loaded =
+                load_decision(&artifact.bytes, Some(&artifact.identity), &context()).expect("load");
+            let decision = workflow.decision();
+            assert_eq!(
+                loaded.mean.to_bits(),
+                decision.joint.value("mean").expect("mean").to_bits()
+            );
+            assert_eq!(
+                loaded.variance.to_bits(),
+                decision.joint.value("variance").expect("variance").to_bits()
+            );
+            assert_eq!(loaded.evaluation.verdict, decision.evaluation.verdict);
+            assert_eq!(loaded.evaluation.contract_identity, decision.evaluation.contract_identity);
+        });
+    }
 }
