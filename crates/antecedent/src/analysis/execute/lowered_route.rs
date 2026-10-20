@@ -2,7 +2,8 @@
 //!
 //! Lowers the existing static `linear.adjustment.ate` contrast through the six
 //! compiler layers and executes the checked program that lowering retains.
-//! [`super::super::Study::compile`] is unchanged.
+//! [`super::super::Study::compile`] returns this route's physical record when
+//! the study is the intervention this module admits.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -145,6 +146,12 @@ impl LoweredLinearGaussianRoute {
     #[must_use]
     pub(crate) const fn physical(&self) -> &PhysicalExecutionPlan {
         &self.physical
+    }
+
+    /// Physical record [`Study::compile`] returns after building this program.
+    #[must_use = "the physical plan is the compile result"]
+    pub(crate) fn into_physical(self) -> PhysicalExecutionPlan {
+        self.physical
     }
 
     /// Layer 5 operators.
@@ -299,6 +306,14 @@ impl Study {
             recompile: RefCell::new(PreparedRecompile::after_lower()),
             cached_claim: RefCell::new(None),
         })
+    }
+
+    /// Whether this study is the static ordinary-least-squares intervention.
+    ///
+    /// A refusal from identification or the fit is not a mismatch: [`Self::compile`]
+    /// returns that error instead of another route.
+    pub(super) fn admits_linear_gaussian(&self) -> bool {
+        self.admit_linear_gaussian().is_ok()
     }
 
     fn admit_linear_gaussian(&self) -> Result<Admitted<'_>, CausalError> {
@@ -656,6 +671,28 @@ mod tests {
     }
 
     #[test]
+    fn prepared_linear_gaussian_study_executes_the_retained_program() {
+        let study = contrast_study();
+        let ctx = ExecutionContext::for_tests(1);
+        let route = study.lower_linear_gaussian_intervention(&ctx).unwrap();
+        let compiled = study.compile(&ctx).unwrap();
+        assert_eq!(compiled.record, route.physical().record);
+        assert_eq!(compiled.logical.record, route.physical().logical.record);
+        let prepared = study.prepare(&ctx).unwrap();
+        assert_eq!(prepared.plan().record, route.physical().record);
+        let sealed = prepared.checked_linear_adjustment().unwrap();
+        assert_eq!(sealed.executable_functional(), route.program().executable_functional());
+        assert_eq!(sealed.source_functional(), route.program().source_functional());
+        assert_eq!(sealed.required_assumptions(), route.program().required_assumptions());
+        let expected = study.run(&ctx).unwrap().effect();
+        let claim = route.execute(&ctx).unwrap();
+        assert_eq!(claim.estimate.ate.to_bits(), expected.to_bits());
+        assert_eq!(&claim.estimate.provenance.assumptions, route.program().required_assumptions(),);
+        let retained = prepared.estimate_retained(&ctx).unwrap();
+        assert_eq!(retained.effect().to_bits(), claim.estimate.ate.to_bits());
+    }
+
+    #[test]
     #[allow(clippy::float_cmp, reason = "a reused fit must return the same contrast bits")]
     fn linear_gaussian_utility_and_action_changes_perform_zero_causal_fits() {
         let (route, ctx, ate, fits_before) = fitted_route();
@@ -709,6 +746,9 @@ mod tests {
         let study = contrast_study();
         let ctx = ExecutionContext::for_tests(1);
         let route = study.lower_linear_gaussian_intervention(&ctx).unwrap();
+        let compiled = study.compile(&ctx).unwrap();
+        assert_eq!(compiled.record, route.physical().record);
+        assert_eq!(compiled.logical.record, route.physical().logical.record);
         let (claim, solves) = count_least_squares_solves(|| route.execute(&ctx).unwrap());
         assert!(solves > 0);
         let fits = route.causal_fit_count();

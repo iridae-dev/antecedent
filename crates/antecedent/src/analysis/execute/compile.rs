@@ -2,11 +2,11 @@
 
 use crate::graph::{Cpdag, Dag, Pag};
 use antecedent_core::{
-    AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, InterferenceQuery,
-    InterventionalDistributionQuery, LocalPolynomialRatioQuery, LongitudinalRegimeQuery,
-    HistoryMatchQuery, SequentialContrastQuery,
-    MediationQuery, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
-    RandomizedEffectQuery, SurvivalQuery, SyntheticControlQuery, TransportQuery,
+    AverageEffectQuery, ConditionalEffectQuery, ContinuousDoseResponseQuery, HistoryMatchQuery,
+    InterferenceQuery, InterventionalDistributionQuery, LocalPolynomialRatioQuery,
+    LongitudinalRegimeQuery, MediationQuery, PanelDidQuery, PathSpecificEffectQuery,
+    PolicyValueQuery, RandomizedEffectQuery, SequentialContrastQuery, SurvivalQuery,
+    SyntheticControlQuery, TransportQuery,
 };
 use antecedent_data::MultiEnvironmentData;
 
@@ -915,28 +915,31 @@ impl super::Study {
             PlanId::RandomizedTrialItt.as_str(),
             "randomized.design",
             if self.inference.is_bayesian() {
-                super::checked_randomized::bayesian_randomized_estimator(self.estimator, &q.design).as_str()
+                super::checked_randomized::bayesian_randomized_estimator(self.estimator, &q.design)
+                    .as_str()
             } else {
                 match &q.design {
-                antecedent_core::RandomizationDesign::Bernoulli => {
-                    if q.received_treatment.is_some() {
-                        "randomized.wald_cace_late"
-                    } else if q.fixed_cuped.is_some() {
-                        "randomized.fixed_cuped_ht_itt"
-                    } else if !q.ancova_covariates.is_empty() {
-                        "randomized.ancova_itt"
-                    } else {
-                        "randomized.ht_itt"
+                    antecedent_core::RandomizationDesign::Bernoulli => {
+                        if q.received_treatment.is_some() {
+                            "randomized.wald_cace_late"
+                        } else if q.fixed_cuped.is_some() {
+                            "randomized.fixed_cuped_ht_itt"
+                        } else if !q.ancova_covariates.is_empty() {
+                            "randomized.ancova_itt"
+                        } else {
+                            "randomized.ht_itt"
+                        }
                     }
-                }
-                antecedent_core::RandomizationDesign::Complete { .. }
-                | antecedent_core::RandomizationDesign::Stratified { .. }
-                | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
-                | antecedent_core::RandomizationDesign::Cluster { .. } => "randomized.neyman_itt",
-                antecedent_core::RandomizationDesign::Switchback { .. } => {
-                    "randomized.switchback_ht_itt"
-                }
-                antecedent_core::RandomizationDesign::MultiArm { .. } => "randomized.ht_itt",
+                    antecedent_core::RandomizationDesign::Complete { .. }
+                    | antecedent_core::RandomizationDesign::Stratified { .. }
+                    | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
+                    | antecedent_core::RandomizationDesign::Cluster { .. } => {
+                        "randomized.neyman_itt"
+                    }
+                    antecedent_core::RandomizationDesign::Switchback { .. } => {
+                        "randomized.switchback_ht_itt"
+                    }
+                    antecedent_core::RandomizationDesign::MultiArm { .. } => "randomized.ht_itt",
                 }
             },
             Arc::from([q.outcome]),
@@ -999,12 +1002,11 @@ impl super::Study {
                 message: "panel DiD metadata must align with table rows".into(),
             });
         }
-        let (plan_id, identifier, estimator) =
-            if self.inference.is_bayesian() {
-                super::checked_panel_did::bayesian_panel_did_plan_ids(q.design)
-            } else {
-                super::checked_panel_did::panel_did_plan_ids(q.design)
-            };
+        let (plan_id, identifier, estimator) = if self.inference.is_bayesian() {
+            super::checked_panel_did::bayesian_panel_did_plan_ids(q.design)
+        } else {
+            super::checked_panel_did::panel_did_plan_ids(q.design)
+        };
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
@@ -1026,12 +1028,11 @@ impl super::Study {
                 message: "synthetic-control metadata must align with table rows".into(),
             });
         }
-        let (plan_id, identifier, estimator) =
-            if self.inference.is_bayesian() {
-                super::checked_synthetic_control::bayesian_synthetic_panel_plan_ids()
-            } else {
-                super::checked_synthetic_control::synthetic_panel_plan_ids(q.method)
-            };
+        let (plan_id, identifier, estimator) = if self.inference.is_bayesian() {
+            super::checked_synthetic_control::bayesian_synthetic_panel_plan_ids()
+        } else {
+            super::checked_synthetic_control::synthetic_panel_plan_ids(q.method)
+        };
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
@@ -1077,14 +1078,11 @@ impl super::Study {
         for variable in [q.outcome, q.treatment, q.running] {
             data.schema().get(variable).map_err(CausalError::rejected)?;
         }
-        let (plan_id, identifier, estimator) =
-            if self.inference.is_bayesian() {
-                super::checked_local_polynomial_ratio::bayesian_local_polynomial_ratio_plan_ids(
-                    q.kink,
-                )
-            } else {
-                super::checked_local_polynomial_ratio::local_polynomial_ratio_plan_ids(q.kink)
-            };
+        let (plan_id, identifier, estimator) = if self.inference.is_bayesian() {
+            super::checked_local_polynomial_ratio::bayesian_local_polynomial_ratio_plan_ids(q.kink)
+        } else {
+            super::checked_local_polynomial_ratio::local_polynomial_ratio_plan_ids(q.kink)
+        };
         Ok(self.study_query_plan(
             data.row_count() as u64,
             DataClassification::Tabular,
@@ -1108,7 +1106,10 @@ impl super::Study {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
         let (plan, estimator) = if self.inference.is_bayesian() {
-            (PlanId::BayesianPiecewiseSurvival.as_str(), EstimatorId::BayesianPiecewiseSurvival.as_str())
+            (
+                PlanId::BayesianPiecewiseSurvival.as_str(),
+                EstimatorId::BayesianPiecewiseSurvival.as_str(),
+            )
         } else {
             (
                 PlanId::RandomizedSurvivalProductLimit.as_str(),
@@ -1303,6 +1304,10 @@ impl super::Study {
 
     /// Compile logical → physical plan.
     ///
+    /// A static ordinary-least-squares intervention returns the physical record
+    /// retained by the lowered linear/Gaussian program. Other routes keep their
+    /// existing compile path.
+    ///
     /// # Errors
     ///
     /// Modality / resource failures.
@@ -1315,6 +1320,11 @@ impl super::Study {
     pub fn compile(&self, ctx: &ExecutionContext) -> Result<PhysicalExecutionPlan, CausalError> {
         if self.graph_posterior.is_some() {
             return self.compile_graph_posterior(ctx);
+        }
+        if self.admits_linear_gaussian() {
+            return self
+                .lower_linear_gaussian_intervention(ctx)
+                .map(lowered_route::LoweredLinearGaussianRoute::into_physical);
         }
         let input = self.route_input()?;
         self.compile_with_route(&input, ctx)
@@ -1595,4 +1605,105 @@ pub(crate) fn compile_logical_admg_response(
 
 fn panel_compile_series(panel: &PanelData) -> Result<&TimeSeriesData, CausalError> {
     Ok(&panel.unit(0).map_err(|e| CausalError::Compile { message: format!("panel: {e}") })?.series)
+}
+
+#[cfg(test)]
+mod dispatch_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TemporalEffectQuery,
+        TemporalPolicy,
+    };
+    use antecedent_data::TimeSeriesData;
+    use antecedent_graph::ensure_lagged;
+
+    use crate::{BayesianConfig, InferenceMode, RefuteSuite, Study};
+
+    use super::{
+        Dag, EstimatorId, ExecutionContext, PhysicalExecutionPlan, TabularData, TemporalDag,
+    };
+
+    fn estimator_id(plan: &PhysicalExecutionPlan) -> EstimatorId {
+        plan.logical.record.estimator.as_deref().unwrap().parse().unwrap()
+    }
+
+    fn kernel_label(plan: &PhysicalExecutionPlan) -> &str {
+        plan.record.kernels.first().unwrap().0.as_ref()
+    }
+
+    #[test]
+    fn temporal_history_compile_dispatches_the_history_operator_estimator() {
+        let treatment_col = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0];
+        let outcome_col = [0.0, 1.0, 3.0, 1.0, 3.0, 1.0, 3.0, 1.0, 3.0];
+        let series = TimeSeriesData::from_f64_columns(
+            [("t", treatment_col.as_slice()), ("y", outcome_col.as_slice())],
+            1,
+        )
+        .unwrap();
+        let treatment = antecedent_core::VariableId::from_raw(0);
+        let outcome = antecedent_core::VariableId::from_raw(1);
+        let mut graph = TemporalDag::empty();
+        let lagged =
+            ensure_lagged(&mut graph, treatment, antecedent_core::Lag::from_raw(1)).unwrap();
+        let now =
+            ensure_lagged(&mut graph, outcome, antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(lagged, now).unwrap();
+        let query = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1);
+        let study = Study::series(series)
+            .graph(graph)
+            .temporal_query(query)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let plan = study.compile(&ExecutionContext::for_tests(1)).unwrap();
+        let id = estimator_id(&plan);
+        // `TemporalLinearAdjustment::prepare` admits the sample anchor through
+        // history operators. Compile records that estimator; it does not fit.
+        assert_eq!(id, EstimatorId::TemporalLinearAdjustment);
+        assert_eq!(kernel_label(&plan), id.kernel_label());
+    }
+
+    #[test]
+    fn study_prediction_compile_dispatches_the_bayesian_response_grid() {
+        let schema = antecedent_core::CausalSchemaBuilder::new()
+            .continuous("t")
+            .treatment()
+            .continuous("y")
+            .outcome()
+            .build()
+            .unwrap();
+        let data = TabularData::try_from_schema_f64(
+            schema.clone(),
+            [("t", &[0.0, 1.0, 0.0, 1.0][..]), ("y", &[1.0, 3.0, 1.0, 3.0][..])],
+        )
+        .unwrap();
+        let graph = Dag::from_named_edges(&schema, &[("t", "y")]).unwrap();
+        let treatment = schema.id_of("t").unwrap();
+        let outcome = schema.id_of("y").unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome,
+            treatment: ContinuousDomain::new(
+                treatment,
+                GridSpec::Values(Arc::from([0.0_f64, 1.0])),
+            ),
+        });
+        let study = Study::tabular(data)
+            .graph(graph)
+            .query(query)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let plan = study.compile(&ExecutionContext::for_tests(1)).unwrap();
+        let id = estimator_id(&plan);
+        // `ContinuousResponseEstimator::estimate_bayesian` streams this grid
+        // through `stream_tile`. Compile records that estimator; it does not tile.
+        assert_eq!(id, EstimatorId::ResponseBayesian);
+        assert_eq!(kernel_label(&plan), id.kernel_label());
+    }
 }

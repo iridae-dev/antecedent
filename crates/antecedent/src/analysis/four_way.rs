@@ -362,6 +362,12 @@ pub(crate) fn same_target_slice(
 ) -> Result<FourWaySlice, crate::CausalError> {
     let static_study = linear_study(FourWayCell::StaticFrequentist)?;
     let route = static_study.lower_linear_gaussian_intervention(ctx)?;
+    let compiled = static_study.compile(ctx)?;
+    if compiled.record != route.physical().record
+        || compiled.logical.record != route.physical().logical.record
+    {
+        return Err(compile("compile did not return the lowered linear/Gaussian physical plan"));
+    }
     let analytic_truth = line_effect();
     let claim = route.execute(ctx)?;
     let static_target = route.scientific().clone();
