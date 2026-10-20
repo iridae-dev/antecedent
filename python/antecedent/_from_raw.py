@@ -34,6 +34,7 @@ from .quasi import (
     LocalPolynomialRatioEstimate,
     PanelDifferenceInDifferences,
     PanelDifferenceInDifferencesEstimate,
+    PeriodHistoryMatchEstimate,
     RegressionKink,
     StaggeredAdoption,
     StaggeredEventStudyEstimate,
@@ -41,7 +42,7 @@ from .quasi import (
     SyntheticControlEstimate,
     SyntheticDifferenceInDifferencesEstimate,
 )
-from .regimes import LongitudinalRegimeEstimate
+from .regimes import LongitudinalRegimeEstimate, SequentialContrastEstimate
 from .results import (
     AnalysisResult,
     ConflictSummaryView,
@@ -63,6 +64,7 @@ from .results import (
     TemporalMediationSliceView,
     ValidationView,
 )
+from ._posterior_row import PosteriorRowEstimate
 from .results._views import (
     DropReasonView,
     GroupAccountingView,
@@ -694,6 +696,11 @@ def _local_polynomial_ratio_from_raw(raw: Any, query: Any) -> LocalPolynomialRat
     )
 
 
+def _posterior_row_from_raw(raw: Any) -> PosteriorRowEstimate | None:
+    section = getattr(raw, "posterior_row", None)
+    return None if section is None else PosteriorRowEstimate._from_raw(section)
+
+
 def _survival_from_raw(
     raw: Any, query: Any = None
 ) -> SurvivalEstimate | CumulativeIncidenceEstimate | None:
@@ -814,6 +821,50 @@ def _survival_from_raw(
             "consistency",
             "no_interference",
         ),
+    )
+
+
+def _sequential_contrast_from_raw(raw: Any) -> SequentialContrastEstimate | None:
+    section = getattr(raw, "sequential_contrast", None)
+    if section is None:
+        return None
+    return SequentialContrastEstimate(
+        active_regime=tuple(section.active_regime),
+        control_regime=tuple(section.control_regime),
+        contrast=section.contrast,
+        active_mean=section.active_mean,
+        control_mean=section.control_mean,
+        evaluated_rows=section.evaluated_rows,
+        minimum_action_probability=section.minimum_action_probability,
+        min_probability=section.min_probability,
+        coverage=section.coverage,
+        active_scores=tuple(section.active_scores),
+        control_scores=tuple(section.control_scores),
+        contrast_scores=tuple(section.contrast_scores),
+        uncertainty=section.uncertainty,
+        standard_error=section.standard_error,
+        interval=None if section.interval is None else tuple(section.interval),
+        fits_computed=section.fits_computed,
+        fits_reused=section.fits_reused,
+    )
+
+
+def _history_match_from_raw(raw: Any) -> PeriodHistoryMatchEstimate | None:
+    section = getattr(raw, "history_match", None)
+    if section is None:
+        return None
+    return PeriodHistoryMatchEstimate(
+        contrast=section.contrast,
+        weight_total=section.weight_total,
+        matched_queries=tuple(section.matched_queries),
+        matched_donors=tuple(section.matched_donors),
+        differences=tuple(section.differences),
+        pair_weights=tuple(section.pair_weights),
+        unmatched_treated=tuple(section.unmatched_treated),
+        periods_matched=section.periods_matched,
+        uncertainty=section.uncertainty,
+        standard_error=section.standard_error,
+        caliper=section.caliper,
     )
 
 
@@ -1421,7 +1472,10 @@ def _wrap_ate(
         policy_value=_policy_value_from_raw(raw),
         continuous_dose_response=_continuous_dose_from_raw(raw),
         survival=_survival_from_raw(raw, query),
+        posterior_row=_posterior_row_from_raw(raw),
         longitudinal_regime=_longitudinal_regime_from_raw(raw),
+        sequential_contrast=_sequential_contrast_from_raw(raw),
+        history_match=_history_match_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),
         change_attribution=getattr(raw, "change_attribution", None),
         _raw=raw,

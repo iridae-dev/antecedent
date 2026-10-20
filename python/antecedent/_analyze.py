@@ -20,6 +20,7 @@ from .quasi import (
     AugmentedPanelDiD,
     FuzzyRegressionDiscontinuity,
     PanelDifferenceInDifferences,
+    PeriodHistoryMatch,
     RegressionKink,
     SharpRegressionDiscontinuity,
     StaggeredAdoption,
@@ -48,7 +49,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .regimes import LongitudinalRegime
+from .regimes import LongitudinalRegime, SequentialContrast
 from .results import Analysis, ProviderAnalysisResult
 from .survival import CompetingRisksOutcome, SurvivalOutcome
 from .transport import Transport, TransportControls, TransportInference
@@ -109,6 +110,8 @@ def analyze(
         | Transport
         | InterferenceQuery
         | LongitudinalRegime
+        | SequentialContrast
+        | PeriodHistoryMatch
         | AnomalyAttribution
         | ChangeAttribution
     ),
@@ -197,6 +200,7 @@ def analyze(
           ``SharpRegressionDiscontinuity`` / ``RegressionKink``,
         - ``survival.SurvivalOutcome`` / ``CompetingRisksOutcome``,
         - ``regimes.LongitudinalRegime``.
+        - ``regimes.SequentialContrast`` and ``quasi.PeriodHistoryMatch``.
 
         Transport: ``transport.Transport`` (the compiler on an ``Admg``, with
         ``provider=`` / ``TransportInference`` / ``controls=``) and the licensed

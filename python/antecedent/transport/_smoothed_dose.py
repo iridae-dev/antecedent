@@ -38,6 +38,7 @@ from ..errors import CausalTypeError, CausalValueError
 from ..graph import Admg
 from ..learners import Linear, Logistic, _learner_wire
 from ._impl import SelectionDiagram
+from .._posterior_row import PosteriorRowEstimate
 from ._learned_continuous import EstimatorMenu, _frozen, _menu, _thaw
 
 #: The one supported target of a request.
@@ -338,6 +339,98 @@ def smoothed_dose_estimator_menu(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class SmoothedDosePosteriorModel:
+    """The declared outcome model and posterior sample of the Bayesian smoothed dose response.
+
+    ``mu(t, x) = E(Y | X = x, A = t, S = 1)`` is linear in the declared :class:`DoseBasis` with
+    coefficient ``j`` a priori ``N(0, sigma^2 s_j^2)``: ``intercept_scale`` for the intercept and
+    ``coefficient_scale`` for every other coefficient (the covariates enter the basis as given,
+    so their units set the prior's meaning). Declare the residual variance
+    (``residual_variance``) or its inverse-gamma prior (``residual_shape`` and
+    ``residual_scale``). ``min_local_rows`` is the fewest source rows inside every grid window.
+    """
+
+    basis: DoseBasis = field(default_factory=DoseBasis)
+    intercept_scale: float = 10.0
+    coefficient_scale: float = 10.0
+    residual_variance: float | None = None
+    residual_shape: float | None = None
+    residual_scale: float | None = None
+    min_local_rows: int = 30
+    draws: int = 4_000
+    seed: int = 0
+
+    def _json(self) -> str:
+        if self.residual_variance is not None and (
+            self.residual_shape is None and self.residual_scale is None
+        ):
+            residual: dict[str, Any] = {"known_variance": float(self.residual_variance)}
+        elif (
+            self.residual_variance is None
+            and self.residual_shape is not None
+            and self.residual_scale is not None
+        ):
+            residual = {
+                "inverse_gamma": {
+                    "shape": float(self.residual_shape),
+                    "scale": float(self.residual_scale),
+                }
+            }
+        else:
+            raise CausalValueError(
+                "declare either residual_variance, or residual_shape and residual_scale"
+            )
+        return json.dumps(
+            {
+                "basis": self.basis._wire(),
+                "intercept_scale": float(self.intercept_scale),
+                "coefficient_scale": float(self.coefficient_scale),
+                "residual": residual,
+                "min_local_rows": int(self.min_local_rows),
+                "draws": int(self.draws),
+                "seed": int(self.seed),
+            },
+            allow_nan=False,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class SmoothedDosePosterior:
+    """The joint posterior of ``psi_h`` over the grid under the declared outcome model.
+
+    ``posterior`` holds the posterior mean and equal-tailed 95% credible interval at every grid
+    dose and the covariance across the grid from the joint draws (exact Gaussian moments when
+    the residual variance is known). The row is unlicensed and its calibration is
+    ``"unmeasured"``; the interval route of the point estimate stays closed.
+    """
+
+    posterior: PosteriorRowEstimate
+    certificate: Mapping[str, Any]
+    query: Mapping[str, Any]
+    premises_digest: str
+    data_digest: str
+    variable_names: tuple[str, ...]
+    artifact: bytes = field(repr=False, compare=False)
+
+    def export(self) -> bytes:
+        """The posterior as an independently consumable artifact."""
+        return self.artifact
+
+
+def _posterior(payload: str, artifact: bytes) -> SmoothedDosePosterior:
+    raw = json.loads(payload)
+    return SmoothedDosePosterior(
+        posterior=PosteriorRowEstimate._from_mapping(raw["result"]),
+        certificate=_frozen(raw["certificate"]),
+        query=_frozen(raw["query"]),
+        premises_digest=raw["premises_digest"],
+        data_digest=raw["data_digest"],
+        variable_names=tuple(raw["variable_names"]),
+        artifact=artifact,
+    )
+
+
 class PreparedSmoothedDose:
     """A prepared smoothed dose transport.
 
@@ -365,6 +458,17 @@ class PreparedSmoothedDose:
             raise CausalTypeError("refresh requires SmoothedDoseData")
         self._native.refresh(data, cancel)
         self._last = None
+
+    def posterior(self, model: SmoothedDosePosteriorModel) -> SmoothedDosePosterior:
+        """The unlicensed Bayesian posterior of the same smoothed dose response.
+
+        Runs on the retained rows and the certificate derived at preparation; the model is
+        declared, never selected from the rows.
+        """
+        if not isinstance(model, SmoothedDosePosteriorModel):
+            raise CausalTypeError("posterior requires a SmoothedDosePosteriorModel")
+        payload, artifact = self._native.posterior(model._json())
+        return _posterior(payload, bytes(artifact))
 
     def interval(self, *, cancel: Any = None) -> None:
         """The closed interval route: always refuses with ``cell_not_licensed``."""
@@ -464,8 +568,29 @@ def consume_smoothed_dose(
     )
 
 
+def consume_smoothed_dose_posterior(
+    artifact: bytes, *, max_rows: int = 100_000, max_points: int = 1_024
+) -> SmoothedDosePosterior:
+    """Independently verify an exported smoothed-dose posterior and replay it.
+
+    The consumer re-derives the transport certificate from the stored graph and query and
+    recomputes the posterior from the stored rows and seed; only a bit-identical result is
+    accepted, so a changed row, premise, certificate or stored value is refused even when the
+    digests were resealed.
+    """
+    if not isinstance(artifact, bytes):
+        raise CausalTypeError("artifact must be bytes")
+    return _posterior(
+        _native.consume_smoothed_dose_posterior(artifact, max_rows=max_rows, max_points=max_points),
+        artifact,
+    )
+
+
 __all__ = [
     "DoseBasis",
+    "SmoothedDosePosterior",
+    "SmoothedDosePosteriorModel",
+    "consume_smoothed_dose_posterior",
     "PreparedSmoothedDose",
     "SmoothedDoseData",
     "SmoothedDoseEstimate",

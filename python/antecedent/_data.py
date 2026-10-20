@@ -270,12 +270,7 @@ def _is_capsule(obj: Any) -> bool:
 
 
 def _is_capsule_pair(obj: Any) -> bool:
-    return (
-        isinstance(obj, tuple)
-        and len(obj) == 2
-        and _is_capsule(obj[0])
-        and _is_capsule(obj[1])
-    )
+    return isinstance(obj, tuple) and len(obj) == 2 and _is_capsule(obj[0]) and _is_capsule(obj[1])
 
 
 def _arrow_chunks(column: Any) -> list[Any] | None:

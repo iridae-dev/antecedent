@@ -643,5 +643,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(consume_temporal_initial_state_artifact, module)?)?;
     module.add_function(wrap_pyfunction!(consume_temporal_refresh_artifact, module)?)?;
     module.add_function(wrap_pyfunction!(temporal_dependent_interval_closed, module)?)?;
+    crate::period_refresh_api::register(module)?;
     Ok(())
 }

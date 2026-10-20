@@ -66,6 +66,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 
 from . import _native
+from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
@@ -122,6 +123,7 @@ __all__ = [
     "ProcedureSimulation",
     "ProcedureStopping",
     "RepeatedMeasuresDeclaration",
+    "RepeatedMeasuresPosterior",
     "RepeatedMeasuresProcedure",
     "RepeatedMeasuresReport",
     "UnitAssignment",
@@ -1976,6 +1978,50 @@ class RepeatedMeasuresReport(ScientificResult):
     claim: str = DERIVED_UNMEASURED
 
 
+@dataclass(repr=False, frozen=True)
+class RepeatedMeasuresPosterior(ScientificResult):
+    """The exact posterior of an adaptive repeated-measures trial's arm means and contrast.
+
+    ``report`` is the retained report: the declared priors, the posterior of each arm mean and of
+    the contrast ``plus - minus`` (mean, standard deviation, equal-tailed credible interval and
+    positive probability), the selection evidence (the realized assignment probabilities, kept and
+    unused) and the units it was computed from. It is an explicit uncalibrated estimator:
+    ``licensed`` is ``False`` and ``calibration`` is ``"unmeasured"``.
+    """
+
+    report: dict[str, Any]
+
+    @property
+    def estimator_id(self) -> str:
+        return str(self.report["estimator_id"])
+
+    @property
+    def contrast(self) -> dict[str, Any]:
+        return dict(self.report["contrast"])
+
+    @property
+    def arms(self) -> tuple[dict[str, Any], ...]:
+        return tuple(dict(a) for a in self.report["arms"])
+
+    @property
+    def licensed(self) -> bool:
+        return bool(self.report["licensed"])
+
+    @property
+    def calibration(self) -> str:
+        return str(self.report["calibration"])
+
+    @property
+    def selection_evidence(self) -> dict[str, Any]:
+        r = self.report
+        return {
+            "selection": r["selection"],
+            "adaptive": r["adaptive"],
+            "assignment_probabilities": list(r["assignment_probabilities"]),
+            "premise": r["selection_premise"],
+        }
+
+
 class RepeatedMeasuresProcedure:
     """A declared repeated-measures or clustered adaptive procedure."""
 
@@ -2074,6 +2120,61 @@ class RepeatedMeasuresProcedure:
         """Ask whether this cell's guarantee may be stated for another cell (it may not)."""
         wire = {"kind": "cell_transfer", "cell_id": str(cell_id), "paradigm": str(paradigm)}
         return self._report(wire, cancel)
+
+    def posterior(
+        self,
+        *,
+        priors: Sequence[tuple[float, float]],
+        units: Sequence[tuple[int, Sequence[float], float]],
+        selection: str | None = None,
+        credible_level: float = 0.95,
+    ) -> RepeatedMeasuresPosterior:
+        """The exact posterior of the arm means and of the declared contrast.
+
+        ``priors`` is one ``(mean, variance)`` normal prior per arm mean; ``units`` holds each
+        completed unit as ``(arm, measurements, assignment_probability)``. The posterior conditions
+        on the observed units: it is the same under any assignment that depends only on observed
+        earlier data and independent randomization, and the recorded assignment probabilities are
+        retained as selection evidence and not used. The within-unit variance and correlation are
+        the declared ones. The result is unlicensed and its calibration is unmeasured.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``cell_not_licensed`` for an assignment that depends on an
+                unobserved quantity (``adaptive_inference.selection_not_ignorable``) or a contrast
+                arm with no completed unit (``adaptive_inference.arm_not_observed``);
+                ``invalid_argument`` for malformed units, priors or level.
+        """
+        wire = {
+            "priors": [{"mean": float(m), "variance": float(v)} for m, v in priors],
+            "units": [
+                {
+                    "arm": int(arm),
+                    "measurements": [float(y) for y in measurements],
+                    "assignment_probability": float(probability),
+                }
+                for arm, measurements, probability in units
+            ],
+            "selection": selection,
+            "credible_level": float(credible_level),
+        }
+        text = _unwrap(self._handle.posterior(_procedure_json(wire)))
+        return RepeatedMeasuresPosterior(report=json.loads(text))
+
+    def export_posterior(self, posterior: RepeatedMeasuresPosterior) -> str:
+        """The retained artifact text of a posterior, recomputed under this procedure first."""
+        return str(
+            _unwrap(self._handle.posterior_artifact(_procedure_json(thaw(posterior.report))))
+        )
+
+    def load_posterior(self, artifact: str) -> RepeatedMeasuresPosterior:
+        """Load a retained posterior artifact, recomputing every number from its retained units.
+
+        Raises:
+            AdaptiveInferenceRefusal: for an edited artifact, a claimed license, another declared
+                procedure, or numbers the retained units do not reproduce.
+        """
+        text = _unwrap(self._handle.load_posterior_artifact(str(artifact)))
+        return RepeatedMeasuresPosterior(report=json.loads(text))
 
 
 # ---------------------------------------------------------------------- participant-level family

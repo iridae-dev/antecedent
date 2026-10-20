@@ -46,13 +46,17 @@ from typing import Any, Literal
 import numpy as np
 
 from ._native import consume_dose_grid_artifact as _consume
+from ._native import consume_dose_grid_posterior_artifact as _consume_posterior
 from ._native import dose_support_labels as _support_labels
 from ._native import evaluate_dose_grid_functional as _evaluate
+from ._native import evaluate_dose_grid_posterior as _evaluate_posterior
 from ._refusal import raise_refusal
 from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from ._posterior_row import PosteriorRowEstimate
 
 __all__ = [
+    "DoseGridPosteriorResult",
     "DoseClaims",
     "DoseContrast",
     "DoseFunctionalResult",
@@ -60,7 +64,9 @@ __all__ = [
     "DosePoint",
     "DoseSupport",
     "consume_dose_grid_artifact",
+    "consume_dose_grid_posterior_artifact",
     "dose_functional",
+    "dose_grid_posterior",
     "quadratic_dose_functional",
     "dose_support_table",
 ]
@@ -581,3 +587,161 @@ def consume_dose_grid_artifact(
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _result(report, data)
+
+
+# --- the unlicensed Bayesian counterpart of the same randomized-dose row -------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class DoseGridPosteriorResult:
+    """The joint posterior of one named functional of a randomized-dose response curve.
+
+    The target is the dose response ``m`` itself (no bandwidth is part of the estimand), read
+    through the same ``level`` / ``derivative`` / ``contrast`` functionals as
+    :func:`dose_functional`. ``posterior`` carries the posterior mean and equal-tailed 95%
+    credible interval of every evaluation dose and the covariance across them, from the joint
+    draws; the exact Gaussian moments are added when the residual variance is known. The row is
+    unlicensed and its calibration is ``"unmeasured"``.
+    """
+
+    functional: str
+    design: str
+    posterior: PosteriorRowEstimate
+    request: Mapping[str, Any] = field(repr=False, compare=False)
+    premises_digest: str
+    data_digest: str
+    artifact: bytes = field(repr=False, compare=False)
+
+    def export(self) -> bytes:
+        """The artifact: premises, compact dose/outcome table, posterior and both digests."""
+        return self.artifact
+
+
+def _posterior_result(report_json: str, artifact: bytes) -> DoseGridPosteriorResult:
+    report = json.loads(report_json)
+    request = report["request"]["dose_grid"]
+    return DoseGridPosteriorResult(
+        functional=str(request["functional"]["kind"]),
+        design=str(request["design"]),
+        posterior=PosteriorRowEstimate._from_mapping(report["result"]),
+        request=request,
+        premises_digest=report["premises_digest"],
+        data_digest=report["data_digest"],
+        artifact=artifact,
+    )
+
+
+def dose_grid_posterior(
+    dose: Sequence[float] | np.ndarray,
+    outcome: Sequence[float] | np.ndarray,
+    *,
+    support: tuple[float, float],
+    coefficient_scales: Sequence[float],
+    residual_variance: float | None = None,
+    residual_shape: float | None = None,
+    residual_scale: float | None = None,
+    functional: Functional = "level",
+    grid: Sequence[float] | None = None,
+    contrast: tuple[float, float] | None = None,
+    draws: int = 4_000,
+    seed: int = 0,
+    design: Design = "randomized_dose",
+) -> DoseGridPosteriorResult:
+    """Joint Bayesian posterior of a named functional of a randomized-dose response curve.
+
+    The likelihood is ``y = m(d) + e`` with independent ``N(0, sigma^2)`` errors; ``m`` is a
+    polynomial in the dose rescaled to ``[-1, 1]`` on the declared ``support`` with coefficient
+    ``j`` a priori ``N(0, sigma^2 s_j^2)`` for ``s = coefficient_scales`` (a decaying scale
+    vector is the smoothing prior and is part of the answer). Declare the residual variance
+    (``residual_variance``) or its inverse-gamma prior (``residual_shape`` and
+    ``residual_scale``). One coefficient draw gives every grid dose at once, so the covariance
+    across the grid is preserved in ``posterior.covariance``.
+
+    Raises :class:`DoseGridRefusal` with ``detail`` one of ``dose_grid.graph_not_certified``
+    (observational dose: this row does not adjust), ``dose_grid.unsupported_dose`` (a dose
+    outside the observed range, never extrapolated) or ``dose_grid.invalid_request``.
+    """
+    if functional not in _FUNCTIONALS:
+        raise CausalValueError(f"functional must be one of {_FUNCTIONALS}")
+    if design not in _DESIGNS:
+        raise CausalValueError(f"design must be one of {_DESIGNS}")
+    if functional == "contrast":
+        if grid is not None or contrast is None or len(contrast) != 2:
+            raise CausalValueError("a contrast takes contrast=(from, to) and no grid")
+        spec: dict[str, Any] = {
+            "kind": "contrast",
+            "from": _number(contrast[0], "contrast[0]"),
+            "to": _number(contrast[1], "contrast[1]"),
+        }
+        points: list[float] = []
+    else:
+        if contrast is not None or grid is None:
+            raise CausalValueError("a level or derivative takes a grid and no contrast")
+        points = _finite_list(_column(grid, "grid"), "grid")
+        spec = {"kind": functional, "from": None, "to": None}
+    if residual_variance is not None and residual_shape is None and residual_scale is None:
+        residual: dict[str, Any] = {
+            "known_variance": _number(residual_variance, "residual_variance")
+        }
+    elif residual_variance is None and residual_shape is not None and residual_scale is not None:
+        residual = {
+            "inverse_gamma": {
+                "shape": _number(residual_shape, "residual_shape"),
+                "scale": _number(residual_scale, "residual_scale"),
+            }
+        }
+    else:
+        raise CausalValueError(
+            "declare either residual_variance, or residual_shape and residual_scale"
+        )
+    request = {
+        "dose_grid": {
+            "design": design,
+            "functional": spec,
+            "grid": points,
+            "support": [_number(support[0], "support"), _number(support[1], "support")],
+            "coefficient_scales": _finite_list(
+                _column(coefficient_scales, "coefficient_scales"), "coefficient_scales"
+            ),
+            "residual": residual,
+            "draws": int(draws),
+            "seed": int(seed),
+            "dose": [],
+            "outcome": [],
+        }
+    }
+    report, artifact, refusal = _evaluate_posterior(
+        json.dumps(request, allow_nan=False), _column(dose, "dose"), _column(outcome, "outcome")
+    )
+    raise_refusal(refusal, DoseGridRefusal)
+    if report is None or artifact is None:  # pragma: no cover - the native contract
+        raise CausalValueError(
+            "the native dose-grid posterior returned neither a result nor a refusal"
+        )
+    return _posterior_result(report, bytes(artifact))
+
+
+def consume_dose_grid_posterior_artifact(
+    artifact: bytes,
+    *,
+    max_rows: int = 100_000,
+    max_grid: int = 1_024,
+) -> DoseGridPosteriorResult:
+    """Recompute an exported dose-grid posterior and accept only an identical one.
+
+    The posterior is recomputed from the embedded table with the stored seed and every stored
+    value (means, intervals, joint covariance, exact moments, evaluation doses) must reproduce
+    bit for bit. A changed premise, table entry or stored value is refused
+    (:class:`DoseGridRefusal`, ``bayesian_row.premises_mismatch``,
+    ``.data_identity_mismatch`` or ``.result_replay_mismatch``) even when the digests were
+    resealed. Corruption and unknown versions raise
+    :class:`~antecedent.errors.CausalSerializationError`.
+    """
+    if not isinstance(artifact, bytes | bytearray | memoryview):
+        raise CausalTypeError("artifact must be bytes")
+    data = bytes(artifact)
+    report, refusal = _consume_posterior(data, max_rows=max_rows, max_grid=max_grid)
+    raise_refusal(refusal, DoseGridRefusal)
+    if report is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native consumer returned neither a result nor a refusal")
+    return _posterior_result(report, data)

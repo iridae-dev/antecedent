@@ -29,6 +29,8 @@ mod prepare_effect;
 mod prepare_posterior;
 mod prepare_query;
 mod prepare_response;
+mod prepare_unlicensed_design;
+mod treatment_score;
 mod routing;
 
 #[path = "../prepare_request.rs"]

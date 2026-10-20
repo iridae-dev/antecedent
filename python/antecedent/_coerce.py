@@ -163,6 +163,7 @@ def coerce_query(value: Any) -> Any:
         AugmentedPanelDiD,
         FuzzyRegressionDiscontinuity,
         PanelDifferenceInDifferences,
+        PeriodHistoryMatch,
         RegressionKink,
         SharpRegressionDiscontinuity,
         StaggeredAdoption,
@@ -191,7 +192,7 @@ def coerce_query(value: Any) -> Any:
         SustainedEffect,
         TemporalMediationEffect,
     )
-    from .regimes import LongitudinalRegime
+    from .regimes import LongitudinalRegime, SequentialContrast
     from .survival import CompetingRisksOutcome, SurvivalOutcome
     from .transport import Transport
     from .transport.advanced import TransportQuery
@@ -236,6 +237,8 @@ def coerce_query(value: Any) -> Any:
         RegressionKink,
         SharpRegressionDiscontinuity,
         LongitudinalRegime,
+        SequentialContrast,
+        PeriodHistoryMatch,
         SurvivalOutcome,
         CompetingRisksOutcome,
     )

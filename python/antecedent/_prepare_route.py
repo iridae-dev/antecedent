@@ -54,6 +54,7 @@ from .quasi import (
     AugmentedPanelDiD,
     FuzzyRegressionDiscontinuity,
     PanelDifferenceInDifferences,
+    PeriodHistoryMatch,
     RegressionKink,
     SharpRegressionDiscontinuity,
     StaggeredAdoption,
@@ -84,7 +85,7 @@ from .query import (
     TemporalConditionalSustained,
     TemporalMediationEffect,
 )
-from .regimes import LongitudinalRegime
+from .regimes import LongitudinalRegime, SequentialContrast
 from .survival import CompetingRisksOutcome, SurvivalOutcome
 from .transport.advanced import TransportQuery
 
@@ -289,6 +290,8 @@ _COMPILE_ROUTES: tuple[tuple[tuple[type, ...], str, str], ...] = (
     ((SharpRegressionDiscontinuity,), "_sharp_rd", "pre"),
     ((FuzzyRegressionDiscontinuity, RegressionKink), "_local_polynomial_ratio", "pre"),
     ((LongitudinalRegime,), "_longitudinal_regime", "pre"),
+    ((SequentialContrast,), "_sequential_contrast", "pre"),
+    ((PeriodHistoryMatch,), "_history_match", "pre"),
     ((SurvivalOutcome, CompetingRisksOutcome), "_survival", "pre"),
     ((TransportQuery,), "_transport", "post_temporal"),
     ((InterferenceQuery,), "_interference", "post_temporal"),
@@ -333,7 +336,15 @@ class _PrepareRoute:
         if self.estimator_config:
             raise _not_applicable("estimator_config", route)
 
-    def _refuse_ids(self, route: str) -> None:
+    def _refuse_ids(self, route: str, bayesian_id: str | None = None) -> None:
+        selected = getattr(self.estimator, "value", self.estimator)
+        if (
+            bayesian_id is not None
+            and selected == bayesian_id
+            and isinstance(self.inference, Bayesian)
+            and self.identifier is None
+        ):
+            return
         if self.identifier is not None or self.estimator is not None:
             raise CausalUnsupportedError(
                 f"{route} selects its identifier and estimator itself; custom "
@@ -855,7 +866,7 @@ class _PrepareRoute:
         self._refuse_estimator_config("ConditionalDoseResponse")
         if self._explicit_refute() or self.bootstrap:
             raise _not_applicable("refute/bootstrap", "ConditionalDoseResponse")
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise _not_applicable("inference", "ConditionalDoseResponse")
         design = self.design_columns or {}
         native = _NativePreparedAnalysis.prepare_continuous_dose_response(
@@ -895,7 +906,7 @@ class _PrepareRoute:
                 "PolicyValue carries its randomized design and does not accept graph= or discovery=",
                 reason_code="option_not_applicable",
             )
-        self._refuse_ids("PolicyValue")
+        self._refuse_ids("PolicyValue", "bayesian.binary_policy_value")
         self._refuse_estimator_config("PolicyValue")
         if self._explicit_refute() or self.bootstrap:
             raise CausalUnsupportedError(
@@ -904,9 +915,9 @@ class _PrepareRoute:
             )
         from .inference import Frequentist
 
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise CausalUnsupportedError(
-                "PolicyValue supports row-score frequentist uncertainty only",
+                "PolicyValue supports row-score frequentist uncertainty or a Bayesian posterior",
                 reason_code="option_not_applicable",
             )
         if isinstance(query, MultiActionPolicyValue):
@@ -1243,16 +1254,16 @@ class _PrepareRoute:
                 "PanelDifferenceInDifferences carries its own design and does not accept graph= or discovery=",
                 reason_code="option_not_applicable",
             )
-        self._refuse_ids("PanelDifferenceInDifferences")
+        self._refuse_ids("PanelDifferenceInDifferences", "bayesian.panel_did")
         self._refuse_estimator_config("PanelDifferenceInDifferences")
         if self._explicit_refute() or self.bootstrap:
             raise CausalUnsupportedError(
                 "PanelDifferenceInDifferences has no refutation or bootstrap route",
                 reason_code="option_not_applicable",
             )
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise CausalUnsupportedError(
-                "PanelDifferenceInDifferences supports a cluster standard error only",
+                "PanelDifferenceInDifferences supports a cluster standard error or a Bayesian posterior",
                 reason_code="option_not_applicable",
             )
         names, columns = self.names, self.columns
@@ -1324,11 +1335,11 @@ class _PrepareRoute:
         query = cast(SyntheticControl | SyntheticDifferenceInDifferences, self.query)
         if self.graph is not None or self.discovery is not None:
             raise _not_applicable("graph/discovery", "SyntheticControl")
-        self._refuse_ids("SyntheticControl")
+        self._refuse_ids("SyntheticControl", "bayesian.synthetic_control")
         self._refuse_estimator_config("SyntheticControl")
         if self._explicit_refute() or self.bootstrap:
             raise _not_applicable("refute/bootstrap", "SyntheticControl")
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise _not_applicable("inference", "SyntheticControl")
         design = self.design_columns
         if design is None:
@@ -1392,11 +1403,11 @@ class _PrepareRoute:
         query = cast(FuzzyRegressionDiscontinuity | RegressionKink, self.query)
         if self.graph is not None or self.discovery is not None:
             raise _not_applicable("graph/discovery", "local polynomial ratio")
-        self._refuse_ids("local polynomial ratio")
+        self._refuse_ids("local polynomial ratio", "bayesian.local_ratio")
         self._refuse_estimator_config("local polynomial ratio")
         if self._explicit_refute() or self.bootstrap:
             raise _not_applicable("refute/bootstrap", "local polynomial ratio")
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise _not_applicable("inference", "local polynomial ratio")
         native = _NativePreparedAnalysis.prepare_local_polynomial_ratio(
             self.names,
@@ -1428,9 +1439,10 @@ class _PrepareRoute:
                 "randomized survival has no refutation route",
                 reason_code="option_not_applicable",
             )
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise CausalUnsupportedError(
-                "randomized survival supports only frequentist subject-bootstrap inference",
+                "randomized survival supports frequentist subject-bootstrap inference or a "
+                "Bayesian piecewise-exponential posterior (Bayesian(design_model=PiecewiseHazards))",
                 reason_code="option_not_applicable",
             )
         if not query.randomized:
@@ -1478,6 +1490,91 @@ class _PrepareRoute:
         )
         return native, "average"
 
+    def _design_only(self, route: str, allowed_ids: tuple[str, ...]) -> None:
+        """Refuse the graph, refutation and estimator options a design-carrying query ignores.
+
+        ``allowed_ids`` are the estimator ids the query answers; selecting one is the same route.
+        """
+        if self.graph is not None or self.discovery is not None:
+            raise CausalUnsupportedError(
+                f"{route} carries its own design and does not accept graph= or discovery=",
+                reason_code="option_not_applicable",
+            )
+        selected = getattr(self.estimator, "value", self.estimator)
+        if self.identifier is not None or (
+            self.estimator is not None and selected not in allowed_ids
+        ):
+            raise CausalUnsupportedError(
+                f"{route} selects its identifier and estimator itself; custom "
+                "identifier= / estimator= are not supported",
+                reason_code="option_not_applicable",
+            )
+        self._refuse_estimator_config(route)
+        if self._explicit_refute() or self.bootstrap:
+            raise CausalUnsupportedError(
+                f"{route} has no refutation or bootstrap route",
+                reason_code="option_not_applicable",
+            )
+
+    def _sequential_contrast(self) -> tuple[Any, Literal["average"]]:
+        query = cast(SequentialContrast, self.query)
+        selected = getattr(self.estimator, "value", self.estimator)
+        bayesian = isinstance(self.inference, Bayesian)
+        self._design_only(
+            "SequentialContrast",
+            ("sequential.crossfit_contrast.wald", "bayesian.sequential_crossfit_contrast"),
+        )
+        if selected is not None and bayesian != (
+            selected == "bayesian.sequential_crossfit_contrast"
+        ):
+            raise CausalUnsupportedError(
+                f"estimator {selected!r} does not run under this inference mode: the normal "
+                "interval is Frequentist and the modular posterior is Bayesian",
+                reason_code="estimator_inference_mismatch",
+            )
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
+            raise CausalUnsupportedError(
+                "SequentialContrast supports a normal interval or a Bayesian posterior",
+                reason_code="option_not_applicable",
+            )
+        design = self.design_columns
+        if design is None:
+            raise CausalValueError("sequential contrast folds were not bound at prepare")
+        native = _NativePreparedAnalysis.prepare_sequential_contrast(
+            self.names,
+            self.columns,
+            query.outcome,
+            query.first_treatment,
+            query.second_treatment,
+            list(query.baseline),
+            list(query.intermediate),
+            (int(query.active[0]), int(query.active[1])),
+            (int(query.control[0]), int(query.control[1])),
+            list(design["fold_of_row"]),
+            int(design["fold_count"]),
+            float(query.min_probability),
+            accepted=False,
+            **self._common(),
+        )
+        return native, "average"
+
+    def _history_match(self) -> tuple[Any, Literal["average"]]:
+        query = cast(PeriodHistoryMatch, self.query)
+        self._design_only("PeriodHistoryMatch", ("matching.period_history_contrast",))
+        native = _NativePreparedAnalysis.prepare_history_match(
+            self.names,
+            self.columns,
+            query.outcome,
+            query.treated,
+            list(query.history),
+            query.period,
+            query.weight,
+            query.caliper,
+            accepted=False,
+            **self._common(),
+        )
+        return native, "average"
+
     def _longitudinal_regime(self) -> tuple[Any, Literal["average"]]:
         query = cast(LongitudinalRegime, self.query)
         if self.graph is not None or self.discovery is not None:
@@ -1485,16 +1582,16 @@ class _PrepareRoute:
                 "LongitudinalRegime carries its own sequential design and does not accept graph= or discovery=",
                 reason_code="option_not_applicable",
             )
-        self._refuse_ids("LongitudinalRegime")
+        self._refuse_ids("LongitudinalRegime", "bayesian.sequential_regime_value")
         self._refuse_estimator_config("LongitudinalRegime")
         if self._explicit_refute() or self.bootstrap:
             raise CausalUnsupportedError(
                 "LongitudinalRegime has no refutation or bootstrap route",
                 reason_code="option_not_applicable",
             )
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
+        if self.inference is not None and not isinstance(self.inference, (Frequentist, Bayesian)):
             raise CausalUnsupportedError(
-                "LongitudinalRegime supports frequentist inference only",
+                "LongitudinalRegime supports frequentist inference or a Bayesian sequential posterior",
                 reason_code="option_not_applicable",
             )
         if not query.probabilities_known_by_design:

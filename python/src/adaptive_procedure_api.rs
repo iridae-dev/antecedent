@@ -955,6 +955,67 @@ impl RepeatedMeasuresProcedureHandle {
             Err(refusal) => refused(&refusal),
         })
     }
+
+    /// The exact posterior of the arm means and of the declared contrast, as the retained
+    /// report's JSON.
+    fn posterior(&self, request_json: &str) -> PyResult<Refused<String>> {
+        crate::bridge::check_declared_size(
+            request_json,
+            crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
+            "repeated-measures posterior request",
+        )?;
+        let wire: antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire =
+            serde_json::from_str(request_json).map_err(|error| {
+                crate::value_err(format!("invalid repeated-measures posterior request: {error}"))
+            })?;
+        let outcome = wire.into_spec().and_then(|spec| self.inner.posterior(&spec));
+        Ok(match outcome {
+            Ok(report) => match serde_json::to_string(&report) {
+                Ok(text) => (Some(text), None),
+                Err(error) => return Err(crate::serialization_err(error.to_string())),
+            },
+            Err(refusal) => refused(&refusal),
+        })
+    }
+
+    /// Write a posterior report (JSON) as the retained artifact text, after recomputing it under
+    /// this procedure.
+    fn posterior_artifact(&self, report_json: &str) -> PyResult<Refused<String>> {
+        crate::bridge::check_declared_size(
+            report_json,
+            crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
+            "repeated-measures posterior report",
+        )?;
+        let report: antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport =
+            serde_json::from_str(report_json).map_err(|error| {
+                crate::value_err(format!("invalid repeated-measures posterior report: {error}"))
+            })?;
+        Ok(
+            match antecedent::analysis::repeated_measures_posterior_report::encode_repeated_measures_posterior_report(&report, &self.inner) {
+                Ok(text) => (Some(text), None),
+                Err(refusal) => refused(&refusal),
+            },
+        )
+    }
+
+    /// Load a retained posterior artifact, recomputing it under this procedure; returns the
+    /// report's JSON.
+    fn load_posterior_artifact(&self, artifact: &str) -> PyResult<Refused<String>> {
+        crate::bridge::check_declared_size(
+            artifact,
+            crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
+            "repeated-measures posterior artifact",
+        )?;
+        Ok(
+            match antecedent::analysis::repeated_measures_posterior_report::load_repeated_measures_posterior_report(artifact, &self.inner) {
+                Ok(report) => match serde_json::to_string(&report) {
+                    Ok(text) => (Some(text), None),
+                    Err(error) => return Err(crate::serialization_err(error.to_string())),
+                },
+                Err(refusal) => refused(&refusal),
+            },
+        )
+    }
 }
 
 /// Declare a repeated-measures or clustered adaptive procedure.

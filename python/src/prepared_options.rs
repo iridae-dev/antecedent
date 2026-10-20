@@ -51,6 +51,10 @@ pub(crate) struct InferenceSpec {
     pub likelihood: Option<antecedent_prob::BayesLikelihood>,
     /// Numerical draw controls; `None` leaves the draw count unconstrained.
     pub draw_controls: Option<antecedent::PosteriorDrawControls>,
+    /// Declared white-innovation gate `(max_lag, level)`; `None` keeps the tempered posterior.
+    pub white_innovation: Option<(usize, f64)>,
+    /// Declared likelihood and prior of a randomized-design Bayesian estimator.
+    pub design_model: Option<antecedent::DesignPosteriorModel>,
 }
 
 impl InferenceSpec {
@@ -79,6 +83,12 @@ impl InferenceSpec {
                 .transpose()?,
             draw_controls: item("draw_controls")?
                 .map(|value| parse_draw_controls(&value.extract::<String>()?))
+                .transpose()?,
+            white_innovation: item("white_innovation")?
+                .map(|value| value.extract::<(usize, f64)>())
+                .transpose()?,
+            design_model: item("design_model")?
+                .map(|value| crate::design_model_api::parse_design_model(value.cast::<PyDict>()?))
                 .transpose()?,
         })
     }
@@ -247,7 +257,9 @@ impl PrepareOptions {
             None => builder,
         };
         let artifact = spec.prior_artifact.take();
-        crate::temporal_api::apply_temporal_inference_transfer(
+        let white_innovation = spec.white_innovation;
+        let design_model = spec.design_model.take();
+        let builder = crate::temporal_api::apply_temporal_inference_transfer(
             builder,
             spec.mode.as_deref(),
             spec.n_draws,
@@ -256,7 +268,20 @@ impl PrepareOptions {
             spec.prior_mapping.take(),
             spec.composed_prior.take(),
             spec.likelihood.unwrap_or(antecedent_prob::BayesLikelihood::GaussianIdentity),
-        )
+        )?;
+        let builder = match design_model {
+            Some(model) => builder.bayesian_design_model(model),
+            None => builder,
+        };
+        Ok(match white_innovation {
+            Some((max_lag, level)) => builder.bayesian_white_innovation(
+                antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate {
+                    max_lag,
+                    level,
+                },
+            ),
+            None => builder,
+        })
     }
 
     /// Refuse prior transfer on a route whose executor cannot hydrate a prior.

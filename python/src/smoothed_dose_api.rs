@@ -12,6 +12,9 @@ use std::sync::Arc;
 /// wire, framed with the variable names it was built under.
 const PREFIX: &[u8] = b"ANTECEDENT-SMOOTHED-DOSE\x01";
 
+/// Magic prefix of a portable smoothed-dose posterior artifact, framed like the point one.
+const POSTERIOR_PREFIX: &[u8] = b"ANTECEDENT-SMOOTHED-DOSE-POSTERIOR\x01";
+
 /// Fixed-bandwidth smoothed dose response at the declared grid, point only.
 const SCOPE: &str = "smoothed_dose_response_transport_point_only";
 
@@ -108,6 +111,23 @@ fn estimate_json(result: &antecedent::SmoothedDoseResult, names: &[String]) -> S
     .to_string()
 }
 
+fn posterior_json(
+    result: &antecedent::analysis::SmoothedDosePosteriorResult,
+    names: &[String],
+) -> PyResult<String> {
+    let wire = result.wire();
+    serde_json::to_string(&serde_json::json!({
+        "result": result.result(),
+        "query": wire.query,
+        "certificate": wire.certificate,
+        "model": wire.model,
+        "premises_digest": wire.premises_digest,
+        "data_digest": wire.data_digest,
+        "variable_names": names,
+    }))
+    .map_err(serialization_error)
+}
+
 #[pyclass(skip_from_py_object)]
 #[doc(hidden)]
 #[derive(Clone)]
@@ -135,6 +155,20 @@ impl PreparedSmoothedDoseNative {
         let payload = estimate_json(&result, &self.names);
         self.last = Some(result);
         Ok(payload)
+    }
+
+    /// The unlicensed Bayesian posterior of the same smoothed dose response, under the declared
+    /// outcome model (`model` is its JSON): `(posterior json, framed artifact bytes)`.
+    #[pyo3(signature=(model))]
+    fn posterior(&self, py: Python<'_>, model: &str) -> PyResult<(String, Py<PyBytes>)> {
+        let model: antecedent_io::smoothed_dose_posterior_artifact::SmoothedDosePosteriorModelWire =
+            serde_json::from_str(model).map_err(value_error)?;
+        let inner = self.inner.clone();
+        let result = crate::detach_catch(py, move || inner.posterior(model).map_err(error))?;
+        let payload = posterior_json(&result, &self.names)?;
+        let framed =
+            frame_named_artifact(POSTERIOR_PREFIX, &self.names, result.export().map_err(error)?)?;
+        Ok((payload, PyBytes::new(py, &framed).unbind()))
     }
 
     /// The closed interval route: always refuses with `cell_not_licensed`.
@@ -275,10 +309,40 @@ fn consume_smoothed_dose(
     })
 }
 
+/// Independently recheck a framed smoothed-dose posterior artifact: re-derive the certificate
+/// from the stored graph and query, recompute the posterior from the stored rows and seed, and
+/// accept only a bit-identical result.
+#[pyfunction]
+#[pyo3(signature=(artifact, *, max_rows=100_000, max_points=1_024))]
+fn consume_smoothed_dose_posterior(
+    py: Python<'_>,
+    artifact: &[u8],
+    max_rows: usize,
+    max_points: usize,
+) -> PyResult<String> {
+    let (names, bytes) = unframe_named_artifact(POSTERIOR_PREFIX, artifact, "smoothed dose posterior")?;
+    let limits = antecedent::analysis::bayesian_posterior_row::PosteriorRowConsumeLimits {
+        max_rows,
+        max_points,
+    };
+    crate::detach_catch(py, move || {
+        let result = antecedent::analysis::consume_smoothed_dose_posterior_artifact(&bytes, limits)
+            .map_err(error)?;
+        if result.wire().variable_names != names {
+            return Err(crate::refusal(
+                antecedent_core::reason_code!("invalid_argument"),
+                "transport.names_mismatch: the artifact was built under other variable names",
+            ));
+        }
+        posterior_json(&result, &names)
+    })
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedSmoothedDoseNative>()?;
     module.add_function(wrap_pyfunction!(prepare_smoothed_dose, module)?)?;
     module.add_function(wrap_pyfunction!(smoothed_dose_estimator_menu, module)?)?;
     module.add_function(wrap_pyfunction!(consume_smoothed_dose, module)?)?;
+    module.add_function(wrap_pyfunction!(consume_smoothed_dose_posterior, module)?)?;
     Ok(())
 }

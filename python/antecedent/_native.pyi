@@ -226,7 +226,10 @@ class AteAnalysisResult:
     synthetic_did: SyntheticDidSection | None
     local_polynomial_ratio: LocalPolynomialRatioSection | None
     survival: SurvivalSection | None
+    posterior_row: PosteriorRowSection | None
     longitudinal_regime: LongitudinalRegimeSection | None
+    sequential_contrast: SequentialContrastSection | None
+    history_match: HistoryMatchSection | None
     policy_value: PolicyValueSection | None
     continuous_dose_response: ContinuousDoseResponseSection | None
     anomaly: list[AnomalyScores] | None
@@ -487,6 +490,23 @@ class SurvivalSection:
     )
     band_unavailable_reason: str | None
 
+class PosteriorRowSection:
+    estimator: str
+    target: str
+    uncertainty: str
+    calibration: str
+    licensed: bool
+    coordinates: list[str]
+    mean: list[float]
+    lower: list[float]
+    upper: list[float]
+    covariance: list[float] | None
+    exact_mean: list[float] | None
+    exact_covariance: list[float] | None
+    draws: int
+    extras: dict[str, float]
+    vectors: dict[str, list[float]]
+
 class LongitudinalRegimeSection:
     method: str
     graphless_support_status: str | None
@@ -509,6 +529,38 @@ class LongitudinalRegimeSection:
     standard_errors: list[float] | None
     stabilizing_numerator_probabilities: list[float] | None
     observed_subjects: int | None
+
+class SequentialContrastSection:
+    active_regime: tuple[int, int]
+    control_regime: tuple[int, int]
+    contrast: float
+    active_mean: float
+    control_mean: float
+    evaluated_rows: int
+    minimum_action_probability: float
+    min_probability: float
+    standard_error: float | None
+    interval: tuple[float, float] | None
+    coverage: float
+    active_scores: list[float]
+    control_scores: list[float]
+    contrast_scores: list[float]
+    uncertainty: str
+    fits_computed: int
+    fits_reused: int
+
+class HistoryMatchSection:
+    contrast: float
+    standard_error: float | None
+    weight_total: float
+    matched_queries: list[int]
+    matched_donors: list[int]
+    differences: list[float]
+    pair_weights: list[float]
+    unmatched_treated: list[int]
+    periods_matched: int
+    caliper: float | None
+    uncertainty: str
 
 class PolicyValueSection:
     policy_value: float
@@ -1567,6 +1619,42 @@ class PreparedAnalysis:
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_sequential_contrast(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        first_treatment: str,
+        second_treatment: str,
+        baseline: list[str],
+        intermediate: list[str],
+        active: tuple[int, int],
+        control: tuple[int, int],
+        fold_of_row: list[int],
+        fold_count: int,
+        min_probability: float,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_history_match(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treated: str,
+        history: list[str],
+        period: str | None = None,
+        weight: str | None = None,
+        caliper: float | None = None,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     def prepare_policy_value(
         names: list[str],
         columns: Sequence[Any],
@@ -1965,6 +2053,25 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
     ) -> AteAnalysisResult: ...
+    def temporal_treatment_score(
+        self,
+        histories: list[list[float]],
+        *,
+        penalty: float | None = None,
+        intercept_sd: float = 1.0,
+        slope_sd: float = 1.0,
+        draws: int = 4000,
+        seed: int = 0,
+    ) -> tuple[str, bytes]: ...
+    def treatment_score_posterior(
+        self,
+        *,
+        prior_sd: float = 2.0,
+        draws: int = 4000,
+        seed: int = 0,
+        clip: float = 0.05,
+        summary_rows: list[int] | None = None,
+    ) -> tuple[str, bytes]: ...
     def snapshot(
         self,
     ) -> PreparedAnalysis: ...
@@ -4229,6 +4336,51 @@ def consume_temporal_initial_state_artifact(
 def consume_temporal_refresh_artifact(
     artifact: bytes, *, max_summary_rows: int = 1_000_000, max_units: int = 100_000
 ) -> tuple[str | None, str | None]: ...
+
+_PeriodPrior = tuple[list[float], list[float], float, float]
+_PeriodWindow = tuple[
+    str,
+    int,
+    list[tuple[str, int]],
+    list[str],
+    list[str],
+    list[str],
+    int,
+    int,
+    list[str],
+    str,
+    str,
+]
+
+class NativePeriodRefresh:
+    """An autoregressive mechanism kept across observation periods."""
+
+    @staticmethod
+    def start(
+        series_id: str,
+        lags: int,
+        invariant: bool,
+        prior: _PeriodPrior,
+        window: _PeriodWindow,
+        cadence_tick: int,
+        initial_law: str,
+        values: list[float],
+    ) -> tuple[NativePeriodRefresh | None, str | None]: ...
+    def refresh(
+        self,
+        window: _PeriodWindow,
+        cadence_tick: int,
+        initial_law: str,
+        values: list[float],
+    ) -> tuple[str | None, str | None]: ...
+    def payload(self) -> tuple[str | None, str | None]: ...
+    def export_ledger(self) -> tuple[bytes | None, str | None]: ...
+    def evict_row(self, id: int) -> tuple[str | None, str | None]: ...
+    def summary_under(self, prior: _PeriodPrior) -> tuple[str | None, str | None]: ...
+    def reprior(self, prior: _PeriodPrior) -> tuple[bool | None, str | None]: ...
+    def check_against_fresh(self) -> tuple[bool | None, str | None]: ...
+
+def consume_period_refresh_artifact(artifact: bytes) -> tuple[str | None, str | None]: ...
 def temporal_dependent_interval_closed(
     snapshot_id: str,
     units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
@@ -5400,6 +5552,7 @@ class PreparedSmoothedDoseNative:
     def export(self) -> bytes: ...
     def estimator_menu(self) -> str: ...
     def last_result(self) -> str: ...
+    def posterior(self, model: str) -> tuple[str, bytes]: ...
 
 def prepare_smoothed_dose(
     graph: Admg,
@@ -5418,6 +5571,9 @@ def smoothed_dose_estimator_menu(
     selections: list[str],
     query: str,
     options: str | None = None,
+) -> str: ...
+def consume_smoothed_dose_posterior(
+    artifact: bytes, *, max_rows: int = 100_000, max_points: int = 1_024
 ) -> str: ...
 def consume_smoothed_dose(
     artifact: bytes,
@@ -5838,9 +5994,22 @@ def consume_design_ranking(
     artifact: bytes, expectation_json: str | None = None
 ) -> tuple[str | None, str | None]: ...
 def rank_structural_designs(candidates_json: str) -> tuple[str | None, str | None]: ...
+def consume_array_fit_artifact(
+    artifact: bytes,
+    *,
+    max_numbers: int = 4_000_000,
+    max_draws: int = 200_000,
+    max_columns: int = 1_024,
+) -> tuple[str, str]: ...
 def evaluate_dose_grid_functional(
     request_json: str, dose: list[float], outcome: list[float]
 ) -> tuple[str | None, bytes | None, str | None]: ...
+def evaluate_dose_grid_posterior(
+    request_json: str, dose: list[float], outcome: list[float]
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_dose_grid_posterior_artifact(
+    artifact: bytes, *, max_rows: int = 100_000, max_grid: int = 1_024
+) -> tuple[str | None, str | None]: ...
 def consume_dose_grid_artifact(
     artifact: bytes, *, max_rows: int = 100_000, max_grid: int = 1_024
 ) -> tuple[str | None, str | None]: ...
@@ -7207,6 +7376,9 @@ class RepeatedMeasuresProcedureHandle:
     def report(
         self, request_json: str, cancel: CancellationToken | None = None
     ) -> tuple[str | None, str | None]: ...
+    def posterior(self, request_json: str) -> tuple[str | None, str | None]: ...
+    def posterior_artifact(self, report_json: str) -> tuple[str | None, str | None]: ...
+    def load_posterior_artifact(self, artifact: str) -> tuple[str | None, str | None]: ...
 
 def adaptive_procedure_declare(
     declaration_json: str,
@@ -8361,3 +8533,43 @@ def resume_live_study(loaded: Any) -> None:
 
 def consume_interchange_family(family: str) -> None:
     """Refused. Inspect and execution-receipt facts are not a family consumer."""
+
+def require_ordinary_temporal_curve_posterior_native(serial_error_model: str) -> None: ...
+def trajectory_contrast_native(
+    subjects: int,
+    periods: int,
+    treatment: list[bool],
+    event: list[bool],
+    at_risk: list[bool],
+    treatment_probability: list[float],
+    censoring_weight: list[float],
+    minimum_probability: float,
+    active: list[bool],
+    control: list[bool],
+) -> tuple[float, float]: ...
+def trajectory_bootstrap_native(
+    subjects: int,
+    periods: int,
+    treatment: list[bool],
+    event: list[bool],
+    at_risk: list[bool],
+    treatment_probability: list[float],
+    censoring_weight: list[float],
+    minimum_probability: float,
+    active: list[bool],
+    control: list[bool],
+    replicates: int,
+    seed: int,
+) -> tuple[float, float, float, float, int, int]: ...
+def trajectory_credible_interval_native(
+    subjects: int,
+    periods: int,
+    treatment: list[bool],
+    event: list[bool],
+    at_risk: list[bool],
+    treatment_probability: list[float],
+    censoring_weight: list[float],
+    minimum_probability: float,
+    active: list[bool],
+    control: list[bool],
+) -> tuple[float, float]: ...

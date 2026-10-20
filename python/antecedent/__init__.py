@@ -405,6 +405,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "msm_sensitivity",
     "multi_level_treatment",
     "nonlinear_mediation",
+    "nuisance_scores",
     "observation_query",
     "observational_policy",
     "observational_survival",
@@ -481,6 +482,7 @@ if _TYPE_CHECKING:
     from . import msm_sensitivity as msm_sensitivity
     from . import multi_level_treatment as multi_level_treatment
     from . import nonlinear_mediation as nonlinear_mediation
+    from . import nuisance_scores as nuisance_scores
     from . import observation_query as observation_query
     from . import observational_policy as observational_policy
     from . import observational_survival as observational_survival

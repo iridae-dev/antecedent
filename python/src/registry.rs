@@ -5,7 +5,9 @@
 
 use pyo3::prelude::*;
 
+use super::array_fit_api;
 use super::sequential_evaluation_api;
+use super::unlicensed_design_api;
 use super::{
     AnalysisResult, ArrowLoadInfo, AteAnalysisResult, BayesianConfig, CandidateSelectionSection,
     CausalAttributionError, CausalCancelledError, CausalCompileError, CausalCounterfactualError,
@@ -44,7 +46,7 @@ use super::{
     scientific_bridge_api, selective_discovery_api, sensitivity_decision_api,
     sensitivity_source_api, set_not_identified_error_class, set_review_error_class,
     set_unsupported_error_class, set_value_error_class, smoothed_dose_api, source_evidence_api,
-    source_projection_api, stability, state_api, study_planning_api, survival_api, temporal_api,
+    source_projection_api, stability, state_api, study_planning_api, posterior_boundary_api, posterior_row_api, survival_api, temporal_api,
     temporal_counterfactual_api, temporal_extension_api, temporal_license, temporal_transport_api,
     transport_admg_conditional_api, transport_counterfactual_api,
     transport_counterfactual_sampled_api, transport_exact_api, transport_grid_api,
@@ -120,6 +122,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     observation_api::register(m)?;
     bounds_api::register(m)?;
     artifact_api::register(m)?;
+    array_fit_api::register(m)?;
     decision_api::register(m)?;
     distribution_api::register(m)?;
     external_api::register(m)?;
@@ -318,8 +321,11 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     observational_interference_api::register(m)?;
     factorial_api::register(m)?;
     regimes_api::register(m)?;
+    unlicensed_design_api::register(m)?;
     quasi_api::register(m)?;
     survival_api::register(m)?;
+    posterior_row_api::register(m)?;
+    posterior_boundary_api::register(m)?;
     Ok(())
 }
 

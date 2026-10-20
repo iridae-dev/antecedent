@@ -46,10 +46,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from . import _native
 from ._columns import coerce_fields
 from ._native import consume_effect_constancy_artifact as _consume
 from ._native import evaluate_effect_constancy as _evaluate
@@ -61,7 +62,27 @@ from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
 
+
+def require_ordinary_temporal_curve_posterior(
+    serial_error_model: Literal["unmodeled", "independent_innovations"] = "unmodeled",
+) -> None:
+    """Require the ordinary-likelihood reading of a temporal response-curve posterior.
+
+    The temporal curve posterior is a tempered generalized posterior: each horizon's Gaussian
+    working likelihood is divided by a long-run-variance factor so serially dependent
+    innovations do not make the interval too narrow. It is not the posterior of a joint law of
+    the series. With ``"unmodeled"`` serial dependence this refuses
+    (``cell_not_licensed``, ``temporal_curve.ordinary_posterior_not_licensed``) and names the
+    next attempt: attest independent innovations given the modelled history, add an explicit
+    autoregressive innovation law to the likelihood, or read the tempered posterior as a
+    generalized posterior. ``"independent_innovations"`` is the caller's attestation that
+    licenses the ordinary reading; it is never inferred.
+    """
+    _native.require_ordinary_temporal_curve_posterior_native(serial_error_model)
+
+
 __all__ = [
+    "require_ordinary_temporal_curve_posterior",
     "ConstancyConclusion",
     "Contrast",
     "EffectConstancyIdentity",

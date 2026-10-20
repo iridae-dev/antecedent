@@ -6,7 +6,8 @@ These utilities do not add a support-matrix license or interval guarantee.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from math import isfinite
 from typing import Any, Literal
 
 import numpy as np
@@ -585,6 +586,63 @@ class RegressionKink:
 
 
 @dataclass(frozen=True, slots=True)
+class PeriodHistoryMatch:
+    """Nearest-neighbor contrast on pre-outcome histories, matched inside calendar periods.
+
+    ``history`` names the time-ordered history columns; their row-wise mean is the match score.
+    A treated unit is matched only to a control of its own ``period`` (one period when absent), so
+    a match never crosses a period. ``weight`` is a sampling-weight column and ``caliper`` a
+    maximum absolute score distance. The estimand is the weighted effect on the matched treated
+    units given the period and the history-mean score. The standard error is Abadie-Imbens for one
+    match with replacement; no interval is reported and the route is unlicensed. A posterior of a
+    matching contrast does not exist (a matching rule has no likelihood): ``Bayesian`` inference
+    raises ``CausalUnsupportedError`` naming that premise and the next attempt.
+    """
+
+    outcome: str
+    treated: str
+    history: Sequence[str]
+    period: str | None = None
+    weight: str | None = None
+    caliper: float | None = None
+    kind: Literal["period_history_match"] = field(
+        default="period_history_match", init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        names = [self.outcome, self.treated, *self.history]
+        names.extend(name for name in (self.period, self.weight) if name is not None)
+        if not self.history or any(not isinstance(name, str) or not name.strip() for name in names):
+            raise CausalValueError("declare non-empty outcome, treated and history column names")
+        if len(set(names)) != len(names):
+            raise CausalValueError("outcome, treated, history, period and weight must be distinct")
+        if self.caliper is not None and not (isfinite(self.caliper) and self.caliper >= 0.0):
+            raise CausalValueError("caliper must be finite and non-negative")
+        object.__setattr__(self, "history", tuple(self.history))
+
+
+@dataclass(frozen=True, slots=True)
+class PeriodHistoryMatchEstimate:
+    """History-matched contrast with its matched pairs. Unlicensed, no interval."""
+
+    contrast: float
+    weight_total: float
+    matched_queries: tuple[int, ...]
+    matched_donors: tuple[int, ...]
+    differences: tuple[float, ...]
+    pair_weights: tuple[float, ...]
+    unmatched_treated: tuple[int, ...]
+    periods_matched: int
+    uncertainty: str
+    #: Abadie-Imbens standard error; ``None`` with fewer than two matched units.
+    standard_error: float | None = None
+    caliper: float | None = None
+    licensed: bool = False
+    calibration_measured: bool = False
+    support_status: str = "unlicensed_uncalibrated"
+
+
+@dataclass(frozen=True, slots=True)
 class LocalPolynomialRatioEstimate:
     estimate: float
     reduced_form_discontinuity: float
@@ -750,6 +808,8 @@ def _validate_rd_spec(
 
 
 __all__ = [
+    "PeriodHistoryMatch",
+    "PeriodHistoryMatchEstimate",
     "DifferenceInDifferences",
     "DifferenceInDifferencesEstimate",
     "PanelDifferenceInDifferences",

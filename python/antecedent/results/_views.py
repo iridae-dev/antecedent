@@ -10,6 +10,7 @@ from pydantic import Field, PrivateAttr
 from .._columns import coerce_fields
 from ..policy import DoublyRobustPolicyEvaluation
 from ..survival import CumulativeIncidenceEstimate, SurvivalEstimate
+from .._posterior_row import PosteriorRowEstimate
 
 if TYPE_CHECKING:
     from .._native import (
@@ -885,7 +886,12 @@ class AnalysisResult(ResultModel, ResultAPI):
     policy_value: DoublyRobustPolicyEvaluation | None = None
     continuous_dose_response: Any | None = None
     survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
+    #: Unlicensed Bayesian randomized-design posterior (``bayesian.piecewise_survival`` or
+    #: ``bayesian.continuous_dose_policy``); never licensed, calibration ``unmeasured``.
+    posterior_row: PosteriorRowEstimate | None = None
     longitudinal_regime: Any | None = None
+    sequential_contrast: Any | None = None
+    history_match: Any | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
     #: row indices, and the top-scoring row).
     anomaly: Sequence[AnomalyScores] | None = None

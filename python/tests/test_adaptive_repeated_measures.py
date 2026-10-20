@@ -315,3 +315,141 @@ def test_the_identity_changes_with_the_declared_dependence_at_unchanged_shape():
 
     assert at(0.3) == at(0.3)
     assert at(0.3) != at(0.4)
+
+
+# ------------------------------------------------------------------ posterior of the arm means
+#
+# Oracle in pure Python: two compound-symmetric measurements per unit (variance 2, correlation
+# 1/2) give the unit-mean variance v = 2 * 1.5 / 2 = 1.5; arm k has precision 1/prior_var + n_k/v
+# and mean (prior_mean/prior_var + sum_k/v)/precision over the unit means.
+
+POSTERIOR_PRIORS = ((0.0, 4.0), (1.0, 2.0))
+POSTERIOR_UNITS = (
+    (0, (1.0, 3.0)),
+    (0, (2.0, 2.0)),
+    (1, (4.0, 6.0)),
+    (1, (5.0, 7.0)),
+    (1, (3.0, 5.0)),
+)
+
+
+def _posterior_units(probabilities):
+    return [(arm, y, p) for (arm, y), p in zip(POSTERIOR_UNITS, probabilities, strict=True)]
+
+
+def _hand_posterior():
+    v = 1.5
+    out = []
+    for arm, (m0, v0) in enumerate(POSTERIOR_PRIORS):
+        means = [sum(y) / 2.0 for a, y in POSTERIOR_UNITS if a == arm]
+        precision = 1.0 / v0 + len(means) / v
+        out.append(((m0 / v0 + sum(means) / v) / precision, precision**-0.5))
+    return out
+
+
+def test_the_posterior_matches_the_hand_calculation_and_is_unlicensed():
+    from statistics import NormalDist
+
+    procedure = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    posterior = procedure.posterior(
+        priors=POSTERIOR_PRIORS, units=_posterior_units([0.5] * 5), credible_level=0.95
+    )
+    (m0, s0), (m1, s1) = _hand_posterior()
+    assert posterior.arms[0]["mean"] == pytest.approx(m0, abs=TOL)
+    assert posterior.arms[1]["mean"] == pytest.approx(m1, abs=TOL)
+    assert posterior.arms[0]["standard_deviation"] == pytest.approx(s0, abs=TOL)
+    contrast = posterior.contrast
+    sd = (s0**2 + s1**2) ** 0.5
+    z = NormalDist().inv_cdf(0.975)
+    assert contrast["mean"] == pytest.approx(m1 - m0, abs=TOL)
+    assert contrast["standard_deviation"] == pytest.approx(sd, abs=TOL)
+    assert contrast["interval"][0] == pytest.approx(m1 - m0 - z * sd, abs=1e-8)
+    assert contrast["interval"][1] == pytest.approx(m1 - m0 + z * sd, abs=1e-8)
+    assert contrast["probability_positive"] == pytest.approx(
+        NormalDist().cdf((m1 - m0) / sd), abs=1e-9
+    )
+    assert posterior.estimator_id == "bayesian.repeated_measures_arm_contrast"
+    assert posterior.licensed is False
+    assert posterior.calibration == "unmeasured"
+
+
+def test_the_posterior_is_independent_of_the_assignment_probabilities_and_keeps_them():
+    fixed = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    greedy = declare(
+        assignment=GREEDY,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.adaptively_weighted(),
+    )
+    probabilities = [0.9, 0.2, 0.35, 0.8, 0.6]
+    a = fixed.posterior(priors=POSTERIOR_PRIORS, units=_posterior_units([0.5] * 5))
+    b = greedy.posterior(priors=POSTERIOR_PRIORS, units=_posterior_units(probabilities))
+    assert a.contrast == b.contrast
+    assert a.arms == b.arms
+    assert b.selection_evidence["adaptive"] is True
+    assert b.selection_evidence["assignment_probabilities"] == probabilities
+
+
+def test_an_unobserved_selection_and_an_unobserved_arm_are_refused_with_their_next_attempt():
+    procedure = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    caught = refused(
+        lambda: procedure.posterior(
+            priors=POSTERIOR_PRIORS,
+            units=_posterior_units([0.5] * 5),
+            selection="depends_on_unobserved",
+        ),
+        "adaptive_inference.selection_not_ignorable",
+    )
+    assert "model the selection jointly" in str(caught)
+    only_one_arm = [(1, y, 0.5) for arm, y in POSTERIOR_UNITS if arm == 1]
+    caught = refused(
+        lambda: procedure.posterior(priors=POSTERIOR_PRIORS, units=only_one_arm),
+        "adaptive_inference.arm_not_observed",
+    )
+    assert "prior alone does not identify" in str(caught)
+
+
+def test_the_posterior_artifact_round_trips_and_refuses_a_forgery():
+    procedure = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    posterior = procedure.posterior(priors=POSTERIOR_PRIORS, units=_posterior_units([0.5] * 5))
+    text = procedure.export_posterior(posterior)
+    # An independently re-declared procedure loads and recomputes it.
+    again = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 2.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    ).load_posterior(text)
+    assert again.contrast == posterior.contrast
+    edited = text.replace('"licensed":false', '"licensed":true')
+    assert edited != text
+    with pytest.raises(AdaptiveInferenceRefusal):
+        procedure.load_posterior(edited)
+    other = declare(
+        assignment=EVEN,
+        enrolment=(5,),
+        structure=rm(2, 3.0, 0.5),
+        analysis=ai.FinalAnalysis.cluster_robust(),
+    )
+    with pytest.raises(AdaptiveInferenceRefusal):
+        other.load_posterior(text)

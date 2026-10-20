@@ -34,6 +34,7 @@ include!(concat!(env!("OUT_DIR"), "/python_test_link.rs"));
 mod adaptive_inference_api;
 mod adaptive_participant_api;
 mod adaptive_procedure_api;
+mod array_fit_api;
 mod artifact_api;
 mod ate_api;
 mod attribution_api;
@@ -118,6 +119,7 @@ mod policy_api;
 mod predictive_assessment_api;
 mod preflight_api;
 mod prepared_api;
+mod design_model_api;
 mod prepared_options;
 mod prior_bank;
 mod prior_signal_api;
@@ -140,6 +142,7 @@ mod recalc_temporal_api;
 mod recovery_api;
 mod recovery_chain_api;
 mod regimes_api;
+mod unlicensed_design_api;
 mod registry;
 mod sequential_evaluation_api;
 pub(crate) use registry::transport_defaults;
@@ -162,7 +165,10 @@ mod source_projection_api;
 mod stability;
 mod state_api;
 mod study_planning_api;
+mod posterior_boundary_api;
+mod posterior_row_api;
 mod survival_api;
+mod period_refresh_api;
 mod temporal_api;
 mod temporal_counterfactual_api;
 mod temporal_extension_api;
@@ -1360,9 +1366,19 @@ pub(crate) struct AteAnalysisResult {
     /// Randomized survival or competing-risk curves with no interval claim.
     #[pyo3(get)]
     survival: Option<survival_api::SurvivalSection>,
+    /// Posterior of an unlicensed Bayesian randomized-design row (survival contrast, fixed
+    /// group-dose policy value) with the covariance of its joint draws.
+    #[pyo3(get)]
+    posterior_row: Option<posterior_row_api::PosteriorRowSection>,
     /// Sequential randomized regime value and support diagnostics.
     #[pyo3(get)]
     longitudinal_regime: Option<regimes_api::LongitudinalRegimeSection>,
+    /// Observational two-decision contrast of two static regimes (unlicensed).
+    #[pyo3(get)]
+    sequential_contrast: Option<unlicensed_design_api::SequentialContrastSection>,
+    /// Within-period history-matched contrast (unlicensed).
+    #[pyo3(get)]
+    history_match: Option<unlicensed_design_api::HistoryMatchSection>,
     /// Per-target GCM anomaly scores (AnomalyAttribution).
     #[pyo3(get)]
     anomaly: Option<Vec<gcm_api::AnomalyScores>>,

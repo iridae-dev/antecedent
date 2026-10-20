@@ -4,7 +4,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import interference
-from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
 from antecedent.experiment import StratifiedRandomization
 
 
@@ -817,3 +817,220 @@ def test_multi_covariate_ancova_refuses_collinear_and_missing_covariates():
             design=design,
             covariates=("x1", "missing"),
         )
+
+
+# ------------------------------------------------------------------ Bayesian arm contrasts
+#
+# The Bayesian routes are explicitly unlicensed and uncalibrated. References are computed here,
+# independently of the library: the exact finite-population law by enumeration of the two
+# Beta-Binomial missing-count laws, and the closed-form Beta moments of the superpopulation arms.
+
+from math import lgamma, sqrt  # noqa: E402
+
+from antecedent.design_models import (  # noqa: E402
+    BernoulliArms,
+    SwitchbackModel,
+)
+
+_TRIAL_TREATED = [True, False, False, True, False, True, False, True, False, False]
+_TRIAL_Y = [1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
+
+
+def _beta_binomial(missing: int, a: float, b: float) -> list[float]:
+    def ln_beta(x: float, y: float) -> float:
+        return lgamma(x) + lgamma(y) - lgamma(x + y)
+
+    return [
+        np.exp(
+            lgamma(missing + 1)
+            - lgamma(k + 1)
+            - lgamma(missing - k + 1)
+            + ln_beta(k + a, missing - k + b)
+            - ln_beta(a, b)
+        )
+        for k in range(missing + 1)
+    ]
+
+
+def _finite_population_reference() -> tuple[float, float]:
+    # 4 treated (3 successes) and 6 control (2 successes) under a uniform prior: the treated mean
+    # over the 10 units is (3 + BB(6; 4, 2)) / 10, the control mean (2 + BB(4; 3, 5)) / 10.
+    treated = _beta_binomial(6, 4.0, 2.0)
+    control = _beta_binomial(4, 3.0, 5.0)
+    mean = var = 0.0
+    values = {}
+    for i, p in enumerate(treated):
+        for j, q in enumerate(control):
+            d = ((3 + i) - (2 + j)) / 10.0
+            values[d] = values.get(d, 0.0) + p * q
+    mean = sum(d * w for d, w in values.items())
+    var = sum(w * (d - mean) ** 2 for d, w in values.items())
+    return mean, sqrt(var)
+
+
+def _bayes(model, n_draws=4000):
+    return ant.Bayesian(backend="conjugate", n_draws=n_draws, design_model=model)
+
+
+def _two_arm_query():
+    design = _design(_TRIAL_TREATED, randomization=interference.CompleteRandomization(4))
+    return ant.experiment.RandomizedEffect("outcome", design)
+
+
+def test_bayesian_ids_are_public():
+    assert ant.Estimator.BAYESIAN_RANDOMIZED_FINITE_POPULATION.value == (
+        "bayesian.randomized_finite_population"
+    )
+    assert ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION.value == (
+        "bayesian.randomized_superpopulation"
+    )
+    assert ant.Estimator.BAYESIAN_SWITCHBACK.value == "bayesian.switchback_effect"
+
+
+def test_bayesian_finite_population_is_the_default_and_matches_enumeration():
+    mean, sd = _finite_population_reference()
+    result = ant.analyze(
+        {"outcome": np.asarray(_TRIAL_Y)},
+        query=_two_arm_query(),
+        inference=_bayes(BernoulliArms(1.0, 1.0)),
+        seed=3,
+        refute="none",
+    )
+    assert result.estimate.estimator_id == "bayesian.randomized_finite_population"
+    assert result.randomized_effect is None
+    assert result.evidence_status != "licensed"
+    assert result.posterior.effect_mean == pytest.approx(mean, abs=5e-3)
+    assert result.posterior.effect_sd == pytest.approx(sd, abs=6e-3)
+    assert any("estimand=finite_population" in d for d in result.diagnostics)
+
+
+def test_bayesian_superpopulation_is_selected_by_estimator_id():
+    # Beta(4, 2) minus Beta(3, 5): exact moments of the independent Beta arm posteriors.
+    mean = 4 / 6 - 3 / 8
+    sd = sqrt(4 * 2 / (36 * 7) + 3 * 5 / (64 * 9))
+    result = ant.analyze(
+        {"outcome": np.asarray(_TRIAL_Y)},
+        query=_two_arm_query(),
+        inference=_bayes(BernoulliArms(1.0, 1.0)),
+        estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
+        seed=3,
+        refute="none",
+    )
+    assert result.estimate.estimator_id == "bayesian.randomized_superpopulation"
+    assert result.posterior.effect_mean == pytest.approx(mean, abs=5e-3)
+    assert result.posterior.effect_sd == pytest.approx(sd, abs=6e-3)
+    assert any("estimand=superpopulation" in d for d in result.diagnostics)
+
+
+def test_bayesian_multi_arm_reports_each_action_against_the_reference():
+    labels = ("control", "a", "b", "c")
+    successes = (3, 5, 6, 9)
+    assignment = tuple(labels[k] for k in range(4) for _ in range(10))
+    outcomes = np.asarray([float(r < successes[k]) for k in range(4) for r in range(10)])
+    design = ant.experiment.MultiArmExperimentDesign(
+        assignment,
+        labels,
+        [[0.25] * 4 for _ in range(40)],
+        [f"account-{i}" for i in range(40)],
+        [f"row-{i}" for i in range(40)],
+    )
+    result = ant.analyze(
+        {"outcome": outcomes},
+        query=ant.experiment.RandomizedEffect("outcome", design),
+        inference=_bayes(BernoulliArms(1.0, 1.0)),
+        estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
+        seed=5,
+        refute="none",
+    )
+    # Beta(4, 8) against Beta(6, 6) (exact moments of the first contrast).
+    var = 4 * 8 / (144 * 13) + 6 * 6 / (144 * 13)
+    assert result.posterior.effect_mean == pytest.approx(6 / 12 - 4 / 12, abs=5e-3)
+    assert result.posterior.effect_sd == pytest.approx(sqrt(var), abs=6e-3)
+
+
+def test_bayesian_randomized_route_refuses_an_undeclared_prior_and_a_design_based_estimator():
+    data = {"outcome": np.asarray(_TRIAL_Y)}
+    with pytest.raises(CausalError, match="design_model") as caught:
+        ant.analyze(
+            data,
+            query=_two_arm_query(),
+            inference=ant.Bayesian(backend="conjugate", n_draws=2000),
+            refute="none",
+        )
+    assert caught.value.reason_code == "required_option_missing"
+    with pytest.raises(CausalError, match="estimator_inference_mismatch"):
+        ant.analyze(
+            data,
+            query=_two_arm_query(),
+            inference=_bayes(BernoulliArms(1.0, 1.0)),
+            estimator=ant.Estimator.RANDOMIZED_NEYMAN_ITT,
+            refute="none",
+        )
+
+
+_SB_ASSIGNMENT = [
+    [True, False, True, False],
+    [False, True, False, True],
+    [True, True, False, False],
+    [False, False, True, True],
+]
+_SB_OUTCOME = [
+    [2.3, 1.1, 2.9, 0.8],
+    [0.7, 2.2, 1.4, 2.6],
+    [2.8, 3.1, 0.9, 1.3],
+    [1.2, 0.6, 2.4, 3.0],
+]
+
+
+def _switchback_query():
+    flat = [(s, t) for s in range(4) for t in range(4)]
+    design = ant.experiment.SwitchbackDesign(
+        [_SB_ASSIGNMENT[s][t] for s, t in flat],
+        [f"s{s}" for s, _ in flat],
+        [f"p{t}" for _, t in flat],
+        [0.5] * 16,
+    )
+    outcomes = np.asarray([_SB_OUTCOME[s][t] for s, t in flat])
+    return {"outcome": outcomes}, ant.experiment.SwitchbackEffect("outcome", design)
+
+
+def _sb_model(carryover, dependence, rho=None):
+    return SwitchbackModel(
+        carryover=carryover,
+        dependence=dependence,
+        rho=rho,
+        effect_precision=0.5,
+        nuisance_precision=0.01,
+        variance_shape=2.0,
+        variance_scale=1.0,
+    )
+
+
+def test_bayesian_switchback_matches_the_whitened_least_squares_reference():
+    data, query = _switchback_query()
+    result = ant.analyze(
+        data,
+        query=query,
+        inference=_bayes(_sb_model("none", "compound_symmetric", 0.4)),
+        seed=7,
+        refute="none",
+    )
+    assert result.estimate.estimator_id == "bayesian.switchback_effect"
+    assert result.evidence_status != "licensed"
+    # Student-t, 20 degrees of freedom: location and scale from the stacked whitened system.
+    assert result.posterior.effect_mean == pytest.approx(1.547248493, abs=5e-3)
+    assert result.posterior.effect_sd == pytest.approx(0.2040153784, abs=1e-2)
+    assert result.posterior.q025 == pytest.approx(1.143518649, abs=1e-2)
+    assert result.posterior.q975 == pytest.approx(1.950978337, abs=1e-2)
+
+
+def test_bayesian_switchback_refuses_unrestricted_carryover_and_unspecified_dependence():
+    data, query = _switchback_query()
+    for model, detail, next_attempt in (
+        (_sb_model("unrestricted", "independent"), "carryover_unrestricted", "washout"),
+        (_sb_model("none", "unspecified"), "dependence_undeclared", "sensitivity"),
+    ):
+        with pytest.raises(CausalUnsupportedError) as caught:
+            ant.analyze(data, query=query, inference=_bayes(model), refute="none")
+        assert caught.value.reason_code == "cell_not_licensed"
+        assert detail in str(caught.value) and next_attempt in str(caught.value)

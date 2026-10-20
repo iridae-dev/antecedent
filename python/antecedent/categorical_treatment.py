@@ -66,6 +66,10 @@ if TYPE_CHECKING:
 
 __all__ = [
     "CategoricalEffects",
+    "CategoricalPosterior",
+    "CategoricalPosteriorPrior",
+    "PosteriorContrast",
+    "PosteriorMonotonicity",
     "CategoricalTreatmentIdentity",
     "CategoricalTreatmentRefusal",
     "Direction",
@@ -152,6 +156,100 @@ class PairEffect:
     def se(self) -> float:
         """Alias of :attr:`standard_error`."""
         return self.standard_error
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalPosteriorPrior:
+    """Declared prior and credible level of the optional Bayesian counterpart.
+
+    ``level_precision`` and ``nuisance_precision`` are prior precisions, relative to the error
+    variance, of the level coefficients and of the intercept and adjustment coefficients;
+    ``variance_shape`` and ``variance_scale`` are the Inverse-Gamma prior of the error variance.
+    There is no default: a prior alone never identifies a level contrast.
+    """
+
+    level_precision: float
+    nuisance_precision: float
+    variance_shape: float
+    variance_scale: float
+    credible_level: float = 0.95
+
+    def _wire(self) -> dict[str, float]:
+        return {
+            "level_precision": float(self.level_precision),
+            "nuisance_precision": float(self.nuisance_precision),
+            "variance_shape": float(self.variance_shape),
+            "variance_scale": float(self.variance_scale),
+            "credible_level": float(self.credible_level),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PosteriorContrast:
+    """Student-t posterior of ``effect(to) - effect(from)`` under the stated linear model."""
+
+    from_level: str
+    to_level: str
+    mean: float
+    #: ``None`` when the degrees of freedom are at most two.
+    standard_deviation: float | None
+    interval: tuple[float, float]
+    probability_positive: float
+    location: float
+    scale: float
+    degrees_of_freedom: float
+
+
+@dataclass(frozen=True, slots=True)
+class PosteriorMonotonicity:
+    """Posterior probability that every adjacent step moves in the declared direction.
+
+    The joint probability lies in ``[lower_bound, upper_bound]`` (Bonferroni and Frechet bounds,
+    valid under any dependence of the steps); they coincide for a single step.
+    """
+
+    direction: Direction
+    step_probabilities: tuple[float, ...]
+    lower_bound: float
+    upper_bound: float
+
+
+@dataclass(frozen=True, slots=True)
+class CategoricalPosterior:
+    """The Bayesian counterpart of the fit under the declared prior.
+
+    The estimand is the superpopulation dummy-coefficient contrast of the stated linear model
+    (Gaussian homoskedastic errors), not the finite-population average of the rows' effects.
+    It is unlicensed (``licensed`` is ``False``) and its calibration is ``"unmeasured"``; the
+    covariance kind of the frequentist fit is not read. The artifact recomputes it from the stored
+    design when it is consumed.
+    """
+
+    prior: CategoricalPosteriorPrior
+    likelihood: str
+    estimand: str
+    calibration: str
+    licensed: bool
+    variance_shape: float
+    variance_scale: float
+    coefficient_means: tuple[float, ...]
+    effects: tuple[PosteriorContrast, ...]
+    pairs: tuple[PosteriorContrast, ...]
+    monotonicity: PosteriorMonotonicity | None
+
+    def effect(self, level: str) -> PosteriorContrast:
+        """The posterior of ``level`` against the reference."""
+        for item in self.effects:
+            if item.to_level == level:
+                return item
+        raise KeyError(level)
+
+    def pair(self, from_level: str, to_level: str) -> PosteriorContrast:
+        """The posterior of a requested pairwise contrast."""
+        for item in self.pairs:
+            if (item.from_level, item.to_level) == (from_level, to_level):
+                return item
+        raise KeyError((from_level, to_level))
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,6 +348,8 @@ class CategoricalEffects(ScientificResult):
     #: ``None`` when the artifact would exceed its export byte budget; the fit above stands.
     _artifact_bytes: bytes | None = field(repr=False)
     _export_refusal: str | None = field(default=None, repr=False)
+    #: The Bayesian counterpart, when ``posterior=`` declared a prior.
+    posterior: CategoricalPosterior | None = None
 
     def artifact(self) -> ExportedArtifact[CategoricalEffects]:
         """Typed bytes envelope for shared scientific consumption."""
@@ -369,7 +469,59 @@ class CategoricalEffects(ScientificResult):
             "inference_claim": self.inference_claim,
             "caveats": list(self.caveats),
             "identity": self.identity._wire(),
+            "posterior": None
+            if self.posterior is None
+            else {
+                "estimand": self.posterior.estimand,
+                "calibration": self.posterior.calibration,
+                "effects": [
+                    {"level": e.to_level, "mean": e.mean, "interval": list(e.interval)}
+                    for e in self.posterior.effects
+                ],
+            },
         }
+
+
+def _contrast(raw: Mapping[str, Any]) -> PosteriorContrast:
+    sd = raw.get("standard_deviation")
+    return PosteriorContrast(
+        from_level=raw["from"],
+        to_level=raw["to"],
+        mean=float(raw["mean"]),
+        standard_deviation=None if sd is None else float(sd),
+        interval=(float(raw["interval"][0]), float(raw["interval"][1])),
+        probability_positive=float(raw["probability_positive"]),
+        location=float(raw["location"]),
+        scale=float(raw["scale"]),
+        degrees_of_freedom=float(raw["degrees_of_freedom"]),
+    )
+
+
+def _posterior(raw: Mapping[str, Any] | None) -> CategoricalPosterior | None:
+    if raw is None:
+        return None
+    declaration = raw["declaration"]
+    mono = raw.get("monotonicity")
+    return CategoricalPosterior(
+        prior=CategoricalPosteriorPrior(**declaration),
+        likelihood=raw["likelihood"],
+        estimand=raw["estimand"],
+        calibration=raw["calibration"],
+        licensed=bool(raw["licensed"]),
+        variance_shape=float(raw["variance_shape"]),
+        variance_scale=float(raw["variance_scale"]),
+        coefficient_means=tuple(float(v) for v in raw["coefficient_means"]),
+        effects=tuple(_contrast(c) for c in raw["level_contrasts"]),
+        pairs=tuple(_contrast(c) for c in raw["pairwise"]),
+        monotonicity=None
+        if mono is None
+        else PosteriorMonotonicity(
+            direction=Direction(mono["direction"]),
+            step_probabilities=tuple(float(v) for v in mono["step_probabilities"]),
+            lower_bound=float(mono["lower_bound"]),
+            upper_bound=float(mono["upper_bound"]),
+        ),
+    )
 
 
 def _result(
@@ -453,6 +605,7 @@ def _result(
         identity=CategoricalTreatmentIdentity(**report["identity"]),
         _artifact_bytes=artifact,
         _export_refusal=export_refusal,
+        posterior=_posterior(report.get("posterior")),
     )
 
 
@@ -485,6 +638,7 @@ def categorical_effects(
     covariance: str = "model_based",
     snapshot: str | None = None,
     artifact_id: str = _DEFAULT_ARTIFACT_ID,
+    posterior: CategoricalPosteriorPrior | None = None,
 ) -> CategoricalEffects:
     """Estimate the adjusted effect of every level of a categorical treatment.
 
@@ -501,6 +655,13 @@ def categorical_effects(
     declared level may have. ``adjust`` maps shared adjustment column names to their columns.
     ``covariance`` is ``"model_based"`` or a robust sandwich ``"hc0"`` to ``"hc3"`` (the meat of
     the sandwich is embedded beside ``X'X``, not the rows, so there is no row ceiling).
+
+    ``posterior`` declares a prior and attaches the Bayesian counterpart
+    (:attr:`CategoricalEffects.posterior`): a Student-t posterior of every level and requested
+    pair under Gaussian homoskedastic errors, sealed in the artifact and recomputed on
+    consumption. It is unlicensed with unmeasured calibration; its estimand is the
+    superpopulation coefficient contrast of the stated linear model, not the finite-population
+    average of the rows' effects, and the covariance kind of the frequentist fit is not read.
 
     Raises :class:`CategoricalTreatmentRefusal` (a
     :class:`~antecedent.errors.CausalUnsupportedError`) for an absent or sparse declared level
@@ -540,6 +701,8 @@ def categorical_effects(
         raise CausalValueError(
             f"monotonicity must be one of {[d.value for d in Direction]} or None"
         ) from error
+    if posterior is not None and not isinstance(posterior, CategoricalPosteriorPrior):
+        raise CausalTypeError("posterior must be a CategoricalPosteriorPrior")
     shared = snapshot if snapshot is not None else _content_snapshot(y, labels, adjustment)
     declaration = {
         "row_snapshot": _name(shared, "snapshot"),
@@ -553,6 +716,7 @@ def categorical_effects(
             "monotonicity": direction,
             "covariance": covariance,
         },
+        "posterior": None if posterior is None else posterior._wire(),
     }
     report, artifact, refusal = _evaluate(
         y,

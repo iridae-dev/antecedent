@@ -14,6 +14,7 @@ from ._native import (
 )
 
 if TYPE_CHECKING:
+    from .design_models import DesignModel
     from .priors import ComposedPrior, PriorMapping
 
 
@@ -78,6 +79,28 @@ class Bayesian:
         refused with ``reason_code="posterior_draws_not_converged"``. The endpoint
         errors are reported with the posterior's inference notes. Any other route
         refuses the option rather than ignore it.
+    design_model:
+        The declared likelihood and prior of a randomized-design Bayesian estimator, one of
+        :class:`~antecedent.design_models.BernoulliArms`,
+        :class:`~antecedent.design_models.GaussianArms` or
+        :class:`~antecedent.design_models.SwitchbackModel`. A randomized trial's arm
+        contrasts (``bayesian.randomized_finite_population``, the same target as the design-based
+        row, or ``bayesian.randomized_superpopulation``) and its switchback effect
+        (``bayesian.switchback_effect``) need it with the ``conjugate`` backend; there is no
+        default, because a prior alone does not identify a contrast. The results are unlicensed
+        and their calibration is unmeasured.
+    white_innovation:
+        ``(max_lag, level)`` declares that the outcome innovation of a single-step temporal
+        pulse or one-step sustained effect on a ``TemporalDag`` is serially independent, and
+        asks for the untempered full-likelihood posterior instead of the tempered (generalized)
+        one. The premise is yours to declare and is never inferred: a Ljung-Box test of the
+        least-squares residuals at ``max_lag`` lags and ``level`` can refute it, and a pass does
+        not prove it. A rejecting test refuses with
+        ``white_innovation.residual_autocorrelation``, a horizon above one step with
+        ``white_innovation.multi_step``, and any other route with ``option_not_applicable``,
+        each naming the next attempt. The result is reported as the unlicensed estimator
+        ``bayesian.temporal.white_innovation_linear`` and carries the declared premise and the
+        Ljung-Box statistic.
     """
 
     n_draws: int | None = None
@@ -88,6 +111,8 @@ class Bayesian:
     kind: Literal["bayesian"] = "bayesian"
     likelihood: Literal["gaussian", "logit", "probit", "poisson"] = "gaussian"
     draw_controls: Literal["measured"] | None = None
+    white_innovation: tuple[int, float] | None = None
+    design_model: DesignModel | None = None
 
     @property
     def n_draws_explicit(self) -> bool:

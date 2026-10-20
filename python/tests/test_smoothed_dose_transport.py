@@ -6,6 +6,7 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent.errors import (
+    CausalError,
     CausalCancelledError,
     CausalResourceError,
     CausalSerializationError,
@@ -378,3 +379,65 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
     consumed = advanced.consume_smoothed_dose(study.export())
     assert consumed.uncertainty == result.uncertainty
     assert consumed.interval is None
+
+
+def posterior_model(**kwargs):
+    arguments = {
+        "intercept_scale": 10.0,
+        "coefficient_scale": 10.0,
+        "residual_variance": 1.0,
+        "min_local_rows": 50,
+        "draws": 20_000,
+        "seed": 7,
+    }
+    arguments.update(kwargs)
+    return advanced.SmoothedDosePosteriorModel(**arguments)
+
+
+@pytest.mark.parametrize("design", DESIGNS)
+def test_posterior_covers_the_closed_form_target_with_the_joint_covariance(design):
+    query, data = fixture(design)
+    study = advanced.prepare_smoothed_dose(query, data, options=options(), seed=5)
+    result = study.posterior(posterior_model())
+    row = result.posterior
+    assert row.estimator == "bayesian.smoothed_dose"
+    assert (row.uncertainty, row.calibration, row.licensed) == ("posterior", "unmeasured", False)
+    assert row.coordinates == ("psi_h(1)", "psi_h(2)", "psi_h(3)")
+    # psi_h(a) = a^2 + h^2/5 + mean_T(z) (1 + a/2) for the observed target sample.
+    target = np.asarray(data.covariates["z"])[~np.asarray(data.source)]
+    exact = np.asarray(row.exact_mean)
+    sd = np.sqrt(np.diag(row.exact_covariance_matrix()))
+    for index, dose in enumerate(GRID):
+        reference = truth(dose, mean=float(target.mean()))
+        assert abs(exact[index] - reference) < 4.0 * sd[index] + 0.02
+        assert row.lower[index] < reference < row.upper[index]
+        assert row.mean[index] == pytest.approx(exact[index], abs=0.01)
+    # The retained joint draws reproduce the exact Gaussian covariance across the grid.
+    joint = row.covariance_matrix()
+    scale = np.sqrt(np.outer(np.diag(joint), np.diag(joint)))
+    assert np.all(np.abs(joint - row.exact_covariance_matrix()) < 0.05 * scale)
+    assert result.certificate["formula"] == "standardize"
+
+
+def test_posterior_artifact_is_consumed_independently_and_refuses_changes():
+    query, data = fixture()
+    study = advanced.prepare_smoothed_dose(query, data, options=options(), seed=5)
+    result = study.posterior(posterior_model(draws=2_000))
+    consumed = advanced.consume_smoothed_dose_posterior(result.export())
+    assert consumed.posterior == result.posterior
+    assert consumed.certificate == result.certificate
+    with pytest.raises(CausalSerializationError):
+        advanced.consume_smoothed_dose_posterior(b"not a smoothed dose posterior")
+    with pytest.raises(CausalSerializationError, match="smoothed dose posterior"):
+        advanced.consume_smoothed_dose_posterior(
+            b"ANTECEDENT-SMOOTHED-DOSE\x01" + result.export()[len(b"ANTECEDENT-SMOOTHED-DOSE-POSTERIOR\x01") :]
+        )
+
+
+def test_posterior_refuses_thin_windows_and_undeclared_residual_priors():
+    query, data = fixture()
+    study = advanced.prepare_smoothed_dose(query, data, options=options(), seed=5)
+    with pytest.raises(CausalError, match="local support failure"):
+        study.posterior(posterior_model(min_local_rows=100_000))
+    with pytest.raises(CausalError, match="residual_variance"):
+        study.posterior(posterior_model(residual_variance=None))

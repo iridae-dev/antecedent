@@ -314,3 +314,80 @@ def test_categorical_corrupt_artifact_raises_a_serialization_error() -> None:
         consume_categorical_effects(bytes(data))
     with pytest.raises(CausalSerializationError):
         consume_categorical_effects(b"")
+
+
+# ------------------------------------------------------------------------ posterior section
+#
+# The Bayesian counterpart under a declared prior, against a pure-numpy normal-equations
+# reference computed here: Lambda_n = Lambda_0 + X'X, m_n = Lambda_n^-1 X'y, a_n = a_0 + n/2,
+# b_n = b_0 + (y'y - X'y . m_n) / 2, and w'beta is Student-t with 2 a_n degrees of freedom,
+# location w'm_n and squared scale (b_n / a_n) w' Lambda_n^-1 w.
+
+from antecedent.categorical_treatment import CategoricalPosteriorPrior  # noqa: E402
+
+PRIOR = CategoricalPosteriorPrior(
+    level_precision=1.0, nuisance_precision=0.5, variance_shape=2.0, variance_scale=1.0
+)
+
+
+def _posterior_reference(levels, outcome, order, reference, weights):
+    y = np.asarray(outcome)
+    x = np.array([[1.0] + [float(lv == name) for name in order if name != reference] for lv in levels])
+    lam = np.diag([0.5] + [1.0] * (len(order) - 1))
+    ln = lam + x.T @ x
+    m = np.linalg.solve(ln, x.T @ y)
+    a_n = 2.0 + len(y) / 2
+    b_n = 1.0 + 0.5 * (y @ y - (x.T @ y) @ m)
+    w = np.asarray(weights, dtype=float)
+    return w @ m, math.sqrt(b_n / a_n * (w @ np.linalg.inv(ln) @ w)), 2 * a_n
+
+
+def test_the_posterior_section_matches_the_normal_equations_reference() -> None:
+    result = abc(pairs=[("b", "c")], posterior=PRIOR)
+    posterior = result.posterior
+    assert posterior is not None
+    for level, weights in (("b", [0, 1, 0]), ("c", [0, 0, 1])):
+        location, scale, df = _posterior_reference(LEVELS, OUTCOME, ["a", "b", "c"], "a", weights)
+        got = posterior.effect(level)
+        assert got.location == pytest.approx(location, abs=1e-9)
+        assert got.scale == pytest.approx(scale, abs=1e-9)
+        assert got.degrees_of_freedom == pytest.approx(df)
+        assert got.mean == pytest.approx(location, abs=1e-9)
+        assert got.interval[0] < location < got.interval[1]
+    location, scale, _ = _posterior_reference(LEVELS, OUTCOME, ["a", "b", "c"], "a", [0, -1, 1])
+    pair = posterior.pair("b", "c")
+    assert pair.location == pytest.approx(location, abs=1e-9)
+    assert pair.scale == pytest.approx(scale, abs=1e-9)
+
+
+def test_the_posterior_states_its_estimand_prior_and_standing() -> None:
+    posterior = abc(posterior=PRIOR).posterior
+    assert posterior is not None
+    assert posterior.estimand.startswith("superpopulation_dummy_coefficient_contrast")
+    assert posterior.calibration == "unmeasured"
+    assert posterior.licensed is False
+    assert posterior.prior == PRIOR
+    assert abc().posterior is None
+
+
+def test_the_ordered_posterior_reports_monotonicity_bounds_and_round_trips() -> None:
+    result = monotone(posterior=PRIOR)
+    mono = result.posterior.monotonicity
+    assert mono is not None and mono.direction is Direction.NON_DECREASING
+    assert mono.step_probabilities == pytest.approx((0.326276314774, 0.141277992926), abs=1e-9)
+    assert mono.lower_bound == pytest.approx(0.0, abs=1e-12)
+    assert mono.upper_bound == pytest.approx(0.141277992926, abs=1e-9)
+    again = consume_categorical_effects(result.export(), expected_identity=result.identity)
+    assert again.posterior == result.posterior
+
+
+def test_an_invalid_posterior_prior_is_a_typed_refusal() -> None:
+    bad = CategoricalPosteriorPrior(
+        level_precision=0.0, nuisance_precision=0.5, variance_shape=2.0, variance_scale=1.0
+    )
+    with pytest.raises(CategoricalTreatmentRefusal) as caught:
+        abc(posterior=bad)
+    assert_registered_refusal(caught.value)
+    assert caught.value.reason_code == "invalid_argument"
+    with pytest.raises(CausalTypeError):
+        abc(posterior={"level_precision": 1.0})

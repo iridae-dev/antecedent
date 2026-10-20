@@ -10,8 +10,8 @@
 
 use crate::bridge::{artifact_refusal_json, check_declared_size};
 use antecedent::analysis::categorical_treatment::{
-    CategoricalSpecWire, CategoricalTreatment, CategoricalTreatmentArtifactError,
-    CategoricalTreatmentIdentity, CategoricalTreatmentRequest,
+    CategoricalPosteriorDeclaration, CategoricalSpecWire, CategoricalTreatment,
+    CategoricalTreatmentArtifactError, CategoricalTreatmentIdentity, CategoricalTreatmentRequest,
 };
 use antecedent::analysis::vector_treatment::AdjustmentColumnRequest;
 use pyo3::prelude::*;
@@ -30,6 +30,9 @@ struct Declaration {
     row_snapshot: String,
     adjustment: Vec<String>,
     spec: CategoricalSpecWire,
+    /// The declared prior of the optional Bayesian counterpart; absent attaches none.
+    #[serde(default)]
+    posterior: Option<CategoricalPosteriorDeclaration>,
 }
 
 fn refusal_json(error: &CategoricalTreatmentArtifactError, stage: &'static str) -> Option<String> {
@@ -79,6 +82,7 @@ fn evaluate_categorical_treatment(
             antecedent_core::reason_code!("invalid_argument"),
         ));
     }
+    let posterior = declared.posterior;
     let request = CategoricalTreatmentRequest {
         outcome,
         row_snapshot: declared.row_snapshot,
@@ -92,24 +96,29 @@ fn evaluate_categorical_treatment(
         spec: declared.spec,
     };
     let artifact_id = artifact_id.to_owned();
-    detach_catch(py, move || match CategoricalTreatment::evaluate(&request) {
-        Ok(done) => {
-            let report = serde_json::to_string(&done.report())
-                .map_err(|e| crate::serialization_err(e.to_string()))?;
-            // An export over its byte budget refuses on its own: the fit is complete and its
-            // report returns with the refusal in place of the artifact.
-            match done.export(&artifact_id) {
-                Ok(bytes) => Ok((Some(report), Some(bytes), None)),
-                Err(error) => match refusal_json(&error, "export") {
-                    Some(json) => Ok((Some(report), None, Some(json))),
-                    None => Err(failure(&error)),
-                },
+    detach_catch(py, move || {
+        match CategoricalTreatment::evaluate(&request).and_then(|done| match &posterior {
+            Some(declaration) => done.with_posterior(declaration),
+            None => Ok(done),
+        }) {
+            Ok(done) => {
+                let report = serde_json::to_string(&done.report())
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
+                // An export over its byte budget refuses on its own: the fit is complete and its
+                // report returns with the refusal in place of the artifact.
+                match done.export(&artifact_id) {
+                    Ok(bytes) => Ok((Some(report), Some(bytes), None)),
+                    Err(error) => match refusal_json(&error, "export") {
+                        Some(json) => Ok((Some(report), None, Some(json))),
+                        None => Err(failure(&error)),
+                    },
+                }
             }
+            Err(error) => match refusal_json(&error, "fit") {
+                Some(json) => Ok((None, None, Some(json))),
+                None => Err(failure(&error)),
+            },
         }
-        Err(error) => match refusal_json(&error, "fit") {
-            Some(json) => Ok((None, None, Some(json))),
-            None => Err(failure(&error)),
-        },
     })
 }
 

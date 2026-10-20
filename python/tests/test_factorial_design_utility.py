@@ -64,3 +64,43 @@ def test_factorial_2x2_refuses_unobserved_cell_and_bad_assignment_alignment() ->
             design=factorial.FactorialDesign(0.5, 0.5),
             outcome="y",
         )
+
+
+def test_bayesian_factorial_main_effect_matches_the_exact_beta_moments() -> None:
+    import antecedent as ant
+    from antecedent import experiment
+    from antecedent.design_models import BernoulliArms
+
+    # Cells in the declared order (A=0,B=0), (A=1,B=0), (A=0,B=1), (A=1,B=1), ten units each, with
+    # 3, 6, 5 and 9 successes: Beta(1 + s, 11 - s) posteriors under a uniform prior.
+    successes = [3, 6, 5, 9]
+    primary = [bool(c % 2) for c in range(4) for _ in range(10)]
+    second = [c >= 2 for c in range(4) for _ in range(10)]
+    outcome = np.array([float(r < successes[c]) for c in range(4) for r in range(10)])
+    randomization = experiment.FactorialRandomization(second, (10, 10, 10, 10), ("off", "on"))
+    query = experiment.RandomizedEffect(
+        "outcome",
+        experiment.ExperimentDesign(
+            randomization,
+            primary,
+            [f"account-{i}" for i in range(40)],
+            [f"row-{i}" for i in range(40)],
+        ),
+    )
+    result = ant.analyze(
+        {"outcome": outcome},
+        query=query,
+        inference=ant.Bayesian(
+            backend="conjugate", n_draws=4000, design_model=BernoulliArms(1.0, 1.0)
+        ),
+        estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION,
+        seed=2,
+        refute="none",
+    )
+    theta = [(1 + s) / 12 for s in successes]  # order 00, 10, 01, 11
+    variance = [(1 + s) * (11 - s) / (144 * 13) for s in successes]
+    main_effect_a = 0.5 * (theta[1] + theta[3] - theta[0] - theta[2])
+    sd_a = 0.5 * sum(variance) ** 0.5
+    assert result.estimate.estimator_id == "bayesian.randomized_superpopulation"
+    assert result.posterior.effect_mean == pytest.approx(main_effect_a, abs=5e-3)
+    assert result.posterior.effect_sd == pytest.approx(sd_a, abs=6e-3)

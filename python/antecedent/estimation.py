@@ -98,6 +98,7 @@ from .quasi import (
     AugmentedPanelDiD,
     FuzzyRegressionDiscontinuity,
     PanelDifferenceInDifferences,
+    PeriodHistoryMatch,
     RegressionKink,
     SharpRegressionDiscontinuity,
     StaggeredAdoption,
@@ -126,7 +127,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .regimes import LongitudinalRegime
+from .regimes import LongitudinalRegime, SequentialContrast
 from .results import (
     AnalysisResult,
     CausalResponseView,
@@ -233,6 +234,22 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
                 reason_code="invalid_argument",
             )
         kw["draw_controls"] = inference.draw_controls
+    if inference.white_innovation is not None:
+        max_lag, level = inference.white_innovation
+        if (
+            isinstance(max_lag, bool)
+            or not isinstance(max_lag, int)
+            or max_lag < 1
+            or not np.isfinite(level)
+            or not 0.0 < level < 1.0
+        ):
+            raise CausalValueError(
+                "white_innovation is (max_lag >= 1, level in (0, 1))",
+                reason_code="invalid_argument",
+            )
+        kw["white_innovation"] = (max_lag, float(level))
+    if inference.design_model is not None:
+        kw["design_model"] = inference.design_model._wire()
     prior_from = inference.prior_from
     if prior_from is not None:
         # Local import avoids circular import with priors ↔ estimation.
@@ -547,6 +564,8 @@ _PreparedQuery = (
     | SurvivalOutcome
     | CompetingRisksOutcome
     | LongitudinalRegime
+    | SequentialContrast
+    | PeriodHistoryMatch
     | PolicyProgramValue
 )
 
@@ -762,6 +781,39 @@ def _longitudinal_regime_payload(
     return ingest_columns({query.outcome: outcome})
 
 
+def _sequential_contrast_payload(
+    data: Any, query: SequentialContrast
+) -> tuple[list[str], list[Any], dict[str, Any]]:
+    """The numeric columns of the contrast and the fold of every row, frozen at prepare."""
+    required = (
+        query.outcome,
+        query.first_treatment,
+        query.second_treatment,
+        *query.baseline,
+        *query.intermediate,
+    )
+    raw = read_columns(data, required, what="sequential contrast")
+    rows = len(raw[query.outcome])
+    if isinstance(query.folds, int):
+        fold_of_row = tuple(row % query.folds for row in range(rows))
+        fold_count = query.folds
+    else:
+        fold_of_row = tuple(int(fold) for fold in query.folds)
+        if len(fold_of_row) != rows:
+            raise CausalValueError("folds must give one fold per row of the data")
+        fold_count = max(fold_of_row) + 1
+    names, columns = ingest_columns({name: raw[name] for name in required})
+    return names, columns, {"fold_of_row": fold_of_row, "fold_count": fold_count}
+
+
+def _history_match_payload(data: Any, query: PeriodHistoryMatch) -> tuple[list[str], list[Any]]:
+    """The numeric columns of the within-period history match."""
+    required = [query.outcome, query.treated, *query.history]
+    required.extend(name for name in (query.period, query.weight) if name is not None)
+    raw = read_columns(data, tuple(required), what="history match")
+    return ingest_columns({name: raw[name] for name in required})
+
+
 def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
     if isinstance(inference, Frequentist):
         return {"mode": "frequentist", "prior_scale": 10.0}
@@ -784,6 +836,10 @@ def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
     if "draw_controls" in kw:
         # Sent only when requested, so routes with a closed inference vocabulary refuse it.
         wire["draw_controls"] = kw["draw_controls"]
+    if "white_innovation" in kw:
+        wire["white_innovation"] = kw["white_innovation"]
+    if "design_model" in kw:
+        wire["design_model"] = kw["design_model"]
     return wire
 
 
@@ -1548,6 +1604,12 @@ class PreparedAnalysis(Generic[ResultT]):
         elif isinstance(query, LongitudinalRegime):
             names, columns = _longitudinal_regime_payload(data, query)
             frame = None
+        elif isinstance(query, SequentialContrast):
+            names, columns, design_columns = _sequential_contrast_payload(data, query)
+            frame = None
+        elif isinstance(query, PeriodHistoryMatch):
+            names, columns = _history_match_payload(data, query)
+            frame = None
         else:
             names, columns, frame = _frame_payload(
                 data, analysis_columns(query, graph, estimator_config)
@@ -1893,6 +1955,66 @@ class PreparedAnalysis(Generic[ResultT]):
 
         return plan_rank_drop_prepared(self._native, priority, seed=seed, threads=threads)
 
+    def treatment_score_posterior(
+        self,
+        *,
+        prior_sd: float = 2.0,
+        draws: int = 4000,
+        seed: int = 0,
+        clip: float = 0.05,
+        summary_rows: Sequence[int] = (),
+    ) -> Any:
+        """Posterior of the treatment propensity on this study's certified adjustment set.
+
+        A static ``AverageEffect`` study only. The result is a posterior of a *nuisance*, never of
+        an effect, under ``N(0, prior_sd**2)`` on every logit coefficient; ``summary_rows`` are
+        row positions of the prepared data whose score posterior is reported. See
+        :mod:`antecedent.nuisance_scores`. The product is unlicensed with calibration unmeasured
+        and retains an artifact that is refit on load.
+        """
+        from .nuisance_scores import _product
+
+        report, artifact = self._native.treatment_score_posterior(
+            prior_sd=float(prior_sd),
+            draws=int(draws),
+            seed=int(seed),
+            clip=float(clip),
+            summary_rows=[int(row) for row in summary_rows],
+        )
+        return _product(report, artifact)
+
+    def temporal_treatment_score(
+        self,
+        histories: Sequence[Sequence[float]],
+        *,
+        penalty: float | None = None,
+        intercept_sd: float = 1.0,
+        slope_sd: float = 1.0,
+        draws: int = 4000,
+        seed: int = 0,
+    ) -> Any:
+        """Temporal treatment propensity on the independent-subject rows of a panel study.
+
+        Each unit contributes its earliest row with a full lag window; the treatment of that row
+        is modelled on the identified adjustment lags. With ``penalty`` the score is the ridge
+        mode (intercept unpenalized) and carries no uncertainty; otherwise it is the Laplace
+        posterior under independent ``N(0, sd**2)`` priors on the intercept and the slopes,
+        which is not a ridge penalty. ``histories`` are lag histories whose scores are reported.
+        A single dependent series is refused with ``reason_code="route_not_supported"``. The
+        product is a nuisance, never an effect; see :mod:`antecedent.nuisance_scores`.
+        """
+        from .nuisance_scores import _product
+
+        report, artifact = self._native.temporal_treatment_score(
+            [[float(v) for v in history] for history in histories],
+            penalty=None if penalty is None else float(penalty),
+            intercept_sd=float(intercept_sd),
+            slope_sd=float(slope_sd),
+            draws=int(draws),
+            seed=int(seed),
+        )
+        return _product(report, artifact)
+
     def estimate_cost(self) -> CostEstimate:
         """Planning-time counts (nuisance fits, folds, bootstrap replicates, design bytes)
         and the active inference default. A planning hint, not a runtime guarantee; no
@@ -2015,6 +2137,17 @@ class PreparedAnalysis(Generic[ResultT]):
             return names, columns, None
         if isinstance(query, LongitudinalRegime):
             names, columns = _longitudinal_regime_payload(data, query)
+            return names, columns, None
+        if isinstance(query, SequentialContrast):
+            names, columns, design = _sequential_contrast_payload(data, query)
+            if design != self._design_columns:
+                raise CausalUnsupportedError(
+                    "sequential contrast refresh requires the prepared fold assignment",
+                    reason_code="invalid_argument",
+                )
+            return names, columns, None
+        if isinstance(query, PeriodHistoryMatch):
+            names, columns = _history_match_payload(data, query)
             return names, columns, None
         if isinstance(query, ResponseCurve) and query.observation is not None:
             from .observation import Complete, _ensure_latent_schema_column

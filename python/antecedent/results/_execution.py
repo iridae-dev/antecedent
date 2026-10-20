@@ -195,6 +195,11 @@ class Answer:
             raise ValueError(f"Answer.kind must be one of {ANSWER_KINDS}; got {self.kind!r}")
 
 
+def _posterior_row_detail(estimator: Any) -> str:
+    """The answer detail of an unlicensed Bayesian randomized-design posterior."""
+    return f"unlicensed_posterior_{str(estimator).replace('.', '_')}"
+
+
 def _scalar_bounds(value: Any) -> tuple[float, float] | None:
     if value is None:
         return None
@@ -241,6 +246,27 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         )
         return Answer(
             "structured", detail=detail, structured=canonical_from_wire("survival", survival)
+        )
+    posterior_row = payload.get("posterior_row")
+    if kind == "point" and isinstance(posterior_row, Mapping):
+        return Answer(
+            "structured",
+            detail=_posterior_row_detail(posterior_row.get("estimator")),
+            structured=canonical_from_wire("posterior_row", posterior_row),
+        )
+    contrast = payload.get("sequential_contrast")
+    if kind == "point" and isinstance(contrast, Mapping):
+        return Answer(
+            "structured",
+            detail="unlicensed_sequential_contrast_" + str(contrast.get("uncertainty")),
+            structured=canonical_from_wire("sequential_contrast", contrast),
+        )
+    matched = payload.get("history_match")
+    if kind == "point" and isinstance(matched, Mapping):
+        return Answer(
+            "structured",
+            detail="unlicensed_period_history_match_standard_error_no_interval",
+            structured=canonical_from_wire("history_match", matched),
         )
     regime = payload.get("longitudinal_regime")
     if kind == "point" and isinstance(regime, Mapping):
@@ -474,6 +500,27 @@ class ResultAPI:
             return Answer(
                 "structured", detail=detail, structured=canonical_from_live("survival", survival)
             )
+        posterior_row = getattr(self, "posterior_row", None)
+        if posterior_row is not None:
+            return Answer(
+                "structured",
+                detail=_posterior_row_detail(posterior_row.estimator),
+                structured=canonical_from_live("posterior_row", posterior_row),
+            )
+        contrast = getattr(self, "sequential_contrast", None)
+        if contrast is not None:
+            return Answer(
+                "structured",
+                detail="unlicensed_sequential_contrast_" + contrast.uncertainty,
+                structured=canonical_from_live("sequential_contrast", contrast),
+            )
+        matched = getattr(self, "history_match", None)
+        if matched is not None:
+            return Answer(
+                "structured",
+                detail="unlicensed_period_history_match_standard_error_no_interval",
+                structured=canonical_from_live("history_match", matched),
+            )
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:
             if regime.method == "marginal_structural_model":
@@ -568,6 +615,43 @@ class ResultAPI:
                 f"Randomized competing-risk cumulative incidence through {survival.tau:g}: "
                 f"cause {survival.target_cause} difference {survival.incidence_difference:g}."
                 + suffix
+            )
+        posterior_row = getattr(self, "posterior_row", None)
+        if posterior_row is not None:
+            coordinates = "; ".join(
+                f"{name} {mean:g} [{lower:g}, {upper:g}]"
+                for name, mean, lower, upper in zip(
+                    posterior_row.coordinates,
+                    posterior_row.mean,
+                    posterior_row.lower,
+                    posterior_row.upper,
+                    strict=True,
+                )
+            )
+            return (
+                f"Unlicensed Bayesian posterior ({posterior_row.estimator}) for "
+                f"{posterior_row.target}: {coordinates}. Equal-tailed 95% credible intervals "
+                "under the declared likelihood and prior; calibration is unmeasured and the "
+                "prior supplies no identifying premise."
+            )
+        contrast = getattr(self, "sequential_contrast", None)
+        if contrast is not None:
+            spread = (
+                f"normal interval [{contrast.interval[0]:g}, {contrast.interval[1]:g}]"
+                if contrast.interval is not None
+                else "modular Bayesian-bootstrap posterior, no frequentist interval"
+            )
+            return (
+                f"Observational sequential contrast {contrast.contrast:g} of regime "
+                f"{contrast.active_regime} against {contrast.control_regime}: {spread}. "
+                "Unlicensed; repeated-sampling calibration is unmeasured."
+            )
+        matched = getattr(self, "history_match", None)
+        if matched is not None:
+            return (
+                f"Within-period history-matched contrast {matched.contrast:g} on the matched "
+                "treated units. Abadie-Imbens standard error only; no interval, unlicensed, "
+                "calibration unmeasured."
             )
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:

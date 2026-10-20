@@ -931,7 +931,10 @@ pub(crate) fn ate_result_from_analysis(
             section
         }),
         survival: result.survival().map(Into::into),
+        posterior_row: result.posterior_row().map(Into::into),
         longitudinal_regime: result.longitudinal_regime().map(Into::into),
+        sequential_contrast: result.sequential_contrast().map(Into::into),
+        history_match: result.history_match().map(Into::into),
         anomaly: result
             .anomaly()
             .map(|scores| crate::gcm_api::anomaly_scores_from_rust(scores.iter().cloned(), names)),

@@ -253,6 +253,8 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
             }
         ),
     ),
+    # The live dataclass and the wire body spell every field alike.
+    "posterior_row": _FamilySpec(),
     "longitudinal_regime": _FamilySpec(
         exclude=frozenset(
             {
@@ -267,6 +269,22 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
                 "support_status",
             }
         ),
+    ),
+    "sequential_contrast": _FamilySpec(
+        exclude=frozenset(
+            {
+                "assumptions",
+                "calibration",
+                "fits_computed",
+                "fits_reused",
+                "licensed",
+                "calibration_measured",
+                "support_status",
+            }
+        ),
+    ),
+    "history_match": _FamilySpec(
+        exclude=frozenset({"calibration", "licensed", "calibration_measured", "support_status"}),
     ),
     "continuous_dose_response": _FamilySpec(
         live_renames={"support_status": "graphless_support_status"},
