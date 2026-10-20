@@ -346,7 +346,8 @@ fn bridged_reasoning(contract: &BridgeContract) -> ReasoningView {
 }
 
 /// Mapping uncertainty and source dependence stay on the claim when the
-/// contract declares them. Neither declaration is invented when it is absent,
+/// contract declares them. The mapping variance is the sampling variance of the
+/// estimated intercept and slope, so it is labelled sampling, not parameter. Neither declaration is invented when it is absent,
 /// and an absent dependence is recorded as omitted rather than as independence.
 fn bridged_uncertainty(contract: &BridgeContract) -> SlotAvailability<UncertaintySlot> {
     if contract.mapping_uncertainty.is_none() && contract.source_dependence.is_none() {
@@ -354,11 +355,11 @@ fn bridged_uncertainty(contract: &BridgeContract) -> SlotAvailability<Uncertaint
     }
     let mapping = match &contract.mapping_uncertainty {
         Some(uncertainty) => UncertaintyComponent::new(
-            UncertaintySource::Parameter,
+            UncertaintySource::Sampling,
             format!("mapping_variance:{}", uncertainty.id),
             false,
         ),
-        None => UncertaintyComponent::new(UncertaintySource::Parameter, "mapping_variance", true),
+        None => UncertaintyComponent::new(UncertaintySource::Sampling, "mapping_variance", true),
     };
     SlotAvailability::Available(UncertaintySlot::new([
         mapping,
@@ -415,12 +416,13 @@ impl BridgedClaim {
     ///
     /// A bridged claim rests on its source: a withdrawn or superseded source
     /// makes it inapplicable, and the receiver's snapshot is the source's.
-    /// The bridged claim's own history is preserved (`historically_valid`).
+    /// The bridged claim was valid for its snapshot exactly when its source was
+    /// (`historically_valid` is the source's); retirement only changes applicability.
     #[must_use]
     pub fn freshness(&self, source: &ClaimFreshness) -> ClaimFreshness {
         let retired = source.withdrawn || source.superseded_by.is_some();
         ClaimFreshness {
-            historically_valid: true,
+            historically_valid: source.historically_valid,
             currently_applicable: if retired { Some(false) } else { source.currently_applicable },
             locally_ready: source.locally_ready,
             superseded_by: None,

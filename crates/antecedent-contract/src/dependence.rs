@@ -86,13 +86,14 @@ impl SharedFactorKind {
     }
 }
 
-/// Identity of one shared factor. Blank text is refused.
+/// Identity of one shared factor. Blank text is refused and surrounding whitespace is
+/// not part of the identity, so `row-1` and `row-1 ` name the same factor.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SharedFactorId(Arc<str>);
 
 impl SharedFactorId {
     fn try_new(text: &str) -> Result<Self, DependenceError> {
-        checked_text(text, BLANK_FACTOR_DETAIL, BLANK_FACTOR_MESSAGE).map(Self)
+        checked_text(text.trim(), BLANK_FACTOR_DETAIL, BLANK_FACTOR_MESSAGE).map(Self)
     }
 
     /// Text of this identity.
@@ -356,7 +357,8 @@ impl DependenceSource {
 pub enum DependenceStatus {
     /// Every source declared its factors, and no pair shares one.
     Independent,
-    /// At least one factor identity appears in two sources.
+    /// At least one factor identity appears in two sources. Sources whose overlap is
+    /// undeclared stay on the contract, so the known factors are a lower bound.
     Dependent,
     /// No shared factor is known, and at least one source left its overlap undeclared.
     Unknown,
@@ -389,19 +391,19 @@ impl DependenceContract {
                 left.factors.accumulate_overlap(&right.factors, &mut shared);
             }
         }
-        if !shared.is_empty() {
-            let factors = shared.into_iter().collect::<Box<[SharedFactor]>>();
-            return Self {
-                status: DependenceStatus::Dependent,
-                factors,
-                unknown_sources: empty_slice(),
-            };
-        }
         let mut unknown = BTreeSet::new();
         for source in sources {
             if matches!(source.disclosure, FactorDisclosure::UnknownOverlap) {
                 unknown.insert(source.id.clone());
             }
+        }
+        if !shared.is_empty() {
+            let factors = shared.into_iter().collect::<Box<[SharedFactor]>>();
+            return Self {
+                status: DependenceStatus::Dependent,
+                factors,
+                unknown_sources: unknown.into_iter().collect(),
+            };
         }
         if unknown.is_empty() {
             Self {
@@ -440,9 +442,11 @@ impl DependenceContract {
 
     /// The covariance terms a combination of this contract has to request.
     ///
-    /// A dependent contract requests the cross terms of its shared factors. An
-    /// independent contract is diagonal. Unknown overlap has no diagonal
-    /// combination.
+    /// A dependent contract requests the cross terms of its shared factors; when
+    /// other sources left their overlap undeclared the combination is marked
+    /// incomplete ([`CovarianceCombination::has_unknown_overlap`]) because those
+    /// sources may add cross terms nobody listed. An independent contract is
+    /// diagonal. Unknown overlap has no diagonal combination.
     ///
     /// # Errors
     ///
@@ -453,9 +457,10 @@ impl DependenceContract {
     pub fn covariance_combination(&self) -> Result<CovarianceCombination, DependenceError> {
         match self.status {
             DependenceStatus::Independent => Ok(CovarianceCombination::diagonal()),
-            DependenceStatus::Dependent => {
-                Ok(CovarianceCombination::cross_terms(self.factors.clone()))
-            }
+            DependenceStatus::Dependent => Ok(CovarianceCombination::cross_terms(
+                self.factors.clone(),
+                self.unknown_sources.clone(),
+            )),
             DependenceStatus::Unknown => Err(DependenceError::unknown_contract(self.clone())),
         }
     }
@@ -492,7 +497,8 @@ impl DependenceContract {
 
     /// Sources whose overlap is undeclared, in identity order.
     ///
-    /// Empty unless the status is unknown.
+    /// Empty when the status is independent. Non-empty when the status is unknown, and
+    /// also when it is dependent but another source left its overlap undeclared.
     #[must_use]
     pub fn unknown_sources(&self) -> &[DependenceSourceId] {
         &self.unknown_sources
@@ -534,7 +540,8 @@ impl DependenceError {
     /// The contract the factors support, when this error is a failed independence claim.
     ///
     /// Present for a shared factor and for unknown overlap. That contract is
-    /// dependent or unknown. Absent for a blank identity.
+    /// dependent or unknown. Absent for a blank identity and for an incomplete
+    /// covariance combination.
     #[must_use]
     pub const fn next_contract(&self) -> Option<&DependenceContract> {
         self.next.as_ref()
@@ -590,6 +597,7 @@ pub enum CovarianceTerms {
 pub struct CovarianceCombination {
     terms: CovarianceTerms,
     factors: Box<[SharedFactor]>,
+    unknown_overlap: Box<[DependenceSourceId]>,
 }
 
 impl CovarianceCombination {
@@ -614,14 +622,57 @@ impl CovarianceCombination {
         }
     }
 
+    /// Sources whose overlap is undeclared: the cross terms of [`Self::factors`] are
+    /// then a lower bound and the covariance is incomplete. Empty when complete.
     #[must_use]
-    fn diagonal() -> Self {
-        Self { terms: CovarianceTerms::Diagonal, factors: empty_slice() }
+    pub fn unknown_overlap(&self) -> &[DependenceSourceId] {
+        &self.unknown_overlap
+    }
+
+    /// Whether the covariance misses cross terms with sources of undeclared overlap.
+    #[must_use]
+    pub fn has_unknown_overlap(&self) -> bool {
+        !self.unknown_overlap.is_empty()
+    }
+
+    /// The combination, only when it is complete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `evidence_overlap_unknown` error naming the sources with unknown
+    /// overlap when [`Self::has_unknown_overlap`]. A consumer that needs the full
+    /// covariance calls this before using [`Self::factors`].
+    pub fn require_complete(&self) -> Result<&Self, DependenceError> {
+        if self.has_unknown_overlap() {
+            let message = format!(
+                "covariance is incomplete: {}",
+                unknown_message(&self.unknown_overlap).replacen(
+                    "claimed independence is not supported: ",
+                    "",
+                    1
+                )
+            );
+            Err(DependenceError { code: UNKNOWN_CODE, detail: UNKNOWN_DETAIL, message, next: None })
+        } else {
+            Ok(self)
+        }
     }
 
     #[must_use]
-    fn cross_terms(factors: Box<[SharedFactor]>) -> Self {
-        Self { terms: CovarianceTerms::CrossTerms, factors }
+    fn diagonal() -> Self {
+        Self {
+            terms: CovarianceTerms::Diagonal,
+            factors: empty_slice(),
+            unknown_overlap: empty_slice(),
+        }
+    }
+
+    #[must_use]
+    fn cross_terms(
+        factors: Box<[SharedFactor]>,
+        unknown_overlap: Box<[DependenceSourceId]>,
+    ) -> Self {
+        Self { terms: CovarianceTerms::CrossTerms, factors, unknown_overlap }
     }
 }
 
@@ -630,7 +681,7 @@ fn checked_text(
     detail: &'static str,
     message: &'static str,
 ) -> Result<Arc<str>, DependenceError> {
-    if text.trim().is_empty() {
+    if antecedent_core::is_blank(text) {
         Err(DependenceError::blank(detail, message))
     } else {
         Ok(Arc::from(text))
@@ -837,6 +888,31 @@ mod tests {
         assert!(shared.is_dependent());
         assert!(!shared.is_unknown());
         assert!(!shared.is_independent());
+        // The undeclared source stays on the dependent contract and marks the covariance
+        // incomplete.
+        assert_eq!(
+            shared
+                .unknown_sources()
+                .iter()
+                .map(super::DependenceSourceId::as_str)
+                .collect::<Vec<_>>(),
+            ["partial"]
+        );
+        let combination = shared.covariance_combination().expect("cross terms");
+        assert!(combination.requires_cross_terms());
+        assert!(combination.has_unknown_overlap());
+        let refused = combination.require_complete().expect_err("incomplete covariance");
+        assert_eq!(refused.detail(), "dependence.overlap_unknown");
+        assert!(refused.message().contains("incomplete"));
+        assert!(refused.message().contains("overlap is unknown for `partial`"));
+        let complete = DependenceContract::assess(&[
+            declared("a", &[(SharedFactorKind::Row, "row-1")]),
+            declared("b", &[(SharedFactorKind::Row, "row-1")]),
+        ])
+        .covariance_combination()
+        .expect("cross terms");
+        assert!(!complete.has_unknown_overlap());
+        assert!(complete.require_complete().is_ok());
     }
 
     #[test]
@@ -968,6 +1044,20 @@ mod tests {
                 contract.shared_factors().iter().all(|factor| factor.id().as_str() == "shared")
             );
         }
+    }
+
+    #[test]
+    fn factor_ids_are_compared_after_trimming() {
+        let left = declared("left", &[(SharedFactorKind::Row, "row-1")]);
+        let right = declared("right", &[(SharedFactorKind::Row, " row-1\t")]);
+        let contract = DependenceContract::assess(&[left, right]);
+        assert!(contract.is_dependent());
+        assert_eq!(contract.shared_factors().len(), 1);
+        assert_eq!(contract.shared_factors()[0].id().as_str(), "row-1");
+        let mut factors = SharedFactorSets::empty();
+        factors.try_insert(SharedFactorKind::Row, "row-1").expect("factor");
+        factors.try_insert(SharedFactorKind::Row, "row-1 ").expect("factor");
+        assert_eq!(factors.ids(SharedFactorKind::Row).len(), 1);
     }
 
     #[test]

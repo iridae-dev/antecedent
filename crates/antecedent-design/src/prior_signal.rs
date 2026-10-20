@@ -10,6 +10,11 @@
 //! as is any incompatible artifact or any observation shared between a prior source
 //! and the candidate study (or between two prior sources).
 //!
+//! Independent sources are combined as a linear opinion pool (a weighted mixture of
+//! the sources' target-coordinate draws), not as a product of likelihoods. Pooling
+//! never sharpens beyond the sources, so it is conservative when the sources are
+//! genuinely independent evidence.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -104,11 +109,15 @@ pub struct PriorSourceInput {
     pub source_population: String,
     /// Equally weighted posterior draws of the source quantity.
     pub draws: Vec<f64>,
-    /// Source weight (> 0).
+    /// Mixture weight (> 0), normalised across sources.
     pub weight: f64,
-    /// Prior strength in `(0, 1]` multiplying the weight (a power-prior exponent).
+    /// Prior strength in `(0, 1]`: a power-prior exponent on the source likelihood,
+    /// realised as variance inflation by `1 / strength` about the source mean (exact for
+    /// a Gaussian source posterior; it does not change the source's weight).
     pub prior_strength: f64,
-    /// Conflict shrinkage in `[0, 1]` toward the pooled weighted mean.
+    /// Conflict shrinkage in `[0, 1]`: the fraction of the distance between the source
+    /// mean and the pooled weighted mean by which the source's location is moved. The
+    /// within-source spread is kept.
     pub conflict_shrinkage: f64,
     /// Lineage identities of the source.
     pub lineage: Vec<String>,
@@ -477,8 +486,8 @@ fn allocate(weights: &[f64], total: usize) -> Vec<usize> {
 ///
 /// Sources are processed in canonical artifact-id order, so the result does not
 /// depend on the order they were supplied in. Each source's draws are mapped to the
-/// target coordinate, shrunk toward the pooled weighted mean (`weight · strength`)
-/// by its conflict shrinkage, and resampled by deterministic stratified quantiles
+/// target coordinate, tempered by its prior strength, its location moved toward the
+/// pooled weighted mean (`weight`) by its conflict shrinkage, and resampled by deterministic stratified quantiles
 /// into `resolution` equally weighted draws in proportion to the effective weights.
 ///
 /// # Errors
@@ -531,7 +540,7 @@ fn combine(
         .iter()
         .map(|s| s.draws.iter().map(|d| s.source_to_target.apply(*d)).collect())
         .collect();
-    let raw: Vec<f64> = sources.iter().map(|s| s.weight * s.prior_strength).collect();
+    let raw: Vec<f64> = sources.iter().map(|s| s.weight).collect();
     let total: f64 = raw.iter().sum();
     let weights: Vec<f64> = raw.iter().map(|w| w / total).collect();
     let pooled: f64 =
@@ -539,8 +548,11 @@ fn combine(
     let counts = allocate(&weights, request.resolution);
     let mut draws = Vec::with_capacity(request.resolution);
     for ((source, values), &count) in sources.iter().zip(&mapped).zip(&counts) {
-        let keep = 1.0 - source.conflict_shrinkage;
-        let mut shrunk: Vec<f64> = values.iter().map(|v| pooled + keep * (v - pooled)).collect();
+        let source_mean = antecedent_kernels::mean(values);
+        let spread = 1.0 / source.prior_strength.sqrt();
+        let shift = source.conflict_shrinkage * (source_mean - pooled);
+        let mut shrunk: Vec<f64> =
+            values.iter().map(|v| source_mean + spread * (v - source_mean) - shift).collect();
         shrunk.sort_by(f64::total_cmp);
         let len = shrunk.len();
         for j in 0..count {

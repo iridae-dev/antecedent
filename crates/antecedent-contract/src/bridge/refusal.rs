@@ -140,6 +140,34 @@ pub(super) fn source_dependence_invalid(field: &str, remedy: &'static str) -> Br
     invalid("scientific_bridge.source_dependence_invalid", remedy).with_offending(field)
 }
 
+/// A source moment (mean) that is not a finite number.
+pub(super) fn source_moment_not_finite(field: &str, remedy: &'static str) -> BridgeRefusal {
+    invalid("scientific_bridge.source_moment_not_finite", remedy).with_offending(field)
+}
+
+/// A propagated value or map image that overflowed the finite range.
+pub(super) fn propagation_overflow(field: &str, remedy: &'static str) -> BridgeRefusal {
+    invalid("scientific_bridge.propagation_overflow", remedy).with_offending(field)
+}
+
+/// A bridge whose dose or spend units disagree between its sides.
+pub(super) fn estimand_units_mismatch(expected: String, supplied: String) -> BridgeRefusal {
+    mismatch("scientific_bridge.estimand_units_mismatch", expected, supplied)
+        .with_offending("estimand_bridge")
+        .with_remedy(
+            "state the experiment dose, the target dose and the spend difference in one unit identity",
+        )
+}
+
+/// A spend difference that is not the target dose minus the experiment dose.
+pub(super) fn estimand_spend_inconsistent(expected: String, supplied: String) -> BridgeRefusal {
+    mismatch("scientific_bridge.estimand_spend_inconsistent", expected, supplied)
+        .with_offending("spend_delta")
+        .with_remedy(
+            "state a spend difference equal to the target dose minus the experiment dose, or correct the doses",
+        )
+}
+
 pub(super) fn estimand_bridge_incomplete(field: &str, remedy: &'static str) -> BridgeRefusal {
     invalid("scientific_bridge.estimand_bridge_incomplete", remedy).with_offending(field)
 }

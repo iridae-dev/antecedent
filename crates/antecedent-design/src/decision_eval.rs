@@ -791,14 +791,16 @@ fn mean_insufficient(needed: Vec<SourceRepresentation>) -> DecisionEvalError {
 /// Evaluate `contract` on a [`MeanSource`].
 ///
 /// Exact only for affine utilities, whose expectation is the utility of the
-/// means. No sampling error is claimed (`standard_error` is `None`), regret and
+/// means. The result is the expected utility at the supplied means, which may be
+/// posterior means or point estimates; the criterion name does not assert a
+/// posterior. No sampling error is claimed (`standard_error` is `None`), regret and
 /// the value of perfect information are unavailable, and the verdict is
 /// indistinguishable only on exactly equal values.
 ///
 /// # Errors
 /// Refuses an invalid contract, a criterion other than expected utility or
 /// expected loss, any hard constraint, a nonlinear utility, an unknown
-/// coordinate, an input whose functional is `outcome` (a mean grid is not an
+/// coordinate, a coordinate named twice (the first would silently win), an input whose functional is `outcome` (a mean grid is not an
 /// outcome law), and a non-finite utility.
 #[allow(
     clippy::too_many_lines,
@@ -814,6 +816,16 @@ pub fn evaluate_contract_on_means(
         return Err(DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration(
             "a mean source has one finite mean per coordinate",
         )));
+    }
+    for (index, coordinate) in source.coordinates.iter().enumerate() {
+        if source.coordinates[..index]
+            .iter()
+            .any(|earlier| earlier.require_same_coordinate(coordinate).is_ok())
+        {
+            return Err(DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration(
+                "a mean source names each coordinate once",
+            )));
+        }
     }
     if !matches!(
         contract.criterion,
@@ -881,7 +893,10 @@ pub fn evaluate_contract_on_means(
         .unwrap_or(0);
     let mut tied = vec![outcomes[best].id.clone()];
     for (other, outcome) in outcomes.iter().enumerate() {
-        if other != best && outcome.value.to_bits() == outcomes[best].value.to_bits() {
+        // Total equality of the values: `-0.0` and `0.0` are the same utility.
+        #[allow(clippy::float_cmp, reason = "exact equality is the declared tie rule")]
+        let equal = outcome.value == outcomes[best].value;
+        if other != best && equal {
             tied.push(outcome.id.clone());
         }
     }
@@ -909,6 +924,9 @@ pub fn evaluate_contract_on_means(
              constraints are unavailable"
                 .into(),
             "the result is exact only because every utility is affine in its inputs".into(),
+            "the means are taken as supplied (posterior means or point estimates); the criterion \
+             name does not assert a posterior"
+                .into(),
             "no sampling error is claimed; indistinguishable means exactly equal values".into(),
         ],
     })

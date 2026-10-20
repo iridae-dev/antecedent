@@ -1404,19 +1404,21 @@ const fn net_of(gross_evsi: f64, study_cost: Option<f64>) -> Result<Option<f64>,
     }
 }
 
+/// Standard deviation of the preposterior mean: `Var(E[θ | ȳ]) = τ²·nτ²/(nτ² + σ²)`.
+///
+/// Subtracting the posterior variance from `τ²` cancels catastrophically when
+/// `nτ²/σ²` is small, so the closed form is used.
 fn preposterior_spread(
     belief: NormalStateBelief,
     data: NormalMeanFutureData,
-    update: NormalMeanKnownVarianceUpdate,
 ) -> Result<f64, FutureStudyError> {
-    // Posterior variance does not depend on the sample mean. The prior mean is a
-    // finite probe that reads that variance off the update operator.
-    let posterior = update.update(belief, data, belief.mean())?;
-    let spread_sq = belief.variance() - posterior.variance;
+    let prior_variance = belief.variance();
+    let information = data.sample_size() as f64 * prior_variance;
+    let spread_sq = prior_variance * information / (information + data.noise_variance());
     if !spread_sq.is_finite() {
         return Err(FutureStudyError::NonFiniteValue);
     }
-    Ok(if spread_sq > 0.0 { spread_sq.sqrt() } else { 0.0 })
+    Ok(spread_sq.sqrt())
 }
 
 fn bayes_expected_utility(
@@ -1436,23 +1438,29 @@ fn bayes_expected_utility(
     chosen.ok_or(FutureStudyError::EmptyActions)
 }
 
-fn absolute_lines(utility: &AffineStateUtility, mean: f64) -> Vec<(f64, f64)> {
+/// Gap-to-Bayes lines `(Δc_a, Δβ_a)`: the action's expected utility at the prior mean
+/// minus the Bayes action's, and its slope minus the Bayes action's. The Bayes action's
+/// own line is `(0, 0)`, so the preposterior gain is computed without subtracting two
+/// large absolute utilities.
+fn gap_lines(utility: &AffineStateUtility, mean: f64, bayes: usize) -> Vec<(f64, f64)> {
+    let bayes_value = utility.intercept[bayes] + utility.slope[bayes] * mean;
+    let bayes_slope = utility.slope[bayes];
     utility
         .intercept
         .iter()
         .zip(&utility.slope)
-        .map(|(&intercept, &slope)| (intercept + slope * mean, slope))
+        .map(|(&intercept, &slope)| (intercept + slope * mean - bayes_value, slope - bayes_slope))
         .collect()
 }
 
 impl FutureStudyProgram {
     fn score(&self) -> Result<PreposteriorScore, FutureStudyError> {
-        let spread = preposterior_spread(self.belief, self.future_data, self.update)?;
+        let spread = preposterior_spread(self.belief, self.future_data)?;
         let mean = self.belief.mean();
-        let (_, prior_expected_utility) = bayes_expected_utility(&self.utility, mean)?;
-        let lines = absolute_lines(&self.utility, mean);
-        let preposterior_expected_utility = expected_max_affine(&lines, spread);
-        let gross_evsi = preposterior_expected_utility - prior_expected_utility;
+        let (bayes, prior_expected_utility) = bayes_expected_utility(&self.utility, mean)?;
+        let lines = gap_lines(&self.utility, mean, bayes);
+        let gross_evsi = expected_max_affine(&lines, spread);
+        let preposterior_expected_utility = prior_expected_utility + gross_evsi;
         if !prior_expected_utility.is_finite()
             || !preposterior_expected_utility.is_finite()
             || !gross_evsi.is_finite()
@@ -1569,6 +1577,35 @@ mod future_study_tests {
         }
         assert!(near(program(0.5, None).gross_evsi().expect("gross"), analytic));
         assert!(near(from_update, program(0.5, None).gross_evsi().expect("gross")));
+    }
+
+    #[test]
+    fn small_information_is_not_lost_to_cancellation() {
+        // tau^2 = 1, sigma^2 = 1e12, n = 1: the preposterior variance is
+        // 1 * 1 / (1 + 1e12) ~ 1e-12, and the two actions pay 1e9 and 1e9 + theta, so
+        // they are indifferent at the prior mean 0 with slope gap 1.
+        // EVSI = s * phi(0) = s / sqrt(2 pi), s = 1e-6 / sqrt(1 + 1e-12).
+        let program = FutureStudyProgram::try_new(
+            NormalStateBelief::try_new(0.0, 1.0).expect("belief"),
+            NormalMeanFutureData::try_new(1, 1e12).expect("data"),
+            NormalMeanKnownVarianceUpdate,
+            vec![
+                StudyAction::try_new("stay").expect("stay"),
+                StudyAction::try_new("treat").expect("treat"),
+            ],
+            AffineStateUtility::try_new(vec![1e9, 1e9], vec![0.0, 1.0]).expect("utility"),
+            None,
+        )
+        .expect("program");
+        let spread = 1e-6 / (1.0_f64 + 1e-12).sqrt();
+        let expected = spread / (2.0 * std::f64::consts::PI).sqrt();
+        let got = program.evaluate_future_study().expect("evsi");
+        assert!(
+            (got.gross_evsi - expected).abs() <= 1e-12 * expected,
+            "{} vs {expected}",
+            got.gross_evsi
+        );
+        assert_eq!(got.prior_expected_utility.to_bits(), 1e9_f64.to_bits());
     }
 
     #[test]

@@ -147,18 +147,7 @@ impl EvidenceOperator {
     /// Only the same operator licenses the combination.
     #[must_use]
     pub const fn licenses(self, requested: Self) -> bool {
-        matches!(
-            (self, requested),
-            (Self::Pooling, Self::Pooling)
-                | (Self::HierarchicalBorrowing, Self::HierarchicalBorrowing)
-                | (Self::Transport, Self::Transport)
-                | (Self::Bridge, Self::Bridge)
-                | (Self::FrozenReuse, Self::FrozenReuse)
-                | (Self::RepeatedObservationUse, Self::RepeatedObservationUse)
-                | (Self::Mixture, Self::Mixture)
-                | (Self::Marginalization, Self::Marginalization)
-                | (Self::Envelope, Self::Envelope)
-        )
+        self as u8 == requested as u8
     }
 
     /// Refuse to combine a recorded effect of `self` as `requested`.
@@ -921,7 +910,7 @@ fn require_disjoint(
 }
 
 fn checked_text(text: &str) -> Result<Arc<str>, EvidenceEffectError> {
-    if text.trim().is_empty() {
+    if antecedent_core::is_blank(text) {
         return Err(EvidenceEffectError::invalid(BLANK_DETAIL, BLANK_MESSAGE));
     }
     if text.len() > MAX_TEXT_BYTES {

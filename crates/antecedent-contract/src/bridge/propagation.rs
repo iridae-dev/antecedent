@@ -11,13 +11,22 @@
 //! map `a + b X`. The plug-in `a + b μ` omits the covariance of the slope
 //! estimator and the source estimator; the propagated mean adds that
 //! covariance, because the expectation of a product is not the product of the
-//! expectations. The variance is
-//! `Var(a) + μ² Var(b) + b² Var(μ) + 2 μ b Cov(b, μ)`.
+//! expectations. The variance is the variance of `a + β M` for an intercept
+//! estimator `a`, a slope estimator `β` and a source estimator `M` with means
+//! `a`, `b`, `μ`, taking `M` independent of `a` and writing `c = Cov(β, M)` and
+//! `d = Cov(a, β)`:
+//! `Var(a) + μ² Var(β) + b² Var(M) + 2 μ b c + 2 μ d + Var(β) Var(M) + c²`.
+//! The last two terms are the second-order part of the product; with both
+//! covariances declared independent (zero) the result is the exact variance of
+//! a product of independent factors plus the intercept variance. The default
+//! intercept-slope covariance of zero declares them independent; a regression
+//! calibration usually has a negative one (`≈ -x̄ Var(β)`), which this field
+//! must carry.
 //!
 //! An experiment is a particular population, time window, dose, duration and
 //! exposure regime. Importing its prior requires an estimand bridge that
 //! names each of those on both sides and states the recency and spend
-//! differences. Mapping uncertainty and source dependence on that prior are
+//! differences; the spend difference must agree with the two doses. Mapping uncertainty and source dependence on that prior are
 //! kept, and so are the bridge's assumptions.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -27,10 +36,11 @@ use antecedent_core::identity::CanonicalWriter;
 use super::super::mapping::BridgeMapping;
 use super::super::refusal::{
     BridgeRefusal, dependence_not_a_covariance, estimand_bridge_incomplete,
-    estimand_bridge_mismatch, experimental_prior_without_estimand_bridge, malformed_mapping,
-    mapping_uncertainty_invalid, mapping_uncertainty_missing, nonlinear_law_insufficient,
-    nonlinear_mean_not_expectation, source_dependence_invalid, source_dependence_missing,
-    source_variance_invalid, uncertain_mapping_not_affine,
+    estimand_bridge_mismatch, estimand_spend_inconsistent, estimand_units_mismatch,
+    experimental_prior_without_estimand_bridge, malformed_mapping, mapping_uncertainty_invalid,
+    mapping_uncertainty_missing, nonlinear_law_insufficient, nonlinear_mean_not_expectation,
+    propagation_overflow, source_dependence_invalid, source_dependence_missing,
+    source_moment_not_finite, source_variance_invalid, uncertain_mapping_not_affine,
 };
 use super::{BridgeAssumption, BridgeContract, MAX_BRIDGE_TEXT_BYTES, check_text};
 
@@ -48,6 +58,9 @@ pub struct MappingUncertainty {
     pub intercept_variance: f64,
     /// Variance of the slope. Zero states that the slope is exact.
     pub slope_variance: f64,
+    /// Covariance of the intercept and slope estimators. Zero declares them
+    /// independent; its square must be at most the product of the two variances.
+    pub intercept_slope_covariance: f64,
 }
 
 impl MappingUncertainty {
@@ -69,11 +82,27 @@ impl MappingUncertainty {
             self.slope_variance,
             mapping_uncertainty_invalid,
             "state a finite non-negative slope variance",
-        )
+        )?;
+        let product = self.intercept_variance * self.slope_variance;
+        let square = self.intercept_slope_covariance * self.intercept_slope_covariance;
+        if !self.intercept_slope_covariance.is_finite()
+            || !product.is_finite()
+            || !square.is_finite()
+            || square > product
+        {
+            return Err(mapping_uncertainty_invalid(
+                "intercept_slope_covariance",
+                "state a finite covariance whose square is at most the product of the intercept and slope variances",
+            ));
+        }
+        Ok(())
     }
 
     fn write(&self, out: &mut CanonicalWriter) {
-        out.text(&self.id).real(self.intercept_variance).real(self.slope_variance);
+        out.text(&self.id)
+            .real(self.intercept_variance)
+            .real(self.slope_variance)
+            .real(self.intercept_slope_covariance + 0.0);
     }
 }
 
@@ -244,7 +273,8 @@ pub struct EstimandBridge {
     pub recency_delta: f64,
     /// Unit identity of `recency_delta`.
     pub recency_units: String,
-    /// Target spend or exposure minus the experiment's, in `spend_units`.
+    /// Target spend or exposure minus the experiment's, in `spend_units`. It must
+    /// equal the target dose minus the experiment dose, in one shared unit.
     pub spend_delta: f64,
     /// Unit identity of `spend_delta`.
     pub spend_units: String,
@@ -480,7 +510,7 @@ fn moments(law: &AnalyticLaw) -> Result<(f64, f64), BridgeRefusal> {
         }
     };
     if !mean.is_finite() {
-        return Err(mapping_uncertainty_invalid("mean", "state a finite mean"));
+        return Err(source_moment_not_finite("mean", "state a finite mean"));
     }
     if !(variance.is_finite() && variance >= 0.0) {
         return Err(source_variance_invalid(variance.to_string()));
@@ -517,12 +547,25 @@ pub fn nonlinear_expectation(
         }
     };
     if !map_of_mean.is_finite() || !expectation.is_finite() {
-        return Err(mapping_uncertainty_invalid(
+        return Err(propagation_overflow(
             map.as_str(),
             "the nonlinear expectation overflowed; the declared moments are outside the map",
         ));
     }
     Ok(NonlinearMoment { map, map_of_mean, expectation })
+}
+
+/// An image endpoint pair, refused as an overflow when a valid source interval
+/// maps outside the finite range.
+fn image_interval(low: f64, high: f64) -> Result<ValueInterval, BridgeRefusal> {
+    if low.is_finite() && high.is_finite() {
+        ordered_interval(low, high)
+    } else {
+        Err(propagation_overflow(
+            "support",
+            "the image of the support interval overflowed; state a narrower interval or a smaller map",
+        ))
+    }
 }
 
 fn ordered_interval(low: f64, high: f64) -> Result<ValueInterval, BridgeRefusal> {
@@ -561,15 +604,15 @@ pub fn support_image(
             }
             let left = intercept + slope * source.low;
             let right = intercept + slope * source.high;
-            ordered_interval(left.min(right), left.max(right))
+            image_interval(left.min(right), left.max(right))
         }
         SupportMap::Square => {
             let left = source.low * source.low;
             let right = source.high * source.high;
             let low = if source.low <= 0.0 && source.high >= 0.0 { 0.0 } else { left.min(right) };
-            ordered_interval(low, left.max(right))
+            image_interval(low, left.max(right))
         }
-        SupportMap::Exponential => ordered_interval(source.low.exp(), source.high.exp()),
+        SupportMap::Exponential => image_interval(source.low.exp(), source.high.exp()),
     }
 }
 
@@ -632,7 +675,7 @@ pub(super) fn propagate_affine(
     };
     dependence.validate()?;
     if !source_mean.is_finite() {
-        return Err(mapping_uncertainty_invalid("source_mean", "state a finite source mean"));
+        return Err(source_moment_not_finite("source_mean", "state a finite source mean"));
     }
     if !(source_variance.is_finite() && source_variance >= 0.0) {
         return Err(source_variance_invalid(source_variance.to_string()));
@@ -648,11 +691,20 @@ pub(super) fn propagate_affine(
     let variance = uncertainty.intercept_variance
         + source_mean * source_mean * uncertainty.slope_variance
         + slope * slope * source_variance
-        + 2.0 * source_mean * slope * covariance;
-    if !plug_in_mean.is_finite() || !mean.is_finite() || !variance.is_finite() || variance < 0.0 {
+        + 2.0 * source_mean * slope * covariance
+        + 2.0 * source_mean * uncertainty.intercept_slope_covariance
+        + uncertainty.slope_variance * source_variance
+        + covariance * covariance;
+    if !plug_in_mean.is_finite() || !mean.is_finite() || !variance.is_finite() {
+        return Err(propagation_overflow(
+            "propagated",
+            "the delta method overflowed the finite range",
+        ));
+    }
+    if variance < 0.0 {
         return Err(mapping_uncertainty_invalid(
             "propagated",
-            "the delta method did not produce a finite non-negative variance",
+            "the delta method did not produce a non-negative variance",
         ));
     }
     Ok(PropagatedUncertainty {
@@ -693,6 +745,34 @@ pub(super) fn estimand_matches(
         return Err(estimand_bridge_mismatch(
             format!("target regime `{}`", target.regime_id),
             format!("translated regime `{}`", bridge.target.exposure_regime),
+        ));
+    }
+    check_spend_consistency(bridge)
+}
+
+/// Relative and absolute tolerance on the spend difference.
+const SPEND_TOLERANCE: f64 = 1e-9;
+
+/// The spend difference must be the target dose minus the experiment dose, in
+/// one unit. Recency labels are not parsed and are not checked here.
+fn check_spend_consistency(bridge: &EstimandBridge) -> Result<(), BridgeRefusal> {
+    let units = [
+        bridge.experiment.dose_units.as_str(),
+        bridge.target.dose_units.as_str(),
+        bridge.spend_units.as_str(),
+    ];
+    if units.iter().any(|unit| *unit != units[0]) {
+        return Err(estimand_units_mismatch(
+            format!("one unit identity (experiment dose `{}`)", units[0]),
+            format!("target dose `{}`, spend `{}`", units[1], units[2]),
+        ));
+    }
+    let expected = bridge.target.dose - bridge.experiment.dose;
+    let scale = 1.0_f64.max(expected.abs()).max(bridge.spend_delta.abs());
+    if !expected.is_finite() || (bridge.spend_delta - expected).abs() > SPEND_TOLERANCE * scale {
+        return Err(estimand_spend_inconsistent(
+            format!("spend difference {expected}"),
+            format!("spend difference {}", bridge.spend_delta),
         ));
     }
     Ok(())
@@ -860,7 +940,12 @@ mod tests {
     }
 
     fn uncertainty(slope_variance: f64) -> MappingUncertainty {
-        MappingUncertainty { id: "slope-se".into(), intercept_variance: 0.0, slope_variance }
+        MappingUncertainty {
+            id: "slope-se".into(),
+            intercept_variance: 0.0,
+            slope_variance,
+            intercept_slope_covariance: 0.0,
+        }
     }
 
     fn setting(dose: f64, duration: f64, start: &str, end: &str) -> ExposureSetting {
@@ -1034,7 +1119,8 @@ mod tests {
         let independent = contract.propagate_affine_uncertainty(4.0, 0.25).unwrap();
         assert_eq!(independent.plug_in_mean.to_bits(), 8.0_f64.to_bits());
         assert_eq!(independent.mean.to_bits(), independent.plug_in_mean.to_bits());
-        assert_eq!(independent.variance.to_bits(), 2.0_f64.to_bits());
+        // 4^2 * 0.0625 + 2^2 * 0.25 + 0.0625 * 0.25 = 1 + 1 + 0.015625.
+        assert_eq!(independent.variance.to_bits(), 2.015_625_f64.to_bits());
         assert_eq!(independent.assumptions[0].id, "hypothetical-bias");
 
         contract.source_dependence = Some(SourceMappingDependence::SlopeCovariance {
@@ -1045,7 +1131,8 @@ mod tests {
         assert_eq!(shared.plug_in_mean.to_bits(), 8.0_f64.to_bits());
         assert_eq!(shared.mean.to_bits(), 8.125_f64.to_bits());
         assert_ne!(shared.plug_in_mean.to_bits(), shared.mean.to_bits());
-        assert_eq!(shared.variance.to_bits(), 4.0_f64.to_bits());
+        // 1 + 1 + 2 * 4 * 2 * 0.125 + 0.0625 * 0.25 + 0.125^2 = 4.03125.
+        assert_eq!(shared.variance.to_bits(), 4.03125_f64.to_bits());
         assert_eq!(shared.mapping_uncertainty.slope_variance.to_bits(), 0.0625_f64.to_bits());
         assert!(matches!(
             shared.dependence,
@@ -1096,6 +1183,7 @@ mod tests {
             id: "slope-se".into(),
             intercept_variance: 0.0,
             slope_variance: -1.0,
+            intercept_slope_covariance: 0.0,
         });
         let negative = contract.propagate_affine_uncertainty(1.0, 0.25).unwrap_err();
         refused(
@@ -1202,7 +1290,7 @@ mod tests {
         refused(&error, "bridge_binding_mismatch", "scientific_bridge.estimand_bridge_mismatch");
         assert_eq!(before, contract.identity());
 
-        let prior = ExperimentalPrior { estimand_bridge: Some(translation(20.0, -15.0)), ..prior };
+        let prior = ExperimentalPrior { estimand_bridge: Some(translation(20.0, 15.0)), ..prior };
         let imported = contract.import_experimental_prior(&prior).unwrap();
         assert_eq!(imported.prior_id, "prior-geo");
         assert_eq!(imported.experiment_id, "geo-2024");
@@ -1218,7 +1306,7 @@ mod tests {
         assert_eq!(imported.estimand_bridge.target.duration.to_bits(), 8.0_f64.to_bits());
         assert_eq!(imported.estimand_bridge.target.exposure_regime, "observational");
         assert_eq!(imported.estimand_bridge.recency_delta.to_bits(), 20.0_f64.to_bits());
-        assert_eq!(imported.estimand_bridge.spend_delta.to_bits(), (-15.0_f64).to_bits());
+        assert_eq!(imported.estimand_bridge.spend_delta.to_bits(), 15.0_f64.to_bits());
         assert_eq!(
             imported.mapping_uncertainty.as_ref().map(|item| item.id.as_str()),
             Some("slope-se")
@@ -1226,11 +1314,108 @@ mod tests {
         assert!(imported.source_dependence.is_some());
         assert_eq!(imported.assumptions[0].id, "hypothetical-bias");
         let stored = contract.estimand_bridge.as_ref().map(|item| item.spend_delta.to_bits());
-        assert_eq!(stored, Some((-15.0_f64).to_bits()));
+        assert_eq!(stored, Some(15.0_f64.to_bits()));
         let imported_identity = contract.identity();
         assert_ne!(before, imported_identity);
         contract.estimand_bridge.as_mut().unwrap().spend_delta = 0.0;
         assert_ne!(imported_identity, contract.identity());
+    }
+
+    #[test]
+    fn an_inconsistent_spend_or_unit_is_refused() {
+        let mut contract = preference(
+            BridgeMapping::Affine { intercept: 0.0, slope: 2.0 },
+            vec![linkage("hypothetical-bias", "stated scales realized")],
+        );
+        let prior = |bridge: EstimandBridge| ExperimentalPrior {
+            prior_id: "prior-geo".into(),
+            experiment_id: "geo-2024".into(),
+            estimand_bridge: Some(bridge),
+            mapping_uncertainty: None,
+            source_dependence: None,
+        };
+        // Target dose 25 minus experiment dose 10 is +15, not -15.
+        let error =
+            contract.import_experimental_prior(&prior(translation(20.0, -15.0))).unwrap_err();
+        refused(&error, "bridge_binding_mismatch", "scientific_bridge.estimand_spend_inconsistent");
+        let mut units = translation(20.0, 15.0);
+        units.target.dose_units = "eur_per_capita".into();
+        let error = contract.import_experimental_prior(&prior(units)).unwrap_err();
+        refused(&error, "bridge_binding_mismatch", "scientific_bridge.estimand_units_mismatch");
+        let mut spend_units = translation(20.0, 15.0);
+        spend_units.spend_units = "eur_per_capita".into();
+        let error = contract.import_experimental_prior(&prior(spend_units)).unwrap_err();
+        refused(&error, "bridge_binding_mismatch", "scientific_bridge.estimand_units_mismatch");
+        assert!(contract.estimand_bridge.is_none());
+        contract.import_experimental_prior(&prior(translation(20.0, 15.0))).unwrap();
+    }
+
+    #[test]
+    fn intercept_slope_covariance_enters_the_delta_method_variance() {
+        let mut contract =
+            preference(BridgeMapping::Affine { intercept: 0.0, slope: 2.0 }, Vec::new());
+        contract.source_dependence =
+            Some(SourceMappingDependence::Independent { evidence: "disjoint-rows".into() });
+        // Negatively correlated intercept and slope errors (a regression line pivoting
+        // near the source mean) enter through the covariance term:
+        // Var(a) + mu^2 Var(b) + 2 mu Cov(a, b) = 0.04 + 25 * 0.04 - 2 * 5 * 0.04 = 0.64.
+        contract.mapping_uncertainty = Some(MappingUncertainty {
+            id: "calibration".into(),
+            intercept_variance: 0.04,
+            slope_variance: 0.04,
+            intercept_slope_covariance: -0.04,
+        });
+        let got = contract.propagate_affine_uncertainty(5.0, 0.0).unwrap();
+        assert!((got.variance - 0.64).abs() < 1e-12, "{}", got.variance);
+        // Ignoring the covariance would give 0.04 + 1.0 = 1.04.
+        contract.mapping_uncertainty.as_mut().unwrap().intercept_slope_covariance = 0.0;
+        let independent = contract.propagate_affine_uncertainty(5.0, 0.0).unwrap();
+        assert!((independent.variance - 1.04).abs() < 1e-12);
+        // Independent factors, exact product variance from raw moments:
+        // E[b^2] E[M^2] - (b mu)^2 = (4 + 0.04) (25 + 0.01) - 100 = 1.0404.
+        contract.mapping_uncertainty.as_mut().unwrap().intercept_variance = 0.0;
+        let product = contract.propagate_affine_uncertainty(5.0, 0.01).unwrap();
+        assert!((product.variance - 1.0404).abs() < 1e-12, "{}", product.variance);
+        // An infeasible covariance is refused.
+        contract.mapping_uncertainty = Some(MappingUncertainty {
+            id: "calibration".into(),
+            intercept_variance: 0.04,
+            slope_variance: 0.04,
+            intercept_slope_covariance: 0.05,
+        });
+        let error = contract.propagate_affine_uncertainty(5.0, 0.0).unwrap_err();
+        refused(
+            &error,
+            "scientific_bridge_invalid",
+            "scientific_bridge.mapping_uncertainty_invalid",
+        );
+    }
+
+    #[test]
+    fn overflow_and_non_finite_means_have_their_own_refusals() {
+        let error = nonlinear_expectation(
+            NonlinearMap::Square,
+            &AnalyticLaw::SecondMoment { mean: f64::NAN, variance: 1.0 },
+        )
+        .unwrap_err();
+        refused(&error, "scientific_bridge_invalid", "scientific_bridge.source_moment_not_finite");
+        let error = nonlinear_expectation(
+            NonlinearMap::Exponential,
+            &AnalyticLaw::Normal { mean: 1000.0, variance: 1.0 },
+        )
+        .unwrap_err();
+        refused(&error, "scientific_bridge_invalid", "scientific_bridge.propagation_overflow");
+        let error =
+            support_image(SupportMap::Exponential, ValueInterval { low: 0.0, high: 1000.0 })
+                .unwrap_err();
+        refused(&error, "scientific_bridge_invalid", "scientific_bridge.propagation_overflow");
+        let error =
+            support_image(SupportMap::Square, ValueInterval { low: 0.0, high: 1e200 }).unwrap_err();
+        refused(&error, "scientific_bridge_invalid", "scientific_bridge.propagation_overflow");
+        // A reversed interval is still a malformed mapping.
+        let error =
+            support_image(SupportMap::Identity, ValueInterval { low: 1.0, high: 0.0 }).unwrap_err();
+        refused(&error, "scientific_bridge_invalid", "scientific_bridge.malformed_mapping");
     }
 
     #[test]
@@ -1266,11 +1451,11 @@ mod tests {
         let SlotAvailability::Available(slot) = &bridged.claim.reasoning.uncertainty else {
             panic!("mapping uncertainty was dropped");
         };
-        assert!(
-            slot.components.iter().any(|item| {
-                item.target.as_ref() == "mapping_variance:slope-se" && !item.omitted
-            })
-        );
+        assert!(slot.components.iter().any(|item| {
+            item.target.as_ref() == "mapping_variance:slope-se"
+                && !item.omitted
+                && item.source == crate::UncertaintySource::Sampling
+        }));
         assert!(
             slot.components
                 .iter()

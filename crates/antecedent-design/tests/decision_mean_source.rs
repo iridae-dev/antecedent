@@ -193,3 +193,33 @@ fn an_unknown_coordinate_or_a_malformed_source_refuses() {
         Err(DecisionEvalError::Contract(_))
     ));
 }
+
+#[test]
+fn a_coordinate_named_twice_is_refused_instead_of_using_the_first() {
+    let mut duplicated = source("mean");
+    duplicated.coordinates[1] = duplicated.coordinates[0].clone();
+    duplicated.means[1] = 99.0;
+    let error = evaluate_contract_on_means(&contract(), &duplicated).unwrap_err();
+    assert!(
+        matches!(
+            error,
+            DecisionEvalError::Contract(
+                antecedent_design::decision_contract::DecisionContractError::InvalidDeclaration(_)
+            )
+        ),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn negative_and_positive_zero_utilities_are_tied() {
+    // Both actions read the same positive mean; one pays 1 * 0.0 = 0.0 and the other
+    // 1 * -0.0 = -0.0, which are the same utility.
+    let mut zero = contract();
+    zero.actions[0].utility = UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0));
+    zero.actions[1].utility = UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(-0.0));
+    zero.actions[1].inputs = zero.actions[0].inputs.clone();
+    let result = evaluate_contract_on_means(&zero, &source("mean")).unwrap();
+    assert_eq!(result.verdict, Verdict::Indistinguishable(vec!["wait".into(), "treat".into()]));
+    assert!(result.assumptions.iter().any(|a| a.contains("does not assert a posterior")));
+}

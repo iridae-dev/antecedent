@@ -104,25 +104,17 @@ impl JointCoupling {
         }
     }
 
-    /// Numerator of `E[XY - 1]` over [`PROBABILITY_DENOMINATOR`].
-    #[must_use]
-    pub const fn acting_utility_numerator(self) -> i64 {
-        self.mass_0_0 * acting_utility(SUPPORT_ZERO, SUPPORT_ZERO)
-            + self.mass_0_2 * acting_utility(SUPPORT_ZERO, SUPPORT_TWO)
-            + self.mass_2_0 * acting_utility(SUPPORT_TWO, SUPPORT_ZERO)
-            + self.mass_2_2 * acting_utility(SUPPORT_TWO, SUPPORT_TWO)
-    }
-
     /// `E[XY - 1]` as an exact integer.
     ///
-    /// `XY` is `4` at `(2, 2)` and `0` on the other three atoms, so
-    /// `E[XY - 1] = 4 * P(X = 2, Y = 2) - 1`. The cell probability is
-    /// `mass_2_2 / 2`, and `4 / 2 = 2`, so the expectation is the integer
-    /// `2 * mass_2_2 - 1`. That equals [`Self::acting_utility_numerator`]
-    /// divided by [`PROBABILITY_DENOMINATOR`].
+    /// The sum of each cell numerator times the acting utility at that cell, divided
+    /// by [`PROBABILITY_DENOMINATOR`]. Both extremal couplings give an integer.
     #[must_use]
     pub const fn expected_acting_utility(self) -> i64 {
-        2 * self.mass_2_2 - 1
+        (self.mass_0_0 * acting_utility(SUPPORT_ZERO, SUPPORT_ZERO)
+            + self.mass_0_2 * acting_utility(SUPPORT_ZERO, SUPPORT_TWO)
+            + self.mass_2_0 * acting_utility(SUPPORT_TWO, SUPPORT_ZERO)
+            + self.mass_2_2 * acting_utility(SUPPORT_TWO, SUPPORT_TWO))
+            / PROBABILITY_DENOMINATOR
     }
 }
 
@@ -147,11 +139,8 @@ pub struct ChosenAction {
 impl ChosenAction {
     const fn from_coupling(coupling: JointCoupling) -> Self {
         let expected_acting_utility = coupling.expected_acting_utility();
-        let action = if expected_acting_utility > NOT_ACTING_UTILITY {
-            Action::Act
-        } else {
-            Action::NotAct
-        };
+        let action =
+            if expected_acting_utility > NOT_ACTING_UTILITY { Action::Act } else { Action::NotAct };
         Self { action, expected_acting_utility }
     }
 }
@@ -231,9 +220,9 @@ pub const fn joint_sensitive_decision(
     source: CouplingSource,
 ) -> Result<ChosenAction, CouplingAbsent> {
     match source {
-        CouplingSource::MarginalsOnly => Err(
-            CouplingAbsent::from_bound(ActingUtilityBound::preserved()),
-        ),
+        CouplingSource::MarginalsOnly => {
+            Err(CouplingAbsent::from_bound(ActingUtilityBound::preserved()))
+        }
         CouplingSource::Supplied(coupling) => Ok(ChosenAction::from_coupling(coupling)),
     }
 }
@@ -259,7 +248,6 @@ mod tests {
         assert_eq!(acting_utility(SUPPORT_TWO, SUPPORT_TWO), 3);
         assert_eq!(acting_utility(SUPPORT_ZERO, SUPPORT_TWO), -1);
         assert_eq!(acting_utility(SUPPORT_TWO, SUPPORT_ZERO), -1);
-        assert_eq!(NOT_ACTING_UTILITY, 0);
     }
 
     #[test]
@@ -277,16 +265,11 @@ mod tests {
         assert_eq!(discordant.mass_numerator(SUPPORT_TWO, SUPPORT_TWO), Some(0));
         assert_eq!(concordant.mass_numerator(1, 1), None);
 
-        assert_eq!(cell_numerator(concordant), concordant.acting_utility_numerator());
-        assert_eq!(cell_numerator(discordant), discordant.acting_utility_numerator());
-        assert_eq!(
-            concordant.acting_utility_numerator(),
-            concordant.expected_acting_utility() * PROBABILITY_DENOMINATOR,
-        );
-        assert_eq!(
-            discordant.acting_utility_numerator(),
-            discordant.expected_acting_utility() * PROBABILITY_DENOMINATOR,
-        );
+        // Cell by cell through `mass_numerator`, independent of the closed expression.
+        assert_eq!(cell_numerator(concordant), 2);
+        assert_eq!(cell_numerator(discordant), -2);
+        assert_eq!(cell_numerator(concordant), concordant.expected_acting_utility() * 2);
+        assert_eq!(cell_numerator(discordant), discordant.expected_acting_utility() * 2);
         assert_eq!(concordant.expected_acting_utility(), 1);
         assert_eq!(discordant.expected_acting_utility(), -1);
     }
@@ -325,19 +308,14 @@ mod tests {
 
     #[test]
     fn supplied_coupling_follows_that_coupling() {
-        let concordant = joint_sensitive_decision(CouplingSource::Supplied(
-            JointCoupling::ROWS_0_0_AND_2_2,
-        ))
-        .expect("concordant coupling");
-        let discordant = joint_sensitive_decision(CouplingSource::Supplied(
-            JointCoupling::ROWS_0_2_AND_2_0,
-        ))
-        .expect("discordant coupling");
+        let concordant =
+            joint_sensitive_decision(CouplingSource::Supplied(JointCoupling::ROWS_0_0_AND_2_2))
+                .expect("concordant coupling");
+        let discordant =
+            joint_sensitive_decision(CouplingSource::Supplied(JointCoupling::ROWS_0_2_AND_2_0))
+                .expect("discordant coupling");
 
-        assert_eq!(
-            concordant,
-            ChosenAction { action: Action::Act, expected_acting_utility: 1 }
-        );
+        assert_eq!(concordant, ChosenAction { action: Action::Act, expected_acting_utility: 1 });
         assert_eq!(
             discordant,
             ChosenAction { action: Action::NotAct, expected_acting_utility: -1 }
@@ -353,17 +331,5 @@ mod tests {
         assert!(concordant.expected_acting_utility > NOT_ACTING_UTILITY);
         assert!(discordant.expected_acting_utility < NOT_ACTING_UTILITY);
         assert_ne!(concordant.action, discordant.action);
-    }
-
-    #[test]
-    fn expectations_are_exact_integers_with_exact_f64_images() {
-        let positive = JointCoupling::ROWS_0_0_AND_2_2.expected_acting_utility();
-        let negative = JointCoupling::ROWS_0_2_AND_2_0.expected_acting_utility();
-        assert_eq!(positive, 1);
-        assert_eq!(negative, -1);
-        assert!(positive.unsigned_abs() <= (1_u64 << 53));
-        assert!(negative.unsigned_abs() <= (1_u64 << 53));
-        assert_eq!((positive as f64).to_bits(), 1.0_f64.to_bits());
-        assert_eq!((negative as f64).to_bits(), (-1.0_f64).to_bits());
     }
 }

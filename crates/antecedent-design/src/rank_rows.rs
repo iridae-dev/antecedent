@@ -10,8 +10,10 @@
 /// Absolute slack in the EVSI bound, added to `4·stderr`.
 const EVSI_BOUND_ABS: f64 = 1e-9;
 /// Unpaired two-sided 5% normal critical value. This is not the ranker's
-/// look-adjusted paired threshold: EVSI candidates are scored on independent
-/// streams, so the comparison stays the fixed-sample rule.
+/// look-adjusted paired threshold. EVSI candidates share replicate streams (common
+/// random numbers), but the comparison does not use the pairing: it treats the two
+/// standard errors as independent, which is conservative when the errors are
+/// positively correlated, and it stays the fixed-sample rule.
 const UNPAIRED_RANK_Z: f64 = antecedent_kernels::NORMAL_Q975;
 
 /// One already-sorted candidate (best first) in an unpaired ranking.

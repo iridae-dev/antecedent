@@ -1,8 +1,9 @@
 //! The checked adapter from `PriorCatalog` posterior sources to a future candidate
 //! signal likelihood. All expected draws are enumerated by hand from the documented
 //! rule: sources are processed in artifact-id order; each source's draws are mapped to
-//! the target coordinate and shrunk toward the pooled weighted mean
-//! (`weight * strength`) by `1 - conflict_shrinkage`; `resolution` draws are allocated
+//! the target coordinate, tempered about their own mean by `1 / sqrt(strength)`, and
+//! their location moved toward the pooled weighted mean (`weight`) by
+//! `conflict_shrinkage`, keeping the within-source spread; `resolution` draws are allocated
 //! by largest remainder and each source contributes stratified quantiles
 //! `sorted[floor((2j + 1) * len / (2 * count))]`.
 
@@ -147,7 +148,7 @@ fn equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal() {
 }
 
 #[test]
-fn weights_and_prior_strength_set_the_allocation() {
+fn weights_set_the_allocation() {
     // Effective weights 3 * 1 and 1 * 1 -> quotas 3 and 1 of 4.
     // A: sorted [0.2, 0.4], count 3 -> idx floor(2/6 * ...) = 0, 1, 1 -> 0.2, 0.4, 0.4.
     // B: sorted [0.6, 0.8], count 1 -> idx floor(1 * 2 / 2) = 1 -> 0.8.
@@ -158,15 +159,6 @@ fn weights_and_prior_strength_set_the_allocation() {
     assert_eq!(result.diagnostics.draws_allocated, vec![3, 1]);
     // pooled = 0.75 * 0.3 + 0.25 * 0.7 = 0.4.
     assert!((result.diagnostics.pooled_mean - 0.4).abs() < 1e-12);
-
-    // Halving B's strength: weights 3 and 0.5 -> same relative order, quotas 3.43 and 0.57
-    // of 4 -> floors 3 and 0, remainder to the larger fraction (B, 0.57) -> [3, 1].
-    let mut weak =
-        vec![source("A", &[0.2, 0.4], 3.0, &["obs-a"]), source("B", &[0.6, 0.8], 1.0, &["obs-b"])];
-    weak[1].prior_strength = 0.5;
-    let result = adapt_prior_to_signal(&catalog(), &target(), &request(weak, 4)).unwrap();
-    assert_eq!(result.diagnostics.draws_allocated, vec![3, 1]);
-    assert!((result.diagnostics.effective_weights[1] - 0.5 / 3.5).abs() < 1e-12);
 }
 
 #[test]
@@ -174,8 +166,36 @@ fn conflict_shrinkage_pulls_a_source_to_the_pooled_mean() {
     let mut sources = two_sources();
     sources[1].conflict_shrinkage = 1.0;
     let result = adapt_prior_to_signal(&catalog(), &target(), &request(sources, 4)).unwrap();
-    // pooled mean 0.5; A unshrunk (0.2, 0.4); B collapsed to 0.5, 0.5.
-    assert!(close_all(&draws_of(&result.prior), &[0.2, 0.4, 0.5, 0.5]));
+    // pooled mean 0.5; A unshrunk (0.2, 0.4); B's location moves from 0.7 to 0.5
+    // keeping its spread: (0.4, 0.6).
+    assert!(close_all(&draws_of(&result.prior), &[0.2, 0.4, 0.4, 0.6]));
+}
+
+#[test]
+fn shrinkage_preserves_within_source_spread() {
+    // One source: pooled mean = own mean, so any shrinkage leaves the cloud untouched
+    // (the sd stays 1; the old whole-cloud contraction gave 0.5).
+    let mut single = vec![source("A", &[-1.0, 1.0], 1.0, &["obs-a"])];
+    single[0].conflict_shrinkage = 0.5;
+    let result = adapt_prior_to_signal(&catalog(), &target(), &request(single, 2)).unwrap();
+    assert!(close_all(&draws_of(&result.prior), &[-1.0, 1.0]));
+
+    // Two sources, shrinkage 0.5 each: means 0.3 and 0.7 move to 0.4 and 0.6 (shift by
+    // 0.5 * (mean - 0.5)), spreads 0.2 unchanged.
+    let mut sources = two_sources();
+    sources[0].conflict_shrinkage = 0.5;
+    sources[1].conflict_shrinkage = 0.5;
+    let result = adapt_prior_to_signal(&catalog(), &target(), &request(sources, 4)).unwrap();
+    assert!(close_all(&draws_of(&result.prior), &[0.3, 0.5, 0.5, 0.7]));
+}
+
+#[test]
+fn prior_strength_inflates_the_spread_about_the_source_mean() {
+    // strength 0.25 -> spread factor 1 / sqrt(0.25) = 2 about the mean 0.
+    let mut single = vec![source("A", &[-1.0, 1.0], 1.0, &["obs-a"])];
+    single[0].prior_strength = 0.25;
+    let result = adapt_prior_to_signal(&catalog(), &target(), &request(single, 2)).unwrap();
+    assert!(close_all(&draws_of(&result.prior), &[-2.0, 2.0]));
 }
 
 #[test]

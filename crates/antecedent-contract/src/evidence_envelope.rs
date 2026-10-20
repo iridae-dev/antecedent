@@ -15,6 +15,7 @@
 
 use std::sync::Arc;
 
+use antecedent_core::text::is_blank;
 use antecedent_core::{CanonicalWriter, SemanticDigest, SupportStatus};
 
 use crate::{QuantityMismatch, ScientificQuantity};
@@ -105,7 +106,8 @@ impl UncertaintyAxis {
 ///
 /// A zero-width interval, including `[0, 0]`, is a present statement. An axis
 /// with no interval is an empty slot on [`UncertaintyAxes`], not this value.
-/// The axis tag is fixed at construction; [`Self::try_coerce`] refuses to retag it.
+/// The axis tag is fixed at construction and cannot be rewritten. Endpoints are
+/// normalised so `-0.0` is stored as `0.0`: equality and the digest then agree.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AxisInterval {
     axis: UncertaintyAxis,
@@ -128,7 +130,8 @@ impl AxisInterval {
         if !lower.is_finite() || !upper.is_finite() || lower > upper {
             return Err(EvidenceEnvelopeError::bounds(axis));
         }
-        Ok(Self { axis, lower, upper })
+        // Adding zero turns `-0.0` into `0.0`; every other finite value is unchanged.
+        Ok(Self { axis, lower: lower + 0.0, upper: upper + 0.0 })
     }
 
     /// Axis this interval was constructed for.
@@ -147,26 +150,6 @@ impl AxisInterval {
     #[must_use]
     pub const fn upper(self) -> f64 {
         self.upper
-    }
-
-    /// Rebind this interval to `into`.
-    ///
-    /// Succeeds only when `into` is already this interval's axis, in which case
-    /// the value is unchanged. A sampling interval coerced onto
-    /// [`UncertaintyAxis::Parameter`] would present sampling coverage as a
-    /// parameter posterior, so that conversion is refused. No successful path
-    /// rewrites the axis tag.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when `into` differs from [`Self::axis`].
-    #[must_use = "cross-axis coercion is refused"]
-    pub fn try_coerce(self, into: UncertaintyAxis) -> Result<Self, EvidenceEnvelopeError> {
-        if self.axis == into {
-            Ok(self)
-        } else {
-            Err(EvidenceEnvelopeError::coercion(self.axis, into))
-        }
     }
 }
 
@@ -198,34 +181,12 @@ impl UncertaintyAxes {
     /// Store `interval` on the axis it already names, replacing a previous
     /// statement of that same axis.
     ///
-    /// This does not retag the interval. Use [`Self::try_by_copying`] to attempt
-    /// a placement on a caller-chosen axis; that attempt is refused when the
-    /// axes differ.
+    /// The interval is never retagged: a sampling interval cannot be placed on
+    /// the parameter axis, so it cannot be presented as a parameter posterior.
     #[must_use]
     pub const fn insert(mut self, interval: AxisInterval) -> Self {
         self.slots[interval.axis().index()] = Some(interval);
         self
-    }
-
-    /// Build axes by copying `interval` onto `into`.
-    ///
-    /// The copy is refused when `into` is a different axis. In particular,
-    /// copying a sampling interval onto [`UncertaintyAxis::Parameter`] does not
-    /// produce a parameter posterior. On success only `into` is occupied, and
-    /// it holds the original interval unchanged.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when `into` differs from the interval's axis.
-    #[must_use = "copying one axis onto another is refused"]
-    pub fn try_by_copying(
-        interval: AxisInterval,
-        into: UncertaintyAxis,
-    ) -> Result<Self, EvidenceEnvelopeError> {
-        match interval.try_coerce(into) {
-            Ok(interval) => Ok(Self::absent().insert(interval)),
-            Err(error) => Err(error),
-        }
     }
 
     /// The interval on `axis`.
@@ -361,10 +322,10 @@ impl EvidenceBinding {
     #[must_use = "an invalid binding is refused"]
     pub fn validate(&self) -> Result<(), EvidenceEnvelopeError> {
         self.quantity.validate().map_err(quantity_error)?;
-        if blank(&self.world.world_id) {
+        if is_blank(&self.world.world_id) {
             return Err(binding_error("evidence_envelope.world", "a world id is required"));
         }
-        if blank(&self.world.time_id) {
+        if is_blank(&self.world.time_id) {
             return Err(binding_error("evidence_envelope.time", "a time id is required"));
         }
         if premises_not_canonical(&self.premises) {
@@ -374,7 +335,7 @@ impl EvidenceBinding {
             ));
         }
         self.origins.check()?;
-        if blank(&self.support.domain_id) {
+        if is_blank(&self.support.domain_id) {
             return Err(binding_error(
                 "evidence_envelope.support",
                 "support names the domain it was assessed on",
@@ -392,7 +353,7 @@ impl EvidenceOrigins {
             self.training.as_deref(),
             self.prior.as_deref(),
         ];
-        if origins.into_iter().any(|origin| origin.is_some_and(blank)) {
+        if origins.into_iter().any(|origin| origin.is_some_and(is_blank)) {
             return Err(binding_error(
                 "evidence_envelope.origin",
                 "an origin is either absent or a non-blank id",
@@ -405,11 +366,11 @@ impl EvidenceOrigins {
 impl EvidenceCalibration {
     fn check(&self) -> Result<(), EvidenceEnvelopeError> {
         match self {
-            Self::Calibrated { record_id } if blank(record_id) => Err(binding_error(
+            Self::Calibrated { record_id } if is_blank(record_id) => Err(binding_error(
                 "evidence_envelope.calibration",
                 "a calibrated envelope names a non-blank calibration record",
             )),
-            Self::Unavailable { reason } if blank(reason) => Err(binding_error(
+            Self::Unavailable { reason } if is_blank(reason) => Err(binding_error(
                 "evidence_envelope.calibration",
                 "an unavailable calibration names a non-blank reason",
             )),
@@ -425,12 +386,11 @@ impl EvidenceCalibration {
 /// world, or conditioning changes the binding, and therefore equality.
 ///
 /// [`Self::identity`] writes that same content, including every absent axis,
-/// through [`CanonicalWriter`]. `IEEE-754` bit patterns distinguish `-0.0`
-/// from `0.0` in the digest; [`PartialEq`] does not.
+/// through [`CanonicalWriter`]. Interval endpoints are normalised at construction
+/// (`-0.0` is stored as `0.0`), so equality and the digest agree.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EvidenceEnvelope {
-    /// Scientific binding. Axis contents are not part of this field.
-    pub binding: EvidenceBinding,
+    binding: EvidenceBinding,
     axes: UncertaintyAxes,
 }
 
@@ -452,6 +412,13 @@ impl EvidenceEnvelope {
     ) -> Result<Self, EvidenceEnvelopeError> {
         binding.validate()?;
         Ok(Self { binding, axes })
+    }
+
+    /// Scientific binding, validated at construction. It cannot be changed afterwards.
+    /// Axis contents are not part of it.
+    #[must_use]
+    pub const fn binding(&self) -> &EvidenceBinding {
+        &self.binding
     }
 
     /// Uncertainty axes. Empty slots are absence.
@@ -489,10 +456,8 @@ pub struct EvidenceEnvelopeError {
     pub detail: &'static str,
     /// What was refused.
     pub message: &'static str,
-    /// Axis being read or copied from, when the refusal is about an axis.
-    pub source_axis: Option<UncertaintyAxis>,
-    /// Axis the caller tried to copy onto. Set only for a cross-axis copy.
-    pub target_axis: Option<UncertaintyAxis>,
+    /// Axis the refusal is about, when it is about an axis.
+    pub axis: Option<UncertaintyAxis>,
 }
 
 impl EvidenceEnvelopeError {
@@ -506,10 +471,9 @@ impl EvidenceEnvelopeError {
         code: &'static str,
         detail: &'static str,
         message: &'static str,
-        source_axis: Option<UncertaintyAxis>,
-        target_axis: Option<UncertaintyAxis>,
+        axis: Option<UncertaintyAxis>,
     ) -> Self {
-        Self { code, detail, message, source_axis, target_axis }
+        Self { code, detail, message, axis }
     }
 
     const fn bounds(axis: UncertaintyAxis) -> Self {
@@ -518,17 +482,6 @@ impl EvidenceEnvelopeError {
             "evidence_envelope.interval_bounds",
             "an axis interval needs finite lower <= upper",
             Some(axis),
-            None,
-        )
-    }
-
-    const fn coercion(source_axis: UncertaintyAxis, target_axis: UncertaintyAxis) -> Self {
-        Self::new(
-            antecedent_core::reason_code!("distribution_meaning_mismatch"),
-            "evidence_envelope.axis_coercion",
-            coercion_message(source_axis, target_axis),
-            Some(source_axis),
-            Some(target_axis),
         )
     }
 
@@ -538,17 +491,7 @@ impl EvidenceEnvelopeError {
             "evidence_envelope.absent_axis",
             "an empty uncertainty axis is absence, not a zero interval",
             Some(axis),
-            None,
         )
-    }
-}
-
-const fn coercion_message(source: UncertaintyAxis, target: UncertaintyAxis) -> &'static str {
-    match (source, target) {
-        (UncertaintyAxis::Sampling, UncertaintyAxis::Parameter) => {
-            "a sampling interval is not a parameter posterior"
-        }
-        _ => "an uncertainty axis cannot be copied onto a different axis",
     }
 }
 
@@ -557,7 +500,6 @@ fn binding_error(detail: &'static str, message: &'static str) -> EvidenceEnvelop
         antecedent_core::reason_code!("invalid_argument"),
         detail,
         message,
-        None,
         None,
     )
 }
@@ -579,12 +521,8 @@ fn quantity_error(mismatch: QuantityMismatch) -> EvidenceEnvelopeError {
     binding_error("evidence_envelope.quantity", message)
 }
 
-fn blank(text: &str) -> bool {
-    text.trim().is_empty()
-}
-
 fn premises_not_canonical(premises: &[Arc<str>]) -> bool {
-    premises.iter().any(|premise| blank(premise))
+    premises.iter().any(|premise| is_blank(premise))
         || premises.windows(2).any(|pair| pair[0].as_ref() >= pair[1].as_ref())
 }
 
@@ -718,28 +656,9 @@ mod tests {
     #[test]
     fn sampling_interval_is_not_a_parameter_posterior() {
         let sampling = AxisInterval::try_new(UncertaintyAxis::Sampling, 0.1, 0.9).unwrap();
-        assert_eq!(sampling.try_coerce(UncertaintyAxis::Sampling), Ok(sampling));
-
-        let coerced = sampling.try_coerce(UncertaintyAxis::Parameter).unwrap_err();
-        let copied =
-            UncertaintyAxes::try_by_copying(sampling, UncertaintyAxis::Parameter).unwrap_err();
-        assert_eq!(coerced, copied);
-        assert_eq!(
-            (coerced.source_axis, coerced.target_axis),
-            (Some(UncertaintyAxis::Sampling), Some(UncertaintyAxis::Parameter))
-        );
-        assert_eq!(
-            coerced.refusal(),
-            (
-                "distribution_meaning_mismatch",
-                "evidence_envelope.axis_coercion",
-                "a sampling interval is not a parameter posterior",
-            )
-        );
-        assert!(antecedent_core::reason_code::is_runtime_refusal(coerced.code));
         assert_eq!(sampling.axis(), UncertaintyAxis::Sampling);
-
-        let placed = UncertaintyAxes::try_by_copying(sampling, UncertaintyAxis::Sampling).unwrap();
+        // An interval is stored only under the axis it names.
+        let placed = UncertaintyAxes::absent().insert(sampling);
         assert_eq!(placed.get(UncertaintyAxis::Sampling), Some(sampling));
         assert!(placed.get(UncertaintyAxis::Parameter).is_none());
 
@@ -748,12 +667,26 @@ mod tests {
     }
 
     #[test]
+    fn negative_zero_endpoints_equal_positive_zero_and_share_an_identity() {
+        let positive = AxisInterval::try_new(UncertaintyAxis::Parameter, 0.0, 0.0).unwrap();
+        let negative = AxisInterval::try_new(UncertaintyAxis::Parameter, -0.0, -0.0).unwrap();
+        assert_eq!(positive, negative);
+        assert_eq!(negative.lower().to_bits(), 0.0_f64.to_bits());
+        assert_eq!(negative.upper().to_bits(), 0.0_f64.to_bits());
+        let left = envelope(UncertaintyAxes::absent().insert(positive));
+        let right = envelope(UncertaintyAxes::absent().insert(negative));
+        assert_eq!(left, right);
+        assert_eq!(left.identity(), right.identity());
+        assert_eq!(left.binding().world.world_id, right.binding().world.world_id);
+    }
+
+    #[test]
     fn absent_axis_is_not_a_zero_interval() {
         let absent = UncertaintyAxes::absent();
         assert!(absent.get(UncertaintyAxis::Parameter).is_none());
         let missing = absent.require_interval(UncertaintyAxis::Parameter).unwrap_err();
         assert_eq!(missing.detail, "evidence_envelope.absent_axis");
-        assert_eq!(missing.source_axis, Some(UncertaintyAxis::Parameter));
+        assert_eq!(missing.axis, Some(UncertaintyAxis::Parameter));
         assert_eq!(missing.message, "an empty uncertainty axis is absence, not a zero interval");
 
         let zero = AxisInterval::try_new(UncertaintyAxis::Parameter, 0.0, 0.0).unwrap();

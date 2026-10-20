@@ -5,9 +5,12 @@
 //! A joint law is one measure indexed by the identities of its axes: graph
 //! atom, bootstrap replicate, parameter draw, outcome, trajectory,
 //! counterfactual world, and history. Two arrays align when those identities
-//! are the same. Equal length is not an identity. An `X01` contrast and an
-//! `X02` response surface that share world, parameter, replicate, and history
+//! are the same. Equal length is not an identity. A contrast of intervention
+//! worlds and a response surface that share world, parameter, replicate, and history
 //! axes are one measured joint, and that joint records covariance cross terms.
+//! Equal length is not an identity, but arrays on the same parameter-draw or
+//! bootstrap-replicate axis index the same draws, so a measured joint requires
+//! their lengths (the number of draws or replicates) to be equal.
 //!
 //! Failed mass and unidentified mass stay in the law. Dropping either is
 //! refused. A product law is legal only when it is declared, and a declared
@@ -31,6 +34,7 @@ const DROPPED_MASS_DETAIL: &str = "joint_alignment.dropped_mass";
 const UNDECLARED_PRODUCT_DETAIL: &str = "joint_alignment.undeclared_product";
 const MARGINAL_DETAIL: &str = "joint_alignment.marginal_array";
 const INVALID_DETAIL: &str = "joint_alignment.invalid_declaration";
+const DRAW_COUNT_DETAIL: &str = "joint_alignment.draw_count_mismatch";
 
 const DECLARE_SHARED_AXES: &str =
     "declare the shared axes, including covariance cross terms for a joint contrast";
@@ -54,9 +58,9 @@ pub enum JointAxisKind {
     Outcome,
     /// Trajectory or path.
     Trajectory,
-    /// Counterfactual world, including an intervention world of an `X01` contrast.
+    /// Counterfactual world, including an intervention world of a contrast.
     CounterfactualWorld,
-    /// History, initial state, or time path of an `X02` response.
+    /// History, initial state, or time path of a response surface.
     History,
 }
 
@@ -224,9 +228,9 @@ impl MassAccount {
 pub enum JointConsumer {
     /// A graph-atom, outcome, or trajectory coordinate.
     Coordinate,
-    /// An `X01` contrast of intervention worlds.
+    /// A contrast of intervention worlds.
     Contrast,
-    /// An `X02` response surface.
+    /// A response surface.
     ResponseSurface,
 }
 
@@ -301,7 +305,9 @@ pub struct LawArray {
 impl LawArray {
     /// Array `label` of length `len`, indexed by `axes`.
     ///
-    /// `len` is recorded and is not an axis identity. Each kind appears at most
+    /// `len` is the number of positions along the draw or replicate axis. It is not an
+    /// axis identity, but arrays that share a parameter-draw or bootstrap-replicate axis
+    /// must agree on it to form a measured joint. Each kind appears at most
     /// once. The axes are stored in canonical kind order.
     ///
     /// # Errors
@@ -333,7 +339,8 @@ impl LawArray {
         &self.label
     }
 
-    /// Recorded length. Alignment does not compare this with another array.
+    /// Recorded length. Alignment compares this only for arrays that share a
+    /// parameter-draw or bootstrap-replicate axis.
     #[must_use]
     pub const fn len(&self) -> usize {
         self.len
@@ -476,7 +483,7 @@ impl AlignedLaw {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum JointCovariance {
-    /// Cross terms of a measured joint, including an `X01` contrast.
+    /// Cross terms of a measured joint, including a contrast of intervention worlds.
     CrossTerms,
     /// A declared product does not measure joint covariance.
     NotMeasured,
@@ -721,11 +728,38 @@ fn record(arrays: &[LawArray], law: AlignedLaw) -> JointAlignment {
 }
 
 fn measured_joint(arrays: &[LawArray]) -> Result<JointAlignment, JointAlignmentError> {
-    if same_axes(arrays) {
-        Ok(record(arrays, AlignedLaw::MeasuredJoint))
-    } else {
-        Err(unrelated(arrays))
+    if !same_axes(arrays) {
+        return Err(unrelated(arrays));
     }
+    if let Some(error) = draw_count_mismatch(arrays) {
+        return Err(error);
+    }
+    Ok(record(arrays, AlignedLaw::MeasuredJoint))
+}
+
+/// Arrays on one parameter-draw or bootstrap-replicate axis index the same draws,
+/// so their lengths must be equal.
+fn draw_count_mismatch(arrays: &[LawArray]) -> Option<JointAlignmentError> {
+    let first = arrays.first()?;
+    let on_draws = first.axes.iter().any(|axis| {
+        matches!(axis.kind(), JointAxisKind::ParameterDraw | JointAxisKind::BootstrapReplicate)
+    });
+    if !on_draws {
+        return None;
+    }
+    let other = arrays.iter().skip(1).find(|array| array.len() != first.len())?;
+    Some(JointAlignmentError {
+        code: JOINT_CODE,
+        detail: DRAW_COUNT_DETAIL,
+        message: format!(
+            "arrays on the same draw or replicate axis differ in length: `{}` has {} and `{}` has {}",
+            first.label(),
+            first.len(),
+            other.label(),
+            other.len(),
+        ),
+        next: NextAttempt::RepairDeclaration,
+    })
 }
 
 fn same_axes(arrays: &[LawArray]) -> bool {
@@ -945,9 +979,9 @@ mod tests {
 
     #[test]
     fn shared_world_parameter_replicate_history_axes_align() {
-        let contrast = contrast_array(4, "do(a,b)", MassAccount::retained());
+        let contrast = contrast_array(9, "do(a,b)", MassAccount::retained());
         let surface = surface_array(9, "do(a,b)", MassAccount::retained());
-        assert_ne!(contrast.len(), surface.len());
+        assert_eq!(contrast.len(), surface.len());
         let aligned = request(vec![contrast, surface], LawCoupling::MeasuredJoint)
             .align()
             .expect("shared axes");
@@ -975,6 +1009,24 @@ mod tests {
         assert_eq!(aligned.axis_id(JointAxisKind::GraphAtom), None);
         assert_eq!(aligned.axis_id(JointAxisKind::Outcome), None);
         assert_eq!(aligned.axis_id(JointAxisKind::Trajectory), None);
+    }
+
+    #[test]
+    fn unequal_draw_counts_on_a_shared_draw_axis_are_refused() {
+        let contrast = contrast_array(4, "do(a,b)", MassAccount::retained());
+        let surface = surface_array(9, "do(a,b)", MassAccount::retained());
+        let err = request(vec![contrast, surface], LawCoupling::MeasuredJoint)
+            .align()
+            .expect_err("different numbers of draws on one axis");
+        assert_eq!(err.code(), "joint_law_required");
+        assert_eq!(err.detail(), "joint_alignment.draw_count_mismatch");
+        assert!(err.message().contains("`contrast` has 4"));
+        assert!(err.message().contains("`surface` has 9"));
+        assert_eq!(err.next_attempt(), NextAttempt::RepairDeclaration);
+        // Declared products do not need the draws to correspond.
+        let contrast = contrast_array(4, "do(a,b)", MassAccount::retained());
+        let surface = surface_array(9, "do(a,b)", MassAccount::retained());
+        assert!(request(vec![contrast, surface], LawCoupling::DeclaredProduct).align().is_ok());
     }
 
     #[test]

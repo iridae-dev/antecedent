@@ -1348,6 +1348,12 @@ fn a_withdrawn_source_makes_the_bridged_claim_inapplicable() {
     assert_eq!(derived.currently_applicable, Some(true));
     assert!(derived.historically_valid);
 
+    // History is the source's: a source that was never valid yields a bridged claim that
+    // was never valid.
+    let mut invalid_source = current.clone();
+    invalid_source.historically_valid = false;
+    assert!(!bridged.freshness(&invalid_source).historically_valid);
+
     let withdrawn = source_claim.freshness(Some(snapshot), Some(snapshot), None, true, true);
     let derived = bridged.freshness(&withdrawn);
     assert_eq!(derived.currently_applicable, Some(false));

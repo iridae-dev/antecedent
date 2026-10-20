@@ -6,11 +6,6 @@
 //! [`CutFeedback::Feedback`] are both named; the modular constructor takes one
 //! of them as an argument.
 //!
-//! [`MarkovMelding`], [`SemiModular`], and [`RobustEnvelope`] are separate
-//! types. Each stays unequal to [`MixedModulePolicy::CoherentJoint`], and none
-//! implements [`std::convert::From`] into [`MixedModulePolicy`] or into either
-//! of the other two.
-//!
 //! The types here are the policy record. Fitting a model, melding posteriors,
 //! and producing a posterior are outside this module.
 //!
@@ -94,7 +89,7 @@ impl MixedModulePolicy {
 pub enum CutFeedback {
     /// The modules are cut: the caller named the absence of feedback.
     Cut,
-    /// The modules feed back under the caller's named feedback policy.
+    /// The modules feed back; the reconciliation record states how.
     Feedback,
 }
 
@@ -208,93 +203,9 @@ impl fmt::Display for MixedModuleRefusal {
 
 impl Error for MixedModuleRefusal {}
 
-/// Markov melding of submodels that share parameters.
-///
-/// Pooling the marginal priors is its own policy record.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct MarkovMelding;
-
-impl MarkovMelding {
-    /// Stable name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        "markov_melding"
-    }
-}
-
-/// Cut and semi-modular inference, as its own policy record.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct SemiModular;
-
-impl SemiModular {
-    /// Stable name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        "semi_modular"
-    }
-}
-
-/// Robust envelope over module specifications.
-///
-/// The envelope is the policy record.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct RobustEnvelope;
-
-impl RobustEnvelope {
-    /// Stable name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        "robust_envelope"
-    }
-}
-
-macro_rules! distinct {
-    ($left:ty, $right:ty) => {
-        impl PartialEq<$right> for $left {
-            fn eq(&self, _: &$right) -> bool {
-                false
-            }
-        }
-        impl PartialEq<$left> for $right {
-            fn eq(&self, _: &$left) -> bool {
-                false
-            }
-        }
-    };
-}
-
-// Cross-type equality is false: each policy stays its own record.
-distinct!(MarkovMelding, MixedModulePolicy);
-distinct!(SemiModular, MixedModulePolicy);
-distinct!(RobustEnvelope, MixedModulePolicy);
-distinct!(MarkovMelding, SemiModular);
-distinct!(MarkovMelding, RobustEnvelope);
-distinct!(SemiModular, RobustEnvelope);
-distinct!(MarkovMelding, CutFeedback);
-distinct!(SemiModular, CutFeedback);
-distinct!(RobustEnvelope, CutFeedback);
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        CutFeedback, MarkovMelding, MixedModulePolicy, MixedModuleRefusal, RobustEnvelope,
-        SemiModular,
-    };
-
-    macro_rules! assert_no_from {
-        ($from:ty, $into:ty) => {{
-            const _: fn() = || {
-                trait AmbiguousIfImpl<A> {
-                    fn some_item() {}
-                }
-                impl<T: ?Sized> AmbiguousIfImpl<()> for T {}
-                #[allow(dead_code)]
-                struct Invalid;
-                impl<T: ?Sized + From<$from>> AmbiguousIfImpl<Invalid> for T {}
-                let _: () = <$into as AmbiguousIfImpl<_>>::some_item();
-            };
-        }};
-    }
+    use super::{CutFeedback, MixedModulePolicy, MixedModuleRefusal};
 
     #[test]
     fn coherent_joint_needs_no_cut() {
@@ -333,35 +244,5 @@ mod tests {
         assert_eq!(CutFeedback::from_name("cut"), Some(CutFeedback::Cut));
         assert_eq!(CutFeedback::from_name("feedback"), Some(CutFeedback::Feedback));
         assert_eq!(CutFeedback::from_name(""), None);
-    }
-
-    #[test]
-    fn alternatives_do_not_equal_coherent_joint_and_have_no_from_impl() {
-        assert_no_from!(MarkovMelding, MixedModulePolicy);
-        assert_no_from!(SemiModular, MixedModulePolicy);
-        assert_no_from!(RobustEnvelope, MixedModulePolicy);
-        assert_no_from!(MarkovMelding, SemiModular);
-        assert_no_from!(SemiModular, MarkovMelding);
-        assert_no_from!(MarkovMelding, RobustEnvelope);
-        assert_no_from!(RobustEnvelope, MarkovMelding);
-        assert_no_from!(SemiModular, RobustEnvelope);
-        assert_no_from!(RobustEnvelope, SemiModular);
-
-        let joint = MixedModulePolicy::coherent_joint();
-        assert_ne!(MarkovMelding, joint);
-        assert_ne!(SemiModular, joint);
-        assert_ne!(RobustEnvelope, joint);
-        assert_ne!(joint, MarkovMelding);
-        assert_ne!(joint, SemiModular);
-        assert_ne!(joint, RobustEnvelope);
-        assert_ne!(MarkovMelding, SemiModular);
-        assert_ne!(MarkovMelding, RobustEnvelope);
-        assert_ne!(SemiModular, RobustEnvelope);
-        assert_ne!(SemiModular, CutFeedback::Cut);
-        assert_ne!(MarkovMelding, CutFeedback::Feedback);
-        assert_ne!(RobustEnvelope, CutFeedback::Cut);
-        assert_eq!(MarkovMelding.as_str(), "markov_melding");
-        assert_eq!(SemiModular.as_str(), "semi_modular");
-        assert_eq!(RobustEnvelope.as_str(), "robust_envelope");
     }
 }
