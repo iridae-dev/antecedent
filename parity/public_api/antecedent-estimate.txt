@@ -627,11 +627,19 @@ impl core::clone::Clone for antecedent_estimate::temporal_initial_state::Initial
 impl core::clone::Clone for antecedent_estimate::temporal_initial_state::MarginalizedEffect
 impl core::clone::Clone for antecedent_estimate::temporal_initial_state::MarginalizedQuery
 impl core::clone::Clone for antecedent_estimate::temporal_initial_state::StateContribution
+impl core::clone::Clone for antecedent_estimate::temporal_refresh::FactorChange
+impl core::clone::Clone for antecedent_estimate::temporal_refresh::MechanismStanding
+impl core::clone::Clone for antecedent_estimate::temporal_refresh::ObservationCadence
 impl core::clone::Clone for antecedent_estimate::temporal_refresh::ObservationPeriod
+impl core::clone::Clone for antecedent_estimate::temporal_refresh::ProductDisposition
 impl core::clone::Clone for antecedent_estimate::temporal_refresh::RefreshDecision
 impl core::clone::Clone for antecedent_estimate::temporal_refresh::RefreshInvalidation
 impl core::clone::Clone for antecedent_estimate::temporal_refresh::RefreshReceipt
+impl core::clone::Clone for antecedent_estimate::temporal_refresh::RefreshSurvival
+impl core::clone::Clone for antecedent_estimate::temporal_refresh::TemporalIndex
 impl core::clone::Clone for antecedent_estimate::temporal_refresh::TemporalWindowIdentity
+impl core::clone::Clone for antecedent_estimate::temporal_refresh::WindowFactors
+impl core::clone::Clone for antecedent_estimate::temporal_refresh::WindowProduct
 impl core::clone::Clone for antecedent_estimate::temporal_sequential::SequentialBayesianMechanism
 impl core::clone::Clone for antecedent_estimate::temporal_transport::HistorySupportReport
 impl core::clone::Clone for antecedent_estimate::temporal_transport::HistorySupportRow
@@ -824,11 +832,19 @@ impl core::cmp::Eq for antecedent_estimate::temporal_dependent_interval::Interva
 impl core::cmp::Eq for antecedent_estimate::temporal_dependent_interval::ObservedStateSequence
 impl core::cmp::Eq for antecedent_estimate::temporal_initial_state::FixedStateQuery
 impl core::cmp::Eq for antecedent_estimate::temporal_initial_state::InitialStatePopulation
+impl core::cmp::Eq for antecedent_estimate::temporal_refresh::FactorChange
+impl core::cmp::Eq for antecedent_estimate::temporal_refresh::MechanismStanding
+impl core::cmp::Eq for antecedent_estimate::temporal_refresh::ObservationCadence
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::ObservationPeriod
+impl core::cmp::Eq for antecedent_estimate::temporal_refresh::ProductDisposition
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::RefreshDecision
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::RefreshInvalidation
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::RefreshReceipt
+impl core::cmp::Eq for antecedent_estimate::temporal_refresh::RefreshSurvival
+impl core::cmp::Eq for antecedent_estimate::temporal_refresh::TemporalIndex
 impl core::cmp::Eq for antecedent_estimate::temporal_refresh::TemporalWindowIdentity
+impl core::cmp::Eq for antecedent_estimate::temporal_refresh::WindowFactors
+impl core::cmp::Eq for antecedent_estimate::temporal_refresh::WindowProduct
 impl core::cmp::Eq for antecedent_estimate::tiled_prediction::AxisOrder
 impl core::cmp::Eq for antecedent_estimate::tiled_prediction::Encoding
 impl core::cmp::Eq for antecedent_estimate::tiled_prediction::EvalAxis
@@ -854,7 +870,10 @@ impl core::cmp::Ord for antecedent_estimate::nuisance_cache::ProviderDependency
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::RequestColumns
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::TreatmentDependency
+impl core::cmp::Ord for antecedent_estimate::temporal_refresh::FactorChange
+impl core::cmp::Ord for antecedent_estimate::temporal_refresh::ObservationCadence
 impl core::cmp::Ord for antecedent_estimate::temporal_refresh::ObservationPeriod
+impl core::cmp::Ord for antecedent_estimate::temporal_refresh::WindowProduct
 impl core::cmp::PartialEq for antecedent_estimate::AdjustedEstimate
 impl core::cmp::PartialEq for antecedent_estimate::AlignedRows
 impl core::cmp::PartialEq for antecedent_estimate::AnalyticSe
@@ -1314,11 +1333,19 @@ impl core::cmp::PartialEq for antecedent_estimate::temporal_initial_state::Initi
 impl core::cmp::PartialEq for antecedent_estimate::temporal_initial_state::MarginalizedEffect
 impl core::cmp::PartialEq for antecedent_estimate::temporal_initial_state::MarginalizedQuery
 impl core::cmp::PartialEq for antecedent_estimate::temporal_initial_state::StateContribution
+impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::FactorChange
+impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::MechanismStanding
+impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::ObservationCadence
 impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::ObservationPeriod
+impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::ProductDisposition
 impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::RefreshDecision
 impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::RefreshInvalidation
 impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::RefreshReceipt
+impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::RefreshSurvival
+impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::TemporalIndex
 impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::TemporalWindowIdentity
+impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::WindowFactors
+impl core::cmp::PartialEq for antecedent_estimate::temporal_refresh::WindowProduct
 impl core::cmp::PartialEq for antecedent_estimate::temporal_transport::HistorySupportReport
 impl core::cmp::PartialEq for antecedent_estimate::temporal_transport::HistorySupportRow
 impl core::cmp::PartialEq for antecedent_estimate::tiled_prediction::AxisOrder
@@ -1363,7 +1390,10 @@ impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::ProviderDepe
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::RequestColumns
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::TreatmentDependency
+impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::FactorChange
+impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::ObservationCadence
 impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::ObservationPeriod
+impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::WindowProduct
 impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_estimate::SequentialNodeOverlay> for antecedent_estimate::SequentialMechanismOverlay
@@ -2033,11 +2063,19 @@ impl core::fmt::Debug for antecedent_estimate::temporal_initial_state::InitialSt
 impl core::fmt::Debug for antecedent_estimate::temporal_initial_state::MarginalizedEffect
 impl core::fmt::Debug for antecedent_estimate::temporal_initial_state::MarginalizedQuery
 impl core::fmt::Debug for antecedent_estimate::temporal_initial_state::StateContribution
+impl core::fmt::Debug for antecedent_estimate::temporal_refresh::FactorChange
+impl core::fmt::Debug for antecedent_estimate::temporal_refresh::MechanismStanding
+impl core::fmt::Debug for antecedent_estimate::temporal_refresh::ObservationCadence
 impl core::fmt::Debug for antecedent_estimate::temporal_refresh::ObservationPeriod
+impl core::fmt::Debug for antecedent_estimate::temporal_refresh::ProductDisposition
 impl core::fmt::Debug for antecedent_estimate::temporal_refresh::RefreshDecision
 impl core::fmt::Debug for antecedent_estimate::temporal_refresh::RefreshInvalidation
 impl core::fmt::Debug for antecedent_estimate::temporal_refresh::RefreshReceipt
+impl core::fmt::Debug for antecedent_estimate::temporal_refresh::RefreshSurvival
+impl core::fmt::Debug for antecedent_estimate::temporal_refresh::TemporalIndex
 impl core::fmt::Debug for antecedent_estimate::temporal_refresh::TemporalWindowIdentity
+impl core::fmt::Debug for antecedent_estimate::temporal_refresh::WindowFactors
+impl core::fmt::Debug for antecedent_estimate::temporal_refresh::WindowProduct
 impl core::fmt::Debug for antecedent_estimate::temporal_sequential::SequentialBayesianMechanism
 impl core::fmt::Debug for antecedent_estimate::temporal_transport::HistorySupportReport
 impl core::fmt::Debug for antecedent_estimate::temporal_transport::HistorySupportRow
@@ -2312,9 +2350,14 @@ impl core::marker::Copy for antecedent_estimate::temporal_dependent_interval::Se
 impl core::marker::Copy for antecedent_estimate::temporal_initial_state::FixedStateQuery
 impl core::marker::Copy for antecedent_estimate::temporal_initial_state::InitialStatePopulation
 impl core::marker::Copy for antecedent_estimate::temporal_initial_state::StateContribution
+impl core::marker::Copy for antecedent_estimate::temporal_refresh::FactorChange
+impl core::marker::Copy for antecedent_estimate::temporal_refresh::MechanismStanding
+impl core::marker::Copy for antecedent_estimate::temporal_refresh::ObservationCadence
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::ObservationPeriod
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::RefreshDecision
 impl core::marker::Copy for antecedent_estimate::temporal_refresh::RefreshInvalidation
+impl core::marker::Copy for antecedent_estimate::temporal_refresh::TemporalIndex
+impl core::marker::Copy for antecedent_estimate::temporal_refresh::WindowProduct
 impl core::marker::Copy for antecedent_estimate::tiled_prediction::AxisOrder
 impl core::marker::Copy for antecedent_estimate::tiled_prediction::Encoding
 impl core::marker::Copy for antecedent_estimate::tiled_prediction::EvalAxis
@@ -2891,11 +2934,19 @@ impl core::marker::Freeze for antecedent_estimate::temporal_initial_state::Initi
 impl core::marker::Freeze for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_refresh::FactorChange [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_refresh::ObservationPeriod [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_refresh::ProductDisposition [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_refresh::RefreshDecision [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_refresh::RefreshInvalidation [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_refresh::RefreshReceipt [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_refresh::RefreshSurvival [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_refresh::TemporalIndex [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_refresh::TemporalWindowIdentity [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_refresh::WindowFactors [auto]
+impl core::marker::Freeze for antecedent_estimate::temporal_refresh::WindowProduct [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_sequential::SequentialBayesianMechanism [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_transport::HistorySupportReport [auto]
 impl core::marker::Freeze for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
@@ -3498,11 +3549,19 @@ impl core::marker::Send for antecedent_estimate::temporal_initial_state::Initial
 impl core::marker::Send for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::marker::Send for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::marker::Send for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::marker::Send for antecedent_estimate::temporal_refresh::FactorChange [auto]
+impl core::marker::Send for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
+impl core::marker::Send for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
 impl core::marker::Send for antecedent_estimate::temporal_refresh::ObservationPeriod [auto]
+impl core::marker::Send for antecedent_estimate::temporal_refresh::ProductDisposition [auto]
 impl core::marker::Send for antecedent_estimate::temporal_refresh::RefreshDecision [auto]
 impl core::marker::Send for antecedent_estimate::temporal_refresh::RefreshInvalidation [auto]
 impl core::marker::Send for antecedent_estimate::temporal_refresh::RefreshReceipt [auto]
+impl core::marker::Send for antecedent_estimate::temporal_refresh::RefreshSurvival [auto]
+impl core::marker::Send for antecedent_estimate::temporal_refresh::TemporalIndex [auto]
 impl core::marker::Send for antecedent_estimate::temporal_refresh::TemporalWindowIdentity [auto]
+impl core::marker::Send for antecedent_estimate::temporal_refresh::WindowFactors [auto]
+impl core::marker::Send for antecedent_estimate::temporal_refresh::WindowProduct [auto]
 impl core::marker::Send for antecedent_estimate::temporal_sequential::SequentialBayesianMechanism [auto]
 impl core::marker::Send for antecedent_estimate::temporal_transport::HistorySupportReport [auto]
 impl core::marker::Send for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
@@ -3993,11 +4052,19 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_initial
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_initial_state::MarginalizedEffect
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_initial_state::MarginalizedQuery
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_initial_state::StateContribution
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::FactorChange
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::MechanismStanding
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::ObservationCadence
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::ObservationPeriod
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::ProductDisposition
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::RefreshDecision
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::RefreshInvalidation
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::RefreshReceipt
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::RefreshSurvival
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::TemporalIndex
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::TemporalWindowIdentity
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::WindowFactors
+impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_refresh::WindowProduct
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_transport::HistorySupportReport
 impl core::marker::StructuralPartialEq for antecedent_estimate::temporal_transport::HistorySupportRow
 impl core::marker::StructuralPartialEq for antecedent_estimate::tiled_prediction::AxisOrder
@@ -4594,11 +4661,19 @@ impl core::marker::Sync for antecedent_estimate::temporal_initial_state::Initial
 impl core::marker::Sync for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_refresh::FactorChange [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_refresh::ObservationPeriod [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_refresh::ProductDisposition [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_refresh::RefreshDecision [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_refresh::RefreshInvalidation [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_refresh::RefreshReceipt [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_refresh::RefreshSurvival [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_refresh::TemporalIndex [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_refresh::TemporalWindowIdentity [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_refresh::WindowFactors [auto]
+impl core::marker::Sync for antecedent_estimate::temporal_refresh::WindowProduct [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_sequential::SequentialBayesianMechanism [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_transport::HistorySupportReport [auto]
 impl core::marker::Sync for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
@@ -5201,11 +5276,19 @@ impl core::marker::Unpin for antecedent_estimate::temporal_initial_state::Initia
 impl core::marker::Unpin for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_refresh::FactorChange [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_refresh::ObservationPeriod [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_refresh::ProductDisposition [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_refresh::RefreshDecision [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_refresh::RefreshInvalidation [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_refresh::RefreshReceipt [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_refresh::RefreshSurvival [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_refresh::TemporalIndex [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_refresh::TemporalWindowIdentity [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_refresh::WindowFactors [auto]
+impl core::marker::Unpin for antecedent_estimate::temporal_refresh::WindowProduct [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_sequential::SequentialBayesianMechanism [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_transport::HistorySupportReport [auto]
 impl core::marker::Unpin for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
@@ -5807,11 +5890,19 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_i
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::FactorChange [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::ObservationPeriod [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::ProductDisposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::RefreshDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::RefreshInvalidation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::RefreshReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::RefreshSurvival [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::TemporalIndex [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::TemporalWindowIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::WindowFactors [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_refresh::WindowProduct [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_sequential::SequentialBayesianMechanism [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_transport::HistorySupportReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
@@ -6413,11 +6504,19 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_init
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_initial_state::MarginalizedEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_initial_state::MarginalizedQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_initial_state::StateContribution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::FactorChange [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::MechanismStanding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::ObservationCadence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::ObservationPeriod [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::ProductDisposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::RefreshDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::RefreshInvalidation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::RefreshReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::RefreshSurvival [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::TemporalIndex [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::TemporalWindowIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::WindowFactors [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_refresh::WindowProduct [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_sequential::SequentialBayesianMechanism [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_transport::HistorySupportReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::temporal_transport::HistorySupportRow [auto]
@@ -7234,8 +7333,11 @@ pub enum antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstim
 pub enum antecedent_estimate::temporal_dependent_interval::IntervalMethod
 pub enum antecedent_estimate::temporal_initial_state::InitialStatePopulation
 pub enum antecedent_estimate::temporal_initial_state::InitialStateSpec
+pub enum antecedent_estimate::temporal_refresh::FactorChange
+pub enum antecedent_estimate::temporal_refresh::MechanismStanding
 pub enum antecedent_estimate::temporal_refresh::RefreshDecision
 pub enum antecedent_estimate::temporal_refresh::RefreshInvalidation
+pub enum antecedent_estimate::temporal_refresh::WindowProduct
 pub enum antecedent_estimate::tiled_prediction::Encoding
 pub enum antecedent_estimate::tiled_prediction::EvalAxis
 pub enum antecedent_estimate::tiled_prediction::Reduction
@@ -10636,11 +10738,27 @@ pub fn <antecedent_estimate::temporal_initial_state::MarginalizedEffect>::const 
 pub fn <antecedent_estimate::temporal_initial_state::MarginalizedQuery>::const fn law(&self) -> &antecedent_estimate::temporal_initial_state::InitialStateLaw
 pub fn <antecedent_estimate::temporal_initial_state::MarginalizedQuery>::fn effect(&self, panel: &antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel) -> core::result::Result<antecedent_estimate::temporal_initial_state::MarginalizedEffect, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_initial_state::MarginalizedQuery>::fn new(sequence: [u32; 2], spec: antecedent_estimate::temporal_initial_state::InitialStateSpec) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_refresh::ObservationCadence>::const fn new(tick: u64) -> core::option::Option<Self>
+pub fn <antecedent_estimate::temporal_refresh::ObservationCadence>::const fn tick(self) -> u64
+pub fn <antecedent_estimate::temporal_refresh::ProductDisposition>::fn invalidates(&self, product: antecedent_estimate::temporal_refresh::WindowProduct) -> bool
+pub fn <antecedent_estimate::temporal_refresh::ProductDisposition>::fn retains(&self, product: antecedent_estimate::temporal_refresh::WindowProduct) -> bool
 pub fn <antecedent_estimate::temporal_refresh::RefreshInvalidation>::const fn detail(self) -> &'static str
 pub fn <antecedent_estimate::temporal_refresh::RefreshInvalidation>::fn into_error(self) -> antecedent_estimate::EstimationError
 pub fn <antecedent_estimate::temporal_refresh::RefreshReceipt>::fn compute_digest(&self) -> alloc::string::String
 pub fn <antecedent_estimate::temporal_refresh::RefreshReceipt>::fn verify(&self) -> core::result::Result<(), antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::temporal_refresh::RefreshSurvival>::const fn decision(&self) -> antecedent_estimate::temporal_refresh::RefreshDecision
+pub fn <antecedent_estimate::temporal_refresh::RefreshSurvival>::const fn fit_retained(&self) -> bool
+pub fn <antecedent_estimate::temporal_refresh::RefreshSurvival>::const fn interval_retained(&self) -> bool
+pub fn <antecedent_estimate::temporal_refresh::RefreshSurvival>::const fn products(&self) -> &antecedent_estimate::temporal_refresh::ProductDisposition
+pub fn <antecedent_estimate::temporal_refresh::RefreshSurvival>::const fn proof_retained(&self) -> bool
+pub fn <antecedent_estimate::temporal_refresh::TemporalIndex>::const fn mechanism_standing() -> antecedent_estimate::temporal_refresh::MechanismStanding
 pub fn <antecedent_estimate::temporal_refresh::TemporalWindowIdentity>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_estimate::temporal_refresh::WindowFactors>::const fn cadence(&self) -> antecedent_estimate::temporal_refresh::ObservationCadence
+pub fn <antecedent_estimate::temporal_refresh::WindowFactors>::const fn horizon(&self) -> usize
+pub fn <antecedent_estimate::temporal_refresh::WindowFactors>::const fn period(&self) -> antecedent_estimate::temporal_refresh::ObservationPeriod
+pub fn <antecedent_estimate::temporal_refresh::WindowFactors>::const fn population(&self) -> &alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub fn <antecedent_estimate::temporal_refresh::WindowFactors>::fn initial_law(&self) -> &str
+pub fn <antecedent_estimate::temporal_refresh::WindowFactors>::fn try_from_window(window: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, cadence: antecedent_estimate::temporal_refresh::ObservationCadence, initial_law: &str) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::temporal_transport::HistorySupportReport>::fn outside(&self) -> alloc::vec::Vec<&antecedent_estimate::temporal_transport::HistorySupportRow>
 pub fn <antecedent_estimate::temporal_transport::PreparedTemporalSequence>::const fn data(&self) -> &antecedent_expr::exact::ExactTransportData
 pub fn <antecedent_estimate::temporal_transport::PreparedTemporalSequence>::const fn decision(&self) -> &antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision
@@ -11029,7 +11147,10 @@ pub fn antecedent_estimate::temporal_initial_state::route_frozen_refusal() -> an
 pub fn antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(data: &antecedent_data::dataset::TimeSeriesData, graph: &antecedent_graph::temporal::TemporalDag, identified: antecedent_estimate::TemporalIdentification<'_>, query: &antecedent_core::query::response::ResponseQuery, estimator: &antecedent_estimate::BayesianGComputationAte, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(antecedent_core::response::CausalResponse, antecedent_estimate::CausalPosterior), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_refresh::accept_refresh<T>(held: &antecedent_estimate::temporal_refresh::HeldTemporalResult<T>, receipt: &antecedent_estimate::temporal_refresh::RefreshReceipt, refreshed: antecedent_estimate::temporal_refresh::HeldTemporalResult<T>) -> core::result::Result<antecedent_estimate::temporal_refresh::HeldTemporalResult<T>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_refresh::decide_refresh(old: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, new: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity) -> antecedent_estimate::temporal_refresh::RefreshDecision
+pub fn antecedent_estimate::temporal_refresh::disposition_for(changes: &alloc::collections::btree::set::BTreeSet<antecedent_estimate::temporal_refresh::FactorChange>, standing: antecedent_estimate::temporal_refresh::MechanismStanding) -> antecedent_estimate::temporal_refresh::ProductDisposition
+pub fn antecedent_estimate::temporal_refresh::factor_changes(old: &antecedent_estimate::temporal_refresh::WindowFactors, new: &antecedent_estimate::temporal_refresh::WindowFactors) -> alloc::collections::btree::set::BTreeSet<antecedent_estimate::temporal_refresh::FactorChange>
 pub fn antecedent_estimate::temporal_refresh::refresh_held<T, F>(held: &antecedent_estimate::temporal_refresh::HeldTemporalResult<T>, replacement: antecedent_estimate::temporal_refresh::TemporalWindowIdentity, evaluate: F) -> core::result::Result<(antecedent_estimate::temporal_refresh::HeldTemporalResult<T>, antecedent_estimate::temporal_refresh::RefreshReceipt), antecedent_estimate::EstimationError> where F: core::ops::function::FnOnce(&antecedent_estimate::temporal_refresh::TemporalWindowIdentity) -> core::result::Result<T, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::temporal_refresh::refresh_survival(old_window: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, new_window: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, old_factors: &antecedent_estimate::temporal_refresh::WindowFactors, new_factors: &antecedent_estimate::temporal_refresh::WindowFactors, standing: antecedent_estimate::temporal_refresh::MechanismStanding) -> core::result::Result<antecedent_estimate::temporal_refresh::RefreshSurvival, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(problem: &antecedent_estimate::SequentialProblem<'_>, query: &antecedent_core::query::temporal::TemporalEffectQuery, inference: antecedent_estimate::SequentialInference<'_>, ctx: &antecedent_core::execution::ExecutionContext, validation: core::option::Option<&mut alloc::vec::Vec<antecedent_estimate::temporal_sequential::SequentialBayesianMechanism>>) -> core::result::Result<(antecedent_estimate::EffectEstimate, core::option::Option<antecedent_estimate::CausalPosterior>), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_transport::prepare_temporal_sequence(decision: antecedent_identify::sid::temporal_sequence::TemporalSequenceDecision, data: antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_transport::PreparedTemporalSequence, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::tiled_prediction::stream_tile(request: &antecedent_estimate::tiled_prediction::TileRequest<'_>, emit: impl core::ops::function::FnMut(antecedent_estimate::tiled_prediction::StreamedValue)) -> core::result::Result<antecedent_estimate::tiled_prediction::StreamSummary, antecedent_estimate::tiled_prediction::TileError>
@@ -11727,9 +11848,18 @@ pub struct antecedent_estimate::temporal_initial_state::MarginalizedQuery
 pub struct antecedent_estimate::temporal_initial_state::MarginalizedQuery has private fields
 pub struct antecedent_estimate::temporal_initial_state::StateContribution
 pub struct antecedent_estimate::temporal_refresh::HeldTemporalResult<T>
+pub struct antecedent_estimate::temporal_refresh::ObservationCadence
+pub struct antecedent_estimate::temporal_refresh::ObservationCadence has private fields
 pub struct antecedent_estimate::temporal_refresh::ObservationPeriod
+pub struct antecedent_estimate::temporal_refresh::ProductDisposition
+pub struct antecedent_estimate::temporal_refresh::ProductDisposition has private fields
 pub struct antecedent_estimate::temporal_refresh::RefreshReceipt
+pub struct antecedent_estimate::temporal_refresh::RefreshSurvival
+pub struct antecedent_estimate::temporal_refresh::RefreshSurvival has private fields
+pub struct antecedent_estimate::temporal_refresh::TemporalIndex
 pub struct antecedent_estimate::temporal_refresh::TemporalWindowIdentity
+pub struct antecedent_estimate::temporal_refresh::WindowFactors
+pub struct antecedent_estimate::temporal_refresh::WindowFactors has private fields
 pub struct antecedent_estimate::temporal_sequential::SequentialBayesianMechanism
 pub struct antecedent_estimate::temporal_transport::HistorySupportReport
 pub struct antecedent_estimate::temporal_transport::HistorySupportRow
@@ -12621,6 +12751,13 @@ pub variant antecedent_estimate::temporal_initial_state::InitialStatePopulation:
 pub variant antecedent_estimate::temporal_initial_state::InitialStatePopulation::Target
 pub variant antecedent_estimate::temporal_initial_state::InitialStateSpec::Law(antecedent_estimate::temporal_initial_state::InitialStateLaw)
 pub variant antecedent_estimate::temporal_initial_state::InitialStateSpec::Point(u32)
+pub variant antecedent_estimate::temporal_refresh::FactorChange::Cadence
+pub variant antecedent_estimate::temporal_refresh::FactorChange::Horizon
+pub variant antecedent_estimate::temporal_refresh::FactorChange::InitialLaw
+pub variant antecedent_estimate::temporal_refresh::FactorChange::Period
+pub variant antecedent_estimate::temporal_refresh::FactorChange::Population
+pub variant antecedent_estimate::temporal_refresh::MechanismStanding::DeclaredInvariant
+pub variant antecedent_estimate::temporal_refresh::MechanismStanding::Undeclared
 pub variant antecedent_estimate::temporal_refresh::RefreshDecision::Invalidated(antecedent_estimate::temporal_refresh::RefreshInvalidation)
 pub variant antecedent_estimate::temporal_refresh::RefreshDecision::Reusable
 pub variant antecedent_estimate::temporal_refresh::RefreshInvalidation::HorizonChanged
@@ -12628,6 +12765,10 @@ pub variant antecedent_estimate::temporal_refresh::RefreshInvalidation::Interven
 pub variant antecedent_estimate::temporal_refresh::RefreshInvalidation::LagAlignmentChanged
 pub variant antecedent_estimate::temporal_refresh::RefreshInvalidation::PremisesChanged
 pub variant antecedent_estimate::temporal_refresh::RefreshInvalidation::StaleSnapshot
+pub variant antecedent_estimate::temporal_refresh::WindowProduct::Design
+pub variant antecedent_estimate::temporal_refresh::WindowProduct::Evidence
+pub variant antecedent_estimate::temporal_refresh::WindowProduct::Identification
+pub variant antecedent_estimate::temporal_refresh::WindowProduct::Model
 pub variant antecedent_estimate::tiled_prediction::Encoding::HorizonIndicator { width: u64 }
 pub variant antecedent_estimate::tiled_prediction::Encoding::Polynomial { degree: u64 }
 pub variant antecedent_estimate::tiled_prediction::EvalAxis::Draw
