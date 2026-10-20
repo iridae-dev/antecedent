@@ -33,20 +33,22 @@ use crate::error::GraphError;
 use crate::types::DenseNodeId;
 use crate::workspace::{BitSet, GraphWorkspace};
 
-/// Largest node count of the exhaustive directed-graph comparison.
+/// Largest node count of the exhaustive directed-graph comparison in the tests.
 ///
 /// Mixed graphs, which also vary bidirected edges, are exhausted at
-/// [`EXHAUSTIVE_MIXED_NODE_BOUND`].
-pub const EXHAUSTIVE_NODE_BOUND: usize = 4;
+/// `EXHAUSTIVE_MIXED_NODE_BOUND`.
+#[cfg(test)]
+const EXHAUSTIVE_NODE_BOUND: usize = WALK_ORACLE_NODE_BOUND;
 
-/// Node count of the exhaustive directed-and-bidirected comparison.
-pub const EXHAUSTIVE_MIXED_NODE_BOUND: usize = 3;
+/// Node count of the exhaustive directed-and-bidirected comparison in the tests.
+#[cfg(test)]
+const EXHAUSTIVE_MIXED_NODE_BOUND: usize = 3;
 
 /// Maximum nodes [`sigma_walk_oracle`] will accept.
 ///
 /// The walk is exponential in the number of nodes. [`sigma_separates`] has no
 /// such cap.
-pub const WALK_ORACLE_NODE_BOUND: usize = EXHAUSTIVE_NODE_BOUND;
+pub const WALK_ORACLE_NODE_BOUND: usize = 4;
 
 /// Restrictions carried by every σ-separation answer.
 ///
@@ -212,8 +214,9 @@ pub fn sigma_walk_oracle(
     conditioning: &[DenseNodeId],
 ) -> Result<SigmaSeparation, GraphError> {
     if graph.node_count() > WALK_ORACLE_NODE_BOUND {
-        return Err(GraphError::InvalidEndpoints {
-            message: "σ-separation walk oracle only accepts graphs up to its node bound",
+        return Err(GraphError::NodeBoundExceeded {
+            nodes: graph.node_count(),
+            bound: WALK_ORACLE_NODE_BOUND,
         });
     }
     let ends = prepare(graph.node_count(), x, y, conditioning)?;
@@ -689,12 +692,7 @@ mod tests {
         let nodes = u32::try_from(WALK_ORACLE_NODE_BOUND).unwrap() + 1;
         let graph = mixed(nodes, &[], &[]);
         let error = sigma_walk_oracle(&graph, n(0), n(1), &[]).unwrap_err();
-        assert_eq!(
-            error,
-            GraphError::InvalidEndpoints {
-                message: "σ-separation walk oracle only accepts graphs up to its node bound",
-            },
-        );
+        assert_eq!(error, GraphError::NodeBoundExceeded { nodes: 5, bound: 4 },);
     }
 
     #[test]

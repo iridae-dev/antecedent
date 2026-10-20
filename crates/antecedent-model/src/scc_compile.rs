@@ -13,9 +13,12 @@
 //! [`antecedent_kernels::gauss_jordan_solve`]. That call overwrites the block;
 //! the inverse is not formed and is not stored. The block diagonal of `I - K`
 //! is 1, so the kernel's diagonal scale is 1 and a pivot at or below
-//! [`antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR`] is singular. A singular or
-//! non-finite block is a refusal. No root is selected, and the refusal is not
-//! a completed mechanism.
+//! [`antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR`] is numerically singular. The
+//! same test decides [`assess`](crate::linear_solution::assess), so the two
+//! agree on which blocks are refused. A numerically singular or non-finite block
+//! is a refusal. No root is selected, and the refusal is not a completed
+//! mechanism. Numerically singular is weaker than exactly singular: a pivot below
+//! the floor does not show that the determinant is zero.
 //!
 //! `ε` is Gaussian with mean `μ` and covariance `Σ`. Entries of `Σ` between
 //! components are kept. Along the condensation,
@@ -43,10 +46,10 @@ use antecedent_graph::{CyclicDigraph, DenseNodeId};
 use antecedent_kernels::gauss_jordan_solve;
 use thiserror::Error;
 
-use crate::cyclic_component::{CyclicComponent, SCC_COMPILE_ATTEMPT};
+use crate::cyclic_component::{CyclicComponent, ModelBinding, SCC_COMPILE_ATTEMPT};
 use crate::linear_solution::{
-    HardClamp, IdentificationStatus, LinearStructuralMap, NONZERO_DIAGONAL_NEXT_ATTEMPT,
-    PhysicalStability, SolverConvergence,
+    FREE_BLOCK_EQUATION, HardClamp, IdentificationStatus, LinearStructuralMap, PhysicalStability,
+    SolverConvergence, free_indices, pivots_regular,
 };
 
 /// Work and bytes a compilation may spend on the factorizations and diagnostics.
@@ -161,11 +164,30 @@ pub enum SccCompileError {
         /// Pivot index where a negative direction appeared.
         index: usize,
     },
-    /// `I - K_SS` has no unique solution. No root was selected.
-    #[error("SCC block {members:?} is singular; no equilibrium was selected")]
-    SingularBlock {
+    /// `I - K_SS` has a pivot at or below the equilibrated floor. The block is
+    /// numerically singular, which does not claim its determinant is exactly zero.
+    /// No root was selected.
+    #[error(
+        "SCC block {members:?} is numerically singular (pivot at or below the equilibrated \
+         floor); no equilibrium was selected"
+    )]
+    NumericallySingularBlock {
         /// Free variables in the block, ascending.
         members: Vec<usize>,
+    },
+    /// The component was admitted for a model of a different order.
+    #[error("component was admitted for a model of order {component}, not {model}")]
+    ComponentDimension {
+        /// Order stored on the component's binding.
+        component: usize,
+        /// Order of the supplied model.
+        model: usize,
+    },
+    /// The component was admitted for a different model than the one supplied.
+    #[error("component `{component}` was admitted for a different model than the one supplied")]
+    ComponentModelMismatch {
+        /// Id of the component.
+        component: String,
     },
     /// The admission charge exceeds the budget. No factorization was run.
     #[error("SCC compile {resource} {requested} exceeds the budget {limit}")]
@@ -307,7 +329,7 @@ impl CompiledEquilibrium {
     }
 
     /// [`FREE_BLOCK_EQUATION`](crate::linear_solution::FREE_BLOCK_EQUATION), copied from the
-    /// component's solve contract.
+    /// component.
     #[must_use]
     pub const fn free_block_equation(&self) -> &'static str {
         self.free_block_equation
@@ -394,11 +416,40 @@ pub fn gaussian_equilibrium_admission(
 ///
 /// # Errors
 ///
-/// A dimension mismatch, a non-finite or asymmetric or indefinite disturbance, a singular or
-/// non-finite block, or an admission charge above `budget`.
+/// A component bound to a different model, a dimension mismatch, a non-finite or asymmetric or
+/// indefinite disturbance, a numerically singular or non-finite block, or an admission charge
+/// above `budget`.
 #[must_use = "a compile error is a refusal, not an equilibrium"]
 pub fn compile_gaussian_equilibrium(
     component: &CyclicComponent,
+    model: &LinearStructuralMap,
+    disturbance: &GaussianDisturbance,
+    clamp: &HardClamp,
+    clamp_values: &[f64],
+    budget: CompileBudget,
+) -> Result<CompiledEquilibrium, SccCompileError> {
+    let n = model.dimension();
+    let binding = component.model_binding();
+    if binding.dimension() != n {
+        return Err(SccCompileError::ComponentDimension {
+            component: binding.dimension(),
+            model: n,
+        });
+    }
+    if binding != ModelBinding::of(model) {
+        return Err(SccCompileError::ComponentModelMismatch {
+            component: component.id().to_owned(),
+        });
+    }
+    compile_checked(component.id(), model, disturbance, clamp, clamp_values, budget)
+}
+
+/// The compilation after the component has been checked against the model.
+///
+/// Kept separate so the refusals of the solve itself (a numerically singular block, for one)
+/// stay reachable for models that the family certificate would not admit.
+fn compile_checked(
+    component_id: &str,
     model: &LinearStructuralMap,
     disturbance: &GaussianDisturbance,
     clamp: &HardClamp,
@@ -444,12 +495,10 @@ pub fn compile_gaussian_equilibrium(
         assigned[node] = Some(value);
     }
     let solved = propagate(model, disturbance, &assigned, &planned.blocks)?;
-    let attempt = component.scc_compile_attempt();
-    debug_assert_eq!(attempt, SCC_COMPILE_ATTEMPT);
     Ok(CompiledEquilibrium {
-        component_id: component.id().to_owned(),
-        free_block_equation: component.solve_contract().free_block_equation,
-        compile_attempt: attempt,
+        component_id: component_id.to_owned(),
+        free_block_equation: FREE_BLOCK_EQUATION,
+        compile_attempt: SCC_COMPILE_ATTEMPT,
         identification: IdentificationStatus::NotMarkedUnidentified,
         physical_stability: PhysicalStability::Unclaimed,
         solver: SolverConvergence::NotRun,
@@ -526,10 +575,8 @@ fn block_work(m: u64, earlier: u64, n: u64, clamps: u64) -> Result<u64, SccCompi
     let solves = m2.checked_mul(rhs_cols).ok_or_else(work_overflow)?;
     let span =
         m.checked_add(earlier).and_then(|sum| sum.checked_add(n)).ok_or_else(work_overflow)?;
-    let cross = m
-        .checked_mul(earlier)
-        .and_then(|prod| prod.checked_mul(span))
-        .ok_or_else(work_overflow)?;
+    let cross =
+        m.checked_mul(earlier).and_then(|prod| prod.checked_mul(span)).ok_or_else(work_overflow)?;
     let mean = clamps
         .checked_add(earlier)
         .and_then(|sum| sum.checked_add(1))
@@ -561,27 +608,14 @@ fn plan_bytes(n: u64) -> Result<u64, SccCompileError> {
     floats.checked_mul(8).ok_or_else(byte_overflow)
 }
 
-fn free_indices(n: usize, clamped: &[usize]) -> Vec<usize> {
-    let mut free = Vec::with_capacity(n.saturating_sub(clamped.len()));
-    let mut cursor = 0;
-    for node in 0..n {
-        if cursor < clamped.len() && clamped[cursor] == node {
-            cursor += 1;
-        } else {
-            free.push(node);
-        }
-    }
-    free
-}
-
-fn support_blocks(
+/// Strongly connected blocks of the free support, sources before sinks, as global indices.
+pub(crate) fn support_blocks(
     model: &LinearStructuralMap,
     free: &[usize],
 ) -> Result<Vec<Vec<usize>>, SccCompileError> {
     let m = free.len();
-    let width = u32::try_from(m).map_err(|_| SccCompileError::Shape {
-        message: "free block does not fit in a dense id",
-    })?;
+    let width = u32::try_from(m)
+        .map_err(|_| SccCompileError::Shape { message: "free block does not fit in a dense id" })?;
     let mut graph = CyclicDigraph::with_variables(width);
     for (into_local, &into_node) in free.iter().enumerate() {
         for (from_local, &from_node) in free.iter().enumerate() {
@@ -679,13 +713,18 @@ fn solve_block(
     let p = earlier.len();
     let n = model.dimension();
     let matrix = eye_minus_block(model, members)?;
-    refuse_exact_singular(&matrix, members)?;
+    if !pivots_regular(&matrix, m) {
+        return Err(SccCompileError::NumericallySingularBlock { members: members.to_vec() });
+    }
     let mean_rhs =
         mean_right_hand_side(model, disturbance, assigned, members, earlier, moments.mean)?;
-    let cov_u =
-        disturbance_block(model, disturbance, members, earlier, moments.covariance, moments.eps_x)?;
-    let cov_u_earlier = cross_input(model, members, earlier, moments.covariance, moments.eps_x)?;
-    let cov_u_eps = disturbance_cross(model, disturbance, members, earlier, moments.eps_x)?;
+    // Parent coefficients and the parent covariance are shared by the three inputs below.
+    let k_fe = parent_coefficients(model, members, earlier)?;
+    let c_ee = earlier_covariance(earlier, moments.covariance, n)?;
+    let parents = ParentInputs { k_fe: &k_fe, c_ee: &c_ee };
+    let cov_u = disturbance_block(disturbance, members, earlier, &parents, moments.eps_x, n)?;
+    let cov_u_earlier = cross_input(members, earlier, &parents, moments.eps_x, n)?;
+    let cov_u_eps = disturbance_cross(disturbance, members, earlier, &k_fe, moments.eps_x, n)?;
     let cols = batch_columns(m, p, n)?;
     let mut rhs = zeros(m, cols)?;
     let cov_at = 1;
@@ -789,17 +828,24 @@ fn mean_right_hand_side(
     Ok(rhs)
 }
 
+/// Coefficients of the earlier blocks into this block, and the earlier blocks' covariance.
+struct ParentInputs<'a> {
+    /// `K[members, earlier]`, row-major `m × p`.
+    k_fe: &'a [f64],
+    /// `Cov(X_earlier)`, row-major `p × p`.
+    c_ee: &'a [f64],
+}
+
 fn disturbance_block(
-    model: &LinearStructuralMap,
     disturbance: &GaussianDisturbance,
     members: &[usize],
     earlier: &[usize],
-    covariance: &[f64],
+    parents: &ParentInputs<'_>,
     eps_x: &[f64],
+    n: usize,
 ) -> Result<Vec<f64>, SccCompileError> {
     let m = members.len();
     let p = earlier.len();
-    let n = model.dimension();
     let sigma = disturbance.covariance();
     let mut cov_u = zeros(m, m)?;
     for (row, &into_node) in members.iter().enumerate() {
@@ -810,55 +856,40 @@ fn disturbance_block(
     if p == 0 {
         return Ok(cov_u);
     }
-    let k_fe = parent_coefficients(model, members, earlier)?;
     let mut c_ex = zeros(m, p)?;
     for (row, &into_node) in members.iter().enumerate() {
         for (col, &prior) in earlier.iter().enumerate() {
             c_ex[row * p + col] = eps_x[into_node * n + prior];
         }
     }
-    let mut c_ee = zeros(p, p)?;
-    for (row, &left) in earlier.iter().enumerate() {
-        for (col, &right) in earlier.iter().enumerate() {
-            c_ee[row * p + col] = covariance[left * n + right];
-        }
-    }
     // `Cov(u) = Σ_SS + K C(ε, X)^T + C(ε, X) K^T + K C(X) K^T`.
-    add_times_transpose(&k_fe, &c_ex, &mut cov_u, m, p)?;
-    add_times_transpose(&c_ex, &k_fe, &mut cov_u, m, p)?;
-    let through_parents = matmul(&k_fe, m, p, &c_ee, p)?;
-    add_times_transpose(&through_parents, &k_fe, &mut cov_u, m, p)?;
+    add_times_transpose(parents.k_fe, &c_ex, &mut cov_u, m, p)?;
+    add_times_transpose(&c_ex, parents.k_fe, &mut cov_u, m, p)?;
+    let through_parents = matmul(parents.k_fe, m, p, parents.c_ee, p)?;
+    add_times_transpose(&through_parents, parents.k_fe, &mut cov_u, m, p)?;
     finite_matrix(&cov_u)?;
     Ok(cov_u)
 }
 
 fn cross_input(
-    model: &LinearStructuralMap,
     members: &[usize],
     earlier: &[usize],
-    covariance: &[f64],
+    parents: &ParentInputs<'_>,
     eps_x: &[f64],
+    n: usize,
 ) -> Result<Vec<f64>, SccCompileError> {
     let m = members.len();
     let p = earlier.len();
-    let n = model.dimension();
     if p == 0 {
         return Ok(Vec::new());
     }
-    let k_fe = parent_coefficients(model, members, earlier)?;
     let mut cov_u = zeros(m, p)?;
     for (row, &into_node) in members.iter().enumerate() {
         for (col, &prior) in earlier.iter().enumerate() {
             cov_u[row * p + col] = eps_x[into_node * n + prior];
         }
     }
-    let mut c_ee = zeros(p, p)?;
-    for (row, &left) in earlier.iter().enumerate() {
-        for (col, &right) in earlier.iter().enumerate() {
-            c_ee[row * p + col] = covariance[left * n + right];
-        }
-    }
-    let through_parents = matmul(&k_fe, m, p, &c_ee, p)?;
+    let through_parents = matmul(parents.k_fe, m, p, parents.c_ee, p)?;
     for (index, value) in through_parents.iter().copied().enumerate() {
         cov_u[index] += value;
     }
@@ -867,17 +898,16 @@ fn cross_input(
 }
 
 fn disturbance_cross(
-    model: &LinearStructuralMap,
     disturbance: &GaussianDisturbance,
     members: &[usize],
     earlier: &[usize],
+    k_fe: &[f64],
     eps_x: &[f64],
+    n: usize,
 ) -> Result<Vec<f64>, SccCompileError> {
     let m = members.len();
     let p = earlier.len();
-    let n = model.dimension();
     let sigma = disturbance.covariance();
-    let k_fe = if p == 0 { Vec::new() } else { parent_coefficients(model, members, earlier)? };
     let mut cov_u = zeros(m, n)?;
     for (row, &into_node) in members.iter().enumerate() {
         for noise in 0..n {
@@ -908,7 +938,24 @@ fn parent_coefficients(
     Ok(coefficients)
 }
 
-fn eye_minus_block(
+fn earlier_covariance(
+    earlier: &[usize],
+    covariance: &[f64],
+    n: usize,
+) -> Result<Vec<f64>, SccCompileError> {
+    let p = earlier.len();
+    let mut c_ee = zeros(p, p)?;
+    for (row, &left) in earlier.iter().enumerate() {
+        for (col, &right) in earlier.iter().enumerate() {
+            c_ee[row * p + col] = covariance[left * n + right];
+        }
+    }
+    Ok(c_ee)
+}
+
+/// `I - K_SS` for a block of the free support. `LinearStructuralMap::try_new` guarantees the
+/// zero diagonal, so the diagonal here is exactly one.
+pub(crate) fn eye_minus_block(
     model: &LinearStructuralMap,
     members: &[usize],
 ) -> Result<Vec<f64>, SccCompileError> {
@@ -916,48 +963,15 @@ fn eye_minus_block(
     let mut matrix = zeros(m, m)?;
     for (row, &into_node) in members.iter().enumerate() {
         for (col, &from_node) in members.iter().enumerate() {
-            if row == col {
-                let coefficient = structural_coefficient(model, into_node, from_node)?;
-                #[allow(
-                    clippy::float_cmp,
-                    reason = "a nonzero diagonal is refused; zero is the initial contract"
-                )]
-                if coefficient != 0.0 {
-                    return Err(SccCompileError::Shape {
-                        message: NONZERO_DIAGONAL_NEXT_ATTEMPT,
-                    });
-                }
-                matrix[row * m + col] = 1.0;
+            matrix[row * m + col] = if row == col {
+                1.0
             } else {
-                let coefficient = structural_coefficient(model, into_node, from_node)?;
-                matrix[row * m + col] = -coefficient;
-            }
+                -structural_coefficient(model, into_node, from_node)?
+            };
         }
     }
     finite_matrix(&matrix)?;
     Ok(matrix)
-}
-
-fn refuse_exact_singular(matrix: &[f64], members: &[usize]) -> Result<(), SccCompileError> {
-    if members.len() != 2 {
-        return Ok(());
-    }
-    let product = matrix[1] * matrix[2];
-    if !product.is_finite() {
-        return Err(SccCompileError::NonFiniteEquilibrium);
-    }
-    let det = 1.0 - product;
-    if !det.is_finite() {
-        return Err(SccCompileError::NonFiniteEquilibrium);
-    }
-    #[allow(
-        clippy::float_cmp,
-        reason = "the 2x2 block is singular exactly when 1 - K_01 K_10 evaluates to zero"
-    )]
-    if det == 0.0 {
-        return Err(SccCompileError::SingularBlock { members: members.to_vec() });
-    }
-    Ok(())
 }
 
 fn condition_of(
@@ -1072,7 +1086,7 @@ fn solve_row_major(
         }
     }
     if !gauss_jordan_solve(&mut factor, &mut packed, m, cols) {
-        return Err(SccCompileError::SingularBlock { members: members.to_vec() });
+        return Err(SccCompileError::NumericallySingularBlock { members: members.to_vec() });
     }
     let mut solved = zeros(m, cols)?;
     for col in 0..cols {
@@ -1087,13 +1101,41 @@ fn solve_row_major(
     Ok(solved)
 }
 
+/// Refuse a covariance that is not positive semidefinite.
+///
+/// The test runs on the correlation matrix `R = D^{-1/2} Σ D^{-1/2}` with
+/// `D = diag(Σ)`, so the tolerance is relative to each variable's own scale rather than
+/// to the largest entry of `Σ`. A variance that is negative beyond a relative tolerance of
+/// its own row is refused, so `diag(1e6, -1e-9)` is not hidden by the `1e6` entry. A
+/// variable of zero variance must have a zero row.
+#[allow(clippy::float_cmp, reason = "a zero-variance row must be exactly zero off the diagonal")]
 fn require_psd(covariance: &[f64], n: usize) -> Result<(), SccCompileError> {
+    let tolerance = antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR;
+    let mut scale = vec![0.0_f64; n];
+    for row in 0..n {
+        let variance = covariance[row * n + row];
+        let row_scale = (0..n).fold(0.0_f64, |best, col| best.max(covariance[row * n + col].abs()));
+        if variance < -tolerance * row_scale {
+            return Err(SccCompileError::NotPositiveSemidefinite { index: row });
+        }
+        scale[row] = if variance > 0.0 { variance.sqrt() } else { 0.0 };
+    }
+    let mut corr = zeros(n, n)?;
+    for row in 0..n {
+        for col in 0..n {
+            let entry = covariance[row * n + col];
+            if scale[row] > 0.0 && scale[col] > 0.0 {
+                corr[row * n + col] = entry / scale[row] / scale[col];
+            } else if entry != 0.0 && row != col {
+                // A zero-variance variable cannot covary with anything.
+                return Err(SccCompileError::NotPositiveSemidefinite { index: row.max(col) });
+            }
+        }
+    }
     let mut factor = zeros(n, n)?;
-    let scale = covariance.iter().fold(0.0_f64, |best, entry| best.max(entry.abs()));
-    let tolerance = antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR * scale;
     for row in 0..n {
         for col in 0..row {
-            let mut sum = covariance[row * n + col];
+            let mut sum = corr[row * n + col];
             for k in 0..col {
                 sum -= factor[row * n + k] * factor[col * n + k];
             }
@@ -1109,7 +1151,7 @@ fn require_psd(covariance: &[f64], n: usize) -> Result<(), SccCompileError> {
                 factor[row * n + col] = 0.0;
             }
         }
-        let mut diag = covariance[row * n + row];
+        let mut diag = corr[row * n + row];
         for k in 0..row {
             diag -= factor[row * n + k] * factor[row * n + k];
         }
@@ -1222,9 +1264,9 @@ fn positions(n: usize, nodes: &[usize]) -> Result<Vec<Option<usize>>, SccCompile
 }
 
 fn zeros(rows: usize, cols: usize) -> Result<Vec<f64>, SccCompileError> {
-    let len = rows.checked_mul(cols).ok_or(SccCompileError::Shape {
-        message: "block workspace length overflows usize",
-    })?;
+    let len = rows
+        .checked_mul(cols)
+        .ok_or(SccCompileError::Shape { message: "block workspace length overflows usize" })?;
     Ok(vec![0.0; len])
 }
 
@@ -1234,10 +1276,11 @@ mod tests {
         CompileBudget, GaussianDisturbance, SccCompileError, compile_gaussian_equilibrium,
         gaussian_equilibrium_admission,
     };
-    use crate::cyclic_component::{CyclicComponent, SCC_COMPILE_ATTEMPT, SolveContractName};
+    use crate::cyclic_component::{CyclicComponent, SCC_COMPILE_ATTEMPT};
     use crate::linear_solution::{
         FREE_BLOCK_EQUATION, HardClamp, IdentificationStatus, LinearSolutionError,
         LinearStructuralMap, NONZERO_DIAGONAL_NEXT_ATTEMPT, PhysicalStability, SolverConvergence,
+        Uniqueness, assess,
     };
 
     fn close(left: f64, right: f64) -> bool {
@@ -1248,14 +1291,14 @@ mod tests {
         LinearStructuralMap::try_new(coefficients, intercept).expect("fixture map")
     }
 
-    fn component() -> CyclicComponent {
-        CyclicComponent::try_new(
-            "feedback",
-            "source-measurements",
-            &["solve-note"],
-            SolveContractName::explicit(),
-        )
-        .expect("component")
+    /// Component admitted for `model` under the family certificate it yields. Only models
+    /// with `ρ(|K|) < 1` can be wrapped.
+    fn component_for(model: &LinearStructuralMap) -> CyclicComponent {
+        let family = assess(model, &HardClamp::none(model.dimension()).expect("no clamp"))
+            .expect("assessment")
+            .family;
+        CyclicComponent::try_new("feedback", "source-measurements", &["solve-note"], model, &family)
+            .expect("component")
     }
 
     fn compile(
@@ -1267,7 +1310,7 @@ mod tests {
     ) -> super::CompiledEquilibrium {
         let disturbance = GaussianDisturbance::try_new(mean, covariance).expect("disturbance");
         compile_gaussian_equilibrium(
-            &component(),
+            &component_for(model),
             model,
             &disturbance,
             clamp,
@@ -1299,12 +1342,13 @@ mod tests {
         assert_eq!(law.component_id(), "feedback");
         assert_eq!(law.free_block_equation(), FREE_BLOCK_EQUATION);
         assert_eq!(law.compile_attempt(), SCC_COMPILE_ATTEMPT);
-        assert_eq!(component().scc_compile_attempt(), SCC_COMPILE_ATTEMPT);
+        assert_eq!(component_for(&model).scc_compile_attempt(), SCC_COMPILE_ATTEMPT);
         assert_eq!(law.identification(), IdentificationStatus::NotMarkedUnidentified);
         assert_eq!(law.physical_stability(), PhysicalStability::Unclaimed);
         assert_eq!(law.solver(), SolverConvergence::NotRun);
         assert_eq!(law.admission(), cost);
-        assert!(!component().evidence_may_certify(component().source_id()));
+        let wrapped = component_for(&model);
+        assert!(!wrapped.evidence_may_certify(wrapped.source_id()));
 
         assert!(close(law.mean()[0], 1.25));
         assert!(close(law.mean()[1], 0.625));
@@ -1363,14 +1407,15 @@ mod tests {
         // X2 = 0.125 ε0 + 0.625 ε1 + 1.25 ε2.
         // Cov(X0, X1) = 0.25, Cov(X0, X2) = 0.125,
         // Var(X1) = 1.875, Cov(X1, X2) = 1.4375, Var(X2) = 1.96875.
-        let model = map(
-            vec![0.0, 0.0, 0.0, 0.2, 0.0, 0.4, 0.0, 0.5, 0.0],
-            vec![0.0, 0.0, 0.0],
-        );
+        let model = map(vec![0.0, 0.0, 0.0, 0.2, 0.0, 0.4, 0.0, 0.5, 0.0], vec![0.0, 0.0, 0.0]);
         let clamp = HardClamp::none(3).expect("no clamp");
-        let law = compile(&model, vec![0.0; 3], vec![
-            1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
-        ], &clamp, &[]);
+        let law = compile(
+            &model,
+            vec![0.0; 3],
+            vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            &clamp,
+            &[],
+        );
         assert_eq!(law.blocks().len(), 2);
         assert_eq!(law.blocks()[0].members, vec![0]);
         assert_eq!(law.blocks()[1].members, vec![1, 2]);
@@ -1411,54 +1456,137 @@ mod tests {
         assert!(close(assigned.residual_inf(), 0.0));
     }
 
+    /// Compile without the component gate, for models the family certificate would not admit.
+    fn compile_unbound(
+        model: &LinearStructuralMap,
+        covariance: Vec<f64>,
+        clamp: &HardClamp,
+        values: &[f64],
+    ) -> Result<super::CompiledEquilibrium, SccCompileError> {
+        let n = model.dimension();
+        let noise = GaussianDisturbance::try_new(vec![0.0; n], covariance).expect("noise");
+        super::compile_checked("unbound", model, &noise, clamp, values, CompileBudget::unlimited())
+    }
+
     #[test]
     fn singular_blocks_are_refused() {
         let cycle = map(vec![0.0, 1.0, 1.0, 0.0], vec![0.0, 0.0]);
-        let err = compile_gaussian_equilibrium(
-            &component(),
-            &cycle,
-            &GaussianDisturbance::try_new(vec![0.0, 0.0], identity(2)).expect("noise"),
-            &HardClamp::none(2).expect("no clamp"),
-            &[],
-            CompileBudget::unlimited(),
-        )
-        .expect_err("singular cycle");
-        assert!(matches!(err, SccCompileError::SingularBlock { members } if members == [0, 1]));
+        let err = compile_unbound(&cycle, identity(2), &HardClamp::none(2).expect("none"), &[])
+            .expect_err("singular cycle");
+        assert!(
+            matches!(err, SccCompileError::NumericallySingularBlock { members } if members == [0, 1])
+        );
 
         // A = B + C + ε_A, B = A + ε_B, C = A + ε_C. do(C = 0) leaves a singular pair.
-        let overlapping = map(
-            vec![0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-            vec![0.0, 0.0, 0.0],
-        );
+        let overlapping =
+            map(vec![0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0], vec![0.0, 0.0, 0.0]);
         let clamp_c = HardClamp::try_new(3, &[2]).expect("clamp C");
-        let err = compile_gaussian_equilibrium(
-            &component(),
-            &overlapping,
-            &GaussianDisturbance::try_new(vec![0.0; 3], identity(3)).expect("noise"),
-            &clamp_c,
-            &[0.0],
-            CompileBudget::unlimited(),
-        )
-        .expect_err("singular free block");
-        assert!(matches!(err, SccCompileError::SingularBlock { members } if members == [0, 1]));
+        let err = compile_unbound(&overlapping, identity(3), &clamp_c, &[0.0])
+            .expect_err("singular free block");
+        assert!(
+            matches!(err, SccCompileError::NumericallySingularBlock { members } if members == [0, 1])
+        );
 
         let mut coefficients = vec![0.0; 16];
         for node in 0..4 {
             coefficients[node * 4 + (node + 1) % 4] = 1.0;
         }
         let four = map(coefficients, vec![0.0; 4]);
+        let err = compile_unbound(&four, identity(4), &HardClamp::none(4).expect("none"), &[])
+            .expect_err("singular 4-cycle");
+        assert!(matches!(
+            err,
+            SccCompileError::NumericallySingularBlock { members } if members == [0, 1, 2, 3]
+        ));
+    }
+
+    #[test]
+    fn assess_and_compile_agree_on_a_pivot_below_the_floor() {
+        // I - K = [[1, -1], [-(1 + 1e-13), 1]]: det = -1e-13 is not zero, but the second
+        // pivot after row exchange is about 1e-13, below the 1e-12 floor.
+        let near = map(vec![0.0, 1.0, 1.0 + 1.0e-13, 0.0], vec![0.0, 0.0]);
+        let clamp = HardClamp::none(2).expect("none");
+        let report = assess(&near, &clamp).expect("assessment");
+        assert_eq!(
+            report.original.uniqueness,
+            Uniqueness::NumericallySingular { members: vec![0, 1] }
+        );
+        let err = compile_unbound(&near, identity(2), &clamp, &[]).expect_err("compile");
+        assert_eq!(err, SccCompileError::NumericallySingularBlock { members: vec![0, 1] });
+        // Neither route may call the block clean: the family bound also refuses it.
+        assert!(!report.family.is_admitted());
+
+        // A pivot above the floor is accepted by both.
+        let ok = map(vec![0.0, 1.0, 1.0 - 1.0e-9, 0.0], vec![0.0, 0.0]);
+        let report = assess(&ok, &clamp).expect("assessment");
+        assert!(matches!(report.original.uniqueness, Uniqueness::IllConditioned { .. }));
+        let law = compile_unbound(&ok, identity(2), &clamp, &[]).expect("compile");
+        assert!(law.blocks()[0].kappa_inf > 1.0e9);
+    }
+
+    #[test]
+    fn a_component_is_bound_to_its_model() {
+        let model = map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0]);
+        let wrapped = component_for(&model);
+        let noise = GaussianDisturbance::try_new(vec![0.0; 2], identity(2)).expect("noise");
+        let clamp = HardClamp::none(2).expect("none");
+
+        let reweighted = map(vec![0.0, 0.4, 0.6, 0.0], vec![0.0, 0.0]);
         let err = compile_gaussian_equilibrium(
-            &component(),
-            &four,
-            &GaussianDisturbance::try_new(vec![0.0; 4], identity(4)).expect("noise"),
-            &HardClamp::none(4).expect("no clamp"),
+            &wrapped,
+            &reweighted,
+            &noise,
+            &clamp,
             &[],
             CompileBudget::unlimited(),
         )
-        .expect_err("singular 4-cycle");
-        assert!(
-            matches!(err, SccCompileError::SingularBlock { members } if members == [0, 1, 2, 3])
+        .expect_err("different coefficients");
+        assert_eq!(
+            err,
+            SccCompileError::ComponentModelMismatch { component: "feedback".to_owned() }
         );
+
+        let larger = map(vec![0.0; 9], vec![0.0; 3]);
+        let noise3 = GaussianDisturbance::try_new(vec![0.0; 3], identity(3)).expect("noise");
+        let err = compile_gaussian_equilibrium(
+            &wrapped,
+            &larger,
+            &noise3,
+            &HardClamp::none(3).expect("none"),
+            &[],
+            CompileBudget::unlimited(),
+        )
+        .expect_err("different order");
+        assert_eq!(err, SccCompileError::ComponentDimension { component: 2, model: 3 });
+    }
+
+    #[test]
+    fn a_negative_variance_hidden_by_a_large_one_is_refused() {
+        // Σ = diag(1e6, -1e-9). A tolerance scaled by the largest entry (1e6) would pass
+        // it and emit Var = -1e-9.
+        let model = map(vec![0.0, 0.0, 0.0, 0.0], vec![0.0, 0.0]);
+        let noise = GaussianDisturbance::try_new(vec![0.0; 2], vec![1.0e6, 0.0, 0.0, -1.0e-9])
+            .expect("finite symmetric");
+        let err = compile_gaussian_equilibrium(
+            &component_for(&model),
+            &model,
+            &noise,
+            &HardClamp::none(2).expect("none"),
+            &[],
+            CompileBudget::unlimited(),
+        )
+        .expect_err("negative variance");
+        assert_eq!(err, SccCompileError::NotPositiveSemidefinite { index: 1 });
+
+        // A badly scaled but positive covariance is still accepted.
+        let scaled = compile(
+            &model,
+            vec![0.0; 2],
+            vec![1.0e6, 0.0, 0.0, 1.0e-9],
+            &HardClamp::none(2).expect("none"),
+            &[],
+        );
+        assert!((scaled.covariance()[3] - 1.0e-9).abs() < 1.0e-18);
     }
 
     #[test]
@@ -1498,10 +1626,7 @@ mod tests {
     #[test]
     fn non_finite_indefinite_and_budget_shortfalls_are_refused() {
         let non_finite = GaussianDisturbance::try_new(vec![f64::NAN, 0.0], identity(2));
-        assert!(matches!(
-            non_finite,
-            Err(SccCompileError::NonFiniteDisturbanceMean { node: 0 })
-        ));
+        assert!(matches!(non_finite, Err(SccCompileError::NonFiniteDisturbanceMean { node: 0 })));
         let asymmetric = GaussianDisturbance::try_new(vec![0.0, 0.0], vec![1.0, 0.2, 0.4, 1.0]);
         assert!(matches!(
             asymmetric,
@@ -1514,7 +1639,7 @@ mod tests {
         let indefinite = GaussianDisturbance::try_new(vec![0.0, 0.0], vec![1.0, 2.0, 2.0, 1.0])
             .expect("indefinite shape is finite and symmetric");
         let err = compile_gaussian_equilibrium(
-            &component(),
+            &component_for(&model),
             &model,
             &indefinite,
             &clamp,
@@ -1526,7 +1651,7 @@ mod tests {
 
         let cost = gaussian_equilibrium_admission(&model, &clamp).expect("admission");
         let short_work = compile_gaussian_equilibrium(
-            &component(),
+            &component_for(&model),
             &model,
             &noise,
             &clamp,
@@ -1543,7 +1668,7 @@ mod tests {
             }
         );
         let short_bytes = compile_gaussian_equilibrium(
-            &component(),
+            &component_for(&model),
             &model,
             &noise,
             &clamp,

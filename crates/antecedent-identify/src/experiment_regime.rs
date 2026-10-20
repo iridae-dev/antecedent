@@ -12,7 +12,9 @@
 //! A [`UnitMask`] that drops a targeted unit is refused. A shared source identity
 //! contradicts a [`DependencePremise::Independence`] premise on either regime of
 //! a pair; that pair is refused. A [`DependencePremise::Dependence`] premise
-//! agrees with a shared source and is not, by itself, a contradiction. A target
+//! agrees with a shared source and is not, by itself, a contradiction. A
+//! dependence premise on a regime that shares its source with no other regime
+//! claims a shared disturbance with nothing, and is refused. A target
 //! outside the regime's sampling units is an incompatible regime and is refused.
 //! Every refusal names [`NextRegimeAttempt::RepairMaskOrPremise`]: repair the
 //! mask or the premise, and do not fit the mechanism on the illegal regime.
@@ -115,6 +117,10 @@ pub enum DependencePremise {
 /// One clamp: a sampling unit and the value that replaces its equation.
 ///
 /// The value is the declared intervention level. It is not an estimated effect.
+/// For a randomized clamp the level is a label for the arm, or the mean of the
+/// randomized draws. It is one constant per target, and it does not say what the
+/// clamped column looks like in the sample: the moment assembly needs that column
+/// to vary across rows, and reads it from the sample, never from this value.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegimeIntervention {
     /// Sampling unit the clamp replaces.
@@ -210,6 +216,13 @@ pub enum RegimeRefusalReason {
         /// Unit absent from every regime's sampling units.
         unit: VariableId,
     },
+    /// A regime claims dependence but no other regime shares its source.
+    DependenceWithoutSharedSource {
+        /// Index into [`RegimeContract::regimes`].
+        regime: usize,
+        /// Source identity the regime declares.
+        source: SourceIdentity,
+    },
     /// Two regimes share a source while at least one claims independence.
     IndependenceContradictedBySharedSource {
         /// Index of the earlier regime.
@@ -245,6 +258,9 @@ impl fmt::Display for RegimeRefusalReason {
             }
             Self::MaskDropsUnknownUnit { unit } => {
                 write!(f, "mask drops {unit}, which is not a declared sampling unit")
+            }
+            Self::DependenceWithoutSharedSource { regime, source } => {
+                write!(f, "regime {regime} claims dependence but no other regime shares {source}")
             }
             Self::IndependenceContradictedBySharedSource { left, right, source } => {
                 write!(f, "regimes {left} and {right} share {source}, contradicting independence",)
@@ -440,6 +456,7 @@ fn mask_fault(regimes: &[ExperimentRegime], mask: &UnitMask) -> Option<RegimeRef
 }
 
 /// A shared source agrees with dependence. It contradicts an independence premise.
+/// A dependence premise needs another regime on the same source.
 fn shared_source_fault(regimes: &[ExperimentRegime]) -> Option<RegimeRefusalReason> {
     for left in 0..regimes.len() {
         for right in (left + 1)..regimes.len() {
@@ -453,6 +470,18 @@ fn shared_source_fault(regimes: &[ExperimentRegime]) -> Option<RegimeRefusalReas
                     source: regimes[left].source,
                 });
             }
+        }
+    }
+    for (index, regime) in regimes.iter().enumerate() {
+        let shared = regimes
+            .iter()
+            .enumerate()
+            .any(|(other, candidate)| other != index && candidate.source == regime.source);
+        if regime.premise == DependencePremise::Dependence && !shared {
+            return Some(RegimeRefusalReason::DependenceWithoutSharedSource {
+                regime: index,
+                source: regime.source,
+            });
         }
     }
     None
@@ -583,6 +612,33 @@ mod tests {
             panic!("a shared source agrees with a dependence premise");
         };
         assert_eq!(accepted.regimes(), &[left, right]);
+    }
+
+    #[test]
+    fn a_dependence_premise_without_a_shared_source_fails() {
+        let alone = regime(&[0, 1], &[intervention(0, 1)], DependencePremise::Dependence, 6);
+        let other = regime(&[0, 1], &[intervention(1, 2)], DependencePremise::Dependence, 7);
+        let decision = validate_regime_contract(&contract(vec![alone, other], &[]));
+        assert_refused(
+            &decision,
+            RegimeRefusalReason::DependenceWithoutSharedSource {
+                regime: 0,
+                source: SourceIdentity::from_raw(6),
+            },
+        );
+        // A dependence regime beside an independent regime on a distinct source claims
+        // dependence with nothing.
+        let dependent = regime(&[0, 1], &[intervention(0, 1)], DependencePremise::Dependence, 6);
+        let independent =
+            regime(&[0, 1], &[intervention(1, 2)], DependencePremise::Independence, 8);
+        let decision = validate_regime_contract(&contract(vec![dependent, independent], &[]));
+        assert_refused(
+            &decision,
+            RegimeRefusalReason::DependenceWithoutSharedSource {
+                regime: 0,
+                source: SourceIdentity::from_raw(6),
+            },
+        );
     }
 
     #[test]

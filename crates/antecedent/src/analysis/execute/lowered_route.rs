@@ -410,7 +410,8 @@ fn retain_linear_gaussian(
     parts.unresolved_obligations = unresolved;
     parts.world_obligations = worlds;
     parts.assembled = Some(assembled);
-    Ok(CompiledIdentificationProduct::retain(identification, parts))
+    CompiledIdentificationProduct::retain(identification, parts)
+        .map_err(|refusal| CausalError::Compile { message: refusal.to_string() })
 }
 
 fn required_factors(program: &CheckedLinearAdjustmentAte) -> Vec<RequiredFactor> {

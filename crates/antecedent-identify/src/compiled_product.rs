@@ -17,10 +17,12 @@
 
 use std::sync::Arc;
 
+use thiserror::Error;
+
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CanonicalWriter, Diagnostic, ParametricAssumption, PriorAssumption,
-    ScientificWorldId, SemanticDigest, Value, VariableId,
+    AssumptionStatus, CanonicalWriter, Diagnostic, IdentificationStatus, ParametricAssumption,
+    PriorAssumption, ScientificWorldId, SemanticDigest, Value, VariableId,
 };
 use antecedent_expr::{
     CausalExprArena, ContrastOp, DomainRef, ExprId, ExprListId, ExprNode, IdentifiedEstimand,
@@ -73,6 +75,66 @@ impl IdentificationClaimClass {
     pub const fn is_identified_claim(self) -> bool {
         matches!(self, Self::IdentifiedClaim)
     }
+}
+
+/// Why a product was refused: its outcome, claim class, and retained result disagree.
+///
+/// The refusals keep a stored number, a timeout, or a search failure from being retained
+/// beside an identified functional.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Error)]
+#[non_exhaustive]
+pub enum ProductRefusal {
+    /// The outcome is [`IdentificationOutcome::Identified`] but no estimand is retained.
+    #[error("an identified product retains no estimand")]
+    IdentifiedWithoutEstimand,
+    /// The outcome is [`IdentificationOutcome::Identified`] but an assumption it relies on
+    /// is contradicted.
+    #[error("an identified product relies on contradicted assumption {index}")]
+    IdentifiedWithContradictedAssumption {
+        /// Position of the contradicted assumption in the retained set.
+        index: usize,
+    },
+    /// The outcome is [`IdentificationOutcome::Identified`] but the retained result's status
+    /// is not an identified status.
+    #[error("an identified product retains a result with status {status:?}")]
+    IdentifiedFromUnidentifiedResult {
+        /// Status of the retained result.
+        status: IdentificationStatus,
+    },
+    /// A search failure, timeout, numerical failure, or uncalibrated outcome retains an
+    /// estimand.
+    #[error("outcome {outcome:?} cannot retain an identified estimand")]
+    EstimandBesideNonIdentification {
+        /// The outcome that cannot carry an estimand.
+        outcome: IdentificationOutcome,
+    },
+    /// An outcome other than identified or unidentified states the identified-claim class.
+    #[error("outcome {outcome:?} cannot state the identified-claim class")]
+    IdentifiedClaimClassBesideFailure {
+        /// The outcome that cannot state that class.
+        outcome: IdentificationOutcome,
+    },
+}
+
+/// Outcomes that are neither an identification nor a finished negative.
+const fn is_failure_outcome(outcome: IdentificationOutcome) -> bool {
+    matches!(
+        outcome,
+        IdentificationOutcome::Unsupported
+            | IdentificationOutcome::TimedOut
+            | IdentificationOutcome::NumericallyInfeasible
+            | IdentificationOutcome::Uncalibrated
+    )
+}
+
+const fn check_claim_class(
+    outcome: IdentificationOutcome,
+    claim_class: IdentificationClaimClass,
+) -> Result<(), ProductRefusal> {
+    if is_failure_outcome(outcome) && claim_class.is_identified_claim() {
+        return Err(ProductRefusal::IdentifiedClaimClassBesideFailure { outcome });
+    }
+    Ok(())
 }
 
 /// Evidence factor the functional requires.
@@ -374,7 +436,19 @@ impl CompiledIdentificationProduct {
     ///
     /// `bounded_search` holds execution diagnostics only. `parts.numerical_value`
     /// does not change `parts.outcome`.
-    #[must_use = "lowering must retain this identification product"]
+    ///
+    /// The outcome, claim class, and retained pieces must agree. An
+    /// [`IdentificationOutcome::Identified`] product retains at least one estimand and relies on
+    /// no [`AssumptionStatus::Contradicted`] assumption. Unsupported, timed-out, numerically
+    /// infeasible, and uncalibrated products retain no estimand and do not state
+    /// [`IdentificationClaimClass::IdentifiedClaim`], and neither do their world or assembled
+    /// obligations. Open obligations of a declared-assumption kind do not block an identified
+    /// outcome: identification holds under them.
+    ///
+    /// # Errors
+    ///
+    /// A [`ProductRefusal`] when the pieces disagree.
+    #[must_use = "a refused product is not a retained identification"]
     pub fn new(
         estimands: Vec<IdentifiedEstimand>,
         arena: CausalExprArena,
@@ -382,8 +456,9 @@ impl CompiledIdentificationProduct {
         assumptions: AssumptionSet,
         bounded_search: Vec<Diagnostic>,
         parts: CompiledProductParts,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ProductRefusal> {
+        check_coherence(&estimands, &assumptions, &parts)?;
+        Ok(Self {
             estimands,
             arena,
             derivation,
@@ -396,7 +471,7 @@ impl CompiledIdentificationProduct {
             numerical_value: parts.numerical_value,
             world_obligations: parts.world_obligations,
             assembled: parts.assembled,
-        }
+        })
     }
 
     /// Copy the fields lowering must not drop, then attach `parts`.
@@ -405,8 +480,28 @@ impl CompiledIdentificationProduct {
     /// cloned. Diagnostics that [`crate::envelope::search_truncated`] treats as
     /// a bounded search are copied into [`Self::bounded_search_diagnostics`];
     /// other diagnostics are not rewritten into a scientific outcome.
-    #[must_use = "lowering must retain this identification product"]
-    pub fn retain(result: &IdentificationResult, parts: CompiledProductParts) -> Self {
+    ///
+    /// Beyond the checks of [`Self::new`], an [`IdentificationOutcome::Identified`] product
+    /// requires `result.status` to be an identified status.
+    ///
+    /// # Errors
+    ///
+    /// A [`ProductRefusal`] when `parts` disagree with `result`.
+    #[must_use = "a refused product is not a retained identification"]
+    pub fn retain(
+        result: &IdentificationResult,
+        parts: CompiledProductParts,
+    ) -> Result<Self, ProductRefusal> {
+        if parts.outcome == IdentificationOutcome::Identified
+            && !matches!(
+                result.status,
+                IdentificationStatus::NonparametricallyIdentified
+                    | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                    | IdentificationStatus::IdentifiedUnderPriorRestrictions
+            )
+        {
+            return Err(ProductRefusal::IdentifiedFromUnidentifiedResult { status: result.status });
+        }
         let bounded_search = result
             .diagnostics
             .iter()
@@ -556,6 +651,36 @@ impl CompiledIdentificationProduct {
         write_assembled(&mut writer, self.assembled.as_ref());
         SemanticDigest::from_bytes(writer.finish())
     }
+}
+
+fn check_coherence(
+    estimands: &[IdentifiedEstimand],
+    assumptions: &AssumptionSet,
+    parts: &CompiledProductParts,
+) -> Result<(), ProductRefusal> {
+    check_claim_class(parts.outcome, parts.claim_class)?;
+    for world in &parts.world_obligations {
+        check_claim_class(world.outcome, world.claim_class)?;
+    }
+    if let Some(assembled) = &parts.assembled {
+        check_claim_class(assembled.outcome, assembled.claim_class)?;
+    }
+    if is_failure_outcome(parts.outcome) && !estimands.is_empty() {
+        return Err(ProductRefusal::EstimandBesideNonIdentification { outcome: parts.outcome });
+    }
+    if parts.outcome == IdentificationOutcome::Identified {
+        if estimands.is_empty() {
+            return Err(ProductRefusal::IdentifiedWithoutEstimand);
+        }
+        if let Some(index) = assumptions
+            .entries
+            .iter()
+            .position(|record| matches!(record.status, AssumptionStatus::Contradicted))
+        {
+            return Err(ProductRefusal::IdentifiedWithContradictedAssumption { index });
+        }
+    }
+    Ok(())
 }
 
 const fn states_identified_claim(
@@ -982,7 +1107,7 @@ mod tests {
     use antecedent_core::{
         Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
         AssumptionStatus, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind,
-        DiagnosticSeverity, ScientificWorldId, Value, VariableId,
+        DiagnosticSeverity, IdentificationStatus, ScientificWorldId, Value, VariableId,
     };
     use antecedent_expr::{CausalExprArena, DerivationMeta, ExprId, IdentifiedEstimand};
 
@@ -993,8 +1118,8 @@ mod tests {
 
     use super::{
         AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
-        IdentificationClaimClass, IdentificationOutcome, RequiredFactor, UnresolvedObligation,
-        WorldObligation, claim_code, outcome_code,
+        IdentificationClaimClass, IdentificationOutcome, ProductRefusal, RequiredFactor,
+        UnresolvedObligation, WorldObligation, claim_code, outcome_code,
     };
 
     const OUTCOMES: [IdentificationOutcome; 6] = [
@@ -1020,13 +1145,27 @@ mod tests {
     ) -> CompiledIdentificationProduct {
         let mut parts = CompiledProductParts::new(outcome, claim_class);
         parts.numerical_value = numerical_value;
+        let estimands = if outcome == IdentificationOutcome::Identified {
+            vec![estimand()]
+        } else {
+            Vec::new()
+        };
         CompiledIdentificationProduct::new(
-            Vec::new(),
+            estimands,
             CausalExprArena::new(),
             DerivationTrace::default(),
             AssumptionSet::new(),
             Vec::new(),
             parts,
+        )
+        .expect("coherent product")
+    }
+
+    fn estimand() -> IdentifiedEstimand {
+        IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
         )
     }
 
@@ -1101,11 +1240,105 @@ mod tests {
 
         let infeasible = empty_product(
             IdentificationOutcome::NumericallyInfeasible,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
             Some(1.25),
         );
         assert!(!infeasible.is_numerically_feasible());
         assert!(!infeasible.is_identified_claim());
+    }
+
+    fn refused(
+        estimands: Vec<IdentifiedEstimand>,
+        assumptions: AssumptionSet,
+        parts: CompiledProductParts,
+    ) -> ProductRefusal {
+        CompiledIdentificationProduct::new(
+            estimands,
+            CausalExprArena::new(),
+            DerivationTrace::default(),
+            assumptions,
+            Vec::new(),
+            parts,
+        )
+        .expect_err("incoherent product is refused")
+    }
+
+    #[test]
+    fn an_outcome_that_disagrees_with_its_claim_or_estimands_is_refused() {
+        // Identified with nothing retained.
+        let identified_claim = || {
+            CompiledProductParts::new(
+                IdentificationOutcome::Identified,
+                IdentificationClaimClass::IdentifiedClaim,
+            )
+        };
+        assert_eq!(
+            refused(Vec::new(), AssumptionSet::new(), identified_claim()),
+            ProductRefusal::IdentifiedWithoutEstimand
+        );
+
+        // Identified while an assumption it relies on is contradicted.
+        let mut assumptions = AssumptionSet::new();
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Positivity,
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Supported,
+        });
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Consistency,
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Contradicted,
+        });
+        assert_eq!(
+            refused(vec![estimand()], assumptions, identified_claim()),
+            ProductRefusal::IdentifiedWithContradictedAssumption { index: 1 }
+        );
+
+        // A failure outcome may not state the identified-claim class or retain an estimand.
+        for outcome in [
+            IdentificationOutcome::Unsupported,
+            IdentificationOutcome::TimedOut,
+            IdentificationOutcome::NumericallyInfeasible,
+            IdentificationOutcome::Uncalibrated,
+        ] {
+            assert_eq!(
+                refused(
+                    Vec::new(),
+                    AssumptionSet::new(),
+                    CompiledProductParts::new(outcome, IdentificationClaimClass::IdentifiedClaim)
+                ),
+                ProductRefusal::IdentifiedClaimClassBesideFailure { outcome }
+            );
+            assert_eq!(
+                refused(
+                    vec![estimand()],
+                    AssumptionSet::new(),
+                    CompiledProductParts::new(outcome, IdentificationClaimClass::ModelConditional)
+                ),
+                ProductRefusal::EstimandBesideNonIdentification { outcome }
+            );
+        }
+
+        // The same rule covers world and assembled obligations.
+        let mut with_world = CompiledProductParts::new(
+            IdentificationOutcome::Unidentified,
+            IdentificationClaimClass::ModelConditional,
+        );
+        with_world.world_obligations = vec![WorldObligation::new(
+            ScientificWorldId::from_raw(1),
+            IdentificationOutcome::TimedOut,
+            IdentificationClaimClass::IdentifiedClaim,
+            Vec::new(),
+            None,
+        )];
+        assert_eq!(
+            refused(Vec::new(), AssumptionSet::new(), with_world),
+            ProductRefusal::IdentifiedClaimClassBesideFailure {
+                outcome: IdentificationOutcome::TimedOut
+            }
+        );
     }
 
     #[test]
@@ -1132,13 +1365,14 @@ mod tests {
         parts.world_obligations = vec![world(1), world(2)];
         parts.assembled = Some(assembled);
         let product = CompiledIdentificationProduct::new(
-            Vec::new(),
+            vec![estimand()],
             CausalExprArena::new(),
             DerivationTrace::default(),
             AssumptionSet::new(),
             Vec::new(),
             parts,
-        );
+        )
+        .unwrap();
 
         assert!(product.world_obligations().iter().all(WorldObligation::is_numerically_feasible));
         assert!(product.world_obligations().iter().all(|world| !world.is_identified_claim()));
@@ -1202,14 +1436,39 @@ mod tests {
         ));
 
         let mut parts = CompiledProductParts::new(
-            IdentificationOutcome::TimedOut,
+            IdentificationOutcome::Identified,
             IdentificationClaimClass::IdentifiedClaim,
         );
         parts.required_factors =
             vec![RequiredFactor::new("outcome_mean", Arc::from([VariableId::from_raw(1)]))];
         parts.unresolved_obligations =
             vec![UnresolvedObligation::new("support.overlap", "empty cell")];
-        let product = CompiledIdentificationProduct::retain(&result, parts);
+
+        // A timeout cannot retain the identified functional of this result.
+        let timed_out = CompiledProductParts::new(
+            IdentificationOutcome::TimedOut,
+            IdentificationClaimClass::ModelConditional,
+        );
+        assert_eq!(
+            CompiledIdentificationProduct::retain(&result, timed_out).unwrap_err(),
+            ProductRefusal::EstimandBesideNonIdentification {
+                outcome: IdentificationOutcome::TimedOut
+            }
+        );
+        // An identified outcome cannot be retained from a result that is not identified.
+        let none = IdentificationResult::not_identified(
+            query(),
+            DerivationTrace::default(),
+            AssumptionSet::new(),
+            IdentificationPerformanceRecord::default(),
+        );
+        assert_eq!(
+            CompiledIdentificationProduct::retain(&none, parts.clone()).unwrap_err(),
+            ProductRefusal::IdentifiedFromUnidentifiedResult {
+                status: IdentificationStatus::NotIdentified
+            }
+        );
+        let product = CompiledIdentificationProduct::retain(&result, parts).unwrap();
 
         assert_eq!(product.identified().len(), 1);
         assert_eq!(product.identified()[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
@@ -1228,7 +1487,7 @@ mod tests {
                 || diagnostic.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
                 || diagnostic.code.as_ref() == crate::temporal_mag::HISTORY_CAPPED
         }));
-        assert!(!product.is_identified_claim());
+        assert!(product.is_identified_claim());
     }
 
     #[test]
@@ -1279,7 +1538,8 @@ mod tests {
             AssumptionSet::new(),
             Vec::new(),
             parts.clone(),
-        );
+        )
+        .unwrap();
         parts.world_obligations[0] = WorldObligation::new(
             ScientificWorldId::from_raw(7),
             IdentificationOutcome::Unidentified,
@@ -1302,7 +1562,8 @@ mod tests {
             AssumptionSet::new(),
             Vec::new(),
             parts,
-        );
+        )
+        .unwrap();
         assert_eq!(worlds, worlds_without_numbers);
         assert_eq!(worlds.identity(), worlds_without_numbers.identity());
     }
@@ -1318,12 +1579,13 @@ mod tests {
             vec![diagnostic],
             CompiledProductParts::new(
                 IdentificationOutcome::TimedOut,
-                IdentificationClaimClass::IdentifiedClaim,
+                IdentificationClaimClass::ModelConditional,
             ),
-        );
+        )
+        .unwrap();
         let without_search = empty_product(
             IdentificationOutcome::TimedOut,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
             None,
         );
         assert_eq!(with_search, without_search);
@@ -1343,7 +1605,8 @@ mod tests {
                 IdentificationOutcome::Unidentified,
                 IdentificationClaimClass::IdentifiedClaim,
             ),
-        );
+        )
+        .unwrap();
         let unidentified = empty_product(
             IdentificationOutcome::Unidentified,
             IdentificationClaimClass::IdentifiedClaim,
@@ -1377,7 +1640,8 @@ mod tests {
             AssumptionSet::new(),
             Vec::new(),
             parts.clone(),
-        );
+        )
+        .unwrap();
         arena.set_derivation(root, DerivationMeta::rule("renamed", None));
         let same_functional = CompiledIdentificationProduct::new(
             vec![IdentifiedEstimand::backdoor(
@@ -1390,7 +1654,8 @@ mod tests {
             AssumptionSet::new(),
             Vec::new(),
             parts,
-        );
+        )
+        .unwrap();
         let empty = empty_product(
             IdentificationOutcome::Unidentified,
             IdentificationClaimClass::IdentifiedClaim,

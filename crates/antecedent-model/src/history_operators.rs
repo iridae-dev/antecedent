@@ -108,7 +108,7 @@ impl OperatorFrame {
     }
 }
 
-/// Which weight was not finite.
+/// Which weight was refused.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum WeightRole {
     /// Censoring weight.
@@ -165,6 +165,21 @@ pub enum HistoryOperatorError {
     /// A censoring or assignment weight was `NaN` or infinite.
     #[error("{role} weight {value} is not finite; next attempt: supply a finite weight")]
     NonFiniteWeight {
+        /// Which weight.
+        role: WeightRole,
+        /// The refused value.
+        value: f64,
+    },
+    /// A censoring or assignment weight was finite but zero or negative.
+    ///
+    /// These are inverse-probability weights. A zero weight is a probability of
+    /// infinity, which is a positivity violation, and a negative weight is not a
+    /// reciprocal of a probability.
+    #[error(
+        "{role} weight {value} is not positive; next attempt: supply a finite weight above zero, \
+         or declare the positivity violation"
+    )]
+    NonPositiveWeight {
         /// Which weight.
         role: WeightRole,
         /// The refused value.
@@ -393,13 +408,15 @@ pub struct CensoringAssignmentWeight {
 impl CensoringAssignmentWeight {
     /// Compile `censoring` and `assignment` weights.
     ///
-    /// Both values must be finite. Zero and negative finites are weights;
-    /// this operator does not interpret them as probabilities.
+    /// Both values are inverse-probability weights and must be finite and above
+    /// zero. A zero weight is a positivity violation, and a negative weight is
+    /// not the reciprocal of a probability.
     ///
     /// # Errors
     ///
-    /// The frame errors of [`OperatorFrame::try_new`], or
-    /// [`HistoryOperatorError::NonFiniteWeight`].
+    /// The frame errors of [`OperatorFrame::try_new`],
+    /// [`HistoryOperatorError::NonFiniteWeight`], or
+    /// [`HistoryOperatorError::NonPositiveWeight`].
     #[must_use = "a refused weight is not an operator"]
     pub fn try_new(
         cadence: TimeIndex,
@@ -510,11 +527,13 @@ fn admit_action(frame: &OperatorFrame, at_ns: u64) -> Result<(), HistoryOperator
 }
 
 fn admit_weight(role: WeightRole, value: f64) -> Result<(), HistoryOperatorError> {
-    if value.is_finite() {
-        Ok(())
-    } else {
-        Err(HistoryOperatorError::NonFiniteWeight { role, value })
+    if !value.is_finite() {
+        return Err(HistoryOperatorError::NonFiniteWeight { role, value });
     }
+    if value <= 0.0 {
+        return Err(HistoryOperatorError::NonPositiveWeight { role, value });
+    }
+    Ok(())
 }
 
 fn admit_name(field: &'static str, name: Arc<str>) -> Result<Arc<str>, HistoryOperatorError> {
@@ -563,7 +582,7 @@ mod tests {
         let regression =
             SequentialRegression::try_new(cadence.clone(), horizon, law.clone(), "y").unwrap();
         let weights =
-            CensoringAssignmentWeight::try_new(cadence.clone(), horizon, law.clone(), 1.0, -0.5)
+            CensoringAssignmentWeight::try_new(cadence.clone(), horizon, law.clone(), 1.0, 0.5)
                 .unwrap();
         let reduction = TrajectoryReduction::try_new(cadence, horizon, law, "mean").unwrap();
 
@@ -576,7 +595,7 @@ mod tests {
         assert_eq!(transition.step_ns(), 10);
         assert_eq!(regression.outcome(), "y");
         assert_eq!(weights.censoring().to_bits(), 1.0f64.to_bits());
-        assert_eq!(weights.assignment().to_bits(), (-0.5f64).to_bits());
+        assert_eq!(weights.assignment().to_bits(), 0.5f64.to_bits());
         assert_eq!(reduction.functional(), "mean");
         assert_eq!(reduction.frame().interval_ns(), 10);
     }
@@ -705,6 +724,34 @@ mod tests {
                     assert!(!value.is_finite());
                 }
                 other => panic!("expected a non-finite {role} weight, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_zero_or_negative_inverse_probability_weight_is_refused() {
+        let (cadence, horizon, law) = frame_inputs();
+        let cases = [
+            (WeightRole::Censoring, 0.0, 1.0),
+            (WeightRole::Censoring, -2.0, 1.0),
+            (WeightRole::Assignment, 1.0, 0.0),
+            (WeightRole::Assignment, 1.0, -0.5),
+        ];
+        for (role, censoring, assignment) in cases {
+            let error = CensoringAssignmentWeight::try_new(
+                cadence.clone(),
+                horizon,
+                law.clone(),
+                censoring,
+                assignment,
+            )
+            .unwrap_err();
+            match error {
+                HistoryOperatorError::NonPositiveWeight { role: got, value } => {
+                    assert_eq!(got, role);
+                    assert!(value <= 0.0);
+                }
+                other => panic!("expected a non-positive {role} weight, got {other:?}"),
             }
         }
     }

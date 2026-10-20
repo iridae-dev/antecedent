@@ -3,11 +3,17 @@
 //! Information availability for prospective features, policies, and held-out rows.
 //!
 //! A decision time and an outcome time are [`CadenceTick`] values: `u32`
-//! indexes on one [`DeclaredCadence`]. History operators do not export their
-//! cadence, so the tick is declared here. Index order is time order.
+//! indexes on one [`DeclaredCadence`]. The history operators expose their
+//! cadence as a `TimeIndex` (`OperatorFrame::cadence()`), which is a different
+//! type from [`DeclaredCadence`]; a caller declares the tick grid here and is
+//! responsible for it matching the operator's. Index order is time order.
 //!
 //! A prospective feature or a held-out row may use an outcome only when
-//! `outcome <= decision`. A training nuisance may use a later outcome only when
+//! `outcome <= decision`. An outcome at the decision tick counts as available:
+//! this module assumes the outcome of a tick is observed before the decision of
+//! that same tick is made, and a deployment in which the same-tick outcome is
+//! realized after the decision must declare the outcome one tick later.
+//! A training nuisance may use a later outcome only when
 //! [`RetrospectivePermission::Granted`] and the deployment is
 //! [`ForwardOnly::NotEnforced`]. [`ForwardOnly::Enforced`] refuses that later
 //! outcome. A refusal is [`InformationRefusal`]. The row is not dropped.
@@ -231,7 +237,8 @@ pub enum InformationRefusal {
 
 /// Admit `outcome` at `decision` for `information_use`.
 ///
-/// An outcome at or before the decision is available for every use. A later
+/// An outcome at or before the decision is available for every use, with the
+/// same-tick outcome treated as already observed (see the module note). A later
 /// outcome is available only for [`InformationUse::TrainingNuisance`] with
 /// [`RetrospectivePermission::Granted`] and [`ForwardOnly::NotEnforced`].
 ///

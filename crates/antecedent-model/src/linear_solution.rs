@@ -42,7 +42,10 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+use antecedent_kernels::gauss_jordan_solve;
 use thiserror::Error;
+
+use crate::scc_compile::{eye_minus_block, support_blocks};
 
 /// Equation of the free block under a hard clamp `H = a`.
 ///
@@ -66,6 +69,33 @@ const ADMISSION_GAP: f64 = 1.0e-12;
 
 /// Power iterations used for the Collatz–Wielandt upper bound on `ρ(|K|)`.
 const POWER_ITERATIONS: usize = 32;
+
+/// Largest strongly connected block that [`assess`] pivot-tests directly.
+/// Larger blocks are decided by a norm or by the family certificate, or stay open.
+const PIVOT_TEST_ORDER_LIMIT: usize = 3;
+
+/// A block whose exact closed-form infinity-norm condition number exceeds this value
+/// is reported as [`Uniqueness::IllConditioned`] rather than as a clean
+/// [`Uniqueness::Unique`]. With the equilibrated pivot floor
+/// ([`antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR`]) a block can pass the singularity test and still
+/// carry a condition number near `1 / floor`.
+pub const ILL_CONDITIONED_KAPPA: f64 = 1.0e8;
+
+/// The singularity test shared by [`assess`] and
+/// [`compile_gaussian_equilibrium`](crate::scc_compile::compile_gaussian_equilibrium).
+///
+/// `eye_minus` is `I - K_SS` row-major of order `m`, whose diagonal is one. It is
+/// regular when [`gauss_jordan_solve`] with partial pivoting finds every pivot
+/// above [`antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR`]. A `false` means numerically singular: a
+/// pivot sits at or below the floor, which includes but is not limited to an
+/// exactly singular matrix.
+pub(crate) fn pivots_regular(eye_minus: &[f64], m: usize) -> bool {
+    if m == 0 {
+        return true;
+    }
+    let mut factor = eye_minus.to_vec();
+    gauss_jordan_solve(&mut factor, &mut [], m, 0)
+}
 
 /// Failure to construct a map or a clamp, before any certificate is issued.
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
@@ -341,6 +371,23 @@ pub enum Uniqueness {
     /// `(I - K_FF)` is singular. Off the consistency constraint there is no
     /// solution; on it there are infinitely many. No root is selected.
     Singular(SingularBlock),
+    /// A strongly connected block of the free system has a pivot at or below
+    /// [`antecedent_kernels::EQUILIBRATED_PIVOT_FLOOR`]. This is the same test that makes
+    /// [`compile_gaussian_equilibrium`](crate::scc_compile::compile_gaussian_equilibrium)
+    /// refuse the block. It does not claim the block is exactly singular:
+    /// [`Self::Singular`] is reserved for a closed-form determinant that evaluates
+    /// to zero.
+    NumericallySingular {
+        /// Free variables of the failing strongly connected block, ascending.
+        members: Vec<usize>,
+    },
+    /// The pivot test passed, so the block has a unique solution, but the exact
+    /// infinity-norm condition number exceeds [`ILL_CONDITIONED_KAPPA`]. A solve
+    /// loses roughly `log10(kappa)` digits.
+    IllConditioned {
+        /// Exact infinity-norm condition number of the block.
+        kappa: f64,
+    },
     /// The sufficient checks did not decide this block. The query stays open.
     /// This is not a verdict that the model is unidentified.
     Undetermined {
@@ -389,7 +436,7 @@ pub enum Conditioning {
         /// Factor `(I - K_FF)` and estimate its condition from that factor.
         next_attempt: NextAttempt,
     },
-    /// The block is singular, so it has no finite condition number.
+    /// The block is exactly or numerically singular, so it has no usable condition number.
     Undefined,
 }
 
@@ -516,9 +563,12 @@ pub fn assess(
     if clamp.dimension != model.n {
         return Err(LinearSolutionError::ClampDimension { clamp: clamp.dimension, model: model.n });
     }
-    let original = query_block(model, &[]);
-    let intervened = query_block(model, &clamp.indices);
-    let family = certify_family(model, &intervened.factor.free);
+    let intervened_free = free_indices(model.n, &clamp.indices);
+    let family = certify_family(model, &intervened_free);
+    // `ρ(|K|) < 1` bounds every principal sub-block, so it applies to both blocks.
+    let admitted = family.is_admitted();
+    let original = query_block(model, &[], admitted);
+    let intervened = query_block(model, &clamp.indices, admitted);
     Ok(SolutionAssessment {
         original,
         intervened,
@@ -526,6 +576,11 @@ pub fn assess(
         physical_stability: PhysicalStability::Unclaimed,
         solver: SolverConvergence::NotRun,
     })
+}
+
+/// The family certificate of `model` with every variable free.
+pub(crate) fn family_certificate(model: &LinearStructuralMap) -> FamilyCertificate {
+    certify_family(model, &free_indices(model.n, &[]))
 }
 
 fn certify_family(model: &LinearStructuralMap, query_free: &[usize]) -> FamilyCertificate {
@@ -542,12 +597,16 @@ fn certify_family(model: &LinearStructuralMap, query_free: &[usize]) -> FamilyCe
     }
 }
 
-fn query_block(model: &LinearStructuralMap, clamped: &[usize]) -> QueryBlock {
+fn query_block(
+    model: &LinearStructuralMap,
+    clamped: &[usize],
+    family_admitted: bool,
+) -> QueryBlock {
     let free = free_indices(model.n, clamped);
     let k_ff = principal(&model.coefficients, model.n, &free);
     let k_fh = gather_k_fh(&model.coefficients, model.n, &free, clamped);
     let intercept_f = free.iter().map(|&node| model.intercept[node]).collect();
-    let (uniqueness, conditioning) = decide(&k_ff, &free);
+    let (uniqueness, conditioning) = decide(model, &free, &k_ff, family_admitted);
     QueryBlock {
         factor: FactorDescription {
             free,
@@ -562,7 +621,8 @@ fn query_block(model: &LinearStructuralMap, clamped: &[usize]) -> QueryBlock {
     }
 }
 
-fn free_indices(n: usize, clamped: &[usize]) -> Vec<usize> {
+/// Free indices of a model of order `n` under the ascending clamp `clamped`.
+pub(crate) fn free_indices(n: usize, clamped: &[usize]) -> Vec<usize> {
     let mut free = Vec::with_capacity(n.saturating_sub(clamped.len()));
     let mut cursor = 0;
     for node in 0..n {
@@ -596,56 +656,135 @@ fn gather_k_fh(coefficients: &[f64], n: usize, free: &[usize], clamped: &[usize]
     block
 }
 
-fn decide(k_ff: &[f64], free: &[usize]) -> (Uniqueness, Conditioning) {
+/// Decide one free block with the criterion `compile_gaussian_equilibrium` uses.
+///
+/// A closed-form determinant that evaluates to exactly zero is
+/// [`Uniqueness::Singular`]. Otherwise each strongly connected block up to
+/// [`PIVOT_TEST_ORDER_LIMIT`] gets the pivot test of [`pivots_regular`], and a
+/// failure is [`Uniqueness::NumericallySingular`]. A larger block is decided by
+/// the Neumann norm bound or the admitted family certificate, else it stays open.
+fn decide(
+    model: &LinearStructuralMap,
+    free: &[usize],
+    k_ff: &[f64],
+    family_admitted: bool,
+) -> (Uniqueness, Conditioning) {
     let m = free.len();
-    match m {
-        0 | 1 => (Uniqueness::Unique, Conditioning::InfinityNorm { kappa: 1.0, exact: true }),
-        2 => two_by_two(k_ff, free),
-        _ => larger_block(k_ff, free),
+    if m <= 1 {
+        return (Uniqueness::Unique, Conditioning::InfinityNorm { kappa: 1.0, exact: true });
+    }
+    if let Some(verdict) = closed_form_singular(k_ff, free) {
+        return verdict;
+    }
+    let Ok(blocks) = support_blocks(model, free) else {
+        return undetermined(free);
+    };
+    let mut oversized = false;
+    for block in &blocks {
+        if block.len() < 2 {
+            continue;
+        }
+        if block.len() > PIVOT_TEST_ORDER_LIMIT {
+            oversized = true;
+            continue;
+        }
+        let Ok(matrix) = eye_minus_block(model, block) else {
+            return undetermined(free);
+        };
+        if !pivots_regular(&matrix, block.len()) {
+            return (
+                Uniqueness::NumericallySingular { members: block.clone() },
+                Conditioning::Undefined,
+            );
+        }
+    }
+    let (uniqueness, conditioning) = if m == 2 {
+        two_by_two_conditioning(k_ff, free)
+    } else {
+        let norm = max_abs_row_sum(k_ff, m);
+        if norm.is_finite() && norm < 1.0 {
+            neumann_block(norm, free)
+        } else if oversized && !family_admitted {
+            return undetermined(free);
+        } else {
+            (Uniqueness::Unique, not_estimated(free))
+        }
+    };
+    let ill_conditioned = match (&uniqueness, &conditioning) {
+        (Uniqueness::Unique, Conditioning::InfinityNorm { kappa, exact: true })
+            if *kappa > ILL_CONDITIONED_KAPPA =>
+        {
+            Some(*kappa)
+        }
+        _ => None,
+    };
+    if let Some(kappa) = ill_conditioned {
+        return (Uniqueness::IllConditioned { kappa }, conditioning);
+    }
+    (uniqueness, conditioning)
+}
+
+/// Exactly singular 2x2 or 3x3 free block by its closed-form determinant, or an
+/// undecided verdict when that determinant is not finite.
+fn closed_form_singular(k_ff: &[f64], free: &[usize]) -> Option<(Uniqueness, Conditioning)> {
+    match free.len() {
+        2 => {
+            let product = k_ff[1] * k_ff[2];
+            let det = 1.0 - product;
+            if !product.is_finite() || !det.is_finite() {
+                return Some(undetermined(free));
+            }
+            #[allow(
+                clippy::float_cmp,
+                reason = "the 2x2 closed form is exactly singular when 1 - K_01 K_10 evaluates to zero"
+            )]
+            if det == 0.0 {
+                return Some((
+                    Uniqueness::Singular(SingularBlock {
+                        witness: ConsistencyWitness::LeftNull(vec![k_ff[2], 1.0]),
+                    }),
+                    Conditioning::Undefined,
+                ));
+            }
+            None
+        }
+        3 => {
+            let mut eye_minus = [0.0; 9];
+            for row in 0..3 {
+                for col in 0..3 {
+                    let coefficient = k_ff[row * 3 + col];
+                    eye_minus[row * 3 + col] =
+                        if row == col { 1.0 - coefficient } else { -coefficient };
+                }
+            }
+            let det = determinant3(&eye_minus);
+            if !det.is_finite() {
+                return Some(undetermined(free));
+            }
+            #[allow(
+                clippy::float_cmp,
+                reason = "the 3x3 closed form is exactly singular when its determinant evaluates to zero"
+            )]
+            if det == 0.0 {
+                return Some((
+                    Uniqueness::Singular(SingularBlock { witness: ConsistencyWitness::NotFormed }),
+                    Conditioning::Undefined,
+                ));
+            }
+            None
+        }
+        _ => None,
     }
 }
 
-fn two_by_two(k_ff: &[f64], free: &[usize]) -> (Uniqueness, Conditioning) {
-    let into_from_second = k_ff[1];
-    let into_second_from_first = k_ff[2];
-    let product = into_from_second * into_second_from_first;
-    if !product.is_finite() {
-        return undetermined(free);
-    }
-    let det = 1.0 - product;
-    if !det.is_finite() {
-        return undetermined(free);
-    }
-    #[allow(
-        clippy::float_cmp,
-        reason = "the 2x2 closed form is singular exactly when 1 - K_01 K_10 evaluates to zero"
-    )]
-    if det == 0.0 {
-        return (
-            Uniqueness::Singular(SingularBlock {
-                witness: ConsistencyWitness::LeftNull(vec![into_second_from_first, 1.0]),
-            }),
-            Conditioning::Undefined,
-        );
-    }
-    let row_sum = (1.0 + into_from_second.abs()).max(1.0 + into_second_from_first.abs());
+fn two_by_two_conditioning(k_ff: &[f64], free: &[usize]) -> (Uniqueness, Conditioning) {
+    let det = 1.0 - k_ff[1] * k_ff[2];
+    let row_sum = (1.0 + k_ff[1].abs()).max(1.0 + k_ff[2].abs());
     let kappa = (row_sum * row_sum) / det.abs();
     if !kappa.is_finite() {
         return (Uniqueness::Unique, not_estimated(free));
     }
     (Uniqueness::Unique, Conditioning::InfinityNorm { kappa, exact: true })
-}
-
-fn larger_block(k_ff: &[f64], free: &[usize]) -> (Uniqueness, Conditioning) {
-    let m = free.len();
-    let norm = max_abs_row_sum(k_ff, m);
-    if norm.is_finite() && norm < 1.0 {
-        return neumann_block(norm, free);
-    }
-    if m == 3 {
-        return three_by_three(k_ff, free);
-    }
-    undetermined(free)
 }
 
 fn neumann_block(norm: f64, free: &[usize]) -> (Uniqueness, Conditioning) {
@@ -654,31 +793,6 @@ fn neumann_block(norm: f64, free: &[usize]) -> (Uniqueness, Conditioning) {
         return (Uniqueness::Unique, not_estimated(free));
     }
     (Uniqueness::Unique, Conditioning::InfinityNorm { kappa, exact: false })
-}
-
-fn three_by_three(k_ff: &[f64], free: &[usize]) -> (Uniqueness, Conditioning) {
-    let mut eye_minus = [0.0; 9];
-    for row in 0..3 {
-        for col in 0..3 {
-            let coefficient = k_ff[row * 3 + col];
-            eye_minus[row * 3 + col] = if row == col { 1.0 - coefficient } else { -coefficient };
-        }
-    }
-    let det = determinant3(&eye_minus);
-    if !det.is_finite() {
-        return undetermined(free);
-    }
-    #[allow(
-        clippy::float_cmp,
-        reason = "the 3x3 closed form is singular exactly when its determinant evaluates to zero"
-    )]
-    if det == 0.0 {
-        return (
-            Uniqueness::Singular(SingularBlock { witness: ConsistencyWitness::NotFormed }),
-            Conditioning::Undefined,
-        );
-    }
-    (Uniqueness::Unique, not_estimated(free))
 }
 
 fn determinant3(m: &[f64; 9]) -> f64 {
@@ -800,8 +914,7 @@ mod tests {
     use super::{
         Conditioning, ConsistencyWitness, FamilyCertificate, HardClamp, IdentificationStatus,
         LinearSolutionError, LinearStructuralMap, NONZERO_DIAGONAL_NEXT_ATTEMPT, NextAttempt,
-        PhysicalStability,
-        SolverConvergence, Uniqueness, assess,
+        PhysicalStability, SolverConvergence, Uniqueness, assess,
     };
 
     fn close(left: f64, right: f64) -> bool {
@@ -1023,6 +1136,55 @@ mod tests {
         let model = map(vec![0.0, 0.1, 0.2, 0.0], vec![0.0, 0.0]);
         let mismatch = assess(&model, &HardClamp::none(3).expect("other dimension"));
         assert_eq!(mismatch, Err(LinearSolutionError::ClampDimension { clamp: 3, model: 2 }));
+    }
+
+    #[test]
+    fn pivot_below_the_floor_is_numerically_singular_not_a_clean_unique() {
+        // I - K = [[1, -1], [-(1 + 1e-13), 1]]. After pivoting on the larger
+        // first-column entry the second pivot is 1 - 1 / (1 + 1e-13), about 1e-13,
+        // which is below the 1e-12 floor. The determinant is -1e-13, not zero, so
+        // the block is numerically singular and not exactly singular.
+        let model = map(vec![0.0, 1.0, 1.0 + 1.0e-13, 0.0], vec![0.0, 0.0]);
+        let report = assess(&model, &HardClamp::none(2).expect("no clamp")).expect("assessment");
+        assert_eq!(
+            report.original.uniqueness,
+            Uniqueness::NumericallySingular { members: vec![0, 1] }
+        );
+        assert_eq!(report.original.conditioning, Conditioning::Undefined);
+        assert!(!matches!(report.original.uniqueness, Uniqueness::Singular(_)));
+    }
+
+    #[test]
+    fn unique_but_ill_conditioned_block_is_not_reported_as_clean() {
+        // det(I - K) = 1 - 1 * (1 - 1e-9) = 1e-9 clears the 1e-12 floor, and
+        // kappa = (1 + 1)^2 / 1e-9 = 4e9 exceeds the ill-conditioned bound.
+        let model = map(vec![0.0, 1.0, 1.0 - 1.0e-9, 0.0], vec![0.0, 0.0]);
+        let report = assess(&model, &HardClamp::none(2).expect("no clamp")).expect("assessment");
+        match report.original.uniqueness {
+            Uniqueness::IllConditioned { kappa } => {
+                assert!((3.9e9..4.1e9).contains(&kappa), "kappa {kappa}");
+            }
+            other => panic!("uniqueness {other:?}"),
+        }
+    }
+
+    #[test]
+    fn admitted_family_decides_a_large_block_whose_row_sums_exceed_one() {
+        // One strongly connected block of order four with a first row summing to
+        // 1.2. rho(|K|) is about 0.4606 (power iteration with numpy), so every
+        // principal sub-block is uniquely solvable and the block is not left open.
+        let mut coefficients = vec![0.1; 16];
+        for node in 0..4 {
+            coefficients[node * 4 + node] = 0.0;
+        }
+        coefficients[1] = 0.4;
+        coefficients[2] = 0.4;
+        coefficients[3] = 0.4;
+        let model = map(coefficients, vec![0.0; 4]);
+        let report = assess(&model, &HardClamp::none(4).expect("no clamp")).expect("assessment");
+        assert!(report.family.is_admitted());
+        assert!(matches!(report.original.uniqueness, Uniqueness::Unique));
+        assert!(matches!(report.original.conditioning, Conditioning::NotEstimated { .. }));
     }
 
     fn matmul3(left: &[f64], right: &[f64]) -> [f64; 9] {

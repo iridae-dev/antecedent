@@ -12,7 +12,7 @@ papers = [
 
 implementation_deviations = [
  "Composition among components stays feed-forward. A cycle among components is refused, and a provenance chain that cites itself is refused. The next attempt is to wrap the cyclic model as one CyclicComponent with an explicit solve contract and to keep its source evidence outside that chain.",
- "Admission names FREE_BLOCK_EQUATION and the ρ(|K|) < 1 family bound. Those are references to the linear-solution contract. This module does not evaluate the bound, does not form a free-block inverse, and does not issue a new certificate.",
+ "Admission requires an admitted ρ(|K|) < 1 family certificate that equals the certificate the supplied model yields, and at least one certifying-evidence id. The component stores the model order and a digest of its coefficients and intercept, and compilation refuses a model that does not match. This module does not form a free-block inverse and does not issue a new certificate.",
  "The component's own source id is not evidence that its solution holds. A source id that appears in the certifying evidence is refused.",
  "The module does not sample, and it does not inherit unique solvability, the simple-SCM certificate, or physical stability.",
 ]

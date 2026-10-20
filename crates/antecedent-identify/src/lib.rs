@@ -191,8 +191,8 @@ pub use backdoor::{AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentific
 pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
 pub use compiled_product::{
     AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
-    IdentificationClaimClass, IdentificationOutcome, RequiredFactor, UnresolvedObligation,
-    WorldObligation,
+    IdentificationClaimClass, IdentificationOutcome, ProductRefusal, RequiredFactor,
+    UnresolvedObligation, WorldObligation,
 };
 pub use efficient::EfficientBackdoorIdentifier;
 pub use envelope::{

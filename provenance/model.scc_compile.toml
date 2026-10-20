@@ -14,7 +14,7 @@ implementation_deviations = [
  "Each strongly connected component of the free support is one square block I − K_SS, scheduled sources before sinks. The block is overwritten by a Gauss–Jordan solve. (I − K)^{-1} is not formed and is not stored.",
  "A nonzero diagonal is refused and names the next attempt. It is not normalized.",
  "Disturbance covariance between components is kept. A hard clamp substitutes constants and leaves the free block its marginal disturbance covariance.",
- "A singular or non-finite block is a refusal. The result stays NotMarkedUnidentified. Physical stability is unclaimed. No iterative solver is recorded.",
+ "A numerically singular (pivot at or below the equilibrated floor, the test assess shares) or non-finite block is a refusal. The result stays NotMarkedUnidentified. Physical stability is unclaimed. No iterative solver is recorded.",
 ]
 
 upstream_implementations_observed = []

@@ -13,7 +13,7 @@ implementation_deviations = [
  "This is the input contract for a later clamp-design judge. It does not call that judge and it does not issue coefficient recovery.",
  "It does not inherit identifiability, experimental-covariance recovery of the direct-effect matrix, the learning procedure, the rank tests, or weak stability.",
  "It does not inherit consistency, and it does not run the recipe's exogeneity, noise, coverage, or rank checks.",
- "A mask that removes a targeted unit, a target outside the units, or an independence premise on a shared source is refused. The next attempt is experiment_regime.repair_mask_or_premise.",
+ "A mask that removes a targeted unit, a target outside the units, or an independence premise on a shared source, or a dependence premise with no shared source is refused. The next attempt is experiment_regime.repair_mask_or_premise.",
 ]
 
 upstream_implementations_observed = []

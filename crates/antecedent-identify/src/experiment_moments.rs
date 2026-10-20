@@ -16,11 +16,25 @@
 //! The assembled blocks are the constraint system. This module does not solve
 //! it, does not form a pseudoinverse, does not test the rank of the constraint
 //! matrix, and does not recover a direct-effect matrix or a disturbance
-//! covariance. Weak stability is not checked. A set of regimes that misses the
-//! pair condition (some ordered pair is never clamped at the source while the
-//! target stays passive) is refused, as is a regime set whose dependence
-//! premise, population, or retained units disagree with one shared independent
-//! experiment family.
+//! covariance. Weak stability is not checked.
+//!
+//! A target is covered when, for every other unit `from`, some regime clamps
+//! `from` while the target stays passive. Blocks are assembled for covered
+//! targets, and the uncovered ordered pairs are listed beside them
+//! ([`AssembledExperimentConstraints::uncovered`]). When no target is covered
+//! the assembly is refused. A regime set whose dependence premise, population,
+//! or retained units disagree with one shared independent experiment family is
+//! refused.
+//!
+//! A mask may drop a unit only if that unit is clamped in every regime, because
+//! the row for a passive unit `u` carries the term `b_iu t_uj`, and a dropped
+//! passive unit would silently lose that term. The regime contract refuses a mask
+//! that drops a unit any regime clamps, so every dropped unit that a regime
+//! declares is refused here as [`MomentAssemblyRefusal::DroppedUnitNotClamped`].
+//!
+//! The experimental effects are computed on the correlation matrix of the
+//! intervened columns, so the pivot floor is relative to each column's own
+//! scale and does not depend on the units of measurement.
 
 use std::collections::BTreeSet;
 use std::fmt;
@@ -32,12 +46,12 @@ use crate::experiment_regime::{AcceptedRegimeContract, DependencePremise, Experi
 /// Bytes in one assembled `f64` entry.
 const F64_BYTES: u64 = 8;
 
-/// Relative floor for a pivot of the intervention covariance.
+/// Relative floor for a pivot of the intervention correlation matrix.
 ///
-/// A pivot at or below this fraction of the matrix scale means the intervened
-/// columns do not have a positive-definite sample covariance, so the canonical
-/// experimental effects are undefined. It is not a rank test of the constraint
-/// matrix.
+/// The intervened covariance is scaled to unit diagonal before this floor applies.
+/// A pivot at or below it means the intervened columns do not have a
+/// positive-definite sample covariance, so the canonical experimental effects are
+/// undefined. It is not a rank test of the constraint matrix.
 const INTERVENTION_PIVOT_FLOOR: f64 = 1e-12;
 
 /// One observed column of a regime sample.
@@ -112,6 +126,19 @@ pub enum MomentAssemblyRefusal {
     },
     /// The byte estimate overflowed.
     ResourceOverflow,
+    /// The byte estimate exceeds the caller's budget. Nothing was allocated.
+    BudgetExceeded {
+        /// Estimated bytes, including the centered copies of the largest sample.
+        requested: u64,
+        /// Budget the caller supplied.
+        limit: u64,
+    },
+    /// A mask drops a declared unit that is not clamped in every regime. The dropped
+    /// passive unit's term would be missing from the experimental-effect rows.
+    DroppedUnitNotClamped {
+        /// The dropped unit.
+        unit: VariableId,
+    },
 }
 
 /// How the accepted regimes disagree with one independent experiment family.
@@ -202,9 +229,14 @@ pub struct AssembledExperimentConstraints {
     pub units: Vec<VariableId>,
     /// One moment matrix per accepted regime, in regime order.
     pub moments: Vec<ExperimentMoments>,
-    /// One block per retained unit, in unit order.
+    /// One block per covered target, in unit order. A target with an uncovered
+    /// ordered pair has no block.
     pub blocks: Vec<TargetConstraintBlock>,
-    /// Byte estimate of the moment matrices and the constraint entries.
+    /// Ordered pairs no regime clamps at the source while the target is passive,
+    /// ordered by source then target. Empty when every target has a block.
+    pub uncovered: Vec<MissingPair>,
+    /// Byte estimate of the moment matrices, the constraint entries, and the
+    /// centered copies of the largest sample.
     pub bytes: u64,
 }
 
@@ -243,6 +275,12 @@ impl fmt::Display for MomentAssemblyRefusal {
             Self::ResourceOverflow => {
                 write!(f, "the moment and constraint byte estimate overflowed")
             }
+            Self::BudgetExceeded { requested, limit } => {
+                write!(f, "the moment and constraint estimate of {requested} bytes exceeds {limit}")
+            }
+            Self::DroppedUnitNotClamped { unit } => {
+                write!(f, "mask drops {unit}, which is not clamped in every regime")
+            }
         }
     }
 }
@@ -266,17 +304,20 @@ impl fmt::Display for RegimeInconsistency {
     }
 }
 
-/// Bytes occupied by `regimes` moment matrices and `constraint_rows` constraint rows
-/// on `units` units.
+/// Bytes occupied by `regimes` moment matrices, `constraint_rows` constraint rows, and
+/// the centered copies of a sample of `max_rows` rows, on `units` units.
 ///
 /// Each regime contributes `units * (units + 1)` floats (means and the covariance
 /// matrix). Each constraint row contributes `units` floats (`units - 1`
-/// coefficients and one right-hand side). Index storage is not included. The
-/// arithmetic is checked; overflow is [`MomentAssemblyRefusal::ResourceOverflow`].
+/// coefficients and one right-hand side). The centered copies are held for one
+/// regime at a time and add `units * max_rows` floats. Index storage is not
+/// included. The arithmetic is checked; overflow is
+/// [`MomentAssemblyRefusal::ResourceOverflow`].
 pub fn experiment_constraint_bytes(
     units: u64,
     regimes: u64,
     constraint_rows: u64,
+    max_rows: u64,
 ) -> Result<u64, MomentAssemblyRefusal> {
     let per_regime = units
         .checked_add(1)
@@ -290,17 +331,27 @@ pub fn experiment_constraint_bytes(
         .checked_mul(units)
         .and_then(|cells| cells.checked_mul(F64_BYTES))
         .ok_or(MomentAssemblyRefusal::ResourceOverflow)?;
-    moments.checked_add(constraints).ok_or(MomentAssemblyRefusal::ResourceOverflow)
+    let centered = units
+        .checked_mul(max_rows)
+        .and_then(|cells| cells.checked_mul(F64_BYTES))
+        .ok_or(MomentAssemblyRefusal::ResourceOverflow)?;
+    moments
+        .checked_add(constraints)
+        .and_then(|total| total.checked_add(centered))
+        .ok_or(MomentAssemblyRefusal::ResourceOverflow)
 }
 
 /// Assemble centered moments and experimental-effect constraints.
 ///
-/// The returned blocks are not a coefficient estimate. A refusal does not carry
-/// a partial block.
+/// The returned blocks are not a coefficient estimate. Blocks exist for covered
+/// targets only; the uncovered ordered pairs are listed. `max_bytes` bounds the
+/// estimate of [`experiment_constraint_bytes`], which is checked before any moment
+/// is accumulated. A refusal does not carry a partial block.
 #[must_use = "a refusal must not be read as an assembled constraint"]
 pub fn assemble_experiment_constraints(
     contract: &AcceptedRegimeContract,
     samples: &[RegimeSample<'_>],
+    max_bytes: u64,
 ) -> Result<AssembledExperimentConstraints, MomentAssemblyRefusal> {
     let regimes = contract.regimes();
     if samples.len() != regimes.len() {
@@ -313,19 +364,34 @@ pub fn assemble_experiment_constraints(
     if let Some(reason) = inconsistent_regime(regimes, dropped) {
         return Err(MomentAssemblyRefusal::InconsistentRegime(reason));
     }
+    if let Some(unit) = unclamped_dropped_unit(regimes, dropped) {
+        return Err(MomentAssemblyRefusal::DroppedUnitNotClamped { unit });
+    }
     let units = retained_units(&regimes[0], dropped);
     let unit_list: Vec<VariableId> = units.iter().copied().collect();
-    let missing = missing_pairs(regimes, &units);
-    if !missing.is_empty() {
-        return Err(MomentAssemblyRefusal::InadequateInterventionCoverage { missing });
+    let uncovered = missing_pairs(regimes, &units);
+    let uncovered_targets: BTreeSet<VariableId> = uncovered.iter().map(|pair| pair.into).collect();
+    let covered: Vec<bool> =
+        unit_list.iter().map(|unit| !uncovered_targets.contains(unit)).collect();
+    if !covered.iter().any(|&flag| flag) {
+        return Err(MomentAssemblyRefusal::InadequateInterventionCoverage { missing: uncovered });
     }
     let prepared = prepare_samples(regimes, dropped, samples)?;
-    let row_count = constraint_row_count(regimes, &units)?;
-    let bytes =
-        experiment_constraint_bytes(u64_len(unit_list.len())?, u64_len(regimes.len())?, row_count)?;
+    let row_count = constraint_row_count(regimes, &units, &uncovered_targets)?;
+    let max_rows = prepared.iter().map(|sample| sample.rows).max().unwrap_or(0);
+    let bytes = experiment_constraint_bytes(
+        u64_len(unit_list.len())?,
+        u64_len(regimes.len())?,
+        row_count,
+        u64_len(max_rows)?,
+    )?;
+    if bytes > max_bytes {
+        return Err(MomentAssemblyRefusal::BudgetExceeded { requested: bytes, limit: max_bytes });
+    }
     let moments = accumulate_moments(&unit_list, &prepared)?;
-    let blocks = assemble_blocks(&unit_list, regimes, &units, &moments)?;
-    Ok(AssembledExperimentConstraints { units: unit_list, moments, blocks, bytes })
+    let effects = regime_effects(&unit_list, regimes, &moments)?;
+    let blocks = assemble_blocks(&unit_list, &covered, &effects);
+    Ok(AssembledExperimentConstraints { units: unit_list, moments, blocks, uncovered, bytes })
 }
 
 fn u64_len(len: usize) -> Result<u64, MomentAssemblyRefusal> {
@@ -341,6 +407,19 @@ fn length_product(left: usize, right: usize) -> Result<usize, MomentAssemblyRefu
 
 fn retained_units(regime: &ExperimentRegime, dropped: &[VariableId]) -> BTreeSet<VariableId> {
     regime.units.iter().copied().filter(|unit| !dropped.contains(unit)).collect()
+}
+
+/// A dropped unit that some regime declares and does not clamp.
+fn unclamped_dropped_unit(
+    regimes: &[ExperimentRegime],
+    dropped: &[VariableId],
+) -> Option<VariableId> {
+    dropped.iter().copied().find(|unit| {
+        let declared = regimes.iter().any(|regime| regime.units.contains(unit));
+        let clamped_everywhere =
+            regimes.iter().all(|regime| regime.targets.iter().any(|target| target.unit == *unit));
+        declared && !clamped_everywhere
+    })
 }
 
 fn inconsistent_regime(
@@ -457,13 +536,22 @@ fn prepare_one<'a>(
 fn constraint_row_count(
     regimes: &[ExperimentRegime],
     units: &BTreeSet<VariableId>,
+    uncovered_targets: &BTreeSet<VariableId>,
 ) -> Result<u64, MomentAssemblyRefusal> {
     let mut rows = 0_u64;
     for regime in regimes {
-        let targeted = regime.targets.iter().filter(|target| units.contains(&target.unit)).count();
-        let passive = units.len() - targeted;
-        let added = u64_len(targeted)?
-            .checked_mul(u64_len(passive)?)
+        let targeted: BTreeSet<VariableId> = regime
+            .targets
+            .iter()
+            .map(|target| target.unit)
+            .filter(|unit| units.contains(unit))
+            .collect();
+        let covered_passive = units
+            .iter()
+            .filter(|unit| !targeted.contains(unit) && !uncovered_targets.contains(unit))
+            .count();
+        let added = u64_len(targeted.len())?
+            .checked_mul(u64_len(covered_passive)?)
             .ok_or(MomentAssemblyRefusal::ResourceOverflow)?;
         rows = rows.checked_add(added).ok_or(MomentAssemblyRefusal::ResourceOverflow)?;
     }
@@ -521,103 +609,120 @@ fn accumulate_one(
     Ok(ExperimentMoments { regime, rows: sample.rows, mean, covariance })
 }
 
-fn assemble_blocks(
+/// Probe and passive layout of one regime, with its experimental effects.
+///
+/// Slot tables are indexed by the position of a unit in the assembly's unit order, so
+/// a coefficient lookup is constant time.
+struct RegimeEffects {
+    /// Unit positions of the regime's clamps, ascending.
+    probe_units: Vec<usize>,
+    /// Probe slot of each unit position, when that unit is clamped.
+    probe_slot: Vec<Option<usize>>,
+    /// Passive slot of each unit position, when that unit is not clamped.
+    passive_slot: Vec<Option<usize>>,
+    /// Row-major `passive.len() * probe_units.len()`.
+    effects: Vec<f64>,
+}
+
+/// Experimental effects of every regime, each computed once.
+fn regime_effects(
     units: &[VariableId],
     regimes: &[ExperimentRegime],
-    retained: &BTreeSet<VariableId>,
     moments: &[ExperimentMoments],
-) -> Result<Vec<TargetConstraintBlock>, MomentAssemblyRefusal> {
-    let mut blocks = Vec::with_capacity(units.len());
+) -> Result<Vec<RegimeEffects>, MomentAssemblyRefusal> {
+    let n = units.len();
+    let mut all = Vec::with_capacity(regimes.len());
+    for (regime_index, regime) in regimes.iter().enumerate() {
+        let targeted: BTreeSet<VariableId> = regime.targets.iter().map(|item| item.unit).collect();
+        let mut probe_units = Vec::new();
+        let mut passive = Vec::new();
+        let mut probe_slot = vec![None; n];
+        let mut passive_slot = vec![None; n];
+        for (index, unit) in units.iter().enumerate() {
+            if targeted.contains(unit) {
+                probe_slot[index] = Some(probe_units.len());
+                probe_units.push(index);
+            } else {
+                passive_slot[index] = Some(passive.len());
+                passive.push(index);
+            }
+        }
+        let effects = experimental_effects(
+            regime_index,
+            &moments[regime_index].covariance,
+            n,
+            &probe_units,
+            &passive,
+        )?;
+        all.push(RegimeEffects { probe_units, probe_slot, passive_slot, effects });
+    }
+    Ok(all)
+}
+
+fn assemble_blocks(
+    units: &[VariableId],
+    covered: &[bool],
+    effects: &[RegimeEffects],
+) -> Vec<TargetConstraintBlock> {
+    let mut blocks = Vec::new();
     for (target_index, &target) in units.iter().enumerate() {
-        let sources: Vec<VariableId> =
-            units.iter().copied().filter(|unit| *unit != target).collect();
+        if !covered[target_index] {
+            continue;
+        }
+        let source_indices: Vec<usize> =
+            (0..units.len()).filter(|index| *index != target_index).collect();
+        let sources: Vec<VariableId> = source_indices.iter().map(|&index| units[index]).collect();
         let mut rows = Vec::new();
         let mut coefficients = Vec::new();
         let mut rhs = Vec::new();
-        for (regime_index, regime) in regimes.iter().enumerate() {
-            if regime.targets.iter().any(|item| item.unit == target) {
+        for (regime_index, layout) in effects.iter().enumerate() {
+            // A clamped target has no passive equation in this regime.
+            let Some(target_slot) = layout.passive_slot[target_index] else {
                 continue;
-            }
-            let probes: Vec<VariableId> = regime
-                .targets
-                .iter()
-                .map(|item| item.unit)
-                .filter(|unit| retained.contains(unit))
-                .collect();
-            let mut probe_order = probes;
-            probe_order.sort();
-            let passive: Vec<usize> = units
-                .iter()
-                .enumerate()
-                .filter(|(_, unit)| !probe_order.contains(unit))
-                .map(|(index, _)| index)
-                .collect();
-            let mut probe_index = Vec::with_capacity(probe_order.len());
-            for probe in &probe_order {
-                let Some(index) = units.iter().position(|unit| unit == probe) else {
-                    return Err(MomentAssemblyRefusal::SampleUnits { regime: regime_index });
-                };
-                probe_index.push(index);
-            }
-            let effects = experimental_effects(
-                regime_index,
-                &moments[regime_index].covariance,
-                units.len(),
-                &probe_index,
-                &passive,
-            )?;
-            for (probe_slot, &probe) in probe_order.iter().enumerate() {
-                rows.push(ConstraintRow { regime: regime_index, probe });
-                for &source in &sources {
-                    let Some(coefficient) = row_coefficient(
-                        source,
-                        probe,
-                        &probe_order,
-                        &passive,
-                        units,
+            };
+            let width = layout.probe_units.len();
+            for (probe_slot, &probe_index) in layout.probe_units.iter().enumerate() {
+                rows.push(ConstraintRow { regime: regime_index, probe: units[probe_index] });
+                for &source_index in &source_indices {
+                    coefficients.push(row_coefficient(
+                        source_index,
+                        probe_index,
                         probe_slot,
-                        &effects,
-                    ) else {
-                        return Err(MomentAssemblyRefusal::SampleUnits { regime: regime_index });
-                    };
-                    coefficients.push(coefficient);
+                        layout,
+                    ));
                 }
-                let Some(target_slot) = passive.iter().position(|index| *index == target_index)
-                else {
-                    return Err(MomentAssemblyRefusal::SampleUnits { regime: regime_index });
-                };
-                rhs.push(effects[target_slot * probe_order.len() + probe_slot]);
+                rhs.push(layout.effects[target_slot * width + probe_slot]);
             }
         }
         blocks.push(TargetConstraintBlock { target, sources, rows, coefficients, rhs });
     }
-    Ok(blocks)
+    blocks
 }
 
-fn row_coefficient(
-    source: VariableId,
-    probe: VariableId,
-    probes: &[VariableId],
-    passive: &[usize],
-    units: &[VariableId],
-    probe_slot: usize,
-    effects: &[f64],
-) -> Option<f64> {
+/// Coefficient of `source` in the row for the clamp `probe`: one for the probe itself,
+/// zero for another clamp, and the probe's experimental effect on `source` otherwise.
+fn row_coefficient(source: usize, probe: usize, probe_slot: usize, regime: &RegimeEffects) -> f64 {
     if source == probe {
-        return Some(1.0);
+        return 1.0;
     }
-    if probes.contains(&source) {
-        return Some(0.0);
+    if regime.probe_slot[source].is_some() {
+        return 0.0;
     }
-    let source_index = units.iter().position(|unit| *unit == source)?;
-    let passive_slot = passive.iter().position(|index| *index == source_index)?;
-    effects.get(passive_slot * probes.len() + probe_slot).copied()
+    // Every unit is either a clamp or passive in a regime.
+    debug_assert!(regime.passive_slot[source].is_some());
+    regime.passive_slot[source].map_or(0.0, |passive_slot| {
+        regime.effects[passive_slot * regime.probe_units.len() + probe_slot]
+    })
 }
 
 /// Experimental effects of each intervened column on each passive column.
 ///
-/// Layout is row-major `passive.len() * intervened.len()`. A singular
-/// intervention covariance is [`MomentAssemblyRefusal::DegenerateIntervention`].
+/// Layout is row-major `passive.len() * intervened.len()`. The system
+/// `Σ_JJ B = Σ_JU` is solved on the correlation scale: with `D = diag(Σ_JJ)^{1/2}`,
+/// `(D⁻¹ Σ_JJ D⁻¹)(D B) = D⁻¹ Σ_JU`, then each row `j` of the solution is divided by
+/// `D_jj`. The pivot floor therefore compares correlations, and rescaling an
+/// intervened column does not change which regimes are degenerate. A constant or
+/// numerically singular intervention is [`MomentAssemblyRefusal::DegenerateIntervention`].
 fn experimental_effects(
     regime: usize,
     covariance: &[f64],
@@ -630,20 +735,28 @@ fn experimental_effects(
     if j == 0 || u == 0 {
         return Ok(Vec::new());
     }
+    let mut spread = Vec::with_capacity(j);
+    for &index in intervened {
+        let variance = covariance[index * n + index];
+        if !(variance.is_finite() && variance > 0.0) {
+            return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
+        }
+        let scale = variance.sqrt();
+        if !(scale.is_finite() && scale > 0.0) {
+            return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
+        }
+        spread.push(scale);
+    }
     let mut factor = vec![0.0; length_product(j, j)?];
     for (row, &left) in intervened.iter().enumerate() {
         for (col, &right) in intervened.iter().enumerate() {
-            factor[row * j + col] = covariance[left * n + right];
+            factor[row * j + col] = covariance[left * n + right] / spread[row] / spread[col];
         }
-    }
-    let scale = factor.iter().fold(0.0_f64, |best, value| best.max(value.abs()));
-    if !scale.is_finite() {
-        return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
     }
     let mut rhs = vec![0.0; length_product(j, u)?];
     for (col, &passive_index) in passive.iter().enumerate() {
         for (row, &probe_index) in intervened.iter().enumerate() {
-            rhs[row * u + col] = covariance[probe_index * n + passive_index];
+            rhs[row * u + col] = covariance[probe_index * n + passive_index] / spread[row];
         }
     }
     for col in 0..j {
@@ -656,7 +769,7 @@ fn experimental_effects(
                 pivot_row = row;
             }
         }
-        if best <= scale * INTERVENTION_PIVOT_FLOOR {
+        if !best.is_finite() || best <= INTERVENTION_PIVOT_FLOOR {
             return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
         }
         if pivot_row != col {
@@ -676,7 +789,7 @@ fn experimental_effects(
     }
     for col in (0..j).rev() {
         let diag = factor[col * j + col];
-        if !diag.is_finite() || diag.abs() <= scale * INTERVENTION_PIVOT_FLOOR {
+        if !diag.is_finite() || diag.abs() <= INTERVENTION_PIVOT_FLOOR {
             return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
         }
         for k in 0..u {
@@ -694,7 +807,12 @@ fn experimental_effects(
     let mut effects = vec![0.0; length_product(u, j)?];
     for passive_slot in 0..u {
         for probe_slot in 0..j {
-            effects[passive_slot * j + probe_slot] = rhs[probe_slot * u + passive_slot];
+            // Undo the column scaling: the solved row is `D_jj` times the effect.
+            let effect = rhs[probe_slot * u + passive_slot] / spread[probe_slot];
+            if !effect.is_finite() {
+                return Err(MomentAssemblyRefusal::DegenerateIntervention { regime });
+            }
+            effects[passive_slot * j + probe_slot] = effect;
         }
     }
     Ok(effects)
@@ -740,9 +858,9 @@ fn compensated_dot(left: &[f64], right: &[f64]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        AssembledExperimentConstraints, MomentAssemblyRefusal, RegimeInconsistency, RegimeSample,
-        TargetConstraintBlock, UnitColumn, assemble_experiment_constraints, compensated_sum,
-        experiment_constraint_bytes,
+        AssembledExperimentConstraints, MissingPair, MomentAssemblyRefusal, RegimeInconsistency,
+        RegimeSample, TargetConstraintBlock, UnitColumn, assemble_experiment_constraints,
+        compensated_sum, experiment_constraint_bytes,
     };
     use crate::experiment_regime::{
         DependencePremise, ExperimentRegime, PopulationId, RegimeContract, RegimeContractDecision,
@@ -867,7 +985,7 @@ mod tests {
             UnitColumn { unit: unit(2), values: &z3 },
         ];
         let samples = [sample(&c0), sample(&c1), sample(&c2), sample(&c3)];
-        let assembled = assemble_experiment_constraints(&synthetic_contract(), &samples)
+        let assembled = assemble_experiment_constraints(&synthetic_contract(), &samples, u64::MAX)
             .expect("covering independent regimes assemble");
         assert_eq!(assembled.units, vec![unit(0), unit(1), unit(2)]);
         assert_eq!(assembled.moments.len(), 4);
@@ -902,10 +1020,13 @@ mod tests {
         holds(from_z, from_z_rhs, &[0.0, 0.0]);
 
         let rows = assembled.blocks.iter().map(|block| block.rows.len()).sum::<usize>();
-        let bytes = experiment_constraint_bytes(3, 4, u64::try_from(rows).expect("row count"))
+        // Moments 4 * 3 * 4 floats, constraints 8 rows * 3 floats, and the centered
+        // copies of the largest sample, 3 units * 4 rows: (48 + 24 + 12) * 8 bytes.
+        let bytes = experiment_constraint_bytes(3, 4, u64::try_from(rows).expect("row count"), 4)
             .expect("byte count");
         assert_eq!(assembled.bytes, bytes);
-        assert_eq!(assembled.bytes, 576);
+        assert_eq!(assembled.bytes, 672);
+        assert!(assembled.uncovered.is_empty());
     }
 
     fn block(assembled: &AssembledExperimentConstraints, target: u32) -> &TargetConstraintBlock {
@@ -924,7 +1045,7 @@ mod tests {
         ];
         let contract =
             accepted(vec![regime(&[0, 1, 2], &[0], DependencePremise::Independence, 1, 1)], &[]);
-        let refusal = assemble_experiment_constraints(&contract, &[sample(&columns)])
+        let refusal = assemble_experiment_constraints(&contract, &[sample(&columns)], u64::MAX)
             .expect_err("one clamp does not cover every ordered pair");
         let MomentAssemblyRefusal::InadequateInterventionCoverage { missing } = refusal else {
             panic!("expected inadequate coverage");
@@ -939,7 +1060,7 @@ mod tests {
         let contract = accepted(
             vec![
                 regime(&[0, 1], &[0], DependencePremise::Dependence, 1, 1),
-                regime(&[0, 1], &[1], DependencePremise::Independence, 2, 1),
+                regime(&[0, 1], &[1], DependencePremise::Dependence, 1, 1),
             ],
             &[],
         );
@@ -948,7 +1069,7 @@ mod tests {
         let columns =
             [UnitColumn { unit: unit(0), values: &x }, UnitColumn { unit: unit(1), values: &y }];
         let samples = [sample(&columns), sample(&columns)];
-        let refusal = assemble_experiment_constraints(&contract, &samples)
+        let refusal = assemble_experiment_constraints(&contract, &samples, u64::MAX)
             .expect_err("a dependence premise is not this recipe");
         assert_eq!(
             refusal,
@@ -973,7 +1094,7 @@ mod tests {
             [UnitColumn { unit: unit(0), values: &x }, UnitColumn { unit: unit(1), values: &y }];
         let samples = [sample(&columns), sample(&columns)];
         assert_eq!(
-            assemble_experiment_constraints(&populations, &samples).unwrap_err(),
+            assemble_experiment_constraints(&populations, &samples, u64::MAX).unwrap_err(),
             MomentAssemblyRefusal::InconsistentRegime(RegimeInconsistency::PopulationMismatch {
                 left: 0,
                 right: 1,
@@ -994,7 +1115,7 @@ mod tests {
             UnitColumn { unit: unit(2), values: &z },
         ];
         assert_eq!(
-            assemble_experiment_constraints(&units, &[sample(&columns), sample(&wider)])
+            assemble_experiment_constraints(&units, &[sample(&columns), sample(&wider)], u64::MAX)
                 .expect_err("unit sets differ"),
             MomentAssemblyRefusal::InconsistentRegime(RegimeInconsistency::UnitSetMismatch {
                 left: 0,
@@ -1018,7 +1139,7 @@ mod tests {
             &[],
         );
         let samples = [sample(&columns), sample(&columns), sample(&columns)];
-        let assembled = assemble_experiment_constraints(&contract, &samples)
+        let assembled = assemble_experiment_constraints(&contract, &samples, u64::MAX)
             .expect("duplicate covering rows are still constraints");
         let into_y = block(&assembled, 1);
         assert_eq!(into_y.rows.len(), 2);
@@ -1062,9 +1183,12 @@ mod tests {
             ],
             &[],
         );
-        let assembled =
-            assemble_experiment_constraints(&contract, &[sample(&shifted), sample(&other)])
-                .expect("a shifted intervention column still has a second moment");
+        let assembled = assemble_experiment_constraints(
+            &contract,
+            &[sample(&shifted), sample(&other)],
+            u64::MAX,
+        )
+        .expect("a shifted intervention column still has a second moment");
         assert_close(assembled.moments[0].mean[0], shift);
         assert_close(assembled.moments[0].covariance[0], 1.0);
         let into_y = block(&assembled, 1);
@@ -1076,9 +1200,139 @@ mod tests {
     #[test]
     fn byte_estimate_refuses_overflow() {
         assert_eq!(
-            experiment_constraint_bytes(u64::MAX, 2, 1),
+            experiment_constraint_bytes(u64::MAX, 2, 1, 0),
             Err(MomentAssemblyRefusal::ResourceOverflow)
         );
-        assert_eq!(experiment_constraint_bytes(3, 4, 8), Ok(576));
+        assert_eq!(experiment_constraint_bytes(3, 4, 8, 0), Ok(576));
+        assert_eq!(experiment_constraint_bytes(3, 4, 8, 4), Ok(672));
+    }
+
+    fn three_unit_columns<'a>(x: &'a [f64], y: &'a [f64], z: &'a [f64]) -> [UnitColumn<'a>; 3] {
+        [
+            UnitColumn { unit: unit(0), values: x },
+            UnitColumn { unit: unit(1), values: y },
+            UnitColumn { unit: unit(2), values: z },
+        ]
+    }
+
+    #[test]
+    fn covered_targets_keep_their_blocks_and_uncovered_pairs_are_listed() {
+        // Without the regime that clamps (x, y), no regime clamps y while z stays
+        // passive: the pair (1, 2) is uncovered and target 2 has no block.
+        let independent = DependencePremise::Independence;
+        let contract = accepted(
+            vec![
+                regime(&[0, 1, 2], &[0], independent, 1, 1),
+                regime(&[0, 1, 2], &[1, 2], independent, 2, 1),
+                regime(&[0, 1, 2], &[0, 2], independent, 3, 1),
+            ],
+            &[],
+        );
+        let (x0, y0, z0) = ([1.0, -1.0], [0.5, -0.5], [0.5, -0.5]);
+        let (x1, y1, z1) = ([1.0, 1.0, -1.0, -1.0], [1.0, -1.0, 1.0, -1.0], [1.0, -1.0, -1.0, 1.0]);
+        let (x2, y2, z2) = ([1.0, -1.0, 1.0, -1.0], [0.5, -0.5, 0.5, -0.5], [1.0, 1.0, -1.0, -1.0]);
+        let c0 = three_unit_columns(&x0, &y0, &z0);
+        let c1 = three_unit_columns(&x1, &y1, &z1);
+        let c2 = three_unit_columns(&x2, &y2, &z2);
+        let assembled = assemble_experiment_constraints(
+            &contract,
+            &[sample(&c0), sample(&c1), sample(&c2)],
+            u64::MAX,
+        )
+        .expect("two targets are covered");
+        assert_eq!(assembled.uncovered, vec![MissingPair { from: unit(1), into: unit(2) }]);
+        let targets: Vec<u32> = assembled.blocks.iter().map(|block| block.target.raw()).collect();
+        assert_eq!(targets, vec![0, 1]);
+        // Regime 0 clamps x; y = 0.5 x and z = 0.5 x in that sample.
+        let (from_x, rhs) = row(block(&assembled, 1), 0, 0);
+        assert_eq!(from_x, &[1.0, 0.5]);
+        assert_close(rhs, 0.5);
+    }
+
+    #[test]
+    fn a_dropped_passive_unit_is_refused_by_name() {
+        // The mask drops unit 2, which no regime clamps. The row for target 1 would
+        // omit the term b_12 t_2j for the dropped passive unit.
+        let independent = DependencePremise::Independence;
+        let contract = accepted(
+            vec![
+                regime(&[0, 1, 2], &[0], independent, 1, 1),
+                regime(&[0, 1, 2], &[1], independent, 2, 1),
+            ],
+            &[2],
+        );
+        let (x, y) = ([1.0, -1.0], [0.5, -0.5]);
+        let columns =
+            [UnitColumn { unit: unit(0), values: &x }, UnitColumn { unit: unit(1), values: &y }];
+        let refusal = assemble_experiment_constraints(
+            &contract,
+            &[sample(&columns), sample(&columns)],
+            u64::MAX,
+        )
+        .expect_err("a dropped passive unit loses its term");
+        assert_eq!(refusal, MomentAssemblyRefusal::DroppedUnitNotClamped { unit: unit(2) });
+    }
+
+    #[test]
+    fn the_byte_budget_is_enforced_before_any_moment_is_accumulated() {
+        let x0 = [1.0, -1.0];
+        let (y0, z0) = ([0.5, -0.5], [0.5, -0.5]);
+        let (x1, y1, z1) = ([1.0, 1.0, -1.0, -1.0], [1.0, -1.0, 1.0, -1.0], [1.0, -1.0, -1.0, 1.0]);
+        let (x2, y2, z2) = ([1.0, -1.0, 1.0, -1.0], [0.5, -0.5, 0.5, -0.5], [1.0, 1.0, -1.0, -1.0]);
+        let (x3, y3, z3) = ([2.0, 0.0, -2.0, 0.0], [1.0, 1.0, -1.0, -1.0], [1.0, 0.5, -1.0, -0.5]);
+        let c = [
+            three_unit_columns(&x0, &y0, &z0),
+            three_unit_columns(&x1, &y1, &z1),
+            three_unit_columns(&x2, &y2, &z2),
+            three_unit_columns(&x3, &y3, &z3),
+        ];
+        let samples = [sample(&c[0]), sample(&c[1]), sample(&c[2]), sample(&c[3])];
+        // 576 bytes of moments and constraints plus 3 * 4 * 8 = 96 bytes of centered copies.
+        let refusal = assemble_experiment_constraints(&synthetic_contract(), &samples, 671)
+            .expect_err("one byte short");
+        assert_eq!(refusal, MomentAssemblyRefusal::BudgetExceeded { requested: 672, limit: 671 });
+        assert!(assemble_experiment_constraints(&synthetic_contract(), &samples, 672).is_ok());
+    }
+
+    #[test]
+    fn clamps_in_units_that_differ_by_seven_orders_are_not_degenerate() {
+        // Unit 1 is measured in units 1e7 times smaller than unit 0: Var(x) = 1 and
+        // Var(w) = 1e-14, so a floor relative to the largest entry of the intervention
+        // covariance (1e-12) would call w constant. On the correlation scale the pair is
+        // orthogonal and perfectly conditioned.
+        // y = 2 x + 3e7 w, so the experimental effects are 2 and 3e7.
+        let a = [1.0, 1.0, -1.0, -1.0];
+        let b = [1.0, -1.0, 1.0, -1.0];
+        let c = [1.0, -1.0, -1.0, 1.0];
+        let w_b: Vec<f64> = b.iter().map(|value| value * 1.0e-7).collect();
+        let y_a: Vec<f64> = a.iter().zip(&b).map(|(p, q)| 2.0 * p + 3.0 * q).collect();
+        let w_c: Vec<f64> = c.iter().map(|value| value * 1.0e-7).collect();
+        let independent = DependencePremise::Independence;
+        let contract = accepted(
+            vec![
+                regime(&[0, 1, 2], &[0, 1], independent, 1, 1),
+                regime(&[0, 1, 2], &[2, 1], independent, 2, 1),
+                regime(&[0, 1, 2], &[0, 2], independent, 3, 1),
+            ],
+            &[],
+        );
+        // Regime 0 clamps (x, w) and observes y. Regime 1 clamps (y, w) and observes x.
+        // Regime 2 clamps (x, y) and observes w.
+        let first = three_unit_columns(&a, &w_b, &y_a);
+        let second = three_unit_columns(&a, &w_b, &c);
+        let third = three_unit_columns(&a, &w_c, &b);
+        let assembled = assemble_experiment_constraints(
+            &contract,
+            &[sample(&first), sample(&second), sample(&third)],
+            u64::MAX,
+        )
+        .expect("a badly scaled but orthogonal intervention is not degenerate");
+        let into_y = block(&assembled, 2);
+        let (probe_x, rhs_x) = row(into_y, 0, 0);
+        assert_eq!(probe_x, &[1.0, 0.0]);
+        assert!((rhs_x - 2.0).abs() <= 1.0e-9, "effect of x on y: {rhs_x}");
+        let (probe_w, rhs_w) = row(into_y, 0, 1);
+        assert_eq!(probe_w, &[0.0, 1.0]);
+        assert!((rhs_w - 3.0e7).abs() <= 3.0e7 * 1.0e-9, "effect of w on y: {rhs_w}");
     }
 }

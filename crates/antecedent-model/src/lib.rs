@@ -47,8 +47,8 @@ pub use compile::{
 };
 pub use cyclic_component::{
     CYCLE_GATE_NEXT_ATTEMPT, ComponentDependency, ComponentOrder, CycleGateError, CyclicComponent,
-    CyclicComponentError, FAMILY_BOUND_REFERENCE, ProvenanceCitation, ProvenanceOrder,
-    SolveContractName, check_component_composition, check_provenance_chain,
+    CyclicComponentError, ModelBinding, ProvenanceCitation, ProvenanceOrder,
+    check_component_composition, check_provenance_chain,
 };
 pub use do_sampler::{
     DoSampleResult, KdeDoSampler, McmcDoSampler, WeightingDoSampler, interventional_mean,
@@ -63,9 +63,9 @@ pub use falsify::{
 pub use lgssm::{kalman_filter, rts_smooth};
 pub use linear_solution::{
     Conditioning, ConsistencyWitness, FREE_BLOCK_EQUATION, FactorDescription, FamilyCertificate,
-    HardClamp, IdentificationStatus, LinearSolutionError, LinearStructuralMap, NextAttempt,
-    PhysicalStability, QueryBlock, SingularBlock, SolutionAssessment, SolverConvergence,
-    Uniqueness, assess,
+    HardClamp, ILL_CONDITIONED_KAPPA, IdentificationStatus, LinearSolutionError,
+    LinearStructuralMap, NextAttempt, PhysicalStability, QueryBlock, SingularBlock,
+    SolutionAssessment, SolverConvergence, Uniqueness, assess,
 };
 pub use mechanism::{
     NoiseInferenceMode, evaluate_batch_topo, evaluate_column, infer_noise_column,

@@ -8,12 +8,15 @@
 //! [`CyclicComponent`] with an explicit solve contract, and keep its source
 //! evidence outside the chain that would validate it.
 //!
-//! The component carries that solve contract by name. [`FREE_BLOCK_EQUATION`]
-//! and the [`FAMILY_BOUND_REFERENCE`] `ρ(|K|) < 1` are references to the
-//! linear-solution contract ([`crate::linear_solution::FamilyCertificate`]).
-//! This module does not evaluate the bound, does not issue a new certificate,
-//! and does not sample. The component's own source id is not evidence that
-//! its solution holds.
+//! Admission is bound to the model and to a family certificate. The component
+//! stores the model's dimension and a digest of its coefficients and intercept
+//! ([`ModelBinding`]), and it is admitted only when the supplied
+//! [`FamilyCertificate`] is [`FamilyCertificate::Admitted`] and is the
+//! certificate this model yields. Compilation refuses a model that does not
+//! match the binding. The binding is an identity check on the supplied model;
+//! it is not a proof that the model is the physical system the source describes.
+//! The component's own source id is not evidence that its solution holds, and
+//! at least one other certifying-evidence id is required.
 //!
 //! [`SCC_COMPILE_ATTEMPT`] names the compilation of that contract: factor each
 //! free block of the admitted component and keep cross-block disturbance
@@ -27,19 +30,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use thiserror::Error;
 
-use crate::linear_solution::FREE_BLOCK_EQUATION;
+use crate::linear_solution::{
+    FREE_BLOCK_EQUATION, FamilyCertificate, LinearStructuralMap, family_certificate,
+};
 
 /// Next attempt named when a component cycle or a provenance cycle is refused.
 pub const CYCLE_GATE_NEXT_ATTEMPT: &str = concat!(
     "wrap the cyclic model as one CyclicComponent with an explicit solve contract, ",
     "and keep its source evidence outside the chain that would validate it",
 );
-
-/// Name of the family bound `ρ(|K|) < 1`.
-///
-/// This is a reference to [`crate::linear_solution::FamilyCertificate`].
-/// Carrying the name does not admit the bound and does not compute a radius.
-pub const FAMILY_BOUND_REFERENCE: &str = "ρ(|K|) < 1";
 
 /// Next attempt after a cyclic model is admitted as one component.
 ///
@@ -165,33 +164,48 @@ impl ProvenanceOrder {
     }
 }
 
-/// The free-block equation and the family bound, named rather than re-certified.
+/// Identity of the model a component was admitted for: its order and a digest of
+/// its coefficients and intercept.
 ///
-/// [`Self::explicit`] is the only solve contract a [`CyclicComponent`] accepts.
-/// It points at [`FREE_BLOCK_EQUATION`] and [`FAMILY_BOUND_REFERENCE`]. It is
-/// not a [`crate::linear_solution::FamilyCertificate`] and not a factorization.
+/// The digest is a 64-bit FNV-1a hash over the exact `f64` bit patterns (with
+/// negative zero folded to zero). Two models with equal bindings are equal up to
+/// a hash collision; it is an integrity check, not a cryptographic commitment.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SolveContractName {
-    /// [`FREE_BLOCK_EQUATION`].
-    pub free_block_equation: &'static str,
-    /// [`FAMILY_BOUND_REFERENCE`].
-    pub family_bound: &'static str,
+pub struct ModelBinding {
+    dimension: usize,
+    digest: u64,
 }
 
-impl SolveContractName {
-    /// The linear equilibrium contract, by name.
-    ///
-    /// This does not read a coefficient matrix and does not admit `ρ(|K|) < 1`.
+impl ModelBinding {
+    /// Binding of `model`.
     #[must_use]
-    pub const fn explicit() -> Self {
-        Self { free_block_equation: FREE_BLOCK_EQUATION, family_bound: FAMILY_BOUND_REFERENCE }
+    pub fn of(model: &LinearStructuralMap) -> Self {
+        const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+        const PRIME: u64 = 0x0000_0100_0000_01b3;
+        let mut hash = OFFSET;
+        let mut mix = |bytes: [u8; 8]| {
+            for byte in bytes {
+                hash ^= u64::from(byte);
+                hash = hash.wrapping_mul(PRIME);
+            }
+        };
+        mix(u64::try_from(model.dimension()).unwrap_or(u64::MAX).to_le_bytes());
+        for value in model.coefficients().iter().chain(model.intercept()) {
+            mix((value + 0.0).to_bits().to_le_bytes());
+        }
+        Self { dimension: model.dimension(), digest: hash }
     }
 
-    /// Whether both names are the linear-solution references.
+    /// Order of the bound model.
     #[must_use]
-    pub fn is_explicit(self) -> bool {
-        self.free_block_equation == FREE_BLOCK_EQUATION
-            && self.family_bound == FAMILY_BOUND_REFERENCE
+    pub const fn dimension(self) -> usize {
+        self.dimension
+    }
+
+    /// Digest of the bound model's coefficients and intercept.
+    #[must_use]
+    pub const fn digest(self) -> u64 {
+        self.digest
     }
 }
 
@@ -214,15 +228,27 @@ pub enum CyclicComponentError {
         /// Component that was refused.
         component: String,
     },
-    /// The solve contract is not [`SolveContractName::explicit`].
-    ///
-    /// A different string is not a new certificate and is not this family's
-    /// free-block equation or `ρ(|K|) < 1` bound.
+    /// No certifying evidence was supplied. The source id is not evidence, so a
+    /// component with an empty list would rest on nothing.
+    #[error("cyclic component `{component}` needs at least one certifying-evidence id")]
+    MissingCertifyingEvidence {
+        /// Component that was refused.
+        component: String,
+    },
+    /// The family certificate did not establish `ρ(|K|) < 1`.
     #[error(
-        "cyclic component `{component}` needs an explicit solve contract naming the free-block \
-         equation and the ρ(|K|) < 1 family bound, as references rather than a new certificate"
+        "cyclic component `{component}` needs an admitted ρ(|K|) < 1 family certificate; \
+         an insufficient bound does not admit a cyclic component"
     )]
-    SolveContractNotExplicit {
+    FamilyNotAdmitted {
+        /// Component that was refused.
+        component: String,
+    },
+    /// The supplied certificate is not the one this model yields.
+    #[error(
+        "cyclic component `{component}`: the family certificate does not belong to the supplied model"
+    )]
+    CertificateModelMismatch {
         /// Component that was refused.
         component: String,
     },
@@ -245,33 +271,36 @@ pub enum CyclicComponentError {
 /// place this component in an acyclic composition under [`id`](Self::id). There
 /// is no sampling method: a draw is not a solution of the named free-block
 /// equation, and this type does not produce one.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CyclicComponent {
     id: String,
     source_id: String,
     certifying_evidence: Vec<String>,
-    solve: SolveContractName,
+    binding: ModelBinding,
+    rho_abs_upper: f64,
 }
 
 impl CyclicComponent {
-    /// Admit one cyclic model with an explicit solve contract.
+    /// Admit one cyclic `model` under an admitted family certificate.
     ///
-    /// `certifying_evidence` may name artifacts other than `source_id`. It
-    /// must not name `source_id`: the source is not the proof of the solution.
-    /// The solve contract is stored by name and is not re-derived from that
-    /// evidence.
+    /// `certifying_evidence` must be non-empty and may name artifacts other than
+    /// `source_id`. It must not name `source_id`: the source is not the proof of
+    /// the solution. `family` must be [`FamilyCertificate::Admitted`] and must
+    /// equal the certificate computed from `model` itself, so a certificate from
+    /// another model is refused.
     ///
     /// # Errors
     ///
-    /// An empty id, an empty source, empty evidence, a solve contract other
-    /// than [`SolveContractName::explicit`], or certifying evidence that
-    /// contains `source_id`.
+    /// An empty id, an empty source, an empty evidence list, an empty evidence
+    /// id, certifying evidence that contains `source_id`, a certificate that is
+    /// not admitted, or a certificate that does not belong to `model`.
     #[must_use = "an admission error is the closed source-evidence gate"]
     pub fn try_new(
         id: &str,
         source_id: &str,
         certifying_evidence: &[&str],
-        solve: SolveContractName,
+        model: &LinearStructuralMap,
+        family: &FamilyCertificate,
     ) -> Result<Self, CyclicComponentError> {
         if id.is_empty() {
             return Err(CyclicComponentError::EmptyComponentId);
@@ -279,8 +308,8 @@ impl CyclicComponent {
         if source_id.is_empty() {
             return Err(CyclicComponentError::EmptySourceId { component: id.to_owned() });
         }
-        if !solve.is_explicit() {
-            return Err(CyclicComponentError::SolveContractNotExplicit {
+        if certifying_evidence.is_empty() {
+            return Err(CyclicComponentError::MissingCertifyingEvidence {
                 component: id.to_owned(),
             });
         }
@@ -299,11 +328,26 @@ impl CyclicComponent {
             }
             evidence.push((*cited).to_owned());
         }
+        let FamilyCertificate::Admitted { rho_abs_upper } = family else {
+            return Err(CyclicComponentError::FamilyNotAdmitted { component: id.to_owned() });
+        };
+        let expected = family_certificate(model);
+        let belongs = matches!(
+            expected,
+            FamilyCertificate::Admitted { rho_abs_upper: own }
+                if own.to_bits() == rho_abs_upper.to_bits()
+        );
+        if !belongs {
+            return Err(CyclicComponentError::CertificateModelMismatch {
+                component: id.to_owned(),
+            });
+        }
         Ok(Self {
             id: id.to_owned(),
             source_id: source_id.to_owned(),
             certifying_evidence: evidence,
-            solve,
+            binding: ModelBinding::of(model),
+            rho_abs_upper: *rho_abs_upper,
         })
     }
 
@@ -327,20 +371,30 @@ impl CyclicComponent {
         &self.certifying_evidence
     }
 
-    /// Solve contract carried by name.
+    /// [`FREE_BLOCK_EQUATION`], the operator every admitted component solves.
     #[must_use]
-    pub const fn solve_contract(&self) -> SolveContractName {
-        self.solve
+    pub const fn free_block_equation(&self) -> &'static str {
+        FREE_BLOCK_EQUATION
+    }
+
+    /// Upper bound on `ρ(|K|)` from the admitted family certificate, below one.
+    #[must_use]
+    pub const fn family_rho_abs_upper(&self) -> f64 {
+        self.rho_abs_upper
+    }
+
+    /// Order and digest of the model this component was admitted for.
+    #[must_use]
+    pub const fn model_binding(&self) -> ModelBinding {
+        self.binding
     }
 
     /// Compilation attempt for this admitted component.
     ///
-    /// The value is [`SCC_COMPILE_ATTEMPT`]. The component's solve contract is
-    /// the explicit free-block equation. This does not factor a block and does
-    /// not identify the model.
+    /// The value is [`SCC_COMPILE_ATTEMPT`]. This does not factor a block and
+    /// does not identify the model.
     #[must_use]
     pub fn scc_compile_attempt(&self) -> &'static str {
-        debug_assert!(self.solve.is_explicit());
         SCC_COMPILE_ATTEMPT
     }
 
@@ -542,10 +596,10 @@ fn cycle_path<'a>(
 mod tests {
     use super::{
         CYCLE_GATE_NEXT_ATTEMPT, ComponentDependency, CycleGateError, CyclicComponent,
-        CyclicComponentError, ProvenanceCitation, SolveContractName, check_component_composition,
+        CyclicComponentError, ModelBinding, ProvenanceCitation, check_component_composition,
         check_provenance_chain,
     };
-    use crate::linear_solution::FREE_BLOCK_EQUATION;
+    use crate::linear_solution::{FREE_BLOCK_EQUATION, HardClamp, LinearStructuralMap, assess};
 
     const NEXT_ATTEMPT: &str = concat!(
         "wrap the cyclic model as one CyclicComponent with an explicit solve contract, ",
@@ -612,33 +666,32 @@ mod tests {
         assert_eq!(next_attempt, NEXT_ATTEMPT);
     }
 
-    #[test]
-    fn one_cyclic_component_with_an_explicit_solve_contract_is_accepted() {
-        let unnamed = SolveContractName {
-            free_block_equation: FREE_BLOCK_EQUATION,
-            family_bound: "a computed radius",
-        };
-        let refused =
-            CyclicComponent::try_new("feedback", "source-measurements", &["solve-note"], unnamed)
-                .unwrap_err();
-        assert!(matches!(
-            refused,
-            CyclicComponentError::SolveContractNotExplicit { component } if component == "feedback"
-        ));
+    fn cycle_model(weight_a: f64, weight_b: f64) -> LinearStructuralMap {
+        LinearStructuralMap::try_new(vec![0.0, weight_a, weight_b, 0.0], vec![0.0, 0.0])
+            .expect("fixture model")
+    }
 
+    #[test]
+    fn one_admitted_cyclic_component_bound_to_its_model_is_accepted() {
+        let model = cycle_model(0.4, 0.5);
+        let family = assess(&model, &HardClamp::none(2).unwrap()).unwrap().family;
         let component = CyclicComponent::try_new(
             "feedback",
             "source-measurements",
             &["solve-note"],
-            SolveContractName::explicit(),
+            &model,
+            &family,
         )
         .unwrap();
         assert_eq!(component.id(), "feedback");
         assert_eq!(component.source_id(), "source-measurements");
         assert_eq!(component.certifying_evidence(), ["solve-note".to_owned()].as_slice());
-        assert_eq!(component.solve_contract().free_block_equation, FREE_BLOCK_EQUATION);
-        assert_eq!(component.solve_contract().family_bound, "ρ(|K|) < 1");
-        assert!(component.solve_contract().is_explicit());
+        assert_eq!(component.free_block_equation(), FREE_BLOCK_EQUATION);
+        // sqrt(0.4 * 0.5) computed by hand.
+        assert!((component.family_rho_abs_upper() - 0.2_f64.sqrt()).abs() < 1.0e-12);
+        assert_eq!(component.model_binding(), ModelBinding::of(&model));
+        assert_eq!(component.model_binding().dimension(), 2);
+        assert_ne!(ModelBinding::of(&cycle_model(0.4, 0.6)), component.model_binding());
         assert!(!component.evidence_may_certify(component.source_id()));
 
         let alone =
@@ -648,12 +701,54 @@ mod tests {
     }
 
     #[test]
+    fn empty_certifying_evidence_is_refused() {
+        let model = cycle_model(0.4, 0.5);
+        let family = assess(&model, &HardClamp::none(2).unwrap()).unwrap().family;
+        let err = CyclicComponent::try_new("feedback", "source", &[], &model, &family).unwrap_err();
+        assert_eq!(
+            err,
+            CyclicComponentError::MissingCertifyingEvidence { component: "feedback".to_owned() }
+        );
+    }
+
+    #[test]
+    fn a_family_certificate_that_is_not_admitted_is_refused() {
+        // rho(|K|) = sqrt(1.5 * 1.5) = 1.5 is not below one.
+        let model = cycle_model(1.5, 1.5);
+        let family = assess(&model, &HardClamp::none(2).unwrap()).unwrap().family;
+        assert!(!family.is_admitted());
+        let err =
+            CyclicComponent::try_new("feedback", "source", &["note"], &model, &family).unwrap_err();
+        assert_eq!(
+            err,
+            CyclicComponentError::FamilyNotAdmitted { component: "feedback".to_owned() }
+        );
+    }
+
+    #[test]
+    fn a_certificate_from_another_model_is_refused() {
+        let admitted_model = cycle_model(0.4, 0.5);
+        let family = assess(&admitted_model, &HardClamp::none(2).unwrap()).unwrap().family;
+        // Wrap an unrelated, differently weighted model with the first model's certificate.
+        let other = cycle_model(0.6, 0.5);
+        let err =
+            CyclicComponent::try_new("feedback", "source", &["note"], &other, &family).unwrap_err();
+        assert_eq!(
+            err,
+            CyclicComponentError::CertificateModelMismatch { component: "feedback".to_owned() }
+        );
+    }
+
+    #[test]
     fn source_id_cannot_appear_as_the_evidence_that_certifies_it() {
+        let model = cycle_model(0.4, 0.5);
+        let family = assess(&model, &HardClamp::none(2).unwrap()).unwrap().family;
         let err = CyclicComponent::try_new(
             "feedback",
             "source-measurements",
             &["solve-note", "source-measurements"],
-            SolveContractName::explicit(),
+            &model,
+            &family,
         )
         .unwrap_err();
         let text = err.to_string();

@@ -46,6 +46,16 @@ pub enum GraphError {
         /// Explanation.
         message: &'static str,
     },
+    /// A routine with a fixed node bound was given a larger graph.
+    ///
+    /// This is a size cap, not a problem with any endpoint.
+    #[error("graph has {nodes} nodes; this routine accepts at most {bound}")]
+    NodeBoundExceeded {
+        /// Node count of the graph that was offered.
+        nodes: usize,
+        /// Largest node count the routine accepts.
+        bound: usize,
+    },
     /// Contemporaneous self-edge is invalid.
     #[error("contemporaneous self-edge on {variable}")]
     ContemporaneousSelfEdge {
@@ -224,7 +234,9 @@ pub fn directed_edges_contain_cycle(node_count: usize, edges: &[(u32, u32)]) -> 
     if node_count == 0 {
         return false;
     }
+    // Kahn's algorithm over a compressed-row adjacency built once: O(V + E).
     let mut indegree = vec![0usize; node_count];
+    let mut start = vec![0usize; node_count + 1];
     for &(from, to) in edges {
         let from_i = from as usize;
         let to_i = to as usize;
@@ -235,19 +247,31 @@ pub fn directed_edges_contain_cycle(node_count: usize, edges: &[(u32, u32)]) -> 
             return true;
         }
         indegree[to_i] += 1;
+        start[from_i + 1] += 1;
+    }
+    for node in 0..node_count {
+        start[node + 1] += start[node];
+    }
+    let mut fill = start.clone();
+    let mut targets = vec![0usize; start[node_count]];
+    for &(from, to) in edges {
+        let from_i = from as usize;
+        let to_i = to as usize;
+        if from_i >= node_count || to_i >= node_count {
+            continue;
+        }
+        targets[fill[from_i]] = to_i;
+        fill[from_i] += 1;
     }
     let mut ready: Vec<usize> =
         indegree.iter().enumerate().filter(|(_, degree)| **degree == 0).map(|(i, _)| i).collect();
     let mut placed = 0usize;
     while let Some(node) = ready.pop() {
         placed += 1;
-        for &(from, to) in edges {
-            if from as usize == node && (to as usize) < node_count && from != to {
-                let left = &mut indegree[to as usize];
-                *left -= 1;
-                if *left == 0 {
-                    ready.push(to as usize);
-                }
+        for &to in &targets[start[node]..start[node + 1]] {
+            indegree[to] -= 1;
+            if indegree[to] == 0 {
+                ready.push(to);
             }
         }
     }
@@ -278,7 +302,79 @@ pub fn refuse_directed_cycle(
 
 #[cfg(test)]
 mod tests {
-    use super::{CyclicNextAttempt, DagOperation, refuse_directed_cycle};
+    use super::{
+        CyclicNextAttempt, DagOperation, directed_edges_contain_cycle, refuse_directed_cycle,
+    };
+
+    /// Cycle test by repeated reachability: a cycle exists exactly when some node reaches
+    /// itself through at least one edge. Quadratic and independent of the Kahn pass.
+    fn brute_force_has_cycle(node_count: usize, edges: &[(u32, u32)]) -> bool {
+        let edges: Vec<(usize, usize)> = edges
+            .iter()
+            .map(|&(from, to)| (from as usize, to as usize))
+            .filter(|&(from, to)| from < node_count && to < node_count)
+            .collect();
+        for start in 0..node_count {
+            let mut seen = vec![false; node_count];
+            let mut stack = vec![start];
+            while let Some(node) = stack.pop() {
+                for &(from, to) in &edges {
+                    if from != node {
+                        continue;
+                    }
+                    if to == start {
+                        return true;
+                    }
+                    if !seen[to] {
+                        seen[to] = true;
+                        stack.push(to);
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    #[test]
+    fn kahn_agrees_with_reachability_on_every_small_graph() {
+        // Every edge subset of the 16 ordered pairs on four nodes, self-loops included,
+        // plus a duplicated edge and an out-of-range endpoint in each case.
+        let pairs: Vec<(u32, u32)> =
+            (0..4).flat_map(|from| (0..4).map(move |to| (from, to))).collect();
+        for mask in 0u32..(1 << pairs.len()) {
+            let mut edges: Vec<(u32, u32)> = pairs
+                .iter()
+                .enumerate()
+                .filter(|(bit, _)| mask & (1 << bit) != 0)
+                .map(|(_, pair)| *pair)
+                .collect();
+            for variant in 0..3 {
+                match variant {
+                    1 => {
+                        if let Some(&first) = edges.first() {
+                            edges.push(first);
+                        }
+                    }
+                    2 => edges.push((0, 9)),
+                    _ => {}
+                }
+                assert_eq!(
+                    directed_edges_contain_cycle(4, &edges),
+                    brute_force_has_cycle(4, &edges),
+                    "edges {edges:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_long_path_and_a_closed_long_path_are_decided_in_linear_time() {
+        let n = 200_000u32;
+        let mut edges: Vec<(u32, u32)> = (0..n - 1).map(|i| (i, i + 1)).collect();
+        assert!(!directed_edges_contain_cycle(n as usize, &edges));
+        edges.push((n - 1, 0));
+        assert!(directed_edges_contain_cycle(n as usize, &edges));
+    }
 
     #[test]
     fn two_cycle_is_refused_and_a_chain_is_accepted() {
