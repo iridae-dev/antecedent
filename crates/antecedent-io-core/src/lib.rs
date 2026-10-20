@@ -24,6 +24,7 @@ pub mod bridge_artifact;
 pub mod calibration;
 pub mod callback_result_artifact;
 pub mod canonical_json;
+pub mod capacity_account;
 pub mod causal_artifact;
 pub mod chunk_refresh;
 mod claim_identity;

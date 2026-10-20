@@ -45,6 +45,9 @@
 #[non_exhaustive] pub enum antecedent_io_core::bound_identity::BoundRefusal
 #[non_exhaustive] pub enum antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::callback_result_artifact::CallbackResultArtifactError
+#[non_exhaustive] pub enum antecedent_io_core::capacity_account::CapacityError
+#[non_exhaustive] pub enum antecedent_io_core::chunk_refresh::BorrowError
+#[non_exhaustive] pub enum antecedent_io_core::chunk_refresh::RefreshError
 #[non_exhaustive] pub enum antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::counterfactual_id_artifact::CounterfactualIdArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError
@@ -391,6 +394,27 @@ impl core::clone::Clone for antecedent_io_core::callback_result_artifact::Reques
 impl core::clone::Clone for antecedent_io_core::callback_result_artifact::StageWire
 impl core::clone::Clone for antecedent_io_core::callback_result_artifact::TrustWire
 impl core::clone::Clone for antecedent_io_core::callback_result_artifact::UpdateWire
+impl core::clone::Clone for antecedent_io_core::capacity_account::AccountedKind
+impl core::clone::Clone for antecedent_io_core::capacity_account::AccountedOperation
+impl core::clone::Clone for antecedent_io_core::capacity_account::CapacityAccount
+impl core::clone::Clone for antecedent_io_core::capacity_account::CapacityError
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::BorrowError
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::ChunkLedger
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::ChunkRetention
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::ChunkRow
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::ChunkState
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::ChunkSummaryInput
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::CompleteResult
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::DeclaredWindows
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::Diagnostics
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::IndexChunk
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::LagBoundary
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::LagNextAttempt
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::LagRefusal
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::LedgerSnapshot
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::LedgerState
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::RefreshError
+impl core::clone::Clone for antecedent_io_core::chunk_refresh::WindowSplit
 impl core::clone::Clone for antecedent_io_core::cohort_decision::CohortBinding
 impl core::clone::Clone for antecedent_io_core::cohort_decision::CohortColumn
 impl core::clone::Clone for antecedent_io_core::cohort_decision::CohortDecisionSource
@@ -917,6 +941,25 @@ impl core::cmp::Eq for antecedent_io_core::callback_result_artifact::RequestWire
 impl core::cmp::Eq for antecedent_io_core::callback_result_artifact::StageWire
 impl core::cmp::Eq for antecedent_io_core::callback_result_artifact::TrustWire
 impl core::cmp::Eq for antecedent_io_core::callback_result_artifact::UpdateWire
+impl core::cmp::Eq for antecedent_io_core::capacity_account::AccountedKind
+impl core::cmp::Eq for antecedent_io_core::capacity_account::AccountedOperation
+impl core::cmp::Eq for antecedent_io_core::capacity_account::CapacityError
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::BorrowError
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::ChunkRetention
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::ChunkRow
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::ChunkState
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::ChunkSummaryInput
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::CompleteResult
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::DeclaredWindows
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::Diagnostics
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::IndexChunk
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::LagBoundary
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::LagNextAttempt
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::LagRefusal
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::LedgerSnapshot
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::LedgerState
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::RefreshError
+impl core::cmp::Eq for antecedent_io_core::chunk_refresh::WindowSplit
 impl core::cmp::Eq for antecedent_io_core::cohort_decision::CohortExpectation
 impl core::cmp::Eq for antecedent_io_core::cohort_decision::CohortRefusal
 impl core::cmp::Eq for antecedent_io_core::cohort_decision::LawRequest
@@ -1404,6 +1447,25 @@ impl core::cmp::PartialEq for antecedent_io_core::callback_result_artifact::Requ
 impl core::cmp::PartialEq for antecedent_io_core::callback_result_artifact::StageWire
 impl core::cmp::PartialEq for antecedent_io_core::callback_result_artifact::TrustWire
 impl core::cmp::PartialEq for antecedent_io_core::callback_result_artifact::UpdateWire
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::AccountedKind
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::AccountedOperation
+impl core::cmp::PartialEq for antecedent_io_core::capacity_account::CapacityError
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::BorrowError
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::ChunkRetention
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::ChunkRow
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::ChunkState
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::ChunkSummaryInput
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::CompleteResult
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::DeclaredWindows
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::Diagnostics
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::IndexChunk
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::LagBoundary
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::LagNextAttempt
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::LagRefusal
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::LedgerSnapshot
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::LedgerState
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::RefreshError
+impl core::cmp::PartialEq for antecedent_io_core::chunk_refresh::WindowSplit
 impl core::cmp::PartialEq for antecedent_io_core::cohort_decision::CohortBinding
 impl core::cmp::PartialEq for antecedent_io_core::cohort_decision::CohortColumn
 impl core::cmp::PartialEq for antecedent_io_core::cohort_decision::CohortDecisionSource
@@ -1819,6 +1881,10 @@ impl core::error::Error for antecedent_io_core::adaptive_monitoring_contract_art
 impl core::error::Error for antecedent_io_core::bound_identity::BoundRefusal
 impl core::error::Error for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
 impl core::error::Error for antecedent_io_core::callback_result_artifact::CallbackResultArtifactError
+impl core::error::Error for antecedent_io_core::capacity_account::CapacityError
+impl core::error::Error for antecedent_io_core::chunk_refresh::BorrowError
+impl core::error::Error for antecedent_io_core::chunk_refresh::LagRefusal
+impl core::error::Error for antecedent_io_core::chunk_refresh::RefreshError
 impl core::error::Error for antecedent_io_core::cohort_decision::CohortRefusal
 impl core::error::Error for antecedent_io_core::compact_export::ExportRefusal
 impl core::error::Error for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError
@@ -2162,6 +2228,28 @@ impl core::fmt::Debug for antecedent_io_core::callback_result_artifact::RequestW
 impl core::fmt::Debug for antecedent_io_core::callback_result_artifact::StageWire
 impl core::fmt::Debug for antecedent_io_core::callback_result_artifact::TrustWire
 impl core::fmt::Debug for antecedent_io_core::callback_result_artifact::UpdateWire
+impl core::fmt::Debug for antecedent_io_core::capacity_account::AccountedKind
+impl core::fmt::Debug for antecedent_io_core::capacity_account::AccountedOperation
+impl core::fmt::Debug for antecedent_io_core::capacity_account::CapacityAccount
+impl core::fmt::Debug for antecedent_io_core::capacity_account::CapacityError
+impl core::fmt::Debug for antecedent_io_core::capacity_account::DecompressionBuffer
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::BorrowError
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::ChunkLedger
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::ChunkRetention
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::ChunkRow
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::ChunkState
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::ChunkSummaryInput
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::CompleteResult
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::DeclaredWindows
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::Diagnostics
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::IndexChunk
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::LagBoundary
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::LagNextAttempt
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::LagRefusal
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::LedgerSnapshot
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::LedgerState
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::RefreshError
+impl core::fmt::Debug for antecedent_io_core::chunk_refresh::WindowSplit
 impl core::fmt::Debug for antecedent_io_core::cohort_decision::CohortBinding
 impl core::fmt::Debug for antecedent_io_core::cohort_decision::CohortColumn
 impl core::fmt::Debug for antecedent_io_core::cohort_decision::CohortDecisionSource
@@ -2521,6 +2609,13 @@ impl core::fmt::Display for antecedent_io_core::bound_identity::BoundRefusal
 impl core::fmt::Display for antecedent_io_core::bound_identity::IdentitySlot
 impl core::fmt::Display for antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError
 impl core::fmt::Display for antecedent_io_core::callback_result_artifact::CallbackResultArtifactError
+impl core::fmt::Display for antecedent_io_core::capacity_account::AccountedKind
+impl core::fmt::Display for antecedent_io_core::capacity_account::AccountedOperation
+impl core::fmt::Display for antecedent_io_core::capacity_account::CapacityError
+impl core::fmt::Display for antecedent_io_core::chunk_refresh::BorrowError
+impl core::fmt::Display for antecedent_io_core::chunk_refresh::ChunkRetention
+impl core::fmt::Display for antecedent_io_core::chunk_refresh::LagRefusal
+impl core::fmt::Display for antecedent_io_core::chunk_refresh::RefreshError
 impl core::fmt::Display for antecedent_io_core::cohort_decision::CohortRefusal
 impl core::fmt::Display for antecedent_io_core::compact_export::ExportRefusal
 impl core::fmt::Display for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError
@@ -2559,6 +2654,10 @@ impl core::hash::Hash for antecedent_io_core::PriorMapping
 impl core::hash::Hash for antecedent_io_core::TemporalCoordinates
 impl core::hash::Hash for antecedent_io_core::TemporalNodeKeyWire
 impl core::hash::Hash for antecedent_io_core::bound_identity::IdentitySlot
+impl core::hash::Hash for antecedent_io_core::capacity_account::AccountedKind
+impl core::hash::Hash for antecedent_io_core::capacity_account::AccountedOperation
+impl core::hash::Hash for antecedent_io_core::chunk_refresh::ChunkRetention
+impl core::hash::Hash for antecedent_io_core::chunk_refresh::LagBoundary
 impl core::hash::Hash for antecedent_io_core::dependency_key::DependencyClass
 impl core::hash::Hash for antecedent_io_core::dependency_key::ReusableProduct
 impl core::hash::Hash for antecedent_io_core::dependency_key::SealedDependencyKey
@@ -2601,6 +2700,16 @@ impl core::marker::Copy for antecedent_io_core::bound_identity::IdentitySlot
 impl core::marker::Copy for antecedent_io_core::bound_identity::SelfDescribedDigest
 impl core::marker::Copy for antecedent_io_core::calibration::ConfirmedRegion
 impl core::marker::Copy for antecedent_io_core::calibration::RangeResolution
+impl core::marker::Copy for antecedent_io_core::capacity_account::AccountedKind
+impl core::marker::Copy for antecedent_io_core::capacity_account::AccountedOperation
+impl core::marker::Copy for antecedent_io_core::capacity_account::CapacityError
+impl core::marker::Copy for antecedent_io_core::chunk_refresh::ChunkRetention
+impl core::marker::Copy for antecedent_io_core::chunk_refresh::ChunkRow
+impl core::marker::Copy for antecedent_io_core::chunk_refresh::ChunkState
+impl core::marker::Copy for antecedent_io_core::chunk_refresh::ChunkSummaryInput
+impl core::marker::Copy for antecedent_io_core::chunk_refresh::CompleteResult
+impl core::marker::Copy for antecedent_io_core::chunk_refresh::Diagnostics
+impl core::marker::Copy for antecedent_io_core::chunk_refresh::LagBoundary
 impl core::marker::Copy for antecedent_io_core::cohort_decision::LawRequest
 impl core::marker::Copy for antecedent_io_core::compact_export::ExportLimits
 impl core::marker::Copy for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSearchLimitsWire
@@ -2956,6 +3065,28 @@ impl core::marker::Freeze for antecedent_io_core::callback_result_artifact::Requ
 impl core::marker::Freeze for antecedent_io_core::callback_result_artifact::StageWire [auto]
 impl core::marker::Freeze for antecedent_io_core::callback_result_artifact::TrustWire [auto]
 impl core::marker::Freeze for antecedent_io_core::callback_result_artifact::UpdateWire [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::AccountedKind [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::AccountedOperation [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::marker::Freeze for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::BorrowError [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::ChunkRow [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::ChunkState [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::ChunkSummaryInput [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::CompleteResult [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::DeclaredWindows [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::Diagnostics [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::IndexChunk [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::LagBoundary [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::LagNextAttempt [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::LagRefusal [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::LedgerSnapshot [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::LedgerState [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::RefreshError [auto]
+impl core::marker::Freeze for antecedent_io_core::chunk_refresh::WindowSplit [auto]
 impl core::marker::Freeze for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::marker::Freeze for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::marker::Freeze for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -3621,6 +3752,28 @@ impl core::marker::Send for antecedent_io_core::callback_result_artifact::Reques
 impl core::marker::Send for antecedent_io_core::callback_result_artifact::StageWire [auto]
 impl core::marker::Send for antecedent_io_core::callback_result_artifact::TrustWire [auto]
 impl core::marker::Send for antecedent_io_core::callback_result_artifact::UpdateWire [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::AccountedKind [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::AccountedOperation [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::marker::Send for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::BorrowError [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::ChunkRow [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::ChunkState [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::ChunkSummaryInput [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::CompleteResult [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::DeclaredWindows [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::Diagnostics [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::IndexChunk [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::LagBoundary [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::LagNextAttempt [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::LagRefusal [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::LedgerSnapshot [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::LedgerState [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::RefreshError [auto]
+impl core::marker::Send for antecedent_io_core::chunk_refresh::WindowSplit [auto]
 impl core::marker::Send for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::marker::Send for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::marker::Send for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -4274,6 +4427,25 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::callback_result_a
 impl core::marker::StructuralPartialEq for antecedent_io_core::callback_result_artifact::StageWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::callback_result_artifact::TrustWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::callback_result_artifact::UpdateWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::AccountedKind
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::AccountedOperation
+impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::CapacityError
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::BorrowError
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::ChunkRetention
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::ChunkRow
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::ChunkState
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::ChunkSummaryInput
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::CompleteResult
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::DeclaredWindows
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::Diagnostics
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::IndexChunk
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::LagBoundary
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::LagNextAttempt
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::LagRefusal
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::LedgerSnapshot
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::LedgerState
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::RefreshError
+impl core::marker::StructuralPartialEq for antecedent_io_core::chunk_refresh::WindowSplit
 impl core::marker::StructuralPartialEq for antecedent_io_core::cohort_decision::CohortBinding
 impl core::marker::StructuralPartialEq for antecedent_io_core::cohort_decision::CohortColumn
 impl core::marker::StructuralPartialEq for antecedent_io_core::cohort_decision::CohortDecisionSource
@@ -4911,6 +5083,28 @@ impl core::marker::Sync for antecedent_io_core::callback_result_artifact::Reques
 impl core::marker::Sync for antecedent_io_core::callback_result_artifact::StageWire [auto]
 impl core::marker::Sync for antecedent_io_core::callback_result_artifact::TrustWire [auto]
 impl core::marker::Sync for antecedent_io_core::callback_result_artifact::UpdateWire [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::AccountedKind [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::AccountedOperation [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::marker::Sync for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::BorrowError [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::ChunkRow [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::ChunkState [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::ChunkSummaryInput [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::CompleteResult [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::DeclaredWindows [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::Diagnostics [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::IndexChunk [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::LagBoundary [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::LagNextAttempt [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::LagRefusal [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::LedgerSnapshot [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::LedgerState [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::RefreshError [auto]
+impl core::marker::Sync for antecedent_io_core::chunk_refresh::WindowSplit [auto]
 impl core::marker::Sync for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::marker::Sync for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::marker::Sync for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -5576,6 +5770,28 @@ impl core::marker::Unpin for antecedent_io_core::callback_result_artifact::Reque
 impl core::marker::Unpin for antecedent_io_core::callback_result_artifact::StageWire [auto]
 impl core::marker::Unpin for antecedent_io_core::callback_result_artifact::TrustWire [auto]
 impl core::marker::Unpin for antecedent_io_core::callback_result_artifact::UpdateWire [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::AccountedKind [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::AccountedOperation [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::marker::Unpin for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::BorrowError [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::ChunkRow [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::ChunkState [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::ChunkSummaryInput [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::CompleteResult [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::DeclaredWindows [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::Diagnostics [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::IndexChunk [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::LagBoundary [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::LagNextAttempt [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::LagRefusal [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::LedgerSnapshot [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::LedgerState [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::RefreshError [auto]
+impl core::marker::Unpin for antecedent_io_core::chunk_refresh::WindowSplit [auto]
 impl core::marker::Unpin for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::marker::Unpin for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::marker::Unpin for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -6241,6 +6457,28 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::callback_re
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::callback_result_artifact::StageWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::callback_result_artifact::TrustWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::callback_result_artifact::UpdateWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::AccountedKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::AccountedOperation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::BorrowError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::ChunkRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::ChunkState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::ChunkSummaryInput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::CompleteResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::DeclaredWindows [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::Diagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::IndexChunk [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::LagBoundary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::LagNextAttempt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::LagRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::LedgerSnapshot [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::LedgerState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::RefreshError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::chunk_refresh::WindowSplit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -6906,6 +7144,28 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::callback_resul
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::callback_result_artifact::StageWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::callback_result_artifact::TrustWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::callback_result_artifact::UpdateWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::AccountedKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::AccountedOperation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::CapacityAccount [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::CapacityError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::DecompressionBuffer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::BorrowError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::ChunkLedger [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::ChunkRetention [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::ChunkRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::ChunkState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::ChunkSummaryInput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::CompleteResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::DeclaredWindows [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::Diagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::IndexChunk [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::LagBoundary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::LagNextAttempt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::LagRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::LedgerSnapshot [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::LedgerState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::RefreshError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::chunk_refresh::WindowSplit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -8379,6 +8639,7 @@ macro antecedent_io_core::map_artifact_check!
 macro antecedent_io_core::sectioned_artifact_enum!
 macro antecedent_io_core::sectioned_artifact_error!
 pub const <antecedent_io_core::bound_identity::IdentitySlot>::ALL: [Self; 5]
+pub const <antecedent_io_core::capacity_account::AccountedOperation>::ALL: [Self; 14]
 pub const <antecedent_io_core::dependency_key::DependencyClass>::ALL: [Self; 8]
 pub const <antecedent_io_core::dependency_key::ReusableProduct>::ALL: [Self; 14]
 pub const antecedent_io_core::AUTO_COMPRESS_MAX_RATIO: f64
@@ -8434,6 +8695,9 @@ pub const antecedent_io_core::callback_result_artifact::MAX_CALLBACK_RESULT_ARTI
 pub const antecedent_io_core::callback_result_artifact::MAX_CALLBACK_RESULT_VALUES: usize
 pub const antecedent_io_core::callback_result_artifact::MAX_CALLBACK_WIRE_EVIDENCE: usize
 pub const antecedent_io_core::canonical_json::MAX_CANONICAL_JSON_BYTES: usize
+pub const antecedent_io_core::capacity_account::DECOMPRESSION_CAP: usize
+pub const antecedent_io_core::chunk_refresh::LONGER_SPAN_OF_SAME_UNIT: &str
+pub const antecedent_io_core::chunk_refresh::STATIONARITY_NOT_INFERRED: &str
 pub const antecedent_io_core::cohort_decision::CATE_FUNCTIONAL_ID: &str
 pub const antecedent_io_core::cohort_decision::COHORT_CONDITIONING_VARIABLE: &str
 pub const antecedent_io_core::cohort_decision::COHORT_DECISION_ARTIFACT_KIND: &str
@@ -8647,6 +8911,11 @@ pub enum antecedent_io_core::bound_identity::IdentitySlot
 pub enum antecedent_io_core::bridge_artifact::MappingWire
 pub enum antecedent_io_core::calibration::RangeResolution
 pub enum antecedent_io_core::callback_result_artifact::CallbackOutcome
+pub enum antecedent_io_core::capacity_account::AccountedKind
+pub enum antecedent_io_core::capacity_account::AccountedOperation
+pub enum antecedent_io_core::chunk_refresh::ChunkRetention
+pub enum antecedent_io_core::chunk_refresh::LagBoundary
+pub enum antecedent_io_core::chunk_refresh::LagNextAttempt
 pub enum antecedent_io_core::cohort_decision::CohortColumn
 pub enum antecedent_io_core::cohort_decision::LawRequest
 pub enum antecedent_io_core::compact_export::InputSupport
@@ -10181,6 +10450,33 @@ pub field antecedent_io_core::callback_result_artifact::TrustWire::receipt_diges
 pub field antecedent_io_core::callback_result_artifact::UpdateWire::candidate_id: alloc::string::String
 pub field antecedent_io_core::callback_result_artifact::UpdateWire::observation: antecedent_io_core::quantity_wire::ScientificQuantityWire
 pub field antecedent_io_core::callback_result_artifact::UpdateWire::prior_id: alloc::string::String
+pub field antecedent_io_core::chunk_refresh::ChunkState::count: u64
+pub field antecedent_io_core::chunk_refresh::ChunkState::id: u64
+pub field antecedent_io_core::chunk_refresh::ChunkState::included: bool
+pub field antecedent_io_core::chunk_refresh::ChunkState::retains_rows: bool
+pub field antecedent_io_core::chunk_refresh::ChunkState::time_end: i64
+pub field antecedent_io_core::chunk_refresh::ChunkState::time_start: i64
+pub field antecedent_io_core::chunk_refresh::ChunkSummaryInput::count: u64
+pub field antecedent_io_core::chunk_refresh::ChunkSummaryInput::maximum: i64
+pub field antecedent_io_core::chunk_refresh::ChunkSummaryInput::minimum: i64
+pub field antecedent_io_core::chunk_refresh::ChunkSummaryInput::source: antecedent_core::identity::SemanticDigest
+pub field antecedent_io_core::chunk_refresh::ChunkSummaryInput::sum: i64
+pub field antecedent_io_core::chunk_refresh::ChunkSummaryInput::time_end: i64
+pub field antecedent_io_core::chunk_refresh::ChunkSummaryInput::time_start: i64
+pub field antecedent_io_core::chunk_refresh::CompleteResult::count: u64
+pub field antecedent_io_core::chunk_refresh::CompleteResult::maximum: core::option::Option<i64>
+pub field antecedent_io_core::chunk_refresh::CompleteResult::minimum: core::option::Option<i64>
+pub field antecedent_io_core::chunk_refresh::CompleteResult::sum: i64
+pub field antecedent_io_core::chunk_refresh::Diagnostics::stationarity_inferred: bool
+pub field antecedent_io_core::chunk_refresh::Diagnostics::summary_fallback: bool
+pub field antecedent_io_core::chunk_refresh::LedgerSnapshot::diagnostics: antecedent_io_core::chunk_refresh::Diagnostics
+pub field antecedent_io_core::chunk_refresh::LedgerSnapshot::result: antecedent_io_core::chunk_refresh::CompleteResult
+pub field antecedent_io_core::chunk_refresh::LedgerSnapshot::source_identity: antecedent_core::identity::SemanticDigest
+pub field antecedent_io_core::chunk_refresh::LedgerSnapshot::state: antecedent_io_core::chunk_refresh::LedgerState
+pub field antecedent_io_core::chunk_refresh::LedgerState::chunks: alloc::vec::Vec<antecedent_io_core::chunk_refresh::ChunkState>
+pub field antecedent_io_core::chunk_refresh::LedgerState::retention: antecedent_io_core::chunk_refresh::ChunkRetention
+pub field antecedent_io_core::chunk_refresh::LedgerState::selected_split: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_io_core::chunk_refresh::LedgerState::step: i64
 pub field antecedent_io_core::cohort_decision::CohortExpectation::cohort_digest: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::cohort_decision::CohortExpectation::contrast_regime: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::cohort_decision::CohortExpectation::identity: alloc::string::String
@@ -11776,6 +12072,66 @@ pub fn <antecedent_io_core::callback_result_artifact::CallbackResultArtifact>::f
 pub fn <antecedent_io_core::callback_result_artifact::CallbackResultArtifact>::fn seal(record: &antecedent_io_core::callback_result_artifact::CallbackResultRecord) -> core::result::Result<(Self, antecedent_io_core::callback_result_artifact::CallbackResultMeta), antecedent_io_core::callback_result_artifact::CallbackResultArtifactError>
 pub fn <antecedent_io_core::callback_result_artifact::CallbackResultArtifact>::fn to_bytes(record: &antecedent_io_core::callback_result_artifact::CallbackResultRecord, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::callback_result_artifact::CallbackResultArtifactError>
 pub fn <antecedent_io_core::callback_result_artifact::CallbackResultArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
+pub fn <antecedent_io_core::capacity_account::AccountedKind>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io_core::capacity_account::AccountedOperation>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::const fn budget(&self) -> u64
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::const fn new(budget: u64) -> Self
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::const fn require(&self, operation: antecedent_io_core::capacity_account::AccountedOperation) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::const fn retention(&self) -> antecedent_core::execution_facts::OutputRetention
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn admit(&mut self, kind: antecedent_io_core::capacity_account::AccountedKind, bytes: alloc::sync::Arc<[u8]>) -> core::result::Result<u64, antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn declared_disk_bytes(&self) -> core::result::Result<u64, antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn evict(&mut self, id: u64) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn is_empty(&self) -> bool
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn kind(&self, id: u64) -> core::option::Option<antecedent_io_core::capacity_account::AccountedKind>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn len(&self) -> usize
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn materialize(&mut self, id: u64, bytes: &alloc::sync::Arc<[u8]>) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn release_decompression(&mut self, buffer: antecedent_io_core::capacity_account::DecompressionBuffer) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn reserve_decompression(&mut self, declared: u64) -> core::result::Result<antecedent_io_core::capacity_account::DecompressionBuffer, antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn resident_bytes(&self) -> core::result::Result<u64, antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn retain_disk_backed(&mut self) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn retain_summary_only(&mut self) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn stored_bytes(&self, id: u64) -> core::option::Option<alloc::sync::Arc<[u8]>>
+pub fn <antecedent_io_core::capacity_account::CapacityAccount>::fn would_fit(&self, additional: u64) -> core::result::Result<bool, antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::capacity_account::DecompressionBuffer>::const fn id(&self) -> u64
+pub fn <antecedent_io_core::capacity_account::DecompressionBuffer>::const fn requested(&self) -> usize
+pub fn <antecedent_io_core::capacity_account::DecompressionBuffer>::fn as_slice(&self) -> &[u8]
+pub fn <antecedent_io_core::capacity_account::DecompressionBuffer>::fn capacity(&self) -> usize
+pub fn <antecedent_io_core::capacity_account::DecompressionBuffer>::fn write(&mut self, bytes: &[u8]) -> core::result::Result<(), antecedent_io_core::capacity_account::CapacityError>
+pub fn <antecedent_io_core::chunk_refresh::BorrowError>::const fn refusal(&self) -> core::option::Option<&antecedent_io_core::chunk_refresh::LagRefusal>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::const fn cached_snapshot(&self) -> &antecedent_io_core::chunk_refresh::LedgerSnapshot
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::const fn impute_gap(&self) -> core::result::Result<(), antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn append_rows(&mut self, rows: alloc::sync::Arc<[antecedent_io_core::chunk_refresh::ChunkRow]>) -> core::result::Result<u64, antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn append_summary(&mut self, summary: antecedent_io_core::chunk_refresh::ChunkSummaryInput) -> core::result::Result<u64, antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn borrow_lag(&self, target: usize, lag: u32) -> core::result::Result<usize, antecedent_io_core::chunk_refresh::BorrowError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn chunk_at(&self, boundary: usize) -> core::result::Result<(antecedent_io_core::chunk_refresh::IndexChunk, antecedent_io_core::chunk_refresh::IndexChunk), antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn clear_split(&mut self) -> core::result::Result<(), antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn eager_indexes(&self) -> core::result::Result<alloc::vec::Vec<usize>, antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn fresh_snapshot(&self) -> core::result::Result<antecedent_io_core::chunk_refresh::LedgerSnapshot, antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn refresh_rows(&mut self, id: u64, rows: alloc::sync::Arc<[antecedent_io_core::chunk_refresh::ChunkRow]>) -> core::result::Result<(), antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn refresh_summary(&mut self, id: u64, summary: antecedent_io_core::chunk_refresh::ChunkSummaryInput) -> core::result::Result<(), antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn retain_disk_backed(&mut self) -> core::result::Result<(), antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn retain_summary_only(&mut self) -> core::result::Result<(), antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn select_split(&mut self, name: &str) -> core::result::Result<(), antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkLedger>::fn try_new(step: i64, windows: antecedent_io_core::chunk_refresh::DeclaredWindows) -> core::result::Result<Self, antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::ChunkRetention>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io_core::chunk_refresh::ChunkRow>::const fn new(source: u64, time: i64, value: i64) -> Self
+pub fn <antecedent_io_core::chunk_refresh::ChunkRow>::const fn source(self) -> u64
+pub fn <antecedent_io_core::chunk_refresh::ChunkRow>::const fn time(self) -> i64
+pub fn <antecedent_io_core::chunk_refresh::ChunkRow>::const fn value(self) -> i64
+pub fn <antecedent_io_core::chunk_refresh::DeclaredWindows>::fn splits(&self) -> &[antecedent_io_core::chunk_refresh::WindowSplit]
+pub fn <antecedent_io_core::chunk_refresh::DeclaredWindows>::fn try_new(splits: impl core::iter::traits::collect::IntoIterator<Item = antecedent_io_core::chunk_refresh::WindowSplit>) -> core::result::Result<Self, antecedent_io_core::chunk_refresh::RefreshError>
+pub fn <antecedent_io_core::chunk_refresh::IndexChunk>::const fn indexes(&self) -> core::ops::range::Range<usize>
+pub fn <antecedent_io_core::chunk_refresh::IndexChunk>::fn borrow_lag(&self, target: usize, lag: u32) -> core::result::Result<usize, antecedent_io_core::chunk_refresh::BorrowError>
+pub fn <antecedent_io_core::chunk_refresh::LagNextAttempt>::const fn name(&self) -> &'static str
+pub fn <antecedent_io_core::chunk_refresh::LagRefusal>::const fn boundary(&self) -> antecedent_io_core::chunk_refresh::LagBoundary
+pub fn <antecedent_io_core::chunk_refresh::LagRefusal>::const fn lag(&self) -> u32
+pub fn <antecedent_io_core::chunk_refresh::LagRefusal>::const fn next_attempt(&self) -> &antecedent_io_core::chunk_refresh::LagNextAttempt
+pub fn <antecedent_io_core::chunk_refresh::LagRefusal>::const fn target(&self) -> usize
+pub fn <antecedent_io_core::chunk_refresh::WindowSplit>::const fn contains(&self, time: i64) -> bool
+pub fn <antecedent_io_core::chunk_refresh::WindowSplit>::const fn end(&self) -> i64
+pub fn <antecedent_io_core::chunk_refresh::WindowSplit>::const fn start(&self) -> i64
+pub fn <antecedent_io_core::chunk_refresh::WindowSplit>::fn name(&self) -> &str
+pub fn <antecedent_io_core::chunk_refresh::WindowSplit>::fn try_new(name: impl core::convert::Into<alloc::sync::Arc<str>>, start: i64, end: i64) -> core::result::Result<Self, antecedent_io_core::chunk_refresh::RefreshError>
 pub fn <antecedent_io_core::cohort_decision::CohortBinding>::fn columns(&self) -> &[antecedent_io_core::cohort_decision::CohortColumn]
 pub fn <antecedent_io_core::cohort_decision::CohortBinding>::fn digest(&self) -> alloc::string::String
 pub fn <antecedent_io_core::cohort_decision::CohortBinding>::fn features(&self) -> &[alloc::string::String]
@@ -12417,7 +12773,9 @@ pub mod antecedent_io_core::bridge_artifact
 pub mod antecedent_io_core::calibration
 pub mod antecedent_io_core::callback_result_artifact
 pub mod antecedent_io_core::canonical_json
+pub mod antecedent_io_core::capacity_account
 pub mod antecedent_io_core::causal_artifact
+pub mod antecedent_io_core::chunk_refresh
 pub mod antecedent_io_core::cohort_decision
 pub mod antecedent_io_core::compact_export
 pub mod antecedent_io_core::composition_verification_artifact
@@ -12746,6 +13104,28 @@ pub struct antecedent_io_core::callback_result_artifact::RequestWire
 pub struct antecedent_io_core::callback_result_artifact::StageWire
 pub struct antecedent_io_core::callback_result_artifact::TrustWire
 pub struct antecedent_io_core::callback_result_artifact::UpdateWire
+pub struct antecedent_io_core::capacity_account::CapacityAccount
+pub struct antecedent_io_core::capacity_account::CapacityAccount has private fields
+pub struct antecedent_io_core::capacity_account::DecompressionBuffer
+pub struct antecedent_io_core::capacity_account::DecompressionBuffer has private fields
+pub struct antecedent_io_core::chunk_refresh::ChunkLedger
+pub struct antecedent_io_core::chunk_refresh::ChunkLedger has private fields
+pub struct antecedent_io_core::chunk_refresh::ChunkRow
+pub struct antecedent_io_core::chunk_refresh::ChunkRow has private fields
+pub struct antecedent_io_core::chunk_refresh::ChunkState
+pub struct antecedent_io_core::chunk_refresh::ChunkSummaryInput
+pub struct antecedent_io_core::chunk_refresh::CompleteResult
+pub struct antecedent_io_core::chunk_refresh::DeclaredWindows
+pub struct antecedent_io_core::chunk_refresh::DeclaredWindows has private fields
+pub struct antecedent_io_core::chunk_refresh::Diagnostics
+pub struct antecedent_io_core::chunk_refresh::IndexChunk
+pub struct antecedent_io_core::chunk_refresh::IndexChunk has private fields
+pub struct antecedent_io_core::chunk_refresh::LagRefusal
+pub struct antecedent_io_core::chunk_refresh::LagRefusal has private fields
+pub struct antecedent_io_core::chunk_refresh::LedgerSnapshot
+pub struct antecedent_io_core::chunk_refresh::LedgerState
+pub struct antecedent_io_core::chunk_refresh::WindowSplit
+pub struct antecedent_io_core::chunk_refresh::WindowSplit has private fields
 pub struct antecedent_io_core::cohort_decision::CohortBinding
 pub struct antecedent_io_core::cohort_decision::CohortBinding has private fields
 pub struct antecedent_io_core::cohort_decision::CohortDecisionSource
@@ -14181,6 +14561,64 @@ pub variant antecedent_io_core::callback_result_artifact::CallbackResultArtifact
 pub variant antecedent_io_core::callback_result_artifact::CallbackResultArtifactError::Refused { code: &'static str, detail: alloc::string::String, message: alloc::string::String }
 pub variant antecedent_io_core::callback_result_artifact::CallbackResultArtifactError::UnsupportedSemantics(&'static str)
 pub variant antecedent_io_core::callback_result_artifact::CallbackResultArtifactError::UnsupportedVersion { version: u16 }
+pub variant antecedent_io_core::capacity_account::AccountedKind::Cache
+pub variant antecedent_io_core::capacity_account::AccountedKind::Draws
+pub variant antecedent_io_core::capacity_account::AccountedKind::ExportedPayload
+pub variant antecedent_io_core::capacity_account::AccountedKind::ProviderState
+pub variant antecedent_io_core::capacity_account::AccountedKind::Scores
+pub variant antecedent_io_core::capacity_account::AccountedOperation::AdmitCache
+pub variant antecedent_io_core::capacity_account::AccountedOperation::AdmitDraws
+pub variant antecedent_io_core::capacity_account::AccountedOperation::AdmitExportedPayload
+pub variant antecedent_io_core::capacity_account::AccountedOperation::AdmitProviderState
+pub variant antecedent_io_core::capacity_account::AccountedOperation::AdmitScores
+pub variant antecedent_io_core::capacity_account::AccountedOperation::ExactRowEviction
+pub variant antecedent_io_core::capacity_account::AccountedOperation::InPlaceColumnInsert
+pub variant antecedent_io_core::capacity_account::AccountedOperation::InPlaceWeightOrMaskUpdate
+pub variant antecedent_io_core::capacity_account::AccountedOperation::ReadDiskArtifact
+pub variant antecedent_io_core::capacity_account::AccountedOperation::RefitFromRetainedRows
+pub variant antecedent_io_core::capacity_account::AccountedOperation::ReserveDecompression
+pub variant antecedent_io_core::capacity_account::AccountedOperation::ReuseFullState
+pub variant antecedent_io_core::capacity_account::AccountedOperation::ReuseSummary
+pub variant antecedent_io_core::capacity_account::AccountedOperation::RowReconstruction
+pub variant antecedent_io_core::capacity_account::CapacityError::DecompressionCap { declared: u64, cap: usize }
+pub variant antecedent_io_core::capacity_account::CapacityError::EmptyPayload
+pub variant antecedent_io_core::capacity_account::CapacityError::OverBudget { resident: u64, additional: u64, budget: u64 }
+pub variant antecedent_io_core::capacity_account::CapacityError::Overflow
+pub variant antecedent_io_core::capacity_account::CapacityError::ReservationOutstanding
+pub variant antecedent_io_core::capacity_account::CapacityError::Retention { retention: antecedent_core::execution_facts::OutputRetention, operation: antecedent_io_core::capacity_account::AccountedOperation }
+pub variant antecedent_io_core::capacity_account::CapacityError::SummaryExceedsBudget { needed: u64, budget: u64 }
+pub variant antecedent_io_core::capacity_account::CapacityError::UnknownEntry { id: u64 }
+pub variant antecedent_io_core::capacity_account::CapacityError::WritePastReservation { got: usize, requested: usize }
+pub variant antecedent_io_core::chunk_refresh::BorrowError::Refused(antecedent_io_core::chunk_refresh::LagRefusal)
+pub variant antecedent_io_core::chunk_refresh::BorrowError::RowsNotRetained { retention: antecedent_io_core::chunk_refresh::ChunkRetention }
+pub variant antecedent_io_core::chunk_refresh::BorrowError::TargetOutsideChunk { target: usize, start: usize, end: usize }
+pub variant antecedent_io_core::chunk_refresh::BorrowError::TargetOutsideWindow { target: usize, start: usize, end: usize }
+pub variant antecedent_io_core::chunk_refresh::ChunkRetention::DiskBacked
+pub variant antecedent_io_core::chunk_refresh::ChunkRetention::FullReusable
+pub variant antecedent_io_core::chunk_refresh::ChunkRetention::SummaryOnly
+pub variant antecedent_io_core::chunk_refresh::LagBoundary::Calendar
+pub variant antecedent_io_core::chunk_refresh::LagBoundary::Split
+pub variant antecedent_io_core::chunk_refresh::LagBoundary::Unit
+pub variant antecedent_io_core::chunk_refresh::LagNextAttempt::LongerSpanOfSameUnit
+pub variant antecedent_io_core::chunk_refresh::LagNextAttempt::StayInsideCalendarSegment
+pub variant antecedent_io_core::chunk_refresh::LagNextAttempt::StayInsideSplit { name: alloc::sync::Arc<str> }
+pub variant antecedent_io_core::chunk_refresh::RefreshError::ChunkBoundary { boundary: usize, start: usize, end: usize }
+pub variant antecedent_io_core::chunk_refresh::RefreshError::DuplicateSplit { name: alloc::string::String }
+pub variant antecedent_io_core::chunk_refresh::RefreshError::EagerSliceNotContiguous
+pub variant antecedent_io_core::chunk_refresh::RefreshError::EmptyChunk
+pub variant antecedent_io_core::chunk_refresh::RefreshError::EmptySplit { name: alloc::sync::Arc<str> }
+pub variant antecedent_io_core::chunk_refresh::RefreshError::EmptySplitName
+pub variant antecedent_io_core::chunk_refresh::RefreshError::NoSplits
+pub variant antecedent_io_core::chunk_refresh::RefreshError::Overflow
+pub variant antecedent_io_core::chunk_refresh::RefreshError::OverlappingSplits { first: alloc::string::String, second: alloc::string::String }
+pub variant antecedent_io_core::chunk_refresh::RefreshError::PartialWindowNeedsRows { retention: antecedent_io_core::chunk_refresh::ChunkRetention }
+pub variant antecedent_io_core::chunk_refresh::RefreshError::RowsNotRetained { retention: antecedent_io_core::chunk_refresh::ChunkRetention }
+pub variant antecedent_io_core::chunk_refresh::RefreshError::StationarityNotInferred
+pub variant antecedent_io_core::chunk_refresh::RefreshError::Step
+pub variant antecedent_io_core::chunk_refresh::RefreshError::TimeOrder
+pub variant antecedent_io_core::chunk_refresh::RefreshError::UnknownChunk { id: u64 }
+pub variant antecedent_io_core::chunk_refresh::RefreshError::UnknownSplit { name: alloc::string::String }
+pub variant antecedent_io_core::chunk_refresh::RefreshError::WindowMiss
 pub variant antecedent_io_core::cohort_decision::CohortColumn::Categorical(alloc::vec::Vec<alloc::string::String>)
 pub variant antecedent_io_core::cohort_decision::CohortColumn::Numeric(alloc::vec::Vec<f64>)
 pub variant antecedent_io_core::cohort_decision::LawRequest::Interval
