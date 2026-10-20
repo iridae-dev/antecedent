@@ -287,6 +287,7 @@ impl ContinuousResponseEstimator {
             coef_names: None,
             unit_ids: None,
             serial_dependence: crate::SerialDependence::Iid,
+            preparation: None,
         };
         let posterior = estimator.fit(
             &prep,
@@ -950,6 +951,7 @@ impl ContinuousResponseEstimator {
             coef_names: None,
             unit_ids: None,
             serial_dependence: crate::SerialDependence::Iid,
+            preparation: None,
         })
     }
 }

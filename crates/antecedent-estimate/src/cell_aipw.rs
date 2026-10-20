@@ -223,6 +223,7 @@ struct PreparedCells {
     treatments: Arc<[VariableId]>,
     fold_assignment: Option<Vec<u32>>,
     shared_design: bool,
+    preparation: Arc<crate::PreparationSummary>,
 }
 
 #[allow(
@@ -246,7 +247,7 @@ fn prepare_cells(
     if let Some(c) = continuous {
         ids.push(c.variable);
     }
-    let crate::prepare::AdmittedColumns { data, row_mask: mask, .. } =
+    let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt } =
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
     let t_cols: Vec<Vec<f64>> = treatments
         .iter()
@@ -340,6 +341,7 @@ fn prepare_cells(
             .into(),
         fold_assignment: None,
         shared_design: false,
+        preparation: crate::prepare::preparation_summary(&receipt),
     })
 }
 
@@ -533,6 +535,7 @@ fn crossfit_cell_scores(
                 propensity_clip: clip,
                 treatment: prepared.treatments[0],
                 intervened: Arc::clone(&prepared.treatments),
+                preparation: Some(Arc::clone(&prepared.preparation)),
             })
         },
     )
@@ -1096,9 +1099,35 @@ mod tests {
             treatments: Arc::from([VariableId::from_raw(0)]),
             fold_assignment: Some(vec![0, 1, 1, 1, 1, 0, 1, 1, 1, 1]),
             shared_design: false,
+            preparation: Arc::new(crate::PreparationSummary::from_parts(
+                "in_memory".into(),
+                "rows_only".into(),
+                Some(10),
+                "00".into(),
+            )),
         };
         let err = crossfit_cell_scores(&prepared, &[None], &CellSaturatedAipw::new()).unwrap_err();
         assert!(err.to_string().contains("training fold"));
+    }
+
+    #[test]
+    fn score_table_records_the_preparation_receipt() {
+        let data = interaction_dgp(400);
+        let table = CellSaturatedAipw::new()
+            .fit_scores(
+                &data,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
+            )
+            .unwrap();
+        let receipt = table.preparation.as_ref().expect("the table carries the receipt");
+        assert_eq!(receipt.backend, "direct_arrow");
+        assert_eq!(receipt.rows_admitted, Some(table.n_rows as u64));
     }
 
     #[test]

@@ -126,6 +126,7 @@ pub(super) fn assemble_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     })
 }
 

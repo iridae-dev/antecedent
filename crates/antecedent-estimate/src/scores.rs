@@ -16,7 +16,11 @@ use crate::error::EstimationError;
 use crate::joint_if::{JointCovariance, joint_influence_covariance, kish_n_eff, weighted_mean};
 
 /// Per-row cross-fitted AIPW scores.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Equality compares the scores and what identifies them, never the preparation summary: how
+/// the columns were admitted is a fact about one run, so a table read back from a wire equals
+/// the table that was exported.
+#[derive(Clone, Debug)]
 pub struct ScoreTable {
     /// Observed cell on each retained row; empty on legacy score artifacts.
     pub observed_arm: Arc<[u32]>,
@@ -50,6 +54,33 @@ pub struct ScoreTable {
     pub treatment: VariableId,
     /// Additional intervened coordinates (joint cells). Empty for binary ATE.
     pub intervened: Arc<[VariableId]>,
+    /// How the columns the scores were fitted on were prepared, when the estimator admitted
+    /// them through the preparation path. A physical fact about the run, so it is not part of
+    /// the score artifact's wire form or identity; a table read back from a wire has none.
+    pub preparation: Option<Arc<crate::PreparationSummary>>,
+}
+
+impl PartialEq for ScoreTable {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            observed_arm,
+            propensities,
+            observed_outcome,
+            n_rows,
+            row_index,
+            fold_ids,
+            n_folds,
+            scores,
+            columns,
+            adjustment_set,
+            nuisance_provenance,
+            propensity_clip,
+            treatment,
+            intervened,
+            preparation: _,
+        } = self;
+        *observed_arm == other.observed_arm && *propensities == other.propensities && *observed_outcome == other.observed_outcome && *n_rows == other.n_rows && *row_index == other.row_index && *fold_ids == other.fold_ids && *n_folds == other.n_folds && *scores == other.scores && *columns == other.columns && *adjustment_set == other.adjustment_set && *nuisance_provenance == other.nuisance_provenance && *propensity_clip == other.propensity_clip && *treatment == other.treatment && *intervened == other.intervened
+    }
 }
 
 impl ScoreTable {
@@ -484,6 +515,7 @@ impl ScoreTable {
                 .collect::<Vec<_>>()
                 .into(),
             nuisance_provenance: Arc::from(wire.nuisance_provenance),
+            preparation: None,
             propensity_clip: wire.propensity_clip,
             treatment: VariableId::from_raw(wire.treatment),
             intervened: wire
@@ -525,6 +557,7 @@ mod tests {
             propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         }
     }
 
@@ -595,6 +628,7 @@ mod tests {
             propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         };
         for variance in [f64::NAN, f64::INFINITY, -1.0, -1e-20] {
             let summary = ScoreSummary {
@@ -643,6 +677,7 @@ mod tests {
             propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         };
         // Two arms at one threshold are one threshold; the mean functional has none.
         assert_eq!(table_with(&[Some(0.5), Some(0.5)]).distinct_threshold_count(), 1);
@@ -677,6 +712,7 @@ mod tests {
             propensity_clip: Some(0.02),
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         };
         let restored = ScoreTable::from_wire(table.to_wire()).unwrap();
         assert_eq!(restored.scores.as_ref(), table.scores.as_ref());

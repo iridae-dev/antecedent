@@ -187,9 +187,20 @@ pub struct CausalPosterior {
     /// `None` when the posterior is not an identity-link contrast (or the
     /// contrast was not available at fit time).
     pub treatment_contrast: Option<f64>,
+    /// How the columns the fit read were prepared, when the estimator admitted them through
+    /// the preparation path. A physical fact about the run, so it is not part of the draws,
+    /// the summaries or any identity.
+    pub preparation: Option<Arc<crate::PreparationSummary>>,
 }
 
 impl CausalPosterior {
+    /// Record how the fitted columns were prepared.
+    #[must_use]
+    pub fn with_preparation(mut self, preparation: Option<Arc<crate::PreparationSummary>>) -> Self {
+        self.preparation = preparation;
+        self
+    }
+
     /// Primary effect column index (first `Effect` quantity), if any.
     #[must_use]
     pub fn effect_column(&self) -> Option<usize> {
@@ -297,5 +308,6 @@ pub fn nonidentified_with_prior(
         unidentified_mass: 1.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     })
 }

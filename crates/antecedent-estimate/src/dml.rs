@@ -816,6 +816,7 @@ fn aipw_score_table_clipped(
                 propensity_clip: clip,
                 treatment: problem.treatment_id,
                 intervened: Arc::from([]),
+                preparation: None,
             })
         },
     )

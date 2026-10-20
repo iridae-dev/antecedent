@@ -544,6 +544,7 @@ fn build_scores_pass(
         propensity_clip: clip,
         treatment,
         intervened: Arc::from([]),
+        preparation: None,
     };
     Ok((table, selections))
 }
@@ -748,6 +749,7 @@ fn mean_score_table(
         propensity_clip: clip,
         treatment,
         intervened: Arc::from([]),
+        preparation: None,
     })
 }
 

@@ -215,6 +215,7 @@ mod tests {
             unidentified_mass: 0.0,
             early_stopped: false,
             treatment_contrast: None,
+            preparation: None,
         };
         let error = endpoint_monte_carlo_error(&posterior).expect("endpoint error");
         let record = error.route_record(posterior.unevaluable_mass).expect("failed check");

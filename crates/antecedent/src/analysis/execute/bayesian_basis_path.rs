@@ -122,9 +122,9 @@ impl Study {
         let cfg = match &self.inference {
             InferenceMode::Bayesian(cfg) => cfg,
             InferenceMode::Frequentist => {
-                return Err(CausalError::Unsupported {
-                    message: "bayesian.basis.gcomp requires inference=Bayesian",
-                });
+                return Err(CausalError::unsupported_inference(
+                    "bayesian.basis.gcomp requires inference=Bayesian",
+                ));
             }
         };
         if cfg.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
@@ -230,6 +230,7 @@ pub(super) fn basis_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: Some(treatment_contrast),
+        preparation: None,
     };
     let ate_col = 0;
     let ate = summaries.mean[ate_col];

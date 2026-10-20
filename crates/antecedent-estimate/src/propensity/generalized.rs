@@ -499,6 +499,7 @@ impl MultiLevelAipw {
             propensity_clip: clip,
             treatment: query.treatment,
             intervened: Arc::from([]),
+            preparation: None,
         })
     }
 }

@@ -664,6 +664,7 @@ mod predictive_null_calibration {
             coef_names: None,
             unit_ids: None,
             serial_dependence: SerialDependence::Iid,
+            preparation: None,
         }
     }
 
@@ -1321,6 +1322,7 @@ mod predictive_null_calibration {
             coef_names: None,
             unit_ids: None,
             serial_dependence: SerialDependence::Iid,
+            preparation: None,
         };
         let mut prior = PriorSet::new();
         prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(2, 0.1)));

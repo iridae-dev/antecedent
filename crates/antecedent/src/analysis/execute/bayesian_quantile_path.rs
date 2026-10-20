@@ -132,6 +132,7 @@ fn quantile_posterior_draws(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: Some(1.0),
+        preparation: None,
     })
 }
 
@@ -153,9 +154,9 @@ impl Study {
         require_identified(&identification)?;
         let estimand = select_estimand(&identification, EstimatorId::BayesianRandomizedQuantile)?;
         let InferenceMode::Bayesian(config) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "bayesian.randomized_quantile requires Bayesian inference".into(),
-            });
+            return Err(CausalError::unsupported_inference(
+                "bayesian.randomized_quantile requires Bayesian inference",
+            ));
         };
         self.execute_bayesian_quantile_identified(
             data,

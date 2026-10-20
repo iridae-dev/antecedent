@@ -1537,6 +1537,7 @@ fn estimate_sequential_with_gaps(
                             None => SerialDependence::LongRunTempering(scope),
                         }
                     },
+                    preparation: None,
                 };
                 let mut est = estimator.clone();
                 est.seed = est.seed.wrapping_add(u64::from(child.variable.raw()));

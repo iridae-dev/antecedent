@@ -269,6 +269,7 @@ pub fn aggregate_effect_envelope(
         unidentified_mass: retained_unidentified,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     })
 }
 

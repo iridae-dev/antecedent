@@ -336,5 +336,6 @@ pub(super) fn effect_draws_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     })
 }

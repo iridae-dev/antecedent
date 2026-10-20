@@ -93,9 +93,9 @@ impl CheckedBayesianRobustAteExecution {
             });
         }
         let InferenceMode::Bayesian(config) = inference else {
-            return Err(CausalError::Unsupported {
-                message: "bayesian.robust_ate requires Bayesian inference",
-            });
+            return Err(CausalError::unsupported_inference(
+                "bayesian.robust_ate requires Bayesian inference",
+            ));
         };
         if config.prior.is_some()
             || config.prior_artifact.is_some()
@@ -212,6 +212,7 @@ impl CheckedBayesianRobustAteExecution {
             unevaluable_mass: 0.0,
             early_stopped: false,
             treatment_contrast: None,
+            preparation: None,
         };
         let estimate = effect_from_posterior(&posterior)?;
         let diagnostic = Diagnostic::new(

@@ -440,6 +440,7 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
             hessian_condition: artifact.hessian_condition,
             draws_encoding: draws_encoding.into(),
             treatment_contrast: artifact.treatment_contrast,
+            preparation: None,
         };
         let art = encode_posterior_wire(&meta, &artifact.draws, "py-posterior", VERSION)
             .map_err(py_err)?;

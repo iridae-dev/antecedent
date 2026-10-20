@@ -451,6 +451,9 @@ pub struct FactorizedJointFit {
     /// Aligned scores of the supported cells under the declared ordering. The provenance
     /// carries the ridge tag, so no interval or covariance is published from it.
     pub scores: ScoreTable,
+    /// How the columns the fit read were prepared. A physical fact about the run, so it is
+    /// not part of any identity; the same summary rides on [`Self::scores`].
+    pub preparation: Option<Arc<crate::PreparationSummary>>,
 }
 
 impl FactorizedJointFit {
@@ -501,6 +504,7 @@ struct Problem {
     outcome: Vec<f64>,
     row_index: Vec<antecedent_data::GlobalId>,
     adjustment_set: Arc<[VariableId]>,
+    preparation: Arc<crate::PreparationSummary>,
 }
 
 /// One fold's row lists, borrowed from the shared cross-fit plan, with the validation design.
@@ -530,7 +534,7 @@ fn prepare_problem(
             ));
         }
     }
-    let crate::prepare::AdmittedColumns { data, row_mask: mask, .. } =
+    let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt } =
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
     let outcome_values = data.float64_masked(outcome, &mask).map_err(EstimationError::from)?;
     let n = outcome_values.len();
@@ -575,6 +579,7 @@ fn prepare_problem(
         outcome: outcome_values,
         row_index,
         adjustment_set: Arc::from(adjustment.to_vec()),
+        preparation: crate::prepare::preparation_summary(&receipt),
     })
 }
 
@@ -1276,6 +1281,7 @@ fn fit_with_nuisance(
         propensity_clip: Some(config.clip),
         treatment: treatments[0],
         intervened: Arc::from(treatments.to_vec()),
+        preparation: Some(Arc::clone(&problem.preparation)),
     };
     Ok(FactorizedJointFit {
         treatments: treatments.to_vec(),
@@ -1286,6 +1292,7 @@ fn fit_with_nuisance(
         sensitivity,
         degenerate_conditionals: degenerate,
         scores: table,
+        preparation: Some(Arc::clone(&problem.preparation)),
     })
 }
 
@@ -1368,6 +1375,16 @@ mod tests {
         let counts = cached.report.counts(Operation::CachedFailureRead);
         assert_eq!((counts.attempted, counts.completed, counts.failed), (1, 1, 0));
         assert_eq!(cached.report.counts(Operation::LeastSquaresSolve).attempted, 0);
+    }
+
+    #[test]
+    fn prepared_problem_keeps_the_admission_receipt_for_the_fit_outputs() {
+        let input = fixture(80, 17);
+        let problem =
+            prepare_problem(&input.data, &input.treatments, input.outcome, &input.adjustment)
+                .unwrap();
+        assert_eq!(problem.preparation.backend, "direct_arrow");
+        assert_eq!(problem.preparation.rows_admitted, Some(80));
     }
 
     fn supported(estimate: f64) -> (CellEstimate, Vec<f64>) {

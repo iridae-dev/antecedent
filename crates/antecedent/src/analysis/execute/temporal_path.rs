@@ -1159,9 +1159,9 @@ impl super::Study {
         let mut observed_posterior = None;
         let mut response = if observed_bayes {
             let InferenceMode::Bayesian(cfg) = &self.inference else {
-                return Err(CausalError::Unsupported {
-                    message: "an observed Bayesian temporal response requires Bayesian inference",
-                });
+                return Err(CausalError::unsupported_inference(
+                    "an observed Bayesian temporal response requires Bayesian inference",
+                ));
             };
             if cfg.has_transferred_source() {
                 return Err(CausalError::Unsupported {message: "observed temporal mechanisms need independent per-mechanism priors; a transferred response coefficient prior has no such mapping"});
@@ -2468,9 +2468,9 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let InferenceMode::Bayesian(cfg) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "temporal class Bayesian execute requires Bayesian inference".into(),
-            });
+            return Err(CausalError::unsupported_inference(
+                "temporal class Bayesian execute requires Bayesian inference",
+            ));
         };
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
@@ -4845,6 +4845,7 @@ mod tests {
             unevaluable_mass: 0.0,
             early_stopped: false,
             treatment_contrast: None,
+            preparation: None,
         }
     }
 
@@ -5263,9 +5264,9 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<(EffectEstimate, CausalPosterior), CausalError> {
         let InferenceMode::Bayesian(cfg) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "a temporal counterfactual posterior requires Bayesian inference".into(),
-            });
+            return Err(CausalError::unsupported_inference(
+                "a temporal counterfactual posterior requires Bayesian inference",
+            ));
         };
         let mut temporal = TemporalLinearAdjustment::new();
         temporal.inner.bootstrap_replicates = 0;

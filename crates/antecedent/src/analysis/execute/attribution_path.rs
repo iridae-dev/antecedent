@@ -951,6 +951,7 @@ pub(super) fn attribution_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     })
 }
 
@@ -1333,6 +1334,7 @@ fn counterfactual_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     })
 }
 

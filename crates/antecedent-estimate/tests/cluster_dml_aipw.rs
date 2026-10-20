@@ -449,6 +449,7 @@ fn the_cluster_variance_has_its_closed_form_on_deterministic_scores() {
         propensity_clip: None,
         treatment: VariableId::from_raw(0),
         intervened: Arc::from([]),
+        preparation: None,
     };
     let spec = ClusterDml::new(10).unwrap();
     let receipt = spec.receipt(&table, &clusters, None).unwrap();
@@ -593,6 +594,7 @@ fn contrast_table(psi: &[f64], fold_ids: Vec<u32>) -> ScoreTable {
         propensity_clip: None,
         treatment: VariableId::from_raw(0),
         intervened: Arc::from([]),
+        preparation: None,
     }
 }
 

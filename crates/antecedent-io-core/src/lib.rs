@@ -247,7 +247,7 @@ pub use plan_wire::{
     physical_plan_from_wire, physical_plan_to_wire,
 };
 pub use posterior::{
-    CausalPosteriorWire, PosteriorQuantityWire, decode_causal_posterior_bytes,
+    CausalPosteriorWire, PosteriorPreparationWire, PosteriorQuantityWire, decode_causal_posterior_bytes,
     decode_posterior_artifact, decode_posterior_meta_from_path, decode_posterior_meta_from_seek,
     encode_posterior_artifact,
 };

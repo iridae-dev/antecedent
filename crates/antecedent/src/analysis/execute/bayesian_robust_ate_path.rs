@@ -38,9 +38,9 @@ impl super::Study {
         let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
         let input = robust_ate_input(&data_est, &query_est)?;
         let InferenceMode::Bayesian(cfg) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "bayesian.robust_ate requires Bayesian inference".into(),
-            });
+            return Err(CausalError::unsupported_inference(
+                "bayesian.robust_ate requires Bayesian inference",
+            ));
         };
         if cfg.has_transfer() {
             return Err(CausalError::Unsupported {
@@ -91,9 +91,9 @@ impl super::Study {
         query: &AverageEffectQuery,
     ) -> Result<(), CausalError> {
         if !inference.is_bayesian() {
-            return Err(CausalError::Unsupported {
-                message: "bayesian.robust_ate requires Bayesian inference",
-            });
+            return Err(CausalError::unsupported_inference(
+                "bayesian.robust_ate requires Bayesian inference",
+            ));
         }
         if query.target_population != antecedent_core::TargetPopulation::AllObserved
             || query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
@@ -188,6 +188,7 @@ fn robust_ate_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     };
     Ok(posterior)
 }

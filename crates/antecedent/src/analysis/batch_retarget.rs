@@ -1364,6 +1364,7 @@ mod tests {
             propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from(Vec::new()),
+            preparation: None,
         }
     }
 

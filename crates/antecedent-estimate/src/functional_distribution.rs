@@ -1580,6 +1580,7 @@ fn functional_posterior_from_draws(
         unidentified_mass: unidentified_mass_from_status(identification),
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     }
 }
 

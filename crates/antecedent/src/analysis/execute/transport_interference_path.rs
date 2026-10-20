@@ -308,6 +308,7 @@ fn interference_bayesian_estimate(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     };
     let estimate = effect_from_posterior(&posterior)?;
     Ok((
@@ -430,6 +431,7 @@ fn bayesian_transport_estimate(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     };
     let estimate = effect_from_posterior(&posterior)?;
     Ok((

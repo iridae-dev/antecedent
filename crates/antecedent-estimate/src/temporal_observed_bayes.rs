@@ -953,6 +953,7 @@ pub fn estimate_observed_temporal_response(
         unidentified_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
+        preparation: None,
     };
     Ok((response, posterior))
 }

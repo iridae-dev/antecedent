@@ -235,7 +235,7 @@ impl BayesianGComputationAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let crate::prepare::AdmittedColumns { data, row_mask, .. } =
+        let crate::prepare::AdmittedColumns { data, row_mask, receipt } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
         let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
@@ -264,6 +264,7 @@ impl BayesianGComputationAte {
             coef_names: Some(coef_names),
             unit_ids: None,
             serial_dependence: SerialDependence::Iid,
+            preparation: Some(crate::prepare::preparation_summary(&receipt)),
         })
     }
 
@@ -293,7 +294,7 @@ impl BayesianGComputationAte {
         let mut ids = vec![q.treatment, q.outcome];
         ids.extend_from_slice(&q.effect_modifiers);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let crate::prepare::AdmittedColumns { data, row_mask: mask, .. } =
+        let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
         let t = data.float64_masked(q.treatment, &mask)?;
         let y = data.float64_masked(q.outcome, &mask)?;
@@ -318,6 +319,7 @@ impl BayesianGComputationAte {
         let rows: Vec<_> =
             mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
         prep.design = CompiledDesign::linear_adjustment(&t, &refs, &y, &rows)?;
+        prep.preparation = Some(crate::prepare::preparation_summary(&receipt));
         let mut names: Vec<Arc<str>> =
             vec![Arc::from("intercept"), Arc::from("treatment_at_mean_modifier")];
         for &modifier in q.effect_modifiers.iter() {
@@ -353,6 +355,7 @@ impl BayesianGComputationAte {
             coef_names: None,
             unit_ids: None,
             serial_dependence: SerialDependence::Iid,
+            preparation: None,
         }
     }
 
@@ -551,6 +554,7 @@ impl BayesianGComputationAte {
             early_stopped,
             treatment_contrast: (self.glm_family() == GlmFamily::GaussianIdentity)
                 .then_some(problem.active - problem.control),
+            preparation: problem.preparation.clone(),
         })
     }
 
@@ -1304,9 +1308,19 @@ pub struct PreparedBayesianProblem {
     /// Pulse / Sustained designs and every horizon of a temporal response use
     /// [`SerialDependence::LongRunTempering`].
     pub serial_dependence: SerialDependence,
+    /// How the columns this problem was built from were prepared, when they were admitted
+    /// through the preparation path.
+    pub preparation: Option<Arc<crate::PreparationSummary>>,
 }
 
 impl PreparedBayesianProblem {
+    /// Record how the columns were prepared.
+    #[must_use]
+    pub fn with_preparation(mut self, preparation: Option<Arc<crate::PreparationSummary>>) -> Self {
+        self.preparation = preparation;
+        self
+    }
+
     /// Set the row-dependence model (see [`crate::serial_dependence`]).
     #[must_use]
     pub fn with_serial_dependence(mut self, dependence: SerialDependence) -> Self {

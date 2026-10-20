@@ -73,6 +73,25 @@ pub struct CausalPosteriorWire {
     /// identity-link effect. Used by effect-functional hydrate (`ATE / Δ`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub treatment_contrast: Option<f64>,
+    /// How the columns the fit read were prepared, when the estimator recorded a receipt.
+    /// A physical fact about the run, so it takes no part in any identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preparation: Option<PosteriorPreparationWire>,
+}
+
+/// Preparation receipt summary recorded on a posterior.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PosteriorPreparationWire {
+    /// Stable name of the preparation backend.
+    pub backend: String,
+    /// Stable name of the end-to-end route bound.
+    pub route_bound: String,
+    /// Rows the estimator read; absent when it was handed a scan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rows_admitted: Option<u64>,
+    /// Lower-case hex digest of the preparation plan.
+    pub receipt_digest: String,
 }
 
 #[allow(clippy::trivially_copy_pass_by_ref, reason = "serde's skip_serializing_if passes `&T`")]
@@ -383,6 +402,7 @@ mod tests {
             hessian_condition: 10.0,
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: None,
+            preparation: None,
         }
     }
 
@@ -511,6 +531,7 @@ mod tests {
             hessian_condition: 1.0,
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: None,
+            preparation: None,
         };
         let draws = vec![0.5f64; 8192];
         let art = encode_posterior_artifact(&meta, &draws, "meta-only", "0.1.0").unwrap();

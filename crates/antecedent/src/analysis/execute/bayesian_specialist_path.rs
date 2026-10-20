@@ -78,9 +78,9 @@ impl Study {
         require_identified(&identification)?;
         let estimand = select_estimand(&identification, EstimatorId::BayesianIvJointLinear)?;
         let InferenceMode::Bayesian(config) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "iv.bayesian_joint_linear requires Bayesian inference".into(),
-            });
+            return Err(CausalError::unsupported_inference(
+                "iv.bayesian_joint_linear requires Bayesian inference",
+            ));
         };
         self.execute_bayesian_iv_identified(
             data,
@@ -186,9 +186,9 @@ impl Study {
         require_identified(&identification)?;
         let estimand = select_estimand(&identification, EstimatorId::BayesianRdLocalLinear)?;
         let InferenceMode::Bayesian(config) = &self.inference else {
-            return Err(CausalError::Compile {
-                message: "rd.bayesian_local_linear requires Bayesian inference".into(),
-            });
+            return Err(CausalError::unsupported_inference(
+                "rd.bayesian_local_linear requires Bayesian inference",
+            ));
         };
         self.execute_bayesian_rd_identified(
             data,
@@ -307,5 +307,6 @@ fn effect_posterior(
         unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: contrast,
+        preparation: None,
     }
 }

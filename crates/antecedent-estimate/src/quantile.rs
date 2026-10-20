@@ -382,6 +382,7 @@ mod review_tests {
             propensity_clip: None,
             treatment: antecedent_core::VariableId::from_raw(0),
             intervened: Arc::from([]),
+            preparation: None,
         };
         let expected = quantile_arm(&table, None, 0.5, 0).unwrap();
         assert!(expected.influence.iter().any(|v| v.abs() > 0.1));
@@ -438,6 +439,7 @@ mod review_tests {
             propensity_clip: None,
             treatment: antecedent_core::VariableId::from_raw(0),
             intervened: [].into(),
+            preparation: None,
         };
         let error = quantile_contrast(&table, None, 0.55).unwrap_err();
         assert!(error.to_string().contains("projection changes"), "{error}");

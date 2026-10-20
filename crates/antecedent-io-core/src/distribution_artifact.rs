@@ -1097,6 +1097,7 @@ mod tests {
             hessian_condition: 1.0,
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: None,
+            preparation: None,
         };
         let encoded = encode_posterior_artifact(
             &old,

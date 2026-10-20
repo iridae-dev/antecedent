@@ -396,6 +396,7 @@ fn estimate_static_mediation_bayesian_impl(
             coef_names: Some(Arc::from(coef_names.clone())),
             unit_ids: None,
             serial_dependence: crate::SerialDependence::Iid,
+            preparation: None,
         };
         let mut node_est = estimator.clone();
         node_est.seed = estimator.seed.wrapping_add(i as u64 + 1);
@@ -564,6 +565,7 @@ fn estimate_static_mediation_bayesian_impl(
         },
         early_stopped: false,
         treatment_contrast: Some(delta),
+        preparation: None,
     };
     let eq = posterior
         .effect_column()

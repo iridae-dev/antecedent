@@ -552,6 +552,7 @@ impl CheckedInterferenceOperation {
             unevaluable_mass: 0.0,
             early_stopped: false,
             treatment_contrast: None,
+            preparation: None,
         };
         let estimate = effect_from_posterior(&posterior)?;
         Ok((

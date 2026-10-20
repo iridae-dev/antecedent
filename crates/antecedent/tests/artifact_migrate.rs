@@ -186,6 +186,7 @@ fn posterior_artifact() -> EncodedArtifact {
         hessian_condition: 1.0,
         draws_encoding: "f64_le_colmajor".into(),
         treatment_contrast: None,
+        preparation: None,
     };
     encode_posterior_artifact(&meta, &[0.9, 1.0, 1.1], "p12-post", VERSION).unwrap()
 }

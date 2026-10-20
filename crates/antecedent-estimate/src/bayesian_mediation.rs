@@ -110,6 +110,7 @@ pub fn prepare_temporal_mediation_with_gaps(
             coef_names: None,
             unit_ids: None,
             serial_dependence: SerialDependence::Iid,
+            preparation: None,
         })
     };
     let covs: Vec<_> = adjustment

@@ -217,6 +217,7 @@ fn conditional_logit_contrast_uses_both_intervention_rows_on_outcome_scale() {
         ])),
         unit_ids: None,
         serial_dependence: SerialDependence::Iid,
+        preparation: None,
     };
     let quantities: Vec<_> = (0..4)
         .map(|index| PosteriorQuantityKind::Coefficient { index, name: None })
@@ -363,6 +364,35 @@ fn bayesian_and_frequentist_share_ate() {
         .collect();
     assert!(coef_names.contains(&"intercept"), "{coef_names:?}");
     assert!(coef_names.iter().any(|n| n.starts_with("coef_")), "{coef_names:?}");
+}
+
+#[test]
+fn posterior_records_the_preparation_receipt_of_the_admitted_columns() {
+    let (data, t, y, z) = linear_scm_table(80);
+    let estimand = IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from(vec![z]),
+        ExprId::from_raw(0),
+    );
+    let query = AverageEffectQuery::binary_ate(t, y);
+    let estimator =
+        BayesianGComputationAte { n_draws: 96, seed: 17, ..BayesianGComputationAte::new() };
+    let prepared = estimator.prepare(&data, &estimand, &query).unwrap();
+    let receipt = prepared.preparation.clone().expect("prepare records the receipt");
+    assert_eq!(receipt.rows_admitted, Some(80));
+    let mut workspace = BayesianGCompWorkspace::default();
+    let posterior = estimator
+        .fit(
+            &prepared,
+            IdentificationStatus::NonparametricallyIdentified,
+            &mut workspace,
+            &ExecutionContext::production(17, 1),
+        )
+        .unwrap();
+    let recorded = posterior.preparation.as_ref().expect("posterior carries the receipt");
+    assert_eq!(recorded.backend, receipt.backend);
+    assert_eq!(recorded.rows_admitted, Some(80));
+    assert_eq!(recorded.receipt_digest, receipt.receipt_digest);
 }
 
 #[test]

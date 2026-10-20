@@ -8,7 +8,9 @@ use antecedent_prob::PosteriorQuantityKind;
 
 use crate::container::EncodedArtifact;
 use crate::error::IoError;
-use crate::posterior::{CausalPosteriorWire, PosteriorQuantityWire, encode_posterior_artifact};
+use crate::posterior::{
+    CausalPosteriorWire, PosteriorPreparationWire, PosteriorQuantityWire, encode_posterior_artifact,
+};
 pub use antecedent_io_core::posterior::decode_causal_posterior_bytes;
 
 /// Which posterior payload to serialize across the FFI / artifact boundary.
@@ -119,6 +121,12 @@ pub fn encode_causal_posterior_with_payload(
         hessian_condition: posterior.diagnostics.hessian_condition,
         draws_encoding: draws_encoding.into(),
         treatment_contrast: posterior.treatment_contrast,
+        preparation: posterior.preparation.as_deref().map(|p| PosteriorPreparationWire {
+            backend: p.backend.clone(),
+            route_bound: p.route_bound.clone(),
+            rows_admitted: p.rows_admitted,
+            receipt_digest: p.receipt_digest.clone(),
+        }),
     };
     encode_posterior_artifact(&meta, draws, artifact_id, VERSION)
 }
@@ -151,6 +159,7 @@ mod tests {
             hessian_condition: 1.0,
             draws_encoding: "none".into(),
             treatment_contrast: None,
+            preparation: None,
         };
         let summary = encode_posterior_artifact(&meta, &[], "summary", VERSION).unwrap();
         let mut summary_bytes = Vec::new();
@@ -176,5 +185,48 @@ mod tests {
         assert_eq!(wire.n_draws, 8192);
         assert_eq!(wire.mean, vec![0.1, 2.0]);
         assert_eq!(wire.sd, vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn posterior_preparation_round_trips_and_is_absent_when_unrecorded() {
+        let mut meta = CausalPosteriorWire {
+            quantities: vec![PosteriorQuantityWire::Effect { name: "ate".into() }],
+            n_draws: 4,
+            mean: vec![1.0],
+            sd: vec![0.0],
+            q025: vec![1.0],
+            q975: vec![1.0],
+            identification: "NonparametricallyIdentified".into(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            backend_id: "laplace".into(),
+            converged: true,
+            hessian_condition: 1.0,
+            draws_encoding: "f64_le_colmajor".into(),
+            treatment_contrast: None,
+            preparation: None,
+        };
+        let draws = [1.0_f64; 4];
+        let absent = serde_json::to_string(&meta).unwrap();
+        assert!(!absent.contains("preparation"), "an absent receipt must emit no key");
+        let artifact = encode_posterior_artifact(&meta, &draws, "without", VERSION).unwrap();
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).unwrap();
+        let (decoded, _) = decode_causal_posterior_bytes(&bytes).unwrap();
+        assert!(decoded.preparation.is_none());
+
+        meta.preparation = Some(PosteriorPreparationWire {
+            backend: "in_memory".into(),
+            route_bound: "rows_only".into(),
+            rows_admitted: Some(4),
+            receipt_digest: "ab12".into(),
+        });
+        let artifact = encode_posterior_artifact(&meta, &draws, "with", VERSION).unwrap();
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).unwrap();
+        let (decoded, _) = decode_causal_posterior_bytes(&bytes).unwrap();
+        assert_eq!(decoded.preparation, meta.preparation);
+        let legacy: CausalPosteriorWire = serde_json::from_str(&absent).unwrap();
+        assert!(legacy.preparation.is_none());
     }
 }
