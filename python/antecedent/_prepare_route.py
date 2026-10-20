@@ -116,14 +116,6 @@ _RESPONSE_ESTIMATORS = {
 }
 
 
-def _refuse_admg_response(graph: Any, query: Any) -> None:
-    if isinstance(graph, Admg) and isinstance(query, ConditionalEffect):
-        raise CausalUnsupportedError(
-            "refused: ConditionalEffect on Admg has no compile arm; "
-            "Dag, Cpdag, and Pag are licensed."
-        )
-
-
 def _check_response_strategy(
     query: Any,
     *,
@@ -407,7 +399,6 @@ class _PrepareRoute:
             # A requested replicate count is refused before the structural
             # refusals: it is the caller's own request, not the cell's shape.
             self._refuse_response_bootstrap()
-        _refuse_admg_response(self.graph, query)
         handler = self._route("post_admg")
         if handler is not None:
             return getattr(self, handler)()

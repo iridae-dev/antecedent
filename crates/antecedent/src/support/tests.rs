@@ -140,7 +140,12 @@ fn licensed_neighbors_keep_graph_class_and_never_relabel() {
     );
     assert!(neighbors.iter().any(|n| n.coordinate.as_ref().starts_with("AverageEffect:Cpdag:")));
 
-    let refused = cell("ConditionalEffect", "Admg", "explicit", "Frequentist", "none");
+    let licensed_admg = cell("ConditionalEffect", "Admg", "explicit", "Frequentist", "none");
+    assert!(
+        licensed_neighbors(licensed_admg).is_empty(),
+        "a licensed ADMG conditional effect has no neighbor"
+    );
+    let refused = cell("PathSpecificEffect", "Admg", "explicit", "Frequentist", "none");
     let neighbors = licensed_neighbors(refused);
     assert!(neighbors.iter().any(|n| n.coordinate.as_ref().starts_with("AverageEffect:Admg:")));
     assert!(neighbors.iter().all(|n| !n.coordinate.as_ref().contains(":Dag:")));
@@ -497,21 +502,26 @@ fn licensed_pulse_and_sustained_temporal_dag_are_open() {
 
 #[test]
 fn closed_conditional_effect_off_dag_is_enforced() {
-    let status = classify(cell("ConditionalEffect", "Admg", "accepted", "Frequentist", "none"));
-    assert_eq!(status, CellStatus::Refused, "Admg");
-    let err = refuse_if_not_applicable(cell(
-        "ConditionalEffect",
-        "Admg",
-        "accepted",
-        "Frequentist",
-        "none",
-    ))
-    .unwrap_err();
-    assert!(
-        err.to_string()
-            .starts_with("refused: ConditionalEffect on Admg or TemporalAdmg has no compile arm"),
-        "Admg: {err}"
-    );
+    for structure in ["explicit", "accepted"] {
+        for inference in ["Frequentist", "Bayesian"] {
+            let status = classify(cell("ConditionalEffect", "Admg", structure, inference, "none"));
+            assert_eq!(status, CellStatus::Licensed, "Admg/{structure}/{inference}");
+            refuse_if_not_applicable(cell(
+                "ConditionalEffect",
+                "Admg",
+                structure,
+                inference,
+                "none",
+            ))
+            .unwrap();
+        }
+    }
+    let temporal = cell("ConditionalEffect", "TemporalAdmg", "accepted", "Frequentist", "none");
+    assert_eq!(classify(temporal), CellStatus::Refused, "TemporalAdmg");
+    let err = refuse_if_not_applicable(temporal).unwrap_err();
+    let message = err.to_string();
+    assert!(message.contains("TemporalConditionalPulse"), "TemporalAdmg: {message}");
+    assert!(message.contains("static Admg"), "TemporalAdmg: {message}");
     for graph in ["Cpdag", "Pag"] {
         for inference in ["Frequentist", "Bayesian"] {
             for validation in ["none", "cheap", "full"] {

@@ -29,21 +29,12 @@ _PAG = antecedent.Pag.from_marked_edges(
 )
 _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
-_ADMG = antecedent.Admg.from_edges(["t", "y"], _EDGES)
-
-
 _REFUSED = [
     (
         "path_specific_exact_dag_posterior",
         antecedent.PathSpecificEffect("t", "y"),
         {"discovery": antecedent.discovery.ExactDagPosterior()},
         _REASON_PATH_DIST,
-    ),
-    (
-        "conditional_effect_admg",
-        antecedent.ConditionalEffect("t", "y", "t"),
-        {"graph": _ADMG},
-        "refused: ConditionalEffect on Admg has no compile arm",
     ),
 ]
 
