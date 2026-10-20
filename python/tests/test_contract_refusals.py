@@ -1,6 +1,6 @@
-"""Python parity for the four batch-6 contracts bound on ``antecedent._native``.
+"""Python parity for the contract refusals bound on ``antecedent._native``.
 
-The cases match ``python/src/batch6_contract_api.rs``: retention refusals, a
+The cases match ``python/src/contract_refusals_api.rs``: retention refusals, a
 rewrite check that does not execute the rewrite, summary adaptation that does
 not form a posterior, and feature-version gating.
 """

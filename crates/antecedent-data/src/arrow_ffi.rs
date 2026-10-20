@@ -26,13 +26,10 @@ use crate::materialize::{MaterializationReason, materialization_diagnostic};
 
 /// Keeps an Arrow array alive for foreign buffer borrows.
 #[derive(Debug)]
-struct ArrayOwner(
-    #[allow(
-        dead_code,
-        reason = "the field exists to keep the imported Arrow array alive; it is never read"
-    )]
-    ArrayRef,
-);
+struct ArrayOwner {
+    /// Held only so the imported Arrow array outlives every borrow of its buffer.
+    _array: ArrayRef,
+}
 
 impl ForeignBufferOwner for ArrayOwner {}
 
@@ -255,10 +252,9 @@ pub(crate) fn float64_column_from_array(
         let ptr = values_slice.as_ptr();
         // SAFETY: `array` owns the buffer for the lifetime of ForeignF64Buffer;
         // the exporter contract keeps those buffers immutable until release.
-        let foreign = unsafe { ForeignF64Buffer::new(Arc::new(ArrayOwner(array)), ptr, n) };
-        // Ensure owner holds the array (read through for dead_code).
+        let owner = Arc::new(ArrayOwner { _array: array });
+        let foreign = unsafe { ForeignF64Buffer::new(owner, ptr, n) };
         debug_assert!(!foreign.as_slice().is_empty() || n == 0);
-        let _ = foreign.len();
         let values = F64Buffer::foreign(foreign);
         let borrowed = values.nbytes();
         let col = Float64Column::new(id, values, validity)?;

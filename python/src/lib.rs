@@ -37,7 +37,6 @@ mod adaptive_procedure_api;
 mod artifact_api;
 mod ate_api;
 mod attribution_api;
-mod batch6_contract_api;
 mod batch_retarget_api;
 pub(crate) mod bayesian;
 mod bounds_api;
@@ -51,6 +50,7 @@ mod compact_export_api;
 mod composition_api;
 mod composition_bundle_api;
 mod composition_verification_api;
+mod contract_refusals_api;
 mod counterfactual_id_api;
 mod cpdag_scenario_api;
 mod cross_world_api;
@@ -105,6 +105,7 @@ mod mechanism_discrepancy_api;
 mod missing_report;
 mod msm_sensitivity_api;
 mod multi_level_treatment_api;
+mod name_errors;
 mod nested_bayesian_api;
 mod nested_fisher_api;
 mod nonlinear_mediation_api;
@@ -2737,7 +2738,7 @@ impl PyCancellationToken {
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    batch6_contract_api::register(m)?;
+    contract_refusals_api::register(m)?;
     inspect_receipt_api::register(m)?;
     registry::register_module(m)
 }

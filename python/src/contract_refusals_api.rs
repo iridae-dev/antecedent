@@ -1,4 +1,5 @@
-//! Python surface for four committed batch-6 contracts.
+//! Python surface for retention, rewrite-legality, summary-observation, and
+//! feature-version contract refusals.
 //!
 //! Retention `require` refusals, rewrite-legality checks, summary-observation
 //! adaptation, and feature-version reads. A refusal is a Python exception.
@@ -30,18 +31,26 @@ use antecedent_state::retention::{
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
+use crate::name_errors::unknown_name;
 use crate::{CausalStateError, CausalUnsupportedError};
+
+/// Set attributes on the exception value. A failed `setattr` replaces the
+/// refusal with that failure so it is never dropped silently.
+fn attach_attributes(err: PyErr, set: impl FnOnce(&Bound<'_, PyAny>) -> PyResult<()>) -> PyErr {
+    match Python::attach(|py| set(err.value(py).as_any())) {
+        Ok(()) => err,
+        Err(failure) => failure,
+    }
+}
 
 fn retention_err(refusal: RetentionRefusal) -> PyErr {
     let mode = refusal.mode().as_str();
     let operation = refusal.operation().as_str();
     let err = CausalStateError::new_err(refusal.to_string());
-    Python::attach(|py| {
-        let value = err.value(py);
-        let _ = value.setattr("mode", mode);
-        let _ = value.setattr("operation", operation);
-    });
-    err
+    attach_attributes(err, |value| {
+        value.setattr("mode", mode)?;
+        value.setattr("operation", operation)
+    })
 }
 
 fn rewrite_err(refusal: RewriteRefusal) -> PyErr {
@@ -50,17 +59,16 @@ fn rewrite_err(refusal: RewriteRefusal) -> PyErr {
     let next = refusal.next_attempt();
     let kind = refusal.kind();
     let err = crate::value_err_code(refusal.code(), refusal.to_string());
-    Python::attach(|py| {
-        let value = err.value(py);
-        let _ = value.setattr("detail", detail);
-        let _ = value.setattr("axis", axis);
-        let _ = value.setattr("next_attempt", next.as_str());
-        let _ = value.setattr("remedy", next.sentence());
+    attach_attributes(err, |value| {
+        value.setattr("detail", detail)?;
+        value.setattr("axis", axis)?;
+        value.setattr("next_attempt", next.as_str())?;
+        value.setattr("remedy", next.sentence())?;
         if let Some(kind) = kind {
-            let _ = value.setattr("kind", kind);
+            value.setattr("kind", kind)?;
         }
-    });
-    err
+        Ok(())
+    })
 }
 
 fn summary_err(error: SummaryObservationError) -> PyErr {
@@ -73,18 +81,17 @@ fn summary_err(error: SummaryObservationError) -> PyErr {
     } else {
         crate::refusal(code, error.to_string())
     };
-    Python::attach(|py| {
-        let value = err.value(py);
-        let _ = value.setattr("detail", detail);
+    attach_attributes(err, |value| {
+        value.setattr("detail", detail)?;
         if let Some(next) = next {
-            let _ = value.setattr("next_attempt", next.as_str());
-            let _ = value.setattr("remedy", next.phrase());
+            value.setattr("next_attempt", next.as_str())?;
+            value.setattr("remedy", next.phrase())?;
         }
         if let Some(kind) = kind {
-            let _ = value.setattr("summary_kind", kind.as_str());
+            value.setattr("summary_kind", kind.as_str())?;
         }
-    });
-    err
+        Ok(())
+    })
 }
 
 fn feature_err(refusal: FeatureRefusal) -> PyErr {
@@ -98,87 +105,95 @@ fn unknown_effect(family: &str, name: &str) -> PyErr {
     )
 }
 
-fn unknown_name(what: &str, name: &str) -> PyErr {
-    crate::value_err_code(reason_code!("invalid_argument"), format!("unknown {what} `{name}`"))
-}
+/// Most distinct feature names the interner will own.
+const MAX_INTERNED_FEATURE_NAMES: usize = 1024;
 
-/// `FeatureVersion::name` is `'static`. Each distinct Python name is owned once.
-fn intern_feature_name(name: &str) -> &'static str {
+/// `FeatureVersion::name` is `&'static str`, so each distinct Python name is
+/// leaked once with `Box::leak` and reused afterwards.
+///
+/// The leak is bounded: at most `MAX_INTERNED_FEATURE_NAMES` distinct names
+/// (each as long as the caller's string) are ever leaked. Further new names are
+/// refused with a validation error. Removing the leak needs `FeatureVersion` to
+/// hold an owned name, which is a change in another crate.
+fn intern_feature_name(name: &str) -> PyResult<&'static str> {
     static NAMES: OnceLock<Mutex<HashMap<String, &'static str>>> = OnceLock::new();
     let table = NAMES.get_or_init(|| Mutex::new(HashMap::new()));
     let mut guard = table.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(found) = guard.get(name) {
-        return found;
+        return Ok(found);
+    }
+    if guard.len() >= MAX_INTERNED_FEATURE_NAMES {
+        return Err(crate::value_err_code(
+            reason_code!("invalid_argument"),
+            format!("more than {MAX_INTERNED_FEATURE_NAMES} distinct feature names were declared"),
+        ));
     }
     let leaked: &'static str = Box::leak(name.to_owned().into_boxed_str());
     guard.insert(leaked.to_owned(), leaked);
-    leaked
+    Ok(leaked)
 }
 
-fn pushdown_effect(name: &str) -> Option<PushdownEffect> {
-    Some(match name {
-        "declared" => PushdownEffect::Declared,
-        "omits_required_column" => PushdownEffect::OmitsRequiredColumn,
-        "reassigns_folds" => PushdownEffect::ReassignsFolds,
-        "undeclared_population_cut" => PushdownEffect::UndeclaredPopulationCut,
-        "cuts_history" => PushdownEffect::CutsHistory,
-        "drops_dependence_factor" => PushdownEffect::DropsDependenceFactor,
-        "drops_uncertainty" => PushdownEffect::DropsUncertainty,
-        _ => return None,
-    })
+/// Define `fn $name(&str) -> Option<$ty>` from a snake_case name table.
+macro_rules! effect_names {
+    ($name:ident, $ty:ident { $($text:literal => $variant:ident),+ $(,)? }) => {
+        fn $name(name: &str) -> Option<$ty> {
+            match name {
+                $($text => Some($ty::$variant),)+
+                _ => None,
+            }
+        }
+    };
 }
 
-fn preparation_effect(name: &str) -> Option<PreparationEffect> {
-    Some(match name {
-        "shared" => PreparationEffect::Shared,
-        "mixes_samples" => PreparationEffect::MixesSamples,
-        "mixes_folds" => PreparationEffect::MixesFolds,
-        "mixes_populations" => PreparationEffect::MixesPopulations,
-        "mixes_histories" => PreparationEffect::MixesHistories,
-        "mixes_dependence" => PreparationEffect::MixesDependence,
-        "mixes_uncertainty" => PreparationEffect::MixesUncertainty,
-        _ => return None,
-    })
-}
+effect_names!(pushdown_effect, PushdownEffect {
+    "declared" => Declared,
+    "omits_required_column" => OmitsRequiredColumn,
+    "reassigns_folds" => ReassignsFolds,
+    "undeclared_population_cut" => UndeclaredPopulationCut,
+    "cuts_history" => CutsHistory,
+    "drops_dependence_factor" => DropsDependenceFactor,
+    "drops_uncertainty" => DropsUncertainty,
+});
 
-fn nuisance_effect(name: &str) -> Option<NuisanceEffect> {
-    Some(match name {
-        "certified" => NuisanceEffect::Certified,
-        "changes_estimation_sample" => NuisanceEffect::ChangesEstimationSample,
-        "trains_on_evaluation_fold" => NuisanceEffect::TrainsOnEvaluationFold,
-        "fit_on_other_population" => NuisanceEffect::FitOnOtherPopulation,
-        "fit_on_other_history" => NuisanceEffect::FitOnOtherHistory,
-        "drops_shared_factor" => NuisanceEffect::DropsSharedFactor,
-        "replaces_uncertainty" => NuisanceEffect::ReplacesUncertainty,
-        _ => return None,
-    })
-}
+effect_names!(preparation_effect, PreparationEffect {
+    "shared" => Shared,
+    "mixes_samples" => MixesSamples,
+    "mixes_folds" => MixesFolds,
+    "mixes_populations" => MixesPopulations,
+    "mixes_histories" => MixesHistories,
+    "mixes_dependence" => MixesDependence,
+    "mixes_uncertainty" => MixesUncertainty,
+});
 
-fn statistics_effect(name: &str) -> Option<SummaryEffect> {
-    Some(match name {
-        "sufficient" => SummaryEffect::Sufficient,
-        "evicts_row" => SummaryEffect::EvictsRow,
-        "pools_folds" => SummaryEffect::PoolsFolds,
-        "marginalizes_population" => SummaryEffect::MarginalizesPopulation,
-        "collapses_history" => SummaryEffect::CollapsesHistory,
-        "drops_cluster" => SummaryEffect::DropsCluster,
-        "drops_sampling_law" => SummaryEffect::DropsSamplingLaw,
-        _ => return None,
-    })
-}
+effect_names!(nuisance_effect, NuisanceEffect {
+    "certified" => Certified,
+    "changes_estimation_sample" => ChangesEstimationSample,
+    "trains_on_evaluation_fold" => TrainsOnEvaluationFold,
+    "fit_on_other_population" => FitOnOtherPopulation,
+    "fit_on_other_history" => FitOnOtherHistory,
+    "drops_shared_factor" => DropsSharedFactor,
+    "replaces_uncertainty" => ReplacesUncertainty,
+});
 
-fn tile_effect(name: &str) -> Option<TileEffect> {
-    Some(match name {
-        "faithful" => TileEffect::Faithful,
-        "drops_rows" => TileEffect::DropsRows,
-        "splits_fold" => TileEffect::SplitsFold,
-        "retargets_population" => TileEffect::RetargetsPopulation,
-        "cuts_horizon" => TileEffect::CutsHorizon,
-        "drops_cross_terms" => TileEffect::DropsCrossTerms,
-        "drops_failed_draws" => TileEffect::DropsFailedDraws,
-        _ => return None,
-    })
-}
+effect_names!(statistics_effect, SummaryEffect {
+    "sufficient" => Sufficient,
+    "evicts_row" => EvictsRow,
+    "pools_folds" => PoolsFolds,
+    "marginalizes_population" => MarginalizesPopulation,
+    "collapses_history" => CollapsesHistory,
+    "drops_cluster" => DropsCluster,
+    "drops_sampling_law" => DropsSamplingLaw,
+});
+
+effect_names!(tile_effect, TileEffect {
+    "faithful" => Faithful,
+    "drops_rows" => DropsRows,
+    "splits_fold" => SplitsFold,
+    "retargets_population" => RetargetsPopulation,
+    "cuts_horizon" => CutsHorizon,
+    "drops_cross_terms" => DropsCrossTerms,
+    "drops_failed_draws" => DropsFailedDraws,
+});
 
 fn adapt_summary(
     summary: FrequentistSummary,
@@ -216,12 +231,12 @@ fn read_package(
 fn accepted_features(
     py: Python<'_>,
     accepted: &[Py<PyFeatureVersion>],
-) -> Vec<FeatureVersion> {
+) -> PyResult<Vec<FeatureVersion>> {
     accepted
         .iter()
         .map(|item| {
             let view = item.borrow(py);
-            FeatureVersion { name: intern_feature_name(&view.name), version: view.version }
+            Ok(FeatureVersion { name: intern_feature_name(&view.name)?, version: view.version })
         })
         .collect()
 }
@@ -537,9 +552,7 @@ impl PyFrameRewrite {
         let effect = tile_effect(effect).ok_or_else(|| unknown_effect("tile", effect))?;
         let full = full.borrow(py).inner.clone();
         let tile = tile.borrow(py).inner.clone();
-        Ok(Self {
-            inner: HeldRewrite::Tile(Box::new(TiledEvaluation::new(full, tile, effect))),
-        })
+        Ok(Self { inner: HeldRewrite::Tile(Box::new(TiledEvaluation::new(full, tile, effect))) })
     }
 
     fn name(&self) -> &'static str {
@@ -756,7 +769,7 @@ impl PyFeatureRead {
         version: u32,
         accepted: Vec<Py<PyFeatureVersion>>,
     ) -> PyResult<Self> {
-        let accepted = accepted_features(py, &accepted);
+        let accepted = accepted_features(py, &accepted)?;
         let container = FormatVersion { major: container_major, minor: container_minor };
         read_feature(container, name, version, &accepted)
             .map_err(feature_err)
@@ -775,12 +788,10 @@ impl PyFeatureRead {
         patch: u32,
         accepted: Vec<Py<PyFeatureVersion>>,
     ) -> PyResult<Self> {
-        let accepted = accepted_features(py, &accepted);
+        let accepted = accepted_features(py, &accepted)?;
         let container = FormatVersion { major: container_major, minor: container_minor };
         let package = SemanticVersion { major, minor, patch };
-        read_package(container, &package, &accepted)
-            .map_err(feature_err)
-            .and_then(Self::from_read)
+        read_package(container, &package, &accepted).map_err(feature_err).and_then(Self::from_read)
     }
 }
 
@@ -810,9 +821,9 @@ mod tests {
 
     use super::{
         ColumnFilterPushdown, NuisanceReuse, RewriteKind, SharedRowDesignPreparation,
-        SufficientStatistics, TiledEvaluation, adapt_summary, intern_feature_name,
-        nuisance_effect, preparation_effect, pushdown_effect, read_feature, read_package,
-        statistics_effect, tile_effect,
+        SufficientStatistics, TiledEvaluation, adapt_summary, intern_feature_name, nuisance_effect,
+        preparation_effect, pushdown_effect, read_feature, read_package, statistics_effect,
+        tile_effect,
     };
 
     fn frame() -> super::PreservedIdentities {
@@ -883,10 +894,15 @@ mod tests {
 
         let population = preparation_effect("mixes_populations").expect("preparation");
         assert_eq!(
-            SharedRowDesignPreparation::new(frame.clone(), frame.clone(), frame.clone(), population)
-                .check()
-                .expect_err("preparation")
-                .axis(),
+            SharedRowDesignPreparation::new(
+                frame.clone(),
+                frame.clone(),
+                frame.clone(),
+                population
+            )
+            .check()
+            .expect_err("preparation")
+            .axis(),
             PreservationAxis::Population,
         );
         let shared = preparation_effect("shared").expect("shared");
@@ -946,10 +962,7 @@ mod tests {
         assert_eq!(interval.kind(), FrequentistSummaryKind::Interval);
         assert_eq!(refusal.detail(), "summary_observation.interval_stays_frequentist");
         assert_eq!(refusal.code(), "distribution_meaning_mismatch");
-        assert_eq!(
-            refusal.next_attempt(),
-            Some(SummaryNextAttempt::ReportAsFrequentistInterval),
-        );
+        assert_eq!(refusal.next_attempt(), Some(SummaryNextAttempt::ReportAsFrequentistInterval),);
         assert!(interval.as_bayesian_likelihood().message().contains("not a Bayesian law"));
 
         assert!(FrequentistSummary::estimate_covariance(" ").is_err());
@@ -986,8 +999,8 @@ mod tests {
 
     #[test]
     fn container_0_5_is_compatible_and_unknown_or_semver_is_refused() {
-        let name = intern_feature_name("family_payload");
-        assert_eq!(intern_feature_name("family_payload"), name);
+        let name = intern_feature_name("family_payload").expect("interned");
+        assert_eq!(intern_feature_name("family_payload").expect("interned"), name);
         let feature = FeatureVersion { name, version: 1 };
         assert_eq!(STABLE_FORMAT, FormatVersion { major: 0, minor: 5 });
         assert_eq!(
@@ -996,10 +1009,7 @@ mod tests {
         );
         assert_eq!(
             read_feature(STABLE_FORMAT, "family_payload", 2, &[feature]),
-            Err(FeatureRefusal::UnknownFeature {
-                name: "family_payload".to_owned(),
-                version: 2,
-            }),
+            Err(FeatureRefusal::UnknownFeature { name: "family_payload".to_owned(), version: 2 }),
         );
         let package = SemanticVersion { major: feature.version, minor: 1, patch: 4 };
         assert_eq!(

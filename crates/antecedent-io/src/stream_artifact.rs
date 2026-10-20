@@ -644,7 +644,9 @@ fn decode_metadata(bytes: &[u8]) -> Result<StreamMetadata, StreamArtifactError> 
 }
 
 fn decompress(on_wire: &[u8], logical_len: usize) -> Result<Vec<u8>, StreamArtifactError> {
-    let mut out = Vec::new();
+    // `logical_len` was checked against the decompressed-size bound when the
+    // section header was parsed, so this allocation is already capped.
+    let mut out = Vec::with_capacity(logical_len);
     let mut at = 0usize;
     while out.len() < logical_len {
         let op = *on_wire.get(at).ok_or(StreamArtifactError::Decompress)?;
@@ -828,9 +830,8 @@ mod tests {
     use antecedent_core::CancellationToken;
 
     use super::{
-        CpuPayload, DevicePayload, PayloadSource, Producer, STREAM_ARTIFACT_MAGIC,
-        StreamArtifact, StreamArtifactError, StreamBounds, StreamMetadata,
-        encode_compressed,
+        CpuPayload, DevicePayload, PayloadSource, Producer, STREAM_ARTIFACT_MAGIC, StreamArtifact,
+        StreamArtifactError, StreamBounds, StreamMetadata, encode_compressed,
     };
 
     fn bounds() -> StreamBounds {

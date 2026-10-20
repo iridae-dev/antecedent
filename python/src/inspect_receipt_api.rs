@@ -27,6 +27,8 @@ use antecedent_core::{
 };
 use pyo3::prelude::*;
 
+use crate::name_errors::unknown_name;
+
 const LIVE_STUDY: &str = concat!(
     "loading inspect and execution-receipt facts does not resume a live study ",
     "and does not invoke callbacks"
@@ -38,10 +40,6 @@ fn inspection_err(refusal: InspectionRefusal) -> PyErr {
 
 fn fact_err(error: ExecutionFactError) -> PyErr {
     crate::unsupported_message(error.to_string())
-}
-
-fn unknown_name(what: &str, name: &str) -> PyErr {
-    crate::value_err_code(reason_code!("invalid_argument"), format!("unknown {what} `{name}`"))
 }
 
 fn digest_of(bytes: Option<Vec<u8>>) -> PyResult<Option<SemanticDigest>> {
@@ -171,7 +169,8 @@ fn static_mean_target() -> PyResult<ScientificTarget> {
     let treatment = VariableId::from_raw(0);
     let binding = WorldBinding::new(
         TargetPopulation::AllObserved,
-        ObservationUnit::new("subject").map_err(|err| crate::unsupported_message(err.to_string()))?,
+        ObservationUnit::new("subject")
+            .map_err(|err| crate::unsupported_message(err.to_string()))?,
         OutcomeQuantity::mean(outcome, QuantityUnits::dimensionless())
             .map_err(|err| crate::unsupported_message(err.to_string()))?,
         Conditioning::unconditional(),
@@ -224,6 +223,9 @@ fn measured_execution(
         status_of(status)?,
     ))
 }
+
+/// One planned operator: effect, source ids, then declared scratch, retained and output bytes.
+type OperatorRow = (String, Vec<u64>, Option<u64>, Option<u64>, Option<u64>);
 
 #[pyclass(name = "ExecutionCounts", frozen)]
 struct PyExecutionCounts {
@@ -418,15 +420,8 @@ impl PyExecutionFacts {
         scientific_identity: Option<Vec<u8>>,
         numerical_policy_changes_scientific_contract: bool,
     ) -> PyResult<Self> {
-        let measured = measured_execution(
-            py,
-            counts,
-            retention,
-            resources,
-            backend_name,
-            kernel,
-            status,
-        )?;
+        let measured =
+            measured_execution(py, counts, retention, resources, backend_name, kernel, status)?;
         Ok(Self {
             inner: ExecutionFacts::new(
                 measured,
@@ -504,15 +499,8 @@ impl PyExecutionFacts {
         kernel: &str,
         status: &str,
     ) -> PyResult<Self> {
-        let measured = measured_execution(
-            py,
-            counts,
-            retention,
-            resources,
-            backend_name,
-            kernel,
-            status,
-        )?;
+        let measured =
+            measured_execution(py, counts, retention, resources, backend_name, kernel, status)?;
         Ok(Self { inner: self.inner.clone().rebuild(measured) })
     }
 
@@ -564,7 +552,6 @@ struct PyInspectionStanding {
 impl PyInspectionStanding {
     /// Refused. Inspection does not carry a payload checksum separate from the target.
     fn integrity(&self) -> PyResult<()> {
-        let _ = self.identity.len();
         if self.has_payload_checksum {
             Ok(())
         } else {
@@ -582,7 +569,6 @@ impl PyInspectionStanding {
 
     /// Refused. Inspection copies held declarations and does not replay a fit.
     fn numerical_replay(&self) -> PyResult<()> {
-        let _ = self.identity.len();
         if self.replays_fit {
             Ok(())
         } else {
@@ -594,7 +580,6 @@ impl PyInspectionStanding {
 
     /// Refused. Inspection does not reconstruct a live study.
     fn resumability(&self) -> PyResult<()> {
-        let _ = self.identity.len();
         if self.resumable { Ok(()) } else { Err(live_study_refusal()) }
     }
 }
@@ -629,7 +614,8 @@ impl PyInspectionInputs {
     }
 
     fn with_assumptions(&self, names: Vec<String>) -> PyResult<Self> {
-        let assumptions = names.iter().map(|name| assumption(name)).collect::<PyResult<Vec<_>>>()?;
+        let assumptions =
+            names.iter().map(|name| assumption(name)).collect::<PyResult<Vec<_>>>()?;
         Ok(self.copied(self.inner.clone().assumptions(assumptions)))
     }
 
@@ -645,8 +631,16 @@ impl PyInspectionInputs {
         Ok(self.copied(self.inner.clone().evidence(EvidenceTransformations::declared(steps))))
     }
 
-    fn with_uncertainty(&self, joint: bool, level: f64) -> Self {
-        self.copied(self.inner.clone().uncertainty(UncertaintyDemand::declared(joint, level)))
+    fn with_uncertainty(&self, joint: bool, level: f64) -> PyResult<Self> {
+        if !(level.is_finite() && level > 0.0 && level < 1.0) {
+            return Err(crate::value_err_code(
+                reason_code!("invalid_argument"),
+                format!(
+                    "uncertainty level must be finite and strictly between 0 and 1, got {level}"
+                ),
+            ));
+        }
+        Ok(self.copied(self.inner.clone().uncertainty(UncertaintyDemand::declared(joint, level))))
     }
 
     fn with_reuse(&self, name: &str, frozen_fit: bool) -> PyResult<Self> {
@@ -772,7 +766,7 @@ impl PyPlanInspection {
     }
 
     /// Effect, source ids, and declared scratch, retained, and output bytes.
-    fn operators(&self) -> Vec<(String, Vec<u64>, Option<u64>, Option<u64>, Option<u64>)> {
+    fn operators(&self) -> Vec<OperatorRow> {
         self.inner
             .operators()
             .iter()
@@ -801,8 +795,8 @@ impl PyPlanInspection {
 
 /// Refused. These bindings do not reconstruct a live study or invoke `loaded`.
 #[pyfunction]
+#[allow(unused_variables)] // the argument is part of the Python signature and is never called
 fn resume_live_study(loaded: &Bound<'_, PyAny>) -> PyResult<()> {
-    let _ = loaded;
     Err(live_study_refusal())
 }
 
