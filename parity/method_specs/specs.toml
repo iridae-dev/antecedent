@@ -28,16 +28,16 @@ references = [
 [[spec]]
 id = "P01.iv.temporal.frequentist"
 parent = "P01"
-gap = "implementation"
+gap = "statistical"
 route = "unlisted"
-target = "unlisted"
-review_status = "specification_only"
-identifying_result = "unlisted"
-assumptions = "unlisted"
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No temporal IV estimator in route_manifest or licensed_routes.toml. Do not relabel temporal.linear.adjustment as IV."
+target = "lagged instrument Wald ratio"
+review_status = "blocked_research"
+identifying_result = "effect of treatment from the reduced form on its own lag"
+assumptions = "The lag predicts treatment and is excluded from the outcome equation. Lag-aligned rows are treated as independent. The standard error does not account for serial dependence."
+sampling_units = "lag-aligned rows of one ordered series"
+estimator = "just-identified Wald ratio and a homoskedastic standard error in lagged_instrument.rs. A weak first stage is refused. Not temporal linear adjustment."
+diagnostics = "first-stage F against the declared threshold"
+failure_policy = "Adjusted claim: the Wald fit exists and is not a temporal IV route, because lag-aligned rows are treated as independent. The next attempt needs a dependence model. Do not relabel temporal.linear.adjustment as IV."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -46,16 +46,16 @@ references = [
 [[spec]]
 id = "P01.iv.temporal.bayesian"
 parent = "P01"
-gap = "implementation"
+gap = "statistical"
 route = "unlisted"
-target = "unlisted"
-review_status = "specification_only"
-identifying_result = "unlisted"
-assumptions = "bayesian_iv.rs is the static control-function model."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No temporal Bayesian IV module."
+target = "lagged instrument posterior ratio"
+review_status = "blocked_research"
+identifying_result = "Gaussian posterior of the reduced-form ratio"
+assumptions = "Independent normal prior on the reduced-form coefficients and a plug-in residual covariance. Lag-aligned rows are treated as independent. This is not the static control-function model in bayesian_iv.rs."
+sampling_units = "lag-aligned rows of one ordered series"
+estimator = "draws of gamma / pi in lagged_instrument.rs. A penalty on the Wald fit is not this posterior."
+diagnostics = "the likelihood does not account for serial dependence"
+failure_policy = "Adjusted claim: the posterior exists and is not a temporal Bayesian IV route, because lag-aligned rows are treated as independent. The next attempt needs a dependence model."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -85,14 +85,14 @@ id = "P02.glm.temporal.frequentist"
 parent = "P02"
 gap = "implementation"
 route = "unlisted"
-target = "unlisted"
+target = "decision-time mean-scale contrast"
 review_status = "specification_only"
-identifying_result = "unlisted"
-assumptions = "temporal.linear.adjustment is identity-link, not a GLM link."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No temporal GLM route."
+identifying_result = "average mean-scale contrast of two regimes, lag columns held at observed values"
+assumptions = "Each row is one independent subject at one decision time. The identity link is refused and stays on temporal linear adjustment. A single dependent series is refused. A ridge penalty is not this fit."
+sampling_units = "independent subjects"
+estimator = "unpenalized GLM maximum likelihood and a Fisher delta-method standard error in temporal_link.rs. Nothing registers a licensed route."
+diagnostics = "positivity is not this module; a singular Fisher information is refused"
+failure_policy = "Adjusted claim: the independent-subject contrast exists and is not a licensed temporal GLM route."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -103,14 +103,14 @@ id = "P02.glm.temporal.bayesian"
 parent = "P02"
 gap = "implementation"
 route = "unlisted"
-target = "unlisted"
+target = "decision-time mean-scale contrast"
 review_status = "specification_only"
-identifying_result = "unlisted"
-assumptions = "Owner follows the P02 stats/estimate/prob assignment."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No temporal Bayesian GLM module."
+identifying_result = "mean of the mean-scale contrast over Laplace draws"
+assumptions = "Explicit Gaussian prior on the coefficients. Each row is one independent subject. A prior standard deviation is not a penalty. A single dependent series is refused."
+sampling_units = "independent subjects"
+estimator = "Laplace posterior in temporal_link.rs. The published summary is the mean of the contrast over draws. Nothing registers a licensed route."
+diagnostics = "a non-finite draw is refused"
+failure_policy = "Adjusted claim: the Laplace contrast exists and is not a licensed temporal Bayesian GLM route."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -140,14 +140,14 @@ id = "P02.penalized_propensity.temporal.frequentist"
 parent = "P02"
 gap = "implementation"
 route = "unlisted"
-target = "unlisted"
+target = "temporal propensity score"
 review_status = "specification_only"
-identifying_result = "unlisted"
-assumptions = "unlisted"
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No temporal penalized propensity module."
+identifying_result = "inverse link at the penalized mode"
+assumptions = "Each row is one independent subject. Column 0 is an unpenalized intercept. Later columns are lags. The penalty is half the squared Euclidean norm of the slopes on the supplied column scale. A single dependent series is refused."
+sampling_units = "independent subjects"
+estimator = "Bernoulli ridge mode in temporal_penalized_score.rs. Not the standardized penalty inside cross-fitted AIPW, and not a separation rescue. Nothing registers a licensed route."
+diagnostics = "a dependent series is refused"
+failure_policy = "Adjusted claim: the penalized mode exists and is not a licensed temporal propensity route."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -158,14 +158,14 @@ id = "P02.penalized_propensity.temporal.bayesian"
 parent = "P02"
 gap = "implementation"
 route = "unlisted"
-target = "unlisted"
+target = "temporal propensity score"
 review_status = "specification_only"
-identifying_result = "unlisted"
-assumptions = "unlisted"
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No temporal Bayesian penalized-propensity module."
+identifying_result = "mean of the inverse link over Laplace draws"
+assumptions = "Gaussian prior on every coefficient, including the intercept. A prior standard deviation is not the frequentist penalty. A single dependent series is refused."
+sampling_units = "independent subjects"
+estimator = "Laplace posterior in temporal_penalized_score.rs. The posterior mean is not the penalized mode. Nothing registers a licensed route."
+diagnostics = "a dependent series is refused"
+failure_policy = "Adjusted claim: the posterior score exists and is not a licensed temporal Bayesian propensity route."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -292,11 +292,11 @@ route = "unlisted"
 target = "unlisted"
 review_status = "specification_only"
 identifying_result = "unlisted"
-assumptions = "Declared temporal counterpart is absent. Do not substitute a time-series regression."
+assumptions = "A history-mean nearest-neighbor contrast is not this route. Do not substitute a time-series regression."
 sampling_units = "unlisted"
 estimator = "unlisted"
 diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No temporal matching route."
+failure_policy = "Not a temporal matching route. history_match.rs contrasts outcomes after matching on the mean of an observed history and builds no posterior."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -310,11 +310,11 @@ route = "unlisted"
 target = "unlisted"
 review_status = "specification_only"
 identifying_result = "unlisted"
-assumptions = "unlisted"
+assumptions = "A contrast prior is not a sampling weight and does not build a posterior."
 sampling_units = "unlisted"
 estimator = "unlisted"
 diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No temporal Bayesian matching module."
+failure_policy = "Not a temporal Bayesian matching route. history_match.rs builds no posterior."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -1036,12 +1036,12 @@ gap = "implementation"
 route = "unlisted"
 target = "survival"
 review_status = "specification_only"
-identifying_result = "Survival"
-assumptions = "Product-limit risk sets are inside the static trial rows."
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No trajectory or time-varying-treatment survival route."
+identifying_result = "weighted product-limit contrast of two treatment trajectories"
+assumptions = "Censoring weights are finite and positive. A subject does not re-enter the risk set. The interval is not calibrated."
+sampling_units = "subjects observed across periods"
+estimator = "trajectory_survival_contrast in trajectory_survival.rs. Nothing registers a licensed route."
+diagnostics = "an empty weighted risk set is refused"
+failure_policy = "Adjusted claim: the point contrast exists. No calibrated interval and no licensed trajectory survival route."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -1054,12 +1054,12 @@ gap = "implementation"
 route = "unlisted"
 target = "survival"
 review_status = "specification_only"
-identifying_result = "Survival"
-assumptions = "unlisted"
-sampling_units = "unlisted"
-estimator = "unlisted"
-diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No temporal Bayesian survival module."
+identifying_result = "beta posterior mean of two weighted hazards"
+assumptions = "The posterior conditions on the supplied censoring weights. Prior counts stay positive. This is not a calibrated posterior interval."
+sampling_units = "subjects observed across periods"
+estimator = "trajectory_hazard_posterior in trajectory_survival.rs. Nothing registers a licensed route."
+diagnostics = "a non-positive prior count is refused"
+failure_policy = "Adjusted claim: the weighted-hazard posterior exists. No calibrated interval and no licensed temporal Bayesian survival route."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -1660,7 +1660,7 @@ assumptions = "Dag, Cpdag, and Pag conditional effects are licensed. Refusal own
 sampling_units = "unlisted"
 estimator = "unlisted"
 diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. ConditionalEffect on Admg has no compile arm."
+failure_policy = "conditional_admg.rs compiles the IDC mean contrast as a discrete plug-in. The route stays closed. The study facade does not execute it."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -1678,7 +1678,7 @@ assumptions = "unlisted"
 sampling_units = "unlisted"
 estimator = "unlisted"
 diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No Bayesian Admg conditional compile arm."
+failure_policy = "conditional_admg.rs compiles the same IDC contrast as a Dirichlet row-law posterior. The route stays closed. The study facade does not execute it."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -1687,16 +1687,16 @@ references = [
 [[spec]]
 id = "P15.conditional.temporal.frequentist"
 parent = "P15"
-gap = "implementation"
+gap = "temporal-identification"
 route = "closed.ConditionalEffect.TemporalAdmg"
 target = "ConditionalEffect"
-review_status = "specification_only"
+review_status = "blocked_research"
 identifying_result = "ConditionalEffect"
 assumptions = "Licensed temporal conditional targets on TemporalDag are TemporalConditionalPulse and TemporalConditionalSustained, not this closed cell."
 sampling_units = "unlisted"
 estimator = "unlisted"
 diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. ConditionalEffect on TemporalAdmg has no compile arm."
+failure_policy = "Identification is blocked. A temporal contrast on TemporalAdmg is not identified. compile_temporal_admg_conditional_frequentist refuses it."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -1705,16 +1705,16 @@ references = [
 [[spec]]
 id = "P15.conditional.temporal.bayesian"
 parent = "P15"
-gap = "implementation"
+gap = "temporal-identification"
 route = "closed.ConditionalEffect.TemporalAdmg"
 target = "ConditionalEffect"
-review_status = "specification_only"
+review_status = "blocked_research"
 identifying_result = "ConditionalEffect"
-assumptions = "unlisted"
+assumptions = "The same identification block as the frequentist cell. A prior does not identify the contrast."
 sampling_units = "unlisted"
 estimator = "unlisted"
 diagnostics = "unlisted"
-failure_policy = "Not an estimator yet. No Bayesian TemporalAdmg conditional compile arm."
+failure_policy = "Identification is blocked. compile_temporal_admg_conditional_bayesian refuses the temporal ADMG contrast."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -2239,16 +2239,16 @@ references = [
 [[spec]]
 id = "X01.static.frequentist"
 parent = "X01"
-gap = "implementation"
+gap = "validation"
 route = "unlisted"
 target = "joint intervention contrast"
 review_status = "specification_only"
 identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises."
 sampling_units = "unlisted"
-estimator = "one contrast with covariance across the four worlds; not constructed"
-diagnostics = "support, calibration, identity, and artifact of the assembled contrast; procedure unlisted"
-failure_policy = "Subtracting independent marginal intervals is a failure. No static joint-contrast route with cross-world covariance. A single-world response is not Delta_AB."
+estimator = "one quadratic form of the four world means in joint_contrast.rs. Coverage of the normal interval is unmeasured."
+diagnostics = "support and identity of the assembled contrast; calibration and the artifact are unmeasured"
+failure_policy = "Subtracting independent marginal intervals is a failure. The contrast is assembled and is not a licensed route. A single-world response is not Delta_AB."
 references = [
   "Product outcome",
   "Release scope and gates",
@@ -2259,16 +2259,16 @@ references = [
 [[spec]]
 id = "X01.static.bayesian"
 parent = "X01"
-gap = "implementation"
+gap = "validation"
 route = "unlisted"
 target = "joint intervention contrast"
 review_status = "specification_only"
 identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises."
 sampling_units = "unlisted"
-estimator = "aligned posterior draws of Delta_AB; not constructed"
-diagnostics = "support, calibration, identity, and artifact of the assembled contrast; procedure unlisted"
-failure_policy = "Subtracting independent marginal intervals is a failure. No aligned static posterior draws of Delta_AB. A single-world response is not Delta_AB."
+estimator = "one draw of the contrast per aligned posterior row in joint_contrast.rs. Coverage is unmeasured."
+diagnostics = "support and identity of the assembled contrast; calibration and the artifact are unmeasured"
+failure_policy = "Subtracting independent marginal intervals is a failure. The aligned draws exist and are not a licensed route. A single-world response is not Delta_AB."
 references = [
   "Product outcome",
   "Release scope and gates",
@@ -2279,16 +2279,16 @@ references = [
 [[spec]]
 id = "X01.temporal.frequentist"
 parent = "X01"
-gap = "implementation"
+gap = "validation"
 route = "unlisted"
 target = "joint intervention contrast"
 review_status = "specification_only"
 identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises. Here a and b are schedules or history-adapted programs with declared timing, horizon, and initial-state law."
 sampling_units = "unlisted"
-estimator = "one contrast with covariance across the four worlds; not constructed"
-diagnostics = "support, calibration, identity, and artifact of the assembled contrast; procedure unlisted"
-failure_policy = "Subtracting independent marginal intervals is a failure. No scheduled-program contrast route with cross-world covariance. A single-world response is not Delta_AB."
+estimator = "one quadratic form of the four scheduled worlds in joint_contrast.rs. Coverage of the normal interval is unmeasured."
+diagnostics = "support and identity of the assembled contrast; calibration and the artifact are unmeasured"
+failure_policy = "Subtracting independent marginal intervals is a failure. The scheduled contrast is assembled and is not a licensed route. A single-world response is not Delta_AB."
 references = [
   "Product outcome",
   "Release scope and gates",
@@ -2299,16 +2299,16 @@ references = [
 [[spec]]
 id = "X01.temporal.bayesian"
 parent = "X01"
-gap = "implementation"
+gap = "validation"
 route = "unlisted"
 target = "joint intervention contrast"
 review_status = "specification_only"
 identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises. Here a and b are schedules or history-adapted programs with declared timing, horizon, and initial-state law."
 sampling_units = "unlisted"
-estimator = "aligned posterior draws of Delta_AB; not constructed"
-diagnostics = "support, calibration, identity, and artifact of the assembled contrast; procedure unlisted"
-failure_policy = "Subtracting independent marginal intervals is a failure. No aligned temporal posterior draws of a program contrast. A single-world response is not Delta_AB."
+estimator = "one draw of the scheduled contrast per aligned posterior row in joint_contrast.rs. Coverage is unmeasured."
+diagnostics = "support and identity of the assembled contrast; calibration and the artifact are unmeasured"
+failure_policy = "Subtracting independent marginal intervals is a failure. The aligned program draws exist and are not a licensed route. A single-world response is not Delta_AB."
 references = [
   "Product outcome",
   "Release scope and gates",
