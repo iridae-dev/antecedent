@@ -767,11 +767,10 @@ mod tests {
     use super::{
         CLAMP_EXPERIMENT_RECIPE, ClampExogeneity, ClampExperimentSet, DeclaredClampExperiment,
         DeclaredEquationRank, DeclaredNoiseLaw, DesignFault, DirectCoefficient, ExperimentDesign,
-        ExperimentalRecoveryDecision, FiniteSampleConditioning,
-        LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt, NotThisRecipe,
-        PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability, RecoveryAttempt, RefusalReason,
-        RegimeAssumption, UniquenessRestriction, UnresolvedReason, WeakStability,
-        decide_experimental_recovery,
+        ExperimentalRecoveryDecision, FiniteSampleConditioning, LATENT_VARIABLE_EXPANSION_ATTEMPT,
+        NextAttempt, NotThisRecipe, PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability,
+        RecoveryAttempt, RefusalReason, RegimeAssumption, UniquenessRestriction, UnresolvedReason,
+        WeakStability, decide_experimental_recovery,
     };
     use antecedent_core::VariableId;
 
@@ -1112,11 +1111,8 @@ mod tests {
     #[test]
     fn sample_full_column_rank_does_not_license_a_rank_on_an_uncovered_row() {
         let nodes = three();
-        let ranks = vec![DeclaredEquationRank {
-            target: node(1),
-            column_rank: 2,
-            nullspace: Vec::new(),
-        }];
+        let ranks =
+            vec![DeclaredEquationRank { target: node(1), column_rank: 2, nullspace: Vec::new() }];
         let mut design = clamp_design(nodes, one_passive_experiment(), ranks);
         clamp_set_mut(&mut design).finite_sample_conditioning =
             FiniteSampleConditioning::SampleFullColumnRank;
@@ -1249,10 +1245,7 @@ mod tests {
             panic!("a restriction on a closed design is not a stability certificate");
         };
         assert!(recovery.goal_closed());
-        assert_eq!(
-            recovery.uniqueness_restriction,
-            UniquenessRestriction::MinimumNormCompletion
-        );
+        assert_eq!(recovery.uniqueness_restriction, UniquenessRestriction::MinimumNormCompletion);
         assert_eq!(
             clamp_set_mut(&mut design).physical_dynamical_stability,
             PhysicalDynamicalStability::NotDeclared

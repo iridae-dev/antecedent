@@ -148,7 +148,10 @@ fn refuse_transport_cycle(
 }
 
 /// Dense indexes of a problem whose variable count already fits the contract.
-#[allow(clippy::cast_possible_truncation)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "node indices are bounded by the graph node limit, far below u32::MAX"
+)]
 fn directed_edge_ids(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
     edges.iter().map(|&(from, to)| (from as u32, to as u32)).collect()
 }

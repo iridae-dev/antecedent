@@ -53,20 +53,13 @@ impl DenseLinearAlgebra for FaerBackend {
                 write_column_scales(x_colmajor, nrows, ncols, &mut scales);
                 let scope = serial_scope();
                 let mut scratch = FactorScratch::new();
-                let factored = factor_equilibrated(
-                    x_colmajor,
-                    nrows,
-                    ncols,
-                    &scales,
-                    scope,
-                    &mut scratch,
-                )?;
+                let factored =
+                    factor_equilibrated(x_colmajor, nrows, ncols, &scales, scope, &mut scratch)?;
                 let (rank, rcond) = factored.rank_and_rcond(nrows);
                 if rank < ncols {
                     return Err(StatsError::RankDeficient { rank, ncols });
                 }
-                let coefficients =
-                    solve_equilibrated(&factored, y, &scales, scope, &mut scratch)?;
+                let coefficients = solve_equilibrated(&factored, y, &scales, scope, &mut scratch)?;
                 let rss = write_residuals(
                     x_colmajor,
                     nrows,
@@ -138,24 +131,21 @@ impl ScopedQr {
     /// Counted bytes of the factors and both permutation vectors.
     #[must_use]
     pub(crate) fn counted_bytes(&self) -> u64 {
-        counted_bytes(
-            self.q_basis.nrows().saturating_mul(self.q_basis.ncols()),
-            size_of::<f64>(),
-        )
-        .saturating_add(counted_bytes(
-            self.q_coeff.nrows().saturating_mul(self.q_coeff.ncols()),
-            size_of::<f64>(),
-        ))
-        .saturating_add(counted_bytes(
-            self.r_full.nrows().saturating_mul(self.r_full.ncols()),
-            size_of::<f64>(),
-        ))
-        .saturating_add(counted_bytes(
-            self.thin_r.nrows().saturating_mul(self.thin_r.ncols()),
-            size_of::<f64>(),
-        ))
-        .saturating_add(counted_bytes(self.perm_forward.len(), size_of::<usize>()))
-        .saturating_add(counted_bytes(self.perm_inverse.len(), size_of::<usize>()))
+        counted_bytes(self.q_basis.nrows().saturating_mul(self.q_basis.ncols()), size_of::<f64>())
+            .saturating_add(counted_bytes(
+                self.q_coeff.nrows().saturating_mul(self.q_coeff.ncols()),
+                size_of::<f64>(),
+            ))
+            .saturating_add(counted_bytes(
+                self.r_full.nrows().saturating_mul(self.r_full.ncols()),
+                size_of::<f64>(),
+            ))
+            .saturating_add(counted_bytes(
+                self.thin_r.nrows().saturating_mul(self.thin_r.ncols()),
+                size_of::<f64>(),
+            ))
+            .saturating_add(counted_bytes(self.perm_forward.len(), size_of::<usize>()))
+            .saturating_add(counted_bytes(self.perm_inverse.len(), size_of::<usize>()))
     }
 
     /// Numerical rank and `min|R_ii| / max|R_ii|` from the leading triangle.
@@ -182,11 +172,8 @@ impl ScopedQr {
                 rank += 1;
             }
         }
-        let rcond = if max_diag > 0.0 && min_diag.is_finite() {
-            Some(min_diag / max_diag)
-        } else {
-            None
-        };
+        let rcond =
+            if max_diag > 0.0 && min_diag.is_finite() { Some(min_diag / max_diag) } else { None };
         (rank, rcond)
     }
 }
@@ -361,15 +348,12 @@ pub(crate) fn min_norm_on_column_major(
     let svd = thin_svd_in_scope(view, scope, scratch).map_err(|_| {
         StatsError::Backend("minimum-norm least squares: SVD did not converge".into())
     })?;
-    let factor_bytes = counted_bytes(
-        svd.u.nrows().saturating_mul(svd.u.ncols()),
-        size_of::<f64>(),
-    )
-    .saturating_add(counted_bytes(svd.s.as_ref().column_vector().nrows(), size_of::<f64>()))
-    .saturating_add(counted_bytes(
-        svd.v.nrows().saturating_mul(svd.v.ncols()),
-        size_of::<f64>(),
-    ));
+    let factor_bytes = counted_bytes(svd.u.nrows().saturating_mul(svd.u.ncols()), size_of::<f64>())
+        .saturating_add(counted_bytes(svd.s.as_ref().column_vector().nrows(), size_of::<f64>()))
+        .saturating_add(counted_bytes(
+            svd.v.nrows().saturating_mul(svd.v.ncols()),
+            size_of::<f64>(),
+        ));
     let (u, s, v) = (svd.u.as_ref(), svd.s.as_ref().column_vector(), svd.v.as_ref());
     let size = nrows.min(ncols);
     let s_max = (0..size).map(|index| s[index].abs()).fold(0.0_f64, f64::max);

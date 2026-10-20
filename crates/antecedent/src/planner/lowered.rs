@@ -72,7 +72,8 @@ fn world(
     binding: &antecedent_core::WorldBinding,
     time: &TimeFrame,
 ) -> Result<InterventionWorld, CausalError> {
-    let action = WorldAction::at_decision([intervention.clone()]).map_err(|err| target_error(&err))?;
+    let action =
+        WorldAction::at_decision([intervention.clone()]).map_err(|err| target_error(&err))?;
     InterventionWorld::new(
         ScientificWorldId::from_raw(raw),
         action,

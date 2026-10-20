@@ -161,8 +161,7 @@ impl SolverWorkspace {
         let grew_design = resize_f64(&mut self.design, cells);
         for column in 0..ncols {
             for (slot, &row) in selected.iter().enumerate() {
-                self.design[column * nrows + slot] =
-                    source_colmajor[column * source_rows + row];
+                self.design[column * nrows + slot] = source_colmajor[column * source_rows + row];
             }
         }
         let grew_outcome = resize_f64(&mut self.outcome, nrows);
@@ -464,10 +463,7 @@ mod tests {
         assert_eq!(workspace.gather_writes(), 1);
         assert_eq!(workspace.design_bytes(), design_bytes);
         assert!(workspace.design_bytes() < u64::try_from(source.len() * size_of::<f64>()).unwrap());
-        assert_eq!(
-            workspace.equilibration_bytes(),
-            u64::try_from(2 * size_of::<f64>()).unwrap()
-        );
+        assert_eq!(workspace.equilibration_bytes(), u64::try_from(2 * size_of::<f64>()).unwrap());
         assert!(workspace.equilibration_bytes() < workspace.design_bytes());
         assert_eq!(workspace.scratch_copies(), 0);
         let gathered = workspace.peak_bytes();
@@ -531,10 +527,7 @@ mod tests {
         workspace.gather_selected(&source, n, 2, &outcome, &selected).unwrap();
         let design_bytes = u64::try_from(n * 2 * size_of::<f64>()).unwrap();
         assert_eq!(workspace.design_bytes(), design_bytes);
-        assert_eq!(
-            workspace.equilibration_bytes(),
-            u64::try_from(2 * size_of::<f64>()).unwrap()
-        );
+        assert_eq!(workspace.equilibration_bytes(), u64::try_from(2 * size_of::<f64>()).unwrap());
 
         let strict = workspace.solve_full_rank();
         assert!(matches!(strict, Err(StatsError::RankDeficient { rank: 1, ncols: 2 })));

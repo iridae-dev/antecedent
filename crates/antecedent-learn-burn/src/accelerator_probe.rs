@@ -282,16 +282,7 @@ fn prepare_fold() -> Result<PreparedFold, LearnBurnError> {
     let x_std = standardized(&train_x, TRAIN_ROWS, FOLD_COLS, &x_center, &x_scale);
     let x_rm = colmajor_to_rowmajor_f32(&x_std, TRAIN_ROWS, FOLD_COLS);
     let y_f = narrow_target(&train_y, y_center, y_scale);
-    Ok(PreparedFold {
-        predict_rows,
-        predict_x,
-        x_center,
-        x_scale,
-        y_center,
-        y_scale,
-        x_rm,
-        y_f,
-    })
+    Ok(PreparedFold { predict_rows, predict_x, x_center, x_scale, y_center, y_scale, x_rm, y_f })
 }
 
 fn design() -> (Vec<f64>, Vec<f64>) {
@@ -362,11 +353,8 @@ fn copied_loss<const D: usize, B: Backend>(loss: Tensor<B, D>) -> Result<f32, Le
 
 fn download_weights(model: &FoldMlp<TrainBackend>) -> Result<HostNet, LearnBurnError> {
     let model = model.valid();
-    let net = HostNet {
-        l1: extract(&model.l1)?,
-        l2: extract(&model.l2)?,
-        out: extract(&model.out)?,
-    };
+    let net =
+        HostNet { l1: extract(&model.l1)?, l2: extract(&model.l2)?, out: extract(&model.out)? };
     if !weights_are_finite(&net) {
         return Err(LearnBurnError::NonFiniteWeights);
     }
@@ -442,10 +430,7 @@ fn extract<B: Backend>(layer: &Linear<B>) -> Result<HostLayer, LearnBurnError> {
 }
 
 impl HostLayer {
-    #[allow(
-        clippy::needless_range_loop,
-        reason = "the subscript is the matrix coordinate"
-    )]
+    #[allow(clippy::needless_range_loop, reason = "the subscript is the matrix coordinate")]
     fn forward_into(&self, x: &[f32], out: &mut [f32]) {
         out[..self.dout].copy_from_slice(&self.bias);
         for i in 0..self.din {

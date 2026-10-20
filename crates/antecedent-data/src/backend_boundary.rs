@@ -102,10 +102,7 @@ mod tests {
             "msrv = \"not_measured\"",
             "wheel = \"not_measured\"",
         ] {
-            assert!(
-                decision.contains(needle),
-                "{needle} missing from the Polars decision"
-            );
+            assert!(decision.contains(needle), "{needle} missing from the Polars decision");
         }
         assert!(!declares_polars_crate(DATA_CARGO));
         assert!(!declares_polars_crate(WORKSPACE_CARGO));

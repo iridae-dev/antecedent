@@ -59,7 +59,10 @@ pub const CPDAG_MAX_NODES: usize = 6;
 pub const CPDAG_SELECTION_OR_LATENT_DETAIL: &str = "cpdag_scenarios.selection_or_latent";
 
 /// Dense indexes of a CPDAG whose node count already fits `usize` graph ids.
-#[allow(clippy::cast_possible_truncation)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "node indices are bounded by the graph node limit, far below u32::MAX"
+)]
 fn directed_edge_ids(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
     edges.iter().map(|&(from, to)| (from as u32, to as u32)).collect()
 }

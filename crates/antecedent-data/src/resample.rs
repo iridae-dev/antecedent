@@ -1378,16 +1378,8 @@ mod tests {
             ExecutionContext::production(seed, threads)
         };
         let mut batch = vec![GlobalId::new(0); n * replicates];
-        fill_resample_index_batch(
-            plan,
-            n,
-            replicates,
-            cluster_ids,
-            &ctx,
-            stream_base,
-            &mut batch,
-        )
-        .unwrap();
+        fill_resample_index_batch(plan, n, replicates, cluster_ids, &ctx, stream_base, &mut batch)
+            .unwrap();
         let mut reused = Vec::new();
         let mut held = 0usize;
         for replicate in 0..replicates {
@@ -1413,24 +1405,8 @@ mod tests {
 
     #[test]
     fn bounded_iid_indexes_match_the_batch() {
-        assert_reused_indexes_match_batch(
-            ResamplingPlan::IidBootstrap,
-            20,
-            8,
-            None,
-            42,
-            0xDEAD,
-            1,
-        );
-        assert_reused_indexes_match_batch(
-            ResamplingPlan::IidBootstrap,
-            20,
-            8,
-            None,
-            42,
-            0xDEAD,
-            4,
-        );
+        assert_reused_indexes_match_batch(ResamplingPlan::IidBootstrap, 20, 8, None, 42, 0xDEAD, 1);
+        assert_reused_indexes_match_batch(ResamplingPlan::IidBootstrap, 20, 8, None, 42, 0xDEAD, 4);
     }
 
     #[test]

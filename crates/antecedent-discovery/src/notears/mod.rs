@@ -513,7 +513,10 @@ struct PairwiseFactor {
 /// semidefinite by clipping negative eigenvalues, factored so the NOTEARS least-squares score
 /// `tr((I-W)ᵀ S (I-W)) / 2` is evaluated on it exactly.
 /// Variable positions in a NOTEARS fit are dense indexes of the column list.
-#[allow(clippy::cast_possible_truncation)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node indices are bounded by the graph node limit, far below u32::MAX"
+)]
 fn dense_edge_ids(edges: &[(usize, usize, f64)]) -> Vec<(u32, u32)> {
     edges.iter().map(|&(parent, child, _)| (parent as u32, child as u32)).collect()
 }

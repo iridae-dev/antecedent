@@ -894,7 +894,10 @@ fn run_block(
 
 /// Dense program positions are graph node indexes. A model that compiled already
 /// stored them as `u32`.
-#[allow(clippy::cast_possible_truncation)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "program node indices are bounded by the node limit, far below u32::MAX"
+)]
 fn dense_id(index: usize) -> u32 {
     index as u32
 }
