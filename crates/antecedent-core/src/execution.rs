@@ -4,10 +4,12 @@
 //! or selects architecture-specific behavior outside [`KernelPolicy`].
 //!
 //! CPU and RAM admission is a shared lease. Taking a lease decrements the
-//! budget; [`MemoryBudget`] is not that lease and is never decremented. A child
-//! lease is drawn from its parent's remainder, release returns that remainder,
-//! and cancellation releases the lease. Byte products and sums that do not fit
-//! in `u64` are refused.
+//! budget. [`MemoryBudget`] is a planner limit and is never decremented.
+//! [`ExecutionContext::map_indexed`] takes one [`AdmissionPool`] lease for its
+//! workers and returns that lease on success, failure, and cancellation. A
+//! child lease is drawn from its parent's remainder, release returns that
+//! remainder, and cancellation releases the lease. Byte products and sums that
+//! do not fit in `u64` are refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -86,6 +88,11 @@ pub enum Determinism {
 }
 
 /// Memory budget for planned allocations.
+///
+/// These fields are a planner limit. No path decrements them. A parallel
+/// [`ExecutionContext::map_indexed`] reserves the hard limit on its admission
+/// lease when that limit is set, capped by the pool, and reserves no RAM bytes
+/// when it is unset. The soft limit stays a planner hint.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct MemoryBudget {
     /// Soft limit in bytes; planners should refuse or stream above this.
@@ -492,8 +499,8 @@ pub const fn checked_byte_sum(left: u64, right: u64) -> Option<u64> {
 /// Shared CPU and RAM budget.
 ///
 /// [`Self::available`] is what no open lease holds. Granting a lease decrements it. Two contexts
-/// that install the same pool compete for that one remainder. [`MemoryBudget`] is not consulted
-/// and is not decremented.
+/// that install the same pool compete for that one remainder. [`MemoryBudget`] is not decremented.
+/// [`ExecutionContext::map_indexed`] consults this pool for its one worker lease.
 #[derive(Clone)]
 pub struct AdmissionPool {
     shared: Arc<SharedAdmission>,
@@ -1277,21 +1284,28 @@ pub const fn derive_stream(master: u64, stream_id: u64) -> u64 {
     z ^ (z >> 32)
 }
 
+#[derive(Clone, Copy)]
+enum AdmissionWait {
+    Immediate,
+    Bounded(Duration),
+    UntilAvailable,
+}
+
 fn admit(
     shared: &Arc<SharedAdmission>,
     request: AdmissionRequest,
     flag: &Arc<AtomicBool>,
     waiters: &CancelFlag,
-    bound: Option<Duration>,
+    wait: AdmissionWait,
 ) -> Result<AdmissionLease, AdmissionError> {
     waiters.register_waiter(&shared.released);
     let mut guard = lock_mutex(&shared.state);
-    let limit = match bound {
-        None => None,
-        Some(bound) => {
+    let limit = match wait {
+        AdmissionWait::Bounded(bound) => {
             let deadline = Instant::now().checked_add(bound).ok_or(AdmissionError::Overflow)?;
             Some((deadline, bound))
         }
+        AdmissionWait::Immediate | AdmissionWait::UntilAvailable => None,
     };
     loop {
         if reap_cancelled(&mut guard) {
@@ -1304,7 +1318,16 @@ fn admit(
             Ok(id) => return Ok(AdmissionLease::new(Arc::clone(shared), id, Arc::clone(flag))),
             Err(GrantError::Overflow) => return Err(AdmissionError::Overflow),
             Err(GrantError::Short(refusal)) => {
-                guard = wait_or_stop(shared, guard, refusal, limit)?;
+                let never_fits =
+                    request.threads > guard.thread_budget || request.bytes > guard.byte_budget;
+                if never_fits && matches!(wait, AdmissionWait::UntilAvailable) {
+                    return Err(refusal);
+                }
+                guard = match wait {
+                    AdmissionWait::Immediate => return Err(refusal),
+                    AdmissionWait::Bounded(_) => wait_or_stop(shared, guard, refusal, limit)?,
+                    AdmissionWait::UntilAvailable => block_on_release(shared, guard, None)?,
+                };
             }
         }
     }
@@ -1327,16 +1350,32 @@ fn wait_or_stop<'a>(
 
 fn wait_for_room<'a>(
     shared: &'a SharedAdmission,
-    mut guard: MutexGuard<'a, AdmissionState>,
+    guard: MutexGuard<'a, AdmissionState>,
     deadline: Instant,
+) -> Result<MutexGuard<'a, AdmissionState>, AdmissionError> {
+    let timeout = deadline.saturating_duration_since(Instant::now());
+    block_on_release(shared, guard, Some(timeout))
+}
+
+fn block_on_release<'a>(
+    shared: &'a SharedAdmission,
+    mut guard: MutexGuard<'a, AdmissionState>,
+    timeout: Option<Duration>,
 ) -> Result<MutexGuard<'a, AdmissionState>, AdmissionError> {
     let Some(waiting) = guard.blocked_waiters.checked_add(1) else {
         return Err(AdmissionError::Overflow);
     };
     guard.blocked_waiters = waiting;
-    let timeout = deadline.saturating_duration_since(Instant::now());
-    let (mut locked, _) =
-        shared.released.wait_timeout(guard, timeout).unwrap_or_else(PoisonError::into_inner);
+    let mut locked = match timeout {
+        Some(timeout) => {
+            let (locked, _timed_out) = shared
+                .released
+                .wait_timeout(guard, timeout)
+                .unwrap_or_else(PoisonError::into_inner);
+            locked
+        }
+        None => shared.released.wait(guard).unwrap_or_else(PoisonError::into_inner),
+    };
     locked.blocked_waiters = locked.blocked_waiters.saturating_sub(1);
     Ok(locked)
 }
@@ -1415,6 +1454,17 @@ impl ExecutionContext {
     /// and `f` receives [`Self::serial_inner`] so nested pools stay serial.
     /// When `n <= 1` or the context is already serial, `f` receives `self`.
     ///
+    /// The parallel path acquires one admission lease before it spawns. The
+    /// lease is the worker count, capped by the pool, plus
+    /// [`MemoryBudget::hard_limit_bytes`] when that limit is set. It is dropped
+    /// after the workers join, including when `f` fails. Cancellation returns
+    /// the same lease at the next pool observation, and again when the lease is
+    /// dropped. A call that cannot take the lease, including one whose context
+    /// is already cancelled, evaluates `f` on the caller and spawns nothing. A
+    /// second parallel call waits until the pool can hold that lease. The
+    /// serial path does not take a lease, so a nested map on
+    /// [`Self::serial_inner`] does not wait on the outer hold.
+    ///
     /// # Errors
     ///
     /// Returns the lowest-index error produced by `f`. Work above a known failure
@@ -1433,10 +1483,16 @@ impl ExecutionContext {
         if n == 0 {
             return Ok(Vec::new());
         }
-        let threads = (self.parallelism.max_threads.get() as usize).clamp(1, n);
-        if threads == 1 {
-            return (0..n).map(|i| f(i, self)).collect();
+        let threads = self.map_worker_count(n);
+        if threads <= 1 {
+            return (0..n).map(|index| f(index, self)).collect();
         }
+        let Ok(worker_threads) = u32::try_from(threads) else {
+            return (0..n).map(|index| f(index, self)).collect();
+        };
+        let Ok(lease) = self.acquire_map_lease(worker_threads) else {
+            return (0..n).map(|index| f(index, self)).collect();
+        };
         let inner = self.serial_inner();
         let mut slots: Vec<Option<Result<T, E>>> = (0..n).map(|_| None).collect();
         // Lowest index known to have failed. A serial run stops at the first error,
@@ -1475,10 +1531,43 @@ impl ExecutionContext {
             }
         });
         // Unfilled slots exist only above the lowest failure, which `collect` reaches first.
+        drop(lease);
         slots
             .into_iter()
             .map(|slot| slot.expect("every index below the first error was filled"))
             .collect()
+    }
+
+    /// Worker count for [`Self::map_indexed`], never above the admission pool.
+    ///
+    /// `n` is at least one. A count of one stays on the caller and takes no lease.
+    fn map_worker_count(&self, n: usize) -> usize {
+        let requested = usize::try_from(self.parallelism.max_threads.get()).unwrap_or(usize::MAX);
+        let requested = requested.clamp(1, n);
+        if requested == 1 {
+            return 1;
+        }
+        let pool_slots = usize::try_from(self.admission().thread_budget()).unwrap_or(usize::MAX);
+        requested.min(pool_slots)
+    }
+
+    /// RAM bytes a parallel [`Self::map_indexed`] reserves on its one lease.
+    fn map_lease_bytes(&self) -> u64 {
+        let Some(limit) = self.memory.hard_limit_bytes else {
+            return 0;
+        };
+        limit.min(self.admission().byte_budget())
+    }
+
+    fn acquire_map_lease(&self, threads: u32) -> Result<AdmissionLease, AdmissionError> {
+        let request = AdmissionRequest::new(threads, self.map_lease_bytes());
+        admit(
+            &self.cancellation.admission_pool().shared,
+            request,
+            &self.cancellation.cancel_flag(),
+            &self.cancellation.flag,
+            AdmissionWait::UntilAvailable,
+        )
     }
 
     /// Production context: optimized kernels allowed, cache enabled, bounded threads.
@@ -1510,7 +1599,8 @@ impl ExecutionContext {
 
     /// Install `pool` for this context and every clone of its cancellation token.
     ///
-    /// Later acquires decrement `pool`. [`Self::memory`] is left unchanged.
+    /// Later acquires, including [`Self::map_indexed`], decrement `pool`.
+    /// [`Self::memory`] is left unchanged.
     #[must_use]
     pub fn with_admission(self, pool: AdmissionPool) -> Self {
         self.cancellation.set_pool(pool);
@@ -1590,12 +1680,16 @@ impl ExecutionContext {
         request: AdmissionRequest,
         bound: Option<Duration>,
     ) -> Result<AdmissionLease, AdmissionError> {
+        let wait = match bound {
+            Some(bound) => AdmissionWait::Bounded(bound),
+            None => AdmissionWait::Immediate,
+        };
         admit(
             &self.cancellation.admission_pool().shared,
             request,
             &self.cancellation.cancel_flag(),
             &self.cancellation.flag,
-            bound,
+            wait,
         )
     }
 }
@@ -2128,5 +2222,167 @@ mod tests {
         drop(got);
         assert_eq!(shared.available().threads(), 2);
         assert_eq!(shared.available().bytes(), 40);
+    }
+
+    fn parallel_context(pool: &AdmissionPool, seed: u64) -> ExecutionContext {
+        let mut ctx = ExecutionContext::production(seed, 2).with_admission(pool.clone());
+        ctx.memory.hard_limit_bytes = Some(pool.byte_budget());
+        ctx
+    }
+
+    struct HoldState {
+        entered: usize,
+        release: bool,
+    }
+
+    struct Hold {
+        state: Mutex<HoldState>,
+        cv: Condvar,
+    }
+
+    impl Hold {
+        const fn new() -> Self {
+            Self { state: Mutex::new(HoldState { entered: 0, release: false }), cv: Condvar::new() }
+        }
+
+        fn enter(&self) {
+            let mut state = lock_mutex(&self.state);
+            state.entered = state.entered.saturating_add(1);
+            self.cv.notify_all();
+        }
+
+        fn entered(&self) -> usize {
+            lock_mutex(&self.state).entered
+        }
+
+        fn wait_until_released(&self) {
+            let mut state = lock_mutex(&self.state);
+            while !state.release {
+                state = self.cv.wait(state).unwrap_or_else(PoisonError::into_inner);
+            }
+        }
+
+        fn release(&self) {
+            lock_mutex(&self.state).release = true;
+            self.cv.notify_all();
+        }
+    }
+
+    struct Release(Arc<Hold>);
+
+    impl Drop for Release {
+        fn drop(&mut self) {
+            self.0.release();
+        }
+    }
+
+    #[test]
+    fn concurrent_map_indexed_runs_stay_within_the_pool() {
+        let shared = AdmissionPool::fixed(2, 64);
+        let hold = Arc::new(Hold::new());
+        let inflight = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let start = |seed: u64| {
+            let ctx = parallel_context(&shared, seed);
+            let hold = Arc::clone(&hold);
+            let inflight = Arc::clone(&inflight);
+            let peak = Arc::clone(&peak);
+            thread::spawn(move || {
+                ctx.map_indexed(2, move |index, inner| {
+                    assert_eq!(inner.parallelism.max_threads.get(), 1);
+                    let now = inflight.fetch_add(1, Ordering::SeqCst).saturating_add(1);
+                    peak.fetch_max(now, Ordering::SeqCst);
+                    hold.enter();
+                    hold.wait_until_released();
+                    inflight.fetch_sub(1, Ordering::SeqCst);
+                    Ok::<_, ()>(index)
+                })
+            })
+        };
+        let left = start(1);
+        let right = start(2);
+        let _release = Release(Arc::clone(&hold));
+        let started = Instant::now();
+        loop {
+            let held = shared.available() == AdmissionRemainder::zero();
+            let waiting = shared.blocked_waiters() >= 1;
+            if hold.entered() == 2 && held && waiting {
+                break;
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "second map_indexed did not wait for the admission lease"
+            );
+            thread::yield_now();
+        }
+        assert!(peak.load(Ordering::SeqCst) <= 2);
+        hold.release();
+        let left = left.join().unwrap().unwrap();
+        let right = right.join().unwrap().unwrap();
+        assert_eq!(left, vec![0, 1]);
+        assert_eq!(right, vec![0, 1]);
+        assert!(peak.load(Ordering::SeqCst) <= 2);
+        assert_eq!(inflight.load(Ordering::SeqCst), 0);
+        assert_eq!(shared.available(), AdmissionRemainder::new(2, 64));
+        assert_eq!(shared.blocked_waiters(), 0);
+    }
+
+    #[test]
+    fn cancelled_map_indexed_leaves_no_lease() {
+        let shared = AdmissionPool::fixed(2, 64);
+        let ctx = parallel_context(&shared, 1);
+        let entered = Arc::new(Barrier::new(3));
+        let finish = Arc::new(Barrier::new(3));
+        let running = ctx.clone();
+        let entered_worker = Arc::clone(&entered);
+        let finish_worker = Arc::clone(&finish);
+        let handle = thread::spawn(move || {
+            running.map_indexed(2, move |index, _inner| {
+                entered_worker.wait();
+                finish_worker.wait();
+                Ok::<_, ()>(index)
+            })
+        });
+        entered.wait();
+        assert_eq!(shared.available(), AdmissionRemainder::zero());
+        ctx.cancellation.cancel();
+        assert_eq!(shared.available(), AdmissionRemainder::new(2, 64));
+        finish.wait();
+        assert_eq!(handle.join().unwrap().unwrap(), vec![0, 1]);
+        assert_eq!(shared.available(), AdmissionRemainder::new(2, 64));
+        let again = ctx.map_indexed(2, |index, _inner| Ok::<_, ()>(index)).unwrap();
+        assert_eq!(again, vec![0, 1]);
+        assert_eq!(shared.available(), AdmissionRemainder::new(2, 64));
+        assert_eq!(shared.blocked_waiters(), 0);
+    }
+
+    #[test]
+    fn failed_map_indexed_returns_the_lease() {
+        let shared = AdmissionPool::fixed(2, 32);
+        let ctx = parallel_context(&shared, 1);
+        let saw_hold = AtomicBool::new(false);
+        let result = ctx.map_indexed(4, |index, _inner| {
+            if shared.available() == AdmissionRemainder::zero() {
+                saw_hold.store(true, Ordering::SeqCst);
+            }
+            if index == 0 { Err(index) } else { Ok(index) }
+        });
+        assert_eq!(result, Err(0));
+        assert!(saw_hold.load(Ordering::SeqCst));
+        assert_eq!(shared.available(), AdmissionRemainder::new(2, 32));
+    }
+
+    #[test]
+    fn nested_map_indexed_does_not_wait_on_the_outer_lease() {
+        let shared = AdmissionPool::fixed(2, 32);
+        let ctx = parallel_context(&shared, 1);
+        let output = ctx
+            .map_indexed(2, |index, inner| {
+                let nested = inner.map_indexed(2, |inner_index, _inner| Ok::<_, ()>(inner_index))?;
+                Ok::<_, ()>((index, nested))
+            })
+            .unwrap();
+        assert_eq!(output, vec![(0, vec![0, 1]), (1, vec![0, 1])]);
+        assert_eq!(shared.available(), AdmissionRemainder::new(2, 32));
     }
 }
