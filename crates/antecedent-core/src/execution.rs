@@ -89,10 +89,12 @@ pub enum Determinism {
 
 /// Memory budget for planned allocations.
 ///
-/// These fields are a planner limit. No path decrements them. A parallel
-/// [`ExecutionContext::map_indexed`] reserves the hard limit on its admission
-/// lease when that limit is set, capped by the pool, and reserves no RAM bytes
-/// when it is unset. The soft limit stays a planner hint.
+/// These fields are a planner limit. No path decrements them. A root admission
+/// whose byte request is above the hard limit is refused before the pool is
+/// charged. A parallel [`ExecutionContext::map_indexed`] reserves the hard
+/// limit on its admission lease when that limit is set, capped by the pool,
+/// and reserves no RAM bytes when it is unset. The soft limit stays a planner
+/// hint.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct MemoryBudget {
     /// Soft limit in bytes; planners should refuse or stream above this.
@@ -1617,9 +1619,11 @@ impl ExecutionContext {
     ///
     /// # Errors
     ///
-    /// [`AdmissionError::ExceedsRemainder`] when the pool's remainder is short.
-    /// [`AdmissionError::Cancelled`] when this context is already cancelled.
-    /// [`AdmissionError::Overflow`] when the lease id does not fit in `u64`.
+    /// [`AdmissionError::ExceedsRemainder`] when the pool's remainder is short,
+    /// or when `bytes` is above [`MemoryBudget::hard_limit_bytes`]. That refusal
+    /// charges neither the pool nor the budget. [`AdmissionError::Cancelled`]
+    /// when this context is already cancelled. [`AdmissionError::Overflow`] when
+    /// the lease id does not fit in `u64`.
     ///
     /// # Examples
     ///
@@ -1680,6 +1684,12 @@ impl ExecutionContext {
         request: AdmissionRequest,
         bound: Option<Duration>,
     ) -> Result<AdmissionLease, AdmissionError> {
+        if let Some(limit) =
+            self.memory.hard_limit_bytes.filter(|hard| request.bytes() > *hard)
+        {
+            let free = self.admission().available();
+            return Err(exceeds(request, free.threads(), limit));
+        }
         let wait = match bound {
             Some(bound) => AdmissionWait::Bounded(bound),
             None => AdmissionWait::Immediate,
@@ -2384,5 +2394,137 @@ mod tests {
             .unwrap();
         assert_eq!(output, vec![(0, vec![0, 1]), (1, vec![0, 1])]);
         assert_eq!(shared.available(), AdmissionRemainder::new(2, 32));
+    }
+
+    #[test]
+    fn map_workers_stay_within_the_pool() {
+        let shared = AdmissionPool::fixed(2, 1_000);
+        let mut ctx = ExecutionContext::production(1, 8).with_admission(shared.clone());
+        ctx.memory = MemoryBudget { soft_limit_bytes: Some(32), hard_limit_bytes: Some(64) };
+        let barrier = Arc::new(Barrier::new(2));
+        let inflight = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let out = ctx
+            .map_indexed(8, |index, inner| {
+                assert_eq!(inner.parallelism.max_threads.get(), 1);
+                let now = inflight.fetch_add(1, Ordering::SeqCst).saturating_add(1);
+                peak.fetch_max(now, Ordering::SeqCst);
+                assert_eq!(shared.available().threads(), 0);
+                assert_eq!(shared.available().bytes(), 936);
+                barrier.wait();
+                inflight.fetch_sub(1, Ordering::SeqCst);
+                Ok::<_, ()>(index)
+            })
+            .unwrap();
+        assert_eq!(out, (0..8).collect::<Vec<_>>());
+        assert_eq!(peak.load(Ordering::SeqCst), 2);
+        assert_eq!(inflight.load(Ordering::SeqCst), 0);
+        assert_eq!(ctx.memory.soft_limit_bytes, Some(32));
+        assert_eq!(ctx.memory.hard_limit_bytes, Some(64));
+        assert_eq!(shared.available(), AdmissionRemainder::new(2, 1_000));
+    }
+
+    #[test]
+    fn hard_byte_limit_refuses_before_the_pool_is_charged() {
+        let shared = AdmissionPool::fixed(4, 1_000);
+        let mut study = ExecutionContext::for_tests(1).with_admission(shared.clone());
+        study.memory = MemoryBudget { soft_limit_bytes: Some(10), hard_limit_bytes: Some(100) };
+        let refused = study.acquire_admission(1, 101).unwrap_err();
+        assert!(matches!(
+            refused,
+            AdmissionError::ExceedsRemainder {
+                requested_threads: 1,
+                requested_bytes: 101,
+                remaining_threads: 4,
+                remaining_bytes: 100,
+            }
+        ));
+        let product = study.acquire_admission_product(1, 50, 3).unwrap_err();
+        assert!(matches!(
+            product,
+            AdmissionError::ExceedsRemainder { requested_bytes: 150, remaining_bytes: 100, .. }
+        ));
+        assert_eq!(shared.available(), AdmissionRemainder::new(4, 1_000));
+        assert_eq!(study.memory.soft_limit_bytes, Some(10));
+        assert_eq!(study.memory.hard_limit_bytes, Some(100));
+        let granted = study.acquire_admission(1, 100).unwrap();
+        assert_eq!(granted.remainder().bytes(), 100);
+        assert_eq!(shared.available().bytes(), 900);
+        drop(granted);
+        assert_eq!(shared.available().bytes(), 1_000);
+        assert_eq!(study.memory.hard_limit_bytes, Some(100));
+    }
+
+    #[test]
+    fn pool_refuses_a_request_it_cannot_fund() {
+        let shared = AdmissionPool::fixed(2, 40);
+        let study = ExecutionContext::for_tests(1).with_admission(shared.clone());
+        assert!(study.memory.hard_limit_bytes.is_none());
+        let threads = study.acquire_admission(3, 10).unwrap_err();
+        assert!(matches!(
+            threads,
+            AdmissionError::ExceedsRemainder {
+                requested_threads: 3,
+                requested_bytes: 10,
+                remaining_threads: 2,
+                remaining_bytes: 40,
+            }
+        ));
+        let bytes = study.acquire_admission(1, 41).unwrap_err();
+        assert!(matches!(
+            bytes,
+            AdmissionError::ExceedsRemainder {
+                requested_threads: 1,
+                requested_bytes: 41,
+                remaining_threads: 2,
+                remaining_bytes: 40,
+            }
+        ));
+        assert_eq!(shared.available(), AdmissionRemainder::new(2, 40));
+        assert_eq!(shared.blocked_waiters(), 0);
+        assert!(study.memory.hard_limit_bytes.is_none());
+    }
+
+    #[test]
+    fn wrapped_byte_product_is_not_admitted() {
+        let count = (u64::MAX / 2) + 1;
+        assert_eq!(count.wrapping_mul(2), 0);
+        let shared = AdmissionPool::fixed(2, 32);
+        let study = ExecutionContext::for_tests(1).with_admission(shared.clone());
+        assert!(matches!(
+            study.acquire_admission_product(1, count, 2),
+            Err(AdmissionError::Overflow)
+        ));
+        assert!(matches!(
+            AdmissionRequest::try_product(1, count, 2),
+            Err(AdmissionError::Overflow)
+        ));
+        assert_eq!(shared.available(), AdmissionRemainder::new(2, 32));
+        assert_eq!(study.memory, MemoryBudget::unlimited());
+    }
+
+    #[test]
+    fn concurrent_child_scratch_cannot_exceed_the_parent_lease() {
+        let shared = AdmissionPool::fixed(4, 500);
+        let study = ExecutionContext::for_tests(1).with_admission(shared.clone());
+        let parent = study.acquire_admission(2, 100).unwrap();
+        let first = parent.acquire_child(1, 60).unwrap();
+        let second = parent.acquire_child(1, 50).unwrap_err();
+        assert!(matches!(
+            second,
+            AdmissionError::ExceedsRemainder {
+                requested_threads: 1,
+                requested_bytes: 50,
+                remaining_threads: 1,
+                remaining_bytes: 40,
+            }
+        ));
+        assert_eq!(first.remainder().bytes(), 60);
+        assert_eq!(parent.remainder().bytes(), 40);
+        assert_eq!(shared.available().bytes(), 400);
+        drop(first);
+        assert_eq!(parent.remainder(), AdmissionRemainder::new(2, 100));
+        drop(parent);
+        assert_eq!(shared.available(), AdmissionRemainder::new(4, 500));
     }
 }

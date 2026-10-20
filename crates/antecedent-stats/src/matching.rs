@@ -506,7 +506,11 @@ fn unbounded_context() -> ExecutionContext {
     ExecutionContext::production(0, 1)
 }
 
-/// Refuse when the context is cancelled or `bytes` exceeds its hard memory limit.
+/// Refuse when the context is cancelled, when `bytes` is `None` because the size
+/// math overflowed, or when `bytes` exceeds the hard memory limit.
+///
+/// `None` is not zero and is not allocated. The hard and soft limits are not
+/// decremented.
 pub(crate) fn check_budget(
     ctx: &ExecutionContext,
     what: &'static str,
@@ -515,10 +519,16 @@ pub(crate) fn check_budget(
     if ctx.cancellation.is_cancelled() {
         return Err(StatsError::Cancelled);
     }
+    let Some(required_bytes) = bytes else {
+        return Err(StatsError::ResourceLimit {
+            message: what,
+            required_bytes: u64::MAX,
+            limit_bytes: ctx.memory.hard_limit_bytes.unwrap_or(u64::MAX),
+        });
+    };
     let Some(limit_bytes) = ctx.memory.hard_limit_bytes else {
         return Ok(());
     };
-    let required_bytes = bytes.unwrap_or(u64::MAX);
     if required_bytes > limit_bytes {
         return Err(StatsError::ResourceLimit { message: what, required_bytes, limit_bytes });
     }
@@ -1282,6 +1292,55 @@ mod tests {
             idx.match_all_within(&[0.5, 0.5], 1, None, &mut donor_rows, &mut dist, &cancelled),
             Err(StatsError::Cancelled)
         ));
+    }
+
+    #[test]
+    fn unrepresentable_index_bytes_are_refused_before_allocation() {
+        assert_eq!(usize::MAX.wrapping_mul(usize::MAX), 1);
+        assert!(index_bytes(usize::MAX, usize::MAX, MatchingDistance::Euclidean).is_none());
+        let mut open = ctx();
+        open.memory.hard_limit_bytes = None;
+        open.memory.soft_limit_bytes = Some(8);
+        let error = check_budget(&open, "matching index", None).unwrap_err();
+        assert!(matches!(
+            error,
+            StatsError::ResourceLimit { required_bytes: u64::MAX, limit_bytes: u64::MAX, .. }
+        ));
+        assert!(open.memory.hard_limit_bytes.is_none());
+        assert_eq!(open.memory.soft_limit_bytes, Some(8));
+    }
+
+    #[test]
+    fn self_distance_workers_cannot_exceed_the_hard_limit() {
+        let n = 32usize;
+        let k = 3usize;
+        let dim = 2usize;
+        let one = ctx();
+        let mut many = ExecutionContext::production(1, 8);
+        let serial_bytes = self_distance_bytes(n, k, &one).unwrap();
+        let parallel_bytes = self_distance_bytes(n, k, &many).unwrap();
+        assert!(parallel_bytes > serial_bytes);
+        assert!(parallel_bytes <= serial_bytes.saturating_mul(8));
+        many.memory = antecedent_core::MemoryBudget {
+            soft_limit_bytes: Some(1),
+            hard_limit_bytes: Some(serial_bytes),
+        };
+        let mut out = vec![1.0; n];
+        let feats = vec![0.5; n * dim];
+        let error = MatchingIndex::kth_self_distances_within(
+            &feats,
+            n,
+            dim,
+            MatchingDistance::Euclidean,
+            k,
+            &mut out,
+            &many,
+        )
+        .unwrap_err();
+        assert!(matches!(error, StatsError::ResourceLimit { .. }));
+        assert!(out.iter().all(|value| *value == 1.0));
+        assert_eq!(many.memory.hard_limit_bytes, Some(serial_bytes));
+        assert_eq!(many.memory.soft_limit_bytes, Some(1));
     }
 
     #[test]

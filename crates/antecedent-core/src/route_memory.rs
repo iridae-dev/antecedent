@@ -774,4 +774,25 @@ mod tests {
         assert_eq!(two.total() - one.total(), scratch);
         assert_eq!(two.concurrent_workers(), scratch);
     }
+
+    #[test]
+    fn worker_scratch_product_overflow_is_refused() {
+        let scratch = (u64::MAX / 2) + 1;
+        assert_eq!(scratch.wrapping_mul(2), 0);
+        let declaration = RouteMemoryDeclaration::new()
+            .rows(1)
+            .encoded_column(EncodedWidth::float32())
+            .masks(0)
+            .design_expansion(0)
+            .learner_fold_copies(0, 0)
+            .solver_scratch(scratch)
+            .retained_scores_draws(0)
+            .output(0)
+            .workers(3);
+        assert_eq!(declaration.estimate(), Err(RouteMemoryError::Unrepresentable));
+        assert_eq!(
+            declaration.admit(RouteBudget::new(u64::MAX)),
+            Err(RouteMemoryError::Unrepresentable)
+        );
+    }
 }

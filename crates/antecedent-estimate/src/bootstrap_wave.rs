@@ -123,6 +123,16 @@ fn index_bytes(slots: usize) -> Result<u64, EstimationError> {
         })
 }
 
+/// Bytes of the retained `n × workers` index buffer.
+///
+/// # Errors
+///
+/// The product does not fit in an addressable allocation. A wrapping product is
+/// not returned and nothing is allocated.
+pub(crate) fn retained_index_bytes(n: usize, workers: usize) -> Result<u64, EstimationError> {
+    index_bytes(retained_index_slots(n, workers)?)
+}
+
 /// Retained IID bootstrap indexes for at most `width` replicates.
 ///
 /// The buffer length is `n * width`.
@@ -1375,5 +1385,15 @@ mod tests {
             admit_group_replicate_matrix(groups, replicates, RouteBudget::new(matrix_bytes))
                 .expect("a budget of the matrix size admits the estimate and allocates nothing");
         assert_eq!(admitted.total(), matrix_bytes);
+    }
+
+    #[test]
+    fn index_product_wrap_is_refused_before_allocation() {
+        let n = (usize::MAX / 2) + 1;
+        assert_eq!(n.wrapping_mul(2), 0);
+        let refused = retained_index_slots(n, 2).unwrap_err();
+        assert!(refused.to_string().contains("addressable capacity"), "{refused}");
+        assert!(retained_index_bytes(n, 2).is_err());
+        assert!(BootstrapIndexWave::allocate(n, 2).is_err());
     }
 }

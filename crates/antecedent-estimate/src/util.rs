@@ -17,7 +17,7 @@ use antecedent_stats::{
     form_xtx, invert_square,
 };
 
-use crate::bootstrap_wave::{cluster_worker_slots, fill_worker_replicate, retained_index_slots};
+use crate::bootstrap_wave::{cluster_worker_slots, fill_worker_replicate, retained_index_bytes};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 
@@ -345,7 +345,10 @@ pub(crate) fn bootstrap_se(
 /// Retained index memory is `n` times the worker count (one buffer on the serial and
 /// adaptive paths). Adaptive early-stop stays serial (the floor is a running success
 /// count). When an outer map already saturates the thread budget, `ctx` is serial and
-/// this path does not spawn.
+/// this path does not spawn. The worker count is also capped by the admission pool,
+/// and the index bytes are refused before any replicate runs when they overflow, sit
+/// above [`ExecutionContext::memory`]'s hard limit, or no longer fit in the pool.
+/// Neither limit is decremented.
 pub(crate) fn bootstrap_se_with_scratch<S, F>(
     replicates: u32,
     ctx: &ExecutionContext,
@@ -365,19 +368,59 @@ where
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
     let n_rep = replicates as usize;
-    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
-    let parallel = threads > 1 && !ctx.adaptive_bootstrap.enabled;
+    let workers = bootstrap_workers(ctx, n_rep);
     // One length-`n` buffer per worker. Adaptive early-stop does not spawn.
-    let workers = if parallel { threads } else { 1 };
-    retained_index_slots(n, workers)?;
+    refuse_bootstrap_scratch(ctx, n, workers)?;
     if ctx.cancellation.is_cancelled() {
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
     let rows = ReplicateRows::Rows { n, ctx, stream_base };
-    if parallel {
-        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, make_scratch, estimate);
+    if workers > 1 {
+        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, workers, make_scratch, estimate);
     }
     evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
+}
+
+/// Workers a bootstrap may run at once: the context's thread count, the replicate
+/// count, and the admission pool's free slots, whichever is smallest. One when the
+/// run stays on the caller.
+fn bootstrap_workers(ctx: &ExecutionContext, n_rep: usize) -> usize {
+    if n_rep < 2 || ctx.adaptive_bootstrap.enabled {
+        return 1;
+    }
+    let requested = usize::try_from(ctx.parallelism.max_threads.get()).unwrap_or(usize::MAX);
+    let requested = requested.clamp(1, n_rep);
+    if requested <= 1 {
+        return 1;
+    }
+    let budget = usize::try_from(ctx.admission().thread_budget()).unwrap_or(usize::MAX);
+    let free = usize::try_from(ctx.admission().available().threads()).unwrap_or(usize::MAX);
+    let cap = budget.min(free);
+    if cap <= 1 { 1 } else { requested.min(cap) }
+}
+
+/// Refuse an index buffer that overflowed, exceeds the hard byte limit, or no
+/// longer fits in the admission pool. This allocates nothing and does not
+/// decrement [`ExecutionContext::memory`].
+fn refuse_bootstrap_scratch(
+    ctx: &ExecutionContext,
+    n: usize,
+    workers: usize,
+) -> Result<(), EstimationError> {
+    let bytes = retained_index_bytes(n, workers)?;
+    if let Some(limit) = ctx.memory.hard_limit_bytes {
+        if bytes > limit {
+            return Err(EstimationError::data_msg(
+                "bootstrap index allocation exceeds the route budget",
+            ));
+        }
+    }
+    if bytes > ctx.admission().available().bytes() {
+        return Err(EstimationError::data_msg(
+            "admission pool cannot fund the bootstrap scratch",
+        ));
+    }
+    Ok(())
 }
 
 /// The rows of each cluster, in row order, for whole-cluster resampling.
@@ -474,18 +517,17 @@ where
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
     let n_rep = replicates as usize;
-    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
-    let parallel = threads > 1 && !ctx.adaptive_bootstrap.enabled;
-    let workers = if parallel { threads } else { 1 };
+    let workers = bootstrap_workers(ctx, n_rep);
     let limit = ctx.memory.hard_limit_bytes.unwrap_or(u64::MAX);
     // Judge the groups-by-replicates matrix, then keep one replicate per worker.
     cluster_worker_slots(clusters.row_count(), workers, groups, n_rep, RouteBudget::new(limit))?;
+    refuse_bootstrap_scratch(ctx, clusters.row_count(), workers)?;
     if ctx.cancellation.is_cancelled() {
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
     let rows = ReplicateRows::Clusters { members: clusters.members(), ctx, stream_base };
-    if parallel {
-        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, make_scratch, estimate);
+    if workers > 1 {
+        return evaluate_bootstrap_parallel(ctx, &rows, n_rep, workers, make_scratch, estimate);
     }
     evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
 }
@@ -607,6 +649,7 @@ fn evaluate_bootstrap_parallel<S, F>(
     ctx: &ExecutionContext,
     rows: &ReplicateRows<'_>,
     n_rep: usize,
+    workers: usize,
     make_scratch: impl Fn() -> S + Sync,
     estimate: F,
 ) -> Result<BootstrapSeResult, EstimationError>
@@ -614,7 +657,6 @@ where
     S: Send,
     F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
 {
-    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
     let mut slots: Vec<Option<Result<Option<f64>, EstimationError>>> =
         (0..n_rep).map(|_| None).collect();
     std::thread::scope(|scope| {
@@ -622,8 +664,8 @@ where
         let make_scratch = &make_scratch;
         let mut rest = slots.as_mut_slice();
         let mut start = 0usize;
-        for t in 0..threads {
-            let take = rest.len().div_ceil(threads - t);
+        for t in 0..workers {
+            let take = rest.len().div_ceil(workers - t);
             let (mine, next) = rest.split_at_mut(take);
             let begin = start;
             scope.spawn(move || {
@@ -859,10 +901,15 @@ pub(crate) fn range(values: &[f64]) -> (f64, f64) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+    use std::sync::{Arc, Barrier};
 
-    use antecedent_core::{AdaptiveBootstrapBudget, CancellationToken, ExecutionContext};
+    use antecedent_core::execution::AdmissionPool;
+    use antecedent_core::{
+        AdaptiveBootstrapBudget, CancellationToken, ExecutionContext, MemoryBudget,
+    };
+
+    use super::*;
 
     #[test]
     fn fixed_inverse_judges_singularity_scale_free() {
@@ -1158,5 +1205,77 @@ mod tests {
         .unwrap_err();
         assert_eq!(refused_calls.load(Ordering::Relaxed), 0);
         assert!(error.to_string().contains("route budget"), "{error}");
+    }
+
+    #[test]
+    fn bootstrap_workers_stay_within_the_pool() {
+        let shared = AdmissionPool::fixed(2, 1 << 20);
+        let mut ctx = ExecutionContext::production(3, 8).with_admission(shared.clone());
+        ctx.memory = MemoryBudget { soft_limit_bytes: Some(1), hard_limit_bytes: None };
+        let barrier = Arc::new(Barrier::new(2));
+        let inflight = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let n = 5usize;
+        let result = bootstrap_se(8, &ctx, 1, n, |idx| {
+            assert_eq!(idx.len(), n);
+            let now = inflight.fetch_add(1, Ordering::SeqCst).saturating_add(1);
+            peak.fetch_max(now, Ordering::SeqCst);
+            barrier.wait();
+            inflight.fetch_sub(1, Ordering::SeqCst);
+            Ok(Some(1.0))
+        })
+        .unwrap();
+        let widest = peak.load(Ordering::SeqCst);
+        assert_eq!(widest, 2);
+        let scratch_bytes = n * widest * size_of::<u64>();
+        assert!(scratch_bytes <= usize::try_from(shared.byte_budget()).unwrap());
+        assert_eq!(result.replicates_ok, 8);
+        assert_eq!(inflight.load(Ordering::SeqCst), 0);
+        assert_eq!(ctx.memory.soft_limit_bytes, Some(1));
+        assert!(ctx.memory.hard_limit_bytes.is_none());
+        assert_eq!(shared.available().threads(), 2);
+        assert_eq!(shared.available().bytes(), 1 << 20);
+    }
+
+    #[test]
+    fn bootstrap_scratch_above_the_hard_limit_is_refused_before_work() {
+        let n = 8usize;
+        let workers = 2usize;
+        let bytes = u64::try_from(n * workers * size_of::<u64>()).unwrap();
+        let mut ctx = ExecutionContext::production(1, u32::try_from(workers).unwrap());
+        ctx.memory = MemoryBudget { soft_limit_bytes: Some(1), hard_limit_bytes: Some(bytes - 1) };
+        let calls = AtomicUsize::new(0);
+        let error = bootstrap_se(4, &ctx, 1, n, |_| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Ok(Some(1.0))
+        })
+        .unwrap_err();
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert!(error.to_string().contains("route budget"), "{error}");
+        assert_eq!(ctx.memory.soft_limit_bytes, Some(1));
+        assert_eq!(ctx.memory.hard_limit_bytes, Some(bytes - 1));
+    }
+
+    #[test]
+    fn bootstrap_refuses_when_the_pool_cannot_fund_scratch() {
+        let n = 8usize;
+        let workers = 2usize;
+        let bytes = u64::try_from(n * workers * size_of::<u64>()).unwrap();
+        let shared = AdmissionPool::fixed(u32::try_from(workers).unwrap(), bytes - 1);
+        let mut ctx = ExecutionContext::production(1, u32::try_from(workers).unwrap())
+            .with_admission(shared.clone());
+        ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: None };
+        let calls = AtomicUsize::new(0);
+        let error = bootstrap_se(4, &ctx, 1, n, |_| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Ok(Some(1.0))
+        })
+        .unwrap_err();
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert!(error.to_string().contains("cannot fund"), "{error}");
+        assert_eq!(shared.available().threads(), u32::try_from(workers).unwrap());
+        assert_eq!(shared.available().bytes(), bytes - 1);
+        assert!(ctx.memory.hard_limit_bytes.is_none());
+        assert_eq!(ctx.memory.soft_limit_bytes, None);
     }
 }

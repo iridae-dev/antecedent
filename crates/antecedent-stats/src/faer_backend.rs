@@ -595,6 +595,24 @@ fn thin_svd_in_scope(
 )]
 mod tests {
     #[test]
+    fn counted_bytes_saturates_instead_of_wrapping() {
+        assert_eq!(usize::MAX.wrapping_mul(usize::MAX), 1);
+        assert_eq!(counted_bytes(usize::MAX, usize::MAX), u64::MAX);
+    }
+
+    #[test]
+    fn scratch_above_the_budget_is_refused_before_allocation() {
+        let scope = FaerScope::try_new(2, 8).unwrap();
+        assert_eq!(scope.parallelism().degree(), 2);
+        let mut scratch = FactorScratch::new();
+        let error = scratch.ensure(scope, StackReq::new::<u8>(9)).unwrap_err();
+        assert!(matches!(error, StatsError::Backend(_)));
+        assert!(!scratch.is_allocated());
+        assert_eq!(scratch.bytes(), 0);
+        assert_eq!(scope.scratch_budget(), 8);
+    }
+
+    #[test]
     fn review_qr_rank_is_invariant_to_design_units() {
         for scale in [1e-30, 1.0, 1e30] {
             let x = [scale, scale, scale, scale, 0.0, scale, 2.0 * scale, 3.0 * scale];

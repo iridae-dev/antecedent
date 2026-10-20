@@ -236,6 +236,22 @@ mod tests {
         assert_ne!(empty_budget.workers(), scope.workers());
     }
 
+    #[test]
+    fn scratch_buffer_above_the_budget_is_refused() {
+        let scope = FaerScope::try_new(3, 4).unwrap();
+        assert_eq!(scope.workers(), 3);
+        assert_eq!(scope.parallelism().degree(), 3);
+        assert!(scope.parallelism().degree() <= usize::try_from(scope.workers()).unwrap());
+        let Err(error) = scope.scratch_buffer(StackReq::new::<u8>(5)) else {
+            panic!("a scratch request above the budget must be refused");
+        };
+        assert_eq!(
+            error,
+            FaerScopeError::ScratchOverBudget { required_bytes: 5, budget_bytes: 4 }
+        );
+        assert_eq!(scope.scratch_budget(), 4);
+    }
+
     fn assert_no_default<T: ?Sized>() {
         struct Marker;
         trait Probe<A> {

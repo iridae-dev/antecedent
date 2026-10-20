@@ -792,6 +792,12 @@ pub(crate) fn fill_resample_weight_batch(
 /// Run `fill` for every replicate `r` and copy its length-`n` result into row `r` of the
 /// replicate-major `out`. Replicates are independent (each derives its own RNG stream), so
 /// the output does not depend on the thread count; the first error wins.
+///
+/// Scratch is one length-`n` buffer per worker. The worker count does not exceed
+/// the admission pool. A product that overflows, a byte count above the hard
+/// limit, or a pool that cannot fund that scratch returns before `fill` runs
+/// and before any scratch buffer is allocated. [`ExecutionContext::memory`] is
+/// not decremented.
 fn fill_replicate_rows<T: Copy + Send>(
     ctx: &ExecutionContext,
     n: usize,
@@ -799,8 +805,9 @@ fn fill_replicate_rows<T: Copy + Send>(
     out: &mut [T],
     fill: impl Fn(usize, &mut Vec<T>) -> Result<(), DataError> + Sync,
 ) -> Result<(), DataError> {
-    let threads = ctx.parallelism.max_threads.get().max(1) as usize;
-    if threads == 1 || n_replicates < 2 {
+    let workers = resample_workers(ctx, n_replicates);
+    admit_resample_scratch::<T>(ctx, n, workers)?;
+    if workers == 1 {
         let mut scratch = Vec::with_capacity(n);
         for r in 0..n_replicates {
             fill(r, &mut scratch)?;
@@ -808,7 +815,7 @@ fn fill_replicate_rows<T: Copy + Send>(
         }
         return Ok(());
     }
-    let chunk = n_replicates.div_ceil(threads);
+    let chunk = n_replicates.div_ceil(workers);
     let err = std::sync::Mutex::new(None::<DataError>);
     std::thread::scope(|scope| {
         let mut rest = out;
@@ -838,6 +845,57 @@ fn fill_replicate_rows<T: Copy + Send>(
     });
     if let Some(e) = err.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner) {
         return Err(e);
+    }
+    Ok(())
+}
+
+/// Workers for one batch: the context's thread count, the replicate count, and
+/// the admission pool's free slots, whichever is smallest. One stays on the caller.
+fn resample_workers(ctx: &ExecutionContext, n_replicates: usize) -> usize {
+    if n_replicates < 2 {
+        return 1;
+    }
+    let requested = usize::try_from(ctx.parallelism.max_threads.get()).unwrap_or(usize::MAX);
+    let requested = requested.clamp(1, n_replicates);
+    if requested <= 1 {
+        return 1;
+    }
+    let budget = usize::try_from(ctx.admission().thread_budget()).unwrap_or(usize::MAX);
+    let free = usize::try_from(ctx.admission().available().threads()).unwrap_or(usize::MAX);
+    let cap = budget.min(free);
+    if cap <= 1 { 1 } else { requested.min(cap) }
+}
+
+/// Bytes of `workers` length-`n` scratch buffers of `T`.
+///
+/// # Errors
+///
+/// The product does not fit in `u64`, the hard byte limit is lower, or the
+/// admission pool's free bytes cannot fund it. Nothing is allocated.
+fn admit_resample_scratch<T>(
+    ctx: &ExecutionContext,
+    n: usize,
+    workers: usize,
+) -> Result<(), DataError> {
+    let width = size_of::<T>();
+    let bytes = n
+        .checked_mul(workers)
+        .and_then(|slots| slots.checked_mul(width))
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| DataError::InvalidArgument {
+            message: "resample scratch size overflow".into(),
+        })?;
+    if let Some(limit) = ctx.memory.hard_limit_bytes {
+        if bytes > limit {
+            return Err(DataError::InvalidArgument {
+                message: "resample scratch exceeds the hard byte limit".into(),
+            });
+        }
+    }
+    if bytes > ctx.admission().available().bytes() {
+        return Err(DataError::InvalidArgument {
+            message: "admission pool cannot fund the resample scratch".into(),
+        });
     }
     Ok(())
 }
@@ -1024,9 +1082,13 @@ fn apply_row_map(data: &TimeSeriesData, row_map: &[GlobalId]) -> Result<TimeSeri
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Barrier};
+
+    use antecedent_core::execution::AdmissionPool;
     use antecedent_core::{
-        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-        VariableId,
+        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, MemoryBudget, RoleHint,
+        SmallRoleSet, ValueType, VariableId,
     };
 
     use super::*;
@@ -1470,6 +1532,102 @@ mod tests {
         for error in [index_error, weight_error] {
             assert!(error.to_string().contains("overflow"));
         }
+    }
+
+    #[test]
+    fn resample_workers_stay_within_the_pool() {
+        let n = 4usize;
+        let replicates = 8usize;
+        let scratch_bytes = u64::try_from(n * 2 * size_of::<u64>()).unwrap();
+        let shared = AdmissionPool::fixed(2, scratch_bytes);
+        let mut ctx = ExecutionContext::production(1, 8).with_admission(shared.clone());
+        ctx.memory = MemoryBudget { soft_limit_bytes: Some(1), hard_limit_bytes: None };
+        let barrier = Arc::new(Barrier::new(2));
+        let inflight = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let mut out = vec![0u64; n * replicates];
+        fill_replicate_rows(&ctx, n, replicates, &mut out, |_, scratch| {
+            assert!(scratch.len() <= n);
+            let now = inflight.fetch_add(1, Ordering::SeqCst).saturating_add(1);
+            peak.fetch_max(now, Ordering::SeqCst);
+            barrier.wait();
+            inflight.fetch_sub(1, Ordering::SeqCst);
+            scratch.clear();
+            scratch.resize(n, 0);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(peak.load(Ordering::SeqCst), 2);
+        assert!(n * 2 * size_of::<u64>() <= usize::try_from(shared.byte_budget()).unwrap());
+        assert_eq!(inflight.load(Ordering::SeqCst), 0);
+        assert_eq!(ctx.memory.soft_limit_bytes, Some(1));
+        assert!(ctx.memory.hard_limit_bytes.is_none());
+        assert_eq!(shared.available().threads(), 2);
+        assert_eq!(shared.available().bytes(), scratch_bytes);
+    }
+
+    #[test]
+    fn resample_scratch_above_the_hard_limit_is_refused_before_work() {
+        let n = 4usize;
+        let replicates = 2usize;
+        let bytes = u64::try_from(n * size_of::<GlobalId>()).unwrap();
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.memory = MemoryBudget { soft_limit_bytes: Some(1), hard_limit_bytes: Some(bytes - 1) };
+        let mut out = vec![GlobalId::new(9); n * replicates];
+        let error = fill_resample_index_batch(
+            ResamplingPlan::IidBootstrap,
+            n,
+            replicates,
+            None,
+            &ctx,
+            0,
+            &mut out,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("hard byte limit"), "{error}");
+        assert!(out.iter().all(|id| id.get() == 9));
+        assert_eq!(ctx.memory.soft_limit_bytes, Some(1));
+        assert_eq!(ctx.memory.hard_limit_bytes, Some(bytes - 1));
+    }
+
+    #[test]
+    fn resample_scratch_overflow_is_refused_before_allocation() {
+        let ctx = ExecutionContext::for_tests(1);
+        let width = size_of::<u64>();
+        let n = (usize::MAX / width) + 1;
+        assert_eq!(n.wrapping_mul(width), 0);
+        let calls = AtomicUsize::new(0);
+        let mut out = [0u64; 0];
+        let error = fill_replicate_rows(&ctx, n, 1, &mut out, |_, _| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+        .unwrap_err();
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert!(error.to_string().contains("overflow"), "{error}");
+        assert_eq!(ctx.memory, MemoryBudget::unlimited());
+    }
+
+    #[test]
+    fn resample_refuses_when_the_pool_cannot_fund_scratch() {
+        let n = 4usize;
+        let replicates = 8usize;
+        let bytes = u64::try_from(n * 2 * size_of::<u64>()).unwrap();
+        let shared = AdmissionPool::fixed(2, bytes - 1);
+        let ctx = ExecutionContext::production(1, 8).with_admission(shared.clone());
+        let calls = AtomicUsize::new(0);
+        let mut out = vec![7u64; n * replicates];
+        let error = fill_replicate_rows(&ctx, n, replicates, &mut out, |_, _| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+        .unwrap_err();
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert!(error.to_string().contains("cannot fund"), "{error}");
+        assert!(out.iter().all(|value| *value == 7));
+        assert_eq!(shared.available().threads(), 2);
+        assert_eq!(shared.available().bytes(), bytes - 1);
+        assert!(ctx.memory.hard_limit_bytes.is_none());
     }
 
     #[test]
