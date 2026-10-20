@@ -167,23 +167,42 @@ impl OwnedSource {
     }
 
     /// Declare a validity policy. This does not reinterpret stored bytes.
-    #[must_use]
-    pub(crate) fn with_validity(mut self, validity: ValidityPolicy) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// [`ValidityPolicy::NullDistinctFromNan`] is named but not adopted: f64 columns are
+    /// invalid exactly when the value is NaN. The snapshot contract refuses it too.
+    pub(crate) fn with_validity(mut self, validity: ValidityPolicy) -> Result<Self, DataError> {
+        if matches!(validity, ValidityPolicy::NullDistinctFromNan) {
+            return Err(DataError::InvalidArgument {
+                message: "null-distinct-from-NaN validity is declared but not adopted; f64 columns are invalid exactly when the value is NaN".into(),
+            });
+        }
         self.contract.validity = validity;
-        self
+        Ok(self)
     }
 
     /// Projection identity for `columns`. It is not the full-source digest.
     ///
     /// # Errors
     ///
-    /// A column id past the schema.
+    /// An empty list, a repeated column, or a column id past the schema.
     pub(crate) fn project(&self, columns: &[u32]) -> Result<SnapshotContract, DataError> {
+        if columns.is_empty() {
+            return Err(DataError::InvalidArgument {
+                message: "a column projection names no variables and is not the full source".into(),
+            });
+        }
         let width = u32::try_from(self.contract.schema_names.len()).unwrap_or(u32::MAX);
-        for &column in columns {
+        for (index, &column) in columns.iter().enumerate() {
             if column >= width {
                 return Err(DataError::InvalidArgument {
                     message: format!("projected column {column} is outside the schema"),
+                });
+            }
+            if columns[..index].contains(&column) {
+                return Err(DataError::InvalidArgument {
+                    message: "column projection repeats a variable".into(),
                 });
             }
         }
@@ -340,6 +359,8 @@ mod tests {
         let again = owned.project(&[0]).unwrap();
         assert_eq!(projected, again);
         assert!(owned.project(&[3]).is_err());
+        assert!(owned.project(&[]).is_err());
+        assert!(owned.project(&[0, 0]).is_err());
     }
 
     #[test]
@@ -363,10 +384,14 @@ mod tests {
             .with_splits(vec![SplitSpan { label: Arc::from("train"), rows: 0..2 }])
             .unwrap();
         let cohort = owned.clone().with_cohort(CohortOrder::Labeled(Arc::from("arrival")));
-        let validity = owned.clone().with_validity(ValidityPolicy::NullDistinctFromNan);
+        assert!(matches!(
+            owned.clone().with_validity(ValidityPolicy::NullDistinctFromNan),
+            Err(DataError::InvalidArgument { .. })
+        ));
+        let same = owned.clone().with_validity(ValidityPolicy::F64InvalidIffNan).unwrap();
+        assert_eq!(owned.contract(), same.contract());
         assert_ne!(owned.contract(), split.contract());
         assert_ne!(owned.contract(), cohort.contract());
-        assert_ne!(owned.contract(), validity.contract());
         assert_eq!(owned.contract().full_digest(), split.contract().full_digest());
         assert!(
             owned.with_splits(vec![SplitSpan { label: Arc::from("bad"), rows: 0..9 }]).is_err()

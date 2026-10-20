@@ -11,8 +11,13 @@
 //! legal next attempts: attach a named identifying restriction on a separate
 //! [`AssumptionBranch`], or report an [`OrdinaryBayesianLikelihood`] posterior under
 //! the declared likelihood. [`OrdinaryBayesianLikelihood::with_identifying_restriction`]
-//! does the first. The restriction enters only the branch identity. The posterior
-//! identity stays the likelihood and the prior.
+//! does the first. The restriction enters the branch identity, and the posterior
+//! identity stays the likelihood and the prior. A [`RestrictedPosterior`] has its own
+//! identity over both, so two restrictions on one posterior never share a key.
+//!
+//! Likelihoods, priors, scores, and losses are declared by name only. The name is the
+//! identity: two parameterisations of one family (a prior at two scales, a likelihood
+//! at two link functions) must be declared under two names, or they collide.
 //!
 //! [`GeneralizedBayes`] records a loss, a prior, and an explicit learning rate `w > 0`,
 //! the weight in Bissiri, Holmes and Walker (2016, arXiv 1306.6430), Sections 2 and 3.
@@ -41,6 +46,10 @@ pub const GENERALIZED_BAYES_TAG: &str = "antecedent.inference_realization.genera
 pub const PARTIAL_IDENTIFICATION_ENVELOPE_TAG: &str =
     "antecedent.inference_realization.partial_identification_envelope.v1";
 
+/// Identity tag for a posterior together with its identifying restriction.
+pub const RESTRICTED_POSTERIOR_TAG: &str =
+    "antecedent.inference_realization.restricted_posterior.v1";
+
 /// Identity tag for the assumption branch that holds an identifying restriction.
 pub const ASSUMPTION_BRANCH_TAG: &str = "antecedent.inference_realization.assumption_branch.v1";
 
@@ -54,6 +63,8 @@ pub enum DeclarationError {
 }
 
 /// Declared likelihood of an ordinary Bayesian posterior.
+///
+/// The name is the identity. Declare each parameterisation under its own name.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct LikelihoodModel {
     name: Arc<str>,
@@ -83,7 +94,7 @@ impl fmt::Display for LikelihoodModel {
     }
 }
 
-/// Declared score or estimating equation.
+/// Declared score or estimating equation. The name is the identity.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ScoreModel {
     name: Arc<str>,
@@ -113,7 +124,7 @@ impl fmt::Display for ScoreModel {
     }
 }
 
-/// Declared loss of a generalized posterior.
+/// Declared loss of a generalized posterior. The name is the identity.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct LossModel {
     name: Arc<str>,
@@ -144,6 +155,9 @@ impl fmt::Display for LossModel {
 }
 
 /// Prior belief used by a posterior realization.
+///
+/// The name is the identity: hyperparameters are not carried, so a prior at two
+/// scales must be declared under two names.
 ///
 /// The prior narrows that posterior. It does not identify a causal effect from
 /// the observations. [`Self::as_observational_identification`] is the refused attempt.
@@ -514,7 +528,8 @@ impl PartialIdentificationEnvelope {
 /// Assumption branch that holds one identifying restriction.
 ///
 /// The branch identity is not the posterior identity. Changing the restriction
-/// changes this digest and leaves the likelihood-and-prior digest unchanged.
+/// changes this digest and leaves the likelihood-and-prior digest unchanged; the
+/// pair is keyed by [`RestrictedPosterior::identity`].
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AssumptionBranch {
     restriction: IdentifyingRestriction,
@@ -558,6 +573,18 @@ impl RestrictedPosterior {
     #[must_use]
     pub const fn assumption_branch(&self) -> &AssumptionBranch {
         &self.assumption_branch
+    }
+
+    /// Digest of the posterior identity and the restriction branch identity.
+    ///
+    /// [`Self::posterior`] alone does not change with the restriction. Use this
+    /// digest as the key of the restricted result.
+    #[must_use]
+    pub fn identity(&self) -> SemanticDigest {
+        let mut writer = CanonicalWriter::new(RESTRICTED_POSTERIOR_TAG);
+        writer.bytes(self.posterior.identity().as_bytes());
+        writer.bytes(self.assumption_branch.identity().as_bytes());
+        SemanticDigest::from_bytes(writer.finish())
     }
 }
 
@@ -880,6 +907,8 @@ mod tests {
         assert_eq!(identified.posterior().likelihood().name(), "gaussian");
         assert_eq!(identified.assumption_branch().restriction().name(), "exclusion");
         assert_ne!(identified.posterior().identity(), identified.assumption_branch().identity());
+        assert_ne!(identified.identity(), unrestricted);
+        assert_eq!(identified.identity(), identified.clone().identity());
 
         let other = IdentifyingRestriction::new("monotonicity").unwrap();
         let alternative = posterior.with_identifying_restriction(other);
@@ -888,6 +917,8 @@ mod tests {
             identified.assumption_branch().identity(),
             alternative.assumption_branch().identity()
         );
+        // The posterior alone cannot tell the two restrictions apart; the restricted result can.
+        assert_ne!(identified.identity(), alternative.identity());
 
         let shared_name = OrdinaryBayesianLikelihood::new(likelihood("gaussian"), prior("effect"))
             .with_identifying_restriction(IdentifyingRestriction::new("effect").unwrap());

@@ -6,7 +6,7 @@
 //! and graph or model assumptions. A static analysis is the one-decision-time
 //! specialization. It is not implied by a horizon of one.
 //!
-//! X01 assembles a contrast of intervention worlds as one target. The reference
+//! A contrast assembles intervention worlds as one target. The reference
 //! intervention is an explicit world, not the absence of treatment. A dose × time
 //! surface is a declared grid of those worlds. Mediation is a separate target:
 //! it carries cross-world premises, and a contrast does not construct it.
@@ -16,15 +16,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use crate::assumption::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus,
-};
+use crate::assumption::{Assumption, AssumptionRecord, AssumptionScope, AssumptionSet};
 use crate::callback::{CallbackImplementation, CallbackOutput, Portability};
 use crate::identity::{CanonicalWriter, SemanticDigest};
 use crate::ids::VariableId;
@@ -38,7 +35,7 @@ use crate::value_expr::{ArithOp, CompareOp, LogicOp, PolicyReads, ValueExpr};
 pub const SCIENTIFIC_TARGET_IDENTITY_TAG: &str = "antecedent.scientific_target.v1";
 
 /// Payload version written after the domain tag. Bump when the canonical fields change.
-pub const SCIENTIFIC_TARGET_FORMAT: u16 = 1;
+pub const SCIENTIFIC_TARGET_FORMAT: u16 = 2;
 
 /// Refusal from a scientific-target constructor.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -149,6 +146,23 @@ pub enum ScientificTargetError {
         /// Shared id.
         id: VariableId,
     },
+    /// A temporal policy reaches outside the target's horizon.
+    #[error("temporal policy {policy} lies outside the target horizon of {horizon_steps} steps")]
+    PolicyOutsideHorizon {
+        /// Horizon of the frame the policy was declared under.
+        horizon_steps: u32,
+        /// Short description of the offending policy.
+        policy: String,
+    },
+    /// The worlds of a contrast do not realise the contrast's formula.
+    #[error("contrast worlds do not realise the formula: {reason}")]
+    IncoherentContrast {
+        /// What about the four-world or two-world structure failed.
+        reason: &'static str,
+    },
+    /// A mediation target compares an arm with itself.
+    #[error("mediation control and active arms are the same intervention")]
+    MediationArmsNotDistinct,
     /// A mediation arm does not assign the treatment.
     #[error("intervention targets {got}, expected treatment {expected}")]
     InterventionVariableMismatch {
@@ -506,7 +520,9 @@ pub enum GraphFamily {
 
 /// Graph family plus the assumption records the target is conditional on.
 ///
-/// Record order is part of the identity. A prior entered as an identifying
+/// The identity is the sorted, de-duplicated set of (assumption, scope) pairs. Record
+/// order, repeats, source, and status (a diagnostic may move `Declared` to
+/// `Supported`) are not part of it. A prior entered as an identifying
 /// restriction changes the identity. Choosing a frequentist or Bayesian
 /// realization does not: that is [`InferenceSelection`].
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -652,6 +668,7 @@ impl WorldAction {
         intervention: Intervention,
         policy: TemporalPolicy,
     ) -> Result<Self, ScientificTargetError> {
+        let intervention = canonical_intervention(intervention);
         ensure_portable(&intervention)?;
         policy
             .validate()
@@ -681,7 +698,8 @@ impl WorldAction {
 fn canonical_interventions(
     interventions: impl IntoIterator<Item = Intervention>,
 ) -> Result<Arc<[Intervention]>, ScientificTargetError> {
-    let mut interventions: Vec<Intervention> = interventions.into_iter().collect();
+    let mut interventions: Vec<Intervention> =
+        interventions.into_iter().map(canonical_intervention).collect();
     if interventions.is_empty() {
         return Err(ScientificTargetError::InvalidAction {
             reason: "a world needs at least one intervention".into(),
@@ -709,10 +727,86 @@ fn ensure_portable(intervention: &Intervention) -> Result<(), ScientificTargetEr
     intervention
         .validate()
         .map_err(|err| ScientificTargetError::InvalidAction { reason: err.to_string() })?;
+    ensure_concrete_levels(intervention)?;
     match intervention.portability() {
         Portability::Portable => Ok(()),
         Portability::Recoverable(_) | Portability::RuntimeBound { .. } => {
             Err(ScientificTargetError::CallbackAction)
+        }
+    }
+}
+
+/// A world names a level it can be evaluated at, never the symbolic `do(V)` marker.
+fn ensure_concrete_levels(intervention: &Intervention) -> Result<(), ScientificTargetError> {
+    match intervention {
+        Intervention::Set { value: level, .. } | Intervention::Shift { delta: level, .. } => level
+            .validate_concrete_intervention_level()
+            .map_err(|err| ScientificTargetError::InvalidAction { reason: err.to_string() }),
+        Intervention::Sequence(sequence) => {
+            sequence.steps.iter().try_for_each(|step| ensure_concrete_levels(&step.intervention))
+        }
+        Intervention::Stochastic { .. }
+        | Intervention::Soft { .. }
+        | Intervention::Transform { .. }
+        | Intervention::Assign { .. } => Ok(()),
+    }
+}
+
+/// `-0.0` levels are stored as `+0.0`, so the two spellings are one world.
+fn canonical_intervention(intervention: Intervention) -> Intervention {
+    let zero = |value: Value| match value {
+        Value::Float64(number) if number.to_bits() == (-0.0_f64).to_bits() => Value::Float64(0.0),
+        other => other,
+    };
+    match intervention {
+        Intervention::Set { variable, value } => Intervention::Set { variable, value: zero(value) },
+        Intervention::Shift { variable, delta } => {
+            Intervention::Shift { variable, delta: zero(delta) }
+        }
+        other => other,
+    }
+}
+
+/// Offsets are relative to the policy origin. A pulse or window may lead the origin
+/// by at most the horizon (the outcome-lag convention) and may not extend past it.
+fn ensure_policy_within_horizon(
+    policy: &TemporalPolicy,
+    time: &TimeFrame,
+) -> Result<(), ScientificTargetError> {
+    let Some(horizon) = time.horizon_steps() else {
+        return Ok(());
+    };
+    let bound = i64::from(horizon);
+    let inside = |step: i32| (-bound..=bound).contains(&i64::from(step));
+    let ok = match policy {
+        TemporalPolicy::Pulse { at } => inside(*at),
+        TemporalPolicy::Sustained { from, until } => inside(*from) && inside(*until),
+        TemporalPolicy::Dynamic { active_at, .. } => active_at.iter().all(|step| inside(*step)),
+    };
+    if ok {
+        Ok(())
+    } else {
+        Err(ScientificTargetError::PolicyOutsideHorizon {
+            horizon_steps: horizon,
+            policy: format!("{policy:?}"),
+        })
+    }
+}
+
+fn ensure_action_within_horizon(
+    action: &WorldAction,
+    time: &TimeFrame,
+) -> Result<(), ScientificTargetError> {
+    match &action.kind {
+        ActionKind::Interventions(_) => Ok(()),
+        ActionKind::Schedule { intervention, policy } => {
+            ensure_policy_within_horizon(policy, time)?;
+            if let Intervention::Sequence(sequence) = intervention {
+                for step in sequence.steps.iter() {
+                    ensure_policy_within_horizon(&step.temporal, time)?;
+                }
+            }
+            Ok(())
         }
     }
 }
@@ -744,7 +838,9 @@ impl InterventionWorld {
     ///
     /// # Errors
     ///
-    /// [`ScientificTargetError::MismatchedActionTime`] when the action and the frame disagree.
+    /// [`ScientificTargetError::MismatchedActionTime`] when the action and the frame disagree,
+    /// or [`ScientificTargetError::PolicyOutsideHorizon`] when a schedule reaches outside
+    /// the frame's horizon.
     pub fn new(
         id: ScientificWorldId,
         action: WorldAction,
@@ -755,6 +851,7 @@ impl InterventionWorld {
         if !action_matches_time(&action, &time) {
             return Err(ScientificTargetError::MismatchedActionTime);
         }
+        ensure_action_within_horizon(&action, &time)?;
         Ok(Self { id, action, reference, binding, time })
     }
 
@@ -925,7 +1022,9 @@ impl InterventionContrast {
     /// # Errors
     ///
     /// See [`ScientificTargetError`] for an unknown, repeated, extra, or unflagged
-    /// world, a reference that is not the baseline, or worlds whose time frames differ.
+    /// world, a reference that is not the baseline, worlds whose time frames differ, or
+    /// [`ScientificTargetError::IncoherentContrast`] when the two worlds do not assign
+    /// the same coordinates.
     pub fn difference(
         worlds: WorldCollection,
         plus: ScientificWorldId,
@@ -938,18 +1037,25 @@ impl InterventionContrast {
         }
         require_one_reference(&worlds, reference)?;
         require_same_time(&worlds)?;
+        require_coherent_difference(&worlds, plus, minus)?;
         Ok(Self { worlds, form: ContrastForm::Difference { plus, minus }, reference })
     }
 
     /// Interaction `E[Y(a,b)] − E[Y(a,0)] − E[Y(0,b)] + E[Y(0,0)]`.
     ///
-    /// `reference` is the world `Y(0,0)`. The four worlds share one time frame.
+    /// `reference` is the world `Y(0,0)`. The four worlds share one time frame and
+    /// assign the same coordinates (a variable's level, or the schedule). Two disjoint
+    /// factors `A` and `B` each move away from the reference: `a_at_reference` changes
+    /// only `A`, `b_at_reference` only `B`, and `joint` takes both. The reference level
+    /// is whatever the reference world assigns, not necessarily zero.
     /// There is no constructor that builds this from four separately estimated intervals.
     ///
     /// # Errors
     ///
     /// See [`ScientificTargetError`] for an unknown, repeated, extra, or wrongly
-    /// flagged world, or worlds whose time frames differ.
+    /// flagged world, worlds whose time frames differ, or
+    /// [`ScientificTargetError::IncoherentContrast`] when the four worlds are not the
+    /// 2x2 cells `Y(a,b)`, `Y(a,0)`, `Y(0,b)`, `Y(0,0)` of two disjoint factors.
     pub fn interaction(
         worlds: WorldCollection,
         joint: ScientificWorldId,
@@ -960,6 +1066,7 @@ impl InterventionContrast {
         require_ids(&worlds, &[joint, a_at_reference, b_at_reference, reference])?;
         require_one_reference(&worlds, reference)?;
         require_same_time(&worlds)?;
+        require_coherent_interaction(&worlds, joint, a_at_reference, b_at_reference, reference)?;
         Ok(Self {
             worlds,
             form: ContrastForm::Interaction { joint, a_at_reference, b_at_reference },
@@ -1060,6 +1167,119 @@ fn require_same_time(worlds: &WorldCollection) -> Result<(), ScientificTargetErr
     } else {
         Ok(())
     }
+}
+
+/// What a world fixes: a variable's intervention, or the schedule it runs under.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+enum Coordinate {
+    Variable(VariableId),
+    Schedule,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Assigned<'a> {
+    Intervention(&'a Intervention),
+    Schedule(&'a TemporalPolicy),
+}
+
+fn coordinates(world: &InterventionWorld) -> BTreeMap<Coordinate, Assigned<'_>> {
+    let mut map = BTreeMap::new();
+    match &world.action.kind {
+        ActionKind::Interventions(interventions) => {
+            for intervention in interventions.iter() {
+                for variable in intervention.target_variables() {
+                    map.insert(
+                        Coordinate::Variable(variable),
+                        Assigned::Intervention(intervention),
+                    );
+                }
+            }
+        }
+        ActionKind::Schedule { intervention, policy } => {
+            for variable in intervention.target_variables() {
+                map.insert(Coordinate::Variable(variable), Assigned::Intervention(intervention));
+            }
+            map.insert(Coordinate::Schedule, Assigned::Schedule(policy));
+        }
+    }
+    map
+}
+
+fn incoherent(reason: &'static str) -> ScientificTargetError {
+    ScientificTargetError::IncoherentContrast { reason }
+}
+
+fn require_coherent_difference(
+    worlds: &WorldCollection,
+    plus: ScientificWorldId,
+    minus: ScientificWorldId,
+) -> Result<(), ScientificTargetError> {
+    let (Some(plus), Some(minus)) = (worlds.get(plus), worlds.get(minus)) else {
+        return Err(ScientificTargetError::EmptyWorlds);
+    };
+    let plus = coordinates(plus);
+    let minus = coordinates(minus);
+    if !plus.keys().eq(minus.keys()) {
+        return Err(incoherent("the two worlds assign different variables or schedules"));
+    }
+    if plus == minus {
+        return Err(incoherent("the two worlds are the same intervention"));
+    }
+    Ok(())
+}
+
+fn require_coherent_interaction(
+    worlds: &WorldCollection,
+    joint: ScientificWorldId,
+    a_at_reference: ScientificWorldId,
+    b_at_reference: ScientificWorldId,
+    reference: ScientificWorldId,
+) -> Result<(), ScientificTargetError> {
+    let (Some(joint), Some(a_world), Some(b_world), Some(reference)) = (
+        worlds.get(joint),
+        worlds.get(a_at_reference),
+        worlds.get(b_at_reference),
+        worlds.get(reference),
+    ) else {
+        return Err(ScientificTargetError::EmptyWorlds);
+    };
+    let joint = coordinates(joint);
+    let a_world = coordinates(a_world);
+    let b_world = coordinates(b_world);
+    let reference = coordinates(reference);
+    for other in [&joint, &a_world, &b_world] {
+        if !other.keys().eq(reference.keys()) {
+            return Err(incoherent("the four worlds assign different variables or schedules"));
+        }
+    }
+    let mut moves_a = false;
+    let mut moves_b = false;
+    for (coordinate, at_reference) in &reference {
+        let a = a_world[coordinate];
+        let b = b_world[coordinate];
+        let both = joint[coordinate];
+        let a_moves = a != *at_reference;
+        let b_moves = b != *at_reference;
+        if a_moves && b_moves {
+            return Err(incoherent("the two factors move the same variable or schedule"));
+        }
+        let expected = if a_moves {
+            a
+        } else if b_moves {
+            b
+        } else {
+            *at_reference
+        };
+        if both != expected {
+            return Err(incoherent("the joint world is not the reference moved by both factors"));
+        }
+        moves_a |= a_moves;
+        moves_b |= b_moves;
+    }
+    if !moves_a || !moves_b {
+        return Err(incoherent("each factor must move away from the reference"));
+    }
+    Ok(())
 }
 
 /// Dose × time surface: one world for every dose on every horizon.
@@ -1307,6 +1527,7 @@ impl MediationArms {
     ///
     /// [`ScientificTargetError::EmptyMediators`], [`ScientificTargetError::MediatorOverlap`],
     /// [`ScientificTargetError::InterventionVariableMismatch`],
+    /// [`ScientificTargetError::MediationArmsNotDistinct`],
     /// [`ScientificTargetError::InvalidAction`], or [`ScientificTargetError::CallbackAction`].
     pub fn new(
         treatment: VariableId,
@@ -1324,8 +1545,13 @@ impl MediationArms {
         if mediators.contains(&treatment) {
             return Err(ScientificTargetError::MediatorOverlap);
         }
+        let control = canonical_intervention(control);
+        let active = canonical_intervention(active);
         expect_treatment(&control, treatment)?;
         expect_treatment(&active, treatment)?;
+        if control == active {
+            return Err(ScientificTargetError::MediationArmsNotDistinct);
+        }
         Ok(Self { treatment, mediators: Arc::from(mediators), control, active, component })
     }
 
@@ -1382,7 +1608,9 @@ fn expect_treatment(
 /// [`MediationComponent::Direct`], [`MediationComponent::Mediated`],
 /// [`MediationComponent::NaturalDirect`], and [`MediationComponent::NaturalIndirect`]
 /// require [`CrossWorldPremise::CrossWorldIndependence`] and
-/// [`CrossWorldPremise::PathSpecificNested`]. [`MediationComponent::Total`] may
+/// [`CrossWorldPremise::PathSpecificNested`]. The two natural components are defined
+/// through the nested counterfactual `Y(a, M(a'))`, so they also require
+/// [`CrossWorldPremise::Composition`]. [`MediationComponent::Total`] may
 /// record an empty premise set; the mediator set still keeps it distinct from a
 /// treatment contrast.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -1403,7 +1631,8 @@ impl MediationTarget {
     /// component lacks its premises, [`ScientificTargetError::MismatchedActionTime`]
     /// when the schedule and the frame disagree, [`ScientificTargetError::TreatmentEqualsOutcome`]
     /// or [`ScientificTargetError::MediatorOverlap`] when the arms collide with the outcome,
-    /// and [`ScientificTargetError::InvalidAction`] when a temporal policy is invalid.
+    /// [`ScientificTargetError::InvalidAction`] when a temporal policy is invalid, and
+    /// [`ScientificTargetError::PolicyOutsideHorizon`] when it reaches outside the horizon.
     pub fn new(
         binding: WorldBinding,
         time: TimeFrame,
@@ -1415,6 +1644,7 @@ impl MediationTarget {
             policy
                 .validate()
                 .map_err(|err| ScientificTargetError::InvalidAction { reason: err.to_string() })?;
+            ensure_policy_within_horizon(policy, &time)?;
         }
         let schedule_matches = matches!(
             (&time.kind, schedule.is_some()),
@@ -1431,9 +1661,14 @@ impl MediationTarget {
             return Err(ScientificTargetError::MediatorOverlap);
         }
         let premises: BTreeSet<CrossWorldPremise> = premises.into_iter().collect();
+        let natural = matches!(
+            arms.component,
+            MediationComponent::NaturalDirect | MediationComponent::NaturalIndirect
+        );
         if arms.component.requires_cross_world()
             && !(premises.contains(&CrossWorldPremise::CrossWorldIndependence)
-                && premises.contains(&CrossWorldPremise::PathSpecificNested))
+                && premises.contains(&CrossWorldPremise::PathSpecificNested)
+                && (!natural || premises.contains(&CrossWorldPremise::Composition)))
         {
             return Err(ScientificTargetError::MediationNeedsCrossWorldPremises);
         }
@@ -1548,9 +1783,10 @@ impl ScientificTarget {
 
     /// BLAKE3 digest of the scientific fields via [`CanonicalWriter`].
     ///
-    /// Population, reference world, horizon, history, initial law, quantity,
-    /// conditioning, graph, and assumption records enter the digest. Inference
-    /// selection does not.
+    /// Population, worlds, horizon, history, initial law, quantity, conditioning,
+    /// graph, and the set of assumptions and scopes enter the digest. A contrast
+    /// is hashed by the content of its signed worlds, not by their labels. Inference
+    /// selection, assumption source and status, and record order do not.
     #[must_use]
     pub fn identity(&self) -> SemanticDigest {
         let mut writer = CanonicalWriter::new(SCIENTIFIC_TARGET_IDENTITY_TAG);
@@ -1615,6 +1851,11 @@ fn write_form(writer: &mut CanonicalWriter, form: &TargetForm) {
 
 fn write_world(writer: &mut CanonicalWriter, world: &InterventionWorld) {
     writer.word(u64::from(world.id.raw())).word(flag(world.reference));
+    write_world_content(writer, world);
+}
+
+/// What a world says scientifically, without the caller's label or reference flag.
+fn write_world_content(writer: &mut CanonicalWriter, world: &InterventionWorld) {
     write_action(writer, &world.action);
     write_binding(writer, &world.binding);
     write_time(writer, &world.time);
@@ -1992,21 +2233,22 @@ fn write_callback_output(writer: &mut CanonicalWriter, output: &CallbackOutput) 
     }
 }
 
+/// A contrast is its form and its signed worlds in formula order. Caller-chosen world
+/// labels and the reference flag are not written: the reference is the baseline term
+/// of the formula, so relabelling the worlds is the same target.
 fn write_contrast(writer: &mut CanonicalWriter, contrast: &InterventionContrast) {
-    writer.word(u64::from(contrast.reference.raw()));
-    match contrast.form {
-        ContrastForm::Difference { plus, minus } => {
-            writer.word(1).word(u64::from(plus.raw())).word(u64::from(minus.raw()));
-        }
-        ContrastForm::Interaction { joint, a_at_reference, b_at_reference } => {
-            writer
-                .word(2)
-                .word(u64::from(joint.raw()))
-                .word(u64::from(a_at_reference.raw()))
-                .word(u64::from(b_at_reference.raw()));
+    writer.word(match contrast.form {
+        ContrastForm::Difference { .. } => 1,
+        ContrastForm::Interaction { .. } => 2,
+    });
+    let terms = contrast.terms();
+    writer.word(count(terms.len()));
+    for term in terms {
+        writer.word(i64_bits(i64::from(term.coefficient)));
+        if let Some(world) = contrast.worlds.get(term.world) {
+            write_world_content(writer, world);
         }
     }
-    write_worlds(writer, &contrast.worlds);
 }
 
 fn write_surface(writer: &mut CanonicalWriter, surface: &DoseTimeSurface) {
@@ -2063,10 +2305,21 @@ fn component_tag(component: MediationComponent) -> u64 {
 
 fn write_assumptions(writer: &mut CanonicalWriter, assumptions: &ModelAssumptions) {
     writer.word(graph_tag(assumptions.graph));
-    writer.word(count(assumptions.records.len()));
-    for record in &assumptions.records.entries {
-        write_record(writer, record);
+    // What is assumed, and where, is the target. How it entered, whether a diagnostic
+    // has since supported it, record order, and repeats are not.
+    let records: BTreeSet<[u8; 32]> =
+        assumptions.records.entries.iter().map(record_digest).collect();
+    writer.word(count(records.len()));
+    for digest in records {
+        writer.bytes(&digest);
     }
+}
+
+fn record_digest(record: &AssumptionRecord) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new("antecedent.scientific_target.assumption.v1");
+    write_assumption(&mut writer, &record.assumption);
+    write_scope(&mut writer, &record.scope);
+    writer.finish()
 }
 
 fn graph_tag(graph: GraphFamily) -> u64 {
@@ -2083,13 +2336,6 @@ fn graph_tag(graph: GraphFamily) -> u64 {
         GraphFamily::CoDetermined => 10,
         GraphFamily::Graphless => 11,
     }
-}
-
-fn write_record(writer: &mut CanonicalWriter, record: &AssumptionRecord) {
-    write_assumption(writer, &record.assumption);
-    write_source(writer, &record.source);
-    write_scope(writer, &record.scope);
-    writer.word(status_tag(record.status));
 }
 
 fn write_assumption(writer: &mut CanonicalWriter, assumption: &Assumption) {
@@ -2140,23 +2386,6 @@ fn write_assumption(writer: &mut CanonicalWriter, assumption: &Assumption) {
     }
 }
 
-fn write_source(writer: &mut CanonicalWriter, source: &AssumptionSource) {
-    match source {
-        AssumptionSource::UserDeclared => {
-            writer.word(1);
-        }
-        AssumptionSource::AlgorithmDefault { algorithm } => {
-            writer.word(2).text(algorithm);
-        }
-        AssumptionSource::Artifact => {
-            writer.word(3);
-        }
-        AssumptionSource::Derived { from } => {
-            writer.word(4).text(from);
-        }
-    }
-}
-
 fn write_scope(writer: &mut CanonicalWriter, scope: &AssumptionScope) {
     match scope {
         AssumptionScope::Global => {
@@ -2172,18 +2401,12 @@ fn write_scope(writer: &mut CanonicalWriter, scope: &AssumptionScope) {
             writer.word(4);
         }
         AssumptionScope::Variables { variables } => {
+            let mut variables = variables.to_vec();
+            variables.sort_unstable();
+            variables.dedup();
             writer.word(5);
-            write_vars(writer, variables);
+            write_vars(writer, &variables);
         }
-    }
-}
-
-fn status_tag(status: AssumptionStatus) -> u64 {
-    match status {
-        AssumptionStatus::Declared => 1,
-        AssumptionStatus::Supported => 2,
-        AssumptionStatus::Contradicted => 3,
-        AssumptionStatus::Untestable => 4,
     }
 }
 
@@ -2340,7 +2563,7 @@ mod tests {
     fn pulse_effect_differs_from_sustained_effect() {
         let pulse = pulse_contrast();
         let sustained = temporal_contrast(
-            TemporalPolicy::sustained(0, 2),
+            TemporalPolicy::sustained(0, 1),
             1,
             HistoryWindow::planner_default(),
             TargetPopulation::AllObserved,
@@ -2602,27 +2825,6 @@ mod tests {
             ]
         );
         assert!(matches!(contrast.form(), ContrastForm::Interaction { .. }));
-        let shifted = WorldCollection::new([
-            interaction_world(4, true, 5.0, 5.0),
-            interaction_world(1, false, 1.0, 0.0),
-            interaction_world(2, false, 0.0, 1.0),
-            interaction_world(3, false, 1.0, 1.0),
-        ])
-        .unwrap();
-        let shifted = InterventionContrast::interaction(
-            shifted,
-            world_id(3),
-            world_id(1),
-            world_id(2),
-            world_id(4),
-        )
-        .unwrap();
-        assert_ne!(contrast.reference(), shifted.reference());
-        digest_ne(
-            &target(TargetForm::Contrast(contrast), model(GraphFamily::Dag)),
-            &target(TargetForm::Contrast(shifted), model(GraphFamily::Dag)),
-        );
-
         let unmarked = WorldCollection::new([
             interaction_world(0, false, 0.0, 0.0),
             interaction_world(1, false, 1.0, 0.0),
@@ -2744,7 +2946,11 @@ mod tests {
             TimeFrame::static_decision(),
             None,
             MediationComponent::NaturalDirect,
-            &[CrossWorldPremise::CrossWorldIndependence, CrossWorldPremise::PathSpecificNested],
+            &[
+                CrossWorldPremise::Composition,
+                CrossWorldPremise::CrossWorldIndependence,
+                CrossWorldPremise::PathSpecificNested,
+            ],
         )
         .unwrap();
         let contrast =
@@ -2756,8 +2962,11 @@ mod tests {
     /// `MediationEffect` and `TemporalMediationEffect`.
     #[test]
     fn temporal_mediation_differs_from_static_mediation() {
-        let premises =
-            [CrossWorldPremise::CrossWorldIndependence, CrossWorldPremise::PathSpecificNested];
+        let premises = [
+            CrossWorldPremise::Composition,
+            CrossWorldPremise::CrossWorldIndependence,
+            CrossWorldPremise::PathSpecificNested,
+        ];
         let static_mediation = mediation(
             TimeFrame::static_decision(),
             None,
@@ -2808,6 +3017,362 @@ mod tests {
             InferenceSelection::Bayesian,
         );
         digest_ne(&dag, &with_prior);
+    }
+
+    fn interaction_of(
+        reference: (f64, f64),
+        a_at_reference: (f64, f64),
+        b_at_reference: (f64, f64),
+        joint: (f64, f64),
+    ) -> Result<InterventionContrast, ScientificTargetError> {
+        let worlds = WorldCollection::new([
+            interaction_world(0, true, reference.0, reference.1),
+            interaction_world(1, false, a_at_reference.0, a_at_reference.1),
+            interaction_world(2, false, b_at_reference.0, b_at_reference.1),
+            interaction_world(3, false, joint.0, joint.1),
+        ])
+        .unwrap();
+        InterventionContrast::interaction(
+            worlds,
+            world_id(3),
+            world_id(1),
+            world_id(2),
+            world_id(0),
+        )
+    }
+
+    #[test]
+    fn interaction_accepts_a_coherent_two_by_two_at_a_nonzero_reference() {
+        // Y(a,b), Y(a,r_b), Y(r_a,b), Y(r_a,r_b) with a reference that is not zero.
+        interaction_of((5.0, 5.0), (1.0, 5.0), (5.0, 2.0), (1.0, 2.0)).unwrap();
+        interaction_of((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)).unwrap();
+    }
+
+    #[test]
+    fn interaction_refuses_worlds_that_do_not_realise_the_formula() {
+        let cases = [
+            // The old shifted reference: both factors differ from (5,5) at once.
+            ((5.0, 5.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)),
+            // The joint world takes the wrong level of A.
+            ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (2.0, 1.0)),
+            // The joint world takes the wrong level of B.
+            ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 3.0)),
+            // a_at_reference moves B as well as A.
+            ((0.0, 0.0), (1.0, 4.0), (0.0, 1.0), (1.0, 1.0)),
+            // b_at_reference moves A as well as B.
+            ((0.0, 0.0), (1.0, 0.0), (6.0, 1.0), (1.0, 1.0)),
+            // Factor A never moves.
+            ((0.0, 0.0), (0.0, 0.0), (0.0, 1.0), (0.0, 1.0)),
+        ];
+        for (reference, a, b, joint) in cases {
+            let err = interaction_of(reference, a, b, joint).unwrap_err();
+            assert!(
+                matches!(err, ScientificTargetError::IncoherentContrast { .. }),
+                "{reference:?} {a:?} {b:?} {joint:?}: {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn interaction_accepts_a_dose_and_schedule_factorisation() {
+        let shared = binding(TargetPopulation::AllObserved, Conditioning::unconditional());
+        let time = TimeFrame::temporal(
+            2,
+            HistoryWindow::planner_default(),
+            InitialLaw::contemporaneous_observed(),
+        )
+        .unwrap();
+        let cell = |id: u32, reference: bool, level: f64, policy: TemporalPolicy| {
+            InterventionWorld::new(
+                world_id(id),
+                WorldAction::schedule(set_level(vid(0), level), policy).unwrap(),
+                reference,
+                shared.clone(),
+                time.clone(),
+            )
+            .unwrap()
+        };
+        let pulse = TemporalPolicy::pulse(0);
+        let held = TemporalPolicy::sustained(0, 1);
+        let build = |joint_policy: TemporalPolicy| {
+            let worlds = WorldCollection::new([
+                cell(0, true, 0.0, pulse.clone()),
+                cell(1, false, 1.0, pulse.clone()),
+                cell(2, false, 0.0, held.clone()),
+                cell(3, false, 1.0, joint_policy),
+            ])
+            .unwrap();
+            InterventionContrast::interaction(
+                worlds,
+                world_id(3),
+                world_id(1),
+                world_id(2),
+                world_id(0),
+            )
+        };
+        build(held.clone()).unwrap();
+        let err = build(pulse.clone()).unwrap_err();
+        assert!(matches!(err, ScientificTargetError::IncoherentContrast { .. }));
+    }
+
+    #[test]
+    fn difference_refuses_worlds_over_different_variables() {
+        let one = WorldAction::at_decision([set_level(vid(0), 0.0)]).unwrap();
+        let two =
+            WorldAction::at_decision([set_level(vid(0), 1.0), set_level(vid(2), 1.0)]).unwrap();
+        let shared = binding(TargetPopulation::AllObserved, Conditioning::unconditional());
+        let time = TimeFrame::static_decision();
+        let worlds = WorldCollection::new([
+            InterventionWorld::new(world_id(0), one, true, shared.clone(), time.clone()).unwrap(),
+            InterventionWorld::new(world_id(1), two, false, shared, time).unwrap(),
+        ])
+        .unwrap();
+        let err = InterventionContrast::difference(worlds, world_id(1), world_id(0), world_id(0))
+            .unwrap_err();
+        assert!(matches!(err, ScientificTargetError::IncoherentContrast { .. }));
+    }
+
+    #[test]
+    fn symbolic_marker_is_not_a_world_level() {
+        let marker = Intervention::set(vid(0), Value::symbolic_intervention());
+        assert!(matches!(
+            WorldAction::at_decision([marker.clone()]),
+            Err(ScientificTargetError::InvalidAction { .. })
+        ));
+        assert!(matches!(
+            WorldAction::schedule(marker.clone(), TemporalPolicy::pulse(0)),
+            Err(ScientificTargetError::InvalidAction { .. })
+        ));
+        let shift = Intervention::shift(vid(0), Value::symbolic_intervention());
+        assert!(WorldAction::at_decision([shift]).is_err());
+        let err = MediationArms::new(
+            vid(0),
+            [vid(2)],
+            set_level(vid(0), 0.0),
+            marker,
+            MediationComponent::Total,
+        )
+        .unwrap_err();
+        assert!(matches!(err, ScientificTargetError::InvalidAction { .. }));
+    }
+
+    #[test]
+    fn mediation_arms_must_differ() {
+        let err = MediationArms::new(
+            vid(0),
+            [vid(2)],
+            set_level(vid(0), 1.0),
+            set_level(vid(0), 1.0),
+            MediationComponent::Total,
+        )
+        .unwrap_err();
+        assert_eq!(err, ScientificTargetError::MediationArmsNotDistinct);
+    }
+
+    fn pulse_world(at: i32, horizon: u32) -> Result<InterventionWorld, ScientificTargetError> {
+        InterventionWorld::new(
+            world_id(0),
+            WorldAction::schedule(set_level(vid(0), 1.0), TemporalPolicy::pulse(at)).unwrap(),
+            false,
+            binding(TargetPopulation::AllObserved, Conditioning::unconditional()),
+            TimeFrame::temporal(
+                horizon,
+                HistoryWindow::planner_default(),
+                InitialLaw::contemporaneous_observed(),
+            )
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn schedule_must_lie_within_the_horizon() {
+        assert!(matches!(
+            pulse_world(-3, 1),
+            Err(ScientificTargetError::PolicyOutsideHorizon { horizon_steps: 1, .. })
+        ));
+        assert!(matches!(
+            pulse_world(7, 1),
+            Err(ScientificTargetError::PolicyOutsideHorizon { horizon_steps: 1, .. })
+        ));
+        pulse_world(0, 1).unwrap();
+        // An outcome-lag pulse one step before the origin is within a horizon of one.
+        pulse_world(-1, 1).unwrap();
+
+        let window = |until: i32| {
+            InterventionWorld::new(
+                world_id(0),
+                WorldAction::schedule(set_level(vid(0), 1.0), TemporalPolicy::sustained(0, until))
+                    .unwrap(),
+                false,
+                binding(TargetPopulation::AllObserved, Conditioning::unconditional()),
+                TimeFrame::temporal(
+                    2,
+                    HistoryWindow::planner_default(),
+                    InitialLaw::contemporaneous_observed(),
+                )
+                .unwrap(),
+            )
+        };
+        window(2).unwrap();
+        assert!(matches!(window(3), Err(ScientificTargetError::PolicyOutsideHorizon { .. })));
+
+        let premises = [
+            CrossWorldPremise::Composition,
+            CrossWorldPremise::CrossWorldIndependence,
+            CrossWorldPremise::PathSpecificNested,
+        ];
+        let temporal = |at: i32| {
+            mediation(
+                TimeFrame::temporal(
+                    1,
+                    HistoryWindow::planner_default(),
+                    InitialLaw::contemporaneous_observed(),
+                )
+                .unwrap(),
+                Some(TemporalPolicy::pulse(at)),
+                MediationComponent::NaturalDirect,
+                &premises,
+            )
+        };
+        temporal(0).unwrap();
+        assert!(matches!(temporal(7), Err(ScientificTargetError::PolicyOutsideHorizon { .. })));
+        assert!(matches!(temporal(-3), Err(ScientificTargetError::PolicyOutsideHorizon { .. })));
+    }
+
+    #[test]
+    fn natural_components_need_the_composition_premise() {
+        for component in [MediationComponent::NaturalDirect, MediationComponent::NaturalIndirect] {
+            let err = mediation(
+                TimeFrame::static_decision(),
+                None,
+                component,
+                &[CrossWorldPremise::CrossWorldIndependence, CrossWorldPremise::PathSpecificNested],
+            )
+            .unwrap_err();
+            assert_eq!(err, ScientificTargetError::MediationNeedsCrossWorldPremises);
+        }
+        // Path-specific components are not defined through the nested counterfactual.
+        mediation(
+            TimeFrame::static_decision(),
+            None,
+            MediationComponent::Direct,
+            &[CrossWorldPremise::CrossWorldIndependence, CrossWorldPremise::PathSpecificNested],
+        )
+        .unwrap();
+    }
+
+    fn record(
+        assumption: Assumption,
+        scope: AssumptionScope,
+        status: AssumptionStatus,
+    ) -> AssumptionRecord {
+        AssumptionRecord { assumption, source: AssumptionSource::UserDeclared, scope, status }
+    }
+
+    fn with_records(records: Vec<AssumptionRecord>) -> ScientificTarget {
+        let mut set = AssumptionSet::new();
+        for entry in records {
+            set.push(entry);
+        }
+        ScientificTarget::new(
+            pulse_contrast().form().clone(),
+            ModelAssumptions::new(GraphFamily::Dag, set),
+            InferenceSelection::Unspecified,
+        )
+    }
+
+    #[test]
+    fn assumption_identity_is_a_canonical_set() {
+        let markov = || {
+            record(Assumption::CausalMarkov, AssumptionScope::Global, AssumptionStatus::Declared)
+        };
+        let positivity =
+            || record(Assumption::Positivity, AssumptionScope::Global, AssumptionStatus::Declared);
+        let once = with_records(vec![markov()]).identity();
+        assert_eq!(with_records(vec![markov(), markov()]).identity(), once);
+        assert_eq!(
+            with_records(vec![markov(), positivity()]).identity(),
+            with_records(vec![positivity(), markov(), markov()]).identity()
+        );
+        // A diagnostic moving Declared to Supported, or a different source, is the same science.
+        let supported =
+            record(Assumption::CausalMarkov, AssumptionScope::Global, AssumptionStatus::Supported);
+        assert_eq!(with_records(vec![supported]).identity(), once);
+        let derived = AssumptionRecord {
+            source: AssumptionSource::Derived { from: Arc::from("discovery") },
+            ..markov()
+        };
+        assert_eq!(with_records(vec![derived]).identity(), once);
+        // What is assumed, and where, is the science.
+        assert_ne!(with_records(vec![positivity()]).identity(), once);
+        let scoped = record(
+            Assumption::CausalMarkov,
+            AssumptionScope::Estimation,
+            AssumptionStatus::Declared,
+        );
+        assert_ne!(with_records(vec![scoped]).identity(), once);
+        let custom = |description: &str| {
+            record(
+                Assumption::Custom { id: Arc::from("x"), description: Arc::from(description) },
+                AssumptionScope::Global,
+                AssumptionStatus::Declared,
+            )
+        };
+        assert_ne!(
+            with_records(vec![custom("a")]).identity(),
+            with_records(vec![custom("b")]).identity()
+        );
+    }
+
+    #[test]
+    fn contrast_identity_ignores_world_labels() {
+        let relabelled = {
+            let time = TimeFrame::static_decision();
+            let shared = binding(TargetPopulation::AllObserved, Conditioning::unconditional());
+            let reference = InterventionWorld::new(
+                world_id(40),
+                WorldAction::at_decision([set_level(vid(0), 0.0)]).unwrap(),
+                true,
+                shared.clone(),
+                time.clone(),
+            )
+            .unwrap();
+            let active = InterventionWorld::new(
+                world_id(9),
+                WorldAction::at_decision([set_level(vid(0), 1.0)]).unwrap(),
+                false,
+                shared,
+                time,
+            )
+            .unwrap();
+            let worlds = WorldCollection::new([reference, active]).unwrap();
+            let contrast =
+                InterventionContrast::difference(worlds, world_id(9), world_id(40), world_id(40))
+                    .unwrap();
+            target(TargetForm::Contrast(contrast), model(GraphFamily::Dag))
+        };
+        let original =
+            static_contrast(TargetPopulation::AllObserved, Conditioning::unconditional());
+        assert_eq!(relabelled.identity(), original.identity());
+    }
+
+    #[test]
+    fn negative_zero_level_is_the_same_world_as_zero() {
+        let build = |level: f64| {
+            let action = WorldAction::at_decision([set_level(vid(0), level)]).unwrap();
+            InterventionWorld::new(
+                world_id(0),
+                action,
+                true,
+                binding(TargetPopulation::AllObserved, Conditioning::unconditional()),
+                TimeFrame::static_decision(),
+            )
+            .unwrap()
+        };
+        let positive = target(TargetForm::World(build(0.0)), model(GraphFamily::Dag));
+        let negative = target(TargetForm::World(build(-0.0)), model(GraphFamily::Dag));
+        assert_eq!(positive, negative);
+        assert_eq!(positive.identity(), negative.identity());
     }
 
     #[test]

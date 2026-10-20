@@ -21,6 +21,11 @@ use std::fmt;
 pub enum SamplingDesign {
     /// Independent subjects. A subject's trajectory is one sampling unit, so
     /// row/subject independent rules are the rules this design allows.
+    ///
+    /// The `RowSubjectIid` rules treat the *subject* as the unit. When a subject
+    /// contributes several rows, the rows of one trajectory are dependent: resample
+    /// and split by whole subject, never by individual row. With one row per subject
+    /// the two coincide. This contract does not yet have a separate row-level rule.
     IndependentSubjectTrajectories,
     /// Rows nested in clusters. The cluster is the sampling unit.
     ClusteredPanel,
@@ -98,12 +103,40 @@ impl SamplingDesign {
         self,
         rule: SplittingRule,
     ) -> Result<BoundSplitting, SamplingDesignError> {
+        self.apply_splitting_with_embargo(rule, 0)
+    }
+
+    /// Apply a splitting rule with an embargo of `embargo` steps.
+    ///
+    /// Contiguous blocks of a dependent series are serially correlated across the
+    /// boundary, so a held-out block next to a training block leaks. `embargo` is the
+    /// number of observations dropped on each side of a held-out block. The default
+    /// of [`Self::apply_splitting`] is `0`, which is only safe when the series is
+    /// treated as having no dependence across the boundary. Other rules have no
+    /// boundary and require `embargo == 0`.
+    ///
+    /// # Errors
+    ///
+    /// [`SamplingDesignError::FailedAttempt`] as for [`Self::apply_splitting`], and
+    /// [`SamplingDesignError::EmbargoNotApplicable`] when `embargo > 0` is given to a
+    /// rule that is not [`SplittingRule::ContiguousBlock`].
+    pub const fn apply_splitting_with_embargo(
+        self,
+        rule: SplittingRule,
+        embargo: u32,
+    ) -> Result<BoundSplitting, SamplingDesignError> {
         let allowed = self.rules().splitting();
-        if same_splitting(rule, allowed) {
-            Ok(BoundSplitting { design: self, rule })
-        } else {
-            Err(failed(self, AttemptedRule::Splitting(rule), AllowedRule::Splitting(allowed)))
+        if !same_splitting(rule, allowed) {
+            return Err(failed(
+                self,
+                AttemptedRule::Splitting(rule),
+                AllowedRule::Splitting(allowed),
+            ));
         }
+        if embargo > 0 && !matches!(rule, SplittingRule::ContiguousBlock) {
+            return Err(SamplingDesignError::EmbargoNotApplicable { rule });
+        }
+        Ok(BoundSplitting { design: self, rule, embargo })
     }
 
     /// Apply a variance rule.
@@ -126,21 +159,32 @@ impl SamplingDesign {
 
     /// Apply an effective-sample-size basis.
     ///
-    /// `size` is already expressed in the unit of `rule`. It is recorded only
-    /// when `rule` is allowed. A rejected basis does not inspect `size`.
+    /// `size` is already expressed in the unit of `rule`, and `sample` is the number
+    /// of units the sample has in that same unit (subjects, clusters, or observations).
+    /// An effective size is positive and cannot exceed the sample it is drawn from.
+    /// A rejected basis does not inspect `size`.
     ///
     /// # Errors
     ///
     /// [`SamplingDesignError::FailedAttempt`] when `rule` is not one of the
     /// bases [`Self::rules`] binds. The error names the design and each basis
-    /// that design allows.
+    /// that design allows. [`SamplingDesignError::EmptyEffectiveSampleSize`] when `size`
+    /// is zero, and [`SamplingDesignError::EffectiveSampleSizeExceedsSample`] when it is
+    /// larger than `sample`.
     pub const fn apply_effective_sample_size(
         self,
         rule: EffectiveSampleSizeRule,
         size: u64,
+        sample: u64,
     ) -> Result<BoundEffectiveSampleSize, SamplingDesignError> {
         let allowed = self.rules().effective_sample_size();
         if ess_allowed(rule, allowed) {
+            if size == 0 {
+                return Err(SamplingDesignError::EmptyEffectiveSampleSize);
+            }
+            if size > sample {
+                return Err(SamplingDesignError::EffectiveSampleSizeExceedsSample { size, sample });
+            }
             Ok(BoundEffectiveSampleSize { design: self, rule, size })
         } else {
             Err(failed(
@@ -199,7 +243,8 @@ impl SamplingDesignDeclaration {
 /// Resampling unit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ResamplingRule {
-    /// Resample each row or subject independently.
+    /// Resample each subject independently. A subject with several rows is drawn with
+    /// its whole trajectory; with one row per subject this is row resampling.
     RowSubjectIid,
     /// Resample whole clusters. Rows inside a drawn cluster stay together.
     WholeCluster,
@@ -228,7 +273,8 @@ impl fmt::Display for ResamplingRule {
 /// Split unit. Held-out rows follow the same unit as resampling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SplittingRule {
-    /// Split rows as if each row were an independent subject.
+    /// Split by independent subject. A subject with several rows goes to one fold with
+    /// its whole trajectory; with one row per subject this is a row split.
     RowSubjectIid,
     /// Assign whole clusters to folds.
     WholeCluster,
@@ -417,6 +463,23 @@ pub enum SamplingDesignError {
         /// Rule this design allows for that kind of attempt.
         allowed: AllowedRule,
     },
+    /// An effective sample size of zero.
+    #[error("an effective sample size must be positive")]
+    EmptyEffectiveSampleSize,
+    /// An effective sample size larger than the sample it is drawn from.
+    #[error("effective sample size {size} exceeds the sample of {sample}")]
+    EffectiveSampleSizeExceedsSample {
+        /// Declared effective size.
+        size: u64,
+        /// Units in the sample.
+        sample: u64,
+    },
+    /// An embargo was requested for a rule with no contiguous boundary.
+    #[error("{rule} splitting has no block boundary, so it takes no embargo")]
+    EmbargoNotApplicable {
+        /// Rule that was given an embargo.
+        rule: SplittingRule,
+    },
 }
 
 /// Checked resampling for one design.
@@ -445,6 +508,7 @@ impl BoundResampling {
 pub struct BoundSplitting {
     design: SamplingDesign,
     rule: SplittingRule,
+    embargo: u32,
 }
 
 impl BoundSplitting {
@@ -458,6 +522,13 @@ impl BoundSplitting {
     #[must_use]
     pub const fn rule(self) -> SplittingRule {
         self.rule
+    }
+
+    /// Observations dropped on each side of a held-out contiguous block. Zero unless
+    /// requested through [`SamplingDesign::apply_splitting_with_embargo`].
+    #[must_use]
+    pub const fn embargo(self) -> u32 {
+        self.embargo
     }
 }
 
@@ -606,7 +677,10 @@ mod tests {
             design: got_design,
             attempted: got_attempted,
             allowed: got_allowed,
-        } = error;
+        } = error
+        else {
+            panic!("expected a failed attempt, got {error:?}");
+        };
         assert_eq!(*got_design, design);
         assert_eq!(*got_attempted, attempted);
         assert_eq!(got_attempted.to_string(), attempted_text);
@@ -644,7 +718,7 @@ mod tests {
         assert_eq!(variance.design(), design);
         assert_eq!(variance.rule(), VarianceRule::RowSubjectIid);
         let size = design
-            .apply_effective_sample_size(EffectiveSampleSizeRule::RowOrSubjectCount, 40)
+            .apply_effective_sample_size(EffectiveSampleSizeRule::RowOrSubjectCount, 40, 40)
             .expect("independent trajectories count subjects");
         assert_eq!(size.design(), design);
         assert_eq!(size.rule(), EffectiveSampleSizeRule::RowOrSubjectCount);
@@ -692,13 +766,13 @@ mod tests {
         assert_eq!(variance.rule(), VarianceRule::ClusterRobust);
 
         let clusters = design
-            .apply_effective_sample_size(EffectiveSampleSizeRule::ClusterCount, 4)
+            .apply_effective_sample_size(EffectiveSampleSizeRule::ClusterCount, 4, 12)
             .expect("panel effective sample size counts clusters");
         assert_eq!(clusters.design(), design);
         assert_eq!(clusters.rule(), EffectiveSampleSizeRule::ClusterCount);
         assert_eq!(clusters.size(), 4);
         let declared = design
-            .apply_effective_sample_size(EffectiveSampleSizeRule::DeclaredClusterAware, 9)
+            .apply_effective_sample_size(EffectiveSampleSizeRule::DeclaredClusterAware, 9, 90)
             .expect("a declared cluster-aware size is a panel size");
         assert_eq!(declared.design(), design);
         assert_eq!(declared.rule(), EffectiveSampleSizeRule::DeclaredClusterAware);
@@ -731,7 +805,7 @@ mod tests {
         assert_eq!(variance.design(), design);
         assert_eq!(variance.rule(), VarianceRule::DependencePreserving);
         let size = design
-            .apply_effective_sample_size(EffectiveSampleSizeRule::DeclaredSeriesAware, 6)
+            .apply_effective_sample_size(EffectiveSampleSizeRule::DeclaredSeriesAware, 6, 200)
             .expect("a series size is a declared dependence-aware size");
         assert_eq!(size.design(), design);
         assert_eq!(size.rule(), EffectiveSampleSizeRule::DeclaredSeriesAware);
@@ -775,7 +849,7 @@ mod tests {
             "cluster_robust variance",
         );
         let size = design
-            .apply_effective_sample_size(EffectiveSampleSizeRule::RowOrSubjectCount, 100)
+            .apply_effective_sample_size(EffectiveSampleSizeRule::RowOrSubjectCount, 100, 100)
             .expect_err("a panel effective sample size is not the row count");
         assert_failed(
             &size,
@@ -824,7 +898,7 @@ mod tests {
             "contiguous_block splitting",
         );
         let size = design
-            .apply_effective_sample_size(EffectiveSampleSizeRule::RowOrSubjectCount, 100)
+            .apply_effective_sample_size(EffectiveSampleSizeRule::RowOrSubjectCount, 100, 100)
             .expect_err("series length is not an effective sample size");
         assert_failed(
             &size,
@@ -837,15 +911,75 @@ mod tests {
     }
 
     #[test]
-    fn time_column_does_not_select_the_design() {
+    fn effective_sample_size_is_positive_and_within_the_sample() {
+        let design = SamplingDesign::ClusteredPanel;
+        let rule = EffectiveSampleSizeRule::ClusterCount;
+        assert_eq!(
+            design.apply_effective_sample_size(rule, 0, 10).unwrap_err(),
+            SamplingDesignError::EmptyEffectiveSampleSize
+        );
+        assert_eq!(
+            design.apply_effective_sample_size(rule, 11, 10).unwrap_err(),
+            SamplingDesignError::EffectiveSampleSizeExceedsSample { size: 11, sample: 10 }
+        );
+        assert_eq!(design.apply_effective_sample_size(rule, 10, 10).unwrap().size(), 10);
+        // A rejected basis is reported as such before the size is inspected.
+        let wrong_basis = design
+            .apply_effective_sample_size(EffectiveSampleSizeRule::RowOrSubjectCount, 0, 10)
+            .unwrap_err();
+        assert!(matches!(wrong_basis, SamplingDesignError::FailedAttempt { .. }));
+    }
+
+    #[test]
+    fn contiguous_split_takes_an_embargo_and_other_splits_do_not() {
+        let series = SamplingDesign::DependentTimeSeries;
+        assert_eq!(series.apply_splitting(SplittingRule::ContiguousBlock).unwrap().embargo(), 0);
+        let embargoed =
+            series.apply_splitting_with_embargo(SplittingRule::ContiguousBlock, 5).unwrap();
+        assert_eq!(embargoed.embargo(), 5);
+        assert_eq!(embargoed.rule(), SplittingRule::ContiguousBlock);
+        let panel = SamplingDesign::ClusteredPanel;
+        assert_eq!(
+            panel.apply_splitting_with_embargo(SplittingRule::WholeCluster, 1).unwrap_err(),
+            SamplingDesignError::EmbargoNotApplicable { rule: SplittingRule::WholeCluster }
+        );
+        assert_eq!(
+            panel.apply_splitting_with_embargo(SplittingRule::WholeCluster, 0).unwrap().embargo(),
+            0
+        );
+    }
+
+    /// The declaration records the time column without changing what any design allows.
+    #[test]
+    fn time_column_does_not_change_rule_outcomes() {
+        let resampling = [
+            ResamplingRule::RowSubjectIid,
+            ResamplingRule::WholeCluster,
+            ResamplingRule::ContiguousBlock,
+        ];
+        let variance = [
+            VarianceRule::RowSubjectIid,
+            VarianceRule::ClusterRobust,
+            VarianceRule::DependencePreserving,
+        ];
         for design in SamplingDesign::ALL {
             let with_time = SamplingDesignDeclaration::new(design, true);
             let without_time = SamplingDesignDeclaration::new(design, false);
             assert!(with_time.time_column_present());
             assert!(!without_time.time_column_present());
-            assert_eq!(with_time.design(), design);
-            assert_eq!(without_time.design(), design);
-            assert_eq!(with_time.design().rules(), without_time.design().rules());
+            assert_ne!(with_time, without_time);
+            for rule in resampling {
+                assert_eq!(
+                    with_time.design().apply_resampling(rule),
+                    without_time.design().apply_resampling(rule)
+                );
+            }
+            for rule in variance {
+                assert_eq!(
+                    with_time.design().apply_variance(rule),
+                    without_time.design().apply_variance(rule)
+                );
+            }
         }
 
         let panel = SamplingDesignDeclaration::new(SamplingDesign::ClusteredPanel, true);

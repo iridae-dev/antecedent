@@ -121,9 +121,10 @@ pub enum ReusableProduct {
     BatchDesign,
     /// Frozen fit. No target and no intervention coordinates.
     FrozenFit,
-    /// Provider result bound to the snapshot it read.
+    /// Provider result bound to the snapshot and the rows it read.
     ProviderReplay,
-    /// Aligned joint law.
+    /// Aligned joint law. Bound to the data and model it was computed from, so two laws
+    /// over the same axes on different data do not share a key.
     JointLaw,
     /// Intervention evaluation, including a source snapshot when one was used.
     InterventionEvaluation,
@@ -195,21 +196,18 @@ impl ReusableProduct {
                 DependencyClass::RowsHistoryFolds,
                 DependencyClass::NumericalPolicy,
             ],
-            Self::FrozenFit => &[
+            Self::FrozenFit | Self::ProviderReplay => &[
                 DependencyClass::SourceSnapshot,
                 DependencyClass::RowsHistoryFolds,
                 DependencyClass::ModelPriorProvider,
                 DependencyClass::Inference,
                 DependencyClass::NumericalPolicy,
             ],
-            Self::ProviderReplay => &[
-                DependencyClass::SourceSnapshot,
-                DependencyClass::ModelPriorProvider,
-                DependencyClass::Inference,
-                DependencyClass::NumericalPolicy,
-            ],
             Self::JointLaw => &[
                 DependencyClass::TargetIdentification,
+                DependencyClass::SourceSnapshot,
+                DependencyClass::RowsHistoryFolds,
+                DependencyClass::ModelPriorProvider,
                 DependencyClass::JointAlignment,
                 DependencyClass::Inference,
                 DependencyClass::NumericalPolicy,
@@ -698,6 +696,39 @@ mod tests {
                 assert_eq!(product.declares(class), product.declared().contains(&class));
             }
         }
+    }
+
+    #[test]
+    fn joint_law_and_provider_replay_are_bound_to_their_data() {
+        for class in [
+            DependencyClass::SourceSnapshot,
+            DependencyClass::RowsHistoryFolds,
+            DependencyClass::ModelPriorProvider,
+        ] {
+            assert!(ReusableProduct::JointLaw.declares(class), "joint law lacks {class}");
+        }
+        assert!(ReusableProduct::ProviderReplay.declares(DependencyClass::RowsHistoryFolds));
+        // Two joint laws that differ only in the snapshot or the rows they were built from.
+        let seal_with = |snapshot: u8, row_ids: &[u64]| {
+            let mut key = DependencyKey::new(ReusableProduct::JointLaw);
+            for class in ReusableProduct::JointLaw.declared() {
+                let record = match class {
+                    DependencyClass::SourceSnapshot => {
+                        DependencyRecord::source_snapshot(digest(snapshot))
+                    }
+                    DependencyClass::RowsHistoryFolds => {
+                        rows(row_ids, 0x31, 0x32, &vec![0; row_ids.len()], 1)
+                    }
+                    other => baseline(*other),
+                };
+                key = key.bind(record).expect("bind");
+            }
+            key.seal().expect("seal").digest()
+        };
+        let base = seal_with(0x21, &[1, 2, 3]);
+        assert_eq!(base, seal_with(0x21, &[1, 2, 3]));
+        assert_ne!(base, seal_with(0x22, &[1, 2, 3]));
+        assert_ne!(base, seal_with(0x21, &[1, 2, 4]));
     }
 
     #[test]

@@ -220,7 +220,8 @@ pub(crate) enum FullContentDigest {
 
 /// Equality key of a source snapshot.
 ///
-/// Chunks of one source share this value. A projected column subset does not have one.
+/// Chunks of one source share this value; a chunk's own key is [`ChunkIdentity`], which
+/// adds the row range. A projected column subset does not have one.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SourceIdentity {
     content: FullContentDigest,
@@ -229,6 +230,29 @@ pub(crate) struct SourceIdentity {
     cohort: CohortOrder,
     split: SplitLineage,
     validity: ValidityPolicy,
+}
+
+/// Equality key of a row range of a source: the parent's [`SourceIdentity`] and the
+/// absolute storage-row range. Two ranges of one source are different keys, and an
+/// empty range at one row differs from an empty range at another.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ChunkIdentity {
+    source: SourceIdentity,
+    rows: TimeRange,
+}
+
+impl ChunkIdentity {
+    /// Identity of the parent source. The chunk is not a new population.
+    #[must_use]
+    pub(crate) const fn source(&self) -> &SourceIdentity {
+        &self.source
+    }
+
+    /// Absolute storage-row range.
+    #[must_use]
+    pub(crate) const fn row_range(&self) -> TimeRange {
+        self.rows
+    }
 }
 
 impl SourceIdentity {
@@ -684,10 +708,14 @@ impl<'a> BorrowedSourceSnapshot<'a> {
 }
 
 impl<'a> ChunkedSourceSnapshot<'a> {
-    /// Identity of the parent source. The chunk is not a new population.
+    /// Identity of the parent source plus this row range. The chunk is not a new
+    /// population, so [`ChunkIdentity::source`] is the parent's identity.
     #[must_use]
-    pub(crate) fn identity(&self) -> SourceIdentity {
-        snapshot_identity(self.body, self.modality, self.contract, self.content)
+    pub(crate) fn identity(&self) -> ChunkIdentity {
+        ChunkIdentity {
+            source: snapshot_identity(self.body, self.modality, self.contract, self.content),
+            rows: self.rows,
+        }
     }
 
     /// Full-source digest of the parent, not a digest of the row range.
@@ -829,9 +857,11 @@ fn validate_split(body: &OwnedBody, split: &SplitLineage) -> Result<(), DataErro
 }
 
 fn validate_holdout(n: usize, split: &EnvHoldoutSplit) -> Result<(), DataError> {
-    if split.discovery_envs.is_empty() && split.estimation_envs.is_empty() {
+    if split.discovery_envs.is_empty() || split.estimation_envs.is_empty() {
         return Err(DataError::InvalidArgument {
-            message: "environment holdout names no environment".into(),
+            message: "environment holdout needs at least one discovery and one estimation \
+                      environment"
+                .into(),
         });
     }
     let mut seen = vec![false; n];
@@ -845,6 +875,11 @@ fn validate_holdout(n: usize, split: &EnvHoldoutSplit) -> Result<(), DataError> 
                 });
             }
         }
+    }
+    if seen.iter().any(|assigned| !assigned) {
+        return Err(DataError::InvalidArgument {
+            message: "environment holdout leaves an environment unassigned to either side".into(),
+        });
     }
     Ok(())
 }
@@ -1256,9 +1291,14 @@ mod tests {
         let tail_values = tail.float64_rows(x).unwrap();
         assert_eq!(tail_values.len(), 1);
         assert_eq!(tail_values.as_ptr(), parent[2..].as_ptr());
-        assert_eq!(tail.identity(), snap.identity());
-        assert_eq!(empty_tail.identity(), snap.identity());
+        assert_eq!(tail.identity().source(), &snap.identity());
+        assert_eq!(empty_tail.identity().source(), &snap.identity());
         assert_eq!(borrowed_tail.identity(), tail.identity());
+        // Different row ranges of one source are different chunks, empty ranges included.
+        assert_eq!(tail.identity().row_range(), TimeRange { start: 2, end: 3 });
+        assert_ne!(tail.identity(), empty_tail.identity());
+        assert_ne!(head.identity(), empty_tail.identity());
+        assert_ne!(tail.identity(), snap.try_chunk(1, 3).unwrap().identity());
         assert_eq!(tail.full_content_digest(), snap.full_content_digest());
         assert_ne!(head.row_range(), tail.row_range());
         let ColumnView::Float64(parent_column) = tail.column(x).unwrap() else {
@@ -1456,6 +1496,41 @@ mod tests {
         assert!(held.panel_units().is_none());
         assert_ne!(held.identity(), swapped_snap.identity());
         assert_eq!(held.full_content_digest(), swapped_snap.full_content_digest());
+    }
+
+    #[test]
+    fn holdout_needs_both_sides_and_every_environment() {
+        let envs = MultiEnvironmentData::try_new(Arc::from([
+            series(&[1.0, 2.0], 1),
+            series(&[3.0, 4.0, 5.0], 1),
+            series(&[6.0, 7.0], 1),
+        ]))
+        .unwrap();
+        let build = |discovery: &[usize], estimation: &[usize]| {
+            let split = EnvHoldoutSplit {
+                discovery_envs: Arc::from(discovery),
+                estimation_envs: Arc::from(estimation),
+            };
+            OwnedSourceSnapshot::from_multi_environment(
+                &envs,
+                SourceContract::new(
+                    CohortOrder::as_stored("c"),
+                    SplitLineage::EnvironmentHoldout(split),
+                ),
+            )
+        };
+        build(&[0, 1], &[2]).unwrap();
+        for (discovery, estimation) in [
+            (&[][..], &[0, 1, 2][..]),
+            (&[0, 1, 2][..], &[][..]),
+            (&[0][..], &[1][..]),
+            (&[0, 1][..], &[1, 2][..]),
+        ] {
+            assert!(
+                matches!(build(discovery, estimation), Err(DataError::InvalidArgument { .. })),
+                "{discovery:?} / {estimation:?}"
+            );
+        }
     }
 
     fn categorical_storage(label: &str, unit: &str) -> OwnedColumnarStorage {

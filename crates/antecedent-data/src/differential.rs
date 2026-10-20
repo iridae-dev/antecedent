@@ -134,12 +134,12 @@ fn invalid_zero_matches_nan_and_a_finite_zero_does_not() {
 }
 
 #[test]
-fn null_distinct_policy_is_not_the_nan_snapshot() {
+fn null_distinct_policy_is_refused_not_the_nan_snapshot() {
     let nan = tabular(columns(&[("x", &[1.0, f64::NAN])]));
-    let declared = nan.clone().with_validity(ValidityPolicy::NullDistinctFromNan);
     assert_eq!(nan.contract().validity, ValidityPolicy::F64InvalidIffNan);
-    assert_ne!(nan.contract(), declared.contract());
-    assert_eq!(nan.contract().full_digest(), declared.contract().full_digest());
+    assert!(nan.clone().with_validity(ValidityPolicy::NullDistinctFromNan).is_err());
+    let declared = nan.clone().with_validity(ValidityPolicy::F64InvalidIffNan).unwrap();
+    assert_eq!(nan.contract(), declared.contract());
     assert_eq!(selected(&nan), selected(&declared));
 }
 

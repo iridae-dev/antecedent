@@ -51,7 +51,8 @@ pub struct OwnershipCopy {
     column: usize,
 }
 
-/// A row id is past a column, or the column is not numeric.
+/// A row id is past a column, the column is not numeric, or an `i64` level is not an
+/// exact `f64`.
 ///
 /// The error is `Copy` and holds no buffer. [`DesignLayout::from_views`]
 /// returns it before building any column vector.
@@ -65,7 +66,11 @@ pub struct LayoutError {
 enum LayoutFailure {
     PastColumn { id: GlobalId, len: usize },
     NotNumeric,
+    InexactInteger { value: i64 },
 }
+
+/// Largest magnitude below which every `i64` is an exact `f64`.
+const EXACT_F64_INTEGER: u64 = 1 << 53;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RowRun {
@@ -126,6 +131,19 @@ impl LayoutError {
         Self { column, kind: LayoutFailure::NotNumeric }
     }
 
+    const fn inexact_integer(value: i64) -> Self {
+        Self { column: 0, kind: LayoutFailure::InexactInteger { value } }
+    }
+
+    /// The `i64` value that is not an exact `f64`, when that is the refusal.
+    #[must_use]
+    pub const fn inexact_value(self) -> Option<i64> {
+        match self.kind {
+            LayoutFailure::InexactInteger { value } => Some(value),
+            LayoutFailure::PastColumn { .. } | LayoutFailure::NotNumeric => None,
+        }
+    }
+
     const fn in_column(mut self, column: usize) -> Self {
         self.column = column;
         self
@@ -142,7 +160,7 @@ impl LayoutError {
     pub const fn global_id(self) -> Option<GlobalId> {
         match self.kind {
             LayoutFailure::PastColumn { id, .. } => Some(id),
-            LayoutFailure::NotNumeric => None,
+            LayoutFailure::NotNumeric | LayoutFailure::InexactInteger { .. } => None,
         }
     }
 
@@ -151,7 +169,7 @@ impl LayoutError {
     pub const fn column_len(self) -> Option<usize> {
         match self.kind {
             LayoutFailure::PastColumn { len, .. } => Some(len),
-            LayoutFailure::NotNumeric => None,
+            LayoutFailure::NotNumeric | LayoutFailure::InexactInteger { .. } => None,
         }
     }
 }
@@ -167,6 +185,13 @@ impl fmt::Display for LayoutError {
             LayoutFailure::NotNumeric => {
                 let column = self.column;
                 write!(formatter, "column {column} is not an f64, int64, or boolean column")
+            }
+            LayoutFailure::InexactInteger { value } => {
+                let column = self.column;
+                write!(
+                    formatter,
+                    "int64 value {value} in column {column} is not exact as f64 (limit 2^53)"
+                )
             }
         }
     }
@@ -187,7 +212,9 @@ impl<'a> DesignLayout<'a> {
     /// # Errors
     ///
     /// [`LayoutError`] when a [`GlobalId`] is past a column or a column is not
-    /// `f64`, `i64`, or boolean. That refusal allocates no layout buffer.
+    /// `f64`, `i64`, or boolean, or when a valid `i64` value has magnitude above 2^53 and
+    /// would round when cast (an id would silently collapse onto its neighbour). That
+    /// refusal allocates no layout buffer.
     #[must_use = "a row past the column is refused before any layout allocation"]
     pub fn from_views(columns: &[ColumnView<'a>], rows: &[GlobalId]) -> Result<Self, LayoutError> {
         validate(columns, rows)?;
@@ -298,7 +325,8 @@ fn place_column<'a>(
             place_f64(column.values.as_slice(), rows, column_index, run, copies)
         }
         ColumnView::Int64(column) => {
-            let owned = cast_i64(column.values.as_ref(), &column.validity, rows)?;
+            let owned = cast_i64(column.values.as_ref(), &column.validity, rows)
+                .map_err(|error| error.in_column(column_index))?;
             copies.push(OwnershipCopy::cast(column_index));
             Ok(Cow::Owned(owned))
         }
@@ -360,10 +388,20 @@ fn cast_i64(
     validity: &ValidityBitmap,
     rows: &[GlobalId],
 ) -> Result<Vec<f64>, LayoutError> {
-    selected_f64(values.len(), rows, |index| match values.get(index) {
-        Some(value) if validity.is_valid(index) => *value as f64,
-        Some(_) | None => f64::NAN,
-    })
+    let mut out = Vec::with_capacity(rows.len());
+    for id in rows {
+        let index = row_index(*id, values.len())?;
+        out.push(match values.get(index) {
+            Some(value) if validity.is_valid(index) => {
+                if value.unsigned_abs() > EXACT_F64_INTEGER {
+                    return Err(LayoutError::inexact_integer(*value));
+                }
+                *value as f64
+            }
+            Some(_) | None => f64::NAN,
+        });
+    }
+    Ok(out)
 }
 
 fn cast_bool(
@@ -485,6 +523,49 @@ mod tests {
         assert_eq!(error.column_index(), 1);
         assert_eq!(error.global_id(), Some(GlobalId::new(2)));
         assert_eq!(error.column_len(), Some(2));
+    }
+
+    #[test]
+    fn int64_above_two_to_the_53_is_refused_not_rounded() {
+        let exact = 1_i64 << 53;
+        let ints = |values: Vec<i64>| {
+            let n = values.len();
+            Int64Column::new(VariableId::from_raw(1), values, ValidityBitmap::all_valid(n))
+                .expect("int column")
+        };
+        let rows = [GlobalId::new(0), GlobalId::new(1)];
+        // 2^53 is exact; 2^53 + 1 would round to 2^53 and collide with it.
+        let ok = ints(vec![exact, -exact]);
+        let layout = DesignLayout::from_views(&[ColumnView::Int64(&ok)], &rows).expect("exact");
+        assert_eq!(layout.column(0).expect("cast").first().copied(), Some(9_007_199_254_740_992.0));
+        let bad = ints(vec![1, exact + 1]);
+        let error = DesignLayout::from_views(&[ColumnView::Int64(&bad)], &rows)
+            .expect_err("2^53 + 1 is not an exact f64");
+        assert_eq!(error.inexact_value(), Some(exact + 1));
+        assert_eq!(error.column_index(), 0);
+        let negative = ints(vec![-exact - 1, 0]);
+        assert_eq!(
+            DesignLayout::from_views(&[ColumnView::Int64(&negative)], &rows)
+                .expect_err("negative side")
+                .inexact_value(),
+            Some(-exact - 1)
+        );
+        // An invalid slot is NaN whatever its payload, so it is not refused.
+        let masked = Int64Column::new(
+            VariableId::from_raw(1),
+            vec![1_i64, i64::MAX],
+            ValidityBitmap::from_bytes(vec![0b01], 2).expect("validity"),
+        )
+        .expect("masked");
+        DesignLayout::from_views(&[ColumnView::Int64(&masked)], &rows).expect("invalid slot");
+        // The column index is that of the refusing column.
+        let floats = float_column(&[1.0, 2.0]);
+        let second = DesignLayout::from_views(
+            &[ColumnView::Float64(&floats), ColumnView::Int64(&bad)],
+            &rows,
+        )
+        .expect_err("second column");
+        assert_eq!(second.column_index(), 1);
     }
 
     #[test]

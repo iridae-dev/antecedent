@@ -1,11 +1,13 @@
-//! Prototype Rust Polars seam behind the internal source and design contracts.
+//! Adapter seam that a Polars integration would plug into. No Polars code runs here.
 //!
-//! The optional `polars` feature is off by default. Arrow stays the default
-//! feature. D09 inspected crates.io `polars` 0.55.2 and did not link it: that
-//! release's `Cargo.toml` declares no `rust-version`, so it is not shown to
-//! build on Rust 1.85. The record is `parity/polars_decision/decision.toml`.
-//! This module does not depend on Polars. Nothing here opens a Parquet file
-//! or builds a Polars plan.
+//! The optional `polars` feature is off by default and links no Polars crate
+//! (`polars = []`). Arrow stays the default feature. The crates.io `polars` 0.55.2
+//! release was inspected and not linked: its `Cargo.toml` declares no
+//! `rust-version`, so it is not shown to build on Rust 1.85. The record is
+//! `parity/polars_decision/decision.toml`. This module is crate-private, uses no
+//! Polars type, and nothing in it opens a Parquet file or builds a Polars plan. It
+//! exercises the library-owned column, layout, and lag contracts that such an
+//! adapter would have to meet.
 //!
 //! The three jobs are a wide-Parquet adjusted effect, panel and
 //! multi-environment temporal preparation that borrows lag windows, and a
@@ -15,6 +17,9 @@
 //! contract (ADR 0026).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+// Crate-private and feature-gated: nothing outside this module's tests calls it yet.
+#![allow(dead_code, reason = "adapter seam with no Polars crate linked")]
 
 use std::fmt;
 use std::sync::Arc;
@@ -33,10 +38,10 @@ use crate::table::TableView;
 
 /// The `polars` feature is not part of the default feature set.
 ///
-/// Enabling the feature compiles this module. It does not select a crate.
+/// Enabling the feature compiles this seam module. It does not link a crate.
 pub const POLARS_FEATURE_ON_BY_DEFAULT: bool = false;
 
-/// No `polars` crate was linked. D09 inspected `0.55.2` and left it unresolved.
+/// No `polars` crate is linked. Release `0.55.2` was inspected and left unresolved.
 pub const POLARS_CRATE_RESOLVED: bool = false;
 
 /// Where an adjusted-effect interval is computed.

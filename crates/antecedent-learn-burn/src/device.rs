@@ -8,7 +8,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::hash_map::DefaultHasher;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 #[cfg(feature = "wgpu")]
 use burn::module::AutodiffModule;
@@ -220,15 +222,18 @@ pub fn transfer_plan(epochs: usize) -> Vec<TransferStep> {
     steps
 }
 
-/// Identity of a cached fit. A change of fold, seed, or spec is a miss.
+/// Identity of a cached fit. A change of fold, seed, spec, or training data is a miss.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CacheKey {
     /// Fold id.
     pub fold: u32,
     /// Initialization seed.
     pub seed: u64,
-    /// Architecture, epoch count, learning rate, task, fold, and seed.
+    /// Hash of every [`MlpSpec`] field and the fold id.
     pub spec_tag: u64,
+    /// 128-bit hash of the gathered training row list, design, and target, so the same
+    /// fold id over different data is a different key.
+    pub content: [u64; 2],
 }
 
 /// How long a cache entry stays valid.
@@ -390,10 +395,31 @@ pub struct FoldSpec {
     pub spec: MlpSpec,
 }
 
-/// Cache key for one fold. The tag changes when the fold, seed, or spec changes.
+/// Cache key for one fold over the design `x_colmajor` (`nrows` by `ncols`) and target `y`.
+///
+/// The key changes when the fold, seed, spec, training rows, or the values of the gathered
+/// training design and target change. `x_colmajor` and `y` must be the arrays the fold will
+/// be fitted on, with every training row inside `0..nrows`.
 #[must_use]
-pub fn cache_key(fold: &FoldSpec) -> CacheKey {
-    CacheKey { fold: fold.id, seed: fold.spec.seed, spec_tag: spec_tag(&fold.spec, fold.id) }
+pub fn cache_key(
+    fold: &FoldSpec,
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+) -> CacheKey {
+    let train_x = gather_colmajor(x_colmajor, nrows, ncols, &fold.train_rows);
+    let train_y = gather_target(y, &fold.train_rows);
+    cache_key_for(fold, ncols, &train_x, &train_y)
+}
+
+fn cache_key_for(fold: &FoldSpec, ncols: usize, train_x: &[f64], train_y: &[f64]) -> CacheKey {
+    CacheKey {
+        fold: fold.id,
+        seed: fold.spec.seed,
+        spec_tag: spec_tag(&fold.spec, fold.id),
+        content: content_tag(&fold.train_rows, ncols, train_x, train_y),
+    }
 }
 
 /// Predictions for one fold, already in that fold's `predict_rows` order.
@@ -489,9 +515,9 @@ fn fit_one_fold(
     fold: &FoldSpec,
 ) -> Result<FoldOutcome, DeviceError> {
     let lease = scheduler.acquire(fold.id, fold.spec.seed)?;
-    let key = cache_key(fold);
     let train_x = gather_colmajor(design.x, design.nrows, design.ncols, &fold.train_rows);
     let train_y = gather_target(design.y, &fold.train_rows);
+    let key = cache_key_for(fold, design.ncols, &train_x, &train_y);
     let fitted = runtime.cached_model(key, || {
         super::train(&train_x, fold.train_rows.len(), design.ncols, &train_y, &fold.spec)
     });
@@ -555,21 +581,42 @@ fn gather_target(y: &[f64], rows: &[usize]) -> Vec<f64> {
     rows.iter().map(|&row| y[row]).collect()
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "a cache tag mixes widths; usize is never wider than u64 on supported targets"
-)]
-#[allow(
-    clippy::unusual_byte_groupings,
-    reason = "the multiplier is a fixed cache tag, not a byte-aligned mask"
-)]
+/// Hash of every [`MlpSpec`] field and the fold id. The cache lives in one process, so the
+/// standard hasher's fixed-key output is stable for as long as the runtime is.
 fn spec_tag(spec: &MlpSpec, fold: u32) -> u64 {
-    spec.seed
-        ^ u64::from(fold).wrapping_mul(0x0000_0100_0001_B3)
-        ^ (spec.hidden as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-        ^ (spec.epochs as u64).wrapping_mul(0xC2B2_AE3D_27D4_EB4F)
-        ^ spec.learning_rate.to_bits()
-        ^ u64::from(spec.binary)
+    let MlpSpec { binary, hidden, epochs, learning_rate, seed } = *spec;
+    let mut hasher = DefaultHasher::new();
+    "antecedent.learn_burn.spec_tag".hash(&mut hasher);
+    fold.hash(&mut hasher);
+    binary.hash(&mut hasher);
+    hidden.hash(&mut hasher);
+    epochs.hash(&mut hasher);
+    learning_rate.to_bits().hash(&mut hasher);
+    seed.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Two independently seeded 64-bit hashes of the training rows, width, design, and target.
+fn content_tag(rows: &[usize], ncols: usize, x: &[f64], y: &[f64]) -> [u64; 2] {
+    let lane = |salt: u64| {
+        let mut hasher = DefaultHasher::new();
+        salt.hash(&mut hasher);
+        rows.len().hash(&mut hasher);
+        for row in rows {
+            row.hash(&mut hasher);
+        }
+        ncols.hash(&mut hasher);
+        x.len().hash(&mut hasher);
+        for value in x {
+            value.to_bits().hash(&mut hasher);
+        }
+        y.len().hash(&mut hasher);
+        for value in y {
+            value.to_bits().hash(&mut hasher);
+        }
+        hasher.finish()
+    };
+    [lane(0x9E37_79B9_7F4A_7C15), lane(0xC2B2_AE3D_27D4_EB4F)]
 }
 
 /// Portable weights from a device fit, plus the policy that produced them.
@@ -993,7 +1040,7 @@ mod tests {
         assert_eq!(runtime.ownership().model, ModelOwner::Vacant);
         assert_eq!(runtime.ownership().device, DeviceOwner::HostProcess);
         assert_eq!(runtime.ownership().cache, CacheLifetime::Runtime);
-        let key = CacheKey { fold: 1, seed: 2, spec_tag: 3 };
+        let key = CacheKey { fold: 1, seed: 2, spec_tag: 3, content: [4, 5] };
         let mut calls = 0u32;
         let first = runtime
             .cached_model(key, || {
@@ -1014,7 +1061,7 @@ mod tests {
         assert_eq!(calls, 1);
         assert_eq!(runtime.ownership().model, ModelOwner::HostPortable);
         assert!(runtime.probe(key).is_some());
-        let other = CacheKey { fold: 2, seed: 2, spec_tag: 3 };
+        let other = CacheKey { fold: 2, seed: 2, spec_tag: 3, content: [4, 5] };
         let third = runtime
             .cached_model(other, || {
                 calls += 1;
@@ -1106,6 +1153,70 @@ mod tests {
         assert_eq!(first.physical, third.physical);
         assert_eq!(third.folds[0].transfers, vec![TransferStep::CacheReuse]);
         assert_eq!(third.folds[1].transfers, vec![TransferStep::CacheReuse]);
+    }
+
+    #[test]
+    fn same_fold_id_over_different_data_is_a_miss() {
+        let n = 8usize;
+        let (x, y) = line(n);
+        let folds = fold_plan(n, 12);
+        let mut runtime = DeviceRuntime::cpu();
+        let first = orchestrate_cpu(&mut runtime, &x, n, 2, &y, &folds).unwrap();
+        assert!(first.folds.iter().all(|fold| fold.transfers != vec![TransferStep::CacheReuse]));
+        let keys: Vec<CacheKey> = folds.iter().map(|f| cache_key(f, &x, n, 2, &y)).collect();
+        assert!(keys.iter().all(|key| runtime.probe(*key).is_some()));
+
+        // A different target under the same fold ids and specs must refit.
+        let y_shifted: Vec<f64> = y.iter().map(|v| v + 3.0).collect();
+        let shifted_keys: Vec<CacheKey> =
+            folds.iter().map(|f| cache_key(f, &x, n, 2, &y_shifted)).collect();
+        for (old, new) in keys.iter().zip(&shifted_keys) {
+            assert_eq!((old.fold, old.seed, old.spec_tag), (new.fold, new.seed, new.spec_tag));
+            assert_ne!(old.content, new.content);
+        }
+        assert!(shifted_keys.iter().all(|key| runtime.probe(*key).is_none()));
+        let refit = orchestrate_cpu(&mut runtime, &x, n, 2, &y_shifted, &folds).unwrap();
+        assert!(refit.folds.iter().all(|fold| fold.transfers != vec![TransferStep::CacheReuse]));
+        assert_ne!(first.physical, refit.physical);
+
+        // A different design under the same fold ids misses too.
+        let mut x_moved = x.clone();
+        x_moved[n + 1] += 0.5;
+        let moved = cache_key(&folds[0], &x_moved, n, 2, &y);
+        assert_ne!(moved, keys[0]);
+
+        // Different training rows, same fold id, spec, and arrays, miss.
+        let mut narrower = folds[0].clone();
+        narrower.train_rows.pop();
+        assert_ne!(cache_key(&narrower, &x, n, 2, &y), keys[0]);
+
+        // Identical inputs hit and replay.
+        let again = orchestrate_cpu(&mut runtime, &x, n, 2, &y, &folds).unwrap();
+        assert!(again.folds.iter().all(|fold| fold.transfers == vec![TransferStep::CacheReuse]));
+        assert_eq!(again.physical, first.physical);
+    }
+
+    #[test]
+    fn spec_tag_depends_on_every_spec_field() {
+        let base = MlpSpec { binary: false, hidden: 4, epochs: 12, learning_rate: 0.05, seed: 11 };
+        let tag = spec_tag(&base, 0);
+        assert_eq!(tag, spec_tag(&base, 0));
+        let variants = [
+            MlpSpec { binary: true, ..base },
+            MlpSpec { hidden: 5, ..base },
+            MlpSpec { epochs: 13, ..base },
+            MlpSpec { learning_rate: 0.06, ..base },
+            MlpSpec { seed: 12, ..base },
+        ];
+        for variant in variants {
+            assert_ne!(spec_tag(&variant, 0), tag, "{variant:?}");
+        }
+        assert_ne!(spec_tag(&base, 1), tag);
+        // Seed and fold id are not interchangeable.
+        assert_ne!(
+            spec_tag(&MlpSpec { seed: 1, ..base }, 0),
+            spec_tag(&MlpSpec { seed: 0, ..base }, 1)
+        );
     }
 
     #[test]

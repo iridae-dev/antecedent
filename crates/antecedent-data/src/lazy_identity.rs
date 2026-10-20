@@ -2,7 +2,11 @@
 //!
 //! Full content identity is version 1 of [`crate::storage::OwnedColumnarStorage::content_digest`]:
 //! the digest of columns, masks, and weights, not a second hash of those bytes. A chunk or
-//! lazy view uses its own domain and records the parent digest, the row range, and a version.
+//! lazy view uses its own domain and records the parent digest, a digest of the parent
+//! contract (modality, validity policy, cohort order, unit, splits, row count, and schema
+//! names), the row range, and a version. Byte-identical storage under a different column
+//! name, modality, cohort, or split is therefore a different parent and a different view.
+//! The contract of this module has no time index, so a time index is not bound here.
 //! A projected column set has no full-source identity. An incremental digest is accepted only
 //! after a base scan has been checked; skipping that scan fails closed.
 //!
@@ -17,7 +21,10 @@
 use std::ops::Range;
 
 use crate::error::DataError;
-use crate::source::{OwnedSource, RowChunk, SnapshotContract, SourceIdentity};
+use crate::source::{
+    CohortOrder, OwnedSource, RowChunk, SnapshotContract, SourceIdentity, SourceModality,
+    ValidityPolicy,
+};
 
 /// Version of the full-content binding.
 ///
@@ -33,6 +40,9 @@ pub(crate) const INCREMENTAL_VERSION: u16 = 1;
 /// BLAKE3 domain for a chunk or lazy view. Not the storage-digest domain.
 const LAZY_DOMAIN: &str = "antecedent.data.lazy.v1";
 
+/// BLAKE3 domain for the digest of a snapshot contract's scientific fields.
+const CONTRACT_DOMAIN: &str = "antecedent.data.lazy.contract.v1";
+
 /// BLAKE3 domain for a continuation checked against a verified base scan.
 const INCREMENT_DOMAIN: &str = "antecedent.data.lazy.increment.v1";
 
@@ -43,6 +53,8 @@ const INCREMENT_DOMAIN: &str = "antecedent.data.lazy.increment.v1";
 pub(crate) struct FullContentIdentity {
     version: u16,
     digest: [u8; 32],
+    /// Digest of the contract the storage digest was recorded under.
+    binding: [u8; 32],
 }
 
 /// Chunk or lazy view of a full source.
@@ -53,6 +65,7 @@ pub(crate) struct FullContentIdentity {
 pub(crate) struct LazyViewIdentity {
     version: u16,
     parent: [u8; 32],
+    binding: [u8; 32],
     start: usize,
     end: usize,
     digest: [u8; 32],
@@ -97,7 +110,11 @@ impl FullContentIdentity {
     /// The contract is [`SourceIdentity::Projected`].
     pub(crate) fn try_from_contract(contract: &SnapshotContract) -> Result<Self, DataError> {
         match contract.identity {
-            SourceIdentity::Full(digest) => Ok(Self { version: FULL_CONTENT_VERSION, digest }),
+            SourceIdentity::Full(digest) => Ok(Self {
+                version: FULL_CONTENT_VERSION,
+                digest,
+                binding: contract_binding(contract),
+            }),
             SourceIdentity::Projected { .. } => Err(projection_refused()),
         }
     }
@@ -117,7 +134,11 @@ impl FullContentIdentity {
                 message: "snapshot digest is not version 1 of the storage content digest".into(),
             });
         }
-        Ok(Self { version: FULL_CONTENT_VERSION, digest: scanned })
+        Ok(Self {
+            version: FULL_CONTENT_VERSION,
+            digest: scanned,
+            binding: contract_binding(source.contract()),
+        })
     }
 
     /// Format version. Version 1 is the storage digest.
@@ -130,6 +151,12 @@ impl FullContentIdentity {
     #[must_use]
     pub(crate) const fn digest(&self) -> [u8; 32] {
         self.digest
+    }
+
+    /// Digest of the contract fields the storage digest does not cover.
+    #[must_use]
+    pub(crate) const fn binding(&self) -> [u8; 32] {
+        self.binding
     }
 }
 
@@ -154,17 +181,29 @@ impl LazyViewIdentity {
             });
         }
         let rows = chunk.rows();
-        Self::seal(full.digest, rows.start, rows.end)
+        Self::seal(full.digest, full.binding, rows.start, rows.end)
     }
 
-    fn seal(parent: [u8; 32], start: usize, end: usize) -> Result<Self, DataError> {
+    fn seal(
+        parent: [u8; 32],
+        binding: [u8; 32],
+        start: usize,
+        end: usize,
+    ) -> Result<Self, DataError> {
         Ok(Self {
             version: LAZY_VIEW_VERSION,
             parent,
+            binding,
             start,
             end,
-            digest: lazy_digest(&parent, start, end)?,
+            digest: lazy_digest(&parent, &binding, start, end)?,
         })
+    }
+
+    /// Digest of the parent contract this view was taken under.
+    #[must_use]
+    pub(crate) const fn binding(&self) -> [u8; 32] {
+        self.binding
     }
 
     /// Lazy-view version.
@@ -278,7 +317,12 @@ impl BaseScan {
     }
 }
 
-fn lazy_digest(parent: &[u8; 32], start: usize, end: usize) -> Result<[u8; 32], DataError> {
+fn lazy_digest(
+    parent: &[u8; 32],
+    binding: &[u8; 32],
+    start: usize,
+    end: usize,
+) -> Result<[u8; 32], DataError> {
     let start = u64::try_from(start).map_err(|_| DataError::InvalidArgument {
         message: "chunk start does not fit in u64".into(),
     })?;
@@ -288,9 +332,63 @@ fn lazy_digest(parent: &[u8; 32], start: usize, end: usize) -> Result<[u8; 32], 
     let mut hasher = blake3::Hasher::new_derive_key(LAZY_DOMAIN);
     hasher.update(&LAZY_VIEW_VERSION.to_le_bytes());
     hasher.update(parent);
+    hasher.update(binding);
     hasher.update(&start.to_le_bytes());
     hasher.update(&end.to_le_bytes());
     Ok(finish(&hasher))
+}
+
+/// Digest of every scientific field of a contract except the content identity, which the
+/// storage digest already carries.
+fn contract_binding(contract: &SnapshotContract) -> [u8; 32] {
+    fn text(hasher: &mut blake3::Hasher, value: &str) {
+        hasher.update(&(value.len() as u64).to_le_bytes());
+        hasher.update(value.as_bytes());
+    }
+    fn word(hasher: &mut blake3::Hasher, value: usize) {
+        hasher.update(&(value as u64).to_le_bytes());
+    }
+    let mut hasher = blake3::Hasher::new_derive_key(CONTRACT_DOMAIN);
+    hasher.update(&[match contract.modality {
+        SourceModality::Tabular => 1,
+        SourceModality::Panel => 2,
+        SourceModality::MultiEnvironment => 3,
+        SourceModality::TimeSeries => 4,
+    }]);
+    hasher.update(&[match contract.validity {
+        ValidityPolicy::F64InvalidIffNan => 1,
+        ValidityPolicy::NullDistinctFromNan => 2,
+    }]);
+    match &contract.cohort {
+        CohortOrder::Storage => {
+            hasher.update(&[1]);
+        }
+        CohortOrder::Labeled(label) => {
+            hasher.update(&[2]);
+            text(&mut hasher, label);
+        }
+    }
+    match &contract.unit {
+        None => {
+            hasher.update(&[0]);
+        }
+        Some(unit) => {
+            hasher.update(&[1]);
+            text(&mut hasher, unit);
+        }
+    }
+    word(&mut hasher, contract.splits.len());
+    for split in &contract.splits {
+        text(&mut hasher, &split.label);
+        word(&mut hasher, split.rows.start);
+        word(&mut hasher, split.rows.end);
+    }
+    word(&mut hasher, contract.rows);
+    word(&mut hasher, contract.schema_names.len());
+    for name in contract.schema_names.iter() {
+        text(&mut hasher, name);
+    }
+    finish(&hasher)
 }
 
 fn incremental_hasher(parent: &[u8; 32]) -> blake3::Hasher {
@@ -319,7 +417,6 @@ fn scan_required() -> DataError {
 #[cfg(test)]
 mod tests {
     use crate::dataset::TabularData;
-    use crate::source::SourceModality;
 
     use super::*;
 
@@ -359,6 +456,36 @@ mod tests {
 
         let other = FullContentIdentity::try_from_source(&source(&[("x", &[9.0])])).unwrap();
         assert!(LazyViewIdentity::from_chunk(&other, &owned.chunk(0, 1).unwrap()).is_err());
+    }
+
+    #[test]
+    fn same_bytes_under_a_different_contract_is_a_different_view() {
+        let base = source(&[("x", &[1.0, 2.0, 3.0, 4.0])]);
+        let renamed = source(&[("z", &[1.0, 2.0, 3.0, 4.0])]);
+        let panel =
+            OwnedSource::from_storage(base.borrow().storage().clone(), SourceModality::Panel);
+        let cohort = base.clone().with_cohort(CohortOrder::Labeled("arrival".into()));
+        let split = base
+            .clone()
+            .with_splits(vec![crate::source::SplitSpan { label: "fit".into(), rows: 0..2 }])
+            .unwrap();
+        let view = |owned: &OwnedSource| {
+            let full = FullContentIdentity::try_from_source(owned).unwrap();
+            LazyViewIdentity::from_chunk(&full, &owned.chunk(1, 3).unwrap()).unwrap()
+        };
+        let reference = view(&base);
+        // Same storage digest, same row range: only the contract differs.
+        assert_eq!(
+            base.borrow().storage().content_digest(),
+            panel.borrow().storage().content_digest()
+        );
+        assert_eq!(reference, view(&base.clone()));
+        for other in [&renamed, &panel, &cohort, &split] {
+            let other = view(other);
+            assert_eq!(other.rows(), reference.rows());
+            assert_ne!(other.digest(), reference.digest());
+            assert_ne!(other.binding(), reference.binding());
+        }
     }
 
     #[test]

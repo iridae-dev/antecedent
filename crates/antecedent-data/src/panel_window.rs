@@ -168,7 +168,8 @@ impl UnitPartition {
     /// # Errors
     ///
     /// An empty calendar, a non-positive step, a time that does not increase,
-    /// a split past the unit, a duplicate split name, or no splits.
+    /// a split past the unit, a duplicate split name, two splits that share a row,
+    /// or no splits.
     #[must_use = "an invalid partition is not a unit view"]
     pub fn try_new(
         unit: PopulationUnit,
@@ -334,8 +335,8 @@ impl PanelWindow {
             )));
         }
         Ok((
-            WindowChunk { rows: self.rows.start..boundary },
-            WindowChunk { rows: boundary..self.rows.end },
+            WindowChunk { rows: self.rows.start..boundary, window: self.clone() },
+            WindowChunk { rows: boundary..self.rows.end, window: self.clone() },
         ))
     }
 
@@ -362,6 +363,8 @@ impl PanelWindow {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowChunk {
     rows: Range<usize>,
+    /// The whole window the chunk was cut from. Shared storage, so a clone is cheap.
+    window: PanelWindow,
 }
 
 impl WindowChunk {
@@ -369,6 +372,23 @@ impl WindowChunk {
     #[must_use]
     pub const fn local_rows(&self) -> Range<usize> {
         self.rows.start..self.rows.end
+    }
+
+    /// Borrow the row `lag` steps before `target`, where `target` is a row of this chunk.
+    ///
+    /// The cut is not a boundary: a lag from the first rows of a later chunk reads the
+    /// row in the earlier chunk that [`PanelWindow::borrow_lag`] reads over the whole
+    /// window, and is refused exactly when that call is.
+    ///
+    /// # Errors
+    ///
+    /// `target` is not a row of this chunk, or the whole-window borrow is refused.
+    #[must_use = "a refused lag names the next attempt and is not a neighbor row"]
+    pub fn borrow_lag(&self, target: usize, lag: u32) -> Result<usize, BorrowError> {
+        if !self.rows.contains(&target) {
+            return Err(BorrowError::TargetOutsideWindow { target, rows: self.local_rows() });
+        }
+        self.window.borrow_lag(target, lag)
     }
 }
 
@@ -533,6 +553,12 @@ fn validate_splits(row_count: usize, splits: &[DeclaredSplit]) -> Result<(), Dat
         for earlier in splits.iter().take(index) {
             if earlier.name.as_ref() == split.name.as_ref() {
                 return Err(invalid(format!("duplicate split '{}'", split.name)));
+            }
+            if earlier.rows.start < split.rows.end && split.rows.start < earlier.rows.end {
+                return Err(invalid(format!(
+                    "splits '{}' and '{}' share rows; declared splits must be disjoint",
+                    earlier.name, split.name
+                )));
             }
         }
     }
@@ -709,10 +735,69 @@ mod tests {
         assert_eq!(concatenated, window.eager_rows());
 
         let across = window.borrow_lag(7, 1).expect("chunk cut is not a lag boundary");
+        let previous = eager[eager.iter().position(|row| *row == 7).expect("row 7") - 1];
         assert_eq!(across, 6);
-        assert_eq!(across, eager[eager.iter().position(|row| *row == 7).expect("row 7") - 1]);
-        assert!(left.local_rows().contains(&across));
-        assert!(right.local_rows().contains(&7));
+        assert_eq!(across, previous);
+        assert_eq!(right.borrow_lag(7, 1).expect("lag from the later chunk"), previous);
+        assert!(right.borrow_lag(6, 1).is_err(), "row 6 is not a row of the later chunk");
+    }
+
+    /// A lag read through a chunk equals the whole-window read and an independent
+    /// recomputation from the calendar, at every cut, target, and lag.
+    #[test]
+    fn chunk_borrow_matches_the_whole_window_at_every_cut() {
+        // Rows 0..12 with a calendar break between rows 6 and 7, and a split 2..12.
+        let calendar: Vec<i64> = vec![100, 101, 102, 103, 104, 105, 106, 110, 111, 112, 113, 114];
+        let split = DeclaredSplit::try_new("fit", 2..12).expect("split");
+        let partition =
+            UnitPartition::try_new(PopulationUnit::panel(7), calendar.clone(), 1, [split])
+                .expect("partition");
+        let span = CalendarSpan::try_new(102, 114).expect("span");
+        let window = partition.window("fit", span).expect("window");
+        let eager = window.eager_rows();
+        assert_eq!(eager, (2..11).collect::<Vec<_>>());
+        let expected = |target: usize, lag: u32| -> Option<usize> {
+            let source = target.checked_sub(lag as usize)?;
+            let in_window = eager.contains(&source);
+            let same_segment = (source..=target).all(|row| {
+                i64::try_from(row - source).is_ok_and(|gap| calendar[row] - calendar[source] == gap)
+            });
+            (in_window && same_segment).then_some(source)
+        };
+        for cut in (window.local_rows().start + 1)..window.local_rows().end {
+            let (left, right) = window.chunk_at(cut).expect("cut");
+            for chunk in [&left, &right] {
+                for target in chunk.local_rows() {
+                    for lag in 0..6u32 {
+                        let through_chunk = chunk.borrow_lag(target, lag).ok();
+                        assert_eq!(through_chunk, window.borrow_lag(target, lag).ok());
+                        assert_eq!(
+                            through_chunk,
+                            expected(target, lag),
+                            "cut {cut} target {target} lag {lag}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn overlapping_splits_are_refused() {
+        let calendar: Vec<i64> = (0..10u32).map(i64::from).collect();
+        let discovery = DeclaredSplit::try_new("discovery", 0..6).expect("discovery");
+        let estimation = DeclaredSplit::try_new("estimation", 4..10).expect("estimation");
+        let overlap = UnitPartition::try_new(
+            PopulationUnit::panel(1),
+            calendar.clone(),
+            1,
+            [discovery, estimation],
+        );
+        assert!(overlap.is_err());
+        let discovery = DeclaredSplit::try_new("discovery", 0..5).expect("discovery");
+        let estimation = DeclaredSplit::try_new("estimation", 5..10).expect("estimation");
+        UnitPartition::try_new(PopulationUnit::panel(1), calendar, 1, [discovery, estimation])
+            .expect("adjacent splits share no row");
     }
 
     #[test]
