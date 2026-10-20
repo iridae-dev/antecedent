@@ -41,6 +41,7 @@ pub mod ranking;
 pub mod repair;
 pub mod repair_artifact;
 pub mod result;
+pub mod robust_decision;
 pub mod rollout_artifact;
 pub mod sensitivity_decision;
 pub mod sequential_evaluation;
