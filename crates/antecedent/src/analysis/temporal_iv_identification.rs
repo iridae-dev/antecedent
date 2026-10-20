@@ -9,8 +9,8 @@
 
 use antecedent_core::TemporalEffectQuery;
 use antecedent_data::{TemporalIndexer, TemporalNodeKey};
-use antecedent_graph::TemporalDag;
 use antecedent_expr::IdentifiedEstimand;
+use antecedent_graph::TemporalDag;
 use antecedent_identify::TemporalIvIdentifier;
 use antecedent_identify::result::{IdentificationResult, IdentificationStatus};
 
@@ -27,9 +27,9 @@ pub(crate) struct CertifiedTemporalInstrument {
     /// The finite unfolding its dense ids address.
     pub(crate) indexer: TemporalIndexer,
     /// The selected instrument as a `(variable, offset)` node.
+    ///
+    /// This is the first valid instrument of the window, nearest in search order.
     pub(crate) instrument: TemporalNodeKey,
-    /// Every valid instrument of the window, nearest first in search order.
-    pub(crate) instruments: Vec<TemporalNodeKey>,
 }
 
 const NO_INSTRUMENT: &str = "no lagged variable is a valid instrument on the unfolded window \
@@ -59,11 +59,5 @@ pub(crate) fn identify_temporal_instrument(
     let instrument = *found.instruments.first().ok_or_else(|| CausalError::Compile {
         message: "temporal instrument identification lost its instrument".into(),
     })?;
-    Ok(CertifiedTemporalInstrument {
-        identification,
-        estimand,
-        indexer: found.indexer,
-        instrument,
-        instruments: found.instruments,
-    })
+    Ok(CertifiedTemporalInstrument { identification, estimand, indexer: found.indexer, instrument })
 }
