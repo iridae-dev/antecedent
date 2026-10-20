@@ -41,3 +41,5 @@ Graphless, closed, `execution_only`, and `fitting_gap` manifest rows are not lic
 | closed_failed | 1 |
 
 204 mandatory rows: the original 192 rows (91 licensed routes, 94 counterparts, 5 feedback rows, Q04, and `X01.licensed_contrast`), plus Y18/Y19 and their ten acceptance children.
+
+For Y18/Y19 and their acceptance children, `implementation = "complete"` records the passed non-calibration implementation gate; `implementation_evidence` links the executing contract. Their `mandatory` status retains release scope. Calibration and attestation remain separate and unclaimed.

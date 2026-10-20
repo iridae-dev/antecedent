@@ -646,6 +646,8 @@ The unifying 3.0 architecture is **one scientific target, several principled rea
 
 ## Cyclic scope amendment — 20 October 2026
 
-Y18 and all Y19 families are mandatory 3.0 production work. Arbitrary directed topology is independent of solvability and identification. TODO.md defines the children. Numerical roots do not establish uniqueness; multiple-root distributions require an explicit selection/dynamic law. Reports alone do not complete workflows. Failed approaches retain their following attempt. Work is isolated on codex/general-cyclic-systems.
+Y18 and all Y19 families are mandatory 3.0 production work. Arbitrary directed topology is independent of solvability and identification. TODO.md defines the children. Numerical roots do not establish uniqueness; multiple-root distributions require an explicit selection/dynamic law. Reports alone do not complete workflows. Failed approaches retain their following attempt. The implementation was developed on codex/general-cyclic-systems and integrated into 3.0.0 after reconciling the concurrent commits.
 
 Calibration/attestation clarification (20 October 2026): Y18/Y19 implementation tickets close after all non-calibration engineering/scientific-correctness work passes. Statistical calibration and release attestation are separately owned; uncertainty outputs retain their unmeasured status until those processes complete.
+
+Implementation acceptance (21 October 2026): Y18, Y19 and their ten children are complete outside calibration/attestation. The full standalone cyclic gate passes on the integrated branch, including Rust/Python workflows, logical-memory enforcement, independent CPU artifact consumers and five-seed paper-derived experiments. The child-to-workflow contract is `parity/cyclic/acceptance.toml`; results and mathematical limits are in `docs/development/cyclic-systems.md`.

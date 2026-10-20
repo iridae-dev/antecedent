@@ -2,8 +2,8 @@
 
 Y18 and all Y19 families are mandatory 3.0 implementation work, promoted on
 20 October 2026. Calibration and attestation are separate topics and do not block
-implementation closure. The acceptance parents remain open for the remaining
-non-calibration integration work listed below.
+implementation closure. Y18, Y19 and their ten acceptance children are complete
+under the standalone implementation gate, with the mathematical scopes below.
 
 Development began on `codex/general-cyclic-systems`, based on `3.0.0`, and was
 merged into `3.0.0` at `232b007de` after the concurrent user commits. Those commits
@@ -171,6 +171,11 @@ tests and installed Python acceptance, and consumes the retained integration
 fixture in a fresh CPU process. It does not run calibration or attestation.
 
 ## Implementation acceptance
+
+The integrated acceptance run passed 263 Rust component tests, 33 installed-wheel
+Python workflow tests and a fresh-process CPU replay of the retained first
+integration milestone. The API, provenance, Python surface and targeted Clippy
+checks also passed.
 
 The acceptance inventory covers the two Y18 and eight Y19 children independently.
 Checked functional consumers evaluate finite observational laws and continuous

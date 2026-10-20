@@ -1404,6 +1404,8 @@ gap = "theory"
 [[entry]]
 id = "Y18"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "generalized cyclic ID and cyclic FCI"
@@ -1411,6 +1413,8 @@ role = "generalized cyclic ID and cyclic FCI"
 [[entry]]
 id = "Y19"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "nonlinear, stationary, and constraint feedback"
@@ -1418,6 +1422,8 @@ role = "nonlinear, stationary, and constraint feedback"
 [[entry]]
 id = "Y18.1"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "cyclic adjustment and generalized ioSCM ID; calibration and attestation excluded from implementation closure"
@@ -1425,6 +1431,8 @@ role = "cyclic adjustment and generalized ioSCM ID; calibration and attestation 
 [[entry]]
 id = "Y18.2"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "cyclic FCI with exact and sampled CI; calibration and attestation excluded from implementation closure"
@@ -1432,6 +1440,8 @@ role = "cyclic FCI with exact and sampled CI; calibration and attestation exclud
 [[entry]]
 id = "Y19.1"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "serializable nonlinear mechanisms and SCC execution; calibration and attestation excluded from implementation closure"
@@ -1439,6 +1449,8 @@ role = "serializable nonlinear mechanisms and SCC execution; calibration and att
 [[entry]]
 id = "Y19.2"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "bounded root sets and declared selection laws; calibration and attestation excluded from implementation closure"
@@ -1446,6 +1458,8 @@ role = "bounded root sets and declared selection laws; calibration and attestati
 [[entry]]
 id = "Y19.3"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "joint likelihood, inference and sparse structure fitting; calibration and attestation excluded from implementation closure"
@@ -1453,6 +1467,8 @@ role = "joint likelihood, inference and sparse structure fitting; calibration an
 [[entry]]
 id = "Y19.4"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "shared-disturbance factual and posterior counterfactuals; calibration and attestation excluded from implementation closure"
@@ -1460,6 +1476,8 @@ role = "shared-disturbance factual and posterior counterfactuals; calibration an
 [[entry]]
 id = "Y19.5"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "finite-horizon ODE actions and sensitivity fitting; calibration and attestation excluded from implementation closure"
@@ -1467,6 +1485,8 @@ role = "finite-horizon ODE actions and sensitivity fitting; calibration and atte
 [[entry]]
 id = "Y19.6"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "OU stationary/transient/interventional likelihoods; calibration and attestation excluded from implementation closure"
@@ -1474,6 +1494,8 @@ role = "OU stationary/transient/interventional likelihoods; calibration and atte
 [[entry]]
 id = "Y19.7"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "equation systems, fitting and BGCM graphical reasoning; calibration and attestation excluded from implementation closure"
@@ -1481,6 +1503,8 @@ role = "equation systems, fitting and BGCM graphical reasoning; calibration and 
 [[entry]]
 id = "Y19.8"
 status = "mandatory"
+implementation = "complete"
+implementation_evidence = "parity/cyclic/acceptance.toml"
 list = "mandatory"
 source = "scope_amendment_2026_10_20"
 role = "retained public workflows, resources and independent artifacts; calibration and attestation excluded from implementation closure"

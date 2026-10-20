@@ -1,5 +1,7 @@
 # Production implementation inventory; calibration and attestation are separate.
 version = 1
+implementation = "complete"
+acceptance_command = "python3 scripts/gate_cyclic_systems.py --python /path/to/current-wheel/python"
 parents = ["Y18", "Y19"]
 excluded_processes = ["statistical_calibration", "release_attestation"]
 implementation_guide = "docs/development/cyclic-systems.md"
