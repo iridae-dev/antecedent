@@ -10,7 +10,8 @@ dependency_added = false
 polars_internal_contract_backend = false
 workspace_rust = "1.85"
 inspected = "2026-10-19"
-why = "crates.io polars 0.55.2 (tag rs-0.55.2, published 2026-08-06) is the current stable Rust crate. Its crate Cargo.toml and workspace Cargo.toml declare no rust-version, and crates.io publishes no rust_version for any polars release. The tag rust-toolchain.toml channel is nightly-2026-04-01. That is not evidence the crate builds on workspace Rust 1.85, so it was not linked. Latency, RSS, spill, build, MSRV, and wheel were not measured."
+attempted = "2026-10-20"
+why = "crates.io polars 0.55.2 (tag rs-0.55.2, published 2026-08-06) is the current stable Rust crate. Its crate Cargo.toml and workspace Cargo.toml declare no rust-version, and crates.io publishes no rust_version for any polars release. The tag rust-toolchain.toml channel is nightly-2026-04-01. On 2026-10-20, cargo build of polars =0.55.2 with rustc 1.85.1 refused before compiling the crate: ar_archive_writer 0.5.3, home 0.5.12, and psm 0.1.32 require Rust 1.88, uuid 1.28.0 requires Rust 1.89, and sysinfo 0.39.6 requires Rust 1.95. The crate was not linked. Latency, RSS, spill, a finished build, MSRV of a successful compile, and the host wheel were not measured."
 
 [candidate]
 crate = "polars"
@@ -27,8 +28,12 @@ crate_cargo_toml_rust_version = "absent"
 workspace_cargo_toml_rust_version = "absent"
 crates_io_rust_version = "absent"
 rust_toolchain_channel = "nightly-2026-04-01"
-builds_on_workspace_rust = "not_shown"
+builds_on_workspace_rust = "refused"
 not_linked_because = "unavailable_rust_version"
+attempt_rustc = "1.85.1"
+attempt_command = "cargo build of polars =0.55.2"
+attempt_result = "refused_before_compile"
+attempt_refusal = "ar_archive_writer 0.5.3 requires rustc 1.88.0; home 0.5.12 requires rustc 1.88; psm 0.1.32 requires rustc 1.88.0; uuid 1.28.0 requires rustc 1.89.0; sysinfo 0.39.6 requires rustc 1.95"
 
 [measurements]
 latency = "not_measured"

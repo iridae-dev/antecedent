@@ -15,10 +15,11 @@ polars_feature = "polars = []"
 dependency_added = false
 decision_record = "parity/polars_decision/decision.toml"
 why = """
-A Polars thread pool is fixed for the process when a crate is linked. This
-repository links no Polars crate, so the fixed configuration is a refusal. A
-study thread count is not applied. Direct Arrow remains the preparation path.
-Latency, RSS, spill, build, MSRV, and wheel were not measured.
+A Polars thread pool is fixed for the process when a crate is linked. The
+2026-10-20 build of polars 0.55.2 on rustc 1.85.1 was refused before compile,
+so this repository still links no Polars crate. The fixed configuration stays
+a refusal. A study thread count is not applied. Direct Arrow remains the
+preparation path. Latency, RSS, spill, build, MSRV, and wheel were not measured.
 """
 
 [measurements]
