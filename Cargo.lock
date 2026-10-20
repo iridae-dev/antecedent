@@ -421,6 +421,7 @@ dependencies = [
 name = "antecedent-test-support"
 version = "2.4.1"
 dependencies = [
+ "serde",
  "serde_json",
 ]
 

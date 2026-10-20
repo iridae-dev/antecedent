@@ -26,8 +26,8 @@
 
 use std::sync::Arc;
 
-use antecedent_contract::{BoundExternalClaim, BoundTrustLevel};
 use antecedent_contract::mixed_module::{CutFeedback, MixedModulePolicy, MixedModuleRefusal};
+use antecedent_contract::{BoundExternalClaim, BoundTrustLevel};
 use antecedent_contract::{
     CheckedCausalContract, CompositionStage, DistributionMeaning, ExternalBindingError,
     ExternalCapability, ExternalResponse, ExternalResult, ExternalResultHeader,
@@ -43,16 +43,22 @@ use antecedent_expr::{
     Assignment, CausalExprArena, DiscreteAxis, DomainRef, ExactDiscreteLaw, ExactEvaluationLimits,
     ExactEvaluationPlan, ExactEvaluationSpec, ExactTransportData, ExprNode, LawTolerance,
 };
-use antecedent_io::exact_law_wire::ExactLawWire;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
+use antecedent_io::exact_law_wire::ExactLawWire;
 use antecedent_io::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, lineage_wire, values_digest,
 };
 use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
-use antecedent_test_support::{conformance_dir, read_fixture_bytes};
+use antecedent_test_support::slice_cases::{self, FiniteDiscrete};
+use antecedent_test_support::{
+    assert_all_close, assert_close, conformance_dir, flip_last_byte, read_fixture_bytes, within,
+};
+
+/// Closeness of exact arithmetic on hand-derived values.
+const TOLERANCE: f64 = 1e-12;
 
 fn fixture_dir() -> std::path::PathBuf {
     conformance_dir("cross_surface")
@@ -65,23 +71,6 @@ fn read_fixture(name: &str) -> Vec<u8> {
         "run \
             `python python/tests/generate_cross_surface_fixtures.py` from the repo root",
     )
-}
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-12
-}
-
-fn assert_close(got: &[f64], want: &[f64]) {
-    assert_eq!(got.len(), want.len());
-    for (g, w) in got.iter().zip(want) {
-        assert!(near(*g, *w), "{g} != {w}");
-    }
-}
-
-fn flip_last_byte(bytes: &[u8]) -> Vec<u8> {
-    let mut copy = bytes.to_vec();
-    *copy.last_mut().expect("non-empty artifact") ^= 0xFF;
-    copy
 }
 
 // ------------------------------------------------------------------------ joint draw
@@ -149,12 +138,12 @@ fn law_with(identity: DistributionIdentity, draws: Vec<f64>) -> DistributionArti
 }
 
 fn assert_joint_truth(artifact: &DistributionArtifact) {
-    assert!(near(artifact.mean(0).unwrap(), 0.5));
-    assert!(near(artifact.mean(1).unwrap(), 1.0));
-    assert!(near(artifact.covariance(0, 1).unwrap(), 0.5));
-    assert!(near(artifact.joint_expectation(0, 1, |x, y| x * y).unwrap(), 1.0));
+    assert_close(artifact.mean(0).unwrap(), 0.5, TOLERANCE);
+    assert_close(artifact.mean(1).unwrap(), 1.0, TOLERANCE);
+    assert_close(artifact.covariance(0, 1).unwrap(), 0.5, TOLERANCE);
+    assert_close(artifact.joint_expectation(0, 1, |x, y| x * y).unwrap(), 1.0, TOLERANCE);
     // A nonlinear utility of the aligned pair: E[max(X, Y)] = (0 + 2) / 2.
-    assert!(near(artifact.joint_expectation(0, 1, f64::max).unwrap(), 1.0));
+    assert_close(artifact.joint_expectation(0, 1, f64::max).unwrap(), 1.0, TOLERANCE);
 }
 
 /// Box 3: one aligned joint draw artifact round-trips Python -> Rust and Rust -> Python bytes,
@@ -174,9 +163,9 @@ fn joint_draw_round_trips_and_refuses_marginals_and_wrong_meaning() {
         assert_eq!(artifact.metadata().trust, DistributionTrust::Unverified);
         assert_eq!(artifact.metadata().calibration, DistributionCalibration::Exact);
         assert_eq!(artifact.shape(), [2, 2]);
-        assert_close(artifact.draws(), &[0.0, 0.0, 1.0, 2.0]);
+        assert_all_close(artifact.draws(), &[0.0, 0.0, 1.0, 2.0], TOLERANCE);
     }
-    assert_close(from_python.draws(), from_rust.draws());
+    assert_all_close(from_python.draws(), from_rust.draws(), TOLERANCE);
 
     // Re-export on this surface and re-consume: the round trip preserves every value.
     let again = from_python.to_bytes("joint-law").unwrap();
@@ -193,9 +182,10 @@ fn joint_draw_round_trips_and_refuses_marginals_and_wrong_meaning() {
         ),
         vec![0.0, 0.0, 0.0, 2.0, 1.0, 0.0, 1.0, 2.0],
     );
-    assert!(near(paired.mean(0).unwrap(), 0.5), "marginal means are unaffected by pairing");
+    assert_close(paired.mean(0).unwrap(), 0.5, TOLERANCE);
     let manual: f64 = paired.draws().chunks_exact(2).map(|row| row[0] * row[1]).sum::<f64>() / 4.0;
-    assert!(near(manual, 0.5) && !near(manual, 1.0), "pairing changes the nonlinear value");
+    assert_close(manual, 0.5, TOLERANCE);
+    assert!(!within(manual, 1.0, TOLERANCE), "pairing changes the nonlinear value");
     let covariance = paired.covariance(0, 1).unwrap_err().to_string();
     assert!(covariance.contains("aligned_joint_draws.marginals_not_joint"), "{covariance}");
     let nonlinear = paired.joint_expectation(0, 1, |x, y| x * y).unwrap_err().to_string();
@@ -369,7 +359,7 @@ fn expected_claim_identity() -> ExternalClaimIdentity {
 fn external_response_binds_exports_and_refuses_with_structured_details() {
     // Bound claim: values, per-coordinate support, trust, never native, provenance.
     let claim = bind(response()).unwrap();
-    assert_close(claim.values().unwrap(), &[1.0, 3.0, 5.0]);
+    assert_all_close(claim.values().unwrap(), &[1.0, 3.0, 5.0], TOLERANCE);
     assert_eq!(
         claim.point_status(),
         Some(
@@ -399,7 +389,7 @@ fn external_response_binds_exports_and_refuses_with_structured_details() {
     for name in ["py_external_claim.bin", "rust_external_claim.bin"] {
         let bytes = read_fixture(name);
         let loaded = ExternalClaimArtifact::from_bytes(&bytes, &expected).unwrap();
-        assert_close(loaded.values(), &[1.0, 3.0, 5.0]);
+        assert_all_close(loaded.values(), &[1.0, 3.0, 5.0], TOLERANCE);
         let identity = &loaded.metadata().identity;
         assert_eq!(identity, &expected, "{name}");
         assert_eq!(identity.quantities.len(), identity.point_status.len());
@@ -433,7 +423,7 @@ fn external_response_binds_exports_and_refuses_with_structured_details() {
         // Inspect/export: re-exporting on this surface preserves the claim.
         let again = loaded.to_bytes("claim").unwrap();
         let reloaded = ExternalClaimArtifact::from_bytes(&again, &expected).unwrap();
-        assert_close(reloaded.values(), loaded.values());
+        assert_all_close(reloaded.values(), loaded.values(), TOLERANCE);
         // A different retained identity or changed bytes refuse.
         let mut other = expected.clone();
         other.snapshot_id = "other-snapshot".into();
@@ -505,30 +495,14 @@ const TREATMENT: u32 = 0;
 const CONFOUNDER: u32 = 1;
 const OUTCOME: u32 = 2;
 
-fn slice_cases() -> serde_json::Value {
-    let bytes = read_fixture_bytes(
-        &fixture_dir(),
-        "slice_cases.json",
-        "slice_cases.json is a committed cross-surface fixture",
-    );
-    serde_json::from_slice(&bytes).expect("slice_cases.json")
+/// Cell probabilities of a table of counts.
+fn probabilities(counts: &[u32]) -> Vec<f64> {
+    let total: u32 = counts.iter().sum();
+    counts.iter().map(|count| f64::from(*count) / f64::from(total)).collect()
 }
 
-fn json_f64s(value: &serde_json::Value) -> Vec<f64> {
-    value.as_array().expect("number list").iter().map(|item| item.as_f64().expect("f64")).collect()
-}
-
-fn json_u64s(value: &serde_json::Value) -> Vec<u64> {
-    value.as_array().expect("count list").iter().map(|item| item.as_u64().expect("u64")).collect()
-}
-
-fn json_strings(value: &serde_json::Value) -> Vec<String> {
-    value.as_array().unwrap().iter().map(|item| item.as_str().unwrap().to_owned()).collect()
-}
-
-fn probabilities(counts: &[u64]) -> Vec<f64> {
-    let total: u64 = counts.iter().sum();
-    counts.iter().map(|count| *count as f64 / total as f64).collect()
+fn wide_counts(counts: &[u32]) -> Vec<u64> {
+    counts.iter().map(|count| u64::from(*count)).collect()
 }
 
 fn binary_axes() -> [DiscreteAxis; 3] {
@@ -545,10 +519,8 @@ fn adjustment(population: &str, regime: RegimeId) -> (CausalExprArena, anteceden
     let none = arena.intern_intervention_set([]);
     let confounder = arena.intern_var_set([VariableId::from_raw(CONFOUNDER)]);
     let outcome = arena.intern_var_set([VariableId::from_raw(OUTCOME)]);
-    let given = arena.intern_var_set([
-        VariableId::from_raw(TREATMENT),
-        VariableId::from_raw(CONFOUNDER),
-    ]);
+    let given =
+        arena.intern_var_set([VariableId::from_raw(TREATMENT), VariableId::from_raw(CONFOUNDER)]);
     let marginal = arena.intern(ExprNode::Distribution {
         variables: confounder,
         conditioned_on: empty,
@@ -599,122 +571,102 @@ fn reload_law(law: &ExactDiscreteLaw) -> ExactDiscreteLaw {
     serde_json::from_slice::<ExactLawWire>(&bytes).expect("law wire parses").to_law().unwrap()
 }
 
-fn empirical_law(cases: &serde_json::Value, regime: u32) -> ExactDiscreteLaw {
-    let discrete = &cases["finite_discrete"];
-    let counts = json_u64s(&discrete["counts"]);
+fn empirical_law(discrete: &FiniteDiscrete, regime: u32) -> ExactDiscreteLaw {
     ExactDiscreteLaw::try_empirical(
-        discrete["population"].as_str().unwrap(),
+        discrete.population.as_str(),
         RegimeId::from_raw(regime),
         [],
         binary_axes(),
-        probabilities(&counts),
-        discrete["snapshot"].as_str().unwrap(),
+        probabilities(&discrete.counts),
+        discrete.snapshot.as_str(),
         LawTolerance::default(),
     )
     .unwrap()
-    .with_empirical_counts(counts)
+    .with_empirical_counts(wide_counts(&discrete.counts))
     .unwrap()
 }
 
-fn assert_adjustment(law: &ExactDiscreteLaw, regime: RegimeId, cases: &serde_json::Value) {
-    let discrete = &cases["finite_discrete"];
-    let active = outcome_mean(law, regime, 1);
-    let control = outcome_mean(law, regime, 0);
-    assert!(near(active, discrete["active"].as_f64().unwrap()));
-    assert!(near(control, discrete["control"].as_f64().unwrap()));
-    assert!(near(active - control, discrete["contrast"].as_f64().unwrap()));
-    assert_eq!(law.empirical_counts().unwrap(), json_u64s(&discrete["counts"]));
+fn posterior_law(discrete: &FiniteDiscrete, counts: &[u32], regime: u32) -> ExactDiscreteLaw {
+    ExactDiscreteLaw::try_bayesian_posterior(
+        discrete.population.as_str(),
+        RegimeId::from_raw(regime),
+        [],
+        binary_axes(),
+        probabilities(counts),
+        discrete.snapshot.as_str(),
+        LawTolerance::default(),
+    )
+    .unwrap()
 }
 
-/// The frequency table and the two posterior draws are loaded from their own law
-/// wires. Static and horizon regimes share the counts and keep distinct regime ids.
+fn assert_adjustment(law: &ExactDiscreteLaw, regime: RegimeId, discrete: &FiniteDiscrete) {
+    let active = outcome_mean(law, regime, 1);
+    let control = outcome_mean(law, regime, 0);
+    assert_close(active, discrete.active, TOLERANCE);
+    assert_close(control, discrete.control, TOLERANCE);
+    assert_close(active - control, discrete.contrast, TOLERANCE);
+    assert_eq!(law.empirical_counts().unwrap(), wide_counts(&discrete.counts));
+}
+
+/// The frequency table and the two posterior draws are loaded from their own law wires and
+/// evaluated at the static regime id and at the horizon regime id.
+///
+/// This is a regime-label case, not a horizon producer: the table is the same and only its regime
+/// id differs, because no study-facade producer builds a horizon table of counts. The temporal
+/// facade is covered for Gaussian data by `composition_cross_surface_slices.rs`.
 /// `gaussian` and `linear_gaussian` are not law origins.
 #[test]
-fn finite_discrete_adjustment_reloads_from_the_law_artifact() {
-    let cases = slice_cases();
-    let discrete = &cases["finite_discrete"];
-    let static_regime = u32::try_from(discrete["static_regime"].as_u64().unwrap()).unwrap();
-    let horizon_regime = u32::try_from(discrete["horizon_regime"].as_u64().unwrap()).unwrap();
-    let loaded = reload_law(&empirical_law(&cases, static_regime));
-    assert_adjustment(&loaded, RegimeId::from_raw(static_regime), &cases);
-    let mut horizon_wire = ExactLawWire::from_law(&loaded);
-    horizon_wire.regime = horizon_regime;
-    let horizon_bytes = serde_json::to_vec(&horizon_wire).unwrap();
-    let horizon = serde_json::from_slice::<ExactLawWire>(&horizon_bytes).unwrap().to_law().unwrap();
-    assert_ne!(loaded.regime(), horizon.regime());
-    assert_adjustment(&horizon, RegimeId::from_raw(horizon_regime), &cases);
+fn finite_discrete_adjustment_reloads_at_each_regime_label() {
+    let discrete = slice_cases::load().finite_discrete;
+    assert_ne!(discrete.static_regime, discrete.horizon_regime);
+    for regime in [discrete.static_regime, discrete.horizon_regime] {
+        let label = RegimeId::from_raw(regime);
+        let loaded = reload_law(&empirical_law(&discrete, regime));
+        assert_eq!(loaded.regime(), label);
+        assert_adjustment(&loaded, label, &discrete);
 
-    let mut mixed = 0.0;
-    for draw in discrete["posterior_draws"].as_array().unwrap() {
-        let counts = json_u64s(&draw["counts"]);
-        let law = reload_law(
-            &ExactDiscreteLaw::try_bayesian_posterior(
-                discrete["population"].as_str().unwrap(),
-                RegimeId::from_raw(static_regime),
-                [],
-                binary_axes(),
-                probabilities(&counts),
-                discrete["snapshot"].as_str().unwrap(),
-                LawTolerance::default(),
-            )
-            .unwrap(),
-        );
-        let contrast = outcome_mean(&law, RegimeId::from_raw(static_regime), 1)
-            - outcome_mean(&law, RegimeId::from_raw(static_regime), 0);
-        assert!(near(contrast, draw["contrast"].as_f64().unwrap()));
-        mixed += draw["weight"].as_f64().unwrap() * contrast;
+        let mut mixed = 0.0;
+        for draw in &discrete.posterior_draws {
+            let law = reload_law(&posterior_law(&discrete, &draw.counts, regime));
+            let contrast = outcome_mean(&law, label, 1) - outcome_mean(&law, label, 0);
+            assert_close(contrast, draw.contrast, TOLERANCE);
+            mixed += draw.weight * contrast;
+        }
+        assert_close(mixed, discrete.posterior_mean, TOLERANCE);
     }
-    assert!(near(mixed, discrete["posterior_mean"].as_f64().unwrap()));
 
-    for origin in json_strings(&discrete["refused_origins"]) {
+    let loaded = reload_law(&empirical_law(&discrete, discrete.static_regime));
+    for origin in &discrete.refused_origins {
         let mut wire = ExactLawWire::from_law(&loaded);
-        wire.origin = origin;
+        wire.origin.clone_from(origin);
         let error = wire.to_law().unwrap_err().to_string();
         assert!(error.contains("unknown law origin"), "{error}");
     }
 }
 
-/// The line rows are one aligned joint draw. The contrast is the ordinary least-squares slope.
-#[test]
-fn gaussian_line_reloads_as_aligned_joint_draws() {
-    let cases = slice_cases();
-    let gaussian = &cases["gaussian"];
-    let treatment = json_f64s(&gaussian["treatment"]);
-    let outcome = json_f64s(&gaussian["outcome"]);
-    let mut draws = Vec::with_capacity(treatment.len() * 2);
-    for (arm, response) in treatment.iter().zip(&outcome) {
-        draws.push(*arm);
-        draws.push(*response);
+fn line_quantity(name: &str, role: QuantityRole, functional: &str) -> ScientificQuantity {
+    ScientificQuantity {
+        variable_id: name.into(),
+        variable_name: name.into(),
+        role,
+        units: "units".into(),
+        population_id: "target".into(),
+        regime_id: "observational".into(),
+        horizon: 0,
+        functional_id: functional.into(),
+        conditioning: vec![],
+        transform_id: "identity".into(),
     }
-    let identity = DistributionIdentity::new(
+}
+
+fn line_identity(alignment: DrawAlignment) -> DistributionIdentity {
+    DistributionIdentity::new(
         DistributionMeaningWire::EmpiricalOutcome,
         &[
-            ScientificQuantity {
-                variable_id: "t".into(),
-                variable_name: "t".into(),
-                role: QuantityRole::Treatment,
-                units: "units".into(),
-                population_id: "target".into(),
-                regime_id: "observational".into(),
-                horizon: 0,
-                functional_id: "treatment".into(),
-                conditioning: vec![],
-                transform_id: "identity".into(),
-            },
-            ScientificQuantity {
-                variable_id: "y".into(),
-                variable_name: "y".into(),
-                role: QuantityRole::Outcome,
-                units: "units".into(),
-                population_id: "target".into(),
-                regime_id: "observational".into(),
-                horizon: 0,
-                functional_id: "outcome".into(),
-                conditioning: vec![],
-                transform_id: "identity".into(),
-            },
+            line_quantity("t", QuantityRole::Treatment, "treatment"),
+            line_quantity("y", QuantityRole::Outcome, "outcome"),
         ],
-        DrawAlignment::Joint,
+        alignment,
         DistributionProvenance {
             source_id: "line-rows".into(),
             provider_id: "cross-surface-line".into(),
@@ -723,32 +675,62 @@ fn gaussian_line_reloads_as_aligned_joint_draws() {
             causal_contract_id: "checked-contract".into(),
         },
     )
-    .unwrap();
-    let bytes = law_with(identity.clone(), draws).to_bytes("gaussian-line").unwrap();
+    .unwrap()
+}
+
+/// The line rows are one aligned joint draw and keep that alignment through the artifact. The
+/// slope below is the covariance ratio of the reloaded draws, a check that the pairing survived;
+/// the estimators that fit this line are covered by `composition_cross_surface_slices.rs`.
+#[test]
+fn gaussian_line_rows_keep_their_alignment_through_the_artifact() {
+    let gaussian = slice_cases::load().gaussian;
+    let draws: Vec<f64> = gaussian
+        .treatment
+        .iter()
+        .zip(&gaussian.outcome)
+        .flat_map(|(arm, response)| [*arm, *response])
+        .collect();
+    let identity = line_identity(DrawAlignment::Joint);
+    let bytes = law_with(identity.clone(), draws.clone()).to_bytes("gaussian-line").unwrap();
     let loaded = DistributionArtifact::from_bytes(&bytes, &identity).unwrap();
-    assert!(near(loaded.mean(0).unwrap(), 0.5));
-    assert!(near(loaded.mean(1).unwrap(), 2.0));
+    let mean_arm = loaded.mean(0).unwrap();
+    assert_close(mean_arm, 0.5, TOLERANCE);
+    assert_close(
+        loaded.mean(1).unwrap(),
+        gaussian.intercept + gaussian.effect * mean_arm,
+        TOLERANCE,
+    );
     let slope = loaded.covariance(0, 1).unwrap() / loaded.covariance(0, 0).unwrap();
-    assert!(near(slope, gaussian["effect"].as_f64().unwrap()));
+    assert_close(slope, gaussian.effect, TOLERANCE);
+
+    // The same rows declared as independent marginals carry no joint operation.
+    let marginals = line_identity(DrawAlignment::IndependentMarginals);
+    let paired = law_with(marginals, draws);
+    let error = paired.covariance(0, 1).unwrap_err().to_string();
+    assert!(error.contains("aligned_joint_draws.marginals_not_joint"), "{error}");
+
     let wrong = joint_identity(DistributionMeaningWire::Bootstrap, DrawAlignment::Joint, "y");
     assert!(DistributionArtifact::from_bytes(&bytes, &wrong).is_err());
     assert!(DistributionArtifact::from_bytes(&flip_last_byte(&bytes), &identity).is_err());
 }
 
 /// Feedback is the named modular policy. A coherent joint stores no cut, and a blank
-/// reconciliation is refused before a policy exists.
+/// reconciliation is refused before a policy exists. The policy is a record: no public estimator
+/// takes it, so there is no cut-versus-feedback contrast to reload from an artifact.
 #[test]
-fn specified_feedback_reloads_from_the_declared_record() {
-    let feedback = slice_cases()["feedback"].clone();
-    let reconciliation = feedback["reconciliation"].as_str().unwrap();
-    let specified = CutFeedback::from_name(feedback["specified"].as_str().unwrap()).unwrap();
-    let cut = CutFeedback::from_name(feedback["cut"].as_str().unwrap()).unwrap();
+fn specified_feedback_names_the_declared_policy() {
+    let feedback = slice_cases::load().feedback;
+    let specified = CutFeedback::from_name(&feedback.specified).unwrap();
+    let cut = CutFeedback::from_name(&feedback.cut).unwrap();
     assert_eq!(specified, CutFeedback::Feedback);
     assert_eq!(cut, CutFeedback::Cut);
     assert!(CutFeedback::from_name("cycle").is_none());
-    let policy = MixedModulePolicy::declared_modular(reconciliation, specified).unwrap();
-    assert_eq!(policy.cut_feedback(), Some(CutFeedback::Feedback));
-    assert_eq!(policy.reconciliation().unwrap().as_str(), reconciliation);
+    for policy in [specified, cut] {
+        let declared =
+            MixedModulePolicy::declared_modular(&feedback.reconciliation, policy).unwrap();
+        assert_eq!(declared.cut_feedback(), Some(policy));
+        assert_eq!(declared.reconciliation().unwrap().as_str(), feedback.reconciliation);
+    }
     assert!(MixedModulePolicy::coherent_joint().cut_feedback().is_none());
     assert_eq!(
         MixedModulePolicy::declared_modular("  ", specified).unwrap_err(),

@@ -1,11 +1,13 @@
 //! Shared helpers for the Antecedent workspace's integration tests.
 //!
 //! This crate is `publish = false` and is only ever a `[dev-dependencies]` entry of
-//! other workspace crates. It depends on `std` and `serde_json` alone and on no
+//! other workspace crates. It depends on `std`, `serde` and `serde_json` alone and on no
 //! Antecedent crate, so it can never introduce a dependency cycle. Helpers that name
 //! Antecedent types, and the calibration harness, stay crate-local.
 
 #![forbid(unsafe_code)]
+
+pub mod slice_cases;
 
 use std::path::{Path, PathBuf};
 
@@ -40,6 +42,48 @@ pub fn read_fixture_bytes(dir: &Path, name: &str, regenerate_hint: &str) -> Vec<
     std::fs::read(&path).unwrap_or_else(|error| {
         panic!("missing cross-surface fixture {} ({error}); {regenerate_hint}", path.display())
     })
+}
+
+/// Parse the JSON fixture `name` in `dir` into `T`, panicking with `regenerate_hint` when the
+/// file is missing.
+///
+/// # Panics
+///
+/// Panics if the file is missing or does not parse as `T`.
+#[must_use]
+pub fn load_json_fixture<T: serde::de::DeserializeOwned>(
+    dir: &Path,
+    name: &str,
+    regenerate_hint: &str,
+) -> T {
+    let bytes = read_fixture_bytes(dir, name, regenerate_hint);
+    serde_json::from_slice(&bytes).unwrap_or_else(|error| panic!("{name} does not parse: {error}"))
+}
+
+/// Assert `|actual - expected| <= tolerance`.
+///
+/// # Panics
+///
+/// Panics, naming both values and the tolerance, when they differ by more.
+#[track_caller]
+pub fn assert_close(actual: f64, expected: f64, tolerance: f64) {
+    assert!(
+        within(actual, expected, tolerance),
+        "{actual} differs from {expected} by more than {tolerance}"
+    );
+}
+
+/// Assert two slices have one length and agree elementwise within `tolerance`.
+///
+/// # Panics
+///
+/// Panics on a length mismatch or on the first element that differs by more than `tolerance`.
+#[track_caller]
+pub fn assert_all_close(actual: &[f64], expected: &[f64], tolerance: f64) {
+    assert_eq!(actual.len(), expected.len(), "slice lengths differ");
+    for (actual, expected) in actual.iter().zip(expected) {
+        assert_close(*actual, *expected, tolerance);
+    }
 }
 
 /// `|a - b| <= tol`.
