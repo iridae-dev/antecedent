@@ -14,11 +14,15 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, ExecutionContext, KernelPolicy, Lag, TargetPopulation, TemporalEffectQuery,
-    VariableId,
+    AssumptionSet, ExecutionContext, HistoryWindow, InitialLaw, KernelPolicy, Lag,
+    TargetPopulation, TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{
-    DiscoveryEstimationSplit, LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData,
+    DiscoveryEstimationSplit, LaggedColumn, LaggedSampleWorkspace, SamplingRegularity,
+    TemporalIndexer, TimeIndex, TimeSeriesData,
+};
+use antecedent_model::history_operators::{
+    ActionTiming, CensoringAssignmentWeight, HistoryConstruction, HistoryOperatorError, Horizon,
 };
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{CompiledDesign, DenseLinearAlgebra};
@@ -390,7 +394,9 @@ impl TemporalLinearAdjustment {
         // query offsets are absolute around the policy origin, so horizons > 1
         // otherwise appear as unsupported positive ("future") lags even though
         // the same design is representable by shifting every column together.
-        let sample_anchor = query.outcome_offset().max(0);
+        // The anchor is the history operator's admitted horizon, not the query's
+        // step count.
+        let sample_anchor = outcome_sample_anchor(data.time_index(), query)?.max(0);
         let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
         let y_lag = offset_to_lag(query.outcome_offset() - sample_anchor)?;
 
@@ -931,7 +937,7 @@ pub fn temporal_coefficient_names(
     let name = |id: VariableId| {
         schema.get(id).map_or_else(|_| format!("var_{}", id.raw()), |v| v.name.as_ref().to_string())
     };
-    let sample_anchor = query.outcome_offset().max(0);
+    let sample_anchor = outcome_sample_anchor(data.time_index(), query)?.max(0);
     let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
     let mut names: Vec<Arc<str>> = vec![
         Arc::from("intercept"),
@@ -953,6 +959,133 @@ pub fn temporal_coefficient_names(
         )));
     }
     Ok(Arc::from(names))
+}
+
+/// History, action time, censoring and assignment weights, and horizon admitted
+/// together. The horizon is the operator's; a step count is only what that
+/// horizon covers after the cadence check.
+struct AdmittedTemporalHistory {
+    history: HistoryConstruction,
+    action: ActionTiming,
+    weights: CensoringAssignmentWeight,
+}
+
+impl AdmittedTemporalHistory {
+    const fn horizon(&self) -> Horizon {
+        self.history.frame().horizon()
+    }
+
+    const fn history(&self) -> HistoryWindow {
+        self.history.history()
+    }
+
+    const fn action_ns(&self) -> u64 {
+        self.action.at_ns()
+    }
+
+    const fn censoring(&self) -> f64 {
+        self.weights.censoring()
+    }
+
+    const fn assignment(&self) -> f64 {
+        self.weights.assignment()
+    }
+
+    /// Ticks from the origin to the admitted horizon end.
+    ///
+    /// # Errors
+    ///
+    /// The tick count does not fit in `u32`.
+    fn horizon_steps(&self) -> Result<u32, EstimationError> {
+        let ticks = self.horizon().end_ns() / self.history.frame().interval_ns();
+        u32::try_from(ticks).map_err(|_| {
+            EstimationError::unsupported("admitted horizon does not fit in u32 steps")
+        })
+    }
+}
+
+/// Admit `horizon` with the history, action time, and weights the operators record.
+///
+/// # Errors
+///
+/// The history operators refuse the cadence, the horizon, the initial law, the
+/// action time, or a weight.
+#[must_use = "a refused history is not a horizon"]
+fn admit_temporal_history(
+    cadence: &TimeIndex,
+    horizon: Horizon,
+    initial_law: Option<InitialLaw>,
+    history: HistoryWindow,
+    action_ns: u64,
+    censoring: f64,
+    assignment: f64,
+) -> Result<AdmittedTemporalHistory, EstimationError> {
+    let history =
+        HistoryConstruction::try_new(cadence.clone(), horizon, initial_law.clone(), history)
+            .map_err(history_operator_refusal)?;
+    let action =
+        ActionTiming::try_new(cadence.clone(), horizon, initial_law.clone(), action_ns)
+            .map_err(history_operator_refusal)?;
+    let weights = CensoringAssignmentWeight::try_new(
+        cadence.clone(),
+        horizon,
+        initial_law,
+        censoring,
+        assignment,
+    )
+    .map_err(history_operator_refusal)?;
+    Ok(AdmittedTemporalHistory { history, action, weights })
+}
+
+fn history_operator_refusal(error: HistoryOperatorError) -> EstimationError {
+    EstimationError::data_msg(error.to_string())
+}
+
+/// Nanosecond end of `horizon_steps` on `cadence`.
+///
+/// An irregular cadence has no tick the end can land on. The end passed to the
+/// operator is then off the cadence, and the operator refuses it.
+///
+/// # Errors
+///
+/// `horizon_steps` times the regular interval does not fit in `u64`.
+const fn query_horizon_end(
+    cadence: &TimeIndex,
+    horizon_steps: u32,
+) -> Result<Horizon, EstimationError> {
+    let SamplingRegularity::Regular { interval_ns } = cadence.regularity else {
+        return Ok(Horizon::ending_at(1));
+    };
+    let end_ns = u64::from(horizon_steps).checked_mul(interval_ns).ok_or(
+        EstimationError::unsupported("horizon end in nanoseconds does not fit in u64"),
+    )?;
+    Ok(Horizon::ending_at(end_ns))
+}
+
+/// Sample anchor of `query`: one less than the horizon the operators admitted.
+///
+/// # Errors
+///
+/// The operators refuse the query horizon on `cadence`.
+fn outcome_sample_anchor(
+    cadence: &TimeIndex,
+    query: &TemporalEffectQuery,
+) -> Result<i32, EstimationError> {
+    let history = match query.max_history_lag {
+        Some(lag) => HistoryWindow::max_lag(lag),
+        None => HistoryWindow::planner_default(),
+    };
+    let admitted = admit_temporal_history(
+        cadence,
+        query_horizon_end(cadence, query.horizon_steps)?,
+        Some(InitialLaw::contemporaneous_observed()),
+        history,
+        0,
+        1.0,
+        1.0,
+    )?;
+    let steps = admitted.horizon_steps()?;
+    Ok(i32::try_from(steps.saturating_sub(1)).unwrap_or(i32::MAX))
 }
 
 fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
@@ -1376,10 +1509,11 @@ pub fn nested_direct_fit_moments(
 #[cfg(test)]
 mod tests {
     use antecedent_core::{
-        CausalSchemaBuilder, DistributionRef, ExecutionContext, Lag, MeasurementSpec,
-        PredicateExpr, RoleHint, SmallRoleSet, TargetPopulation, TemporalEffectQuery,
-        TemporalPolicy, ValueType, VariableId,
+        CausalSchemaBuilder, DistributionRef, ExecutionContext, HistoryWindow, InitialLaw, Lag,
+        MeasurementSpec, PredicateExpr, RoleHint, SmallRoleSet, TargetPopulation,
+        TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
     };
+    use antecedent_model::history_operators::Horizon;
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
         TimeSeriesData, ValidityBitmap,
@@ -1446,6 +1580,98 @@ mod tests {
         let y0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
         g.insert_directed(x1, y0).unwrap();
         (data, g)
+    }
+
+    #[test]
+    fn the_adjustment_horizon_is_the_operator_horizon() {
+        let cadence =
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 10 }, length: 4 };
+        let horizon = Horizon::ending_at(40);
+        let admitted = admit_temporal_history(
+            &cadence,
+            horizon,
+            Some(InitialLaw::contemporaneous_observed()),
+            HistoryWindow::max_lag(2),
+            20,
+            1.0,
+            0.5,
+        )
+        .unwrap();
+        assert_eq!(admitted.horizon(), horizon);
+        assert_eq!(admitted.horizon().end_ns(), 40);
+        assert_eq!(admitted.horizon_steps().unwrap(), 4);
+        assert_eq!(admitted.history(), HistoryWindow::max_lag(2));
+        assert_eq!(admitted.action_ns(), 20);
+        assert_eq!(admitted.censoring().to_bits(), 1.0f64.to_bits());
+        assert_eq!(admitted.assignment().to_bits(), 0.5f64.to_bits());
+
+        let (data, g) = series();
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &query).unwrap();
+        let steps = outcome_sample_anchor(data.time_index(), &query).unwrap();
+        assert_eq!(steps, query.outcome_offset());
+        let estimand = id_res.result.estimands.first().unwrap();
+        TemporalLinearAdjustment::new()
+            .prepare(
+                &data,
+                estimand,
+                &query,
+                &id_res.indexer,
+                None,
+                &ExecutionContext::for_tests(1).kernel_policy,
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn an_off_cadence_horizon_is_refused() {
+        let cadence =
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 10 }, length: 4 };
+        let error = admit_temporal_history(
+            &cadence,
+            Horizon::ending_at(25),
+            Some(InitialLaw::contemporaneous_observed()),
+            HistoryWindow::planner_default(),
+            0,
+            1.0,
+            1.0,
+        )
+        .unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("crosses the cadence"), "{message}");
+        assert!(message.contains("25"), "{message}");
+
+        let (data, g) = series();
+        let irregular = TimeSeriesData::try_new(
+            data.storage().clone(),
+            TimeIndex {
+                regularity: SamplingRegularity::Irregular,
+                length: data.time_index().length,
+            },
+        )
+        .unwrap();
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &query).unwrap();
+        let route_error = TemporalLinearAdjustment::new()
+            .prepare(
+                &irregular,
+                id_res.result.estimands.first().unwrap(),
+                &query,
+                &id_res.indexer,
+                None,
+                &ExecutionContext::for_tests(1).kernel_policy,
+            )
+            .unwrap_err();
+        let route_message = route_error.to_string();
+        assert!(route_message.contains("crosses the cadence"), "{route_message}");
     }
 
     #[test]

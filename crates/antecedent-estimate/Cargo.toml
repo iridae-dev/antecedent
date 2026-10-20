@@ -38,6 +38,7 @@ antecedent-identify = { workspace = true }
 antecedent-io-core = { workspace = true }
 antecedent-kernels = { workspace = true }
 antecedent-learn = { workspace = true }
+antecedent-model = { workspace = true }
 antecedent-prob = { workspace = true }
 antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
