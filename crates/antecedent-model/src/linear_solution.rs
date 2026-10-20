@@ -1607,6 +1607,109 @@ mod tests {
         );
     }
 
+    fn correlated_disturbance(mean: Vec<f64>) -> GaussianDisturbance {
+        GaussianDisturbance::try_new(mean, vec![1.0, 0.3, 0.3, 1.0]).expect("correlated")
+    }
+
+    #[test]
+    fn correlated_disturbances_move_association_and_leave_the_clamp_response_alone() {
+        // A = 0.4 B + U_A, B = 0.5 A + U_B with Var(U) = 1 and Cov(U_A, U_B) = 0.3.
+        // (I - K)^-1 = [[1.25, 0.5], [0.625, 1.25]], and the observational
+        // covariance is (I - K)^-1 Σ (I - K)^-T.
+        let model = map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0]);
+        let component = admitted_component(&model);
+        let observed = compile_gaussian_equilibrium(
+            &component,
+            &model,
+            &correlated_disturbance(vec![0.0, 0.0]),
+            &HardClamp::none(2).expect("no clamp"),
+            &[],
+            CompileBudget::unlimited(),
+        )
+        .expect("observational equilibrium");
+        let covariance = observed.covariance();
+        assert!(close(covariance[0], 2.1875));
+        assert!(close(covariance[1], 1.968_75));
+        assert!(close(covariance[2], 1.968_75));
+        assert!(close(covariance[3], 2.421_875));
+        let association = covariance[1] / covariance[0];
+        assert!(close(association, 0.9));
+
+        // The clamp deletes the equation for A. The disturbance on B stays
+        // marginal, so its correlation with U_A does not enter.
+        let request = InterventionRequest::hard_clamp(2, &[0], &[1.0]).expect("do(A = 1)");
+        let intervened = compile_under_request(
+            &component,
+            &model,
+            &correlated_disturbance(vec![0.0, 0.0]),
+            &request,
+            CompileBudget::unlimited(),
+        )
+        .expect("intervened equilibrium");
+        assert!(close(intervened.mean()[1], 0.5));
+        assert!(close(intervened.covariance()[0], 0.0));
+        assert!(close(intervened.covariance()[1], 0.0));
+        assert!(close(intervened.covariance()[2], 0.0));
+        assert!(close(intervened.covariance()[3], 1.0));
+        assert!((association - intervened.mean()[1]).abs() > 0.3);
+    }
+
+    #[test]
+    fn batched_means_match_per_level_compiles_and_every_row_shares_one_covariance() {
+        let model = map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0]);
+        let component = admitted_component(&model);
+        let clamp = HardClamp::try_new(2, &[0]).expect("clamp A");
+        let levels = [0.0, 1.0, 2.0, -3.0];
+        let disturbance_mean = vec![0.2, -0.1];
+        let batch = hard_clamp_mean_batch(&model, &clamp, &levels, &disturbance_mean)
+            .expect("batch");
+        assert_eq!(batch.rows(), levels.len());
+        let mut covariances = Vec::new();
+        for (row, level) in levels.iter().enumerate() {
+            let request = InterventionRequest::hard_clamp(2, &[0], &[*level]).expect("request");
+            let compiled = compile_under_request(
+                &component,
+                &model,
+                &correlated_disturbance(disturbance_mean.clone()),
+                &request,
+                CompileBudget::unlimited(),
+            )
+            .expect("per-level compile");
+            let mean = batch.row(row).expect("row");
+            assert!(close(mean[0], compiled.mean()[0]));
+            assert!(close(mean[1], compiled.mean()[1]));
+            assert!(close(mean[1], 0.5 * level - 0.1));
+            covariances.push(compiled.covariance().to_vec());
+        }
+        // The level does not change the covariance, so one covariance serves the batch.
+        for covariance in &covariances {
+            assert!(close(covariance[0], 0.0));
+            assert!(close(covariance[1], 0.0));
+            assert!(close(covariance[2], 0.0));
+            assert!(close(covariance[3], 1.0));
+        }
+    }
+
+    #[test]
+    fn mean_batch_refuses_a_singular_clamp_and_returns_no_rows() {
+        // A = B + C, B = A, C = A. do(C) leaves the singular pair (A, B).
+        let model = map(vec![0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0], vec![0.0; 3]);
+        let clamp = HardClamp::try_new(3, &[2]).expect("clamp C");
+        let refused = hard_clamp_mean_batch(&model, &clamp, &[1.0, 2.0], &[0.0, 0.0, 0.0])
+            .expect_err("singular free block");
+        assert_eq!(
+            refused,
+            LinearSolutionError::FreeBlockNotSolvable {
+                refusal: SolvabilityRefusal::Singular { members: vec![0, 1] },
+            }
+        );
+        // A clamp that leaves a solvable block is batched on the same model.
+        let solvable = HardClamp::try_new(3, &[0]).expect("clamp A");
+        let batch = hard_clamp_mean_batch(&model, &solvable, &[1.0, 2.0], &[0.0, 0.0, 0.0])
+            .expect("solvable batch");
+        assert_eq!(batch.rows(), 2);
+    }
+
     fn matmul3(left: &[f64], right: &[f64]) -> [f64; 9] {
         let mut product = [0.0; 9];
         for row in 0..3 {

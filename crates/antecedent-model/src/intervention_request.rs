@@ -783,13 +783,13 @@ mod tests {
         InterventionBinding, InterventionKind, InterventionRequest, InterventionRequestError,
         compile_under_request, hard_clamp_of, revalidate_solvability,
     };
-    use crate::cyclic_component::CyclicComponent;
+    use crate::cyclic_component::{CyclicComponent, CyclicComponentError};
     use crate::linear_solution::{
         Conditioning, ConsistencyWitness, FamilyCertificate, HardClamp, IdentificationStatus,
         LinearStructuralMap, NextAttempt, PhysicalStability, SolvabilityRefusal, SolverConvergence,
         Uniqueness, assess,
     };
-    use crate::scc_compile::{CompileBudget, GaussianDisturbance};
+    use crate::scc_compile::{CompileBudget, GaussianDisturbance, SccCompileError};
 
     fn close(left: f64, right: f64) -> bool {
         (left - right).abs() <= 1.0e-8
@@ -816,14 +816,26 @@ mod tests {
         GaussianDisturbance::try_new(vec![0.0; dimension], covariance).expect("disturbance")
     }
 
-    /// Eigenvalues of a 2×2 update `K_FF`, roots of `λ² - tr(K_FF) λ + det(K_FF)`.
-    fn pair_eigenvalues(k_ff: &[f64]) -> (f64, f64) {
+    /// Eigenvalues of a 2×2 update `K_FF` as `(real, imaginary)` pairs, the roots
+    /// of `λ² - tr(K_FF) λ + det(K_FF)`. A negative discriminant gives the
+    /// conjugate pair, with the positive imaginary part first.
+    fn pair_eigenvalues(k_ff: &[f64]) -> [(f64, f64); 2] {
         assert_eq!(k_ff.len(), 4, "a 2×2 free update is four entries");
         let trace = k_ff[0] + k_ff[3];
         let determinant = k_ff[0] * k_ff[3] - k_ff[1] * k_ff[2];
         let half_trace = trace / 2.0;
-        let root = (half_trace * half_trace - determinant).sqrt();
-        (half_trace + root, half_trace - root)
+        let discriminant = half_trace * half_trace - determinant;
+        if discriminant >= 0.0 {
+            let root = discriminant.sqrt();
+            [(half_trace + root, 0.0), (half_trace - root, 0.0)]
+        } else {
+            let root = (-discriminant).sqrt();
+            [(half_trace, root), (half_trace, -root)]
+        }
+    }
+
+    fn modulus(eigenvalue: (f64, f64)) -> f64 {
+        eigenvalue.0.hypot(eigenvalue.1)
     }
 
     fn matmul3(left: &[f64], right: &[f64]) -> [f64; 9] {
@@ -1189,11 +1201,11 @@ mod tests {
         let model = map(vec![0.0, 2.0, 2.0, 0.0], vec![0.0, 0.0]);
         let request = InterventionRequest::hard_clamp(2, &[], &[]).expect("full update");
         let rechecked = revalidate_solvability(&model, &request).expect("unique");
-        let (larger, smaller) = pair_eigenvalues(&rechecked.block().factor.k_ff);
-        assert!(close(larger, 2.0));
-        assert!(close(smaller, -2.0));
-        assert!(larger.abs() > 1.0);
-        assert!(smaller.abs() > 1.0);
+        let [larger, smaller] = pair_eigenvalues(&rechecked.block().factor.k_ff);
+        assert!(close(larger.0, 2.0) && close(larger.1, 0.0));
+        assert!(close(smaller.0, -2.0) && close(smaller.1, 0.0));
+        assert!(modulus(larger) > 1.0);
+        assert!(modulus(smaller) > 1.0);
         assert!(matches!(rechecked.block().uniqueness, Uniqueness::Unique));
         assert_eq!(rechecked.physical_stability(), PhysicalStability::Unclaimed);
         assert_eq!(rechecked.identification(), IdentificationStatus::NotMarkedUnidentified);
@@ -1205,6 +1217,66 @@ mod tests {
         assert!(report.family.rho_abs_upper() > 1.0);
         assert_eq!(report.physical_stability, PhysicalStability::Unclaimed);
         assert_eq!(report.solver, SolverConvergence::NotRun);
+    }
+
+    #[test]
+    fn rotation_update_has_a_complex_pair_outside_the_unit_circle() {
+        // K = [[0, -2], [2, 0]]. det(I - K) = 5, so the equilibrium is unique.
+        // The update eigenvalues are ±2i; the real-root formula would give NaN.
+        let model = map(vec![0.0, -2.0, 2.0, 0.0], vec![0.0, 0.0]);
+        let request = InterventionRequest::hard_clamp(2, &[], &[]).expect("full update");
+        let rechecked = revalidate_solvability(&model, &request).expect("unique");
+        assert!(matches!(rechecked.block().uniqueness, Uniqueness::Unique));
+        let [upper, lower] = pair_eigenvalues(&rechecked.block().factor.k_ff);
+        assert!(upper.0.is_finite() && lower.0.is_finite());
+        assert!(close(upper.0, 0.0) && close(upper.1, 2.0));
+        assert!(close(lower.0, 0.0) && close(lower.1, -2.0));
+        assert!(close(modulus(upper), 2.0));
+        assert!(close(modulus(lower), 2.0));
+        let report = assess(&model, &HardClamp::none(2).expect("no clamp")).expect("assessment");
+        assert!(!report.family.is_admitted());
+        assert_eq!(report.physical_stability, PhysicalStability::Unclaimed);
+    }
+
+    #[test]
+    fn unique_unstable_equilibrium_reaches_no_consumer() {
+        // K = [[0, 2], [2, 0]]: unique, with update eigenvalues ±2.
+        let unstable = map(vec![0.0, 2.0, 2.0, 0.0], vec![0.0, 0.0]);
+        let open = HardClamp::none(2).expect("no clamp");
+        let family = assess(&unstable, &open).expect("assessment").family;
+        // No component can be admitted for it.
+        let refused = CyclicComponent::try_new(
+            "feedback",
+            "source-measurements",
+            &["solve-note"],
+            &unstable,
+            &family,
+        )
+        .expect_err("an unstable family is not admitted");
+        assert!(matches!(refused, CyclicComponentError::FamilyNotAdmitted { .. }));
+        // A component admitted for another model does not compile it either.
+        let stable = map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0]);
+        let borrowed = component_for(&stable);
+        for request in [
+            InterventionRequest::hard_clamp(2, &[], &[]).expect("full update"),
+            InterventionRequest::hard_clamp(2, &[0], &[1.0]).expect("do(A = 1)"),
+        ] {
+            // The free block is solvable, so the refusal is the component's.
+            revalidate_solvability(&unstable, &request).expect("unique free block");
+            let received = compile_under_request(
+                &borrowed,
+                &unstable,
+                &identity_noise(2),
+                &request,
+                CompileBudget::unlimited(),
+            );
+            assert!(matches!(
+                received,
+                Err(InterventionRequestError::Compile(
+                    SccCompileError::ComponentModelMismatch { .. }
+                ))
+            ));
+        }
     }
 
     #[test]
@@ -1241,9 +1313,9 @@ mod tests {
         assert!(close(k_ff[1], 2.0));
         assert!(close(k_ff[2], 2.0));
         assert!(close(k_ff[3], 0.0));
-        let (larger, smaller) = pair_eigenvalues(k_ff);
-        assert!(close(larger, 2.0));
-        assert!(close(smaller, -2.0));
+        let [larger, smaller] = pair_eigenvalues(k_ff);
+        assert!(close(larger.0, 2.0) && close(larger.1, 0.0));
+        assert!(close(smaller.0, -2.0) && close(smaller.1, 0.0));
         assert!(matches!(free.block().uniqueness, Uniqueness::Unique));
         assert_eq!(free.physical_stability(), PhysicalStability::Unclaimed);
         assert_eq!(free.identification(), IdentificationStatus::NotMarkedUnidentified);

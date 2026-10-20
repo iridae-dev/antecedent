@@ -591,9 +591,8 @@ pub fn recover_assembled_coefficients(
     weak_stability: WeakStability,
 ) -> AssembledCoefficientRecovery {
     let report = constraint_column_report(block);
-    let asserted_full = asserted_rank.is_some_and(|rank| {
-        rank.target == block.target && rank.column_rank >= block.sources.len()
-    });
+    let asserted_full = asserted_rank
+        .is_some_and(|rank| rank.target == block.target && rank.column_rank >= block.sources.len());
     match weak_stability {
         WeakStability::InvertibilityDeclared | WeakStability::NotDeclared => {
             recovery_from_matrix(block, report, asserted_full)
@@ -1064,16 +1063,53 @@ pub enum UncertaintyFault {
     UnsortedNodes,
     /// The law contained no draws.
     NoDraws,
+    /// A coefficient block names a different number of values than sources.
+    BlockShape {
+        /// Index of the block in the supplied slice.
+        block: usize,
+        /// Passive equation the block constrains.
+        target: VariableId,
+        /// Number of sources.
+        sources: usize,
+        /// Number of values.
+        values: usize,
+    },
+    /// A block whose rows disagree cannot be paired with a disturbance.
+    BlockInconsistent {
+        /// Index of the block in the supplied slice.
+        block: usize,
+        /// Rank of the coefficient matrix.
+        column_rank: usize,
+    },
+    /// A block that is not a finite coefficient matrix cannot be paired with a disturbance.
+    BlockNotAConstraint {
+        /// Index of the block in the supplied slice.
+        block: usize,
+    },
 }
 
 impl fmt::Display for UncertaintyFault {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(match self {
-            Self::EmptyNodes => "a recovered coefficient law needs the observed nodes",
-            Self::DuplicateNode => "a node was repeated",
-            Self::UnsortedNodes => "nodes must be strictly increasing",
-            Self::NoDraws => "a coefficient law needs its draws",
-        })
+        match self {
+            Self::EmptyNodes => {
+                formatter.write_str("a recovered coefficient law needs the observed nodes")
+            }
+            Self::DuplicateNode => formatter.write_str("a node was repeated"),
+            Self::UnsortedNodes => formatter.write_str("nodes must be strictly increasing"),
+            Self::NoDraws => formatter.write_str("a coefficient law needs its draws"),
+            Self::BlockShape { block, target, sources, values } => write!(
+                formatter,
+                "coefficient block {block} into node {} names {sources} sources and {values} values",
+                target.raw()
+            ),
+            Self::BlockInconsistent { block, column_rank } => write!(
+                formatter,
+                "coefficient block {block} has rows that disagree (column rank {column_rank})"
+            ),
+            Self::BlockNotAConstraint { block } => {
+                write!(formatter, "coefficient block {block} is not a finite coefficient matrix")
+            }
+        }
     }
 }
 
@@ -1179,7 +1215,11 @@ impl RecoveredCoefficientUncertainty {
 ///
 /// # Errors
 ///
-/// [`UncertaintyFault`] when `nodes` is empty, unsorted, or duplicated.
+/// [`UncertaintyFault`] when `nodes` is empty, unsorted, or duplicated, or when
+/// a block cannot contribute: [`UncertaintyFault::BlockShape`] for a value list
+/// that does not match its sources, [`UncertaintyFault::BlockInconsistent`] and
+/// [`UncertaintyFault::BlockNotAConstraint`] for blocks that solved nothing. Each
+/// names the offending block.
 #[must_use = "an unretained draw is not part of the coefficient law"]
 pub fn joint_draw_from_blocks(
     nodes: &[VariableId],
@@ -1192,13 +1232,19 @@ pub fn joint_draw_from_blocks(
     checked_nodes(nodes)?;
     let mut coefficients = Vec::new();
     let mut unresolved = Vec::new();
-    for block in blocks {
+    for (index, block) in blocks.iter().enumerate() {
         match block {
             AssembledCoefficientRecovery::Coefficients { target, sources, values } => {
-                if values.len() == sources.len() {
-                    for (&from, &value) in sources.iter().zip(values) {
-                        coefficients.push((DirectCoefficient { into: *target, from }, value));
-                    }
+                if values.len() != sources.len() {
+                    return Err(UncertaintyFault::BlockShape {
+                        block: index,
+                        target: *target,
+                        sources: sources.len(),
+                        values: values.len(),
+                    });
+                }
+                for (&from, &value) in sources.iter().zip(values) {
+                    coefficients.push((DirectCoefficient { into: *target, from }, value));
                 }
             }
             AssembledCoefficientRecovery::NullDirections {
@@ -1210,8 +1256,15 @@ pub fn joint_draw_from_blocks(
             } => {
                 push_null_directions(*target, sources, *column_rank, directions, &mut unresolved);
             }
-            AssembledCoefficientRecovery::Inconsistent { .. }
-            | AssembledCoefficientRecovery::NotAConstraint => {}
+            AssembledCoefficientRecovery::Inconsistent { column_rank } => {
+                return Err(UncertaintyFault::BlockInconsistent {
+                    block: index,
+                    column_rank: *column_rank,
+                });
+            }
+            AssembledCoefficientRecovery::NotAConstraint => {
+                return Err(UncertaintyFault::BlockNotAConstraint { block: index });
+            }
         }
     }
     Ok(retain_draw(
@@ -1235,11 +1288,8 @@ fn push_null_directions(
     directions: &[Vec<f64>],
     unresolved: &mut Vec<UnresolvedDirection>,
 ) {
-    let reason = UnresolvedReason::DeficientConstraintRank {
-        target,
-        column_rank,
-        width: sources.len(),
-    };
+    let reason =
+        UnresolvedReason::DeficientConstraintRank { target, column_rank, width: sources.len() };
     let whole_row = |source: &VariableId| DirectCoefficient { into: target, from: *source };
     if directions.is_empty() {
         unresolved.push(UnresolvedDirection {
@@ -1388,14 +1438,13 @@ fn mass_weight(weight: f64) -> f64 {
 mod tests {
     use super::{
         AssembledCoefficientRecovery, CLAMP_EXPERIMENT_RECIPE, ClampExogeneity, ClampExperimentSet,
-        JointRecoveryDraw,
         DeclarationRecovery, DeclaredClampExperiment, DeclaredEquationRank, DeclaredNoiseLaw,
         DesignFault, DirectCoefficient, DrawAdmissibility, ExperimentDesign,
         ExperimentalRecoveryDecision, FiniteSampleConditioning, InadmissibleCoefficientDraw,
-        LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt, NotThisRecipe,
+        JointRecoveryDraw, LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt, NotThisRecipe,
         PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability, RecoveredCoefficientPoint,
         RecoveredCoefficientUncertainty, RecoveryAttempt, RecoveryDrawInput, RefusalReason,
-        RegimeAssumption, UniquenessRestriction, UnresolvedReason, WeakStability,
+        RegimeAssumption, UncertaintyFault, UniquenessRestriction, UnresolvedReason, WeakStability,
         decide_experimental_recovery, joint_draw_from_blocks, recover_assembled_coefficients,
         recover_declared_coefficients,
     };
@@ -1946,13 +1995,9 @@ mod tests {
             UnitColumn { unit: node(2), values: &z },
         ];
         let samples = [RegimeSample { columns: &columns }, RegimeSample { columns: &columns }];
-        let assembled = assemble_experiment_constraints(&contract, &samples, u64::MAX)
-            .expect("z is covered");
-        assembled
-            .blocks
-            .into_iter()
-            .find(|block| block.target == node(2))
-            .expect("the block for z")
+        let assembled =
+            assemble_experiment_constraints(&contract, &samples, u64::MAX).expect("z is covered");
+        assembled.blocks.into_iter().find(|block| block.target == node(2)).expect("the block for z")
     }
 
     fn clamp_regime(
@@ -1975,11 +2020,7 @@ mod tests {
 
     #[test]
     fn declared_rank_and_invertibility_do_not_return_coefficients() {
-        let full = DeclaredEquationRank {
-            target: node(2),
-            column_rank: 2,
-            nullspace: Vec::new(),
-        };
+        let full = DeclaredEquationRank { target: node(2), column_rank: 2, nullspace: Vec::new() };
         assert_eq!(
             recover_declared_coefficients(Some(&full), WeakStability::InvertibilityDeclared),
             DeclarationRecovery::NoCoefficients
@@ -2120,5 +2161,64 @@ mod tests {
         assert_eq!(draw.unresolved()[0].support, vec![coefficient(1, 0)]);
         assert_eq!(draw.noise_covariance(), noise_covariance.as_slice());
         assert!(draw.coefficients().len() < nodes.len() * nodes.len());
+    }
+
+    fn draw_from(
+        block: AssembledCoefficientRecovery,
+    ) -> Result<JointRecoveryDraw, UncertaintyFault> {
+        let (noise_mean, noise_covariance) = paired_noise(1.0);
+        joint_draw_from_blocks(
+            &two_nodes(),
+            &[block],
+            vec![0.0, 0.0],
+            noise_mean,
+            noise_covariance,
+            1.0,
+        )
+    }
+
+    #[test]
+    fn block_with_mismatched_values_is_refused_and_named() {
+        let refused = draw_from(AssembledCoefficientRecovery::Coefficients {
+            target: node(1),
+            sources: vec![node(0)],
+            values: vec![0.5, 0.6],
+        })
+        .expect_err("a value list that does not match its sources");
+        assert_eq!(
+            refused,
+            UncertaintyFault::BlockShape { block: 0, target: node(1), sources: 1, values: 2 }
+        );
+    }
+
+    #[test]
+    fn inconsistent_and_non_constraint_blocks_are_refused_and_named() {
+        let solved = AssembledCoefficientRecovery::Coefficients {
+            target: node(0),
+            sources: vec![node(1)],
+            values: vec![0.4],
+        };
+        let (noise_mean, noise_covariance) = paired_noise(1.0);
+        let refused = joint_draw_from_blocks(
+            &two_nodes(),
+            &[solved.clone(), AssembledCoefficientRecovery::Inconsistent { column_rank: 1 }],
+            vec![0.0, 0.0],
+            noise_mean.clone(),
+            noise_covariance.clone(),
+            1.0,
+        )
+        .expect_err("rows that disagree");
+        assert_eq!(refused, UncertaintyFault::BlockInconsistent { block: 1, column_rank: 1 });
+        let refused = joint_draw_from_blocks(
+            &two_nodes(),
+            &[solved, AssembledCoefficientRecovery::NotAConstraint],
+            vec![0.0, 0.0],
+            noise_mean,
+            noise_covariance,
+            1.0,
+        )
+        .expect_err("not a coefficient matrix");
+        assert_eq!(refused, UncertaintyFault::BlockNotAConstraint { block: 1 });
+        assert!(refused.to_string().contains("block 1"));
     }
 }
