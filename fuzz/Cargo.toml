@@ -15,12 +15,14 @@ libfuzzer-sys = "0.4"
 antecedent-core = { path = "../crates/antecedent-core" }
 antecedent-graph = { path = "../crates/antecedent-graph" }
 antecedent-kernels = { path = "../crates/antecedent-kernels" }
+antecedent-model = { path = "../crates/antecedent-model" }
 antecedent-io = { path = "../crates/antecedent-io" }
 antecedent-io-core = { path = "../crates/antecedent-io-core" }
 antecedent-design = { path = "../crates/antecedent-design" }
 antecedent-expr = { path = "../crates/antecedent-expr" }
 antecedent-data = { path = "../crates/antecedent-data", features = ["arrow"] }
 arrow-array = { version = "54", default-features = false }
+arrow-buffer = { version = "54", default-features = false }
 arrow-schema = { version = "54", default-features = false }
 
 [[bin]]
@@ -278,6 +280,13 @@ bench = false
 [[bin]]
 name = "decision_json"
 path = "fuzz_targets/decision_json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cyclic_admissibility"
+path = "fuzz_targets/cyclic_admissibility.rs"
 test = false
 doc = false
 bench = false

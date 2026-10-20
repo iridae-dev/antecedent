@@ -10,8 +10,9 @@ cargo +nightly fuzz run schema_names
 Existing targets:
 
 - `schema_names` — schema construction
-- `dag_ops` — DAG insert / d-separation
-- `kernel_reductions` — masked reductions
+- `dag_ops` — DAG insert / d-separation, and the cyclic-graph edge contract
+- `kernel_reductions` — masked reductions, solver size arithmetic, singular blocks
+- `cyclic_admissibility` — linear cyclic admissibility (zero diagonal, no stored inverse)
 
 P3.5 additions:
 
@@ -54,7 +55,8 @@ Artifact and declaration parsers (each takes arbitrary bytes and must return a t
 - `sequential_evaluation_artifact` — `SequentialEvaluationArtifact::from_bytes` and `consume`
 - `study_plan_artifact` — `StudyPlanArtifactWire` CBOR decode, then `consume_with_limits`
 - `transport_artifacts` — joint Bayesian, ADMG conditional (and obstruction), mz and z transport artifacts: `decode` and `consume`
-- `decision_json` — `contract_from_json` and `contract_from_json_refusal` (there is no `result_from_json`; results export JSON only)
+- `decision_json` — `contract_from_json` and `contract_from_json_refusal` (there is no
+  `result_from_json`; results export JSON only). A stored identity is ignored.
 
 Corpus notes: seed each target from a valid exported artifact of its kind (the golden fixtures
 used by the artifact round-trip tests are the natural seeds), plus truncations and single-byte
@@ -64,7 +66,11 @@ property. Targets pass `None` for the expected identity so that decoding, not th
 comparison, is what is exercised. These targets depend on `antecedent-io-core` and `antecedent-design`
 by path; `cargo +nightly fuzz build` refreshes `fuzz/Cargo.lock`.
 
-Not reached: Arrow C Data Interface. The safe ingest is `tabular_from_arrow_c_columns`, and `ArrowCColumn` is only built from an existing Arrow array or an `unsafe` FFI pair. There is no byte-slice parser for that boundary. `arrow_metadata` already fuzzes `tabular_from_record_batch`. The per-artifact `decode` methods are not one public dispatcher.
+`arrow_metadata` fuzzes `tabular_from_record_batch` and the safe Arrow C Data Interface
+constructors (`ArrowCColumn::from_arrow_array`, stream import). An exported column outlives the
+source array, and a failed import or a failed stream releases the exporter. There is still no
+byte-slice parser for a raw FFI pair. The per-artifact `decode` methods are not one public
+dispatcher.
 
 CI builds every target and does not run the fuzzer:
 

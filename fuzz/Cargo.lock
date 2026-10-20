@@ -36,7 +36,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-contract"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "thiserror 2.0.19",
@@ -44,7 +44,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-core"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "blake3",
  "thiserror 2.0.19",
@@ -52,7 +52,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-counterfactual"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
@@ -64,7 +64,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-data"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -77,7 +77,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-design"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
@@ -95,7 +95,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-discovery"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -109,7 +109,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-estimate"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -127,7 +127,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-expr"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
 ]
@@ -144,14 +144,16 @@ dependencies = [
  "antecedent-io",
  "antecedent-io-core",
  "antecedent-kernels",
+ "antecedent-model",
  "arrow-array",
+ "arrow-buffer",
  "arrow-schema",
  "libfuzzer-sys",
 ]
 
 [[package]]
 name = "antecedent-graph"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "thiserror 2.0.19",
@@ -159,7 +161,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-identify"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -171,10 +173,12 @@ dependencies = [
 
 [[package]]
 name = "antecedent-io"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
+ "antecedent-data",
+ "antecedent-discovery",
  "antecedent-estimate",
  "antecedent-expr",
  "antecedent-graph",
@@ -193,7 +197,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-io-core"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
@@ -218,14 +222,14 @@ dependencies = [
 
 [[package]]
 name = "antecedent-kernels"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
 ]
 
 [[package]]
 name = "antecedent-learn"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -238,19 +242,20 @@ dependencies = [
 
 [[package]]
 name = "antecedent-model"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
  "antecedent-graph",
  "antecedent-kernels",
+ "antecedent-learn",
  "antecedent-stats",
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "antecedent-prob"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -259,7 +264,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-state"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -269,7 +274,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-stats"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -279,7 +284,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-validate"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
