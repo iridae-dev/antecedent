@@ -41,3 +41,7 @@ harness = false
 
 [[bench]]
 name = "portable_layout"
+
+[[bench]]
+name = "blas_layout"
+harness = false

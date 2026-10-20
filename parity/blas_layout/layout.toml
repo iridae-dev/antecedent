@@ -1,0 +1,214 @@
+# Faer Gram layouts versus the column-major or column-wise reference.
+# Criterion medians from a release build, sample size 10, 0.5 s warmup,
+# 1 s measurement. This is not the QR serial-versus-parallel record.
+
+schema = 1
+item = "N19"
+host = "Apple M1 Max, arm64, 10 hardware threads, 64 GB"
+profile = "release"
+criterion_sample_size = 10
+warmup_s = 0.5
+measurement_s = 1
+accuracy = "passed before sampling; absolute gap at most 1e-8 * (1 + max abs)"
+
+# Times are criterion medians in nanoseconds. low_ns and high_ns are the
+# reported interval ends. Sixteen workers oversubscribe this 10-thread host.
+
+[[case]]
+layout = "dense"
+rows = 64
+cols = 8
+product = "reference"
+workers = 1
+median_ns = 869
+low_ns = 867
+high_ns = 870
+
+[[case]]
+layout = "dense"
+rows = 64
+cols = 8
+product = "faer"
+workers = 1
+median_ns = 629
+low_ns = 547
+high_ns = 710
+
+[[case]]
+layout = "dense"
+rows = 64
+cols = 8
+product = "faer"
+workers = 4
+median_ns = 544
+low_ns = 543
+high_ns = 545
+
+[[case]]
+layout = "dense"
+rows = 64
+cols = 8
+product = "faer"
+workers = 16
+median_ns = 545
+low_ns = 543
+high_ns = 546
+
+[[case]]
+layout = "dense"
+rows = 4096
+cols = 128
+product = "reference"
+workers = 1
+median_ns = 31460000
+low_ns = 31418000
+high_ns = 31507000
+
+[[case]]
+layout = "dense"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 1
+median_ns = 3182500
+low_ns = 3173600
+high_ns = 3195400
+
+[[case]]
+layout = "dense"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 4
+median_ns = 1373200
+low_ns = 1364700
+high_ns = 1389000
+
+[[case]]
+layout = "dense"
+rows = 4096
+cols = 128
+product = "faer"
+workers = 16
+median_ns = 1222800
+low_ns = 1218000
+high_ns = 1228300
+
+[[case]]
+layout = "sparse"
+rows = 128
+cols = 16
+nonzeros_per_column = 4
+product = "reference"
+workers = 1
+median_ns = 305
+low_ns = 305
+high_ns = 307
+
+[[case]]
+layout = "sparse"
+rows = 128
+cols = 16
+nonzeros_per_column = 4
+product = "faer"
+workers = 1
+median_ns = 543
+low_ns = 541
+high_ns = 546
+
+[[case]]
+layout = "sparse"
+rows = 128
+cols = 16
+nonzeros_per_column = 4
+product = "faer"
+workers = 4
+median_ns = 20209
+low_ns = 19341
+high_ns = 21342
+
+[[case]]
+layout = "sparse"
+rows = 128
+cols = 16
+nonzeros_per_column = 4
+product = "faer"
+workers = 16
+median_ns = 25324
+low_ns = 24560
+high_ns = 25670
+
+[[case]]
+layout = "sparse"
+rows = 8192
+cols = 1024
+nonzeros_per_column = 48
+product = "reference"
+workers = 1
+median_ns = 7861900
+low_ns = 7833200
+high_ns = 7904000
+
+[[case]]
+layout = "sparse"
+rows = 8192
+cols = 1024
+nonzeros_per_column = 48
+product = "faer"
+workers = 1
+median_ns = 1232500
+low_ns = 1230300
+high_ns = 1235700
+
+[[case]]
+layout = "sparse"
+rows = 8192
+cols = 1024
+nonzeros_per_column = 48
+product = "faer"
+workers = 4
+median_ns = 404770
+low_ns = 401340
+high_ns = 411620
+
+[[case]]
+layout = "sparse"
+rows = 8192
+cols = 1024
+nonzeros_per_column = 48
+product = "faer"
+workers = 16
+median_ns = 327810
+low_ns = 324450
+high_ns = 334070
+
+# Selected from those medians. Sixteen workers do not win a small problem.
+# On the large problems, sixteen workers beat four even though the host has ten threads.
+
+[[selection]]
+layout = "dense"
+shape = "small"
+product = "faer"
+workers = 4
+reason = "Faer beats the column-major reference. Four workers beat one worker, and sixteen workers do not beat four."
+
+[[selection]]
+layout = "dense"
+shape = "large"
+product = "faer"
+workers = 16
+reason = "Faer beats the column-major reference. Sixteen workers beat four, and four beat one."
+
+[[selection]]
+layout = "sparse"
+shape = "small"
+product = "reference"
+workers = 1
+reason = "The column-wise reference beats faer on one worker. Four and sixteen workers are slower by more than an order of magnitude."
+
+[[selection]]
+layout = "sparse"
+shape = "large"
+product = "faer"
+workers = 16
+reason = "Faer beats the column-wise reference. Sixteen workers beat four, and four beat one."
