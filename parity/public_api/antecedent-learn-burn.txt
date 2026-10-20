@@ -348,6 +348,7 @@ pub field antecedent_learn_burn::accelerator_probe::StageClocks::upload: core::t
 pub field antecedent_learn_burn::device::CacheEntry::generation: u64
 pub field antecedent_learn_burn::device::CacheEntry::key: antecedent_learn_burn::device::CacheKey
 pub field antecedent_learn_burn::device::CacheEntry::lifetime: antecedent_learn_burn::device::CacheLifetime
+pub field antecedent_learn_burn::device::CacheKey::content: [u64; 2]
 pub field antecedent_learn_burn::device::CacheKey::fold: u32
 pub field antecedent_learn_burn::device::CacheKey::seed: u64
 pub field antecedent_learn_burn::device::CacheKey::spec_tag: u64
@@ -404,7 +405,7 @@ pub fn <antecedent_learn_burn::device::LeaseScheduler>::fn acquire(&mut self, fo
 pub fn <antecedent_learn_burn::device::LeaseScheduler>::fn release(&mut self, lease: antecedent_learn_burn::device::RngLease) -> core::result::Result<(), antecedent_learn_burn::device::DeviceError>
 pub fn <antecedent_learn_burn::device::PortableFit>::fn predict(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, out: &mut [f64]) -> core::result::Result<(), antecedent_learn_burn::LearnBurnError>
 pub fn antecedent_learn_burn::accelerator_probe::probe_small_fold() -> core::result::Result<antecedent_learn_burn::accelerator_probe::SmallFoldProbe, antecedent_learn_burn::LearnBurnError>
-pub fn antecedent_learn_burn::device::cache_key(fold: &antecedent_learn_burn::device::FoldSpec) -> antecedent_learn_burn::device::CacheKey
+pub fn antecedent_learn_burn::device::cache_key(fold: &antecedent_learn_burn::device::FoldSpec, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64]) -> antecedent_learn_burn::device::CacheKey
 pub fn antecedent_learn_burn::device::orchestrate_cpu(runtime: &mut antecedent_learn_burn::device::DeviceRuntime, x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], folds: &[antecedent_learn_burn::device::FoldSpec]) -> core::result::Result<antecedent_learn_burn::device::Orchestration, antecedent_learn_burn::device::DeviceError>
 pub fn antecedent_learn_burn::device::transfer_plan(epochs: usize) -> alloc::vec::Vec<antecedent_learn_burn::device::TransferStep>
 pub fn antecedent_learn_burn::train(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], spec: &antecedent_learn_burn::MlpSpec) -> core::result::Result<antecedent_learn_burn::TrainedMlp, antecedent_learn_burn::LearnBurnError>

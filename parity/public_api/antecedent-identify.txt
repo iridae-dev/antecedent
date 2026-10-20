@@ -15,6 +15,7 @@
 #[doc(hidden)] pub fn antecedent_identify::sid::validate_mz_transport_query(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::MzTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog) -> core::result::Result<antecedent_identify::ValidatedMzTransportQuery, antecedent_identify::IdentificationError>
 #[non_exhaustive] pub enum antecedent_identify::IdentificationBudget
 #[non_exhaustive] pub enum antecedent_identify::IdentificationError
+#[non_exhaustive] pub enum antecedent_identify::ProductRefusal
 #[non_exhaustive] pub enum antecedent_identify::discovered_transport::DiscoveredTransportError
 #[non_exhaustive] pub struct antecedent_identify::CompiledIdentificationProduct
 #[non_exhaustive] pub struct antecedent_identify::IdentificationResult
@@ -165,6 +166,7 @@ impl core::clone::Clone for antecedent_identify::PreparedAdmg
 impl core::clone::Clone for antecedent_identify::PreparedAutoGraph
 impl core::clone::Clone for antecedent_identify::PreparedIdentificationGraph
 impl core::clone::Clone for antecedent_identify::ProbabilityMass
+impl core::clone::Clone for antecedent_identify::ProductRefusal
 impl core::clone::Clone for antecedent_identify::RecipeRefusal
 impl core::clone::Clone for antecedent_identify::RecoveredEffect
 impl core::clone::Clone for antecedent_identify::RecoveredEffectQuery
@@ -288,6 +290,7 @@ impl core::clone::Clone for antecedent_identify::experiment_moments::RegimeIncon
 impl core::clone::Clone for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::clone::Clone for antecedent_identify::experimental_recovery::FiniteSampleConditioning
 impl core::clone::Clone for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::clone::Clone for antecedent_identify::history_identification::AncestryFrontier
 impl core::clone::Clone for antecedent_identify::history_identification::CertifiedHistory
 impl core::clone::Clone for antecedent_identify::history_identification::FeedbackAncestor
 impl core::clone::Clone for antecedent_identify::history_identification::HistoryIdentification
@@ -296,6 +299,7 @@ impl core::clone::Clone for antecedent_identify::history_identification::History
 impl core::clone::Clone for antecedent_identify::history_identification::HistorySearchBound
 impl core::clone::Clone for antecedent_identify::history_identification::PulseFallbackHistory
 impl core::clone::Clone for antecedent_identify::history_identification::UncertifiedHistory
+impl core::clone::Clone for antecedent_identify::history_identification::UncertifiedReason
 impl core::clone::Clone for antecedent_identify::sid::Rule
 impl core::clone::Clone for antecedent_identify::sid::SHedgeCertificate
 impl core::clone::Clone for antecedent_identify::sid::SHedgeRecord
@@ -426,6 +430,7 @@ impl core::cmp::Eq for antecedent_identify::PartiallyObserved
 impl core::cmp::Eq for antecedent_identify::PhysicalDynamicalStability
 impl core::cmp::Eq for antecedent_identify::PopulationFactor
 impl core::cmp::Eq for antecedent_identify::PopulationId
+impl core::cmp::Eq for antecedent_identify::ProductRefusal
 impl core::cmp::Eq for antecedent_identify::RecipeRefusal
 impl core::cmp::Eq for antecedent_identify::RecoveredEffectRecord
 impl core::cmp::Eq for antecedent_identify::RecoveryAttempt
@@ -494,6 +499,7 @@ impl core::cmp::Eq for antecedent_identify::experiment_moments::MomentAssemblyRe
 impl core::cmp::Eq for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::FiniteSampleConditioning
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::cmp::Eq for antecedent_identify::history_identification::AncestryFrontier
 impl core::cmp::Eq for antecedent_identify::history_identification::CertifiedHistory
 impl core::cmp::Eq for antecedent_identify::history_identification::FeedbackAncestor
 impl core::cmp::Eq for antecedent_identify::history_identification::HistoryIdentification
@@ -502,6 +508,7 @@ impl core::cmp::Eq for antecedent_identify::history_identification::HistoryIdent
 impl core::cmp::Eq for antecedent_identify::history_identification::HistorySearchBound
 impl core::cmp::Eq for antecedent_identify::history_identification::PulseFallbackHistory
 impl core::cmp::Eq for antecedent_identify::history_identification::UncertifiedHistory
+impl core::cmp::Eq for antecedent_identify::history_identification::UncertifiedReason
 impl core::cmp::Eq for antecedent_identify::sid::Rule
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionDag
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionRecord
@@ -629,6 +636,7 @@ impl core::cmp::PartialEq for antecedent_identify::PhysicalDynamicalStability
 impl core::cmp::PartialEq for antecedent_identify::PopulationFactor
 impl core::cmp::PartialEq for antecedent_identify::PopulationId
 impl core::cmp::PartialEq for antecedent_identify::ProbabilityMass
+impl core::cmp::PartialEq for antecedent_identify::ProductRefusal
 impl core::cmp::PartialEq for antecedent_identify::RecipeRefusal
 impl core::cmp::PartialEq for antecedent_identify::RecoveredEffectRecord
 impl core::cmp::PartialEq for antecedent_identify::RecoveryAttempt
@@ -728,6 +736,7 @@ impl core::cmp::PartialEq for antecedent_identify::experiment_moments::RegimeInc
 impl core::cmp::PartialEq for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::FiniteSampleConditioning
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::cmp::PartialEq for antecedent_identify::history_identification::AncestryFrontier
 impl core::cmp::PartialEq for antecedent_identify::history_identification::CertifiedHistory
 impl core::cmp::PartialEq for antecedent_identify::history_identification::FeedbackAncestor
 impl core::cmp::PartialEq for antecedent_identify::history_identification::HistoryIdentification
@@ -736,6 +745,7 @@ impl core::cmp::PartialEq for antecedent_identify::history_identification::Histo
 impl core::cmp::PartialEq for antecedent_identify::history_identification::HistorySearchBound
 impl core::cmp::PartialEq for antecedent_identify::history_identification::PulseFallbackHistory
 impl core::cmp::PartialEq for antecedent_identify::history_identification::UncertifiedHistory
+impl core::cmp::PartialEq for antecedent_identify::history_identification::UncertifiedReason
 impl core::cmp::PartialEq for antecedent_identify::sid::Rule
 impl core::cmp::PartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::cmp::PartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -809,6 +819,7 @@ impl core::default::Default for antecedent_identify::UnitMask
 impl core::default::Default for antecedent_identify::sid::temporal_sequence::HistoryLattice
 impl core::error::Error for antecedent_identify::ChainRecoveryError
 impl core::error::Error for antecedent_identify::IdentificationError
+impl core::error::Error for antecedent_identify::ProductRefusal
 impl core::error::Error for antecedent_identify::RecoveryError
 impl core::error::Error for antecedent_identify::StudyPlanRefusal
 impl core::error::Error for antecedent_identify::counterfactual_id::CounterfactualIdRefusal
@@ -957,6 +968,7 @@ impl core::fmt::Debug for antecedent_identify::PreparedAdmg
 impl core::fmt::Debug for antecedent_identify::PreparedAutoGraph
 impl core::fmt::Debug for antecedent_identify::PreparedIdentificationGraph
 impl core::fmt::Debug for antecedent_identify::ProbabilityMass
+impl core::fmt::Debug for antecedent_identify::ProductRefusal
 impl core::fmt::Debug for antecedent_identify::RecipeRefusal
 impl core::fmt::Debug for antecedent_identify::RecoveredEffect
 impl core::fmt::Debug for antecedent_identify::RecoveredEffectQuery
@@ -1080,6 +1092,7 @@ impl core::fmt::Debug for antecedent_identify::experiment_moments::RegimeInconsi
 impl core::fmt::Debug for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::FiniteSampleConditioning
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::fmt::Debug for antecedent_identify::history_identification::AncestryFrontier
 impl core::fmt::Debug for antecedent_identify::history_identification::CertifiedHistory
 impl core::fmt::Debug for antecedent_identify::history_identification::FeedbackAncestor
 impl core::fmt::Debug for antecedent_identify::history_identification::HistoryIdentification
@@ -1088,6 +1101,7 @@ impl core::fmt::Debug for antecedent_identify::history_identification::HistoryId
 impl core::fmt::Debug for antecedent_identify::history_identification::HistorySearchBound
 impl core::fmt::Debug for antecedent_identify::history_identification::PulseFallbackHistory
 impl core::fmt::Debug for antecedent_identify::history_identification::UncertifiedHistory
+impl core::fmt::Debug for antecedent_identify::history_identification::UncertifiedReason
 impl core::fmt::Debug for antecedent_identify::sid::Rule
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeCertificate
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeRecord
@@ -1137,6 +1151,7 @@ impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::UnrolledS
 impl core::fmt::Display for antecedent_identify::ChainRecoveryError
 impl core::fmt::Display for antecedent_identify::IdentificationError
 impl core::fmt::Display for antecedent_identify::NextRegimeAttempt
+impl core::fmt::Display for antecedent_identify::ProductRefusal
 impl core::fmt::Display for antecedent_identify::RecoveryError
 impl core::fmt::Display for antecedent_identify::RegimeRefusal
 impl core::fmt::Display for antecedent_identify::RegimeRefusalReason
@@ -1189,6 +1204,7 @@ impl core::hash::Hash for antecedent_identify::experiment_moments::MissingPair
 impl core::hash::Hash for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::hash::Hash for antecedent_identify::experimental_recovery::FiniteSampleConditioning
 impl core::hash::Hash for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::hash::Hash for antecedent_identify::history_identification::AncestryFrontier
 impl core::hash::Hash for antecedent_identify::history_identification::FeedbackAncestor
 impl core::hash::Hash for antecedent_identify::history_identification::HistoryIdentificationTarget
 impl core::hash::Hash for antecedent_identify::history_identification::HistorySearchBound
@@ -1219,6 +1235,7 @@ impl core::marker::Copy for antecedent_identify::PartiallyObserved
 impl core::marker::Copy for antecedent_identify::PhysicalDynamicalStability
 impl core::marker::Copy for antecedent_identify::PopulationId
 impl core::marker::Copy for antecedent_identify::ProbabilityMass
+impl core::marker::Copy for antecedent_identify::ProductRefusal
 impl core::marker::Copy for antecedent_identify::RecipeRefusal
 impl core::marker::Copy for antecedent_identify::RecoveryDetail
 impl core::marker::Copy for antecedent_identify::RecoveryLimits
@@ -1244,10 +1261,12 @@ impl core::marker::Copy for antecedent_identify::experiment_moments::MissingPair
 impl core::marker::Copy for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::marker::Copy for antecedent_identify::experimental_recovery::FiniteSampleConditioning
 impl core::marker::Copy for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::marker::Copy for antecedent_identify::history_identification::AncestryFrontier
 impl core::marker::Copy for antecedent_identify::history_identification::FeedbackAncestor
 impl core::marker::Copy for antecedent_identify::history_identification::HistoryIdentificationRefusal
 impl core::marker::Copy for antecedent_identify::history_identification::HistoryIdentificationTarget
 impl core::marker::Copy for antecedent_identify::history_identification::HistorySearchBound
+impl core::marker::Copy for antecedent_identify::history_identification::UncertifiedReason
 impl core::marker::Copy for antecedent_identify::sid::Rule
 impl core::marker::Copy for antecedent_identify::sid::scenarios::ScenarioDecisionLimits
 impl core::marker::Copy for antecedent_identify::sid::temporal_sequence::MechanismAssumption
@@ -1390,6 +1409,7 @@ impl core::marker::Freeze for antecedent_identify::PreparedAdmg [auto]
 impl core::marker::Freeze for antecedent_identify::PreparedAutoGraph [auto]
 impl core::marker::Freeze for antecedent_identify::PreparedIdentificationGraph [auto]
 impl core::marker::Freeze for antecedent_identify::ProbabilityMass [auto]
+impl core::marker::Freeze for antecedent_identify::ProductRefusal [auto]
 impl core::marker::Freeze for antecedent_identify::RecipeRefusal [auto]
 impl core::marker::Freeze for antecedent_identify::RecoveredEffect [auto]
 impl core::marker::Freeze for antecedent_identify::RecoveredEffectQuery [auto]
@@ -1513,6 +1533,7 @@ impl core::marker::Freeze for antecedent_identify::experiment_moments::RegimeInc
 impl core::marker::Freeze for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Freeze for antecedent_identify::history_identification::AncestryFrontier [auto]
 impl core::marker::Freeze for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::marker::Freeze for antecedent_identify::history_identification::FeedbackAncestor [auto]
 impl core::marker::Freeze for antecedent_identify::history_identification::HistoryIdentification [auto]
@@ -1521,6 +1542,7 @@ impl core::marker::Freeze for antecedent_identify::history_identification::Histo
 impl core::marker::Freeze for antecedent_identify::history_identification::HistorySearchBound [auto]
 impl core::marker::Freeze for antecedent_identify::history_identification::PulseFallbackHistory [auto]
 impl core::marker::Freeze for antecedent_identify::history_identification::UncertifiedHistory [auto]
+impl core::marker::Freeze for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::marker::Freeze for antecedent_identify::sid::Rule [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeRecord [auto]
@@ -1705,6 +1727,7 @@ impl core::marker::Send for antecedent_identify::PreparedAdmg [auto]
 impl core::marker::Send for antecedent_identify::PreparedAutoGraph [auto]
 impl core::marker::Send for antecedent_identify::PreparedIdentificationGraph [auto]
 impl core::marker::Send for antecedent_identify::ProbabilityMass [auto]
+impl core::marker::Send for antecedent_identify::ProductRefusal [auto]
 impl core::marker::Send for antecedent_identify::RecipeRefusal [auto]
 impl core::marker::Send for antecedent_identify::RecoveredEffect [auto]
 impl core::marker::Send for antecedent_identify::RecoveredEffectQuery [auto]
@@ -1828,6 +1851,7 @@ impl core::marker::Send for antecedent_identify::experiment_moments::RegimeIncon
 impl core::marker::Send for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Send for antecedent_identify::history_identification::AncestryFrontier [auto]
 impl core::marker::Send for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::marker::Send for antecedent_identify::history_identification::FeedbackAncestor [auto]
 impl core::marker::Send for antecedent_identify::history_identification::HistoryIdentification [auto]
@@ -1836,6 +1860,7 @@ impl core::marker::Send for antecedent_identify::history_identification::History
 impl core::marker::Send for antecedent_identify::history_identification::HistorySearchBound [auto]
 impl core::marker::Send for antecedent_identify::history_identification::PulseFallbackHistory [auto]
 impl core::marker::Send for antecedent_identify::history_identification::UncertifiedHistory [auto]
+impl core::marker::Send for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::marker::Send for antecedent_identify::sid::Rule [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeRecord [auto]
@@ -1973,6 +1998,7 @@ impl core::marker::StructuralPartialEq for antecedent_identify::PhysicalDynamica
 impl core::marker::StructuralPartialEq for antecedent_identify::PopulationFactor
 impl core::marker::StructuralPartialEq for antecedent_identify::PopulationId
 impl core::marker::StructuralPartialEq for antecedent_identify::ProbabilityMass
+impl core::marker::StructuralPartialEq for antecedent_identify::ProductRefusal
 impl core::marker::StructuralPartialEq for antecedent_identify::RecipeRefusal
 impl core::marker::StructuralPartialEq for antecedent_identify::RecoveredEffectRecord
 impl core::marker::StructuralPartialEq for antecedent_identify::RecoveryAttempt
@@ -2070,6 +2096,7 @@ impl core::marker::StructuralPartialEq for antecedent_identify::experiment_momen
 impl core::marker::StructuralPartialEq for antecedent_identify::experiment_moments::TargetConstraintBlock
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::FiniteSampleConditioning
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::AncestryFrontier
 impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::CertifiedHistory
 impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::FeedbackAncestor
 impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::HistoryIdentification
@@ -2078,6 +2105,7 @@ impl core::marker::StructuralPartialEq for antecedent_identify::history_identifi
 impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::HistorySearchBound
 impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::PulseFallbackHistory
 impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::UncertifiedHistory
+impl core::marker::StructuralPartialEq for antecedent_identify::history_identification::UncertifiedReason
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::Rule
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -2241,6 +2269,7 @@ impl core::marker::Sync for antecedent_identify::PreparedAdmg [auto]
 impl core::marker::Sync for antecedent_identify::PreparedAutoGraph [auto]
 impl core::marker::Sync for antecedent_identify::PreparedIdentificationGraph [auto]
 impl core::marker::Sync for antecedent_identify::ProbabilityMass [auto]
+impl core::marker::Sync for antecedent_identify::ProductRefusal [auto]
 impl core::marker::Sync for antecedent_identify::RecipeRefusal [auto]
 impl core::marker::Sync for antecedent_identify::RecoveredEffect [auto]
 impl core::marker::Sync for antecedent_identify::RecoveredEffectQuery [auto]
@@ -2364,6 +2393,7 @@ impl core::marker::Sync for antecedent_identify::experiment_moments::RegimeIncon
 impl core::marker::Sync for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Sync for antecedent_identify::history_identification::AncestryFrontier [auto]
 impl core::marker::Sync for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::marker::Sync for antecedent_identify::history_identification::FeedbackAncestor [auto]
 impl core::marker::Sync for antecedent_identify::history_identification::HistoryIdentification [auto]
@@ -2372,6 +2402,7 @@ impl core::marker::Sync for antecedent_identify::history_identification::History
 impl core::marker::Sync for antecedent_identify::history_identification::HistorySearchBound [auto]
 impl core::marker::Sync for antecedent_identify::history_identification::PulseFallbackHistory [auto]
 impl core::marker::Sync for antecedent_identify::history_identification::UncertifiedHistory [auto]
+impl core::marker::Sync for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::marker::Sync for antecedent_identify::sid::Rule [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2556,6 +2587,7 @@ impl core::marker::Unpin for antecedent_identify::PreparedAdmg [auto]
 impl core::marker::Unpin for antecedent_identify::PreparedAutoGraph [auto]
 impl core::marker::Unpin for antecedent_identify::PreparedIdentificationGraph [auto]
 impl core::marker::Unpin for antecedent_identify::ProbabilityMass [auto]
+impl core::marker::Unpin for antecedent_identify::ProductRefusal [auto]
 impl core::marker::Unpin for antecedent_identify::RecipeRefusal [auto]
 impl core::marker::Unpin for antecedent_identify::RecoveredEffect [auto]
 impl core::marker::Unpin for antecedent_identify::RecoveredEffectQuery [auto]
@@ -2679,6 +2711,7 @@ impl core::marker::Unpin for antecedent_identify::experiment_moments::RegimeInco
 impl core::marker::Unpin for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Unpin for antecedent_identify::history_identification::AncestryFrontier [auto]
 impl core::marker::Unpin for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::marker::Unpin for antecedent_identify::history_identification::FeedbackAncestor [auto]
 impl core::marker::Unpin for antecedent_identify::history_identification::HistoryIdentification [auto]
@@ -2687,6 +2720,7 @@ impl core::marker::Unpin for antecedent_identify::history_identification::Histor
 impl core::marker::Unpin for antecedent_identify::history_identification::HistorySearchBound [auto]
 impl core::marker::Unpin for antecedent_identify::history_identification::PulseFallbackHistory [auto]
 impl core::marker::Unpin for antecedent_identify::history_identification::UncertifiedHistory [auto]
+impl core::marker::Unpin for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::marker::Unpin for antecedent_identify::sid::Rule [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2871,6 +2905,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PreparedAd
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PreparedAutoGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::PreparedIdentificationGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ProbabilityMass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ProductRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RecipeRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RecoveredEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::RecoveredEffectQuery [auto]
@@ -2994,6 +3029,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::AncestryFrontier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::FeedbackAncestor [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::HistoryIdentification [auto]
@@ -3002,6 +3038,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_id
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::HistorySearchBound [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::PulseFallbackHistory [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::UncertifiedHistory [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3186,6 +3223,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PreparedAdmg 
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PreparedAutoGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::PreparedIdentificationGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ProbabilityMass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::ProductRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RecipeRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RecoveredEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::RecoveredEffectQuery [auto]
@@ -3309,6 +3347,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_mo
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experiment_moments::TargetConstraintBlock [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::FiniteSampleConditioning [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::AncestryFrontier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::CertifiedHistory [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::FeedbackAncestor [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::HistoryIdentification [auto]
@@ -3317,6 +3356,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_ident
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::HistorySearchBound [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::PulseFallbackHistory [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::UncertifiedHistory [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::history_identification::UncertifiedReason [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3698,9 +3738,11 @@ pub enum antecedent_identify::experiment_moments::MomentAssemblyRefusal
 pub enum antecedent_identify::experiment_moments::RegimeInconsistency
 pub enum antecedent_identify::experimental_recovery::FiniteSampleConditioning
 pub enum antecedent_identify::experimental_recovery::UniquenessRestriction
+pub enum antecedent_identify::history_identification::AncestryFrontier
 pub enum antecedent_identify::history_identification::HistoryIdentification
 pub enum antecedent_identify::history_identification::HistoryIdentificationRefusal
 pub enum antecedent_identify::history_identification::HistoryIdentificationTarget
+pub enum antecedent_identify::history_identification::UncertifiedReason
 pub enum antecedent_identify::sid::Rule
 pub enum antecedent_identify::sid::cpdag_completion::CpdagEvidence
 pub enum antecedent_identify::sid::cpdag_completion::CpdagScenarioError
@@ -4382,6 +4424,7 @@ pub field antecedent_identify::discovered_transport_temporal::TemporalWindow::tr
 pub field antecedent_identify::experiment_moments::AssembledExperimentConstraints::blocks: alloc::vec::Vec<antecedent_identify::experiment_moments::TargetConstraintBlock>
 pub field antecedent_identify::experiment_moments::AssembledExperimentConstraints::bytes: u64
 pub field antecedent_identify::experiment_moments::AssembledExperimentConstraints::moments: alloc::vec::Vec<antecedent_identify::experiment_moments::ExperimentMoments>
+pub field antecedent_identify::experiment_moments::AssembledExperimentConstraints::uncovered: alloc::vec::Vec<antecedent_identify::experiment_moments::MissingPair>
 pub field antecedent_identify::experiment_moments::AssembledExperimentConstraints::units: alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub field antecedent_identify::experiment_moments::ConstraintRow::probe: antecedent_core::ids::VariableId
 pub field antecedent_identify::experiment_moments::ConstraintRow::regime: usize
@@ -4624,9 +4667,9 @@ pub fn <antecedent_identify::CompiledIdentificationProduct>::fn bounded_search_d
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn identified(&self) -> &[antecedent_expr::estimand::IdentifiedEstimand]
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn is_identified_claim(&self) -> bool
-pub fn <antecedent_identify::CompiledIdentificationProduct>::fn new(estimands: alloc::vec::Vec<antecedent_expr::estimand::IdentifiedEstimand>, arena: antecedent_expr::CausalExprArena, derivation: antecedent_identify::DerivationTrace, assumptions: antecedent_core::assumption::AssumptionSet, bounded_search: alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>, parts: antecedent_identify::CompiledProductParts) -> Self
+pub fn <antecedent_identify::CompiledIdentificationProduct>::fn new(estimands: alloc::vec::Vec<antecedent_expr::estimand::IdentifiedEstimand>, arena: antecedent_expr::CausalExprArena, derivation: antecedent_identify::DerivationTrace, assumptions: antecedent_core::assumption::AssumptionSet, bounded_search: alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>, parts: antecedent_identify::CompiledProductParts) -> core::result::Result<Self, antecedent_identify::ProductRefusal>
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn required_factors(&self) -> &[antecedent_identify::RequiredFactor]
-pub fn <antecedent_identify::CompiledIdentificationProduct>::fn retain(result: &antecedent_identify::IdentificationResult, parts: antecedent_identify::CompiledProductParts) -> Self
+pub fn <antecedent_identify::CompiledIdentificationProduct>::fn retain(result: &antecedent_identify::IdentificationResult, parts: antecedent_identify::CompiledProductParts) -> core::result::Result<Self, antecedent_identify::ProductRefusal>
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn unresolved_obligations(&self) -> &[antecedent_identify::UnresolvedObligation]
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn world_obligations(&self) -> &[antecedent_identify::WorldObligation]
 pub fn <antecedent_identify::CompiledProductParts>::const fn new(outcome: antecedent_identify::IdentificationOutcome, claim_class: antecedent_identify::IdentificationClaimClass) -> Self
@@ -4954,13 +4997,14 @@ pub fn <antecedent_identify::history_identification::CertifiedHistory>::const fn
 pub fn <antecedent_identify::history_identification::CertifiedHistory>::const fn search_bound(&self) -> antecedent_identify::history_identification::HistorySearchBound
 pub fn <antecedent_identify::history_identification::CertifiedHistory>::fn ancestry(&self) -> &[antecedent_identify::history_identification::FeedbackAncestor]
 pub fn <antecedent_identify::history_identification::FeedbackAncestor>::const fn lag(self) -> u32
-pub fn <antecedent_identify::history_identification::FeedbackAncestor>::const fn new(node: antecedent_core::temporal::TemporalNodeKey, lag: u32) -> Self
+pub fn <antecedent_identify::history_identification::FeedbackAncestor>::const fn new(node: antecedent_core::temporal::TemporalNodeKey) -> core::result::Result<Self, antecedent_identify::history_identification::HistoryIdentificationRefusal>
 pub fn <antecedent_identify::history_identification::FeedbackAncestor>::const fn node(self) -> antecedent_core::temporal::TemporalNodeKey
 pub fn <antecedent_identify::history_identification::HistorySearchBound>::const fn declared(steps: u32) -> Self
 pub fn <antecedent_identify::history_identification::HistorySearchBound>::const fn steps(self) -> u32
 pub fn <antecedent_identify::history_identification::PulseFallbackHistory>::const fn diagnostic(&self) -> &antecedent_core::diagnostic::Diagnostic
 pub fn <antecedent_identify::history_identification::UncertifiedHistory>::const fn diagnostic(&self) -> &antecedent_core::diagnostic::Diagnostic
-pub fn <antecedent_identify::history_identification::UncertifiedHistory>::const fn missing_ancestor(&self) -> antecedent_identify::history_identification::FeedbackAncestor
+pub fn <antecedent_identify::history_identification::UncertifiedHistory>::const fn missing_ancestor(&self) -> core::option::Option<antecedent_identify::history_identification::FeedbackAncestor>
+pub fn <antecedent_identify::history_identification::UncertifiedHistory>::const fn reason(&self) -> antecedent_identify::history_identification::UncertifiedReason
 pub fn <antecedent_identify::history_identification::UncertifiedHistory>::const fn search_bound(&self) -> antecedent_identify::history_identification::HistorySearchBound
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn from_record_checked(record: antecedent_identify::sid::SHedgeRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn to_record(&self) -> antecedent_identify::sid::SHedgeRecord
@@ -5054,10 +5098,10 @@ pub fn antecedent_identify::discovered_transport::transport_across_pag(request: 
 pub fn antecedent_identify::discovered_transport_temporal::transport_across_temporal_class(request: &antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::envelope::search_truncated(result: &antecedent_identify::IdentificationResult) -> bool
 pub fn antecedent_identify::execution_counts::count_checked_identifications<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
-pub fn antecedent_identify::experiment_moments::assemble_experiment_constraints(contract: &antecedent_identify::AcceptedRegimeContract, samples: &[antecedent_identify::experiment_moments::RegimeSample<'_>]) -> core::result::Result<antecedent_identify::experiment_moments::AssembledExperimentConstraints, antecedent_identify::experiment_moments::MomentAssemblyRefusal>
-pub fn antecedent_identify::experiment_moments::experiment_constraint_bytes(units: u64, regimes: u64, constraint_rows: u64) -> core::result::Result<u64, antecedent_identify::experiment_moments::MomentAssemblyRefusal>
+pub fn antecedent_identify::experiment_moments::assemble_experiment_constraints(contract: &antecedent_identify::AcceptedRegimeContract, samples: &[antecedent_identify::experiment_moments::RegimeSample<'_>], max_bytes: u64) -> core::result::Result<antecedent_identify::experiment_moments::AssembledExperimentConstraints, antecedent_identify::experiment_moments::MomentAssemblyRefusal>
+pub fn antecedent_identify::experiment_moments::experiment_constraint_bytes(units: u64, regimes: u64, constraint_rows: u64, max_rows: u64) -> core::result::Result<u64, antecedent_identify::experiment_moments::MomentAssemblyRefusal>
 pub fn antecedent_identify::experiment_regime::validate_regime_contract(contract: &antecedent_identify::RegimeContract) -> antecedent_identify::RegimeContractDecision
-pub fn antecedent_identify::history_identification::identify_history(target: antecedent_identify::history_identification::HistoryIdentificationTarget, ancestry: &[antecedent_identify::history_identification::FeedbackAncestor], initial_law: core::option::Option<&antecedent_core::scientific_target::InitialLaw>, bound: antecedent_identify::history_identification::HistorySearchBound) -> core::result::Result<antecedent_identify::history_identification::HistoryIdentification, antecedent_identify::history_identification::HistoryIdentificationRefusal>
+pub fn antecedent_identify::history_identification::identify_history(target: antecedent_identify::history_identification::HistoryIdentificationTarget, ancestry: &[antecedent_identify::history_identification::FeedbackAncestor], initial_law: core::option::Option<&antecedent_core::scientific_target::InitialLaw>, bound: antecedent_identify::history_identification::HistorySearchBound, frontier: antecedent_identify::history_identification::AncestryFrontier) -> core::result::Result<antecedent_identify::history_identification::HistoryIdentification, antecedent_identify::history_identification::HistoryIdentificationRefusal>
 pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_catalog_transport_selection_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::identify_catalog_transport_standardization_first(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
@@ -5454,6 +5498,7 @@ pub use antecedent_identify::compiled_product::CompiledIdentificationProduct = a
 pub use antecedent_identify::compiled_product::CompiledProductParts = antecedent_identify::CompiledProductParts
 pub use antecedent_identify::compiled_product::IdentificationClaimClass = antecedent_identify::IdentificationClaimClass
 pub use antecedent_identify::compiled_product::IdentificationOutcome = antecedent_identify::IdentificationOutcome
+pub use antecedent_identify::compiled_product::ProductRefusal = antecedent_identify::ProductRefusal
 pub use antecedent_identify::compiled_product::RequiredFactor = antecedent_identify::RequiredFactor
 pub use antecedent_identify::compiled_product::UnresolvedObligation = antecedent_identify::UnresolvedObligation
 pub use antecedent_identify::compiled_product::WorldObligation = antecedent_identify::WorldObligation
@@ -5905,6 +5950,11 @@ pub variant antecedent_identify::NotThisRecipe::LatentVariableExpansion
 pub variant antecedent_identify::NotThisRecipe::PriorRegularization
 pub variant antecedent_identify::PhysicalDynamicalStability::Declared
 pub variant antecedent_identify::PhysicalDynamicalStability::NotDeclared
+pub variant antecedent_identify::ProductRefusal::EstimandBesideNonIdentification { outcome: antecedent_identify::IdentificationOutcome }
+pub variant antecedent_identify::ProductRefusal::IdentifiedClaimClassBesideFailure { outcome: antecedent_identify::IdentificationOutcome }
+pub variant antecedent_identify::ProductRefusal::IdentifiedFromUnidentifiedResult { status: antecedent_core::identification::IdentificationStatus }
+pub variant antecedent_identify::ProductRefusal::IdentifiedWithContradictedAssumption { index: usize }
+pub variant antecedent_identify::ProductRefusal::IdentifiedWithoutEstimand
 pub variant antecedent_identify::RecoveryAttempt::ClampExperiments(antecedent_identify::ClampExperimentSet)
 pub variant antecedent_identify::RecoveryAttempt::LatentVariableExpansion
 pub variant antecedent_identify::RecoveryAttempt::ObservationalEquilibriumOls
@@ -5935,6 +5985,7 @@ pub variant antecedent_identify::RegimeAssumption::Dependent
 pub variant antecedent_identify::RegimeAssumption::Independent
 pub variant antecedent_identify::RegimeContractDecision::Accepted(antecedent_identify::AcceptedRegimeContract)
 pub variant antecedent_identify::RegimeContractDecision::Refused(antecedent_identify::RegimeRefusal)
+pub variant antecedent_identify::RegimeRefusalReason::DependenceWithoutSharedSource { regime: usize, source: antecedent_identify::SourceIdentity }
 pub variant antecedent_identify::RegimeRefusalReason::DuplicateInterventionTarget { regime: usize, unit: antecedent_core::ids::VariableId }
 pub variant antecedent_identify::RegimeRefusalReason::DuplicateSamplingUnit { regime: usize, unit: antecedent_core::ids::VariableId }
 pub variant antecedent_identify::RegimeRefusalReason::EmptySamplingUnits { regime: usize }
@@ -6022,8 +6073,10 @@ pub variant antecedent_identify::discovered_transport::MemberVerdict::NotCertifi
 pub variant antecedent_identify::discovered_transport_temporal::TemporalClass::Cpdag(&'a antecedent_graph::cpdag::TemporalCpdag)
 pub variant antecedent_identify::discovered_transport_temporal::TemporalClass::Dag(&'a antecedent_graph::temporal::TemporalDag)
 pub variant antecedent_identify::discovered_transport_temporal::TemporalClass::Pag(&'a antecedent_graph::temporal_pag::TemporalPag)
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::BudgetExceeded { requested: u64, limit: u64 }
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::ColumnLength { regime: usize }
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::DegenerateIntervention { regime: usize }
+pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::DroppedUnitNotClamped { unit: antecedent_core::ids::VariableId }
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::InadequateInterventionCoverage { missing: alloc::vec::Vec<antecedent_identify::experiment_moments::MissingPair> }
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::InconsistentRegime(antecedent_identify::experiment_moments::RegimeInconsistency)
 pub variant antecedent_identify::experiment_moments::MomentAssemblyRefusal::NonFiniteMoment { regime: usize }
@@ -6043,13 +6096,18 @@ pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::B
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::Faithfulness
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::MinimumNormCompletion
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::NotOffered
+pub variant antecedent_identify::history_identification::AncestryFrontier::Closed
+pub variant antecedent_identify::history_identification::AncestryFrontier::Open
 pub variant antecedent_identify::history_identification::HistoryIdentification::Certified(antecedent_identify::history_identification::CertifiedHistory)
 pub variant antecedent_identify::history_identification::HistoryIdentification::PulseFallback(antecedent_identify::history_identification::PulseFallbackHistory)
 pub variant antecedent_identify::history_identification::HistoryIdentification::Uncertified(antecedent_identify::history_identification::UncertifiedHistory)
 pub variant antecedent_identify::history_identification::HistoryIdentificationRefusal::EmptyAncestry
+pub variant antecedent_identify::history_identification::HistoryIdentificationRefusal::FutureAncestor { offset: i32 }
 pub variant antecedent_identify::history_identification::HistoryIdentificationRefusal::MissingInitialLaw
 pub variant antecedent_identify::history_identification::HistoryIdentificationTarget::FeedbackAncestry
 pub variant antecedent_identify::history_identification::HistoryIdentificationTarget::PulseParentAdjustment
+pub variant antecedent_identify::history_identification::UncertifiedReason::AncestorPastBound(antecedent_identify::history_identification::FeedbackAncestor)
+pub variant antecedent_identify::history_identification::UncertifiedReason::FrontierOpen
 pub variant antecedent_identify::sid::Rule::Ancestors
 pub variant antecedent_identify::sid::Rule::DirectTransport
 pub variant antecedent_identify::sid::Rule::Districts

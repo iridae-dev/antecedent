@@ -5802,6 +5802,7 @@ pub const antecedent_core::SCORE_FREQUENTIST_TAG: &str
 pub const antecedent_core::STRUCTURAL_ENVELOPE_LABEL: &str
 pub const antecedent_core::TEMPORAL_OBSERVATION_UNLICENSED: &str
 pub const antecedent_core::VERSION: &str
+pub const antecedent_core::inference_realization::RESTRICTED_POSTERIOR_TAG: &str
 pub const antecedent_core::measurement_model::MEASUREMENT_MODEL_FORMAT: u16
 pub const antecedent_core::reason_code::PREFIX: &str
 pub const antecedent_core::reason_code::REASON_CODES: &[&str]
@@ -6501,6 +6502,7 @@ pub fn <antecedent_core::BoundEffectiveSampleSize>::const fn size(self) -> u64
 pub fn <antecedent_core::BoundResampling>::const fn design(self) -> antecedent_core::DeclaredSamplingDesign
 pub fn <antecedent_core::BoundResampling>::const fn rule(self) -> antecedent_core::ResamplingRule
 pub fn <antecedent_core::BoundSplitting>::const fn design(self) -> antecedent_core::DeclaredSamplingDesign
+pub fn <antecedent_core::BoundSplitting>::const fn embargo(self) -> u32
 pub fn <antecedent_core::BoundSplitting>::const fn rule(self) -> antecedent_core::SplittingRule
 pub fn <antecedent_core::BoundVariance>::const fn design(self) -> antecedent_core::DeclaredSamplingDesign
 pub fn <antecedent_core::BoundVariance>::const fn rule(self) -> antecedent_core::VarianceRule
@@ -6675,9 +6677,10 @@ pub fn <antecedent_core::CrossWorldQuery>::fn new(worlds: alloc::vec::Vec<antece
 pub fn <antecedent_core::CrossWorldQuery>::fn path_specific(treatment: antecedent_core::VariableId, outcome: antecedent_core::VariableId, control: f64, active: f64, graph_edges: &[(antecedent_core::VariableId, antecedent_core::VariableId)], intervened_edges: &[(antecedent_core::VariableId, antecedent_core::VariableId)]) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::CrossWorldQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::CrossWorldQuery>::fn worlds(&self) -> &[antecedent_core::WorldSpec]
-pub fn <antecedent_core::DeclaredSamplingDesign>::const fn apply_effective_sample_size(self, rule: antecedent_core::EffectiveSampleSizeRule, size: u64) -> core::result::Result<antecedent_core::BoundEffectiveSampleSize, antecedent_core::SamplingDesignError>
+pub fn <antecedent_core::DeclaredSamplingDesign>::const fn apply_effective_sample_size(self, rule: antecedent_core::EffectiveSampleSizeRule, size: u64, sample: u64) -> core::result::Result<antecedent_core::BoundEffectiveSampleSize, antecedent_core::SamplingDesignError>
 pub fn <antecedent_core::DeclaredSamplingDesign>::const fn apply_resampling(self, rule: antecedent_core::ResamplingRule) -> core::result::Result<antecedent_core::BoundResampling, antecedent_core::SamplingDesignError>
 pub fn <antecedent_core::DeclaredSamplingDesign>::const fn apply_splitting(self, rule: antecedent_core::SplittingRule) -> core::result::Result<antecedent_core::BoundSplitting, antecedent_core::SamplingDesignError>
+pub fn <antecedent_core::DeclaredSamplingDesign>::const fn apply_splitting_with_embargo(self, rule: antecedent_core::SplittingRule, embargo: u32) -> core::result::Result<antecedent_core::BoundSplitting, antecedent_core::SamplingDesignError>
 pub fn <antecedent_core::DeclaredSamplingDesign>::const fn apply_variance(self, rule: antecedent_core::VarianceRule) -> core::result::Result<antecedent_core::BoundVariance, antecedent_core::SamplingDesignError>
 pub fn <antecedent_core::DeclaredSamplingDesign>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::DeclaredSamplingDesign>::const fn rules(self) -> antecedent_core::DesignRules
@@ -7086,6 +7089,7 @@ pub fn <antecedent_core::ResponseQuery>::fn with_temporal(self, temporal: antece
 pub fn <antecedent_core::ResponseUncertainty>::fn credible_draws(&self) -> core::option::Option<&antecedent_core::CredibleDraws>
 pub fn <antecedent_core::RestrictedPosterior>::const fn assumption_branch(&self) -> &antecedent_core::AssumptionBranch
 pub fn <antecedent_core::RestrictedPosterior>::const fn posterior(&self) -> &antecedent_core::OrdinaryBayesianLikelihood
+pub fn <antecedent_core::RestrictedPosterior>::fn identity(&self) -> antecedent_core::SemanticDigest
 pub fn <antecedent_core::RngFactory>::const fn from_seed(master_seed: u64) -> Self
 pub fn <antecedent_core::RngFactory>::const fn master_seed(&self) -> u64
 pub fn <antecedent_core::RngFactory>::fn stream(&self, stream_id: u64) -> antecedent_core::CausalRng
@@ -9049,6 +9053,9 @@ pub variant antecedent_core::SampleNextAttempt::ReportAsScoreEstimate
 pub variant antecedent_core::SamplingDesign::Clustered
 pub variant antecedent_core::SamplingDesign::Independent
 pub variant antecedent_core::SamplingDesign::Unknown
+pub variant antecedent_core::SamplingDesignError::EffectiveSampleSizeExceedsSample { size: u64, sample: u64 }
+pub variant antecedent_core::SamplingDesignError::EmbargoNotApplicable { rule: antecedent_core::SplittingRule }
+pub variant antecedent_core::SamplingDesignError::EmptyEffectiveSampleSize
 pub variant antecedent_core::SamplingDesignError::FailedAttempt { design: antecedent_core::DeclaredSamplingDesign, attempted: antecedent_core::AttemptedRule, allowed: antecedent_core::AllowedRule }
 pub variant antecedent_core::SamplingSelection::Population
 pub variant antecedent_core::SamplingSelection::SelectedOn { variables: alloc::sync::Arc<[antecedent_core::VariableId]> }
@@ -9070,15 +9077,18 @@ pub variant antecedent_core::ScientificTargetError::DuplicateWorldId { id: antec
 pub variant antecedent_core::ScientificTargetError::EmptyMediators
 pub variant antecedent_core::ScientificTargetError::EmptyName { field: &'static str }
 pub variant antecedent_core::ScientificTargetError::EmptyWorlds
+pub variant antecedent_core::ScientificTargetError::IncoherentContrast { reason: &'static str }
 pub variant antecedent_core::ScientificTargetError::IncompatibleBinding { field: &'static str }
 pub variant antecedent_core::ScientificTargetError::IncompatibleTime
 pub variant antecedent_core::ScientificTargetError::InterventionVariableMismatch { expected: antecedent_core::VariableId, got: antecedent_core::VariableId }
 pub variant antecedent_core::ScientificTargetError::InvalidAction { reason: alloc::string::String }
+pub variant antecedent_core::ScientificTargetError::MediationArmsNotDistinct
 pub variant antecedent_core::ScientificTargetError::MediationNeedsCrossWorldPremises
 pub variant antecedent_core::ScientificTargetError::MediatorOverlap
 pub variant antecedent_core::ScientificTargetError::MismatchedActionTime
 pub variant antecedent_core::ScientificTargetError::NonPositiveHorizon
 pub variant antecedent_core::ScientificTargetError::NotADoseTimeGrid { reason: &'static str }
+pub variant antecedent_core::ScientificTargetError::PolicyOutsideHorizon { horizon_steps: u32, policy: alloc::string::String }
 pub variant antecedent_core::ScientificTargetError::ReferenceIsNotBaseline { id: antecedent_core::ScientificWorldId }
 pub variant antecedent_core::ScientificTargetError::ReferenceNotMarked { id: antecedent_core::ScientificWorldId }
 pub variant antecedent_core::ScientificTargetError::TreatmentEqualsOutcome { id: antecedent_core::VariableId }

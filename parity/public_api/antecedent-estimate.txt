@@ -10545,7 +10545,7 @@ pub fn <antecedent_estimate::nuisance_cache::FoldRow>::const fn fold(&self) -> u
 pub fn <antecedent_estimate::nuisance_cache::FoldRow>::const fn new(row_id: u64, fold: u32) -> Self
 pub fn <antecedent_estimate::nuisance_cache::FoldRow>::const fn row_id(&self) -> u64
 pub fn <antecedent_estimate::nuisance_cache::NuisanceCache>::const fn new() -> Self
-pub fn <antecedent_estimate::nuisance_cache::NuisanceCache>::fn certified(&self, key: &antecedent_estimate::nuisance_cache::NuisanceCacheKey, role: antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<antecedent_estimate::nuisance_cache::CertifiedNuisanceFit, antecedent_estimate::nuisance_cache::NuisanceCacheError>
+pub fn <antecedent_estimate::nuisance_cache::NuisanceCache>::fn certified(&self, key: &antecedent_estimate::nuisance_cache::NuisanceCacheKey, role: antecedent_estimate::nuisance_cache::NuisanceRole) -> core::result::Result<&antecedent_estimate::nuisance_cache::CertifiedNuisanceFit, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn <antecedent_estimate::nuisance_cache::NuisanceCache>::fn restore_rows(&self, key: &antecedent_estimate::nuisance_cache::NuisanceCacheKey, role: antecedent_estimate::nuisance_cache::NuisanceRole, evaluation_fold: u32, row_ids: &[u64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn <antecedent_estimate::nuisance_cache::NuisanceCache>::fn store_certified(&mut self, key: &antecedent_estimate::nuisance_cache::NuisanceCacheKey, role: antecedent_estimate::nuisance_cache::NuisanceRole, blocks: &[antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions]) -> core::result::Result<antecedent_estimate::nuisance_cache::CertifiedNuisanceFit, antecedent_estimate::nuisance_cache::NuisanceCacheError>
 pub fn <antecedent_estimate::nuisance_cache::NuisanceCacheKey>::const fn design(&self) -> antecedent_estimate::nuisance_cache::DesignDependency
@@ -12642,6 +12642,7 @@ pub variant antecedent_estimate::tiled_prediction::StreamedValue::DrawMean { row
 pub variant antecedent_estimate::tiled_prediction::StreamedValue::Full { row: u64, draw: u64, grid_id: u64, outcome: u64, value: f64 }
 pub variant antecedent_estimate::tiled_prediction::TileError::AxisOrder
 pub variant antecedent_estimate::tiled_prediction::TileError::Coefficients { outcome: u64, expected: u64, actual: u64 }
+pub variant antecedent_estimate::tiled_prediction::TileError::CovarianceBudget { bytes: u64, limit: u64 }
 pub variant antecedent_estimate::tiled_prediction::TileError::DrawCountNotExact { count: u64 }
 pub variant antecedent_estimate::tiled_prediction::TileError::DrawRange { start: u64, count: u64, full: u64 }
 pub variant antecedent_estimate::tiled_prediction::TileError::Empty { axis: &'static str }

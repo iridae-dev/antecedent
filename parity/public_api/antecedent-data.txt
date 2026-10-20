@@ -1253,6 +1253,7 @@ pub fn <antecedent_data::VectorVariableGroups>::fn logical_ids(&self) -> alloc::
 pub fn <antecedent_data::VectorVariableGroups>::fn secondary_component_ids(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_data::VectorVariableGroups>::fn try_new(groups: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<[antecedent_core::ids::VariableId]>]>>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::WindowChunk>::const fn local_rows(&self) -> core::ops::range::Range<usize>
+pub fn <antecedent_data::WindowChunk>::fn borrow_lag(&self, target: usize, lag: u32) -> core::result::Result<usize, antecedent_data::BorrowError>
 pub fn <antecedent_data::WindowNextAttempt>::const fn name(&self) -> &'static str
 pub fn <antecedent_data::arrow_adapter::FrozenArrowStudy>::fn bind_foreign_alias(&self, alias: antecedent_data::ArrowCColumn) -> core::result::Result<(), antecedent_data::DataError>
 pub fn <antecedent_data::arrow_adapter::FrozenArrowStudy>::fn data(&self) -> &antecedent_data::TabularData
@@ -1269,6 +1270,7 @@ pub fn <antecedent_data::design_layout::DesignLayout<'a>>::fn n_columns(&self) -
 pub fn <antecedent_data::design_layout::LayoutError>::const fn column_index(self) -> usize
 pub fn <antecedent_data::design_layout::LayoutError>::const fn column_len(self) -> core::option::Option<usize>
 pub fn <antecedent_data::design_layout::LayoutError>::const fn global_id(self) -> core::option::Option<antecedent_data::GlobalId>
+pub fn <antecedent_data::design_layout::LayoutError>::const fn inexact_value(self) -> core::option::Option<i64>
 pub fn <antecedent_data::design_layout::OwnershipCopy>::const fn column(self) -> usize
 pub fn <antecedent_data::design_layout::OwnershipCopy>::const fn name(self) -> &'static str
 pub fn <antecedent_data::design_layout::OwnershipReceipt>::fn copies(&self) -> &[antecedent_data::design_layout::OwnershipCopy]

@@ -607,8 +607,6 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_graph::DagView<'a> 
 pub const <antecedent_graph::SigmaSeparationAssumptions>::PROCEDURE: Self
 pub const <antecedent_graph::SigmaSeparationAssumptions>::READING: &'static str
 pub const antecedent_graph::DEFAULT_COMPLETION_OPERATIONS: usize
-pub const antecedent_graph::EXHAUSTIVE_MIXED_NODE_BOUND: usize
-pub const antecedent_graph::EXHAUSTIVE_NODE_BOUND: usize
 pub const antecedent_graph::WALK_ORACLE_NODE_BOUND: usize
 pub enum antecedent_graph::CopyLabels
 pub enum antecedent_graph::Endpoint
@@ -1225,8 +1223,6 @@ pub use antecedent_graph::projection::latent_project = antecedent_graph::latent_
 pub use antecedent_graph::projection_preserves_msep_sample = antecedent_graph::projection::projection_preserves_msep_sample
 pub use antecedent_graph::refuse_directed_cycle = antecedent_graph::error::refuse_directed_cycle
 pub use antecedent_graph::selection::SelectionDiagram = antecedent_graph::SelectionDiagram
-pub use antecedent_graph::sigma_separation::EXHAUSTIVE_MIXED_NODE_BOUND = antecedent_graph::EXHAUSTIVE_MIXED_NODE_BOUND
-pub use antecedent_graph::sigma_separation::EXHAUSTIVE_NODE_BOUND = antecedent_graph::EXHAUSTIVE_NODE_BOUND
 pub use antecedent_graph::sigma_separation::OrdinaryDSeparationOnCycles = antecedent_graph::OrdinaryDSeparationOnCycles
 pub use antecedent_graph::sigma_separation::SigmaSeparation = antecedent_graph::SigmaSeparation
 pub use antecedent_graph::sigma_separation::SigmaSeparationAssumptions = antecedent_graph::SigmaSeparationAssumptions
@@ -1282,6 +1278,7 @@ pub variant antecedent_graph::GraphError::FutureToPast { from: u32, to: u32, fro
 pub variant antecedent_graph::GraphError::InvalidEndpoints { message: &'static str }
 pub variant antecedent_graph::GraphError::InvalidLag { lag: antecedent_core::ids::Lag }
 pub variant antecedent_graph::GraphError::InvalidSelectionDiagram { message: alloc::string::String }
+pub variant antecedent_graph::GraphError::NodeBoundExceeded { nodes: usize, bound: usize }
 pub variant antecedent_graph::GraphError::SearchBudgetExhausted { max_paths: usize, max_len: usize }
 pub variant antecedent_graph::GraphError::SeparationUndetermined
 pub variant antecedent_graph::GraphError::TooManyNodes

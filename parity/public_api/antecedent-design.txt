@@ -9340,7 +9340,6 @@ pub fn <antecedent_design::inverse_query_artifact::InverseQueryWire>::fn into_qu
 pub fn <antecedent_design::joint_coupling::ActingUtilityBound>::const fn contains(self, value: i64) -> bool
 pub fn <antecedent_design::joint_coupling::ActingUtilityBound>::const fn preserved() -> Self
 pub fn <antecedent_design::joint_coupling::CouplingAbsent>::const fn bound(self) -> antecedent_design::joint_coupling::ActingUtilityBound
-pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn acting_utility_numerator(self) -> i64
 pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn expected_acting_utility(self) -> i64
 pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn marginal_x(self) -> antecedent_design::joint_coupling::SupportMarginal
 pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn marginal_y(self) -> antecedent_design::joint_coupling::SupportMarginal
