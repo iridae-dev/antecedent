@@ -568,10 +568,7 @@ impl CertifiedMean {
     }
 }
 
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "map_err passes the cache error by value"
-)]
+#[allow(clippy::needless_pass_by_value, reason = "map_err passes the cache error by value")]
 fn cache_failure(error: crate::nuisance_cache::NuisanceCacheError) -> EstimationError {
     EstimationError::data_msg(error.to_string())
 }
@@ -642,8 +639,7 @@ fn restore_certified_mean_table(
         }
     }
     crate::nuisance_cache::record_active_hits(3);
-    mean_score_table(problem, treatment, fold_ids, folds, clip, &e, &mu0, &mu1, &[])
-        .map(Some)
+    mean_score_table(problem, treatment, fold_ids, folds, clip, &e, &mu0, &mu1, &[]).map(Some)
 }
 
 fn store_certified_mean(
@@ -667,8 +663,8 @@ fn store_certified_mean(
     ];
     let mut stored = Vec::with_capacity(roles.len());
     for (role, values) in roles {
-        let blocks =
-            crate::nuisance_cache::blocks_by_fold(&ids, fold_ids, &values).map_err(cache_failure)?;
+        let blocks = crate::nuisance_cache::blocks_by_fold(&ids, fold_ids, &values)
+            .map_err(cache_failure)?;
         stored.push((role, blocks));
     }
     for (role, blocks) in &stored {
@@ -959,11 +955,11 @@ mod tests {
     fn certified_aipw_key(
         problem: &PreparedPropensityProblem,
     ) -> crate::nuisance_cache::NuisanceCacheKey {
-        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest};
         use crate::nuisance_cache::{
             DesignDependency, FoldAssignment, FoldRow, NuisanceCacheKey, NumericalDependencies,
             ProviderDependency, TargetDependency, TreatmentDependency,
         };
+        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest};
         let arms = problem.fold_strata();
         let plan = CrossfitPlan::derive(
             problem.nrows,
@@ -995,7 +991,7 @@ mod tests {
     }
 
     #[test]
-    fn c11_certified_aipw_second_request_reuses_the_fit() {
+    fn certified_aipw_second_request_reuses_the_fit() {
         use crate::crossfit_cache::CrossfitNuisanceCache;
         use crate::nuisance_cache::{NuisanceCache, NuisanceCacheKey, with_certified_cache};
         let (data, estimand) = confounded(400, 61);
@@ -1029,9 +1025,9 @@ mod tests {
         let mut bytes = [0u8; 32];
         bytes[0] = 2;
         let changed = NuisanceCacheKey::new(
-            crate::nuisance_cache::TargetDependency::new(antecedent_core::SemanticDigest::from_bytes(
-                bytes,
-            )),
+            crate::nuisance_cache::TargetDependency::new(
+                antecedent_core::SemanticDigest::from_bytes(bytes),
+            ),
             key.design(),
             key.folds().clone(),
             key.treatment().clone(),
@@ -1044,23 +1040,19 @@ mod tests {
     }
 
     #[test]
-    fn c11_aipw_family_executor_reuses_the_certified_fit() {
-        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
+    fn aipw_family_executor_reuses_the_certified_fit() {
         use crate::nuisance_cache::{
             BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency, EstimatorFamily,
             FoldAssignment, FoldRow, NuisanceCache, NuisanceCacheKey, NuisanceRole,
             NumericalDependencies, PredictedRow, PreparedFamilyRequest, ProviderDependency,
             RequestColumns, TargetDependency, TreatmentDependency,
         };
+        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
         let mut bytes = [0u8; 32];
         bytes[0] = 4;
         let digest = SemanticDigest::from_bytes(bytes);
-        let folds = FoldAssignment::try_new(
-            2,
-            &[FoldRow::new(10, 0), FoldRow::new(40, 1)],
-            &[],
-        )
-        .unwrap();
+        let folds =
+            FoldAssignment::try_new(2, &[FoldRow::new(10, 0), FoldRow::new(40, 1)], &[]).unwrap();
         let key = NuisanceCacheKey::new(
             TargetDependency::new(digest),
             DesignDependency::new(DesignDependencyId::from_raw(7)),

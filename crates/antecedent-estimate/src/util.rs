@@ -399,7 +399,7 @@ impl ClusterRows {
         for (row, label) in labels.iter().enumerate() {
             let row = antecedent_data::GlobalId::new(u64::try_from(row).map_err(|_| {
                 EstimationError::data_msg(
-                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                    "row position does not fit in u64; rows are addressed by GlobalId and ChunkIndex only spans one bounded chunk",
                 )
             })?);
             let next = members.len();
@@ -524,7 +524,7 @@ impl ReplicateRows<'_> {
         let row = |id: antecedent_data::GlobalId| -> Result<usize, EstimationError> {
             usize::try_from(id.get()).map_err(|_| {
                 EstimationError::data_msg(
-                    "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. A u32 backend feature flag is not that attempt",
+                    "row position does not fit in u64; rows are addressed by GlobalId and ChunkIndex only spans one bounded chunk",
                 )
             })
         };

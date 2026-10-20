@@ -282,6 +282,7 @@ impl PropensityMatching {
         // invalid for fixed-M NN matching (Abadie–Imbens 2008) and must not land in
         // `se_bootstrap` even when a caller still requests replicates.
         let _ = self.bootstrap_replicates;
+        validate_caliper(self.caliper)?;
         let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(
             problem,
@@ -544,13 +545,23 @@ pub(crate) fn match_diffs(
     Ok(MatchedDiffs { diffs, donors: used_donors, queries: used_queries })
 }
 
+/// A caliper is a maximum distance: finite and non-negative.
+fn validate_caliper(caliper: Option<f64>) -> Result<(), EstimationError> {
+    match caliper {
+        Some(limit) if !(limit.is_finite() && limit >= 0.0) => {
+            Err(EstimationError::data_msg("matching caliper must be finite and non-negative"))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Exact nearest-donor index for one scalar score.
 ///
 /// Donors stay in the index after a query matches them, so a later query can use the same
 /// donor (matching with replacement). Equal absolute differences resolve to the lowest donor
 /// index, which is the donor a forward scan keeps under a strict `<` update.
 struct SortedScalarIndex {
-    /// `(score, donor index)` in ascending score order. The donor index orders equal scores.
+    /// `(score, lowest donor index with that score)` in ascending score order.
     by_score: Vec<(f64, usize)>,
 }
 
@@ -562,6 +573,9 @@ impl SortedScalarIndex {
         let mut by_score: Vec<(f64, usize)> =
             donors.iter().copied().enumerate().map(|(index, score)| (score, index)).collect();
         by_score.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        // The first entry of an equal-score run is its lowest donor index, which is the
+        // only one a query can resolve to; the rest never change a result.
+        by_score.dedup_by(|later, kept| later.0.total_cmp(&kept.0).is_eq());
         Self { by_score }
     }
 
@@ -604,7 +618,11 @@ impl SortedScalarIndex {
             return None;
         }
         if let Some(limit) = caliper {
-            if best > limit {
+            // Negated so that a NaN limit refuses instead of accepting every distance.
+            if !matches!(
+                best.partial_cmp(&limit),
+                Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
+            ) {
                 return None;
             }
         }
@@ -847,7 +865,7 @@ pub(crate) fn matching_contrast(
             num += w * eff;
             den += w;
         }
-        if den <= 0.0 {
+        if den.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return Err(EstimationError::data_msg(
                 "CustomDistribution weights left no mass on matched units",
             ));
@@ -1664,6 +1682,52 @@ mod tests {
             "se_analytic={}",
             effect.se_analytic()
         );
+    }
+
+    /// A NaN, infinite or negative caliper is refused instead of matching at any distance.
+    #[test]
+    fn invalid_calipers_are_refused() {
+        assert!(validate_caliper(None).is_ok());
+        assert!(validate_caliper(Some(0.0)).is_ok());
+        assert!(validate_caliper(Some(0.2)).is_ok());
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -0.1] {
+            assert!(validate_caliper(Some(bad)).is_err(), "{bad}");
+        }
+        let index = SortedScalarIndex::from_donors(&[10.0]);
+        assert_eq!(index.nearest(0.0, Some(f64::NAN)), None);
+        assert_eq!(index.nearest(0.0, Some(10.0)), Some((0, 10.0)));
+    }
+
+    /// A large run of equal scores resolves to the lowest donor index, matching a forward
+    /// strict-`<` scan, and collapses to one entry per distinct score.
+    #[test]
+    fn huge_tie_block_matches_the_forward_scan() {
+        let mut donors = Vec::new();
+        for i in 0..30_000_usize {
+            // Interleave the tied value with others so its indices are far apart.
+            donors.push(if i % 3 == 0 { 0.5 } else { (i % 7) as f64 * 0.25 - 0.25 });
+        }
+        donors[17_000] = 0.5;
+        let index = SortedScalarIndex::from_donors(&donors);
+        assert_eq!(index.by_score.len(), 7, "one entry per distinct score");
+        let queries = [0.5, 0.4, 0.375, 0.6, 0.25, -5.0, 9.0, 0.125];
+        for caliper in [None, Some(0.0), Some(0.05), Some(0.125)] {
+            for &query in &queries {
+                let mut best: Option<(usize, f64)> = None;
+                for (i, &score) in donors.iter().enumerate() {
+                    let distance = (query - score).abs();
+                    if best.is_none_or(|(_, d)| distance < d) {
+                        best = Some((i, distance));
+                    }
+                }
+                let expected = best.filter(|&(_, d)| caliper.is_none_or(|limit| d <= limit));
+                assert_eq!(
+                    index.nearest(query, caliper),
+                    expected,
+                    "q={query} caliper={caliper:?}"
+                );
+            }
+        }
     }
 
     /// Regression test for the caliper-scale defect: with a fixed numeric caliper of 0.2 and

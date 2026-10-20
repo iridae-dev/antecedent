@@ -267,13 +267,8 @@ impl DmlAte {
             DmlScore::PartiallyLinear => self.fit_plr(problem, ctx, assumptions),
         }?;
         let estimate = if problem.sampling_weights.is_some() && self.units.spec.is_some() {
-            let nuisance = load_certified_aipw(
-                problem,
-                self.outcome,
-                self.treatment,
-                self.folds,
-                ctx,
-            )?;
+            let nuisance =
+                load_certified_aipw(problem, self.outcome, self.treatment, self.folds, ctx)?;
             let fold_ids: Vec<u32> =
                 nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
             self.units.publish_weighted(
@@ -314,8 +309,7 @@ impl DmlAte {
             }
         };
         let estimate = self.fit(problem, ctx, assumptions)?;
-        let nuisance =
-            load_certified_aipw(problem, self.outcome, self.treatment, self.folds, ctx)?;
+        let nuisance = load_certified_aipw(problem, self.outcome, self.treatment, self.folds, ctx)?;
         let propensity =
             guarded_propensity(&nuisance.2, crate::propensity::clip_of(problem.overlap))?;
         let folds: Vec<u32> = nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
@@ -348,8 +342,7 @@ impl DmlAte {
             return Err(EstimationError::data_msg("DML requires at least two folds"));
         }
         require_binary_treatment(problem)?;
-        let nuisance =
-            load_certified_aipw(problem, self.outcome, self.treatment, self.folds, ctx)?;
+        let nuisance = load_certified_aipw(problem, self.outcome, self.treatment, self.folds, ctx)?;
         aipw_score_table(problem, &nuisance, self.folds, [self.outcome, self.treatment], "dml")
             .map(Some)
     }
@@ -360,8 +353,7 @@ impl DmlAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let nuisance =
-            load_certified_aipw(problem, self.outcome, self.treatment, self.folds, ctx)?;
+        let nuisance = load_certified_aipw(problem, self.outcome, self.treatment, self.folds, ctx)?;
         let marginal = aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;
         attach_crossfit_aipw_table(
             marginal.effect,
@@ -493,10 +485,7 @@ impl DmlAte {
     }
 }
 
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "map_err passes the cache error by value"
-)]
+#[allow(clippy::needless_pass_by_value, reason = "map_err passes the cache error by value")]
 fn cache_failure(error: crate::nuisance_cache::NuisanceCacheError) -> EstimationError {
     EstimationError::data_msg(error.to_string())
 }
@@ -531,11 +520,7 @@ fn restore_aligned(
             values[row] = predicted[offset];
         }
     }
-    if values.iter().any(|value| !value.is_finite()) {
-        Ok(None)
-    } else {
-        Ok(Some(values))
-    }
+    if values.iter().any(|value| !value.is_finite()) { Ok(None) } else { Ok(Some(values)) }
 }
 
 fn prediction_from_restored(
@@ -548,9 +533,9 @@ fn prediction_from_restored(
         .ok_or_else(|| EstimationError::data_msg("certified scope ended during restore"))?;
     let mut fold_assignment = Vec::with_capacity(problem.nrows);
     for row in 0..problem.nrows {
-        let fold = folds.fold_of(problem.row_index[row].get()).ok_or_else(|| {
-            EstimationError::data_msg("certified fold is missing a prepared row")
-        })?;
+        let fold = folds
+            .fold_of(problem.row_index[row].get())
+            .ok_or_else(|| EstimationError::data_msg("certified fold is missing a prepared row"))?;
         fold_assignment.push(u16::try_from(fold).unwrap_or(u16::MAX));
     }
     let validation = diagnose(task, target, &values);
@@ -644,11 +629,8 @@ fn load_certified_aipw(
     folds: usize,
     ctx: &ExecutionContext,
 ) -> Result<Arc<AipwPredictions>, EstimationError> {
-    let restored = if problem.sampling_weights.is_none() {
-        restore_certified_aipw(problem)?
-    } else {
-        None
-    };
+    let restored =
+        if problem.sampling_weights.is_none() { restore_certified_aipw(problem)? } else { None };
     if let Some(restored) = restored {
         crate::nuisance_cache::record_active_hits(3);
         return Ok(restored);
@@ -1082,13 +1064,13 @@ mod tests {
     }
 
     #[test]
-    fn c11_certified_dml_second_request_reuses_the_fit() {
-        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest};
+    fn certified_dml_second_request_reuses_the_fit() {
         use crate::nuisance_cache::{
             DesignDependency, FoldAssignment, FoldRow, NuisanceCache, NuisanceCacheKey,
             NumericalDependencies, ProviderDependency, TargetDependency, TreatmentDependency,
             with_certified_cache,
         };
+        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest};
         let (t, y, z) = confounded_columns(240, 4);
         let (data, estimand) = build_dataset(t, y, z);
         let query =
@@ -1121,38 +1103,36 @@ mod tests {
         );
         prep.learner_cache.lock().unwrap().clear();
         let mut cache = NuisanceCache::new();
-        let ((first, receipt), fits) =
-            antecedent_learn::fit_counts::observe_resolved_fits(|| {
-                with_certified_cache(&mut cache, &key, || {
-                    est.fit(&prep, &ctx, AssumptionSet::new()).unwrap()
-                })
-            });
+        let ((first, receipt), fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
+            with_certified_cache(&mut cache, &key, || {
+                est.fit(&prep, &ctx, AssumptionSet::new()).unwrap()
+            })
+        });
         assert_eq!(first.ate.to_bits(), solo.ate.to_bits());
         assert_eq!((receipt.scans, receipt.fits, receipt.hits), (1, 3, 0));
         assert!(fits > 0);
         prep.learner_cache.lock().unwrap().clear();
-        let ((again, receipt), fits) =
-            antecedent_learn::fit_counts::observe_resolved_fits(|| {
-                with_certified_cache(&mut cache, &key, || {
-                    est.fit(&prep, &ctx, AssumptionSet::new()).unwrap()
-                })
-            });
+        let ((again, receipt), fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
+            with_certified_cache(&mut cache, &key, || {
+                est.fit(&prep, &ctx, AssumptionSet::new()).unwrap()
+            })
+        });
         assert_eq!(again.ate.to_bits(), solo.ate.to_bits());
         assert_eq!((receipt.scans, receipt.fits, receipt.hits), (0, 0, 3));
         assert_eq!(fits, 0, "the certified hit does not refit");
     }
 
     #[test]
-    fn c11_dml_family_executor_reuses_the_certified_fit() {
+    fn dml_family_executor_reuses_the_certified_fit() {
         use std::cell::Cell;
 
-        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
         use crate::nuisance_cache::{
             BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency, EstimatorFamily,
             FoldAssignment, FoldRow, NuisanceCache, NuisanceCacheKey, NuisanceRole,
             NumericalDependencies, PredictedRow, PreparedFamilyRequest, ProviderDependency,
             RequestColumns, TargetDependency, TreatmentDependency,
         };
+        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
         let mut bytes = [0u8; 32];
         bytes[0] = 4;
         let digest = SemanticDigest::from_bytes(bytes);

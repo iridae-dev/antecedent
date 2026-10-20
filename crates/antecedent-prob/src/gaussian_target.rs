@@ -31,6 +31,12 @@ pub(crate) trait PosteriorTarget {
 /// `ỹ = y − offset` and a missing offset is zero. Known-σ² and joint
 /// `(β, log σ²)` targets both hold this summary, so a later HMC step evaluates
 /// the residual quadratic and `X' W r` without rescanning rows.
+///
+/// The raw products cancel catastrophically when `y` sits far from its spread
+/// (`ỹ' W ỹ` and `β' X' W ỹ` agree to every digit the residual would need), so
+/// the summary also stores the residual products at an anchor `β₀`, the
+/// weighted least-squares solution when the Gram matrix is positive definite
+/// and zero otherwise. Evaluation expands about that anchor instead.
 #[derive(Clone, Debug)]
 pub(crate) struct GaussianSufficientStats {
     /// Effective sample size `Σ w_i`.
@@ -43,6 +49,12 @@ pub(crate) struct GaussianSufficientStats {
     pub xtwy: Vec<f64>,
     /// `(y − offset)' W (y − offset)`.
     pub ytwy: f64,
+    /// Anchor `β₀` the residual products below are taken at (`p`).
+    anchor: Vec<f64>,
+    /// `X' W r₀` with `r₀ = ỹ − X β₀` (`p`).
+    anchor_score: Vec<f64>,
+    /// `r₀' W r₀`.
+    anchor_rss: f64,
 }
 
 impl GaussianSufficientStats {
@@ -74,8 +86,16 @@ impl GaussianSufficientStats {
         let Some(gram) = ncols.checked_mul(ncols) else {
             return Err(ProbError::Shape { message: "coefficient dimension overflow" });
         };
-        let mut stats =
-            Self { n_eff: 0.0, p: ncols, xtwx: vec![0.0; gram], xtwy: vec![0.0; ncols], ytwy: 0.0 };
+        let mut stats = Self {
+            n_eff: 0.0,
+            p: ncols,
+            xtwx: vec![0.0; gram],
+            xtwy: vec![0.0; ncols],
+            ytwy: 0.0,
+            anchor: vec![0.0; ncols],
+            anchor_score: vec![0.0; ncols],
+            anchor_rss: 0.0,
+        };
         for row in 0..design.nrows {
             accumulate_summary_row(design, row, &mut stats)?;
         }
@@ -84,41 +104,119 @@ impl GaussianSufficientStats {
                 message: "non-positive or non-finite effective sample size".into(),
             });
         }
+        stats.anchor_at_least_squares(design)?;
         Ok(stats)
+    }
+
+    /// Set the anchor to the weighted least-squares solution (one refinement
+    /// step) and store the residual products there. A Gram matrix that is not
+    /// positive definite keeps the zero anchor.
+    fn anchor_at_least_squares(&mut self, design: BayesDesignRef<'_>) -> Result<(), ProbError> {
+        let p = self.p;
+        let mut factor = vec![0.0; p * p];
+        if crate::linalg::cholesky_spd_into(&self.xtwx, p, &mut factor).is_ok() {
+            let mut scratch = vec![0.0; p];
+            let mut solved = vec![0.0; p];
+            crate::linalg::solve_chol_into(&factor, p, &self.xtwy, &mut scratch, &mut solved);
+            if solved.iter().all(|b| b.is_finite()) {
+                self.anchor.copy_from_slice(&solved);
+            }
+            self.anchor_rss = residual_products(design, &self.anchor, &mut self.anchor_score)?;
+            crate::linalg::solve_chol_into(
+                &factor,
+                p,
+                &self.anchor_score,
+                &mut scratch,
+                &mut solved,
+            );
+            if solved.iter().all(|b| b.is_finite()) {
+                for (b, step) in self.anchor.iter_mut().zip(&solved) {
+                    *b += step;
+                }
+            }
+        }
+        self.anchor_rss = residual_products(design, &self.anchor, &mut self.anchor_score)?;
+        Ok(())
     }
 
     /// Residual sum of squares and score `X' W r` from the stored cross-products.
     ///
-    /// `ỹ = y − offset`, `RSS = ỹ' W ỹ − 2 β' X' W ỹ + β' X' W X β`, and
-    /// `X' W r = X' W ỹ − X' W X β`. No row is revisited.
+    /// With `δ = β − β₀` and the stored anchor products,
+    /// `RSS = r₀' W r₀ − 2 δ' X' W r₀ + δ' X' W X δ` and
+    /// `X' W r = X' W r₀ − X' W X δ`. No row is revisited. A negative result
+    /// within rounding of zero is clamped to zero; a larger one is refused.
     ///
     /// # Errors
     ///
-    /// `beta` / `xtwr` length mismatch, or a non-finite residual sum of squares.
+    /// `beta` / `xtwr` length mismatch, a non-finite residual sum of squares, or
+    /// a negative one beyond rounding.
     #[must_use = "a non-finite residual sum of squares is refused"]
     pub(crate) fn rss_and_score(&self, beta: &[f64], xtwr: &mut [f64]) -> Result<f64, ProbError> {
         let p = self.p;
         if beta.len() != p || xtwr.len() != p {
             return Err(ProbError::Shape { message: "sufficient-stat score length != p" });
         }
+        let delta: Vec<f64> = beta.iter().zip(&self.anchor).map(|(b, b0)| b - b0).collect();
         for (i, score) in xtwr.iter_mut().enumerate() {
-            let mut acc = self.xtwy[i];
-            for (&gram, &coef) in self.xtwx[i * p..(i + 1) * p].iter().zip(beta) {
-                acc -= gram * coef;
+            let mut acc = self.anchor_score[i];
+            for (&gram, &d) in self.xtwx[i * p..(i + 1) * p].iter().zip(&delta) {
+                acc -= gram * d;
             }
             *score = acc;
         }
-        let mut rss = self.ytwy;
-        for ((&coef, &cross), &score) in beta.iter().zip(&self.xtwy).zip(xtwr.iter()) {
-            rss -= coef * (cross + score);
+        let mut rss = self.anchor_rss;
+        let mut scale = self.anchor_rss;
+        for ((&d, &cross), &score) in delta.iter().zip(&self.anchor_score).zip(xtwr.iter()) {
+            rss -= d * (cross + score);
+            scale += (d * (cross + score)).abs();
         }
         if !rss.is_finite() || xtwr.iter().any(|score| !score.is_finite()) {
             return Err(ProbError::Numerical {
                 message: "non-finite residual sum of squares from cross-products".into(),
             });
         }
+        if rss < 0.0 {
+            if rss < -1e-9 * scale {
+                return Err(ProbError::Numerical {
+                    message: "negative residual sum of squares from cross-products".into(),
+                });
+            }
+            return Ok(0.0);
+        }
         Ok(rss)
     }
+}
+
+/// `r' W r` and `X' W r` at `beta`, where `r = y − offset − X beta`, scanned row
+/// by row so no raw cross-product has to cancel.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+fn residual_products(
+    design: BayesDesignRef<'_>,
+    beta: &[f64],
+    xtwr: &mut [f64],
+) -> Result<f64, ProbError> {
+    let nrows = design.nrows;
+    xtwr.fill(0.0);
+    let mut rss = 0.0;
+    for row in 0..nrows {
+        let weight = design.weights.map_or(1.0, |weights| weights[row]);
+        let offset = design.offsets.map_or(0.0, |offsets| offsets[row]);
+        let mut resid = design.y[row] - offset;
+        for (c, &coef) in beta.iter().enumerate() {
+            resid -= design.x_colmajor[c * nrows + row] * coef;
+        }
+        add_finite(&mut rss, weight * resid * resid, row)?;
+        for c in 0..beta.len() {
+            xtwr[c] += weight * design.x_colmajor[c * nrows + row] * resid;
+        }
+    }
+    if xtwr.iter().any(|score| !score.is_finite()) {
+        return Err(non_finite_summary_input("weighted cross-product", nrows));
+    }
+    Ok(rss)
 }
 
 /// Lengths required before a row can be accumulated. A long `X` buffer is kept;
@@ -231,9 +329,9 @@ fn accumulate_summary_row(
 /// Weighted residual sum of squares and score `X' W r` at `beta`.
 ///
 /// `r_i = y_i - offset_i - x_i' β`, `RSS_w = Σ w_i r_i²`.
-/// The library targets call `GaussianSufficientStats::rss_and_score`. The Laplace
-/// tests still compare this row scan with that summary.
-#[cfg_attr(not(test), allow(dead_code))]
+/// The library targets call `GaussianSufficientStats::rss_and_score`. The tests
+/// compare this row scan with that summary.
+#[cfg(test)]
 #[allow(
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
@@ -430,7 +528,9 @@ pub(crate) struct GaussianInvGammaTarget<'a> {
     coef_prior: GaussianCoefficientPrior,
     prec: CoefficientPrecision,
     scale: f64,
-    /// `A = a₀ + (n_eff + p) / 2`.
+    /// `A = a₀ + (n_eff + p) / 2`. `n_eff = Σ w_i` treats the weights as
+    /// frequency weights: a weight of `k` counts as `k` observations in the
+    /// residual-variance posterior.
     a_const: f64,
     stats: GaussianSufficientStats,
     xtwr: Vec<f64>,
@@ -1245,5 +1345,114 @@ mod tests {
         let refused = BayesDesignRef { weights: Some(&negative), ..design };
         let error = rss_and_xtwr(refused, &[0.0, 0.0], &mut score).unwrap_err();
         assert!(error.to_string().contains("negative weight"));
+    }
+
+    /// Far-from-zero outcome with a deterministic spread of about one. Raw
+    /// cross-products lose every digit of the residual here.
+    fn far_from_zero_design() -> (Vec<f64>, Vec<f64>) {
+        let n = 1000;
+        let mut x = vec![1.0; n];
+        let mut y = Vec::with_capacity(n);
+        let mut state = 12345_u64;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((state >> 11) as f64 / (1_u64 << 53) as f64) - 0.5
+        };
+        for i in 0..n {
+            let xi = (i as f64 / n as f64) * 2.0 - 1.0;
+            x.push(xi);
+            y.push(1.0e8 + 0.5 * xi + 3.0 * next());
+        }
+        (x, y)
+    }
+
+    #[test]
+    fn summary_residual_matches_the_row_scan_far_from_zero() {
+        let (x, y) = far_from_zero_design();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 1000,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let stats = GaussianSufficientStats::from_design(design, 2).unwrap();
+        for beta in [[1.0e8, 0.0], [1.0e8 + 0.1, 0.5], [1.0e8 - 2.0, -1.0]] {
+            let mut got_score = [0.0; 2];
+            let mut want_score = [0.0; 2];
+            let got = stats.rss_and_score(&beta, &mut got_score).unwrap();
+            let want = rss_and_xtwr(design, &beta, &mut want_score).unwrap();
+            assert!(want > 100.0, "the reference residual must be non-trivial: {want}");
+            assert!((got - want).abs() < 1e-9 * want, "rss {got} vs row scan {want}");
+            for c in 0..2 {
+                assert!(
+                    (got_score[c] - want_score[c]).abs() < 1e-9 * (1.0 + want_score[c].abs()),
+                    "score {c}: {} vs {}",
+                    got_score[c],
+                    want_score[c]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn targets_match_the_row_scan_far_from_zero() {
+        let (x, y) = far_from_zero_design();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 1000,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let prior = GaussianCoefficientPrior {
+            mean: std::sync::Arc::from(vec![1.0e8, 0.0]),
+            variance: std::sync::Arc::from(vec![4.0, 4.0]),
+        };
+        let beta = [1.0e8 + 0.1, 0.5];
+        let prec = CoefficientPrecision::Diagonal(prior.precision());
+        let mut score = [0.0; 2];
+        let rss = rss_and_xtwr(design, &beta, &mut score).unwrap();
+        let mut p_diff = [0.0; 2];
+        let quad = prior_quadratic(&prior, &prec, &beta, &mut p_diff).unwrap();
+
+        let sigma2 = 2.0;
+        let mut known = GaussianKnownTarget::new(design, prior.clone(), sigma2).unwrap();
+        let mut grad = [0.0; 2];
+        let logp = known.logp_and_grad(&beta, &mut grad).unwrap();
+        let want_logp = -0.5 * (rss + quad) / sigma2;
+        assert!((logp - want_logp).abs() < 1e-9 * want_logp.abs(), "{logp} vs {want_logp}");
+        for c in 0..2 {
+            let want = (score[c] - p_diff[c]) / sigma2;
+            assert!(
+                (grad[c] - want).abs() < 1e-9 * (1.0 + want.abs()),
+                "{c}: {} vs {want}",
+                grad[c]
+            );
+        }
+
+        let (shape, scale, lambda) = (2.0, 1.5, 0.4);
+        let mut joint = GaussianInvGammaTarget::new(design, prior, shape, scale).unwrap();
+        let q = [beta[0], beta[1], lambda];
+        let mut grad = [0.0; 3];
+        let logp = joint.logp_and_grad(&q, &mut grad).unwrap();
+        let a = shape + 0.5 * (1000.0 + 2.0);
+        let b = scale + 0.5 * (rss + quad);
+        let want_logp = -a * lambda - b * (-lambda).exp();
+        assert!((logp - want_logp).abs() < 1e-9 * want_logp.abs(), "{logp} vs {want_logp}");
+        for c in 0..2 {
+            let want = (-lambda).exp() * (score[c] - p_diff[c]);
+            assert!(
+                (grad[c] - want).abs() < 1e-9 * (1.0 + want.abs()),
+                "{c}: {} vs {want}",
+                grad[c]
+            );
+        }
+        let want_lambda = -a + b * (-lambda).exp();
+        assert!((grad[2] - want_lambda).abs() < 1e-9 * (1.0 + want_lambda.abs()));
     }
 }

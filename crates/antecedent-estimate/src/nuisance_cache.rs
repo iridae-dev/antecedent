@@ -775,7 +775,7 @@ impl NuisanceCache {
         }
     }
 
-    /// The fit stored under this key and role.
+    /// The fit stored under this key and role, borrowed from the cache.
     ///
     /// # Errors
     ///
@@ -786,9 +786,9 @@ impl NuisanceCache {
         &self,
         key: &NuisanceCacheKey,
         role: NuisanceRole,
-    ) -> Result<CertifiedNuisanceFit, NuisanceCacheError> {
+    ) -> Result<&CertifiedNuisanceFit, NuisanceCacheError> {
         let roles = self.entries.get(key).ok_or(NuisanceCacheError::Miss)?;
-        roles.get(&role).cloned().ok_or(NuisanceCacheError::UnknownRole)
+        roles.get(&role).ok_or(NuisanceCacheError::UnknownRole)
     }
 
     /// Restore `role` under `key` onto `row_ids`.
@@ -1256,7 +1256,7 @@ pub fn execute_compiled_subplans(
                 None
             } else {
                 match cache.certified(plan.key(), role) {
-                    Ok(fit) => Some(fit),
+                    Ok(fit) => Some(fit.clone()),
                     Err(NuisanceCacheError::Miss | NuisanceCacheError::UnknownRole) => None,
                     Err(error) => return Err(error),
                 }
@@ -1270,11 +1270,7 @@ pub fn execute_compiled_subplans(
             missed = true;
             if foreign_source {
                 let prepared = prepare_blocks(plan.key().folds(), &blocks)?;
-                fits.push(CertifiedNuisanceFit {
-                    key: plan.key().clone(),
-                    role,
-                    blocks: prepared,
-                });
+                fits.push(CertifiedNuisanceFit { key: plan.key().clone(), role, blocks: prepared });
             } else {
                 fits.push(cache.store_certified(plan.key(), role, &blocks)?);
             }
@@ -1629,11 +1625,9 @@ fn certify_block(
     if !folds.rows.iter().any(|row| row.fold != evaluation_fold) {
         return Err(NuisanceCacheError::EmptyTraining { fold: evaluation_fold });
     }
-    for row in folds.rows() {
-        if row.fold() != evaluation_fold && folds.is_held_out(row.row_id()) {
-            return Err(NuisanceCacheError::HeldOutLeakage { row_id: row.row_id() });
-        }
-    }
+    // `FoldAssignment::try_new` refuses any held-out id that is also an assigned row, so no
+    // training row can be held out here.
+    debug_assert!(folds.rows().iter().all(|row| !folds.is_held_out(row.row_id())));
     for predicted in block.rows() {
         refuse_leakage(folds, evaluation_fold, predicted.row_id())?;
     }
@@ -1973,7 +1967,7 @@ mod tests {
     }
 
     #[test]
-    fn c11_shared_subplan_reuses_one_fit_and_matches_independent_execution() {
+    fn shared_subplan_reuses_one_fit_and_matches_independent_execution() {
         let first = request(EstimatorFamily::Aipw, 1, base_key());
         let second = PreparedFamilyRequest::try_new(
             EstimatorFamily::Dml,
@@ -2013,7 +2007,7 @@ mod tests {
     }
 
     #[test]
-    fn c11_matching_columns_miss_when_a_key_field_or_source_changes() {
+    fn matching_columns_miss_when_a_key_field_or_source_changes() {
         let base = request(EstimatorFamily::Aipw, 1, base_key());
         let folds = estimation_folds();
         let strict = clip(NumericalPolicy::strict(), 1.0);
@@ -2061,7 +2055,7 @@ mod tests {
     }
 
     #[test]
-    fn c11_family_executor_refuses_another_family_and_keeps_leakage() {
+    fn family_executor_refuses_another_family_and_keeps_leakage() {
         let prepared = request(EstimatorFamily::Dml, 1, base_key());
         let error = execute_family_requests(
             EstimatorFamily::Aipw,

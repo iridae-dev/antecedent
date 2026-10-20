@@ -47,6 +47,9 @@ const ACTIVE_WORLD: u32 = 1;
 const POSTERIOR_DRAWS: usize = 1024;
 const POSTERIOR_PRIOR_SCALE: f64 = 1.0e6;
 const FREQUENTIST_LEVEL: f64 = 0.95;
+/// Distance from the exact line effect inside which a zero-variance estimate
+/// counts as the degenerate interval at that effect.
+const DEGENERATE_TOLERANCE: f64 = 1.0e-12;
 
 /// One cell of the static/horizon-one × frequentist/Bayesian slice.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -228,7 +231,8 @@ pub(crate) struct FunctionalMatch {
     pub(crate) static_effect: f64,
     /// Frequentist horizon-one contrast.
     pub(crate) horizon_effect: f64,
-    /// [`Study::run`] effect of the static ordinary-least-squares study.
+    /// Effect of the exact data line: mean treated outcome minus mean control
+    /// outcome in the fixture, computed from its rows and not from any fit.
     pub(crate) analytic_truth: f64,
     /// Scientific identities differ because the time frames differ.
     pub(crate) identities_differ: bool,
@@ -358,7 +362,7 @@ pub(crate) fn same_target_slice(
 ) -> Result<FourWaySlice, crate::CausalError> {
     let static_study = linear_study(FourWayCell::StaticFrequentist)?;
     let route = static_study.lower_linear_gaussian_intervention(ctx)?;
-    let analytic_truth = static_study.run(ctx)?.effect();
+    let analytic_truth = line_effect();
     let claim = route.execute(ctx)?;
     let static_target = route.scientific().clone();
     let static_fits = route.causal_fit_count();
@@ -457,7 +461,15 @@ fn bayesian_cell(
         return Err(compile("a Bayesian cell was requested for a frequentist realization"));
     }
     let result = linear_study(cell)?.run(ctx)?;
-    let estimate = effect_of(&result)?;
+    bayesian_fit(cell, &result, truth)
+}
+
+fn bayesian_fit(
+    cell: FourWayCell,
+    result: &StudyResult,
+    truth: f64,
+) -> Result<BayesianFit, crate::CausalError> {
+    let estimate = effect_of(result)?;
     let posterior = result
         .posterior
         .as_ref()
@@ -497,7 +509,7 @@ fn coverage_of(cell: &FittedCell, estimate: &EffectEstimate, truth: f64) -> Freq
     let covers_analytic_truth = if let Some((lower, upper)) = published.interval(estimate) {
         lower <= truth && truth <= upper
     } else {
-        same_bits(estimate.ate, truth) && is_zero(estimate.se_analytic())
+        (estimate.ate - truth).abs() <= DEGENERATE_TOLERANCE && is_zero(estimate.se_analytic())
     };
     FrequentistCoverage {
         cell: cell.cell,
@@ -633,11 +645,21 @@ fn horizon_target(
 }
 
 fn linear_study(cell: FourWayCell) -> Result<Study, crate::CausalError> {
-    let mut builder = match cell {
-        FourWayCell::StaticFrequentist | FourWayCell::StaticBayesian => static_builder()?,
+    let builder = match cell {
+        FourWayCell::StaticFrequentist | FourWayCell::StaticBayesian => {
+            let (treatment, outcome) = static_columns();
+            static_builder(&treatment, &outcome)?
+        }
         FourWayCell::HorizonOneFrequentist | FourWayCell::HorizonOneBayesian => horizon_builder()?,
     };
-    if cell.is_bayesian() {
+    finish_study(builder, cell.is_bayesian())
+}
+
+fn finish_study(
+    mut builder: crate::StudyBuilder,
+    bayesian: bool,
+) -> Result<Study, crate::CausalError> {
+    if bayesian {
         builder = builder.inference(InferenceMode::Bayesian(
             BayesianConfig::conjugate().n_draws(POSTERIOR_DRAWS).prior_scale(POSTERIOR_PRIOR_SCALE),
         ));
@@ -645,7 +667,10 @@ fn linear_study(cell: FourWayCell) -> Result<Study, crate::CausalError> {
     builder.refute(RefuteSuite::None).bootstrap_replicates(0).build()
 }
 
-fn static_builder() -> Result<crate::StudyBuilder, crate::CausalError> {
+fn static_builder(
+    treatment: &[f64],
+    outcome: &[f64],
+) -> Result<crate::StudyBuilder, crate::CausalError> {
     let schema = CausalSchemaBuilder::new()
         .continuous("t")
         .treatment()
@@ -653,12 +678,8 @@ fn static_builder() -> Result<crate::StudyBuilder, crate::CausalError> {
         .outcome()
         .build()
         .map_err(|err| compile(err.to_string()))?;
-    let (treatment, outcome) = static_columns();
-    let data = TabularData::try_from_schema_f64(
-        schema.clone(),
-        [("t", treatment.as_slice()), ("y", outcome.as_slice())],
-    )
-    .map_err(|err| compile(err.to_string()))?;
+    let data = TabularData::try_from_schema_f64(schema.clone(), [("t", treatment), ("y", outcome)])
+        .map_err(|err| compile(err.to_string()))?;
     let graph =
         Dag::from_named_edges(&schema, &[("t", "y")]).map_err(|err| compile(err.to_string()))?;
     let query = AverageEffectQuery::binary_ate(
@@ -689,6 +710,17 @@ fn horizon_builder() -> Result<crate::StudyBuilder, crate::CausalError> {
     Ok(Study::series(series).graph(graph).temporal_query(query))
 }
 
+/// Mean treated outcome minus mean control outcome over the fixture rows.
+fn line_effect() -> f64 {
+    let (mut treated, mut control) = ((0.0, 0.0), (0.0, 0.0));
+    for &(arm, outcome) in &LINE {
+        let bucket = if arm > 0.5 { &mut treated } else { &mut control };
+        bucket.0 += outcome;
+        bucket.1 += 1.0;
+    }
+    treated.0 / treated.1 - control.0 / control.1
+}
+
 fn static_columns() -> ([f64; 8], [f64; 8]) {
     let mut treatment = [0.0; 8];
     let mut outcome = [0.0; 8];
@@ -717,10 +749,6 @@ fn compile(message: impl Into<String>) -> crate::CausalError {
     crate::CausalError::Compile { message: message.into() }
 }
 
-const fn same_bits(left: f64, right: f64) -> bool {
-    left.to_bits() == right.to_bits()
-}
-
 const fn is_zero(value: f64) -> bool {
     value.abs().to_bits() == 0.0_f64.to_bits()
 }
@@ -732,8 +760,9 @@ mod tests {
     use antecedent_stats::fit_counts::count_least_squares_solves;
 
     use super::{
-        DecisionDemand, FourWayCell, MissingCarrier, confidence_interval_as_posterior,
-        same_target_slice,
+        DecisionDemand, FourWayCell, MissingCarrier, PublishedScalarUncertainty, bayesian_fit,
+        confidence_interval_as_posterior, effect_of, finish_study, frequentist_cell,
+        same_target_slice, static_builder,
     };
 
     #[test]
@@ -752,17 +781,19 @@ mod tests {
         assert_eq!(matched.horizon_steps, 1);
         assert!(matched.identities_differ);
         assert!(matched.inference_label_preserves_identity);
-        assert_eq!(matched.static_effect.to_bits(), matched.analytic_truth.to_bits());
+        // The fixture is the exact line y = 1 + 2 t, so the effect is 2.
+        assert!((matched.analytic_truth - 2.0).abs() <= 1e-12);
         assert!(
-            (matched.horizon_effect - matched.analytic_truth).abs() <= 1e-8,
-            "horizon-one {} analytic truth {}",
-            matched.horizon_effect,
-            matched.analytic_truth
+            (matched.static_effect - 2.0).abs() <= 1e-12,
+            "static effect {}",
+            matched.static_effect
         );
-        assert_eq!(
-            slice.cell(FourWayCell::StaticFrequentist).effect().to_bits(),
-            matched.analytic_truth.to_bits()
+        assert!(
+            (matched.horizon_effect - 2.0).abs() <= 1e-8,
+            "horizon-one effect {}",
+            matched.horizon_effect
         );
+        assert!((slice.cell(FourWayCell::StaticFrequentist).effect() - 2.0).abs() <= 1e-12);
         for cell in FourWayCell::ALL {
             assert_eq!(slice.cell(cell).cell(), cell);
             assert!(slice.cell(cell).effect().is_finite(), "{}", cell.as_str());
@@ -782,12 +813,12 @@ mod tests {
         assert!(replay.fit_valid);
         assert!(!replay.decision_valid_before_execute);
         assert!(replay.decision_valid_after_execute);
-        assert_eq!(replay.effect.to_bits(), slice.functional_match().analytic_truth.to_bits());
+        assert!((replay.effect - 2.0).abs() <= 1e-12, "replayed effect {}", replay.effect);
         assert_eq!(slice.static_frequentist_fits(), fits);
     }
 
     #[test]
-    fn frequentist_coverage_stays_apart_from_posterior_quality() {
+    fn exact_line_records_stay_apart_between_frequentist_and_posterior_cells() {
         let ctx = ExecutionContext::for_tests(1);
         let slice = same_target_slice(&ctx).unwrap();
         let coverage = slice.frequentist_coverage();
@@ -796,11 +827,13 @@ mod tests {
             [FourWayCell::StaticFrequentist, FourWayCell::HorizonOneFrequentist]
         );
         assert!(coverage.iter().all(|item| item.cell.is_frequentist()));
+        // The exact line has zero residual variance: the interval degenerates to
+        // the fitted effect. That is a point mass at the truth, not evidence
+        // about sampling coverage (the noisy fixture below tests coverage).
         let static_error = slice.cell(FourWayCell::StaticFrequentist).standard_error();
         assert!(coverage[0].covers_analytic_truth, "static se {static_error}");
         assert_eq!(coverage[0].nominal_level.to_bits(), 0.95_f64.to_bits());
         assert!(!coverage[1].interval_published);
-        assert!(!coverage[1].covers_analytic_truth);
 
         let quality = slice.posterior_quality();
         assert_eq!(
@@ -821,6 +854,74 @@ mod tests {
         }
         assert!(slice.cell(FourWayCell::StaticFrequentist).posterior_mean().is_none());
         assert!(slice.cell(FourWayCell::HorizonOneFrequentist).posterior_mean().is_none());
+    }
+
+    /// Twelve rows with true effect 2 and intercept 1 plus fixed noise. The
+    /// reference is the closed-form two-sample least-squares fit, written out
+    /// from the raw rows.
+    #[test]
+    fn noisy_data_matches_the_closed_form_fit_and_keeps_interpretations_apart() {
+        let control = [1.2, 0.7, 1.5, 0.9, 1.1, 0.6];
+        let treated = [3.3, 2.6, 3.1, 2.8, 3.4, 2.7];
+        let mut arm = Vec::new();
+        let mut outcome = Vec::new();
+        for i in 0..6 {
+            arm.extend([0.0, 1.0]);
+            outcome.extend([control[i], treated[i]]);
+        }
+        let mean = |values: &[f64]| values.iter().sum::<f64>() / values.len() as f64;
+        let (m0, m1) = (mean(&control), mean(&treated));
+        let rss: f64 = control.iter().map(|v| (v - m0).powi(2)).sum::<f64>()
+            + treated.iter().map(|v| (v - m1).powi(2)).sum::<f64>();
+        let ols_effect = m1 - m0;
+        let ols_se = (rss / 10.0 * (1.0 / 6.0 + 1.0 / 6.0)).sqrt();
+        // t quantile with 10 degrees of freedom.
+        let t975 = 2.228_138_851_986_274;
+        assert!((ols_effect - 1.983_333_333_333_333).abs() < 1e-12);
+
+        let ctx = ExecutionContext::for_tests(1);
+        let frequentist = finish_study(static_builder(&arm, &outcome).unwrap(), false)
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        let estimate = effect_of(&frequentist).unwrap();
+        assert!((estimate.ate - ols_effect).abs() < 1e-10, "{} vs {ols_effect}", estimate.ate);
+        let published = PublishedScalarUncertainty::select(estimate);
+        let se = published.standard_error.expect("a noisy fit publishes a standard error");
+        assert!(se > 0.5 * ols_se && se < 1.5 * ols_se, "se {se} vs closed form {ols_se}");
+        let (lower, upper) = published.interval(estimate).expect("a published interval");
+        assert!(lower <= 2.0 && 2.0 <= upper, "interval [{lower}, {upper}] must cover 2");
+        // The closed-form interval covers the true effect too.
+        assert!((ols_effect - 2.0).abs() < t975 * ols_se);
+
+        let bayesian =
+            finish_study(static_builder(&arm, &outcome).unwrap(), true).unwrap().run(&ctx).unwrap();
+        let fit = bayesian_fit(FourWayCell::StaticBayesian, &bayesian, 2.0).unwrap();
+        // 1024 draws under a flat prior: the mean is the least-squares effect up
+        // to Monte Carlo error, and the 95% band is a t band of that width.
+        assert!(
+            (fit.quality.mean - ols_effect).abs() < 0.25 * ols_se,
+            "posterior mean {} vs {ols_effect}",
+            fit.quality.mean
+        );
+        let width = fit.quality.upper - fit.quality.lower;
+        assert!(
+            width > 0.8 * 2.0 * 1.96 * ols_se && width < 1.5 * 2.0 * 1.96 * ols_se,
+            "posterior band width {width} vs closed form {}",
+            2.0 * t975 * ols_se
+        );
+        assert!(fit.quality.lower <= 2.0 && 2.0 <= fit.quality.upper);
+
+        // Different interpretation: a sampling interval versus posterior quantiles.
+        assert_eq!(fit.cell.interval_method(), IntervalMethod::PosteriorQuantile);
+        assert_ne!(
+            PublishedScalarUncertainty::select(estimate).method,
+            IntervalMethod::PosteriorQuantile
+        );
+        assert!(fit.cell.posterior_mean().is_some());
+        let frequentist_cell = frequentist_cell(FourWayCell::StaticFrequentist, estimate).unwrap();
+        assert!(frequentist_cell.posterior_mean().is_none());
+        assert_ne!(frequentist_cell.interval_method(), fit.cell.interval_method());
     }
 
     #[test]

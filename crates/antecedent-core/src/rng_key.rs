@@ -517,6 +517,29 @@ mod tests {
     }
 
     #[test]
+    fn small_key_grid_derives_distinct_keys_and_streams() {
+        let mut mixed = std::collections::HashSet::new();
+        let mut streams = std::collections::HashSet::new();
+        let mut count = 0_usize;
+        for operation in 0..6 {
+            for fold in 0..6 {
+                for chain in 0..6 {
+                    for replicate in 0..6 {
+                        let key =
+                            key_parts(operation, fold, chain, replicate, ReductionPolicy::Strict);
+                        mixed.insert(super::mix_key(key));
+                        streams.insert(prefix(key.open(SEED)));
+                        count += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(count, 1296);
+        assert_eq!(mixed.len(), count, "two grid keys mixed to the same word");
+        assert_eq!(streams.len(), count, "two grid keys opened the same stream");
+    }
+
+    #[test]
     fn scheduling_dependent_stream_is_a_failed_attempt() {
         let worker = WorkerId::new(4);
         let batch = BatchSize::new(64);

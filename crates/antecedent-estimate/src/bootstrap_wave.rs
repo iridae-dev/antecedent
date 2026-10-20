@@ -171,8 +171,8 @@ fn replicate_id_error() -> EstimationError {
 #[cfg(test)]
 fn row_index_error() -> EstimationError {
     EstimationError::data_msg(
-        "address the row by GlobalId and keep ChunkIndex inside one bounded chunk. \
-         A u32 backend feature flag is not that attempt",
+        "row position does not fit in u64; rows are addressed by GlobalId and \
+         ChunkIndex only spans one bounded chunk",
     )
 }
 

@@ -1056,7 +1056,7 @@ mod digest_tests {
 }
 
 #[cfg(test)]
-mod c11_tests {
+mod certified_cache_tests {
     use std::cell::Cell;
 
     use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
@@ -1070,7 +1070,7 @@ mod c11_tests {
     };
 
     #[test]
-    fn c11_cluster_dml_calls_the_certified_cache() {
+    fn cluster_dml_calls_the_certified_cache() {
         let mut bytes = [0u8; 32];
         bytes[0] = 8;
         let digest = SemanticDigest::from_bytes(bytes);

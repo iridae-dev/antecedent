@@ -16,6 +16,10 @@ use thiserror::Error;
 /// Largest draw count whose integer value is exact as `f64` (`2^53`).
 const EXACT_DRAW_COUNT: u64 = 1 << 53;
 
+/// Largest working set, in bytes, a covariance tile may allocate: the draw-by-component
+/// scratch plus the component-by-component matrix.
+const MAX_COVARIANCE_BYTES: u64 = 1 << 30;
+
 /// Axis of a row × draw × grid × outcome evaluation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum EvalAxis {
@@ -428,6 +432,17 @@ pub enum TileError {
         /// Requested count.
         count: u64,
     },
+    /// The covariance working set would exceed the allocation budget.
+    #[error(
+        "tiled prediction refuses a covariance tile needing {bytes} bytes, over the {limit} \
+         byte budget; next attempt: tile fewer grid points or outcomes"
+    )]
+    CovarianceBudget {
+        /// Bytes the tile would allocate.
+        bytes: u64,
+        /// Budget.
+        limit: u64,
+    },
     /// The draw count is not an exact `f64`, so a divisor would round.
     #[error(
         "tiled prediction refuses draw count {count}, which is not exact as f64; next attempt: \
@@ -482,9 +497,13 @@ struct Frame<'a> {
     enc_width: usize,
     order: AxisOrder,
     reduction: Reduction,
+    /// Whether every coefficient of draw `draw_start + k` is finite, for outcome `o` at
+    /// `o * draw_count + k`. Checked once here so `predict` does not rescan.
+    finite_coefficients: Vec<bool>,
 }
 
 impl<'a> Frame<'a> {
+    #[allow(clippy::too_many_lines, reason = "one validation pass over the request")]
     fn prepare(request: &'a TileRequest<'a>) -> Result<Self, TileError> {
         if request.outcomes.is_empty() {
             return Err(TileError::Empty { axis: EvalAxis::Outcome.as_str() });
@@ -554,6 +573,21 @@ impl<'a> Frame<'a> {
                 full: grid_full,
             });
         }
+        let window = as_usize(request.draw_count)?;
+        let first = as_usize(request.draw_start)?;
+        let width = as_usize(coef_width)?;
+        let mut finite_coefficients =
+            Vec::with_capacity(window.saturating_mul(request.outcomes.len()));
+        for outcome in request.outcomes {
+            for offset in 0..window {
+                let start = (first + offset) * width;
+                let draw = outcome
+                    .coefficients
+                    .get(start..start + width)
+                    .ok_or(TileError::Index { value: request.draw_start + offset as u64 })?;
+                finite_coefficients.push(draw.iter().all(|coef| coef.is_finite()));
+            }
+        }
         Ok(Self {
             features: request.row_features,
             row_start: request.row_start,
@@ -570,6 +604,7 @@ impl<'a> Frame<'a> {
             enc_width,
             order: request.order,
             reduction: request.reduction,
+            finite_coefficients,
         })
     }
 }
@@ -627,7 +662,8 @@ fn horizon_index(point: &GridPoint, width: u64) -> Result<u64, TileError> {
     }
     let mut horizon = 0;
     while horizon < width {
-        if point.coordinate.to_bits() == (horizon as f64).to_bits() {
+        // Numeric equality, so `-0.0` is horizon zero like `0.0`.
+        if point.coordinate.partial_cmp(&(horizon as f64)) == Some(std::cmp::Ordering::Equal) {
             return Ok(horizon);
         }
         horizon += 1;
@@ -707,8 +743,14 @@ fn stream_covariance(
     let n_outcome = len_u64(frame.outcomes)?;
     let component_n = product(&[frame.grid_count, n_outcome])?;
     let draws = frame.draw_count;
-    let scratch_len = as_usize(product(&[draws, component_n])?)?;
-    let mut scratch = vec![0.0; scratch_len];
+    let scratch_cells = product(&[draws, component_n])?;
+    let matrix_cells = product(&[component_n, component_n])?;
+    let bytes = product(&[checked_add(scratch_cells, matrix_cells)?, 8])?;
+    if bytes > MAX_COVARIANCE_BYTES {
+        return Err(TileError::CovarianceBudget { bytes, limit: MAX_COVARIANCE_BYTES });
+    }
+    let mut scratch = vec![0.0; as_usize(scratch_cells)?];
+    let mut matrix = vec![0.0; as_usize(matrix_cells)?];
     let components = frame.order.component_axes();
     let divisor = draws as f64;
     let mut emitted = 0;
@@ -717,16 +759,18 @@ fn stream_covariance(
         fill_row(frame, hoisted, row, components, component_n, &mut scratch)?;
         let component_us = as_usize(component_n)?;
         let draw_us = as_usize(draws)?;
+        // The matrix is symmetric: compute the upper triangle and mirror it.
+        for left in 0..component_us {
+            for right in left..component_us {
+                let value =
+                    population_covariance(&scratch, draw_us, component_us, left, right, divisor);
+                matrix[left * component_us + right] = value;
+                matrix[right * component_us + left] = value;
+            }
+        }
         for left in 0..component_n {
             for right in 0..component_n {
-                let value = population_covariance(
-                    &scratch,
-                    draw_us,
-                    component_us,
-                    as_usize(left)?,
-                    as_usize(right)?,
-                    divisor,
-                );
+                let value = matrix[as_usize(left)? * component_us + as_usize(right)?];
                 let (left_grid, left_outcome) =
                     component_ids(frame, components, left, frame.grid_count, n_outcome)?;
                 let (right_grid, right_outcome) =
@@ -818,6 +862,11 @@ fn predict(
         return Ok(f64::NAN);
     }
     let outcome = as_usize(outcome_local)?;
+    let window = as_usize(frame.draw_count)?;
+    let draw_offset = draw_index - as_usize(frame.draw_start)?;
+    if !frame.finite_coefficients[outcome * window + draw_offset] {
+        return Ok(f64::NAN);
+    }
     let width = frame.enc_width.checked_add(frame.row_width).ok_or(TileError::SizeOverflow)?;
     let start = draw_index.checked_mul(width).ok_or(TileError::SizeOverflow)?;
     let stop = start.checked_add(width).ok_or(TileError::SizeOverflow)?;
@@ -825,9 +874,6 @@ fn predict(
         .coefficients
         .get(start..stop)
         .ok_or(TileError::Index { value: draw })?;
-    if coefficients.iter().any(|coef| !coef.is_finite()) {
-        return Ok(f64::NAN);
-    }
     let factors = hoisted.factors(as_usize(grid_local)?);
     let mut value = 0.0;
     for (factor, coef) in factors.iter().zip(coefficients) {
@@ -1519,5 +1565,79 @@ mod tests {
             TileError::Horizon { grid_id: 9 }
         );
         assert_eq!(Encoding::HorizonIndicator { width: 0 }.width(), Err(TileError::HorizonWidth));
+    }
+
+    #[test]
+    fn negative_zero_is_horizon_zero() {
+        let outcomes = [OutcomeDraws { id: 1, coefficients: &[5.0, 7.0] }];
+        let failed = [false];
+        for coordinate in [0.0, -0.0] {
+            let grid = [point(3, coordinate, 2.0)];
+            let request = request(
+                &[],
+                &outcomes,
+                &failed,
+                &grid,
+                Encoding::HorizonIndicator { width: 2 },
+                AxisOrder::row_major(),
+                Reduction::Full,
+            );
+            let (values, _) = collect(&request).unwrap();
+            match values.first() {
+                Some(&StreamedValue::Full { value, .. }) => assert_eq!(bits(value), bits(10.0)),
+                other => panic!("horizon zero, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn covariance_matches_the_hand_computed_symmetric_matrix() {
+        // Two sites with factors 1 and 2 on one intercept coefficient, draws 1, 2, 6:
+        // y0 = [1, 2, 6], y1 = 2 * y0. Population variance of y0 is 14 / 3.
+        let outcomes = [OutcomeDraws { id: 1, coefficients: &[1.0, 2.0, 6.0] }];
+        let failed = [false, false, false];
+        let grid = [point(0, 0.0, 1.0), point(1, 0.0, 2.0)];
+        let request = request(
+            &[],
+            &outcomes,
+            &failed,
+            &grid,
+            Encoding::Polynomial { degree: 0 },
+            AxisOrder::row_major(),
+            Reduction::DrawCovariance,
+        );
+        let (values, summary) = collect(&request).unwrap();
+        assert_eq!(summary.emitted, 4);
+        let expected = [14.0 / 3.0, 28.0 / 3.0, 28.0 / 3.0, 56.0 / 3.0];
+        for (cell, want) in values.iter().zip(expected) {
+            match cell {
+                StreamedValue::DrawCovariance { value, .. } => {
+                    assert!((value - want).abs() < 1e-12, "{value} vs {want}");
+                }
+                other => panic!("covariance, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn oversized_covariance_tile_is_refused_before_allocating() {
+        let outcomes = [OutcomeDraws { id: 1, coefficients: &[1.0] }];
+        let failed = [false];
+        let grid: Vec<GridPoint> = (0..12_000).map(|id| point(id, 0.0, 1.0)).collect();
+        let request = request(
+            &[],
+            &outcomes,
+            &failed,
+            &grid,
+            Encoding::Polynomial { degree: 0 },
+            AxisOrder::row_major(),
+            Reduction::DrawCovariance,
+        );
+        let mut emitted = 0;
+        let error = stream_tile(&request, |_| emitted += 1).unwrap_err();
+        assert_eq!(emitted, 0);
+        assert!(
+            matches!(error, TileError::CovarianceBudget { limit, .. } if limit == MAX_COVARIANCE_BYTES)
+        );
     }
 }

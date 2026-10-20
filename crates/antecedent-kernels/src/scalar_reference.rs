@@ -8,9 +8,12 @@
 //! contracts the product into a fused multiply-add. The same inputs therefore
 //! produce the same output bits.
 //!
-//! The portable loop blocks that same order and finishes with a scalar tail.
-//! It is not an AVX2, NEON, or AVX-512 kernel. Those requests are refused
-//! until this tolerance passes and N15's measurement is recorded.
+//! The portable loop is the same algorithm unrolled by a block with a scalar
+//! tail, so it is not an independent check of the sum. The differential test
+//! guards only that the unrolling and the tail keep the index order and the
+//! separate multiply and add. It is not an AVX2, NEON, or AVX-512 kernel.
+//! Those requests are refused until a kernel has a measured bottleneck and a
+//! declared tolerance.
 
 // Parent wires this module into the crate root. Later kernels will call it.
 #![allow(dead_code, reason = "parent wires this module; later kernels will call it")]
@@ -56,7 +59,7 @@ pub const PORTABLE_BLOCK_LEN: usize = 3;
 
 /// What must succeed before an architecture-specific kernel can be considered.
 pub const NEXT_ATTEMPT_BEFORE_ARCH_PROMOTION: &str =
-    "pass N16's tolerance, then N15's measurement, before any promotion";
+    "an architecture kernel needs a measured bottleneck and a declared tolerance";
 
 /// Why a masked weighted sum was not computed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -154,8 +157,8 @@ pub fn scalar_masked_weighted_sum(inputs: WeightedMask<'_>) -> Result<f64, Reduc
 /// Portable reduction of the same sum.
 ///
 /// Full blocks of [`PORTABLE_BLOCK_LEN`] run first, still in index order, and
-/// the remainder is a scalar tail. This is not architecture-specific SIMD and
-/// does not use FMA. The same inputs produce the same bits as
+/// the remainder is a scalar tail. This is the scalar algorithm unrolled, not
+/// an independent implementation, architecture-specific SIMD, or FMA. The same inputs produce the same bits as
 /// [`scalar_masked_weighted_sum`].
 ///
 /// # Errors
@@ -197,9 +200,9 @@ pub const fn within_reduction_tolerance(actual: f64, reference: f64) -> bool {
 /// Refuse AVX2, NEON, and AVX-512.
 ///
 /// This module has no architecture-specific kernel. The error's next attempt
-/// is [`NEXT_ATTEMPT_BEFORE_ARCH_PROMOTION`]: pass N16's tolerance, then N15's
-/// measurement, before any promotion.
-#[must_use = "AVX2, NEON, and AVX-512 stay refused until N16 and N15 pass"]
+/// is [`NEXT_ATTEMPT_BEFORE_ARCH_PROMOTION`]: an architecture kernel needs a
+/// measured bottleneck and a declared tolerance.
+#[must_use = "AVX2, NEON, and AVX-512 stay refused until a measured bottleneck and a declared tolerance exist"]
 pub const fn refuse_arch_promotion(requested: ArchIsa) -> Result<(), ArchRefusal> {
     Err(ArchRefusal { requested, next_attempt: NEXT_ATTEMPT_BEFORE_ARCH_PROMOTION })
 }
@@ -371,7 +374,7 @@ mod tests {
             assert_eq!(refusal.next_attempt(), NEXT_ATTEMPT_BEFORE_ARCH_PROMOTION);
             assert_eq!(
                 refusal.next_attempt(),
-                "pass N16's tolerance, then N15's measurement, before any promotion"
+                "an architecture kernel needs a measured bottleneck and a declared tolerance"
             );
         }
     }

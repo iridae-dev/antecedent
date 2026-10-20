@@ -383,7 +383,7 @@ fn validate_sample(sample: &FisherSample<'_>) -> Result<usize, StatsError> {
     if sample.columns.is_empty() {
         return Err(StatsError::Shape { message: "no columns" });
     }
-    if !(0.0..1.0).contains(&sample.level) {
+    if !(sample.level > 0.0 && sample.level < 1.0) {
         return Err(StatsError::Shape { message: "Fisher-Z confidence level must lie in (0, 1)" });
     }
     let n = sample.columns[0].len();
@@ -595,6 +595,19 @@ mod tests {
 
     fn gather(column: &[f64], rows: &[usize]) -> Vec<f64> {
         rows.iter().map(|&row| column[row]).collect()
+    }
+
+    #[test]
+    fn level_must_lie_strictly_inside_zero_and_one() {
+        let x = [1.0, 2.0, 3.0, 4.0];
+        let columns: [&[f64]; 1] = [&x];
+        for level in [0.0, 1.0, -0.1, 1.5, f64::NAN, f64::INFINITY] {
+            let refused = validate_sample(&sample(&columns, 1, 1, None, 0, level));
+            assert!(refused.is_err(), "level {level} must be refused");
+        }
+        for level in [f64::MIN_POSITIVE, 0.5, 0.95, 1.0 - f64::EPSILON] {
+            assert_eq!(validate_sample(&sample(&columns, 1, 1, None, 0, level)).unwrap(), 4);
+        }
     }
 
     #[test]

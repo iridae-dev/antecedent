@@ -335,16 +335,16 @@ mod tests {
     use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
     #[test]
-    fn c11_population_aipw_calls_the_certified_cache() {
+    fn population_aipw_calls_the_certified_cache() {
         use std::cell::Cell;
 
-        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
         use crate::nuisance_cache::{
             BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency, EstimatorFamily,
             FoldAssignment, FoldRow, NuisanceCache, NuisanceCacheKey, NuisanceRole,
             NumericalDependencies, PredictedRow, PreparedFamilyRequest, ProviderDependency,
             RequestColumns, TargetDependency, TreatmentDependency,
         };
+        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
         let mut bytes = [0u8; 32];
         bytes[0] = 6;
         let digest = SemanticDigest::from_bytes(bytes);

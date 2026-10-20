@@ -1024,16 +1024,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn c11_policy_value_calls_the_certified_cache() {
+    fn policy_value_calls_the_certified_cache() {
         use std::cell::Cell;
 
-        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
         use crate::nuisance_cache::{
             BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency, EstimatorFamily,
             FoldAssignment, FoldRow, NuisanceCache, NuisanceCacheKey, NuisanceRole,
             NumericalDependencies, PredictedRow, PreparedFamilyRequest, ProviderDependency,
             RequestColumns, TargetDependency, TreatmentDependency,
         };
+        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
         let mut bytes = [0u8; 32];
         bytes[0] = 9;
         let digest = SemanticDigest::from_bytes(bytes);
