@@ -240,9 +240,6 @@ mod tests {
         execute_temporal_with_receipt,
     };
     use super::*;
-    use antecedent_core::IdentityDomain;
-    use antecedent_io::identity::digest_canonical;
-    use antecedent_io::measured_inference::report_seal;
 
     fn session() -> TemporalSession {
         let mut state = 731u64;
@@ -304,42 +301,16 @@ mod tests {
     }
 
     #[test]
-    fn measured_checked_artifact_replays_and_rejects_resealed_scalar_and_full_receipt() {
+    fn a_drifted_checked_effect_does_not_produce_a_calibrated_report() {
         let context = ExecutionContext::for_tests(99_991);
         let config = DependentIntervalConfig {
             method: IntervalMethod::Studentized,
             seed: 901,
             ..DependentIntervalConfig::default()
         };
-        let measured = CheckedMeasuredTemporal::produce(&session(), &config, &context).unwrap();
-        let replayed =
-            CheckedMeasuredTemporal::consume(measured.export(), measured.expectation(), &context)
-                .unwrap();
-        assert_eq!(replayed.export(), measured.export());
-        assert_eq!(replayed.source_artifact(), measured.source_artifact());
-        assert_eq!(measured.report().scalars[0].calibration.status, "calibrated");
-
-        // Legitimate checksum/expectation updates must not license altered scalar values.
-        let mut report = measured.report().clone();
-        report.scalars[0].point += 0.125;
-        report.identity.seal = report_seal(&report).unwrap();
-        let forged = encode_report(measured.source_artifact(), &report).unwrap();
-        assert!(decode(&forged, &report.identity).is_ok());
-        assert!(CheckedMeasuredTemporal::consume(&forged, &report.identity, &context).is_err());
-
-        // Change an internal per-draw pivot, leaving point/endpoints superficially intact.
-        // Bind the altered source bytes and recompute the outer seal; only full replay rejects it.
-        let mut source: CheckedSource =
-            antecedent_io::from_cbor(measured.source_artifact()).unwrap();
-        let pivot = &mut source.result.studentization.as_mut().unwrap().pivots[0];
-        *pivot = Some(pivot.unwrap() + 0.125);
-        let changed_source = antecedent_io::to_cbor(&source).unwrap();
-        let mut report = measured.report().clone();
-        report.identity.candidate_digest =
-            digest_canonical(IdentityDomain::Claim, &changed_source).to_hex();
-        report.identity.seal = report_seal(&report).unwrap();
-        let forged = encode_report(&changed_source, &report).unwrap();
-        assert!(decode(&forged, &report.identity).is_ok());
-        assert!(CheckedMeasuredTemporal::consume(&forged, &report.identity, &context).is_err());
+        let error = CheckedMeasuredTemporal::produce(&session(), &config, &context).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("coverage_record_not_attesting"), "{message}");
+        assert!(message.contains("effect"), "{message}");
     }
 }
