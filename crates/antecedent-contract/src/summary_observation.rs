@@ -15,11 +15,13 @@
 //! law is refused. An interval cannot take this path: the four fields do not
 //! turn coverage into an observation model.
 //!
-//! This module does not form a posterior, multiply a likelihood, or estimate a
-//! covariance.
+//! [`FrequentistSummary::estimate`] and [`FrequentistSummary::covariance`] read
+//! those stored numbers back. An interval has neither. This module does not
+//! form a posterior, multiply a likelihood, or estimate a covariance.
 
 use std::error::Error;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use antecedent_core::text::is_blank;
@@ -32,6 +34,8 @@ pub const FREQUENTIST_SUMMARY_TAG: &str = "antecedent.contract.frequentist_summa
 pub const SUMMARY_OBSERVATION_TAG: &str = "antecedent.contract.summary_observation.v1";
 
 const BLANK_DETAIL: &str = "summary_observation.blank_record";
+const NON_FINITE_DETAIL: &str = "summary_observation.non_finite_value";
+const SHAPE_DETAIL: &str = "summary_observation.covariance_shape";
 const NOT_LIKELIHOOD_DETAIL: &str = "summary_observation.not_bayesian_likelihood";
 const INTERVAL_DETAIL: &str = "summary_observation.interval_stays_frequentist";
 const NOT_LAW_DETAIL: &str = "summary_observation.not_bayesian_law";
@@ -77,29 +81,156 @@ impl fmt::Display for FrequentistSummaryKind {
     }
 }
 
-/// A frequentist estimate/covariance or a frequentist interval.
+/// Square covariance stored with a frequentist estimate, row-major.
 ///
-/// The kind is fixed at construction. Offering the summary as a Bayesian
-/// likelihood returns [`FrequentistSummary::as_bayesian_likelihood`] and leaves
-/// this value a frequentist summary.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct FrequentistSummary {
-    kind: FrequentistSummaryKind,
-    name: Arc<str>,
+/// A scalar variance converts through [`From<f64>`] into a one-by-one matrix.
+/// [`Self::matrix`] owns a square matrix of any order. Equality follows
+/// `to_bits`, so the value read back is the value that was stored.
+#[derive(Clone, Debug)]
+pub struct SummaryCovariance {
+    dimension: usize,
+    entries: Vec<f64>,
 }
 
-impl FrequentistSummary {
-    /// Estimate and covariance named `name`.
+impl SummaryCovariance {
+    /// Row-major square matrix with `dimension` rows.
     ///
     /// # Errors
     ///
-    /// [`SummaryObservationError`] when `name` is empty or whitespace. The
-    /// error has no next attempt.
-    #[must_use = "a blank summary name is refused"]
-    pub fn estimate_covariance(name: impl Into<Arc<str>>) -> Result<Self, SummaryObservationError> {
+    /// [`SummaryObservationError`] when `dimension` is zero, `entries` has a
+    /// length other than `dimension * dimension`, or any entry is non-finite.
+    /// The error has no next attempt.
+    #[must_use = "a covariance that is not a finite square matrix is refused"]
+    pub fn matrix(dimension: usize, entries: Vec<f64>) -> Result<Self, SummaryObservationError> {
+        let Some(cells) = dimension.checked_mul(dimension) else {
+            return Err(SummaryObservationError::shape());
+        };
+        if dimension == 0 || entries.len() != cells {
+            return Err(SummaryObservationError::shape());
+        }
+        if entries.iter().any(|entry| !entry.is_finite()) {
+            return Err(SummaryObservationError::non_finite("covariance"));
+        }
+        Ok(Self { dimension, entries })
+    }
+
+    /// Side length of the square matrix. A scalar variance has length one.
+    #[must_use]
+    pub const fn dimension(&self) -> usize {
+        self.dimension
+    }
+
+    /// Row-major entries.
+    #[must_use]
+    pub fn entries(&self) -> &[f64] {
+        &self.entries
+    }
+}
+
+impl From<f64> for SummaryCovariance {
+    fn from(variance: f64) -> Self {
+        Self { dimension: 1, entries: vec![variance] }
+    }
+}
+
+impl PartialEq for SummaryCovariance {
+    fn eq(&self, other: &Self) -> bool {
+        self.dimension == other.dimension && same_bits(&self.entries, &other.entries)
+    }
+}
+
+impl Eq for SummaryCovariance {}
+
+impl Hash for SummaryCovariance {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.dimension.hash(state);
+        for entry in &self.entries {
+            entry.to_bits().hash(state);
+        }
+    }
+}
+
+/// Estimate payload, or an interval that carries neither number.
+#[derive(Clone, Debug)]
+enum SummaryBody {
+    EstimateCovariance { estimate: f64, covariance: SummaryCovariance },
+    Interval,
+}
+
+impl PartialEq for SummaryBody {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::EstimateCovariance { estimate: left_estimate, covariance: left_covariance },
+                Self::EstimateCovariance {
+                    estimate: right_estimate,
+                    covariance: right_covariance,
+                },
+            ) => {
+                left_estimate.to_bits() == right_estimate.to_bits()
+                    && left_covariance == right_covariance
+            }
+            (Self::Interval, Self::Interval) => true,
+            (Self::EstimateCovariance { .. }, Self::Interval)
+            | (Self::Interval, Self::EstimateCovariance { .. }) => false,
+        }
+    }
+}
+
+impl Eq for SummaryBody {}
+
+impl Hash for SummaryBody {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::EstimateCovariance { estimate, covariance } => {
+                0_u8.hash(state);
+                estimate.to_bits().hash(state);
+                covariance.hash(state);
+            }
+            Self::Interval => 1_u8.hash(state),
+        }
+    }
+}
+
+/// A frequentist estimate/covariance or a frequentist interval.
+///
+/// The kind is fixed at construction. An estimate stores its value and its
+/// covariance. An interval stores neither, so it cannot be read as a posterior.
+/// Offering the summary as a Bayesian likelihood returns
+/// [`FrequentistSummary::as_bayesian_likelihood`] and leaves this value a
+/// frequentist summary.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct FrequentistSummary {
+    name: Arc<str>,
+    body: SummaryBody,
+}
+
+impl FrequentistSummary {
+    /// Estimate `estimate` with covariance `covariance`, named `name`.
+    ///
+    /// `covariance` is a scalar variance (`f64`) or a [`SummaryCovariance`]
+    /// built by [`SummaryCovariance::matrix`].
+    ///
+    /// # Errors
+    ///
+    /// [`SummaryObservationError`] when `name` is empty or whitespace, or when
+    /// `estimate` or a covariance entry is non-finite. The error has no next
+    /// attempt.
+    #[must_use = "a blank name or a non-finite value is refused"]
+    pub fn estimate_covariance(
+        name: impl Into<Arc<str>>,
+        estimate: f64,
+        covariance: impl Into<SummaryCovariance>,
+    ) -> Result<Self, SummaryObservationError> {
+        let name = declared(name, "summary")?;
+        let estimate = finite(estimate, "estimate")?;
+        let covariance = covariance.into();
+        if covariance.entries.iter().any(|entry| !entry.is_finite()) {
+            return Err(SummaryObservationError::non_finite("covariance"));
+        }
         Ok(Self {
-            kind: FrequentistSummaryKind::EstimateCovariance,
-            name: declared(name, "summary")?,
+            name,
+            body: SummaryBody::EstimateCovariance { estimate, covariance },
         })
     }
 
@@ -111,13 +242,16 @@ impl FrequentistSummary {
     /// error has no next attempt.
     #[must_use = "a blank summary name is refused"]
     pub fn interval(name: impl Into<Arc<str>>) -> Result<Self, SummaryObservationError> {
-        Ok(Self { kind: FrequentistSummaryKind::Interval, name: declared(name, "summary")? })
+        Ok(Self { name: declared(name, "summary")?, body: SummaryBody::Interval })
     }
 
     /// Frequentist kind. Adaptation does not replace it.
     #[must_use]
     pub const fn kind(&self) -> FrequentistSummaryKind {
-        self.kind
+        match &self.body {
+            SummaryBody::EstimateCovariance { .. } => FrequentistSummaryKind::EstimateCovariance,
+            SummaryBody::Interval => FrequentistSummaryKind::Interval,
+        }
     }
 
     /// Declared name.
@@ -126,10 +260,34 @@ impl FrequentistSummary {
         &self.name
     }
 
-    /// Digest of the kind and the name.
+    /// Point estimate stored with an estimate-covariance summary.
+    ///
+    /// An interval returns [`None`]. That absence is not a posterior.
+    #[must_use]
+    pub const fn estimate(&self) -> Option<f64> {
+        match &self.body {
+            SummaryBody::EstimateCovariance { estimate, .. } => Some(*estimate),
+            SummaryBody::Interval => None,
+        }
+    }
+
+    /// Covariance stored with an estimate-covariance summary.
+    ///
+    /// An interval returns [`None`].
+    #[must_use]
+    pub const fn covariance(&self) -> Option<&SummaryCovariance> {
+        match &self.body {
+            SummaryBody::EstimateCovariance { covariance, .. } => Some(covariance),
+            SummaryBody::Interval => None,
+        }
+    }
+
+    /// Digest of the kind, the name, and any stored estimate and covariance.
     #[must_use]
     pub fn identity(&self) -> SemanticDigest {
-        digest(FREQUENTIST_SUMMARY_TAG, &[self.kind.as_str(), self.name()])
+        let mut writer = CanonicalWriter::new(FREQUENTIST_SUMMARY_TAG);
+        write_summary(&mut writer, self);
+        SemanticDigest::from_bytes(writer.finish())
     }
 
     /// Refuse this summary as a Bayesian likelihood.
@@ -137,20 +295,21 @@ impl FrequentistSummary {
     /// An interval's next attempt is [`SummaryNextAttempt::ReportAsFrequentistInterval`].
     /// A covariance summary's next attempt is
     /// [`SummaryNextAttempt::AdaptEstimateCovariance`]. Neither attempt retags
-    /// this summary.
+    /// this summary or forms a posterior.
     #[must_use = "a frequentist summary is not a Bayesian likelihood"]
     pub fn as_bayesian_likelihood(&self) -> SummaryObservationError {
-        let next = match self.kind {
+        let kind = self.kind();
+        let next = match kind {
             FrequentistSummaryKind::Interval => SummaryNextAttempt::ReportAsFrequentistInterval,
             FrequentistSummaryKind::EstimateCovariance => {
                 SummaryNextAttempt::AdaptEstimateCovariance
             }
         };
-        let prefix = match self.kind {
+        let prefix = match kind {
             FrequentistSummaryKind::Interval => "frequentist interval ",
             FrequentistSummaryKind::EstimateCovariance => "frequentist covariance summary ",
         };
-        let suffix = match self.kind {
+        let suffix = match kind {
             FrequentistSummaryKind::Interval => {
                 "stays a frequentist summary and is not a Bayesian likelihood and is not a Bayesian law"
             }
@@ -162,7 +321,7 @@ impl FrequentistSummary {
             NOT_LIKELIHOOD_DETAIL,
             named(prefix, self.name(), suffix, next),
             next,
-            self.kind,
+            kind,
         )
     }
 }
@@ -297,7 +456,7 @@ impl SummaryObservationModel {
         dependence: Dependence,
         origin: Origin,
     ) -> Result<Self, SummaryObservationError> {
-        if summary.kind == FrequentistSummaryKind::Interval {
+        if summary.kind() == FrequentistSummaryKind::Interval {
             let next = SummaryNextAttempt::ReportAsFrequentistInterval;
             return Err(SummaryObservationError::meaning(
                 INTERVAL_DETAIL,
@@ -308,7 +467,7 @@ impl SummaryObservationModel {
                     next,
                 ),
                 next,
-                summary.kind,
+                summary.kind(),
             ));
         }
         Ok(Self { summary, sampling_approximation, selection, dependence, origin })
@@ -346,20 +505,17 @@ impl SummaryObservationModel {
 
     /// Digest of the frequentist summary and the four records.
     ///
-    /// This digest is not [`FrequentistSummary::identity`].
+    /// The frequentist summary contributes its kind, name, and stored estimate
+    /// and covariance. This digest is not [`FrequentistSummary::identity`].
     #[must_use]
     pub fn identity(&self) -> SemanticDigest {
-        digest(
-            SUMMARY_OBSERVATION_TAG,
-            &[
-                self.summary.kind.as_str(),
-                self.summary.name(),
-                self.sampling_approximation.name(),
-                self.selection.name(),
-                self.dependence.name(),
-                self.origin.name(),
-            ],
-        )
+        let mut writer = CanonicalWriter::new(SUMMARY_OBSERVATION_TAG);
+        write_summary(&mut writer, &self.summary);
+        writer.text(self.sampling_approximation.name());
+        writer.text(self.selection.name());
+        writer.text(self.dependence.name());
+        writer.text(self.origin.name());
+        SemanticDigest::from_bytes(writer.finish())
     }
 
     /// Admit `requested` when it is a likelihood update of this model.
@@ -379,7 +535,7 @@ impl SummaryObservationModel {
     ) -> Result<LikelihoodUpdateAdmission, SummaryObservationError> {
         match requested {
             SummaryUse::LikelihoodUpdate => Ok(LikelihoodUpdateAdmission {
-                summary_kind: self.summary.kind,
+                summary_kind: self.summary.kind(),
                 summary_name: Arc::clone(&self.summary.name),
                 summary_identity: self.summary.identity(),
                 model_identity: self.identity(),
@@ -395,7 +551,7 @@ impl SummaryObservationModel {
                         next,
                     ),
                     next,
-                    self.summary.kind,
+                    self.summary.kind(),
                 ))
             }
         }
@@ -592,6 +748,26 @@ impl SummaryObservationError {
         }
     }
 
+    fn non_finite(field: &'static str) -> Self {
+        Self {
+            code: INVALID_CODE,
+            detail: NON_FINITE_DETAIL,
+            message: format!("{field} is not finite"),
+            next: None,
+            summary_kind: None,
+        }
+    }
+
+    fn shape() -> Self {
+        Self {
+            code: INVALID_CODE,
+            detail: SHAPE_DETAIL,
+            message: String::from("covariance is not a square matrix"),
+            next: None,
+            summary_kind: None,
+        }
+    }
+
     fn meaning(
         detail: &'static str,
         message: String,
@@ -629,19 +805,32 @@ fn named(prefix: &str, name: &str, suffix: &str, next: SummaryNextAttempt) -> St
     message
 }
 
-fn digest(tag: &str, fields: &[&str]) -> SemanticDigest {
-    let mut writer = CanonicalWriter::new(tag);
-    for field in fields {
-        writer.text(field);
+fn finite(value: f64, field: &'static str) -> Result<f64, SummaryObservationError> {
+    if value.is_finite() { Ok(value) } else { Err(SummaryObservationError::non_finite(field)) }
+}
+
+fn same_bits(left: &[f64], right: &[f64]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left_entry, right_entry)| left_entry.to_bits() == right_entry.to_bits())
+}
+
+fn write_summary(writer: &mut CanonicalWriter, summary: &FrequentistSummary) {
+    writer.text(summary.kind().as_str());
+    writer.text(summary.name());
+    if let SummaryBody::EstimateCovariance { estimate, covariance } = &summary.body {
+        writer.real(*estimate);
+        writer.reals(covariance.entries());
     }
-    SemanticDigest::from_bytes(writer.finish())
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         Dependence, FrequentistSummary, FrequentistSummaryKind, Origin, SamplingApproximation,
-        Selection, SummaryNextAttempt, SummaryObservationModel, SummaryUse,
+        Selection, SummaryCovariance, SummaryNextAttempt, SummaryObservationModel, SummaryUse,
     };
 
     struct ObservationRecords {
@@ -661,7 +850,7 @@ mod tests {
     }
 
     fn estimate(name: &str) -> FrequentistSummary {
-        FrequentistSummary::estimate_covariance(name).expect("estimate")
+        FrequentistSummary::estimate_covariance(name, 1.25_f64, 0.25_f64).expect("estimate")
     }
 
     fn interval(name: &str) -> FrequentistSummary {
@@ -854,7 +1043,10 @@ mod tests {
     #[test]
     fn blank_records_are_refused() {
         let cases = [
-            (FrequentistSummary::estimate_covariance(" ").err(), "summary is blank"),
+            (
+                FrequentistSummary::estimate_covariance(" ", 0.0_f64, 1.0_f64).err(),
+                "summary is blank",
+            ),
             (FrequentistSummary::interval("\n").err(), "summary is blank"),
             (SamplingApproximation::new("").err(), "sampling approximation is blank"),
             (Selection::new("\t").err(), "selection is blank"),
@@ -866,6 +1058,97 @@ mod tests {
             assert_eq!(refusal.code(), "invalid_argument");
             assert_eq!(refusal.detail(), "summary_observation.blank_record");
             assert_eq!(refusal.message(), expected);
+            assert!(refusal.next_attempt().is_none());
+            assert!(refusal.summary_kind().is_none());
+            assert!(antecedent_core::reason_code::is_runtime_refusal(refusal.code()));
+        }
+    }
+
+    #[test]
+    fn reads_estimate_and_covariance_and_interval_refuses_bayesian_likelihood() {
+        let summary =
+            FrequentistSummary::estimate_covariance("ate", 1.5_f64, 0.04_f64).expect("estimate");
+        let covariance = summary.covariance().expect("covariance");
+
+        assert_eq!(summary.kind(), FrequentistSummaryKind::EstimateCovariance);
+        assert_eq!(summary.name(), "ate");
+        assert_eq!(summary.estimate().map(f64::to_bits), Some(1.5_f64.to_bits()));
+        assert_eq!(covariance.dimension(), 1);
+        assert_eq!(
+            covariance.entries().first().map(|entry| entry.to_bits()),
+            Some(0.04_f64.to_bits()),
+        );
+        assert_eq!(
+            FrequentistSummary::estimate_covariance("ate", 1.5_f64, 0.04_f64)
+                .expect("again")
+                .identity(),
+            summary.identity(),
+        );
+        assert_ne!(
+            FrequentistSummary::estimate_covariance("ate", 1.5_f64, 0.09_f64)
+                .expect("other")
+                .identity(),
+            summary.identity(),
+        );
+
+        let matrix = SummaryCovariance::matrix(2, vec![1.0_f64, 0.2_f64, 0.3_f64, 4.0_f64])
+            .expect("matrix");
+        let joint =
+            FrequentistSummary::estimate_covariance("joint", -0.5_f64, matrix).expect("joint");
+        let stored = joint.covariance().expect("covariance");
+        assert_eq!(joint.estimate().map(f64::to_bits), Some((-0.5_f64).to_bits()));
+        assert_eq!(stored.dimension(), 2);
+        assert_eq!(stored.entries().len(), 4);
+        assert_eq!(stored.entries().get(1).map(|entry| entry.to_bits()), Some(0.2_f64.to_bits()));
+        assert_eq!(stored.entries().get(2).map(|entry| entry.to_bits()), Some(0.3_f64.to_bits()));
+        assert_eq!(stored.entries().get(3).map(|entry| entry.to_bits()), Some(4.0_f64.to_bits()));
+
+        let interval = interval("ate");
+        assert!(interval.estimate().is_none());
+        assert!(interval.covariance().is_none());
+        let refusal = interval.as_bayesian_likelihood();
+        assert_eq!(interval.kind(), FrequentistSummaryKind::Interval);
+        assert_eq!(refusal.summary_kind(), Some(FrequentistSummaryKind::Interval));
+        assert_eq!(refusal.detail(), "summary_observation.not_bayesian_likelihood");
+        assert_eq!(refusal.next_attempt(), Some(SummaryNextAttempt::ReportAsFrequentistInterval));
+        assert!(refusal.message().contains("not a Bayesian likelihood"));
+        assert!(refusal.message().contains("not a Bayesian law"));
+    }
+
+    #[test]
+    fn non_finite_estimate_and_misshapen_covariance_are_refused() {
+        let cases = [
+            (
+                FrequentistSummary::estimate_covariance("ate", f64::NAN, 1.0_f64).err(),
+                "summary_observation.non_finite_value",
+                "estimate is not finite",
+            ),
+            (
+                FrequentistSummary::estimate_covariance("ate", 1.0_f64, f64::INFINITY).err(),
+                "summary_observation.non_finite_value",
+                "covariance is not finite",
+            ),
+            (
+                SummaryCovariance::matrix(0, vec![]).err(),
+                "summary_observation.covariance_shape",
+                "covariance is not a square matrix",
+            ),
+            (
+                SummaryCovariance::matrix(2, vec![1.0_f64, 0.0_f64, 0.0_f64]).err(),
+                "summary_observation.covariance_shape",
+                "covariance is not a square matrix",
+            ),
+            (
+                SummaryCovariance::matrix(1, vec![f64::NEG_INFINITY]).err(),
+                "summary_observation.non_finite_value",
+                "covariance is not finite",
+            ),
+        ];
+        for (refusal, detail, message) in cases {
+            let refusal = refusal.expect("refused");
+            assert_eq!(refusal.code(), "invalid_argument");
+            assert_eq!(refusal.detail(), detail);
+            assert_eq!(refusal.message(), message);
             assert!(refusal.next_attempt().is_none());
             assert!(refusal.summary_kind().is_none());
             assert!(antecedent_core::reason_code::is_runtime_refusal(refusal.code()));
