@@ -132,7 +132,7 @@ fn derive(
         ranking: ranking.then(RankingRequest::default),
         ..ReliabilityRequest::expected_utility()
     };
-    let ctx = ExecutionContext::for_tests(run_seed ^ replicate);
+    let ctx = ExecutionContext::for_tests(antecedent_core::derive_stream(run_seed, replicate));
     if replicate == 0 {
         // Exercise the real artifact producer and independent consumer on the existing
         // first replicate. No extra draws, stream advances or scored calculations.

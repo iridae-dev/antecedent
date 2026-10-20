@@ -214,7 +214,10 @@ pub fn tuple_block_observation_replicates(
             break;
         }
         attempted += 1;
-        let mut rng = ctx.rng.stream_for(StreamDomain::Execute, stream ^ u64::from(replicate));
+        let mut rng = ctx.rng.stream_for(
+        StreamDomain::Execute,
+        antecedent_core::derive_stream(stream, u64::from(replicate)),
+    );
         antecedent_estimate::circular_block_positions_into(m, block, &mut rng, &mut positions);
         anchors.clear();
         anchors.extend(positions.iter().map(|&position| first_anchor + position));

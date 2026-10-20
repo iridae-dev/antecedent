@@ -153,7 +153,10 @@ pub(crate) fn distribution_change_with_fit_uncertainty(
         if worker.cancellation.is_cancelled() {
             return Err(AttributionError::Cancelled);
         }
-        let mut rng = worker.rng.stream_for(StreamDomain::Attribution, 0xB007_5712 ^ b as u64);
+        let mut rng = worker.rng.stream_for(
+        StreamDomain::Attribution,
+        antecedent_core::derive_stream(0xB007_5712, b as u64),
+    );
         let refit = resample(&baseline_data, &mut rng).and_then(|base| {
             let cmp = resample(&comparison_data, &mut rng)?;
             distribution_change_on_populations(graph_model, &base, &cmp, query, options, worker)

@@ -16,7 +16,10 @@ fn panel() -> (Vec<f64>, Vec<String>, Vec<i64>, Vec<i64>) {
         for t in 1..=4_i64 {
             let effect = if cohort == 3 && t >= 3 { 2.0 } else { 0.0 };
             y.push(
-                1.0 + 0.5 * t as f64 + 0.3 * (i % 4) as f64 + effect + noise(i * 4 + usize::try_from(t).unwrap_or_default()),
+                1.0 + 0.5 * t as f64
+                    + 0.3 * (i % 4) as f64
+                    + effect
+                    + noise(i * 4 + usize::try_from(t).unwrap_or_default()),
             );
             subjects.push(format!("s{i}"));
             periods.push(t);

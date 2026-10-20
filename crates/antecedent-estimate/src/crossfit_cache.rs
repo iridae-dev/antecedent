@@ -1,4 +1,8 @@
-//! Shared cross-fitted AIPW nuisance fits for a batch of queries.
+//! Shared cross-fitted nuisance fits for a batch of queries on one thread.
+//!
+//! AIPW, DML, and policy families execute through [`crate::nuisance_cache::NuisanceCache`].
+//! This cache remains for the batch runner's thread-local scope. It is not the
+//! family store.
 //!
 //! A batch of average-effect queries on one table often fits the same nuisance
 //! more than once: every query with the same treatment and adjustment set fits

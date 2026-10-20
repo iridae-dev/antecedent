@@ -31,10 +31,10 @@ use crate::execution::CancellationToken;
 
 mod cpu_admission;
 pub use cpu_admission::{
-    admit_fold, neural_baseline, nested_thread_request, place_physical_predictions,
-    retain_scientific_f64, scientific_arithmetic, scientific_tolerance, select_compute,
-    within_declared_tolerance, ArithmeticPath, ComputeSelection, CpuAdmission, CpuAdmissionError,
-    FoldAdmission, LearnerAdmission, PredictionOrderError,
+    ArithmeticPath, ComputeSelection, CpuAdmission, CpuAdmissionError, FoldAdmission,
+    LearnerAdmission, PredictionOrderError, admit_fold, nested_thread_request, neural_baseline,
+    place_physical_predictions, retain_scientific_f64, scientific_arithmetic, scientific_tolerance,
+    select_compute, within_declared_tolerance,
 };
 
 /// Device bytes and spill bytes requested from a reservation pool.
@@ -684,12 +684,14 @@ fn credit(
     Ok(())
 }
 
-fn close_slot(state: &mut PoolState, index: usize) -> Option<DeviceReservationRemainder> {
+fn close_slot(state: &mut PoolState, index: usize) -> DeviceReservationRemainder {
     let id = state.leases[index].id;
     let parent = state.leases[index].parent;
     let device_bytes = state.leases[index].device_bytes;
     let spill_bytes = state.leases[index].spill_bytes;
-    credit(state, parent, device_bytes, spill_bytes).ok()?;
+    if let Err(error) = credit(state, parent, device_bytes, spill_bytes) {
+        panic!("device reservation credit overflow ({error}); lease {id} stays open");
+    }
     for slot in &mut state.leases {
         if slot.parent == Some(id) {
             slot.parent = parent;
@@ -697,7 +699,7 @@ fn close_slot(state: &mut PoolState, index: usize) -> Option<DeviceReservationRe
     }
     state.leases.remove(index);
     debug_accounted(state);
-    Some(DeviceReservationRemainder::new(device_bytes, spill_bytes))
+    DeviceReservationRemainder::new(device_bytes, spill_bytes)
 }
 
 fn relinquish(
@@ -712,7 +714,7 @@ fn relinquish(
     let Some(index) = lease_index(&guard.leases, id) else {
         return DeviceReservationRemainder::zero();
     };
-    close_slot(&mut guard, index).unwrap_or_else(DeviceReservationRemainder::zero)
+    close_slot(&mut guard, index)
 }
 
 #[cfg_attr(
@@ -751,6 +753,22 @@ mod tests {
 
     use super::*;
     use crate::execution::{AdmissionPool, CancellationToken};
+
+    #[test]
+    fn credit_overflow_panics_and_leaves_the_lease() {
+        let mut state = PoolState {
+            device_budget: 0,
+            spill_budget: 0,
+            device_free: 0,
+            spill_free: 0,
+            leases: vec![LeaseSlot { id: 7, parent: None, device_bytes: 1, spill_bytes: 0 }],
+            next_id: 8,
+        };
+        let panicked = catch_unwind(AssertUnwindSafe(|| close_slot(&mut state, 0)));
+        assert!(panicked.is_err());
+        assert_eq!(state.leases.len(), 1);
+        assert_eq!(state.leases[0].id, 7);
+    }
 
     #[test]
     fn grant_and_release() {

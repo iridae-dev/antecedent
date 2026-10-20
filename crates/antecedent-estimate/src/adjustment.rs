@@ -455,13 +455,8 @@ impl LinearAdjustmentAte {
         ids.extend_from_slice(&estimand.adjustment_set);
         let mut controls = PreparationControls::finite_resident();
         controls.budget = self.preparation_budget;
-        let PreparationProduct { expanded, mut row_mask, receipt: preparation } = prepare_table(
-            data,
-            &ids,
-            MissingPolicy::CompleteCase,
-            &self.contrasts,
-            controls,
-        )?;
+        let PreparationProduct { expanded, mut row_mask, receipt: preparation } =
+            prepare_table(data, &ids, MissingPolicy::CompleteCase, &self.contrasts, controls)?;
         crate::prepare::intersect_predicate_mask(
             &mut row_mask,
             &query.target_population,
@@ -476,12 +471,7 @@ impl LinearAdjustmentAte {
             .transpose()?;
         let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
         let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
-        let covs = adjustment_covariates(
-            data,
-            &estimand.adjustment_set,
-            &expanded,
-            &row_mask,
-        )?;
+        let covs = adjustment_covariates(data, &estimand.adjustment_set, &expanded, &row_mask)?;
         let cov_refs: Vec<(VariableId, &[f64])> =
             covs.iter().map(|(id, v)| (*id, v.as_slice())).collect();
         let selected_rows: Vec<usize> =
@@ -2276,10 +2266,7 @@ mod tests {
 
         let domain = CategoryDomain::try_new(
             CategoryDomainId::from_raw(2),
-            vec![
-                CategoryLevel { label: Arc::from("a") },
-                CategoryLevel { label: Arc::from("b") },
-            ],
+            vec![CategoryLevel { label: Arc::from("a") }, CategoryLevel { label: Arc::from("b") }],
             false,
             Some(CategoryCode::from_raw(0)),
             UnknownCategoryPolicy::Fail,
@@ -2350,9 +2337,8 @@ mod tests {
                 .unwrap(),
             ),
         ];
-        let data = TabularData::new(
-            OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap(),
-        );
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap());
         let estimand = IdentifiedEstimand::backdoor(
             "backdoor.adjustment",
             Arc::from([VariableId::from_raw(2)]),

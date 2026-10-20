@@ -82,32 +82,6 @@ impl fmt::Display for CancelSite {
     }
 }
 
-/// Caller-supplied lease id.
-///
-/// The id is the `u64` the caller passes. Recovery does not allocate another id.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct LeaseId(u64);
-
-impl LeaseId {
-    /// Lease id from the caller's `u64`.
-    #[must_use]
-    pub const fn from_raw(raw: u64) -> Self {
-        Self(raw)
-    }
-
-    /// The `u64` the caller passed.
-    #[must_use]
-    pub const fn raw(self) -> u64 {
-        self.0
-    }
-}
-
-impl fmt::Display for LeaseId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}", self.0)
-    }
-}
-
 /// Admission chosen when a provider cannot be interrupted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum UninterruptibleAdmission {
@@ -288,12 +262,12 @@ impl Boundary {
         self.publish_partial_claim
     }
 
-    /// Open the boundary under the caller-supplied lease id.
+    /// Open the boundary. Lease recovery is recorded later from a
+    /// [`DeviceReservationLease`](crate::device_reservation::DeviceReservationLease).
     #[must_use]
-    pub const fn open(self, lease: LeaseId) -> BoundarySession {
+    pub const fn open(self) -> BoundarySession {
         BoundarySession {
             boundary: self,
-            lease,
             call_bytes: None,
             elapsed: None,
             spill: SpillAccount::Idle,
@@ -361,12 +335,9 @@ pub enum BoundaryError {
         /// Site of the session that was asked to admit a provider.
         site: CancelSite,
     },
-    /// Lease recovery was not recorded.
-    #[error("lease {lease} was not recovered")]
-    LeaseNotRecovered {
-        /// Lease id the caller passed.
-        lease: LeaseId,
-    },
+    /// Lease recovery was not derived from a live device reservation.
+    #[error("device reservation lease was not recovered")]
+    LeaseNotRecovered,
     /// Spill cleanup was not recorded.
     #[error("spill cleanup was not recorded at {site}")]
     MissingSpillCleanup {
@@ -404,7 +375,6 @@ impl SpillAccount {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct BoundarySession {
     boundary: Boundary,
-    lease: LeaseId,
     call_bytes: Option<u64>,
     elapsed: Option<Duration>,
     spill: SpillAccount,
@@ -420,12 +390,6 @@ impl BoundarySession {
         self.boundary
     }
 
-    /// Lease id the caller passed.
-    #[must_use]
-    pub const fn lease(self) -> LeaseId {
-        self.lease
-    }
-
     /// Recorded call size, when one has been recorded.
     #[must_use]
     pub const fn recorded_call_bytes(self) -> Option<u64> {
@@ -438,7 +402,7 @@ impl BoundarySession {
         self.elapsed
     }
 
-    /// Whether lease recovery has been recorded.
+    /// Whether [`Self::recover_lease`] released a live non-zero reservation.
     #[must_use]
     pub const fn lease_recovered(self) -> bool {
         self.lease_recovered
@@ -522,9 +486,23 @@ impl BoundarySession {
         };
     }
 
-    /// Record lease recovery. This sets the flag later copied onto the receipt.
-    pub const fn recover_lease(&mut self) {
-        self.lease_recovered = true;
+    /// Release `lease` and record recovery only when that release returns the
+    /// same non-zero remainder `lease` still held.
+    ///
+    /// An already-released lease reports a zero remainder, so it does not count.
+    /// A live zero-byte reservation is indistinguishable from that case through
+    /// the public lease API and does not count either.
+    pub fn recover_lease(
+        &mut self,
+        lease: crate::device_reservation::DeviceReservationLease,
+    ) -> bool {
+        let held = lease.remainder();
+        let released = lease.release();
+        let recovered = held.device_bytes() > 0
+            && released.device_bytes() == held.device_bytes()
+            && released.spill_bytes() == held.spill_bytes();
+        self.lease_recovered = recovered;
+        recovered
     }
 
     /// Retain a partial result.
@@ -608,7 +586,7 @@ impl BoundarySession {
     pub fn stop(self) -> Result<StopReceipt, BoundaryError> {
         let assessed = self.assess()?;
         if !self.lease_recovered {
-            return Err(BoundaryError::LeaseNotRecovered { lease: self.lease });
+            return Err(BoundaryError::LeaseNotRecovered);
         }
         if !self.spill.cleanup_recorded() {
             return Err(BoundaryError::MissingSpillCleanup { site: self.boundary.site });
@@ -616,7 +594,6 @@ impl BoundarySession {
         Ok(StopReceipt {
             report: BoundaryReport::Stopped,
             site: self.boundary.site,
-            lease: self.lease,
             lease_recovered: self.lease_recovered,
             spill_cleaned: self.spill.cleanup_recorded(),
             partial: self.partial,
@@ -641,7 +618,6 @@ impl BoundarySession {
         }
         Ok(SuccessReceipt {
             site: self.boundary.site,
-            lease: self.lease,
             lease_recovered: self.lease_recovered,
             spill_cleaned: self.spill.cleanup_recorded(),
             call_bytes: assessed.call_bytes,
@@ -718,7 +694,6 @@ impl fmt::Display for BoundaryReport {
 pub struct StopReceipt {
     report: BoundaryReport,
     site: CancelSite,
-    lease: LeaseId,
     lease_recovered: bool,
     spill_cleaned: bool,
     partial: Option<PartialResult>,
@@ -741,13 +716,7 @@ impl StopReceipt {
         self.site
     }
 
-    /// Lease id the caller passed.
-    #[must_use]
-    pub const fn lease(self) -> LeaseId {
-        self.lease
-    }
-
-    /// Whether lease recovery was recorded. Recovery sets this flag.
+    /// Whether [`BoundarySession::recover_lease`] released a live reservation.
     #[must_use]
     pub const fn lease_recovered(self) -> bool {
         self.lease_recovered
@@ -796,7 +765,6 @@ impl StopReceipt {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct SuccessReceipt {
     site: CancelSite,
-    lease: LeaseId,
     lease_recovered: bool,
     spill_cleaned: bool,
     call_bytes: u64,
@@ -811,13 +779,7 @@ impl SuccessReceipt {
         self.site
     }
 
-    /// Lease id the caller passed.
-    #[must_use]
-    pub const fn lease(self) -> LeaseId {
-        self.lease
-    }
-
-    /// Whether lease recovery was recorded.
+    /// Whether [`BoundarySession::recover_lease`] released a live reservation.
     #[must_use]
     pub const fn lease_recovered(self) -> bool {
         self.lease_recovered
@@ -852,15 +814,21 @@ impl SuccessReceipt {
 mod tests {
     use std::time::Duration;
 
+    use crate::device_reservation::{DeviceReservationLease, DeviceReservationPool};
+
     use super::{
-        Boundary, BoundaryError, BoundaryReport, BoundarySession, CancelSite, LeaseId,
-        ProviderDisposition, UninterruptibleAdmission,
+        Boundary, BoundaryError, BoundaryReport, BoundarySession, CancelSite, ProviderDisposition,
+        UninterruptibleAdmission,
     };
 
-    fn open_bounded(site: CancelSite, lease: u64, retain_partial: bool) -> BoundarySession {
+    fn live_lease() -> DeviceReservationLease {
+        DeviceReservationPool::fixed(64, 8).try_grant(16, 4, false).expect("pool funds the lease")
+    }
+
+    fn open_bounded(site: CancelSite, retain_partial: bool) -> BoundarySession {
         let boundary =
             Boundary::new(site, 64, Duration::from_millis(10), retain_partial, false).unwrap();
-        boundary.open(LeaseId::from_raw(lease))
+        boundary.open()
     }
 
     fn record_within_bound(session: &mut BoundarySession) {
@@ -870,18 +838,15 @@ mod tests {
 
     #[test]
     fn each_site_stops_with_lease_recovered_and_spill_cleaned() {
-        let leases: [u64; 7] = [1, 2, 3, 4, 5, 6, 7];
-        for (site, lease_raw) in CancelSite::ALL.into_iter().zip(leases) {
-            let lease = LeaseId::from_raw(lease_raw);
-            let mut session = open_bounded(site, lease_raw, false);
+        for site in CancelSite::ALL {
+            let mut session = open_bounded(site, false);
             record_within_bound(&mut session);
             session.open_spill().unwrap();
-            session.recover_lease();
+            assert!(session.recover_lease(live_lease()), "{site}");
             session.record_spill_cleanup();
             let receipt = session.stop().unwrap();
             assert_eq!(receipt.report(), BoundaryReport::Stopped, "{site}");
             assert_eq!(receipt.site(), site, "{site}");
-            assert_eq!(receipt.lease(), lease, "{site}");
             assert!(receipt.lease_recovered(), "{site}");
             assert!(receipt.spill_cleaned(), "{site}");
             assert!(receipt.partial().is_none(), "{site}");
@@ -900,7 +865,7 @@ mod tests {
         let boundary =
             Boundary::new(CancelSite::Resample, 32, Duration::from_millis(5), true, false).unwrap();
         assert!(!boundary.publish_partial_claim());
-        let mut session = boundary.open(LeaseId::from_raw(4));
+        let mut session = boundary.open();
         session.record_call_bytes(16).unwrap();
         session.record_elapsed(Duration::from_millis(1)).unwrap();
         let partial = session.retain_partial_result(16).unwrap();
@@ -911,13 +876,13 @@ mod tests {
             session.publish_claim().unwrap_err(),
             BoundaryError::PartialClaimRefused { site: CancelSite::Resample },
         );
-        session.recover_lease();
+        assert!(session.recover_lease(live_lease()));
         session.record_spill_cleanup();
         let receipt = session.stop().unwrap();
         assert_eq!(receipt.partial(), Some(partial));
         assert!(!receipt.published_claim());
 
-        let mut closed = open_bounded(CancelSite::Resample, 5, false);
+        let mut closed = open_bounded(CancelSite::Resample, false);
         assert_eq!(
             closed.retain_partial_result(1).unwrap_err(),
             BoundaryError::PartialRetentionRefused { site: CancelSite::Resample },
@@ -942,17 +907,17 @@ mod tests {
         assert_eq!(ProviderDisposition::Isolated.as_str(), "isolated");
         assert_eq!(ProviderDisposition::Interruptible.as_str(), "interruptible");
 
-        let mut refused = open_bounded(CancelSite::Provider, 11, false);
+        let mut refused = open_bounded(CancelSite::Provider, false);
         let err = refused.enter_provider(false, UninterruptibleAdmission::Refuse).unwrap_err();
         assert_eq!(err, BoundaryError::UninterruptibleProvider);
         assert_eq!(refused.provider(), Some(ProviderDisposition::Refused));
         assert_eq!(refused.stop().unwrap_err(), BoundaryError::UninterruptibleProvider);
 
-        let mut isolated = open_bounded(CancelSite::Provider, 12, false);
+        let mut isolated = open_bounded(CancelSite::Provider, false);
         let admission = isolated.enter_provider(false, UninterruptibleAdmission::Isolate).unwrap();
         assert_eq!(admission, ProviderDisposition::Isolated);
         record_within_bound(&mut isolated);
-        isolated.recover_lease();
+        assert!(isolated.recover_lease(live_lease()));
         isolated.record_spill_cleanup();
         let receipt = isolated.stop().unwrap();
         assert_eq!(receipt.report(), BoundaryReport::Stopped);
@@ -965,7 +930,7 @@ mod tests {
         let bound = Duration::from_millis(5);
         let boundary = Boundary::new(CancelSite::Solver, 100, bound, false, false).unwrap();
         assert_eq!(boundary.latency_bound(), bound);
-        let mut work = boundary.open(LeaseId::from_raw(3));
+        let mut work = boundary.open();
         work.record_call_bytes(1).unwrap();
         let over = Duration::from_millis(6);
         let err = work.record_elapsed(over).unwrap_err();
@@ -976,36 +941,35 @@ mod tests {
         assert_eq!(work.recorded_elapsed(), Some(over));
         assert_eq!(work.stop().unwrap_err(), err);
 
-        let mut at_bound = Boundary::new(CancelSite::Solver, 100, bound, false, false)
-            .unwrap()
-            .open(LeaseId::from_raw(3));
+        let mut at_bound =
+            Boundary::new(CancelSite::Solver, 100, bound, false, false).unwrap().open();
         at_bound.record_call_bytes(0).unwrap();
         at_bound.record_elapsed(bound).unwrap();
-        at_bound.recover_lease();
+        assert!(at_bound.recover_lease(live_lease()));
         at_bound.record_spill_cleanup();
         assert_eq!(at_bound.stop().unwrap().elapsed(), bound);
     }
 
     #[test]
     fn missing_spill_cleanup_is_refused() {
-        let mut unrecovered = open_bounded(CancelSite::Search, 8, false);
+        let mut unrecovered = open_bounded(CancelSite::Search, false);
         record_within_bound(&mut unrecovered);
         unrecovered.record_spill_cleanup();
-        assert_eq!(
-            unrecovered.stop().unwrap_err(),
-            BoundaryError::LeaseNotRecovered { lease: LeaseId::from_raw(8) },
-        );
+        let spent = live_lease();
+        let _returned = spent.release_on_cancel(true);
+        assert!(!unrecovered.recover_lease(spent));
+        assert_eq!(unrecovered.stop().unwrap_err(), BoundaryError::LeaseNotRecovered);
 
-        let mut opened = open_bounded(CancelSite::Chain, 8, false);
+        let mut opened = open_bounded(CancelSite::Chain, false);
         record_within_bound(&mut opened);
-        opened.recover_lease();
+        assert!(opened.recover_lease(live_lease()));
         opened.open_spill().unwrap();
         assert_eq!(
             opened.stop().unwrap_err(),
             BoundaryError::MissingSpillCleanup { site: CancelSite::Chain },
         );
 
-        let mut succeed_open = open_bounded(CancelSite::Chain, 8, false);
+        let mut succeed_open = open_bounded(CancelSite::Chain, false);
         record_within_bound(&mut succeed_open);
         succeed_open.open_spill().unwrap();
         assert_eq!(
@@ -1013,15 +977,15 @@ mod tests {
             BoundaryError::MissingSpillCleanup { site: CancelSite::Chain },
         );
 
-        let mut idle = open_bounded(CancelSite::Device, 9, false);
+        let mut idle = open_bounded(CancelSite::Device, false);
         record_within_bound(&mut idle);
-        idle.recover_lease();
+        assert!(idle.recover_lease(live_lease()));
         assert_eq!(
             idle.stop().unwrap_err(),
             BoundaryError::MissingSpillCleanup { site: CancelSite::Device },
         );
 
-        let mut cleaned = open_bounded(CancelSite::Chain, 10, false);
+        let mut cleaned = open_bounded(CancelSite::Chain, false);
         record_within_bound(&mut cleaned);
         cleaned.open_spill().unwrap();
         cleaned.record_spill_cleanup();
@@ -1032,7 +996,7 @@ mod tests {
 
     #[test]
     fn call_larger_than_the_bound_is_refused() {
-        let mut work = open_bounded(CancelSite::Scan, 2, false);
+        let mut work = open_bounded(CancelSite::Scan, false);
         let err = work.record_call_bytes(65).unwrap_err();
         assert_eq!(
             err,

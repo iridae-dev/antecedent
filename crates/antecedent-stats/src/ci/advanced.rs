@@ -1202,6 +1202,7 @@ mod tests {
     use crate::ci::types::{
         CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod,
     };
+    use antecedent_core::derive_stream;
 
     /// A test that cannot honour `block_size` must refuse it rather than discard it — but these
     /// three draw that line in different places, and this pins all three.
@@ -1589,7 +1590,8 @@ mod tests {
         let ci = KnnDependence::new(5);
         let mut rejects = 0u32;
         for t in 0..trials {
-            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0xC11_u64 ^ u64::from(t));
+            let mut rng =
+                ctx.rng.stream_for(StreamDomain::StatsCi, derive_stream(0xC11, u64::from(t)));
             let z: Vec<f64> = (0..n)
                 .map(|_| {
                     let u = (rng.next_u64() as f64) / (u64::MAX as f64);
@@ -1645,7 +1647,8 @@ mod tests {
         let ci = KnnDependence::new(5);
         let mut rejects = 0u32;
         for t in 0..trials {
-            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x2D2_u64 ^ u64::from(t));
+            let mut rng =
+                ctx.rng.stream_for(StreamDomain::StatsCi, derive_stream(0x2D2, u64::from(t)));
             let mut normal = || {
                 let u = (rng.next_u64() as f64) / (u64::MAX as f64);
                 let v = (rng.next_u64() as f64) / (u64::MAX as f64);

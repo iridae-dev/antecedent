@@ -251,10 +251,10 @@ fn independent_leaf_resamples_overstate_precision_against_one_joint() {
         let mut y_idx = Vec::new();
         let mut rng_x = antecedent_core::ExecutionContext::for_tests(5)
             .rng
-            .stream_for(StreamDomain::Test, 100u64 ^ (u64::from(replicate)));
+            .stream_for(StreamDomain::Test, antecedent_core::derive_stream(100, u64::from(replicate)));
         let mut rng_y = antecedent_core::ExecutionContext::for_tests(5)
             .rng
-            .stream_for(StreamDomain::Test, 200u64 ^ (u64::from(replicate)));
+            .stream_for(StreamDomain::Test, antecedent_core::derive_stream(200, u64::from(replicate)));
         antecedent_data::fill_resample_indexes(
             antecedent_data::ResamplingPlan::IidBootstrap,
             sample.n(),

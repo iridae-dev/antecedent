@@ -746,7 +746,7 @@ pub fn gapped_aligned_block_bootstrap(
 }
 
 /// The replicate count and RNG stream base of a circular-block bootstrap. Replicate `r`
-/// draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ r)`.
+/// draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, derive_stream(stream_base, r))`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockBootstrap {
     /// Requested replicates; zero publishes no bootstrap SE.
@@ -761,7 +761,7 @@ pub struct BlockBootstrap {
 ///
 /// `estimate` returns `None` for a replicate that cannot be fit; that replicate
 /// counts as failed for every target, so all targets always come from the same
-/// replicates. Replicate `r` draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ r)`.
+/// replicates. Replicate `r` draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, derive_stream(stream_base, r))`.
 pub fn row_block_bootstrap_vec(
     rows: usize,
     block_length: usize,
@@ -836,8 +836,10 @@ fn block_replicates<T: AsRef<[f64]>>(
             break;
         }
         attempted += 1;
-        let mut rng =
-            ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ u64::from(replicate));
+        let mut rng = ctx.rng.stream_for(
+            StreamDomain::TemporalBlock,
+            antecedent_core::derive_stream(stream_base, u64::from(replicate)),
+        );
         if fill_circular_block_indexes(rows, block_length, &mut rng, &mut row_src).is_err() {
             continue;
         }

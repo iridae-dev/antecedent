@@ -37,13 +37,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::ExecutionContext;
 use antecedent_core::device_reservation::{
+    ComputeSelection, CpuAdmissionError, DeviceReservationPool, FoldAdmission, LearnerAdmission,
     admit_fold, nested_thread_request, retain_scientific_f64, scientific_tolerance, select_compute,
-    within_declared_tolerance, ComputeSelection, CpuAdmissionError, DeviceReservationPool,
-    FoldAdmission, LearnerAdmission,
+    within_declared_tolerance,
 };
 use antecedent_core::scratch_pool::{ScratchKind, ScratchPool};
-use antecedent_core::ExecutionContext;
 
 use crate::error::EstimationError;
 use crate::joint_if::JointCovariance;
@@ -530,9 +530,7 @@ pub fn small_cpu_contrast(
     device: &DeviceReservationPool,
 ) -> Result<RawContrast, EstimationError> {
     let Ok(cpu) = select_compute(ComputeSelection::Cpu) else {
-        return Err(invalid_data(
-            "accelerator selection is refused because no device is promoted",
-        ));
+        return Err(invalid_data("accelerator selection is refused because no device is promoted"));
     };
     let remainder = cpu.reserve_nothing(device);
     if remainder.device_bytes() != device.device_budget()
@@ -551,9 +549,8 @@ pub fn small_cpu_contrast(
     let threads = nested_thread_request(ctx.admission().available().threads());
     let mut fold = admit_fold(ctx, &scratch, threads, bytes).map_err(cpu_admission_error)?;
     let learner_threads = nested_thread_request(fold.held_threads());
-    let mut learner = fold
-        .admit_learner(&scratch, learner_threads, bytes)
-        .map_err(cpu_admission_error)?;
+    let mut learner =
+        fold.admit_learner(&scratch, learner_threads, bytes).map_err(cpu_admission_error)?;
     if release_if_cancelled(&mut learner, &mut fold, ctx) {
         return Err(cancelled());
     }
@@ -757,11 +754,8 @@ mod tests {
         let tolerance = scientific_tolerance().unwrap();
         assert!(within_declared_tolerance(contrast.difference, expected, tolerance));
         assert!(!within_declared_tolerance(narrowed, expected, tolerance));
-        let standard_error = contrast
-            .se
-            .available()
-            .copied()
-            .expect("the contrast published no standard error");
+        let standard_error =
+            contrast.se.available().copied().expect("the contrast published no standard error");
         assert!(standard_error.is_finite() && standard_error > 0.0);
         assert_eq!(device.available(), DeviceReservationRemainder::new(128, 64));
         assert_eq!(pool.available().bytes(), pool.byte_budget());

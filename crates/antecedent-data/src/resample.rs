@@ -15,6 +15,7 @@ use std::sync::Arc;
 use antecedent_core::{
     CausalRng, DeclaredSamplingDesign, ExecutionContext, ResamplingRule, SamplingDesignDeclaration,
     SamplingDesignError, ScratchLease, ScratchRefusal, SplittingRule, StreamDomain, VariableId,
+    derive_stream,
 };
 use antecedent_kernels::unbiased_index;
 
@@ -658,7 +659,7 @@ pub(crate) fn fill_resample_weights(
 }
 
 fn resample_rng(ctx: &ExecutionContext, stream_base: u64, replicate: u64) -> CausalRng {
-    ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate)
+    ctx.rng.stream_for(StreamDomain::Resample, derive_stream(stream_base, replicate))
 }
 
 fn checked_batch_len(n: usize, n_replicates: usize) -> Result<usize, DataError> {
@@ -681,8 +682,8 @@ fn check_resampling_cancelled(ctx: &ExecutionContext) -> Result<(), DataError> {
 
 /// Fill `out` with one replicate's row indexes, reusing the buffer.
 ///
-/// The draw is `ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate)`, the same
-/// stream as row `replicate` of [`fill_resample_index_batch`]. `out` is cleared first. Index
+/// The draw is `ctx.rng.stream_for(StreamDomain::Resample, derive_stream(stream_base, replicate))`,
+/// the same stream as row `replicate` of [`fill_resample_index_batch`]. `out` is cleared first. Index
 /// plans other than cluster bootstrap write `n` ids. A cluster bootstrap writes one copy of
 /// each drawn cluster's rows, so unequal clusters change `out.len()` and a cluster drawn `k`
 /// times contributes `k` separate copies under its original row ids.
@@ -708,8 +709,8 @@ pub fn fill_resample_index_replicate(
 
 /// Fill `out` with one Bayesian-bootstrap weight replicate, reusing the buffer.
 ///
-/// The draw is `ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate)`, the same
-/// stream as one row of a replicate-major Bayesian-bootstrap weight batch. Weights sum to `n`.
+/// The draw is `ctx.rng.stream_for(StreamDomain::Resample, derive_stream(stream_base, replicate))`,
+/// the same stream as one row of a replicate-major Bayesian-bootstrap weight batch. Weights sum to `n`.
 ///
 /// # Errors
 ///
@@ -730,7 +731,7 @@ pub fn fill_resample_weight_replicate(
 /// Fill `out` (`len = n * n_replicates`, replicate-major) with index plans under one
 /// [`ExecutionContext`].
 ///
-/// Each replicate uses `ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate_id)`
+/// Each replicate uses `ctx.rng.stream_for(StreamDomain::Resample, derive_stream(stream_base, replicate_id))`
 /// ([`fill_resample_index_replicate`]) so results are independent of scheduling order under
 /// [`antecedent_core::Determinism::Strict`]. When `max_threads > 1` and `n_replicates ≥ 2`,
 /// fills run in a bounded `std::thread::scope` pool.
@@ -1117,6 +1118,26 @@ mod tests {
     use crate::column::ValidityBitmap;
     use crate::temporal::{SamplingRegularity, TimeIndex};
     use crate::testing::float_series;
+
+    #[test]
+    fn distinct_bases_have_disjoint_replicate_streams() {
+        let ctx = ExecutionContext::for_tests(5);
+        let mut seen = std::collections::HashSet::new();
+        let bases = [0xA1D5_u64, 0xA1D0, 0xF01D, 0xF02D, 0x1300_1000];
+        for base in bases {
+            for replicate in 0..32u64 {
+                let stream = resample_rng(&ctx, base, replicate).next_u64();
+                assert!(
+                    seen.insert(stream),
+                    "base {base:#x} replicate {replicate} collided with another stream"
+                );
+            }
+        }
+        let xor = |base: u64, replicate: u64| {
+            ctx.rng.stream_for(StreamDomain::Resample, base ^ replicate).next_u64()
+        };
+        assert_eq!(xor(0xA1D5, 0), xor(0xA1D0, 0xA1D5 ^ 0xA1D0));
+    }
 
     /// One-variable series of length 4 with row 2 invalid, a mask hiding row 1,
     /// and per-row weights.

@@ -76,136 +76,141 @@ pub fn fit_binary_msm(
     numerator: &[f64],
 ) -> Result<MsmSummary, RegimeKernelError> {
     (|| -> Result<MsmSummary, &'static str> {
-    let SubjectHistories {
-        treatment: a,
-        treatment_probability: p,
-        outcome_observed: observed,
-        censoring_probability: censor,
-        periods,
-        minimum_probability: floor,
-    } = *histories;
-    let n = y.len();
-    let cells = n.checked_mul(periods).ok_or("MSM dimensions overflow")?;
-    if n == 0
-        || periods == 0
-        || a.len() != cells
-        || p.len() != cells
-        || censor.len() != cells
-        || observed.len() != n
-        || numerator.len() != periods
-    {
-        return Err("MSM arrays must have matching subject and period dimensions");
-    }
-    if !(floor.is_finite() && 0.0 < floor && floor <= 0.5) {
-        return Err("minimum probability must be finite and in (0, 0.5]");
-    }
-    if numerator.iter().any(|&v| !v.is_finite() || v < floor || v > 1.0 - floor) {
-        return Err("stabilizing numerator probabilities violate the declared positivity floor");
-    }
-    let columns = periods + 1;
-    let included = observed.iter().filter(|&&x| x).count();
-    if included <= columns {
-        return Err("MSM requires more observed subjects than coefficients");
-    }
-    let mut design = vec![vec![0.0; columns]; n];
-    let mut weights = vec![0.0; n];
-    let mut max_weight: f64 = 0.0;
-    for i in 0..n {
-        design[i][0] = 1.0;
-        if observed[i] && !y[i].is_finite() {
-            return Err("observed terminal outcomes must be finite");
+        let SubjectHistories {
+            treatment: a,
+            treatment_probability: p,
+            outcome_observed: observed,
+            censoring_probability: censor,
+            periods,
+            minimum_probability: floor,
+        } = *histories;
+        let n = y.len();
+        let cells = n.checked_mul(periods).ok_or("MSM dimensions overflow")?;
+        if n == 0
+            || periods == 0
+            || a.len() != cells
+            || p.len() != cells
+            || censor.len() != cells
+            || observed.len() != n
+            || numerator.len() != periods
+        {
+            return Err("MSM arrays must have matching subject and period dimensions");
         }
-        let mut weight = 1.0;
-        #[allow(
-            clippy::needless_range_loop,
-            reason = "index used for multiple aligned per-period slices"
-        )]
-        for t in 0..periods {
-            let j = i * periods + t;
-            if !p[j].is_finite() || p[j] < floor || p[j] > 1.0 - floor {
-                return Err("sequential treatment positivity is violated");
+        if !(floor.is_finite() && 0.0 < floor && floor <= 0.5) {
+            return Err("minimum probability must be finite and in (0, 0.5]");
+        }
+        if numerator.iter().any(|&v| !v.is_finite() || v < floor || v > 1.0 - floor) {
+            return Err(
+                "stabilizing numerator probabilities violate the declared positivity floor",
+            );
+        }
+        let columns = periods + 1;
+        let included = observed.iter().filter(|&&x| x).count();
+        if included <= columns {
+            return Err("MSM requires more observed subjects than coefficients");
+        }
+        let mut design = vec![vec![0.0; columns]; n];
+        let mut weights = vec![0.0; n];
+        let mut max_weight: f64 = 0.0;
+        for i in 0..n {
+            design[i][0] = 1.0;
+            if observed[i] && !y[i].is_finite() {
+                return Err("observed terminal outcomes must be finite");
             }
-            if !censor[j].is_finite() || censor[j] < floor || censor[j] > 1.0 {
-                return Err("sequential censoring positivity is violated");
+            let mut weight = 1.0;
+            #[allow(
+                clippy::needless_range_loop,
+                reason = "index used for multiple aligned per-period slices"
+            )]
+            for t in 0..periods {
+                let j = i * periods + t;
+                if !p[j].is_finite() || p[j] < floor || p[j] > 1.0 - floor {
+                    return Err("sequential treatment positivity is violated");
+                }
+                if !censor[j].is_finite() || censor[j] < floor || censor[j] > 1.0 {
+                    return Err("sequential censoring positivity is violated");
+                }
+                design[i][t + 1] = f64::from(a[j]);
+                if observed[i] {
+                    let top = if a[j] { numerator[t] } else { 1.0 - numerator[t] };
+                    let bottom = if a[j] { p[j] } else { 1.0 - p[j] };
+                    weight *= top / (bottom * censor[j]);
+                    if !weight.is_finite() {
+                        return Err("stabilized sequential weight overflowed");
+                    }
+                }
             }
-            design[i][t + 1] = f64::from(a[j]);
             if observed[i] {
-                let top = if a[j] { numerator[t] } else { 1.0 - numerator[t] };
-                let bottom = if a[j] { p[j] } else { 1.0 - p[j] };
-                weight *= top / (bottom * censor[j]);
-                if !weight.is_finite() {
-                    return Err("stabilized sequential weight overflowed");
+                weights[i] = weight;
+                max_weight = max_weight.max(weight);
+            }
+        }
+        let mut bread_input = vec![vec![0.0; columns]; columns];
+        let mut rhs = vec![0.0; columns];
+        for i in 0..n {
+            if !observed[i] {
+                continue;
+            }
+            for j in 0..columns {
+                rhs[j] += weights[i] * design[i][j] * y[i];
+                for k in 0..columns {
+                    bread_input[j][k] += weights[i] * design[i][j] * design[i][k];
                 }
             }
         }
-        if observed[i] {
-            weights[i] = weight;
-            max_weight = max_weight.max(weight);
+        if rhs.iter().chain(bread_input.iter().flatten()).any(|v| !v.is_finite()) {
+            return Err("weighted MSM normal equations overflowed");
         }
-    }
-    let mut bread_input = vec![vec![0.0; columns]; columns];
-    let mut rhs = vec![0.0; columns];
-    for i in 0..n {
-        if !observed[i] {
-            continue;
+        let bread = crate::util::invert_rows(&bread_input)
+            .ok_or("weighted MSM design is rank-deficient")?;
+        let beta = matvec(&bread, &rhs);
+        if beta.iter().any(|v| !v.is_finite()) {
+            return Err("MSM coefficients are non-finite");
         }
-        for j in 0..columns {
-            rhs[j] += weights[i] * design[i][j] * y[i];
-            for k in 0..columns {
-                bread_input[j][k] += weights[i] * design[i][j] * design[i][k];
+        let mut meat = vec![vec![0.0; columns]; columns];
+        for i in 0..n {
+            if !observed[i] {
+                continue;
+            }
+            let residual = y[i] - dot(&design[i], &beta);
+            #[allow(
+                clippy::needless_range_loop,
+                reason = "index used for multiple aligned matrices"
+            )]
+            for j in 0..columns {
+                for k in 0..columns {
+                    meat[j][k] +=
+                        weights[i] * weights[i] * design[i][j] * design[i][k] * residual * residual;
+                }
             }
         }
-    }
-    if rhs.iter().chain(bread_input.iter().flatten()).any(|v| !v.is_finite()) {
-        return Err("weighted MSM normal equations overflowed");
-    }
-    let bread =
-        crate::util::invert_rows(&bread_input).ok_or("weighted MSM design is rank-deficient")?;
-    let beta = matvec(&bread, &rhs);
-    if beta.iter().any(|v| !v.is_finite()) {
-        return Err("MSM coefficients are non-finite");
-    }
-    let mut meat = vec![vec![0.0; columns]; columns];
-    for i in 0..n {
-        if !observed[i] {
-            continue;
-        }
-        let residual = y[i] - dot(&design[i], &beta);
-        #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned matrices")]
-        for j in 0..columns {
-            for k in 0..columns {
-                meat[j][k] +=
-                    weights[i] * weights[i] * design[i][j] * design[i][k] * residual * residual;
+        let mut covariance = matmul(&matmul(&bread, &meat), &bread);
+        let correction = included as f64 / (included - columns) as f64;
+        for row in &mut covariance {
+            for v in row {
+                *v *= correction;
             }
         }
-    }
-    let mut covariance = matmul(&matmul(&bread, &meat), &bread);
-    let correction = included as f64 / (included - columns) as f64;
-    for row in &mut covariance {
-        for v in row {
-            *v *= correction;
+        let intercept_standard_error = covariance[0][0].max(0.0).sqrt();
+        let standard_errors =
+            (1..columns).map(|j| covariance[j][j].max(0.0).sqrt()).collect::<Vec<_>>();
+        let ess = antecedent_kernels::kish_ess(&weights);
+        if covariance.iter().flatten().any(|v| !v.is_finite())
+            || !intercept_standard_error.is_finite()
+            || standard_errors.iter().any(|v| !v.is_finite())
+            || !ess.is_finite()
+        {
+            return Err("MSM covariance is non-finite");
         }
-    }
-    let intercept_standard_error = covariance[0][0].max(0.0).sqrt();
-    let standard_errors =
-        (1..columns).map(|j| covariance[j][j].max(0.0).sqrt()).collect::<Vec<_>>();
-    let ess = antecedent_kernels::kish_ess(&weights);
-    if covariance.iter().flatten().any(|v| !v.is_finite())
-        || !intercept_standard_error.is_finite()
-        || standard_errors.iter().any(|v| !v.is_finite())
-        || !ess.is_finite()
-    {
-        return Err("MSM covariance is non-finite");
-    }
-    Ok(MsmSummary {
-        intercept: beta[0],
-        intercept_standard_error,
-        period_effects: beta[1..].to_vec(),
-        standard_errors,
-        effective_sample_size: ess,
-        maximum_weight: max_weight,
-        observed_subjects: included,
-    })
+        Ok(MsmSummary {
+            intercept: beta[0],
+            intercept_standard_error,
+            period_effects: beta[1..].to_vec(),
+            standard_errors,
+            effective_sample_size: ess,
+            maximum_weight: max_weight,
+            observed_subjects: included,
+        })
     })()
     .map_err(RegimeKernelError::from_message)
 }

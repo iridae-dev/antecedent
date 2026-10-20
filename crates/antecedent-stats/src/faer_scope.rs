@@ -1,7 +1,8 @@
 //! Per-operation worker limit and scratch budget for `faer`.
 //!
-//! A [`FaerScope`] carries the caller's worker limit and a scratch budget in
-//! bytes. [`FaerScope::parallelism`] is the degree a kernel passes into `faer`:
+//! A [`FaerScope`] carries the caller's worker limit. Scratch bytes come from
+//! an [`AdmissionLease`](antecedent_core::execution::AdmissionLease), the same account as
+//! the rest of a study. [`FaerScope::parallelism`] is the degree a kernel passes into `faer`:
 //! [`faer::Par::Seq`] for one worker, and [`faer::Par::Rayon`] with that exact
 //! count when the limit is larger. The count is never zero. This module does
 //! not call [`faer::Par::rayon`], [`faer::get_global_parallelism`], or
@@ -11,7 +12,8 @@
 //! `thin_svd`, `self_adjoint_eigenvalues`, `self_adjoint_eigen`).
 //!
 //! [`FaerScope::admit_scratch`] checks a [`faer::dyn_stack::StackReq`] against
-//! the budget before [`FaerScope::scratch_buffer`] allocates. A requirement
+//! the lease remainder and draws a child lease before [`FaerScope::scratch_buffer`]
+//! allocates. A requirement
 //! equal to the budget is admitted. A larger requirement is refused and
 //! allocates nothing.
 //!
@@ -24,6 +26,8 @@
 
 use std::num::{NonZeroU32, NonZeroUsize};
 
+use antecedent_core::ExecutionContext;
+use antecedent_core::execution::{AdmissionLease, AdmissionPool};
 use faer::Par;
 use faer::dyn_stack::{MemBuffer, StackReq};
 use thiserror::Error;
@@ -35,23 +39,30 @@ use thiserror::Error;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FaerScope {
     workers: NonZeroU32,
-    scratch_budget: u64,
+}
+
+/// A faer scratch buffer and the child lease that pays for it.
+pub struct FaerScratch {
+    /// Bytes the kernel reads. The lease stays alive until this buffer is dropped.
+    pub buffer: MemBuffer,
+    /// Child lease funding `buffer`. Read by drop, so the bytes return to the pool.
+    #[allow(dead_code)]
+    lease: AdmissionLease,
 }
 
 impl FaerScope {
-    /// Scope with `workers` and a scratch budget of `scratch_budget` bytes.
+    /// Scope with `workers`. Scratch bytes are drawn from an [`AdmissionLease`].
     ///
-    /// `workers` must be at least one. A scratch budget of zero admits only an
-    /// empty requirement. This does not spawn threads and does not read the
-    /// process pool.
+    /// `workers` must be at least one. This does not spawn threads and does not
+    /// read the process pool.
     ///
     /// # Errors
     ///
     /// [`FaerScopeError::ZeroWorkers`] when `workers` is zero.
-    #[must_use = "a refused scope does not carry a worker limit or a scratch budget"]
-    pub const fn try_new(workers: u32, scratch_budget: u64) -> Result<Self, FaerScopeError> {
+    #[must_use = "a refused scope does not carry a worker limit"]
+    pub const fn try_new(workers: u32) -> Result<Self, FaerScopeError> {
         match NonZeroU32::new(workers) {
-            Some(workers) => Ok(Self { workers, scratch_budget }),
+            Some(workers) => Ok(Self { workers }),
             None => Err(FaerScopeError::ZeroWorkers),
         }
     }
@@ -60,12 +71,6 @@ impl FaerScope {
     #[must_use]
     pub const fn workers(self) -> u32 {
         self.workers.get()
-    }
-
-    /// Scratch budget in bytes. This does not allocate.
-    #[must_use]
-    pub const fn scratch_budget(self) -> u64 {
-        self.scratch_budget
     }
 
     /// Explicit `faer` degree for a kernel that receives this scope.
@@ -86,44 +91,70 @@ impl FaerScope {
         }
     }
 
-    /// Bytes of `required` when they fit in the scratch budget.
+    /// Draw a child lease for `required` from `parent`.
     ///
     /// A layout `faer` cannot satisfy is [`FaerScopeError::ScratchOverflow`].
-    /// A requirement above the budget is [`FaerScopeError::ScratchOverBudget`].
-    /// Neither path allocates.
+    /// A requirement above the parent remainder is [`FaerScopeError::ScratchOverBudget`].
+    /// Neither path allocates a buffer. A refusal leaves `parent` unchanged.
     ///
     /// # Errors
     ///
     /// [`FaerScopeError::ScratchOverflow`] when `required` has no layout.
     /// [`FaerScopeError::ScratchOverBudget`] when the layout's byte size is
-    /// greater than [`Self::scratch_budget`].
+    /// greater than `parent`'s remaining bytes.
     #[must_use = "a scratch refusal means the kernel must not allocate that buffer"]
-    pub fn admit_scratch(self, required: StackReq) -> Result<u64, FaerScopeError> {
+    pub fn admit_scratch(
+        self,
+        parent: &AdmissionLease,
+        required: StackReq,
+    ) -> Result<AdmissionLease, FaerScopeError> {
         let required_bytes = scratch_bytes(required)?;
-        if required_bytes > self.scratch_budget {
-            Err(FaerScopeError::ScratchOverBudget {
-                required_bytes,
-                budget_bytes: self.scratch_budget,
-            })
-        } else {
-            Ok(required_bytes)
+        let budget_bytes = parent.remainder().bytes();
+        if required_bytes > budget_bytes {
+            return Err(FaerScopeError::ScratchOverBudget { required_bytes, budget_bytes });
         }
+        parent
+            .acquire_child(0, required_bytes)
+            .map_err(|_| FaerScopeError::ScratchOverBudget { required_bytes, budget_bytes })
     }
 
     /// Allocate `required` after [`Self::admit_scratch`] accepts it.
     ///
-    /// The buffer is the kernel's scratch. This does not spawn threads. An
-    /// allocation that the process cannot satisfy still aborts through the
-    /// global allocator, after the budget check has passed.
+    /// The returned scratch holds the child lease until it is dropped.
     ///
     /// # Errors
     ///
     /// The same refusals as [`Self::admit_scratch`]. A refusal allocates nothing.
     #[must_use = "a scratch refusal means the kernel must not allocate that buffer"]
-    pub fn scratch_buffer(self, required: StackReq) -> Result<MemBuffer, FaerScopeError> {
-        self.admit_scratch(required)?;
-        Ok(MemBuffer::new(required))
+    pub fn scratch_buffer(
+        self,
+        parent: &AdmissionLease,
+        required: StackReq,
+    ) -> Result<FaerScratch, FaerScopeError> {
+        let lease = self.admit_scratch(parent, required)?;
+        Ok(FaerScratch { buffer: MemBuffer::new(required), lease })
     }
+}
+
+impl FaerScratch {
+    /// The buffer `faer` writes into.
+    #[must_use]
+    pub fn buffer_mut(&mut self) -> &mut MemBuffer {
+        &mut self.buffer
+    }
+}
+
+/// One-worker lease for a factor that has no study [`ExecutionContext`].
+///
+/// [`crate::faer_backend::FaerBackend::least_squares`] does not receive the
+/// study context, so this lease is drawn from a fresh one-thread pool rather
+/// than the caller's admission pool.
+#[must_use]
+pub fn detached_serial_lease() -> AdmissionLease {
+    let pool = AdmissionPool::fixed(1, u64::MAX);
+    let ctx = ExecutionContext::for_tests(0).with_admission(pool);
+    ctx.acquire_admission(1, u64::MAX)
+        .unwrap_or_else(|_| unreachable!("a fresh pool funds one serial lease"))
 }
 
 /// Byte size of `required`, or a layout this budget cannot admit.
@@ -178,17 +209,26 @@ mod tests {
     use faer::Par;
     use faer::dyn_stack::StackReq;
 
+    use antecedent_core::ExecutionContext;
+    use antecedent_core::execution::AdmissionPool;
+
     use super::{FaerScope, FaerScopeError};
+
+    fn lease_bytes(bytes: u64) -> antecedent_core::execution::AdmissionLease {
+        let pool = AdmissionPool::fixed(1, bytes);
+        ExecutionContext::for_tests(1)
+            .with_admission(pool)
+            .acquire_admission(0, bytes)
+            .expect("the pool funds this lease")
+    }
 
     #[test]
     fn two_scopes_declare_different_worker_limits() {
-        let narrow = FaerScope::try_new(1, 16).unwrap();
-        let wide = FaerScope::try_new(4, 64).unwrap();
+        let narrow = FaerScope::try_new(1).unwrap();
+        let wide = FaerScope::try_new(4).unwrap();
         assert_eq!(narrow.workers(), 1);
         assert_eq!(wide.workers(), 4);
         assert_ne!(narrow.workers(), wide.workers());
-        assert_eq!(narrow.scratch_budget(), 16);
-        assert_eq!(wide.scratch_budget(), 64);
         assert_eq!(narrow.parallelism(), Par::Seq);
         assert_eq!(narrow.parallelism().degree(), 1);
         let four = NonZeroUsize::new(4).unwrap();
@@ -206,50 +246,60 @@ mod tests {
 
     #[test]
     fn zero_workers_are_refused() {
-        assert_eq!(FaerScope::try_new(0, 32), Err(FaerScopeError::ZeroWorkers));
-        let held = FaerScope::try_new(2, 32).unwrap();
+        assert_eq!(FaerScope::try_new(0), Err(FaerScopeError::ZeroWorkers));
+        let held = FaerScope::try_new(2).unwrap();
         assert_eq!(held.workers(), 2);
-        assert_eq!(FaerScope::try_new(0, 0), Err(FaerScopeError::ZeroWorkers));
-        assert_eq!(held.scratch_budget(), 32);
+        assert_eq!(FaerScope::try_new(0), Err(FaerScopeError::ZeroWorkers));
     }
 
     #[test]
-    fn scratch_above_the_budget_is_refused() {
-        let scope = FaerScope::try_new(1, 8).unwrap();
+    fn scratch_above_the_lease_is_refused() {
+        let scope = FaerScope::try_new(1).unwrap();
+        let parent = lease_bytes(8);
         let eight = StackReq::new::<u8>(8);
-        assert_eq!(scope.admit_scratch(eight), Ok(8));
+        let child = scope.admit_scratch(&parent, eight).unwrap();
+        assert_eq!(child.remainder().bytes(), 8);
+        assert_eq!(parent.remainder().bytes(), 0);
+        drop(child);
+        assert_eq!(parent.remainder().bytes(), 8);
         assert_eq!(
-            scope.admit_scratch(StackReq::new::<u8>(9)),
-            Err(FaerScopeError::ScratchOverBudget { required_bytes: 9, budget_bytes: 8 })
+            scope.admit_scratch(&parent, StackReq::new::<u8>(9)).unwrap_err(),
+            FaerScopeError::ScratchOverBudget { required_bytes: 9, budget_bytes: 8 }
         );
-        assert_eq!(scope.admit_scratch(StackReq::OVERFLOW), Err(FaerScopeError::ScratchOverflow));
-        let buffer = scope.scratch_buffer(eight).unwrap();
-        assert!(buffer.len() >= 8);
+        assert_eq!(parent.remainder().bytes(), 8);
+        assert_eq!(
+            scope.admit_scratch(&parent, StackReq::OVERFLOW).unwrap_err(),
+            FaerScopeError::ScratchOverflow
+        );
+        let buffer = scope.scratch_buffer(&parent, eight).unwrap();
+        assert!(buffer.buffer.len() >= 8);
+        assert_eq!(parent.remainder().bytes(), 0);
 
-        let empty_budget = FaerScope::try_new(2, 0).unwrap();
-        assert_eq!(empty_budget.admit_scratch(StackReq::empty()), Ok(0));
+        let empty = lease_bytes(0);
+        let empty_scope = FaerScope::try_new(2).unwrap();
+        let zero = empty_scope.admit_scratch(&empty, StackReq::empty()).unwrap();
+        assert_eq!(zero.remainder().bytes(), 0);
+        drop(zero);
         assert_eq!(
-            empty_budget.admit_scratch(StackReq::new::<u8>(1)),
-            Err(FaerScopeError::ScratchOverBudget { required_bytes: 1, budget_bytes: 0 })
+            empty_scope.admit_scratch(&empty, StackReq::new::<u8>(1)).unwrap_err(),
+            FaerScopeError::ScratchOverBudget { required_bytes: 1, budget_bytes: 0 }
         );
-        assert_eq!(empty_budget.workers(), 2);
-        assert_ne!(empty_budget.workers(), scope.workers());
+        assert_eq!(empty_scope.workers(), 2);
+        assert_ne!(empty_scope.workers(), scope.workers());
     }
 
     #[test]
-    fn scratch_buffer_above_the_budget_is_refused() {
-        let scope = FaerScope::try_new(3, 4).unwrap();
+    fn scratch_buffer_above_the_lease_is_refused() {
+        let scope = FaerScope::try_new(3).unwrap();
+        let parent = lease_bytes(4);
         assert_eq!(scope.workers(), 3);
         assert_eq!(scope.parallelism().degree(), 3);
         assert!(scope.parallelism().degree() <= usize::try_from(scope.workers()).unwrap());
-        let Err(error) = scope.scratch_buffer(StackReq::new::<u8>(5)) else {
-            panic!("a scratch request above the budget must be refused");
+        let Err(error) = scope.scratch_buffer(&parent, StackReq::new::<u8>(5)) else {
+            panic!("a scratch request above the lease must be refused");
         };
-        assert_eq!(
-            error,
-            FaerScopeError::ScratchOverBudget { required_bytes: 5, budget_bytes: 4 }
-        );
-        assert_eq!(scope.scratch_budget(), 4);
+        assert_eq!(error, FaerScopeError::ScratchOverBudget { required_bytes: 5, budget_bytes: 4 });
+        assert_eq!(parent.remainder().bytes(), 4);
     }
 
     fn assert_no_default<T: ?Sized>() {

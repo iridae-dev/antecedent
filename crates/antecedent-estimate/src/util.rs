@@ -10,16 +10,14 @@
     )
 )]
 
-use antecedent_core::{
-    AdaptiveBootstrapBudget, ExecutionContext, RouteBudget, ScratchLease, ScratchRefusal,
-};
+use antecedent_core::{AdaptiveBootstrapBudget, ExecutionContext, ScratchLease, ScratchRefusal};
 use antecedent_data::{ResamplingPlan, resample::fill_resample_index_replicate};
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, StatsError, chol_solve, cholesky_spd,
     form_xtx, invert_square,
 };
 
-use crate::bootstrap_wave::{cluster_worker_slots, fill_worker_replicate, retained_index_bytes};
+use crate::bootstrap_wave::{fill_worker_replicate, retained_index_slots};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 
@@ -317,7 +315,7 @@ pub(crate) fn adaptive_bootstrap_should_stop(
 /// IID bootstrap standard error with failure accounting and optional early-stop.
 ///
 /// Each replicate draws `n` row indexes from the resample stream keyed by
-/// `stream_base ^ replicate_id`, so the draw is fixed by the seed and that id even when
+/// `derive_stream(stream_base, replicate_id)`, so the draw is fixed by the seed and that id even when
 /// evaluation stops early. Workers write those indexes into a reused buffer of length
 /// `n`; an `n` by replicates index matrix is not retained.
 ///
@@ -386,11 +384,11 @@ where
     evaluate_bootstrap_serial(ctx, &rows, n_rep, make_scratch, estimate)
 }
 
-/// Lease the workers and index buffers for one bootstrap.
+/// Reserve the index bytes for one bootstrap.
 ///
-/// Each worker holds one length-`n` index buffer on the admission pool until the
-/// lease drops, so concurrent bootstraps share one remainder. Adaptive early-stop
-/// runs on the caller with one buffer. `None` means the study was cancelled.
+/// The lease holds `n` index slots per worker and no CPU slots. The parallel map
+/// leases the workers, so this reservation does not block that acquire. Adaptive
+/// early-stop runs on the caller with one buffer. `None` means the study was cancelled.
 ///
 /// # Errors
 ///
@@ -401,11 +399,11 @@ fn admit_bootstrap_scratch(
     n: usize,
     n_rep: usize,
 ) -> Result<Option<ScratchLease>, EstimationError> {
-    let per_worker = retained_index_bytes(n, 1)?;
+    let per_worker = index_buffer_bytes(retained_index_slots(n, 1)?)?;
     let work_items = if ctx.adaptive_bootstrap.enabled { 1 } else { n_rep };
-    match ctx.admit_scratch(work_items, per_worker) {
+    match ctx.admit_index_bytes(work_items, per_worker) {
         Ok(lease) => {
-            retained_index_bytes(n, lease.workers())?;
+            index_buffer_bytes(retained_index_slots(n, lease.workers())?)?;
             Ok(Some(lease))
         }
         Err(ScratchRefusal::Cancelled) => Ok(None),
@@ -421,7 +419,16 @@ fn admit_bootstrap_scratch(
     }
 }
 
-/// The rows of each cluster, in row order, for whole-cluster resampling.
+fn index_buffer_bytes(slots: usize) -> Result<u64, EstimationError> {
+    u64::try_from(slots)
+        .ok()
+        .and_then(|slots| slots.checked_mul(u64::try_from(size_of::<u64>()).unwrap_or(8)))
+        .ok_or_else(|| {
+            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
+        })
+}
+
+/// The rows of each cluster, in ascending label order, for whole-cluster resampling.
 #[derive(Clone, Debug)]
 pub(crate) struct ClusterRows {
     members: Vec<Vec<antecedent_data::GlobalId>>,
@@ -429,7 +436,11 @@ pub(crate) struct ClusterRows {
 }
 
 impl ClusterRows {
-    /// Group row indices by cluster label (clusters in order of first appearance).
+    /// Group row indices by cluster label, clusters in ascending label order.
+    ///
+    /// That is the order [`antecedent_data`] uses for [`antecedent_data::ResamplingPlan::ClusterBootstrap`].
+    /// First appearance is a different order when a later label is smaller, so the same stream
+    /// would expand different clusters.
     ///
     /// # Errors
     ///
@@ -437,24 +448,20 @@ impl ClusterRows {
     /// not fit in a [`antecedent_data::GlobalId`].
     pub(crate) fn new(labels: &[u32]) -> Result<Self, EstimationError> {
         let rows = labels.len();
-        let mut slot_of: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
-        let mut members: Vec<Vec<antecedent_data::GlobalId>> = Vec::new();
+        let mut grouped: std::collections::BTreeMap<u32, Vec<antecedent_data::GlobalId>> =
+            std::collections::BTreeMap::new();
         for (row, label) in labels.iter().enumerate() {
             let row = antecedent_data::GlobalId::new(u64::try_from(row).map_err(|_| {
                 EstimationError::data_msg(
                     "row position does not fit in u64; rows are addressed by GlobalId and ChunkIndex only spans one bounded chunk",
                 )
             })?);
-            let next = members.len();
-            let slot = *slot_of.entry(*label).or_insert(next);
-            if slot == members.len() {
-                members.push(Vec::new());
-            }
-            members[slot].push(row);
+            grouped.entry(*label).or_default().push(row);
         }
-        if members.len() < 2 {
-            return Err(crate::se::few_clusters(members.len()));
+        if grouped.len() < 2 {
+            return Err(crate::se::few_clusters(grouped.len()));
         }
+        let members = grouped.into_values().collect();
         Ok(Self { members, rows })
     }
 
@@ -487,13 +494,12 @@ impl ClusterRows {
 /// parallel evaluation are the same, and the draws are common-random-number stable under a
 /// fixed seed.
 ///
-/// Each worker writes one replicate. Retained index memory is `n` times the worker count.
-/// A groups-by-replicates matrix is admitted against the route budget before any index
-/// buffer is allocated, and that matrix is not retained.
+/// Each worker writes one replicate. Retained index memory is `n` times the worker count,
+/// the same bound as the IID path. The groups-by-replicates matrix is not allocated.
 ///
 /// # Errors
 ///
-/// The route budget refuses the worker buffer, the matrix size does not fit in `u64`,
+/// The admission pool cannot fund that worker buffer, the buffer is not addressable,
 /// or an `Err` from `estimate`.
 pub(crate) fn bootstrap_se_clusters_with_scratch<S, F>(
     replicates: u32,
@@ -520,8 +526,7 @@ where
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     };
     let workers = scratch.workers();
-    let limit = ctx.memory.hard_limit_bytes.unwrap_or(u64::MAX);
-    cluster_worker_slots(clusters.row_count(), workers, groups, n_rep, RouteBudget::new(limit))?;
+    retained_index_slots(clusters.row_count(), workers)?;
     if ctx.cancellation.is_cancelled() {
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
@@ -534,7 +539,7 @@ where
 
 /// How one bootstrap replicate's row indices are supplied to the estimator.
 enum ReplicateRows<'a> {
-    /// `n` iid row draws for replicate `r`, generated from `stream_base ^ r`.
+    /// `n` iid row draws for replicate `r`, generated from `derive_stream(stream_base, r)`.
     ///
     /// Each worker fills its own length-`n` buffer. The `n` by replicates matrix is not
     /// retained.
@@ -648,7 +653,7 @@ fn evaluate_bootstrap_parallel<S, F>(
     ctx: &ExecutionContext,
     rows: &ReplicateRows<'_>,
     n_rep: usize,
-    workers: usize,
+    _workers: usize,
     make_scratch: impl Fn() -> S + Sync,
     estimate: F,
 ) -> Result<BootstrapSeResult, EstimationError>
@@ -656,64 +661,35 @@ where
     S: Send,
     F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
 {
-    let mut slots: Vec<Option<Result<Option<f64>, EstimationError>>> =
-        (0..n_rep).map(|_| None).collect();
-    std::thread::scope(|scope| {
-        let estimate = &estimate;
-        let make_scratch = &make_scratch;
-        let mut rest = slots.as_mut_slice();
-        let mut start = 0usize;
-        for t in 0..workers {
-            let take = rest.len().div_ceil(workers - t);
-            let (mine, next) = rest.split_at_mut(take);
-            let begin = start;
-            scope.spawn(move || {
-                let mut scratch = make_scratch();
-                let mut idx = Vec::new();
-                for (k, slot) in mine.iter_mut().enumerate() {
-                    let r = begin + k;
-                    if ctx.cancellation.is_cancelled() {
-                        break;
-                    }
-                    match rows.fill(r, &mut idx) {
-                        Ok(()) => {
-                            *slot = Some(
-                                estimate(&mut scratch, &idx)
-                                    .map(|v| v.filter(|ate| ate.is_finite())),
-                            );
-                        }
-                        Err(error) => *slot = Some(Err(error)),
-                    }
-                }
-            });
-            rest = next;
-            start += take;
-            if rest.is_empty() {
-                break;
-            }
+    let finished = std::sync::atomic::AtomicUsize::new(0);
+    let first_cancel = std::sync::atomic::AtomicUsize::new(usize::MAX);
+    let values = ctx.map_indexed_with_scratch(n_rep, make_scratch, |r, inner, scratch| {
+        if inner.cancellation.is_cancelled() {
+            first_cancel.fetch_min(r, std::sync::atomic::Ordering::Relaxed);
+            return Ok::<Option<f64>, EstimationError>(None);
         }
-    });
+        let mut idx = Vec::new();
+        rows.fill(r, &mut idx)?;
+        let value = estimate(scratch, &idx)?.filter(|ate| ate.is_finite());
+        let done = finished.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+        if let Some(progress) = &inner.progress {
+            progress.report(done as f64 / n_rep as f64, "bootstrap");
+        }
+        Ok(value)
+    })?;
+    let stop = first_cancel.load(std::sync::atomic::Ordering::Relaxed);
     let mut ates = Vec::with_capacity(n_rep);
     let mut attempted = 0u32;
-    let mut cancelled = ctx.cancellation.is_cancelled();
-    for slot in slots {
-        match slot {
-            None => {
-                cancelled = true;
-                break;
-            }
-            Some(Err(error)) => return Err(error),
-            Some(Ok(value)) => {
-                attempted += 1;
-                if let Some(ate) = value {
-                    ates.push(ate);
-                }
-            }
+    for (r, value) in values.into_iter().enumerate() {
+        if r >= stop {
+            break;
+        }
+        attempted += 1;
+        if let Some(ate) = value {
+            ates.push(ate);
         }
     }
-    if let Some(p) = &ctx.progress {
-        p.report(1.0, "bootstrap");
-    }
+    let cancelled = stop != usize::MAX || ctx.cancellation.is_cancelled();
     Ok(finalize_bootstrap_se_ex(&ates, attempted, cancelled, false))
 }
 
@@ -1159,6 +1135,36 @@ mod tests {
     }
 
     #[test]
+    fn cluster_members_follow_ascending_labels() {
+        let labels = [2_u32, 0, 2, 0];
+        let clusters = ClusterRows::new(&labels).unwrap();
+        let ids =
+            |slot: usize| clusters.members()[slot].iter().map(|id| id.get()).collect::<Vec<_>>();
+        assert_eq!(ids(0), vec![1, 3]);
+        assert_eq!(ids(1), vec![0, 2]);
+        let ctx = ExecutionContext::for_tests(9);
+        let stream = 0xA1D5_u64;
+        let mut from_rows = Vec::new();
+        ReplicateRows::Clusters { members: clusters.members(), ctx: &ctx, stream_base: stream }
+            .fill(0, &mut from_rows)
+            .unwrap();
+        let mut from_data = Vec::new();
+        fill_resample_index_replicate(
+            ResamplingPlan::ClusterBootstrap { cluster: antecedent_core::VariableId::from_raw(0) },
+            labels.len(),
+            Some(&labels),
+            &ctx,
+            stream,
+            0,
+            &mut from_data,
+        )
+        .unwrap();
+        let data_rows: Vec<usize> =
+            from_data.iter().map(|id| usize::try_from(id.get()).unwrap()).collect();
+        assert_eq!(from_rows, data_rows);
+    }
+
+    #[test]
     fn cluster_bootstrap_writes_one_replicate_per_worker() {
         let labels = [0_u32, 1, 2, 3, 1, 2, 3, 2, 3, 3, 3];
         let clusters = ClusterRows::new(&labels).unwrap();
@@ -1166,12 +1172,16 @@ mod tests {
         let groups = clusters.len();
         let replicates = 80u32;
         let workers = 4usize;
-        let width = usize::try_from(crate::bootstrap_wave::index_byte_width()).unwrap();
+        let width = usize::try_from(u64::try_from(size_of::<u64>()).unwrap()).unwrap();
         let matrix_bytes = groups * usize::try_from(replicates).unwrap() * width;
         let retained_bytes = n * workers * width;
         assert!(retained_bytes < matrix_bytes);
-        let mut ctx = ExecutionContext::production(11, u32::try_from(workers).unwrap());
-        ctx.memory.hard_limit_bytes = Some(u64::try_from(retained_bytes).unwrap());
+        let ctx = ExecutionContext::production(11, u32::try_from(workers).unwrap()).with_admission(
+            AdmissionPool::fixed(
+                u32::try_from(workers).unwrap(),
+                u64::try_from(retained_bytes).unwrap(),
+            ),
+        );
         let calls = AtomicU32::new(0);
         let result = bootstrap_se_clusters_with_scratch(
             replicates,
@@ -1188,8 +1198,11 @@ mod tests {
         .unwrap();
         assert_eq!(result.replicates_ok, replicates);
         assert_eq!(calls.load(Ordering::Relaxed), replicates);
-        let mut refused = ctx.clone();
-        refused.memory.hard_limit_bytes = Some(u64::try_from(retained_bytes - 1).unwrap());
+        let refused = ExecutionContext::production(11, u32::try_from(workers).unwrap())
+            .with_admission(AdmissionPool::fixed(
+                u32::try_from(workers).unwrap(),
+                u64::try_from(retained_bytes - 1).unwrap(),
+            ));
         let refused_calls = AtomicU32::new(0);
         let error = bootstrap_se_clusters_with_scratch(
             replicates,
@@ -1204,7 +1217,7 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(refused_calls.load(Ordering::Relaxed), 0);
-        assert!(error.to_string().contains("route budget"), "{error}");
+        assert!(error.to_string().contains("cannot fund"), "{error}");
     }
 
     #[test]
@@ -1227,7 +1240,7 @@ mod tests {
         .unwrap();
         let widest = peak.load(Ordering::SeqCst);
         assert_eq!(widest, 2);
-        let width = usize::try_from(crate::bootstrap_wave::index_byte_width()).unwrap();
+        let width = usize::try_from(u64::try_from(size_of::<u64>()).unwrap()).unwrap();
         let scratch_bytes = n * widest * width;
         assert!(scratch_bytes <= usize::try_from(shared.byte_budget()).unwrap());
         assert_eq!(result.replicates_ok, 8);
@@ -1245,7 +1258,7 @@ mod tests {
             calls.fetch_add(1, Ordering::SeqCst);
             Ok(Some(1.0))
         };
-        let width = usize::try_from(crate::bootstrap_wave::index_byte_width()).unwrap();
+        let width = usize::try_from(u64::try_from(size_of::<u64>()).unwrap()).unwrap();
         // One buffer is addressable but two workers' buffers are not.
         let ctx = ExecutionContext::production(1, 2);
         let n = usize::try_from(isize::MAX).unwrap() / width;
@@ -1257,15 +1270,8 @@ mod tests {
         let error = bootstrap_se(4, &serial, 1, n, estimate).unwrap_err();
         assert!(error.to_string().contains("addressable capacity"), "{error}");
         // The cluster path refuses an oversized row count before any replicate.
-        let clusters = ClusterRows::new(&[0, 0, 1, 1]).unwrap();
-        let error = cluster_worker_slots(
-            usize::MAX / width + 1,
-            1,
-            clusters.len(),
-            4,
-            RouteBudget::new(u64::MAX),
-        )
-        .unwrap_err();
+        let _clusters = ClusterRows::new(&[0, 0, 1, 1]).unwrap();
+        let error = retained_index_slots(usize::MAX / width + 1, 1).unwrap_err();
         assert!(error.to_string().contains("addressable capacity"), "{error}");
         assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
@@ -1305,21 +1311,20 @@ mod tests {
     }
 
     #[test]
-    fn bootstrap_scratch_above_the_hard_limit_is_refused_before_work() {
+    fn memory_budget_does_not_refuse_bootstrap_the_pool_can_fund() {
         let n = 8usize;
         let workers = 2usize;
-        let bytes = u64::try_from(n * workers).unwrap() * crate::bootstrap_wave::index_byte_width();
+        let bytes = u64::try_from(n * workers).unwrap() * u64::try_from(size_of::<u64>()).unwrap();
         let mut ctx = ExecutionContext::production(1, u32::try_from(workers).unwrap());
         ctx.memory = MemoryBudget { soft_limit_bytes: Some(1), hard_limit_bytes: Some(bytes - 1) };
         let calls = AtomicUsize::new(0);
-        let error = bootstrap_se(4, &ctx, 1, n, |_| {
+        let result = bootstrap_se(4, &ctx, 1, n, |_| {
             calls.fetch_add(1, Ordering::SeqCst);
             Ok(Some(1.0))
         })
-        .unwrap_err();
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
-        assert!(error.to_string().contains("route budget"), "{error}");
-        assert_eq!(ctx.memory.soft_limit_bytes, Some(1));
+        .unwrap();
+        assert_eq!(result.replicates_ok, 4);
+        assert_eq!(calls.load(Ordering::SeqCst), 4);
         assert_eq!(ctx.memory.hard_limit_bytes, Some(bytes - 1));
     }
 
@@ -1327,7 +1332,7 @@ mod tests {
     fn bootstrap_refuses_when_the_pool_cannot_fund_scratch() {
         let n = 8usize;
         let workers = 2usize;
-        let bytes = u64::try_from(n * workers).unwrap() * crate::bootstrap_wave::index_byte_width();
+        let bytes = u64::try_from(n * workers).unwrap() * u64::try_from(size_of::<u64>()).unwrap();
         let shared = AdmissionPool::fixed(u32::try_from(workers).unwrap(), bytes - 1);
         let mut ctx = ExecutionContext::production(1, u32::try_from(workers).unwrap())
             .with_admission(shared.clone());

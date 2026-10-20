@@ -75,7 +75,6 @@
 #[non_exhaustive] pub enum antecedent_core::measurement_model::MeasurementModelError
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ParameterEvidence
 #[non_exhaustive] pub enum antecedent_core::measurement_model::ParameterUncertainty
-#[non_exhaustive] pub enum antecedent_core::parallel_axis::ParallelPlanError
 #[non_exhaustive] pub enum antecedent_core::physical_choice::RejectionReason
 #[non_exhaustive] pub enum antecedent_core::query::ExperimentFamily
 #[non_exhaustive] pub enum antecedent_core::query::GraphAssumptionSet
@@ -268,7 +267,6 @@ impl core::clone::Clone for antecedent_core::MultiActionPolicyInputs
 impl core::clone::Clone for antecedent_core::NestedCounterfactualQuery
 impl core::clone::Clone for antecedent_core::NextIdentificationAttempt
 impl core::clone::Clone for antecedent_core::NodeRef
-impl core::clone::Clone for antecedent_core::NonZeroThreadCount
 impl core::clone::Clone for antecedent_core::NumericalPolicy
 impl core::clone::Clone for antecedent_core::ObservationAssumption
 impl core::clone::Clone for antecedent_core::ObservationSpec
@@ -431,7 +429,6 @@ impl core::clone::Clone for antecedent_core::cancellation_boundary::BoundaryErro
 impl core::clone::Clone for antecedent_core::cancellation_boundary::BoundaryReport
 impl core::clone::Clone for antecedent_core::cancellation_boundary::BoundarySession
 impl core::clone::Clone for antecedent_core::cancellation_boundary::CancelSite
-impl core::clone::Clone for antecedent_core::cancellation_boundary::LeaseId
 impl core::clone::Clone for antecedent_core::cancellation_boundary::PartialResult
 impl core::clone::Clone for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::clone::Clone for antecedent_core::cancellation_boundary::StopReceipt
@@ -504,9 +501,6 @@ impl core::clone::Clone for antecedent_core::measurement_model::RepresentationMa
 impl core::clone::Clone for antecedent_core::measurement_model::RepresentationVersion
 impl core::clone::Clone for antecedent_core::measurement_model::VarianceComponent
 impl core::clone::Clone for antecedent_core::parallel_axis::ParallelAxis
-impl core::clone::Clone for antecedent_core::parallel_axis::ParallelPlanError
-impl core::clone::Clone for antecedent_core::parallel_axis::SerialInner
-impl core::clone::Clone for antecedent_core::parallel_axis::WorkerCap
 impl core::clone::Clone for antecedent_core::physical_choice::AvailableCapabilities
 impl core::clone::Clone for antecedent_core::physical_choice::CostQuotes
 impl core::clone::Clone for antecedent_core::physical_choice::DeclaredCost
@@ -693,7 +687,6 @@ impl core::cmp::Eq for antecedent_core::ModelId
 impl core::cmp::Eq for antecedent_core::NestedCounterfactualQuery
 impl core::cmp::Eq for antecedent_core::NextIdentificationAttempt
 impl core::cmp::Eq for antecedent_core::NodeRef
-impl core::cmp::Eq for antecedent_core::NonZeroThreadCount
 impl core::cmp::Eq for antecedent_core::NumericalPolicy
 impl core::cmp::Eq for antecedent_core::ObservationAssumption
 impl core::cmp::Eq for antecedent_core::ObservationSpec
@@ -829,7 +822,6 @@ impl core::cmp::Eq for antecedent_core::cancellation_boundary::BoundaryError
 impl core::cmp::Eq for antecedent_core::cancellation_boundary::BoundaryReport
 impl core::cmp::Eq for antecedent_core::cancellation_boundary::BoundarySession
 impl core::cmp::Eq for antecedent_core::cancellation_boundary::CancelSite
-impl core::cmp::Eq for antecedent_core::cancellation_boundary::LeaseId
 impl core::cmp::Eq for antecedent_core::cancellation_boundary::PartialResult
 impl core::cmp::Eq for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::cmp::Eq for antecedent_core::cancellation_boundary::StopReceipt
@@ -894,8 +886,6 @@ impl core::cmp::Eq for antecedent_core::measurement_model::PosteriorReference
 impl core::cmp::Eq for antecedent_core::measurement_model::RepresentationMapping
 impl core::cmp::Eq for antecedent_core::measurement_model::RepresentationVersion
 impl core::cmp::Eq for antecedent_core::parallel_axis::ParallelAxis
-impl core::cmp::Eq for antecedent_core::parallel_axis::ParallelPlanError
-impl core::cmp::Eq for antecedent_core::parallel_axis::SerialInner
 impl core::cmp::Eq for antecedent_core::physical_choice::AvailableCapabilities
 impl core::cmp::Eq for antecedent_core::physical_choice::CostQuotes
 impl core::cmp::Eq for antecedent_core::physical_choice::DeclaredCost
@@ -965,7 +955,6 @@ impl core::cmp::Ord for antecedent_core::EnvironmentId
 impl core::cmp::Ord for antecedent_core::Lag
 impl core::cmp::Ord for antecedent_core::ModelId
 impl core::cmp::Ord for antecedent_core::NodeRef
-impl core::cmp::Ord for antecedent_core::NonZeroThreadCount
 impl core::cmp::Ord for antecedent_core::ProviderCapability
 impl core::cmp::Ord for antecedent_core::ProviderId
 impl core::cmp::Ord for antecedent_core::QueryId
@@ -1150,7 +1139,6 @@ impl core::cmp::PartialEq for antecedent_core::MultiActionPolicyInputs
 impl core::cmp::PartialEq for antecedent_core::NestedCounterfactualQuery
 impl core::cmp::PartialEq for antecedent_core::NextIdentificationAttempt
 impl core::cmp::PartialEq for antecedent_core::NodeRef
-impl core::cmp::PartialEq for antecedent_core::NonZeroThreadCount
 impl core::cmp::PartialEq for antecedent_core::NumericalPolicy
 impl core::cmp::PartialEq for antecedent_core::ObservationAssumption
 impl core::cmp::PartialEq for antecedent_core::ObservationSpec
@@ -1310,7 +1298,6 @@ impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::BoundaryEr
 impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::BoundaryReport
 impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::BoundarySession
 impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::CancelSite
-impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::LeaseId
 impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::PartialResult
 impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::cmp::PartialEq for antecedent_core::cancellation_boundary::StopReceipt
@@ -1380,8 +1367,6 @@ impl core::cmp::PartialEq for antecedent_core::measurement_model::Representation
 impl core::cmp::PartialEq for antecedent_core::measurement_model::RepresentationVersion
 impl core::cmp::PartialEq for antecedent_core::measurement_model::VarianceComponent
 impl core::cmp::PartialEq for antecedent_core::parallel_axis::ParallelAxis
-impl core::cmp::PartialEq for antecedent_core::parallel_axis::ParallelPlanError
-impl core::cmp::PartialEq for antecedent_core::parallel_axis::SerialInner
 impl core::cmp::PartialEq for antecedent_core::physical_choice::AvailableCapabilities
 impl core::cmp::PartialEq for antecedent_core::physical_choice::CostQuotes
 impl core::cmp::PartialEq for antecedent_core::physical_choice::DeclaredCost
@@ -1451,7 +1436,6 @@ impl core::cmp::PartialOrd for antecedent_core::EnvironmentId
 impl core::cmp::PartialOrd for antecedent_core::Lag
 impl core::cmp::PartialOrd for antecedent_core::ModelId
 impl core::cmp::PartialOrd for antecedent_core::NodeRef
-impl core::cmp::PartialOrd for antecedent_core::NonZeroThreadCount
 impl core::cmp::PartialOrd for antecedent_core::ProviderCapability
 impl core::cmp::PartialOrd for antecedent_core::ProviderId
 impl core::cmp::PartialOrd for antecedent_core::QueryId
@@ -1561,7 +1545,6 @@ impl core::error::Error for antecedent_core::execution_facts::ExecutionFactError
 impl core::error::Error for antecedent_core::inspect::InspectionRefusal
 impl core::error::Error for antecedent_core::intervention::AdmitError
 impl core::error::Error for antecedent_core::intervention::CapabilityRefusal
-impl core::error::Error for antecedent_core::parallel_axis::ParallelPlanError
 impl core::error::Error for antecedent_core::physical_choice::PhysicalChoiceRefusal
 impl core::error::Error for antecedent_core::provider_capability::UnansweredCapability
 impl core::error::Error for antecedent_core::scratch_pool::ScratchFull
@@ -1739,7 +1722,6 @@ impl core::fmt::Debug for antecedent_core::MultiActionPolicyInputs
 impl core::fmt::Debug for antecedent_core::NestedCounterfactualQuery
 impl core::fmt::Debug for antecedent_core::NextIdentificationAttempt
 impl core::fmt::Debug for antecedent_core::NodeRef
-impl core::fmt::Debug for antecedent_core::NonZeroThreadCount
 impl core::fmt::Debug for antecedent_core::NumericalPolicy
 impl core::fmt::Debug for antecedent_core::ObservationAssumption
 impl core::fmt::Debug for antecedent_core::ObservationSpec
@@ -1904,7 +1886,6 @@ impl core::fmt::Debug for antecedent_core::cancellation_boundary::BoundaryError
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::BoundaryReport
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::BoundarySession
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::CancelSite
-impl core::fmt::Debug for antecedent_core::cancellation_boundary::LeaseId
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::PartialResult
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::fmt::Debug for antecedent_core::cancellation_boundary::StopReceipt
@@ -1980,10 +1961,6 @@ impl core::fmt::Debug for antecedent_core::measurement_model::RepresentationMapp
 impl core::fmt::Debug for antecedent_core::measurement_model::RepresentationVersion
 impl core::fmt::Debug for antecedent_core::measurement_model::VarianceComponent
 impl core::fmt::Debug for antecedent_core::parallel_axis::ParallelAxis
-impl core::fmt::Debug for antecedent_core::parallel_axis::ParallelPlan
-impl core::fmt::Debug for antecedent_core::parallel_axis::ParallelPlanError
-impl core::fmt::Debug for antecedent_core::parallel_axis::SerialInner
-impl core::fmt::Debug for antecedent_core::parallel_axis::WorkerCap
 impl core::fmt::Debug for antecedent_core::physical_choice::AvailableCapabilities
 impl core::fmt::Debug for antecedent_core::physical_choice::CostQuotes
 impl core::fmt::Debug for antecedent_core::physical_choice::DeclaredCost
@@ -2114,7 +2091,6 @@ impl core::fmt::Display for antecedent_core::VarianceRule
 impl core::fmt::Display for antecedent_core::cancellation_boundary::BoundaryError
 impl core::fmt::Display for antecedent_core::cancellation_boundary::BoundaryReport
 impl core::fmt::Display for antecedent_core::cancellation_boundary::CancelSite
-impl core::fmt::Display for antecedent_core::cancellation_boundary::LeaseId
 impl core::fmt::Display for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::fmt::Display for antecedent_core::cancellation_boundary::UninterruptibleAdmission
 impl core::fmt::Display for antecedent_core::device_reservation::ArithmeticPath
@@ -2133,7 +2109,6 @@ impl core::fmt::Display for antecedent_core::intervention::AdmitError
 impl core::fmt::Display for antecedent_core::intervention::CapabilityRefusal
 impl core::fmt::Display for antecedent_core::intervention::ExecutionSurface
 impl core::fmt::Display for antecedent_core::parallel_axis::ParallelAxis
-impl core::fmt::Display for antecedent_core::parallel_axis::ParallelPlanError
 impl core::fmt::Display for antecedent_core::physical_choice::DeclaredCost
 impl core::fmt::Display for antecedent_core::physical_choice::OperatorCapability
 impl core::fmt::Display for antecedent_core::physical_choice::PhysicalAlternative
@@ -2267,7 +2242,6 @@ impl core::hash::Hash for antecedent_core::ModelAssumptions
 impl core::hash::Hash for antecedent_core::ModelId
 impl core::hash::Hash for antecedent_core::NextIdentificationAttempt
 impl core::hash::Hash for antecedent_core::NodeRef
-impl core::hash::Hash for antecedent_core::NonZeroThreadCount
 impl core::hash::Hash for antecedent_core::NumericalPolicy
 impl core::hash::Hash for antecedent_core::ObservationAssumption
 impl core::hash::Hash for antecedent_core::ObservationSpec
@@ -2371,7 +2345,6 @@ impl core::hash::Hash for antecedent_core::cancellation_boundary::BoundaryError
 impl core::hash::Hash for antecedent_core::cancellation_boundary::BoundaryReport
 impl core::hash::Hash for antecedent_core::cancellation_boundary::BoundarySession
 impl core::hash::Hash for antecedent_core::cancellation_boundary::CancelSite
-impl core::hash::Hash for antecedent_core::cancellation_boundary::LeaseId
 impl core::hash::Hash for antecedent_core::cancellation_boundary::PartialResult
 impl core::hash::Hash for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::hash::Hash for antecedent_core::cancellation_boundary::StopReceipt
@@ -2419,7 +2392,6 @@ impl core::hash::Hash for antecedent_core::measurement_model::PosteriorReference
 impl core::hash::Hash for antecedent_core::measurement_model::RepresentationMapping
 impl core::hash::Hash for antecedent_core::measurement_model::RepresentationVersion
 impl core::hash::Hash for antecedent_core::parallel_axis::ParallelAxis
-impl core::hash::Hash for antecedent_core::parallel_axis::SerialInner
 impl core::hash::Hash for antecedent_core::physical_choice::AvailableCapabilities
 impl core::hash::Hash for antecedent_core::physical_choice::CostQuotes
 impl core::hash::Hash for antecedent_core::physical_choice::DeclaredCost
@@ -2540,7 +2512,6 @@ impl core::marker::Copy for antecedent_core::MonteCarloError
 impl core::marker::Copy for antecedent_core::NestedCounterfactualQuery
 impl core::marker::Copy for antecedent_core::NextIdentificationAttempt
 impl core::marker::Copy for antecedent_core::NodeRef
-impl core::marker::Copy for antecedent_core::NonZeroThreadCount
 impl core::marker::Copy for antecedent_core::NumericalPolicy
 impl core::marker::Copy for antecedent_core::OperatorEffect
 impl core::marker::Copy for antecedent_core::OperatorGraph
@@ -2610,7 +2581,6 @@ impl core::marker::Copy for antecedent_core::cancellation_boundary::BoundaryErro
 impl core::marker::Copy for antecedent_core::cancellation_boundary::BoundaryReport
 impl core::marker::Copy for antecedent_core::cancellation_boundary::BoundarySession
 impl core::marker::Copy for antecedent_core::cancellation_boundary::CancelSite
-impl core::marker::Copy for antecedent_core::cancellation_boundary::LeaseId
 impl core::marker::Copy for antecedent_core::cancellation_boundary::PartialResult
 impl core::marker::Copy for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::marker::Copy for antecedent_core::cancellation_boundary::StopReceipt
@@ -2654,8 +2624,6 @@ impl core::marker::Copy for antecedent_core::measurement_model::MeasurementKind
 impl core::marker::Copy for antecedent_core::measurement_model::MeasurementRoute
 impl core::marker::Copy for antecedent_core::measurement_model::ParameterUncertainty
 impl core::marker::Copy for antecedent_core::parallel_axis::ParallelAxis
-impl core::marker::Copy for antecedent_core::parallel_axis::ParallelPlanError
-impl core::marker::Copy for antecedent_core::parallel_axis::SerialInner
 impl core::marker::Copy for antecedent_core::physical_choice::AvailableCapabilities
 impl core::marker::Copy for antecedent_core::physical_choice::CostQuotes
 impl core::marker::Copy for antecedent_core::physical_choice::DeclaredCost
@@ -2876,7 +2844,6 @@ impl core::marker::Freeze for antecedent_core::MultiActionPolicyInputs [auto]
 impl core::marker::Freeze for antecedent_core::NestedCounterfactualQuery [auto]
 impl core::marker::Freeze for antecedent_core::NextIdentificationAttempt [auto]
 impl core::marker::Freeze for antecedent_core::NodeRef [auto]
-impl core::marker::Freeze for antecedent_core::NonZeroThreadCount [auto]
 impl core::marker::Freeze for antecedent_core::NumericalPolicy [auto]
 impl core::marker::Freeze for antecedent_core::ObservationAssumption [auto]
 impl core::marker::Freeze for antecedent_core::ObservationSpec [auto]
@@ -3040,7 +3007,6 @@ impl core::marker::Freeze for antecedent_core::cancellation_boundary::BoundaryEr
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::CancelSite [auto]
-impl core::marker::Freeze for antecedent_core::cancellation_boundary::LeaseId [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::marker::Freeze for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -3112,10 +3078,6 @@ impl core::marker::Freeze for antecedent_core::measurement_model::Representation
 impl core::marker::Freeze for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Freeze for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::marker::Freeze for antecedent_core::parallel_axis::ParallelAxis [auto]
-impl core::marker::Freeze for antecedent_core::parallel_axis::ParallelPlan [auto]
-impl core::marker::Freeze for antecedent_core::parallel_axis::ParallelPlanError [auto]
-impl core::marker::Freeze for antecedent_core::parallel_axis::SerialInner [auto]
-impl core::marker::Freeze for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::AvailableCapabilities [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::marker::Freeze for antecedent_core::physical_choice::DeclaredCost [auto]
@@ -3345,7 +3307,6 @@ impl core::marker::Send for antecedent_core::MultiActionPolicyInputs [auto]
 impl core::marker::Send for antecedent_core::NestedCounterfactualQuery [auto]
 impl core::marker::Send for antecedent_core::NextIdentificationAttempt [auto]
 impl core::marker::Send for antecedent_core::NodeRef [auto]
-impl core::marker::Send for antecedent_core::NonZeroThreadCount [auto]
 impl core::marker::Send for antecedent_core::NumericalPolicy [auto]
 impl core::marker::Send for antecedent_core::ObservationAssumption [auto]
 impl core::marker::Send for antecedent_core::ObservationSpec [auto]
@@ -3510,7 +3471,6 @@ impl core::marker::Send for antecedent_core::cancellation_boundary::BoundaryErro
 impl core::marker::Send for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::CancelSite [auto]
-impl core::marker::Send for antecedent_core::cancellation_boundary::LeaseId [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::marker::Send for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -3586,10 +3546,6 @@ impl core::marker::Send for antecedent_core::measurement_model::RepresentationMa
 impl core::marker::Send for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Send for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::marker::Send for antecedent_core::parallel_axis::ParallelAxis [auto]
-impl core::marker::Send for antecedent_core::parallel_axis::ParallelPlan [auto]
-impl core::marker::Send for antecedent_core::parallel_axis::ParallelPlanError [auto]
-impl core::marker::Send for antecedent_core::parallel_axis::SerialInner [auto]
-impl core::marker::Send for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::marker::Send for antecedent_core::physical_choice::AvailableCapabilities [auto]
 impl core::marker::Send for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::marker::Send for antecedent_core::physical_choice::DeclaredCost [auto]
@@ -3811,7 +3767,6 @@ impl core::marker::StructuralPartialEq for antecedent_core::MultiActionPolicyInp
 impl core::marker::StructuralPartialEq for antecedent_core::NestedCounterfactualQuery
 impl core::marker::StructuralPartialEq for antecedent_core::NextIdentificationAttempt
 impl core::marker::StructuralPartialEq for antecedent_core::NodeRef
-impl core::marker::StructuralPartialEq for antecedent_core::NonZeroThreadCount
 impl core::marker::StructuralPartialEq for antecedent_core::NumericalPolicy
 impl core::marker::StructuralPartialEq for antecedent_core::ObservationAssumption
 impl core::marker::StructuralPartialEq for antecedent_core::ObservationSpec
@@ -3968,7 +3923,6 @@ impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundar
 impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::BoundaryReport
 impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::BoundarySession
 impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::CancelSite
-impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::LeaseId
 impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::PartialResult
 impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::ProviderDisposition
 impl core::marker::StructuralPartialEq for antecedent_core::cancellation_boundary::StopReceipt
@@ -4038,8 +3992,6 @@ impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::R
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::RepresentationVersion
 impl core::marker::StructuralPartialEq for antecedent_core::measurement_model::VarianceComponent
 impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::ParallelAxis
-impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::ParallelPlanError
-impl core::marker::StructuralPartialEq for antecedent_core::parallel_axis::SerialInner
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::AvailableCapabilities
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::CostQuotes
 impl core::marker::StructuralPartialEq for antecedent_core::physical_choice::DeclaredCost
@@ -4267,7 +4219,6 @@ impl core::marker::Sync for antecedent_core::MultiActionPolicyInputs [auto]
 impl core::marker::Sync for antecedent_core::NestedCounterfactualQuery [auto]
 impl core::marker::Sync for antecedent_core::NextIdentificationAttempt [auto]
 impl core::marker::Sync for antecedent_core::NodeRef [auto]
-impl core::marker::Sync for antecedent_core::NonZeroThreadCount [auto]
 impl core::marker::Sync for antecedent_core::NumericalPolicy [auto]
 impl core::marker::Sync for antecedent_core::ObservationAssumption [auto]
 impl core::marker::Sync for antecedent_core::ObservationSpec [auto]
@@ -4432,7 +4383,6 @@ impl core::marker::Sync for antecedent_core::cancellation_boundary::BoundaryErro
 impl core::marker::Sync for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::CancelSite [auto]
-impl core::marker::Sync for antecedent_core::cancellation_boundary::LeaseId [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::marker::Sync for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -4508,10 +4458,6 @@ impl core::marker::Sync for antecedent_core::measurement_model::RepresentationMa
 impl core::marker::Sync for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Sync for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::marker::Sync for antecedent_core::parallel_axis::ParallelAxis [auto]
-impl core::marker::Sync for antecedent_core::parallel_axis::ParallelPlan [auto]
-impl core::marker::Sync for antecedent_core::parallel_axis::ParallelPlanError [auto]
-impl core::marker::Sync for antecedent_core::parallel_axis::SerialInner [auto]
-impl core::marker::Sync for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::AvailableCapabilities [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::marker::Sync for antecedent_core::physical_choice::DeclaredCost [auto]
@@ -4741,7 +4687,6 @@ impl core::marker::Unpin for antecedent_core::MultiActionPolicyInputs [auto]
 impl core::marker::Unpin for antecedent_core::NestedCounterfactualQuery [auto]
 impl core::marker::Unpin for antecedent_core::NextIdentificationAttempt [auto]
 impl core::marker::Unpin for antecedent_core::NodeRef [auto]
-impl core::marker::Unpin for antecedent_core::NonZeroThreadCount [auto]
 impl core::marker::Unpin for antecedent_core::NumericalPolicy [auto]
 impl core::marker::Unpin for antecedent_core::ObservationAssumption [auto]
 impl core::marker::Unpin for antecedent_core::ObservationSpec [auto]
@@ -4906,7 +4851,6 @@ impl core::marker::Unpin for antecedent_core::cancellation_boundary::BoundaryErr
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::CancelSite [auto]
-impl core::marker::Unpin for antecedent_core::cancellation_boundary::LeaseId [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::marker::Unpin for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -4982,10 +4926,6 @@ impl core::marker::Unpin for antecedent_core::measurement_model::RepresentationM
 impl core::marker::Unpin for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::marker::Unpin for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::marker::Unpin for antecedent_core::parallel_axis::ParallelAxis [auto]
-impl core::marker::Unpin for antecedent_core::parallel_axis::ParallelPlan [auto]
-impl core::marker::Unpin for antecedent_core::parallel_axis::ParallelPlanError [auto]
-impl core::marker::Unpin for antecedent_core::parallel_axis::SerialInner [auto]
-impl core::marker::Unpin for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::AvailableCapabilities [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::marker::Unpin for antecedent_core::physical_choice::DeclaredCost [auto]
@@ -5218,7 +5158,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MultiActionPol
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NestedCounterfactualQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NextIdentificationAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NodeRef [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NonZeroThreadCount [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NumericalPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ObservationAssumption [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ObservationSpec [auto]
@@ -5383,7 +5322,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_b
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::CancelSite [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::LeaseId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -5459,10 +5397,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_mo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::ParallelAxis [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::ParallelPlan [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::ParallelPlanError [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::SerialInner [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::AvailableCapabilities [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::physical_choice::DeclaredCost [auto]
@@ -5691,7 +5625,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MultiActionPolicy
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NestedCounterfactualQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NextIdentificationAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NodeRef [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NonZeroThreadCount [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NumericalPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ObservationAssumption [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ObservationSpec [auto]
@@ -5856,7 +5789,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boun
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::BoundaryReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::BoundarySession [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::CancelSite [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::LeaseId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::PartialResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::ProviderDisposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::cancellation_boundary::StopReceipt [auto]
@@ -5932,10 +5864,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::RepresentationVersion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::measurement_model::VarianceComponent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::ParallelAxis [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::ParallelPlan [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::ParallelPlanError [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::SerialInner [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_core::parallel_axis::WorkerCap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::AvailableCapabilities [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::CostQuotes [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::physical_choice::DeclaredCost [auto]
@@ -6377,6 +6305,7 @@ pub field antecedent_core::EvidenceRegime::selection: antecedent_core::SamplingS
 pub field antecedent_core::EvidenceRegime::study: core::option::Option<alloc::sync::Arc<str>>
 pub field antecedent_core::ExecutionContext::adaptive_bootstrap: antecedent_core::AdaptiveBootstrapBudget
 pub field antecedent_core::ExecutionContext::adaptive_draws: antecedent_core::AdaptiveDrawBudget
+pub field antecedent_core::ExecutionContext::admission: antecedent_core::execution::AdmissionPool
 pub field antecedent_core::ExecutionContext::cache_policy: antecedent_core::CachePolicy
 pub field antecedent_core::ExecutionContext::cancellation: antecedent_core::CancellationToken
 pub field antecedent_core::ExecutionContext::determinism: antecedent_core::Determinism
@@ -7107,10 +7036,12 @@ pub fn <antecedent_core::ExecutionContext>::fn acquire_admission(&self, threads:
 pub fn <antecedent_core::ExecutionContext>::fn acquire_admission_bounded(&self, threads: u32, bytes: u64, bound: core::time::Duration) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::ExecutionContext>::fn acquire_admission_product(&self, threads: u32, count: u64, width: u64) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::ExecutionContext>::fn admission(&self) -> antecedent_core::execution::AdmissionPool
+pub fn <antecedent_core::ExecutionContext>::fn admit_index_bytes(&self, work_items: usize, per_worker_bytes: u64) -> core::result::Result<antecedent_core::ScratchLease, antecedent_core::ScratchRefusal>
 pub fn <antecedent_core::ExecutionContext>::fn admit_scratch(&self, work_items: usize, per_worker_bytes: u64) -> core::result::Result<antecedent_core::ScratchLease, antecedent_core::ScratchRefusal>
 pub fn <antecedent_core::ExecutionContext>::fn capped_workers(&self, work_items: usize) -> usize
 pub fn <antecedent_core::ExecutionContext>::fn for_tests(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
+pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn production(seed: u64, max_threads: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn production_default(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn serial_inner(&self) -> Self
@@ -7262,9 +7193,6 @@ pub fn <antecedent_core::NextIdentificationAttempt>::const fn as_str(self) -> &'
 pub fn <antecedent_core::NodeRef>::const fn is_static_graph_node(self) -> bool
 pub fn <antecedent_core::NodeRef>::const fn lag(self) -> core::option::Option<antecedent_core::Lag>
 pub fn <antecedent_core::NodeRef>::const fn variable(self) -> antecedent_core::VariableId
-pub fn <antecedent_core::NonZeroThreadCount>::const fn get(self) -> u32
-pub fn <antecedent_core::NonZeroThreadCount>::const fn new(n: u32) -> core::option::Option<Self>
-pub fn <antecedent_core::NonZeroThreadCount>::const fn one() -> Self
 pub fn <antecedent_core::NumericalPolicy>::const fn declared_tolerance(self) -> core::option::Option<antecedent_core::PhysicalTolerance>
 pub fn <antecedent_core::NumericalPolicy>::const fn strict() -> Self
 pub fn <antecedent_core::NumericalPolicy>::const fn tolerance(tolerance: antecedent_core::PhysicalTolerance) -> Self
@@ -7728,14 +7656,13 @@ pub fn <antecedent_core::WorldSpec>::fn routes(&self) -> &[antecedent_core::Edge
 pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn latency_bound(self) -> core::time::Duration
 pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn max_call_bytes(self) -> u64
 pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn new(site: antecedent_core::cancellation_boundary::CancelSite, max_call_bytes: u64, latency_bound: core::time::Duration, retain_partial: bool, publish_partial_claim: bool) -> core::result::Result<Self, antecedent_core::cancellation_boundary::BoundaryError>
-pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn open(self, lease: antecedent_core::cancellation_boundary::LeaseId) -> antecedent_core::cancellation_boundary::BoundarySession
+pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn open(self) -> antecedent_core::cancellation_boundary::BoundarySession
 pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn publish_partial_claim(self) -> bool
 pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn retain_partial(self) -> bool
 pub fn <antecedent_core::cancellation_boundary::Boundary>::const fn site(self) -> antecedent_core::cancellation_boundary::CancelSite
 pub fn <antecedent_core::cancellation_boundary::BoundaryReport>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn boundary(self) -> antecedent_core::cancellation_boundary::Boundary
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn enter_provider(&mut self, interruptible: bool, uninterruptible: antecedent_core::cancellation_boundary::UninterruptibleAdmission) -> core::result::Result<antecedent_core::cancellation_boundary::ProviderDisposition, antecedent_core::cancellation_boundary::BoundaryError>
-pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn lease(self) -> antecedent_core::cancellation_boundary::LeaseId
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn lease_recovered(self) -> bool
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn open_spill(&mut self) -> core::result::Result<(), antecedent_core::cancellation_boundary::BoundaryError>
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn provider(self) -> core::option::Option<antecedent_core::cancellation_boundary::ProviderDisposition>
@@ -7744,15 +7671,13 @@ pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn recor
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn record_spill_cleanup(&mut self)
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn recorded_call_bytes(self) -> core::option::Option<u64>
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn recorded_elapsed(self) -> core::option::Option<core::time::Duration>
-pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn recover_lease(&mut self)
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn retain_partial_result(&mut self, bytes: u64) -> core::result::Result<antecedent_core::cancellation_boundary::PartialResult, antecedent_core::cancellation_boundary::BoundaryError>
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::const fn spill_cleanup_recorded(self) -> bool
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::fn record_elapsed(&mut self, elapsed: core::time::Duration) -> core::result::Result<(), antecedent_core::cancellation_boundary::BoundaryError>
+pub fn <antecedent_core::cancellation_boundary::BoundarySession>::fn recover_lease(&mut self, lease: antecedent_core::device_reservation::DeviceReservationLease) -> bool
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::fn stop(self) -> core::result::Result<antecedent_core::cancellation_boundary::StopReceipt, antecedent_core::cancellation_boundary::BoundaryError>
 pub fn <antecedent_core::cancellation_boundary::BoundarySession>::fn succeed(self) -> core::result::Result<antecedent_core::cancellation_boundary::SuccessReceipt, antecedent_core::cancellation_boundary::BoundaryError>
 pub fn <antecedent_core::cancellation_boundary::CancelSite>::const fn as_str(self) -> &'static str
-pub fn <antecedent_core::cancellation_boundary::LeaseId>::const fn from_raw(raw: u64) -> Self
-pub fn <antecedent_core::cancellation_boundary::LeaseId>::const fn raw(self) -> u64
 pub fn <antecedent_core::cancellation_boundary::PartialResult>::const fn bytes(self) -> u64
 pub fn <antecedent_core::cancellation_boundary::PartialResult>::const fn is_published_claim(self) -> bool
 pub fn <antecedent_core::cancellation_boundary::PartialResult>::const fn site(self) -> antecedent_core::cancellation_boundary::CancelSite
@@ -7760,7 +7685,6 @@ pub fn <antecedent_core::cancellation_boundary::ProviderDisposition>::const fn a
 pub fn <antecedent_core::cancellation_boundary::ProviderDisposition>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn call_bytes(self) -> u64
 pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn elapsed(self) -> core::time::Duration
-pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn lease(self) -> antecedent_core::cancellation_boundary::LeaseId
 pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn lease_recovered(self) -> bool
 pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn partial(self) -> core::option::Option<antecedent_core::cancellation_boundary::PartialResult>
 pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn provider(self) -> core::option::Option<antecedent_core::cancellation_boundary::ProviderDisposition>
@@ -7770,7 +7694,6 @@ pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn site(self
 pub fn <antecedent_core::cancellation_boundary::StopReceipt>::const fn spill_cleaned(self) -> bool
 pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn call_bytes(self) -> u64
 pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn elapsed(self) -> core::time::Duration
-pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn lease(self) -> antecedent_core::cancellation_boundary::LeaseId
 pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn lease_recovered(self) -> bool
 pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn provider(self) -> core::option::Option<antecedent_core::cancellation_boundary::ProviderDisposition>
 pub fn <antecedent_core::cancellation_boundary::SuccessReceipt>::const fn site(self) -> antecedent_core::cancellation_boundary::CancelSite
@@ -7958,16 +7881,6 @@ pub fn <antecedent_core::measurement_model::ParameterUncertainty>::fn from_name(
 pub fn <antecedent_core::measurement_model::RepresentationMapping>::fn carries_intervention_meaning(&self) -> bool
 pub fn <antecedent_core::parallel_axis::ParallelAxis>::const fn all() -> [Self; 6]
 pub fn <antecedent_core::parallel_axis::ParallelAxis>::const fn as_str(self) -> &'static str
-pub fn <antecedent_core::parallel_axis::ParallelPlan>::const fn axis(&self) -> antecedent_core::parallel_axis::ParallelAxis
-pub fn <antecedent_core::parallel_axis::ParallelPlan>::const fn serial_inner(&self) -> antecedent_core::parallel_axis::SerialInner
-pub fn <antecedent_core::parallel_axis::ParallelPlan>::const fn workers(&self) -> u32
-pub fn <antecedent_core::parallel_axis::ParallelPlan>::fn choose(&self, axis: antecedent_core::parallel_axis::ParallelAxis) -> core::result::Result<antecedent_core::parallel_axis::ParallelAxis, antecedent_core::parallel_axis::ParallelPlanError>
-pub fn <antecedent_core::parallel_axis::ParallelPlan>::fn new(axis: antecedent_core::parallel_axis::ParallelAxis, workers: u32, cap: &antecedent_core::parallel_axis::WorkerCap) -> core::result::Result<Self, antecedent_core::parallel_axis::ParallelPlanError>
-pub fn <antecedent_core::parallel_axis::SerialInner>::const fn outer_axis(self) -> antecedent_core::parallel_axis::ParallelAxis
-pub fn <antecedent_core::parallel_axis::SerialInner>::const fn workers(self) -> u32
-pub fn <antecedent_core::parallel_axis::WorkerCap>::const fn limit(&self) -> u32
-pub fn <antecedent_core::parallel_axis::WorkerCap>::fn new(limit: u32) -> Self
-pub fn <antecedent_core::parallel_axis::WorkerCap>::fn reserved(&self) -> u32
 pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn all() -> Self
 pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn empty() -> Self
 pub fn <antecedent_core::physical_choice::AvailableCapabilities>::const fn has_operator(self, capability: antecedent_core::physical_choice::OperatorCapability) -> bool
@@ -8328,8 +8241,6 @@ pub struct antecedent_core::MonteCarloError
 pub struct antecedent_core::MultiActionPolicyInputs
 pub struct antecedent_core::NestedCounterfactualQuery
 pub struct antecedent_core::NestedCounterfactualQuery has private fields
-pub struct antecedent_core::NonZeroThreadCount
-pub struct antecedent_core::NonZeroThreadCount has private fields
 pub struct antecedent_core::ObservationUnit
 pub struct antecedent_core::ObservationUnit has private fields
 pub struct antecedent_core::Operator
@@ -8483,8 +8394,6 @@ pub struct antecedent_core::cancellation_boundary::Boundary
 pub struct antecedent_core::cancellation_boundary::Boundary has private fields
 pub struct antecedent_core::cancellation_boundary::BoundarySession
 pub struct antecedent_core::cancellation_boundary::BoundarySession has private fields
-pub struct antecedent_core::cancellation_boundary::LeaseId
-pub struct antecedent_core::cancellation_boundary::LeaseId has private fields
 pub struct antecedent_core::cancellation_boundary::PartialResult
 pub struct antecedent_core::cancellation_boundary::PartialResult has private fields
 pub struct antecedent_core::cancellation_boundary::StopReceipt
@@ -8562,12 +8471,6 @@ pub struct antecedent_core::measurement_model::PosteriorReference
 pub struct antecedent_core::measurement_model::RepresentationMapping
 pub struct antecedent_core::measurement_model::RepresentationVersion
 pub struct antecedent_core::measurement_model::VarianceComponent
-pub struct antecedent_core::parallel_axis::ParallelPlan
-pub struct antecedent_core::parallel_axis::ParallelPlan has private fields
-pub struct antecedent_core::parallel_axis::SerialInner
-pub struct antecedent_core::parallel_axis::SerialInner has private fields
-pub struct antecedent_core::parallel_axis::WorkerCap
-pub struct antecedent_core::parallel_axis::WorkerCap has private fields
 pub struct antecedent_core::physical_choice::AvailableCapabilities
 pub struct antecedent_core::physical_choice::AvailableCapabilities has private fields
 pub struct antecedent_core::physical_choice::CostQuotes
@@ -8624,6 +8527,7 @@ pub trait antecedent_core::ProgressSink: core::marker::Send + core::marker::Sync
 pub trait fn fn antecedent_core::BatchCallback::call(&self, inputs: &[&[f64]], out: &mut [f64]) -> core::result::Result<(), antecedent_core::CallbackError>
 pub trait fn fn antecedent_core::BatchCallback::spec(&self) -> &antecedent_core::CallbackSpec
 pub trait fn fn antecedent_core::ProgressSink::report(&self, fraction: f64, stage: &str)
+pub type antecedent_core::NonZeroThreadCount = core::num::nonzero::NonZeroU32
 pub use antecedent_core::assumption::Assumption = antecedent_core::Assumption
 pub use antecedent_core::assumption::AssumptionRecord = antecedent_core::AssumptionRecord
 pub use antecedent_core::assumption::AssumptionScope = antecedent_core::AssumptionScope
@@ -9654,7 +9558,7 @@ pub variant antecedent_core::cancellation_boundary::BoundaryError::CallSizeNotRe
 pub variant antecedent_core::cancellation_boundary::BoundaryError::CallTooLarge { site: antecedent_core::cancellation_boundary::CancelSite, bytes: u64, max_call_bytes: u64 }
 pub variant antecedent_core::cancellation_boundary::BoundaryError::ElapsedNotRecorded { site: antecedent_core::cancellation_boundary::CancelSite }
 pub variant antecedent_core::cancellation_boundary::BoundaryError::LatencyExceeded { site: antecedent_core::cancellation_boundary::CancelSite, elapsed: core::time::Duration, bound: core::time::Duration }
-pub variant antecedent_core::cancellation_boundary::BoundaryError::LeaseNotRecovered { lease: antecedent_core::cancellation_boundary::LeaseId }
+pub variant antecedent_core::cancellation_boundary::BoundaryError::LeaseNotRecovered
 pub variant antecedent_core::cancellation_boundary::BoundaryError::MissingSpillCleanup { site: antecedent_core::cancellation_boundary::CancelSite }
 pub variant antecedent_core::cancellation_boundary::BoundaryError::PartialClaimRefused { site: antecedent_core::cancellation_boundary::CancelSite }
 pub variant antecedent_core::cancellation_boundary::BoundaryError::PartialRetentionRefused { site: antecedent_core::cancellation_boundary::CancelSite }
@@ -9812,10 +9716,6 @@ pub variant antecedent_core::parallel_axis::ParallelAxis::GraphTest
 pub variant antecedent_core::parallel_axis::ParallelAxis::NumericalKernel
 pub variant antecedent_core::parallel_axis::ParallelAxis::Replicate
 pub variant antecedent_core::parallel_axis::ParallelAxis::Study
-pub variant antecedent_core::parallel_axis::ParallelPlanError::ConcurrentCap { workers: u32, reserved: u32, cap: u32 }
-pub variant antecedent_core::parallel_axis::ParallelPlanError::SecondAxis { held: antecedent_core::parallel_axis::ParallelAxis, requested: antecedent_core::parallel_axis::ParallelAxis }
-pub variant antecedent_core::parallel_axis::ParallelPlanError::WorkersAboveCap { workers: u32, cap: u32 }
-pub variant antecedent_core::parallel_axis::ParallelPlanError::ZeroWorkers
 pub variant antecedent_core::physical_choice::OperatorCapability::DesignMaterialization
 pub variant antecedent_core::physical_choice::OperatorCapability::LazyPreparation
 pub variant antecedent_core::physical_choice::OperatorCapability::PreparedNumericView

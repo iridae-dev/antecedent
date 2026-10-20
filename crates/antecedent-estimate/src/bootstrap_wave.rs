@@ -1,8 +1,8 @@
 //! Bounded resampling waves.
 //!
 //! A wave retains one reused draw buffer, or `width` fixed-length replicates, rather than an
-//! `n` by replicates matrix. Replicate `i` is drawn from [`StreamDomain::Resample`] at
-//! `stream_base ^ i`: the same seed and replicate id always produce the same rows. IID, block,
+//! `n` by replicates matrix. Replicate `i` is drawn from [`antecedent_core::StreamDomain::Resample`] at
+//! `derive_stream(stream_base, i)`: the same seed and replicate id always produce the same rows. IID, block,
 //! permutation, Bayesian, and equal-cluster plans keep those streams. An unequal cluster
 //! replicate stays variable length; this module does not build the groups-by-replicates index.
 //!
@@ -12,13 +12,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{
-    AdmittedRouteMemory, EncodedWidth, ExecutionContext, RouteBudget, RouteMemoryDeclaration,
-    RouteMemoryError, StreamDomain,
-};
-use antecedent_kernels::unbiased_index;
-
 use crate::error::EstimationError;
+use antecedent_core::ExecutionContext;
 
 /// Slots in an addressable `n × workers` index buffer.
 ///
@@ -35,98 +30,6 @@ pub(crate) fn retained_index_slots(n: usize, workers: usize) -> Result<usize, Es
         .ok_or_else(|| {
             EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
         })
-}
-
-/// Slots of one cluster-bootstrap replicate buffer per worker.
-///
-/// The retained buffer is `n` indexes times `workers`. A groups-by-replicates
-/// matrix is admitted against `budget` first. That admission allocates nothing.
-/// When the budget refuses the matrix, this still returns the worker-buffer
-/// length, and the caller must not allocate the matrix. When the worker buffer
-/// itself exceeds `budget`, this refuses before either buffer exists.
-///
-/// # Errors
-///
-/// `n * workers` is not an addressable index buffer, or that buffer exceeds
-/// `budget`. A matrix the budget refuses, or that does not fit in `u64`, is not
-/// allocated.
-pub(crate) fn cluster_worker_slots(
-    n: usize,
-    workers: usize,
-    groups: usize,
-    replicates: usize,
-    budget: RouteBudget,
-) -> Result<usize, EstimationError> {
-    let matrix = admit_group_replicate_matrix(groups, replicates, budget);
-    let slots = retained_index_slots(n, workers)?;
-    let retained_bytes = index_bytes(slots)?;
-    if retained_bytes > budget.bytes() {
-        return Err(EstimationError::data_msg(
-            "bootstrap index allocation exceeds the route budget",
-        ));
-    }
-    match matrix {
-        Ok(_) | Err(RouteMemoryError::ExceedsBudget { .. } | RouteMemoryError::Unrepresentable) => {
-            Ok(slots)
-        }
-        Err(error) => Err(EstimationError::data_msg(error.to_string())),
-    }
-}
-
-/// Admit a groups-by-replicates index matrix under `budget`.
-///
-/// The estimate's total is the matrix size in bytes. This allocates nothing.
-/// A refusal is the decision not to allocate that matrix.
-///
-/// # Errors
-///
-/// [`RouteMemoryError::Unrepresentable`] when the matrix does not fit in `u64`,
-/// and [`RouteMemoryError::ExceedsBudget`] when it is larger than `budget`.
-pub(crate) fn admit_group_replicate_matrix(
-    groups: usize,
-    replicates: usize,
-    budget: RouteBudget,
-) -> Result<AdmittedRouteMemory, RouteMemoryError> {
-    let matrix_bytes = groups
-        .checked_mul(replicates)
-        .and_then(|slots| u64::try_from(slots).ok())
-        .and_then(|slots| slots.checked_mul(index_byte_width()))
-        .ok_or(RouteMemoryError::Unrepresentable)?;
-    let width = EncodedWidth::int32().bytes();
-    let Some(retained) = matrix_bytes.checked_sub(width) else {
-        return Err(RouteMemoryError::Unrepresentable);
-    };
-    RouteMemoryDeclaration::new()
-        .rows(1)
-        .encoded_column(EncodedWidth::int32())
-        .masks(0)
-        .design_expansion(0)
-        .learner_fold_copies(0, 0)
-        .solver_scratch(0)
-        .retained_scores_draws(retained)
-        .output(0)
-        .workers(1)
-        .admit(budget)
-}
-
-pub(crate) fn index_byte_width() -> u64 {
-    u64::try_from(size_of::<u64>()).unwrap_or(8)
-}
-
-fn index_bytes(slots: usize) -> Result<u64, EstimationError> {
-    u64::try_from(slots).ok().and_then(|slots| slots.checked_mul(index_byte_width())).ok_or_else(
-        || EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity"),
-    )
-}
-
-/// Bytes of the retained `n × workers` index buffer.
-///
-/// # Errors
-///
-/// The product does not fit in an addressable allocation. A wrapping product is
-/// not returned and nothing is allocated.
-pub(crate) fn retained_index_bytes(n: usize, workers: usize) -> Result<u64, EstimationError> {
-    index_bytes(retained_index_slots(n, workers)?)
 }
 
 /// Retained IID bootstrap indexes for at most `width` replicates.
@@ -172,7 +75,7 @@ impl BootstrapIndexWave {
     /// Draw replicates `origin .. origin + count` into this buffer.
     ///
     /// `count` must be at most the allocated width. Replicate `origin + local` uses
-    /// [`StreamDomain::Resample`] keyed by `stream_base ^ replicate`.
+    /// [`antecedent_core::StreamDomain::Resample`] keyed by `derive_stream(stream_base, replicate)`.
     ///
     /// # Errors
     ///
@@ -223,7 +126,7 @@ impl BootstrapIndexWave {
 
 /// Write one replicate's row indexes into `out`, replacing its previous contents.
 ///
-/// The draw is [`StreamDomain::Resample`] at `stream_base ^ replicate`. `out` ends at length `n`.
+/// The draw is [`antecedent_core::StreamDomain::Resample`] at `derive_stream(stream_base, replicate)`. `out` ends at length `n`.
 ///
 /// # Errors
 ///
@@ -256,9 +159,25 @@ fn with_replicate_draws(
     if n == 0 {
         return Err(EstimationError::data_msg("bootstrap replicate needs n > 0"));
     }
-    let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate);
-    for _ in 0..n {
-        store(unbiased_index(&mut rng, n))?;
+    let mut ids = Vec::new();
+    antecedent_data::resample::fill_resample_index_replicate(
+        antecedent_data::ResamplingPlan::IidBootstrap,
+        n,
+        None,
+        ctx,
+        stream_base,
+        replicate,
+        &mut ids,
+    )
+    .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+    for id in ids {
+        let index = usize::try_from(id.get()).map_err(|_| {
+            EstimationError::data_msg(
+                "row position does not fit in u64; rows are addressed by GlobalId and \
+                 ChunkIndex only spans one bounded chunk",
+            )
+        })?;
+        store(index)?;
     }
     Ok(())
 }
@@ -405,7 +324,7 @@ mod adaptive_resample {
     /// Draw and evaluate `request` until the Monte Carlo floor, the cap, or cancellation.
     ///
     /// Each replicate is drawn into the reused wave buffer from
-    /// `StreamDomain::Resample` at `stream_base ^ replicate`. The same seed and id match
+    /// `StreamDomain::Resample` at `derive_stream(stream_base, replicate)`. The same seed and id match
     /// `fill_resample_index_replicate` or `fill_resample_weight_replicate`.
     ///
     /// `estimate` returns `Ok(Some(value))` for a finite success, `Ok(None)` or a non-finite
@@ -1356,32 +1275,9 @@ mod tests {
         let workers = 4usize;
         let groups = 4usize;
         let replicates = 200usize;
-        let width = usize::try_from(index_byte_width()).unwrap();
-        let matrix_bytes = groups * replicates * width;
-        let retained_bytes = n * workers * width;
-        assert!(retained_bytes < matrix_bytes);
-        let budget = RouteBudget::new(u64::try_from(retained_bytes).unwrap());
-        let slots = cluster_worker_slots(n, workers, groups, replicates, budget).unwrap();
+        let slots = retained_index_slots(n, workers).unwrap();
         assert_eq!(slots, n * workers);
         assert!(slots < groups * replicates);
-        let tight = RouteBudget::new(u64::try_from(retained_bytes - 1).unwrap());
-        let refused = cluster_worker_slots(n, workers, groups, replicates, tight).unwrap_err();
-        assert!(refused.to_string().contains("route budget"), "{refused}");
-    }
-
-    #[test]
-    fn route_budget_refuses_groups_by_replicates_before_allocation() {
-        let groups = 4usize;
-        let replicates = 200usize;
-        let matrix_bytes = u64::try_from(groups * replicates).unwrap() * index_byte_width();
-        let budget = RouteBudget::new(matrix_bytes - 1);
-        let refused = admit_group_replicate_matrix(groups, replicates, budget).unwrap_err();
-        assert!(matches!(refused, RouteMemoryError::ExceedsBudget { .. }));
-        assert!(refused.to_string().contains("route budget"));
-        let admitted =
-            admit_group_replicate_matrix(groups, replicates, RouteBudget::new(matrix_bytes))
-                .expect("a budget of the matrix size admits the estimate and allocates nothing");
-        assert_eq!(admitted.total(), matrix_bytes);
     }
 
     #[test]
@@ -1390,31 +1286,21 @@ mod tests {
         assert_eq!(n.wrapping_mul(2), 0);
         let refused = retained_index_slots(n, 2).unwrap_err();
         assert!(refused.to_string().contains("addressable capacity"), "{refused}");
-        assert!(retained_index_bytes(n, 2).is_err());
         assert!(BootstrapIndexWave::allocate(n, 2).is_err());
     }
 
     #[test]
     fn index_buffer_arithmetic_is_checked_beyond_a_wrapping_zero() {
-        let width = usize::try_from(index_byte_width()).unwrap();
+        let width = size_of::<u64>();
         // The slot product fits in `usize` but the byte product does not.
         let slots_ok_bytes_overflow = usize::MAX / width + 1;
         let refused = retained_index_slots(slots_ok_bytes_overflow, 1).unwrap_err();
         assert!(refused.to_string().contains("addressable capacity"), "{refused}");
-        assert!(retained_index_bytes(slots_ok_bytes_overflow, 1).is_err());
         // Slots that fit but exceed the addressable allocation limit.
         let unaddressable = usize::try_from(isize::MAX).unwrap() / width + 1;
         assert!(retained_index_slots(unaddressable, 1).is_err());
         // Worker count pushes an otherwise valid row count over the limit.
         assert!(retained_index_slots(unaddressable / 2 + 1, 2).is_err());
         assert!(retained_index_slots(usize::MAX, usize::MAX).is_err());
-        // Cluster paths refuse before either buffer exists.
-        let budget = RouteBudget::new(u64::MAX);
-        assert!(cluster_worker_slots(unaddressable, 1, 2, 2, budget).is_err());
-        assert!(cluster_worker_slots(4, usize::MAX, 2, 2, budget).is_err());
-        // A groups-by-replicates matrix that overflows is never allocated.
-        let matrix = admit_group_replicate_matrix(usize::MAX, 2, budget).unwrap_err();
-        assert!(matches!(matrix, RouteMemoryError::Unrepresentable), "{matrix}");
-        assert!(index_bytes(usize::MAX).is_err());
     }
 }

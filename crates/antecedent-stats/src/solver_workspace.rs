@@ -430,7 +430,7 @@ mod tests {
     use crate::faer_scope::FaerScope;
 
     fn scoped(workers: u32) -> SolverWorkspace {
-        SolverWorkspace::new(FaerScope::try_new(workers, u64::MAX).unwrap())
+        SolverWorkspace::new(FaerScope::try_new(workers).unwrap())
     }
 
     fn line_source() -> (Vec<f64>, Vec<f64>, Vec<usize>) {
@@ -570,8 +570,7 @@ mod tests {
         let (design, nrows, ncols) = dense_line();
         let serial = serial_scope();
         assert_eq!(serial.workers(), 1);
-        assert_eq!(serial.scratch_budget(), u64::MAX);
-        let wide = FaerScope::try_new(2, u64::MAX).unwrap();
+        let wide = FaerScope::try_new(2).unwrap();
         assert!(wide.workers() > serial.workers());
         let measured = qr_serial_and_parallel_durations(&design, nrows, ncols, wide).unwrap();
         // Both clocks are returned. Which one is smaller is the caller's record.
@@ -581,7 +580,7 @@ mod tests {
     #[test]
     fn one_worker_scope_is_refused_for_the_parallel_leg() {
         let (design, nrows, ncols) = dense_line();
-        let serial = FaerScope::try_new(1, u64::MAX).unwrap();
+        let serial = FaerScope::try_new(1).unwrap();
         let error = qr_serial_and_parallel_durations(&design, nrows, ncols, serial).unwrap_err();
         assert_eq!(
             error,

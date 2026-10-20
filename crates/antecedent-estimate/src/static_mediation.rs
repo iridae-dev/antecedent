@@ -323,6 +323,7 @@ fn estimate_static_mediation_bayesian_impl(
         determinism: ctx.determinism,
         rng: ctx.rng.clone(),
         memory: ctx.memory,
+        admission: ctx.admission(),
         cancellation: ctx.cancellation.clone(),
         progress: ctx.progress.clone(),
         kernel_policy: ctx.kernel_policy,

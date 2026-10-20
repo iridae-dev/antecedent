@@ -593,7 +593,7 @@ impl RetainedFactor {
 /// Larger QR designs on this host are faster with one worker. That record is
 /// not recomputed here.
 fn one_worker_scope() -> FaerScope {
-    FaerScope::try_new(1, u64::MAX).unwrap_or_else(|_| unreachable!("one worker is a scope"))
+    FaerScope::try_new(1).unwrap_or_else(|_| unreachable!("one worker is a scope"))
 }
 
 fn require_sigma(sigma_squared: f64) -> Result<(), StatsError> {

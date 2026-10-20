@@ -59,9 +59,7 @@ struct ResponseGrid<'a> {
 /// Pack coefficient columns into draw-major order.
 ///
 /// A draw is failed when any of its coefficients is non-finite.
-fn aligned_coefficient_draws(
-    columns: &[&[f64]],
-) -> Result<(Vec<f64>, Vec<bool>), EstimationError> {
+fn aligned_coefficient_draws(columns: &[&[f64]]) -> Result<(Vec<f64>, Vec<bool>), EstimationError> {
     if columns.is_empty() {
         return Err(EstimationError::data_msg("Bayesian response has no coefficient columns"));
     }
@@ -72,9 +70,9 @@ fn aligned_coefficient_draws(
         ));
     }
     let width = columns.len();
-    let cells = n_draws.checked_mul(width).ok_or_else(|| {
-        EstimationError::data_msg("Bayesian response coefficient grid overflows")
-    })?;
+    let cells = n_draws
+        .checked_mul(width)
+        .ok_or_else(|| EstimationError::data_msg("Bayesian response coefficient grid overflows"))?;
     let mut coefficients = vec![0.0_f64; cells];
     let mut failed = vec![false; n_draws];
     for (column_index, column) in columns.iter().enumerate() {
@@ -97,9 +95,9 @@ fn stream_response_grid(
 ) -> Result<(Vec<Vec<f64>>, StreamSummary), EstimationError> {
     let n_draws = request.failed_draws.len();
     let n_grid = request.coordinates.len();
-    let cells = n_grid.checked_mul(n_draws).ok_or_else(|| {
-        EstimationError::data_msg("Bayesian response draw grid overflows")
-    })?;
+    let cells = n_grid
+        .checked_mul(n_draws)
+        .ok_or_else(|| EstimationError::data_msg("Bayesian response draw grid overflows"))?;
     let mut sums = vec![0.0_f64; cells];
     let mut sites = Vec::with_capacity(n_grid);
     for (index, &coordinate) in request.coordinates.iter().enumerate() {
@@ -108,12 +106,10 @@ fn stream_response_grid(
         })?;
         sites.push(GridPoint { id, coordinate, factor: 1.0_f64 });
     }
-    let grid_count = u64::try_from(sites.len()).map_err(|_| {
-        EstimationError::data_msg("Bayesian response grid count does not fit u64")
-    })?;
-    let draw_count = u64::try_from(n_draws).map_err(|_| {
-        EstimationError::data_msg("Bayesian response draw count does not fit u64")
-    })?;
+    let grid_count = u64::try_from(sites.len())
+        .map_err(|_| EstimationError::data_msg("Bayesian response grid count does not fit u64"))?;
+    let draw_count = u64::try_from(n_draws)
+        .map_err(|_| EstimationError::data_msg("Bayesian response draw count does not fit u64"))?;
     let outcomes = [OutcomeDraws { id: 0, coefficients: request.coefficients }];
     let tile = TileRequest {
         row_features: request.row_features,

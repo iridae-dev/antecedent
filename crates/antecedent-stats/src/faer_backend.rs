@@ -17,7 +17,9 @@ use faer::linalg::svd::{ComputeSvdVectors, SvdError, svd, svd_scratch};
 use faer::{Conj, Mat, MatRef, Spec};
 
 use crate::error::StatsError;
-use crate::faer_scope::{FaerScope, FaerScopeError};
+use antecedent_core::execution::AdmissionLease;
+
+use crate::faer_scope::{FaerScope, FaerScopeError, detached_serial_lease};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 
 /// Default `faer` backend.
@@ -181,13 +183,24 @@ impl ScopedQr {
 /// One scratch buffer reused across QR, the triangular solve, and a fallback SVD.
 pub(crate) struct FactorScratch {
     buffer: Option<MemBuffer>,
+    root: Option<AdmissionLease>,
+    child: Option<AdmissionLease>,
 }
 
 impl FactorScratch {
-    /// Empty scratch. Nothing is allocated.
+    /// Empty scratch. Nothing is allocated. The first [`Self::ensure`] draws a
+    /// detached serial lease because [`FaerBackend::least_squares`] has no study
+    /// [`ExecutionContext`](antecedent_core::ExecutionContext) to lease from.
     #[must_use]
     pub(crate) const fn new() -> Self {
-        Self { buffer: None }
+        Self { buffer: None, root: None, child: None }
+    }
+
+    /// Scratch paid by `root` instead of a detached pool.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn under(root: AdmissionLease) -> Self {
+        Self { buffer: None, root: Some(root), child: None }
     }
 
     /// Address of the buffer, when one has been allocated.
@@ -215,10 +228,25 @@ impl FactorScratch {
     }
 
     fn ensure(&mut self, scope: FaerScope, required: StackReq) -> Result<(), StatsError> {
-        let bytes = scope.admit_scratch(required).map_err(backend_error)?;
-        if !buffer_fits(self.buffer.as_ref(), required, bytes) {
-            self.buffer = Some(scope.scratch_buffer(required).map_err(backend_error)?);
+        let bytes = match u64::try_from(required.size_bytes()) {
+            Ok(bytes) if required.align_bytes() != 0 => bytes,
+            _ => {
+                return Err(backend_error(FaerScopeError::ScratchOverflow));
+            }
+        };
+        if buffer_fits(self.buffer.as_ref(), required, bytes) {
+            return Ok(());
         }
+        self.child = None;
+        if self.root.is_none() {
+            self.root = Some(detached_serial_lease());
+        }
+        let child = {
+            let root = self.root.as_ref().expect("root lease was just installed");
+            scope.admit_scratch(root, required).map_err(backend_error)?
+        };
+        self.buffer = Some(MemBuffer::new(required));
+        self.child = Some(child);
         Ok(())
     }
 
@@ -239,13 +267,11 @@ pub(crate) fn counted_bytes(len: usize, width: usize) -> u64 {
     len.saturating_mul(width)
 }
 
-/// One worker and a scratch budget of [`u64::MAX`].
-///
-/// This is the serial leg of a factorization comparison. It does not read the
-/// process pool.
+/// One worker. Scratch for this scope is drawn by [`FactorScratch`] from a
+/// detached serial lease: this function has no study [`ExecutionContext`].
 #[must_use]
 pub(crate) fn serial_scope() -> FaerScope {
-    FaerScope::try_new(1, u64::MAX).unwrap_or_else(|_| unreachable!("one worker is a scope"))
+    FaerScope::try_new(1).unwrap_or_else(|_| unreachable!("one worker is a scope"))
 }
 
 /// Column scales: the max absolute entry, with a zero column stored as `1`.
@@ -594,6 +620,8 @@ fn thin_svd_in_scope(
     reason = "tests assert exactly representable values (rank counts, copied inputs) and cast small fixture indices"
 )]
 mod tests {
+    use super::*;
+
     #[test]
     fn counted_bytes_saturates_instead_of_wrapping() {
         assert_eq!(usize::MAX.wrapping_mul(usize::MAX), 1);
@@ -602,14 +630,20 @@ mod tests {
 
     #[test]
     fn scratch_above_the_budget_is_refused_before_allocation() {
-        let scope = FaerScope::try_new(2, 8).unwrap();
+        let scope = FaerScope::try_new(2).unwrap();
         assert_eq!(scope.parallelism().degree(), 2);
-        let mut scratch = FactorScratch::new();
+        let root = {
+            let pool = antecedent_core::execution::AdmissionPool::fixed(1, 8);
+            antecedent_core::ExecutionContext::for_tests(1)
+                .with_admission(pool)
+                .acquire_admission(1, 8)
+                .expect("pool funds the scratch lease")
+        };
+        let mut scratch = FactorScratch::under(root);
         let error = scratch.ensure(scope, StackReq::new::<u8>(9)).unwrap_err();
         assert!(matches!(error, StatsError::Backend(_)));
         assert!(!scratch.is_allocated());
         assert_eq!(scratch.bytes(), 0);
-        assert_eq!(scope.scratch_budget(), 8);
     }
 
     #[test]
@@ -630,8 +664,6 @@ mod tests {
             assert!((fit.coefficients[1] * scale - 4.0).abs() < 1e-12);
         }
     }
-
-    use super::*;
 
     /// `x1 = 2·x0`: the minimum-norm solution splits the effect `β0 + 2β1 = 3` as
     /// `(3/5, 6/5)` and reproduces the least-squares fit exactly.

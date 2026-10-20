@@ -15,6 +15,7 @@
 
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::fmt;
+use std::num::NonZeroU32;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, Weak};
 use std::time::{Duration, Instant};
 
@@ -28,28 +29,9 @@ pub struct Parallelism {
 }
 
 /// Thread count that is at least one.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct NonZeroThreadCount(u32);
-
-impl NonZeroThreadCount {
-    /// Create from a positive thread count.
-    #[must_use]
-    pub const fn new(n: u32) -> Option<Self> {
-        if n == 0 { None } else { Some(Self(n)) }
-    }
-
-    /// Single-threaded execution.
-    #[must_use]
-    pub const fn one() -> Self {
-        Self(1)
-    }
-
-    /// Underlying count.
-    #[must_use]
-    pub const fn get(self) -> u32 {
-        self.0
-    }
-}
+///
+/// This is [`NonZeroU32`]. A separate newtype would reimplement the same zero check.
+pub type NonZeroThreadCount = NonZeroU32;
 
 /// Cap on the default user thread count. An explicit `threads=` may exceed it.
 pub const DEFAULT_USER_THREAD_CAP: u32 = 16;
@@ -68,7 +50,7 @@ impl Parallelism {
     /// Serial execution.
     #[must_use]
     pub const fn serial() -> Self {
-        Self { max_threads: NonZeroThreadCount::one() }
+        Self { max_threads: NonZeroThreadCount::MIN }
     }
 
     /// Bounded parallelism.
@@ -731,33 +713,35 @@ fn credit(
     Ok(())
 }
 
-fn close_slot(state: &mut AdmissionState, index: usize) -> Option<AdmissionRemainder> {
+fn close_slot(state: &mut AdmissionState, index: usize) -> AdmissionRemainder {
     let id = state.leases[index].id;
     let parent = state.leases[index].parent;
     let threads = state.leases[index].threads;
     let bytes = state.leases[index].bytes;
-    credit(state, parent, threads, bytes).ok()?;
+    if let Err(error) = credit(state, parent, threads, bytes) {
+        panic!("admission credit overflow on lease {id}: {error}; the lease stays in the table");
+    }
     for slot in &mut state.leases {
         if slot.parent == Some(id) {
             slot.parent = parent;
         }
     }
     state.leases.remove(index);
-    Some(AdmissionRemainder::new(threads, bytes))
+    AdmissionRemainder::new(threads, bytes)
 }
 
 fn reap_cancelled(state: &mut AdmissionState) -> bool {
     let mut freed = false;
-    loop {
-        let Some(index) = state.leases.iter().position(|slot| slot.flag.load(Ordering::SeqCst))
-        else {
-            return freed;
-        };
-        if close_slot(state, index).is_none() {
-            return freed;
+    let mut index = 0;
+    while index < state.leases.len() {
+        if state.leases[index].flag.load(Ordering::SeqCst) {
+            close_slot(state, index);
+            freed = true;
+        } else {
+            index += 1;
         }
-        freed = true;
     }
+    freed
 }
 
 fn close_and_notify(shared: &SharedAdmission, id: u64) -> AdmissionRemainder {
@@ -765,9 +749,7 @@ fn close_and_notify(shared: &SharedAdmission, id: u64) -> AdmissionRemainder {
     let Some(index) = lease_index(&guard.leases, id) else {
         return AdmissionRemainder::zero();
     };
-    let Some(remainder) = close_slot(&mut guard, index) else {
-        return AdmissionRemainder::zero();
-    };
+    let remainder = close_slot(&mut guard, index);
     shared.released.notify_all();
     remainder
 }
@@ -891,57 +873,60 @@ impl fmt::Debug for AdmissionLease {
 
 struct CancelFlag {
     cancelled: Arc<AtomicBool>,
-    waiters: Mutex<Vec<Weak<Condvar>>>,
-    admission: Mutex<Arc<SharedAdmission>>,
+    waiters: Mutex<Vec<Weak<SharedAdmission>>>,
+    /// Observations left before this token cancels. `None` on a production token.
+    trip_after: Option<AtomicUsize>,
 }
 
 impl Default for CancelFlag {
     fn default() -> Self {
-        Self::from_pool(AdmissionPool::fixed(u32::MAX, u64::MAX))
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+            waiters: Mutex::new(Vec::new()),
+            trip_after: None,
+        }
     }
 }
 
 impl CancelFlag {
-    fn from_pool(pool: AdmissionPool) -> Self {
-        Self {
-            cancelled: Arc::new(AtomicBool::new(false)),
-            waiters: Mutex::new(Vec::new()),
-            admission: Mutex::new(pool.shared),
-        }
-    }
-
-    fn register_waiter(&self, cv: &Arc<Condvar>) {
+    fn register_pool(&self, shared: &Arc<SharedAdmission>) {
         let mut waiters = lock_mutex(&self.waiters);
         waiters.retain(|waiter| waiter.strong_count() > 0);
-        let incoming = Arc::downgrade(cv);
+        let incoming = Arc::downgrade(shared);
         if !waiters.iter().any(|waiter| Weak::ptr_eq(waiter, &incoming)) {
             waiters.push(incoming);
         }
     }
 
+    /// Set the cancelled flag and wake each registered pool while holding that pool's state lock.
+    ///
+    /// A waiter checks the flag and then sleeps on the same lock. Notifying after the lock is
+    /// dropped lets that waiter miss the wake and sleep until its bound.
     fn wake(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
         let waiters = {
             let mut waiters = lock_mutex(&self.waiters);
             waiters.retain(|waiter| waiter.strong_count() > 0);
             waiters.clone()
         };
         for waiter in waiters {
-            if let Some(cv) = waiter.upgrade() {
-                cv.notify_all();
-            }
+            let Some(shared) = waiter.upgrade() else {
+                continue;
+            };
+            let _state = lock_mutex(&shared.state);
+            shared.released.notify_all();
         }
     }
 }
 
 /// Cooperative cancellation token.
 ///
-/// The token also names the admission pool of the context that holds it. [`Self::cancel`] wakes
-/// studies waiting on that pool.
+/// [`Self::cancel`] wakes admission waits that registered on this token. The admission pool
+/// lives on [`ExecutionContext`], so installing a pool does not retarget other clones of this
+/// token.
 #[derive(Clone, Default)]
 pub struct CancellationToken {
     flag: Arc<CancelFlag>,
-    /// Test hook: checks left before the token cancels itself.
-    trip_after: Option<Arc<AtomicUsize>>,
 }
 
 impl fmt::Debug for CancellationToken {
@@ -949,47 +934,44 @@ impl fmt::Debug for CancellationToken {
         formatter
             .debug_struct("CancellationToken")
             .field("cancelled", &self.flag.cancelled.load(Ordering::SeqCst))
-            .field("trip_after", &self.trip_after)
             .finish()
     }
 }
 
 impl CancellationToken {
-    /// Create a fresh token with an open CPU and RAM budget.
+    /// Create a fresh token. It does not own an admission pool.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    fn with_pool(pool: AdmissionPool) -> Self {
-        Self { flag: Arc::new(CancelFlag::from_pool(pool)), trip_after: None }
-    }
-
     /// A token that cancels itself on its `checks + 1`-th observation, so a
     /// test can stop a search deterministically in the middle (every budget
-    /// charge observes the token once). Not for production use.
+    /// charge observes the token once). The counter is not part of a production token.
     // doc(hidden): test helper called from integration tests across the workspace.
     #[doc(hidden)]
     #[must_use]
     pub fn cancel_after_checks(checks: usize) -> Self {
         Self {
-            flag: Arc::new(CancelFlag::default()),
-            trip_after: Some(Arc::new(AtomicUsize::new(checks))),
+            flag: Arc::new(CancelFlag {
+                cancelled: Arc::new(AtomicBool::new(false)),
+                waiters: Mutex::new(Vec::new()),
+                trip_after: Some(AtomicUsize::new(checks)),
+            }),
         }
     }
 
     /// A non-owning handle that does not keep this token alive.
     #[must_use]
     pub fn downgrade(&self) -> WeakCancellationToken {
-        WeakCancellationToken {
-            flag: Arc::downgrade(&self.flag),
-            trip_after: self.trip_after.clone(),
-        }
+        WeakCancellationToken { flag: Arc::downgrade(&self.flag) }
     }
 
     /// Request cancellation and wake admission waits bound to this token.
+    ///
+    /// The cancelled flag is stored, then each registered pool is notified while that pool's
+    /// state lock is held.
     pub fn cancel(&self) {
-        self.flag.cancelled.store(true, Ordering::SeqCst);
         self.flag.wake();
     }
 
@@ -1004,23 +986,18 @@ impl CancellationToken {
     }
 
     /// Whether cancellation was requested.
+    ///
+    /// A production token only reads the flag. A token from [`Self::cancel_after_checks`] spends
+    /// one observation first.
     #[must_use]
     pub fn is_cancelled(&self) -> bool {
-        if let Some(left) = &self.trip_after {
+        if let Some(left) = &self.flag.trip_after {
             if left.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1)).is_err()
             {
                 self.cancel();
             }
         }
         self.flag.cancelled.load(Ordering::SeqCst)
-    }
-
-    fn set_pool(&self, pool: AdmissionPool) {
-        *lock_mutex(&self.flag.admission) = pool.shared;
-    }
-
-    fn admission_pool(&self) -> AdmissionPool {
-        AdmissionPool { shared: Arc::clone(&lock_mutex(&self.flag.admission)) }
     }
 
     fn cancel_flag(&self) -> Arc<AtomicBool> {
@@ -1037,14 +1014,13 @@ impl CancellationToken {
 #[derive(Clone, Debug)]
 pub struct WeakCancellationToken {
     flag: Weak<CancelFlag>,
-    trip_after: Option<Arc<AtomicUsize>>,
 }
 
 impl WeakCancellationToken {
     /// The token, if any owner of it is still alive.
     #[must_use]
     pub fn upgrade(&self) -> Option<CancellationToken> {
-        Some(CancellationToken { flag: self.flag.upgrade()?, trip_after: self.trip_after.clone() })
+        Some(CancellationToken { flag: self.flag.upgrade()? })
     }
 
     /// Whether an owner of the token is still alive.
@@ -1310,7 +1286,7 @@ fn admit(
     waiters: &CancelFlag,
     wait: AdmissionWait,
 ) -> Result<AdmissionLease, AdmissionError> {
-    waiters.register_waiter(&shared.released);
+    waiters.register_pool(shared);
     let mut guard = lock_mutex(&shared.state);
     let limit = match wait {
         AdmissionWait::Bounded(bound) => {
@@ -1405,6 +1381,9 @@ pub struct ExecutionContext {
     pub memory: MemoryBudget,
     /// Cancellation token.
     pub cancellation: CancellationToken,
+    /// Admission pool later acquires decrement. Clones share this handle until
+    /// [`Self::with_admission`] replaces it on that one context.
+    pub admission: AdmissionPool,
     /// Optional progress sink.
     pub progress: Option<Arc<dyn ProgressSink>>,
     /// Kernel selection policy.
@@ -1435,7 +1414,8 @@ impl ExecutionContext {
             determinism: Determinism::Strict,
             rng: RngFactory::from_seed(seed),
             memory: MemoryBudget::unlimited(),
-            cancellation: CancellationToken::with_pool(AdmissionPool::fixed(1, u64::MAX)),
+            admission: AdmissionPool::fixed(1, u64::MAX),
+            cancellation: CancellationToken::new(),
             progress: None,
             kernel_policy: KernelPolicy::scalar_only(),
             cache_policy: CachePolicy::disabled(),
@@ -1466,16 +1446,15 @@ impl ExecutionContext {
     /// and `f` receives [`Self::serial_inner`] so nested pools stay serial.
     /// When `n <= 1` or the context is already serial, `f` receives `self`.
     ///
-    /// The parallel path acquires one admission lease before it spawns. The
-    /// lease is the worker count, capped by the pool, plus
-    /// [`MemoryBudget::hard_limit_bytes`] when that limit is set. It is dropped
-    /// after the workers join, including when `f` fails. Cancellation returns
-    /// the same lease at the next pool observation, and again when the lease is
-    /// dropped. A call that cannot take the lease, including one whose context
-    /// is already cancelled, evaluates `f` on the caller and spawns nothing. A
-    /// second parallel call waits until the pool can hold that lease. The
-    /// serial path does not take a lease, so a nested map on
-    /// [`Self::serial_inner`] does not wait on the outer hold.
+    /// The parallel path acquires one admission lease for its workers before it
+    /// spawns. The lease is dropped after the workers join, including when `f`
+    /// fails. Cancellation returns that lease at the next pool observation, and
+    /// again when the lease is dropped. A call that cannot take the lease,
+    /// including one whose context is already cancelled, evaluates `f` on the
+    /// caller and spawns nothing. A second parallel call waits until the pool
+    /// can hold that lease. The serial path does not take a lease, so a nested
+    /// map on [`Self::serial_inner`] does not wait on the outer hold.
+    /// [`MemoryBudget`] is not consulted.
     ///
     /// # Errors
     ///
@@ -1492,30 +1471,58 @@ impl ExecutionContext {
         E: Send,
         F: Fn(usize, &Self) -> Result<T, E> + Sync,
     {
+        self.map_indexed_with_scratch(n, || (), |index, ctx, _scratch| f(index, ctx))
+    }
+
+    /// [`Self::map_indexed`] with one scratch value per worker.
+    ///
+    /// The serial path builds one scratch and reuses it. The parallel path builds
+    /// one scratch inside each worker after the admission lease is held, and
+    /// stops scheduling indexes above the first error.
+    ///
+    /// # Errors
+    ///
+    /// Returns the lowest-index error produced by `f`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a worker fails to write a slot at or below the first error.
+    pub fn map_indexed_with_scratch<T, S, E, F>(
+        &self,
+        n: usize,
+        make_scratch: impl Fn() -> S + Sync,
+        f: F,
+    ) -> Result<Vec<T>, E>
+    where
+        T: Send,
+        S: Send,
+        E: Send,
+        F: Fn(usize, &Self, &mut S) -> Result<T, E> + Sync,
+    {
         if n == 0 {
             return Ok(Vec::new());
         }
         let threads = self.map_worker_count(n);
         if threads <= 1 {
-            return (0..n).map(|index| f(index, self)).collect();
+            let mut scratch = make_scratch();
+            return (0..n).map(|index| f(index, self, &mut scratch)).collect();
         }
         let Ok(worker_threads) = u32::try_from(threads) else {
-            return (0..n).map(|index| f(index, self)).collect();
+            let mut scratch = make_scratch();
+            return (0..n).map(|index| f(index, self, &mut scratch)).collect();
         };
         let Ok(lease) = self.acquire_map_lease(worker_threads) else {
-            return (0..n).map(|index| f(index, self)).collect();
+            let mut scratch = make_scratch();
+            return (0..n).map(|index| f(index, self, &mut scratch)).collect();
         };
         let inner = self.serial_inner();
         let mut slots: Vec<Option<Result<T, E>>> = (0..n).map(|_| None).collect();
-        // Lowest index known to have failed. A serial run stops at the first error,
-        // so an item above a known failure can no longer change the result and is
-        // skipped; items below it still run, so the returned error is always the
-        // lowest-index one regardless of thread count or scheduling.
         let first_failure = AtomicUsize::new(usize::MAX);
         std::thread::scope(|scope| {
             let f = &f;
             let inner = &inner;
             let first_failure = &first_failure;
+            let make_scratch = &make_scratch;
             let mut rest = slots.as_mut_slice();
             let mut start = 0usize;
             for t in 0..threads {
@@ -1523,12 +1530,13 @@ impl ExecutionContext {
                 let (mine, next) = rest.split_at_mut(take);
                 let begin = start;
                 scope.spawn(move || {
+                    let mut scratch = make_scratch();
                     for (k, slot) in mine.iter_mut().enumerate() {
                         let index = begin + k;
                         if first_failure.load(Ordering::Relaxed) < index {
                             break;
                         }
-                        let outcome = f(index, inner);
+                        let outcome = f(index, inner, &mut scratch);
                         if outcome.is_err() {
                             first_failure.fetch_min(index, Ordering::Relaxed);
                         }
@@ -1542,7 +1550,6 @@ impl ExecutionContext {
                 }
             }
         });
-        // Unfilled slots exist only above the lowest failure, which `collect` reaches first.
         drop(lease);
         slots
             .into_iter()
@@ -1563,18 +1570,10 @@ impl ExecutionContext {
         requested.min(pool_slots)
     }
 
-    /// RAM bytes a parallel [`Self::map_indexed`] reserves on its one lease.
-    fn map_lease_bytes(&self) -> u64 {
-        let Some(limit) = self.memory.hard_limit_bytes else {
-            return 0;
-        };
-        limit.min(self.admission().byte_budget())
-    }
-
     fn acquire_map_lease(&self, threads: u32) -> Result<AdmissionLease, AdmissionError> {
-        let request = AdmissionRequest::new(threads, self.map_lease_bytes());
+        let request = AdmissionRequest::new(threads, 0);
         admit(
-            &self.cancellation.admission_pool().shared,
+            &self.admission.shared,
             request,
             &self.cancellation.cancel_flag(),
             &self.cancellation.flag,
@@ -1591,16 +1590,14 @@ impl ExecutionContext {
     #[must_use]
     pub fn production(seed: u64, max_threads: u32) -> Self {
         let threads =
-            NonZeroThreadCount::new(max_threads.max(1)).unwrap_or_else(NonZeroThreadCount::one);
+            NonZeroThreadCount::new(max_threads.max(1)).unwrap_or(NonZeroThreadCount::MIN);
         Self {
             parallelism: Parallelism::bounded(threads),
             determinism: Determinism::Strict,
             rng: RngFactory::from_seed(seed),
             memory: MemoryBudget::unlimited(),
-            cancellation: CancellationToken::with_pool(AdmissionPool::fixed(
-                threads.get(),
-                u64::MAX,
-            )),
+            admission: AdmissionPool::fixed(threads.get(), u64::MAX),
+            cancellation: CancellationToken::new(),
             progress: None,
             kernel_policy: KernelPolicy::default_policy(),
             cache_policy: CachePolicy::enabled(None),
@@ -1609,31 +1606,31 @@ impl ExecutionContext {
         }
     }
 
-    /// Install `pool` for this context and every clone of its cancellation token.
+    /// Install `pool` on this context.
     ///
-    /// Later acquires, including [`Self::map_indexed`], decrement `pool`.
-    /// [`Self::memory`] is left unchanged.
+    /// Later acquires, including [`Self::map_indexed`], decrement `pool`. A clone taken
+    /// before this call keeps the pool it already held. [`Self::memory`] is not an
+    /// admission account and is left unchanged.
     #[must_use]
-    pub fn with_admission(self, pool: AdmissionPool) -> Self {
-        self.cancellation.set_pool(pool);
+    pub fn with_admission(mut self, pool: AdmissionPool) -> Self {
+        self.admission = pool;
         self
     }
 
     /// The pool later acquires decrement.
     #[must_use]
     pub fn admission(&self) -> AdmissionPool {
-        self.cancellation.admission_pool()
+        self.admission.clone()
     }
 
     /// Take a root lease from [`Self::admission`], decrementing that pool.
     ///
     /// # Errors
     ///
-    /// [`AdmissionError::ExceedsRemainder`] when the pool's remainder is short,
-    /// or when `bytes` is above [`MemoryBudget::hard_limit_bytes`]. That refusal
-    /// charges neither the pool nor the budget. [`AdmissionError::Cancelled`]
-    /// when this context is already cancelled. [`AdmissionError::Overflow`] when
-    /// the lease id does not fit in `u64`.
+    /// [`AdmissionError::ExceedsRemainder`] when the pool's remainder is short.
+    /// That refusal charges nothing. [`MemoryBudget`] is not consulted.
+    /// [`AdmissionError::Cancelled`] when this context is already cancelled.
+    /// [`AdmissionError::Overflow`] when the lease id does not fit in `u64`.
     ///
     /// # Examples
     ///
@@ -1694,18 +1691,12 @@ impl ExecutionContext {
         request: AdmissionRequest,
         bound: Option<Duration>,
     ) -> Result<AdmissionLease, AdmissionError> {
-        if let Some(limit) =
-            self.memory.hard_limit_bytes.filter(|hard| request.bytes() > *hard)
-        {
-            let free = self.admission().available();
-            return Err(exceeds(request, free.threads(), limit));
-        }
         let wait = match bound {
             Some(bound) => AdmissionWait::Bounded(bound),
             None => AdmissionWait::Immediate,
         };
         admit(
-            &self.cancellation.admission_pool().shared,
+            &self.admission.shared,
             request,
             &self.cancellation.cancel_flag(),
             &self.cancellation.flag,
@@ -1981,6 +1972,108 @@ mod tests {
         assert!(ExecutionRequestState::Completed.publishes_claim());
         let receipt = ExecutionReceipt::new(first, ExecutionRequestState::Cancelled);
         assert_eq!(receipt.state.as_str(), "cancelled");
+    }
+
+    #[test]
+    fn production_token_does_not_trip_and_with_admission_keeps_clones() {
+        let token = CancellationToken::new();
+        for _ in 0..8 {
+            assert!(!token.is_cancelled());
+        }
+        assert!(!format!("{token:?}").contains("trip"));
+        let tripping = CancellationToken::cancel_after_checks(0);
+        assert!(tripping.is_cancelled());
+
+        let original = AdmissionPool::fixed(2, 10);
+        let study = ExecutionContext::for_tests(1).with_admission(original.clone());
+        let clone = study.clone();
+        let replacement = AdmissionPool::fixed(8, 80);
+        let moved = clone.with_admission(replacement.clone());
+        assert_eq!(study.admission().thread_budget(), 2);
+        assert_eq!(moved.admission().thread_budget(), 8);
+        let _lease = moved.acquire_admission(8, 80).unwrap();
+        assert_eq!(original.available().threads(), 2);
+        assert_eq!(replacement.available().threads(), 0);
+    }
+
+    #[test]
+    fn credit_overflow_panics_and_leaves_the_lease() {
+        let mut state = AdmissionState {
+            thread_budget: u32::MAX,
+            byte_budget: 0,
+            threads_free: u32::MAX,
+            bytes_free: 0,
+            leases: vec![LeaseSlot {
+                id: 7,
+                parent: None,
+                threads: 1,
+                bytes: 0,
+                flag: Arc::new(AtomicBool::new(false)),
+            }],
+            next_id: 8,
+            blocked_waiters: 0,
+        };
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            close_slot(&mut state, 0);
+        }));
+        assert!(panicked.is_err());
+        assert_eq!(state.leases.len(), 1);
+        assert_eq!(state.leases[0].id, 7);
+    }
+
+    #[test]
+    fn reap_cancelled_releases_every_flagged_lease_without_restarting() {
+        let flag = Arc::new(AtomicBool::new(true));
+        let keep = Arc::new(AtomicBool::new(false));
+        let mut state = AdmissionState {
+            thread_budget: 10,
+            byte_budget: 100,
+            threads_free: 4,
+            bytes_free: 40,
+            leases: vec![
+                LeaseSlot { id: 1, parent: None, threads: 2, bytes: 20, flag: Arc::clone(&flag) },
+                LeaseSlot { id: 2, parent: None, threads: 3, bytes: 30, flag: Arc::clone(&keep) },
+                LeaseSlot { id: 3, parent: None, threads: 1, bytes: 10, flag: Arc::clone(&flag) },
+            ],
+            next_id: 4,
+            blocked_waiters: 0,
+        };
+        assert!(reap_cancelled(&mut state));
+        assert_eq!(state.leases.len(), 1);
+        assert_eq!(state.leases[0].id, 2);
+        assert_eq!(state.threads_free, 7);
+        assert_eq!(state.bytes_free, 70);
+        assert!(!reap_cancelled(&mut state));
+        assert_eq!(state.leases.len(), 1);
+    }
+
+    #[test]
+    fn map_indexed_with_scratch_reuses_one_buffer_per_worker() {
+        let ctx = ExecutionContext::production(1, 4);
+        let built = AtomicUsize::new(0);
+        let out = ctx
+            .map_indexed_with_scratch(
+                8,
+                || {
+                    built.fetch_add(1, Ordering::SeqCst);
+                    Vec::<usize>::new()
+                },
+                |index, inner, scratch| {
+                    assert_eq!(inner.parallelism.max_threads.get(), 1);
+                    scratch.push(index);
+                    Ok::<_, ()>(scratch.clone())
+                },
+            )
+            .unwrap();
+        assert!(built.load(Ordering::SeqCst) <= 4);
+        assert!(built.load(Ordering::SeqCst) >= 1);
+        assert_eq!(
+            out.iter()
+                .map(|row| *row.last().expect("scratch recorded the index"))
+                .collect::<Vec<_>>(),
+            (0..8).collect::<Vec<_>>()
+        );
+        assert!(out.iter().any(|row| row.len() > 1), "a worker reused its scratch");
     }
 
     #[test]
@@ -2324,7 +2417,7 @@ mod tests {
         let _release = Release(Arc::clone(&hold));
         let started = Instant::now();
         loop {
-            let held = shared.available() == AdmissionRemainder::zero();
+            let held = shared.available().threads() == 0;
             let waiting = shared.blocked_waiters() >= 1;
             if hold.entered() == 2 && held && waiting {
                 break;
@@ -2364,7 +2457,8 @@ mod tests {
             })
         });
         entered.wait();
-        assert_eq!(shared.available(), AdmissionRemainder::zero());
+        assert_eq!(shared.available().threads(), 0);
+        assert_eq!(shared.available().bytes(), 64);
         ctx.cancellation.cancel();
         assert_eq!(shared.available(), AdmissionRemainder::new(2, 64));
         finish.wait();
@@ -2398,7 +2492,8 @@ mod tests {
         let ctx = parallel_context(&shared, 1);
         let output = ctx
             .map_indexed(2, |index, inner| {
-                let nested = inner.map_indexed(2, |inner_index, _inner| Ok::<_, ()>(inner_index))?;
+                let nested =
+                    inner.map_indexed(2, |inner_index, _inner| Ok::<_, ()>(inner_index))?;
                 Ok::<_, ()>((index, nested))
             })
             .unwrap();

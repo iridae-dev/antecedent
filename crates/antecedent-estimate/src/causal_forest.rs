@@ -272,7 +272,10 @@ impl CausalForest {
         let shape = TreeShape { min_leaf: self.min_leaf, max_depth: self.max_depth };
         let honesty = self.honesty;
         let trees = ctx.map_indexed(self.n_trees, |b, inner| {
-            let mut rng = inner.rng.stream_for(StreamDomain::Estimate, 0xC0F0_0000_u64 ^ b as u64);
+            let mut rng = inner.rng.stream_for(
+                StreamDomain::Estimate,
+                antecedent_core::derive_stream(0xC0F0_0000, b as u64),
+            );
             Ok::<_, EstimationError>(grow_tree(&data, shape, honesty, &mut rng))
         })?;
         let ForestCate { cate, hits, leaf_dispersion, se_complete } =

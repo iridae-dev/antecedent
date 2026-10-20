@@ -54,10 +54,6 @@
     )
 )]
 
-use std::borrow::Cow;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
 };
@@ -70,6 +66,8 @@ use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GlmOptions, LeastSquaresWorkspace, PropensityWorkspace,
 };
+use std::borrow::Cow;
+use std::sync::Arc;
 
 use crate::adjustment::EffectEstimate;
 use crate::bootstrap_wave::retained_index_slots;
@@ -1683,55 +1681,11 @@ where
         ) -> Result<PenalizedDraw, EstimationError>
         + Sync,
 {
-    if n_rep == 0 {
-        return Ok(Vec::new());
-    }
-    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
-    if threads == 1 {
-        let mut ids = Vec::new();
-        let mut idx = Vec::new();
-        return (0..n_rep).map(|r| f(r, ctx, &mut ids, &mut idx)).collect();
-    }
-    let inner = ctx.serial_inner();
-    let mut slots: Vec<Option<Result<PenalizedDraw, EstimationError>>> =
-        (0..n_rep).map(|_| None).collect();
-    let first_failure = AtomicUsize::new(usize::MAX);
-    std::thread::scope(|scope| {
-        let f = &f;
-        let inner = &inner;
-        let first_failure = &first_failure;
-        let mut rest = slots.as_mut_slice();
-        let mut start = 0usize;
-        for t in 0..threads {
-            let take = rest.len().div_ceil(threads - t);
-            let (mine, next) = rest.split_at_mut(take);
-            let begin = start;
-            scope.spawn(move || {
-                let mut ids = Vec::new();
-                let mut idx = Vec::new();
-                for (k, slot) in mine.iter_mut().enumerate() {
-                    let index = begin + k;
-                    if first_failure.load(Ordering::Relaxed) < index {
-                        break;
-                    }
-                    let outcome = f(index, inner, &mut ids, &mut idx);
-                    if outcome.is_err() {
-                        first_failure.fetch_min(index, Ordering::Relaxed);
-                    }
-                    *slot = Some(outcome);
-                }
-            });
-            rest = next;
-            start += take;
-            if rest.is_empty() {
-                break;
-            }
-        }
-    });
-    slots
-        .into_iter()
-        .map(|slot| slot.expect("every index below the first error was filled"))
-        .collect()
+    ctx.map_indexed_with_scratch(
+        n_rep,
+        || (Vec::new(), Vec::new()),
+        |replicate, inner, scratch| f(replicate, inner, &mut scratch.0, &mut scratch.1),
+    )
 }
 
 /// The problem a penalized refit bootstrap resamples.

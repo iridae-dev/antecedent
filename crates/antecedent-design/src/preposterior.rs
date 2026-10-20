@@ -638,7 +638,10 @@ pub(crate) struct EvsiMonteCarlo {
 /// Generator of one Monte Carlo EVSI replicate, keyed by the semantic coordinates
 /// `(purpose, replicate)` under the run seed; shared across candidates.
 pub(crate) fn evsi_replicate_rng(rng: &RngFactory, replicate: u64) -> CausalRng {
-    rng.stream_for(StreamDomain::Design, mix64(EVSI_REPLICATE_PURPOSE ^ replicate))
+    rng.stream_for(
+        StreamDomain::Design,
+        mix64(antecedent_core::derive_stream(EVSI_REPLICATE_PURPOSE, replicate)),
+    )
 }
 
 /// Typed length-delimited digest of the replicate-stream coordinates.

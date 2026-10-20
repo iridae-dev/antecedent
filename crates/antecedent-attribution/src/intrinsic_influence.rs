@@ -1069,7 +1069,10 @@ fn fit_component(
         }
         let mut rng = worker
             .rng
-            .stream_for(StreamDomain::Attribution, stream_tag(FIT_STREAM, query.seed ^ r as u64));
+            .stream_for(
+                StreamDomain::Attribution,
+                stream_tag(FIT_STREAM, antecedent_core::derive_stream(query.seed, r as u64)),
+            );
         #[allow(
             clippy::cast_possible_truncation,
             clippy::cast_sign_loss,

@@ -454,9 +454,9 @@ impl BayesianGComputationAte {
             BackendInputs { likelihood, design: design_ref, prior: &prior, opts, max_draws }
                 .fit(self.backend, workspace, ctx)
                 .map_err(prob_err)?;
-        if let Some(error) = fit.diagnostics.publication_error(
-            "Bayesian fit refused without diagnostics",
-        ) {
+        if let Some(error) =
+            fit.diagnostics.publication_error("Bayesian fit refused without diagnostics")
+        {
             return Err(error.into());
         }
         fit.diagnostics.notes.extend(extra_notes);

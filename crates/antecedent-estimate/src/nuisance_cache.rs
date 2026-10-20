@@ -192,6 +192,23 @@ pub enum NuisanceCacheError {
          next attempt: pass one fold and one value per row"
     )]
     UnalignedPredictions,
+    /// The cache already holds its entry or byte bound.
+    #[error(
+        "nuisance cache holds {entries} entries and {bytes} bytes, at its bound; \
+         next attempt: drop the cache or store fewer fits"
+    )]
+    CacheBound {
+        /// Entries retained before this store.
+        entries: usize,
+        /// Bytes retained before this store.
+        bytes: u64,
+    },
+    /// A worker asked the thread-local certified scope, which that worker cannot see.
+    #[error(
+        "a parallel worker cannot use the thread-local certified cache; \
+         next attempt: pass the cache into the worker"
+    )]
+    ParallelWorker,
 }
 
 /// One field of a [`NuisanceCacheKey`].
@@ -750,16 +767,42 @@ impl CertifiedNuisanceFit {
 /// Exact-key cache of certified nuisance predictions.
 ///
 /// A hit requires every key field to match. This cache does not fit a model.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct NuisanceCache {
-    entries: BTreeMap<NuisanceCacheKey, BTreeMap<NuisanceRole, CertifiedNuisanceFit>>,
+    entries: BTreeMap<SemanticDigest, BTreeMap<NuisanceRole, CertifiedNuisanceFit>>,
+    retained_bytes: u64,
+    max_entries: usize,
+    max_bytes: u64,
+}
+
+/// Entries one cache retains before the next store is refused.
+const MAX_CACHE_ENTRIES: usize = 256;
+
+/// Bytes of stored prediction rows one cache retains before the next store is refused.
+const MAX_CACHE_BYTES: u64 = 1 << 20;
+
+impl Default for NuisanceCache {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NuisanceCache {
-    /// An empty cache.
+    /// An empty cache with the entry and byte bounds.
     #[must_use]
     pub const fn new() -> Self {
-        Self { entries: BTreeMap::new() }
+        Self {
+            entries: BTreeMap::new(),
+            retained_bytes: 0,
+            max_entries: MAX_CACHE_ENTRIES,
+            max_bytes: MAX_CACHE_BYTES,
+        }
+    }
+
+    /// An empty cache that refuses the store after `max_entries` or `max_bytes`.
+    #[must_use]
+    pub const fn with_bounds(max_entries: usize, max_bytes: u64) -> Self {
+        Self { entries: BTreeMap::new(), retained_bytes: 0, max_entries, max_bytes }
     }
 
     /// Store blocked out-of-fold predictions under `key` and `role`.
@@ -782,12 +825,24 @@ impl NuisanceCache {
         blocks: &[BlockedOutOfFoldPredictions],
     ) -> Result<CertifiedNuisanceFit, NuisanceCacheError> {
         let prepared = prepare_blocks(key.folds(), blocks)?;
-        match self.entries.get(key).and_then(|roles| roles.get(&role)) {
+        let lookup = lookup_digest(key);
+        match self.entries.get(&lookup).and_then(|roles| roles.get(&role)) {
             Some(existing) if existing.blocks.as_ref() == prepared.as_ref() => Ok(existing.clone()),
             Some(_) => Err(NuisanceCacheError::ConflictingFit),
             None => {
+                let added = prediction_bytes(&prepared);
+                let new_entry = !self.entries.contains_key(&lookup);
+                if (new_entry && self.entries.len() >= self.max_entries)
+                    || self.retained_bytes.saturating_add(added) > self.max_bytes
+                {
+                    return Err(NuisanceCacheError::CacheBound {
+                        entries: self.entries.len(),
+                        bytes: self.retained_bytes,
+                    });
+                }
                 let certified = CertifiedNuisanceFit { key: key.clone(), role, blocks: prepared };
-                self.entries.entry(key.clone()).or_default().insert(role, certified.clone());
+                self.entries.entry(lookup).or_default().insert(role, certified.clone());
+                self.retained_bytes = self.retained_bytes.saturating_add(added);
                 Ok(certified)
             }
         }
@@ -805,7 +860,7 @@ impl NuisanceCache {
         key: &NuisanceCacheKey,
         role: NuisanceRole,
     ) -> Result<&CertifiedNuisanceFit, NuisanceCacheError> {
-        let roles = self.entries.get(key).ok_or(NuisanceCacheError::Miss)?;
+        let roles = self.entries.get(&lookup_digest(key)).ok_or(NuisanceCacheError::Miss)?;
         roles.get(&role).ok_or(NuisanceCacheError::UnknownRole)
     }
 
@@ -1672,6 +1727,7 @@ struct ActiveCertification {
 std::thread_local! {
     static CERTIFIED: std::cell::RefCell<Option<ActiveCertification>> =
         const { std::cell::RefCell::new(None) };
+    static IN_PARALLEL_WORKER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 struct CertificationGuard<'a> {
@@ -1765,7 +1821,30 @@ where
     E: Send,
     F: Fn(usize, &ExecutionContext, &NuisanceCache) -> Result<T, E> + Sync,
 {
-    ctx.map_indexed(n, |index, inner| work(index, inner, cache))
+    ctx.map_indexed(n, |index, inner| {
+        let parallel = ctx.parallelism.max_threads.get() > 1;
+        let _guard = parallel.then(ParallelWorkerGuard::enter);
+        work(index, inner, cache)
+    })
+}
+
+struct ParallelWorkerGuard;
+
+impl ParallelWorkerGuard {
+    fn enter() -> Self {
+        IN_PARALLEL_WORKER.with(|flag| flag.set(true));
+        Self
+    }
+}
+
+impl Drop for ParallelWorkerGuard {
+    fn drop(&mut self) {
+        IN_PARALLEL_WORKER.with(|flag| flag.set(false));
+    }
+}
+
+fn ambient_cache_refused() -> bool {
+    IN_PARALLEL_WORKER.with(|flag| flag.get())
 }
 
 /// Whether [`with_certified_cache`] is active on this thread.
@@ -1794,6 +1873,9 @@ pub fn restore_active(
     evaluation_fold: u32,
     row_ids: &[u64],
 ) -> Result<Option<Vec<f64>>, NuisanceCacheError> {
+    if ambient_cache_refused() {
+        return Err(NuisanceCacheError::ParallelWorker);
+    }
     let Some((cache, key)) = active_cache_and_key() else {
         return Ok(None);
     };
@@ -1816,6 +1898,9 @@ pub fn store_active(
     role: NuisanceRole,
     blocks: &[BlockedOutOfFoldPredictions],
 ) -> Result<(), NuisanceCacheError> {
+    if ambient_cache_refused() {
+        return Err(NuisanceCacheError::ParallelWorker);
+    }
     let Some((cache, key)) = active_cache_and_key() else {
         return Ok(());
     };
@@ -1884,6 +1969,32 @@ fn finite(field: &'static str, values: &[f64]) -> Result<(), NuisanceCacheError>
     Ok(())
 }
 
+fn prediction_bytes(blocks: &[BlockedOutOfFoldPredictions]) -> u64 {
+    let rows: usize = blocks.iter().map(|block| block.rows().len()).sum();
+    let width = u64::try_from(size_of::<u64>()).unwrap_or(8);
+    u64::try_from(rows).unwrap_or(u64::MAX).saturating_mul(width)
+}
+
+/// Lookup identity. The fold assignment is hashed here; the cache map is keyed
+/// by this digest, not by the assignment value.
+fn lookup_digest(key: &NuisanceCacheKey) -> SemanticDigest {
+    let mut writer = CanonicalWriter::new("antecedent.estimate.nuisance.lookup");
+    writer.bytes(key.outcome_digest().as_bytes());
+    writer.bytes(key.weight_digest().as_bytes());
+    writer.bytes(key.options_digest().as_bytes());
+    writer.word(key.seed());
+    writer.word(key.design().id().raw());
+    let folds = key.folds();
+    writer.word(u64::from(folds.fold_count()));
+    for row in folds.rows() {
+        writer.word(row.row_id()).word(u64::from(row.fold()));
+    }
+    for held_out in folds.held_out() {
+        writer.word(*held_out);
+    }
+    SemanticDigest::from_bytes(writer.finish())
+}
+
 fn digest_reals(tag: &str, values: &[f64]) -> SemanticDigest {
     SemanticDigest::from_bytes(CanonicalWriter::new(tag).reals(values).finish())
 }
@@ -1915,8 +2026,7 @@ fn digest_options(policy: NumericalPolicy, options: &[f64]) -> SemanticDigest {
 const fn leading_word(digest: SemanticDigest) -> u64 {
     let bytes = digest.as_bytes();
     u64::from_le_bytes([
-        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6],
-        bytes[7],
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
     ])
 }
 
@@ -2429,8 +2539,8 @@ mod tests {
     }
 
     fn parallel_context() -> ExecutionContext {
-        let mut ctx = ExecutionContext::for_tests(11)
-            .with_admission(AdmissionPool::fixed(2, u64::MAX));
+        let mut ctx =
+            ExecutionContext::for_tests(11).with_admission(AdmissionPool::fixed(2, u64::MAX));
         ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(2).unwrap());
         ctx
     }
@@ -2455,21 +2565,17 @@ mod tests {
     fn expect_indexed_miss(base: &NuisanceCacheKey, changed: &NuisanceCacheKey, field: KeyField) {
         assert_eq!(base.mismatch(changed), Some(field));
         let mut cache = NuisanceCache::new();
-        cache
-            .store_certified(base, NuisanceRole::Treatment, &[fold_zero_predictions()])
-            .unwrap();
+        cache.store_certified(base, NuisanceRole::Treatment, &[fold_zero_predictions()]).unwrap();
         let ctx = parallel_context();
         map_indexed(&ctx, &cache, 2, |_index, _inner, cache| {
             assert!(!super::certification_requested());
-            let error = cache
-                .restore_rows(changed, NuisanceRole::Treatment, 0, &[30, 10, 20])
-                .unwrap_err();
+            let error =
+                cache.restore_rows(changed, NuisanceRole::Treatment, 0, &[30, 10, 20]).unwrap_err();
             assert_eq!(error, NuisanceCacheError::Miss);
             Ok::<(), NuisanceCacheError>(())
         })
         .unwrap();
-        let restored =
-            cache.restore_rows(base, NuisanceRole::Treatment, 0, &[30, 10, 20]).unwrap();
+        let restored = cache.restore_rows(base, NuisanceRole::Treatment, 0, &[30, 10, 20]).unwrap();
         assert_eq!(value_bits(&restored), stored_bits());
     }
 
@@ -2500,6 +2606,25 @@ mod tests {
     }
 
     #[test]
+    fn options_change_misses_under_map_indexed() {
+        let folds = estimation_folds();
+        let outcome = [1.0f64, 2.0, 3.0, 4.0];
+        let base = derived(&outcome, None, 11, &folds);
+        let treatment = [0.0f64, 1.0, 0.0, 1.0];
+        let design = [1.0f64, 1.0, 1.0, 1.0, 0.2, 0.4, 0.6, 0.8];
+        let options = [0.5f64];
+        let columns =
+            NuisanceColumns::try_new(&outcome, &treatment, &design, &options, None).unwrap();
+        let inputs =
+            NuisanceInputs::try_new(columns, 11, &folds, "arm", NumericalPolicy::strict()).unwrap();
+        let changed = NuisanceCacheKey::from_inputs(&inputs).unwrap();
+        assert_eq!(base.outcome_digest(), changed.outcome_digest());
+        assert_eq!(base.seed(), changed.seed());
+        assert_ne!(base.options_digest(), changed.options_digest());
+        expect_indexed_miss(&base, &changed, KeyField::Numerical);
+    }
+
+    #[test]
     fn seed_change_misses_under_map_indexed() {
         let folds = estimation_folds();
         let outcome = [1.0f64, 2.0, 3.0, 4.0];
@@ -2512,14 +2637,80 @@ mod tests {
     }
 
     #[test]
+    fn cache_refuses_the_next_store_at_its_bounds() {
+        let folds = estimation_folds();
+        let outcome = [1.0f64, 2.0, 3.0, 4.0];
+        let key = derived(&outcome, None, 11, &folds);
+        let mut cache = NuisanceCache::with_bounds(1, u64::MAX);
+        cache.store_certified(&key, NuisanceRole::Treatment, &[fold_zero_predictions()]).unwrap();
+        let other = derived(&outcome, None, 12, &folds);
+        let error = cache
+            .store_certified(&other, NuisanceRole::Treatment, &[fold_zero_predictions()])
+            .unwrap_err();
+        assert!(matches!(error, NuisanceCacheError::CacheBound { entries: 1, .. }), "{error}");
+        let mut tight = NuisanceCache::with_bounds(8, 1);
+        let bytes = tight
+            .store_certified(&key, NuisanceRole::Outcome { level: 0 }, &[fold_zero_predictions()])
+            .unwrap_err();
+        assert!(matches!(bytes, NuisanceCacheError::CacheBound { bytes: 0, .. }), "{bytes}");
+    }
+
+    #[test]
+    fn parallel_worker_refuses_the_ambient_cache() {
+        let ctx = parallel_context();
+        let cache = NuisanceCache::new();
+        map_indexed(&ctx, &cache, 2, |_index, _inner, _cache| {
+            let error = super::restore_active(NuisanceRole::Treatment, 0, &[10]).unwrap_err();
+            assert_eq!(error, NuisanceCacheError::ParallelWorker);
+            Ok::<(), NuisanceCacheError>(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn aipw_dml_and_policy_share_one_certified_store() {
+        let calls = std::cell::Cell::new(0u64);
+        let key = base_key();
+        let requests = [
+            request(EstimatorFamily::Aipw, 1, key.clone()),
+            request(EstimatorFamily::Dml, 1, key.clone()),
+            request(EstimatorFamily::Policy, 1, key),
+        ];
+        let mut cache = NuisanceCache::new();
+        let execution = super::execute_family_requests(
+            EstimatorFamily::Aipw,
+            &mut cache,
+            &requests[..1],
+            produce(&calls),
+        )
+        .unwrap();
+        assert_receipt(&execution, 1, 1, 0);
+        let again = super::execute_family_requests(
+            EstimatorFamily::Dml,
+            &mut cache,
+            &requests[1..2],
+            produce(&calls),
+        )
+        .unwrap();
+        assert_receipt(&again, 0, 0, 1);
+        let policy = super::execute_family_requests(
+            EstimatorFamily::Policy,
+            &mut cache,
+            &requests[2..],
+            produce(&calls),
+        )
+        .unwrap();
+        assert_receipt(&policy, 0, 0, 1);
+        assert_eq!(calls.get(), 1);
+    }
+
+    #[test]
     fn parallel_worker_sees_the_cache_it_was_passed() {
         let folds = estimation_folds();
         let outcome = [1.0f64, 2.0, 3.0, 4.0];
         let key = derived(&outcome, None, 11, &folds);
         let mut passed = NuisanceCache::new();
-        passed
-            .store_certified(&key, NuisanceRole::Treatment, &[fold_zero_predictions()])
-            .unwrap();
+        passed.store_certified(&key, NuisanceRole::Treatment, &[fold_zero_predictions()]).unwrap();
         let decoy_block = BlockedOutOfFoldPredictions::try_new(
             0,
             &[

@@ -102,16 +102,16 @@ pub fn bayesian_sequential_regime_value(
     options: ScorePosteriorOptions,
     ctx: &ExecutionContext,
 ) -> Result<SequentialRegimeValuePosterior, EstimationError> {
-    let (summary, scores) =
-        evaluate_sequential_dr_value_with_subject_scores(outcomes, histories, sequential).map_err(
-            |error| match error.route() {
-                Some(record) => EstimationError::Prob(antecedent_prob::ProbError::Route {
-                    summary: error.message().to_owned(),
-                    diagnostics: vec![record],
-                }),
-                None => EstimationError::data_msg(error.message()),
-            },
-        )?;
+    let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
+        outcomes, histories, sequential,
+    )
+    .map_err(|error| match error.route() {
+        Some(record) => EstimationError::Prob(antecedent_prob::ProbError::Route {
+            summary: error.message().to_owned(),
+            diagnostics: vec![record],
+        }),
+        None => EstimationError::data_msg(error.message()),
+    })?;
     let value =
         bayesian_bootstrap_score_posteriors(&[&scores], options, ctx)?
             .into_iter()
@@ -311,9 +311,11 @@ mod tests {
         else {
             panic!("positivity is a route record, not another error: {error}");
         };
-        assert!(diagnostics.iter().any(|record| {
-            record.failed() && record.route_name() == "positivity"
-        }));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|record| { record.failed() && record.route_name() == "positivity" })
+        );
         assert!(diagnostics.iter().all(|record| record.route_name() != "censoring"));
         assert!(diagnostics.iter().all(|record| !record.is_unsupported_inference()));
     }
@@ -347,9 +349,11 @@ mod tests {
         else {
             panic!("censoring is a route record, not another error: {error}");
         };
-        assert!(diagnostics.iter().any(|record| {
-            record.failed() && record.route_name() == "censoring"
-        }));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|record| { record.failed() && record.route_name() == "censoring" })
+        );
         assert!(diagnostics.iter().all(|record| record.route_name() != "positivity"));
         assert!(diagnostics.iter().all(|record| !record.is_model_restriction()));
         assert!(diagnostics.iter().all(|record| !record.is_unsupported_inference()));

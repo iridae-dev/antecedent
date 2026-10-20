@@ -66,7 +66,7 @@ struct SparseProblem {
 }
 
 fn faer_scope(workers: u32) -> FaerScope {
-    let scope = FaerScope::try_new(workers, u64::MAX).expect("at least one worker");
+    let scope = FaerScope::try_new(workers).expect("at least one worker");
     let degree = scope.parallelism();
     if workers == 1 {
         assert!(matches!(degree, Par::Seq), "one worker must stay on the serial path");

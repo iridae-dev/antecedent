@@ -48,7 +48,7 @@ fn one_shot_aipw_matches_prepared_and_nearby_linear_stays_supported() {
 fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise() {
     const LEGACY_ATE_BITS: u64 = 0x3fff_e021_1571_42a3;
     const LEGACY_SE_BITS: u64 = 0x3fa6_00b0_1a9f_2da1;
-    const LEGACY_SE_BOOTSTRAP_BITS_8_REPLICATES: u64 = 4_586_416_601_391_101_200;
+    const LEGACY_SE_BOOTSTRAP_BITS_8_REPLICATES: u64 = 4_588_854_293_953_141_936;
     let overlap = antecedent_estimate::OverlapPolicy::RequireDiagnostics {
         clip: Some(0.01),
         trim: Some(0.02),
@@ -140,8 +140,8 @@ fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise()
     }
 }
 
-/// Libm noise on a standard error near `0.04`. The measured glibc-versus-macOS
-/// gap on the bootstrap pin is about `3e-17`.
+/// Libm noise on a standard error near `0.06`. The measured glibc-versus-macOS
+/// gap on the previous bootstrap pin was about `3e-17`.
 fn near_pinned_se(actual: f64, pinned_bits: u64) -> bool {
     (actual - f64::from_bits(pinned_bits)).abs() <= 1e-14
 }

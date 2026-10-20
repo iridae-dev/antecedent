@@ -115,9 +115,6 @@ impl ExecutionContext {
         loop {
             let count = u64::try_from(workers).map_err(|_| ScratchRefusal::Overflow)?;
             let bytes = per_worker_bytes.checked_mul(count).ok_or(ScratchRefusal::Overflow)?;
-            if let Some(limit) = self.memory.hard_limit_bytes.filter(|limit| bytes > *limit) {
-                return Err(ScratchRefusal::HardLimit { bytes, limit });
-            }
             let threads = if workers > 1 {
                 u32::try_from(workers).map_err(|_| ScratchRefusal::Overflow)?
             } else {
@@ -135,6 +132,33 @@ impl ExecutionContext {
                     workers = next;
                 }
             }
+        }
+    }
+
+    /// Reserve index bytes for a batch whose workers are leased later by
+    /// [`Self::map_indexed_with_scratch`](crate::execution::ExecutionContext::map_indexed_with_scratch).
+    ///
+    /// The returned lease records the worker count and holds `workers * per_worker_bytes`.
+    /// It holds no CPU slots, so the map can take them without waiting on this lease.
+    ///
+    /// # Errors
+    ///
+    /// [`ScratchRefusal::Overflow`] when the byte product does not fit, and
+    /// [`ScratchRefusal::PoolShort`] when the pool cannot fund those bytes.
+    /// [`ScratchRefusal::Cancelled`] when the study is already cancelled.
+    pub fn admit_index_bytes(
+        &self,
+        work_items: usize,
+        per_worker_bytes: u64,
+    ) -> Result<ScratchLease, ScratchRefusal> {
+        let workers = self.capped_workers(work_items);
+        let count = u64::try_from(workers).map_err(|_| ScratchRefusal::Overflow)?;
+        let bytes = per_worker_bytes.checked_mul(count).ok_or(ScratchRefusal::Overflow)?;
+        match self.acquire_admission(0, bytes) {
+            Ok(held) => Ok(ScratchLease { held, workers, bytes }),
+            Err(AdmissionError::Cancelled) => Err(ScratchRefusal::Cancelled),
+            Err(AdmissionError::Overflow) => Err(ScratchRefusal::Overflow),
+            Err(_) => Err(ScratchRefusal::PoolShort { bytes }),
         }
     }
 }
@@ -207,11 +231,13 @@ mod tests {
     }
 
     #[test]
-    fn scratch_above_the_hard_limit_is_refused_without_a_lease() {
+    fn memory_budget_does_not_refuse_scratch_the_pool_can_fund() {
         let (mut ctx, pool) = pooled(2, 1 << 20);
         ctx.memory.hard_limit_bytes = Some(15);
-        let refused = ctx.admit_scratch(8, 8).unwrap_err();
-        assert_eq!(refused, ScratchRefusal::HardLimit { bytes: 16, limit: 15 });
+        let lease = ctx.admit_scratch(8, 8).unwrap();
+        assert_eq!(lease.workers(), 2);
+        assert_eq!(lease.bytes(), 16);
+        drop(lease);
         assert_eq!(pool.available().threads(), 2);
         assert_eq!(pool.available().bytes(), 1 << 20);
     }
