@@ -954,22 +954,20 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
 }
 
 /// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) refuses
-/// `ConditionalEffect` / `PathSpecificEffect` at `.build()`. Unconditional
-/// `InterventionalDistribution` on Admg is licensed separately.
+/// `PathSpecificEffect` at `.build()`. `ConditionalEffect` and the unconditional
+/// `InterventionalDistribution` on Admg are licensed separately.
 #[test]
-fn prepare_refuses_conditional_path_on_non_dag_graph() {
+fn prepare_refuses_path_specific_and_licenses_conditional_on_admg() {
+    let (data, _dag, cq) = conditional_effect_fixture();
     let mut admg = Admg::with_variables(3);
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-
-    let (data, _dag, cq) = conditional_effect_fixture();
-    let err = Study::tabular(data)
-        .graph(admg.clone())
+    Study::tabular(data)
+        .graph(admg)
         .query(CausalQuery::ConditionalEffect(cq))
         .refute(RefuteSuite::None)
         .build()
-        .unwrap_err();
-    assert!(err.to_string().contains("Dag"), "{err}");
+        .expect("the mixed-graph conditional effect is a licensed cell");
 
     let mut admg2 = Admg::with_variables(3);
     admg2.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -984,8 +982,6 @@ fn prepare_refuses_conditional_path_on_non_dag_graph() {
         .build()
         .unwrap_err();
     assert!(err.to_string().contains("Dag"), "{err}");
-
-    let _ = admg;
 }
 
 /// `PreparedStudy::refute` is licensed for `AverageEffect` only; a prepared

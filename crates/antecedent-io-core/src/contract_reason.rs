@@ -1111,11 +1111,15 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.checked_bayesian_dose_policy_operation",
     "dependencies.checked_bayesian_graph_posterior_ate_operation",
     "dependencies.checked_bayesian_iv_operation",
+    "dependencies.checked_bayesian_local_ratio_operation",
     "dependencies.checked_bayesian_mediation_operation",
+    "dependencies.checked_bayesian_panel_did_operation",
     "dependencies.checked_bayesian_quantile_operation",
+    "dependencies.checked_bayesian_randomized_operation",
     "dependencies.checked_bayesian_rd_operation",
     "dependencies.checked_bayesian_robust_ate_operation",
     "dependencies.checked_bayesian_survival_operation",
+    "dependencies.checked_bayesian_synthetic_control_operation",
     "dependencies.checked_bayesian_temporal_class_effect_operation",
     "dependencies.checked_bayesian_temporal_dag_effect_operation",
     "dependencies.checked_class_graph_posterior_effect_operation",
@@ -1288,9 +1292,13 @@ mod tests {
     fn reason_spellings_stay_unique_and_historical() {
         assert_eq!(ALL_CONTRACT_REASONS.len(), ALL_CONTRACT_REASON_SPELLINGS.len());
         let mut seen = std::collections::BTreeSet::new();
-        for (reason, spelling) in ALL_CONTRACT_REASONS.iter().zip(ALL_CONTRACT_REASON_SPELLINGS) {
-            assert_eq!(reason.as_str(), *spelling);
-            assert!(seen.insert(*spelling), "duplicate {spelling}");
+        for reason in ALL_CONTRACT_REASONS {
+            let spelling = reason.as_str();
+            assert!(
+                ALL_CONTRACT_REASON_SPELLINGS.binary_search(&spelling).is_ok(),
+                "{spelling} is not a historical spelling"
+            );
+            assert!(seen.insert(spelling), "duplicate {spelling}");
         }
         assert!(!ContractReason::BodyQuery.omitted_when_encoding());
         assert!(ContractReason::DependenciesCheckedGlmOperation.omitted_when_encoding());

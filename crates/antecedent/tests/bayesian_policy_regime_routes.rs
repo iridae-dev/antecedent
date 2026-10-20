@@ -156,6 +156,7 @@ fn binary_policy_posterior_names_its_estimator_and_refuses_unread_shapes() {
     let mut augmented = policy_query();
     augmented.mu0 = Arc::from([1.0; 4]);
     augmented.mu1 = Arc::from([2.0; 4]);
+    augmented.disjoint_training_subjects = true;
     let prepared = Study::tabular(data.clone())
         .query(CausalQuery::PolicyValue(augmented))
         .inference(bayesian())

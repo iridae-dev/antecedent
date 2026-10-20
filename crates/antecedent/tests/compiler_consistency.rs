@@ -123,11 +123,11 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
 /// Estimators that never run under the named inference mode on a static
 /// `AverageEffect`. Every other estimator either implements the requested
 /// mode or is refused for a different reason (identifier, query, data). The
-/// two matching estimators are refused under Bayesian inference with the typed
-/// matching-posterior boundary (`route_not_supported`), not as a mismatch.
+/// matching estimators and propensity weighting are refused under Bayesian inference with their
+/// typed posterior boundary (`route_not_supported`), not as a mismatch: matching has no
+/// likelihood and weighting has no outcome law to put a posterior on.
 const REFUSED_UNDER_BAYESIAN: &[&str] = &[
     "linear.adjustment.ate",
-    "propensity.weighting",
     "propensity.stratification",
     "aipw",
     "glm.adjustment",
@@ -146,6 +146,8 @@ const REFUSED_UNDER_BAYESIAN: &[&str] = &[
     "dml",
     "dr.learner",
     "causal.forest",
+    "policy.triangular_kernel_inverse_density",
+    "randomized.survival_product_limit",
 ];
 const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.gcomp",
@@ -159,11 +161,25 @@ const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "response.temporal.bayesian",
     "response.bayesian",
     "temporal.mediation.bayesian",
+    "bayesian.temporal.white_innovation_linear",
+    "bayesian.panel_did",
+    "bayesian.synthetic_control",
+    "bayesian.local_ratio",
+    "bayesian.piecewise_survival",
+    "bayesian.randomized_quantile",
+    "bayesian.continuous_dose_policy",
+    "bayesian.randomized_finite_population",
+    "bayesian.randomized_superpopulation",
+    "bayesian.switchback_effect",
+    "bayesian.binary_policy_value",
+    "bayesian.sequential_regime_value",
+    "bayesian.sequential_crossfit_contrast",
 ];
 
 #[test]
 fn estimator_inference_mismatch_is_refused_in_both_directions() {
     let (data, dag, query) = confounded_scm(64, 3);
+    let mut disagreements = Vec::new();
     for &estimator in EstimatorId::ALL {
         for (label, inference, refused) in [
             ("Bayesian", bayesian(), REFUSED_UNDER_BAYESIAN),
@@ -190,15 +206,16 @@ fn estimator_inference_mismatch_is_refused_in_both_directions() {
                     .err()
                     .and_then(|err| err.reason_code().map(str::to_string));
                 let expected = refused.contains(&estimator.as_str());
-                assert_eq!(
-                    code.as_deref() == Some("estimator_inference_mismatch"),
-                    expected,
-                    "{} under {label}: refusal code {code:?}",
-                    estimator.as_str()
-                );
+                if (code.as_deref() == Some("estimator_inference_mismatch")) != expected {
+                    disagreements.push(format!(
+                        "{} under {label}: refusal code {code:?}, expected mismatch {expected}",
+                        estimator.as_str()
+                    ));
+                }
             }
         }
     }
+    assert!(disagreements.is_empty(), "{disagreements:#?}");
 }
 
 #[test]

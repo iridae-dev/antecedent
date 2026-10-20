@@ -1098,6 +1098,21 @@ fn path_specific_fixture() -> (TabularData, Dag, PathSpecificEffectQuery) {
     (data, dag, query)
 }
 
+/// A cell the route table still refuses: a path-specific effect on an explicit mixed graph. The
+/// conditional effect on that graph is licensed, so it cannot stand in for a refusal.
+fn refused_admg_cell() -> antecedent::StudyBuilder {
+    let (data, _, query) = path_specific_fixture();
+    let mut admg = Admg::with_variables(3);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    Study::tabular(data)
+        .graph(admg)
+        .query(CausalQuery::PathSpecific(query))
+        .identifier(IdentifierId::PathSpecificNatural)
+        .estimator(EstimatorId::FunctionalEffect)
+        .bootstrap_replicates(0)
+}
+
 #[test]
 fn licensed_family_path_specific_frequentist_consumes() {
     let ctx = ExecutionContext::for_tests(1);
@@ -2226,41 +2241,19 @@ fn composition_adversarial_boundaries_refuse_stronger_claims() {
         })
     );
 
-    let (refused_data, _, refused_query) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let refused = Study::tabular(refused_data)
-        .graph(admg)
-        .query(CausalQuery::ConditionalEffect(refused_query))
-        .bootstrap_replicates(0)
-        .inspect()
-        .unwrap();
+    let refused = refused_admg_cell().inspect().unwrap();
     assert_eq!(refused.support_status.unwrap().as_str(), "refused");
     assert!(!matches!(refused.support_status.unwrap().as_str(), "licensed"));
 }
 
 #[test]
 fn licensed_family_refused_cell_inspects_as_structured_refusal() {
-    let (data, _, query) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let inspected = Study::tabular(data.clone())
-        .graph(admg.clone())
-        .query(CausalQuery::ConditionalEffect(query.clone()))
-        .bootstrap_replicates(0)
-        .inspect()
-        .unwrap();
+    let builder = refused_admg_cell();
+    let inspected = builder.clone().inspect().unwrap();
     assert_eq!(inspected.support_status.unwrap().as_str(), "refused");
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
-    let err = Study::tabular(data)
-        .graph(admg)
-        .query(CausalQuery::ConditionalEffect(query))
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap_err();
+    let err = builder.build().unwrap_err();
     assert!(matches!(err, antecedent::CausalError::Support { .. }), "{err}");
 }
 
@@ -2297,14 +2290,7 @@ fn licensed_family_na_cell_inspects_as_incomplete_contract() {
 
 #[test]
 fn capability_preflight_and_build_agree_on_refused_blockers() {
-    let (data, _, query) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let builder = Study::tabular(data)
-        .graph(admg)
-        .query(CausalQuery::ConditionalEffect(query))
-        .bootstrap_replicates(0);
+    let builder = refused_admg_cell();
     let preflight = builder.capability().unwrap();
     assert_eq!(preflight.applicability, SemanticApplicability::Unlicensed);
     assert!(!preflight.is_executable());
@@ -2357,29 +2343,14 @@ fn capability_preflight_and_build_agree_on_na_blockers() {
 
 #[test]
 fn capability_inspect_cannot_open_a_refused_cell() {
-    let (data, _, query) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let inspected = Study::tabular(data.clone())
-        .graph(admg.clone())
-        .query(CausalQuery::ConditionalEffect(query.clone()))
-        .bootstrap_replicates(0)
-        .inspect()
-        .unwrap();
+    let builder = refused_admg_cell();
+    let inspected = builder.clone().inspect().unwrap();
     let report = inspected.capability();
     assert_eq!(report.applicability, SemanticApplicability::Unlicensed);
     assert!(!report.is_executable());
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     assert!(inspected.identities.identification_product.is_none());
-    assert!(
-        Study::tabular(data)
-            .graph(admg)
-            .query(CausalQuery::ConditionalEffect(query))
-            .bootstrap_replicates(0)
-            .build()
-            .is_err()
-    );
+    assert!(builder.build().is_err());
 }
 
 #[test]
@@ -2451,23 +2422,14 @@ fn capability_rank_designs_uses_scoped_operation_not_matrix_row() {
         rank_preflight.coordinate
     );
 
-    let (data, _, cond) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let refused = Study::tabular(data)
-        .graph(admg)
-        .query(CausalQuery::ConditionalEffect(cond))
-        .bootstrap_replicates(0)
-        .inspect()
-        .unwrap();
+    let refused = refused_admg_cell().inspect().unwrap();
     let refused_rank = refused.capability_for(OperationKind::RankDesigns);
     assert_eq!(refused_rank.primary_blocker_id(), Some("operation.unlicensed"));
     assert!(
         refused_rank
             .coordinate
             .as_deref()
-            .is_some_and(|coord| coord.starts_with("ConditionalEffect:Admg:")),
+            .is_some_and(|coord| coord.starts_with("PathSpecificEffect:Admg:")),
         "scoped ops keep the real matrix coordinate, got {:?}",
         refused_rank.coordinate
     );
@@ -6654,16 +6616,7 @@ fn response_bandwidth_moves_the_inference_binding_not_the_program() {
 
 #[test]
 fn unlicensed_operation_blocker_ids_come_from_constants_not_prose() {
-    let (data, _, query) = conditional_effect_fixture();
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let inspected = Study::tabular(data)
-        .graph(admg)
-        .query(CausalQuery::ConditionalEffect(query))
-        .bootstrap_replicates(0)
-        .inspect()
-        .unwrap();
+    let inspected = refused_admg_cell().inspect().unwrap();
     for operation in [OperationKind::Retarget, OperationKind::Export, OperationKind::RankDesigns] {
         let report = inspected.capability_for(operation);
         assert_eq!(
