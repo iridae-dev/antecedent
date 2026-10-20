@@ -29,6 +29,7 @@
 #[non_exhaustive] pub enum antecedent_estimate::nuisance_cache::NuisanceRole
 #[non_exhaustive] pub enum antecedent_estimate::scenario_covariance::CovarianceMethod
 #[non_exhaustive] pub enum antecedent_estimate::scenario_covariance::RowDependence
+#[non_exhaustive] pub enum antecedent_estimate::sequential_crossfit::SequentialCrossfitError
 #[non_exhaustive] pub enum antecedent_estimate::tiled_prediction::TileError
 #[non_exhaustive] pub struct antecedent_estimate::AnalyticSe
 #[non_exhaustive] pub struct antecedent_estimate::BlockSeRecord
@@ -596,6 +597,12 @@ impl core::clone::Clone for antecedent_estimate::scenario_invariance_report::Env
 impl core::clone::Clone for antecedent_estimate::scenario_invariance_report::EnvelopeSide
 impl core::clone::Clone for antecedent_estimate::scenario_invariance_report::ScenarioInvariance
 impl core::clone::Clone for antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport
+impl core::clone::Clone for antecedent_estimate::sequential_crossfit::ActionLevel
+impl core::clone::Clone for antecedent_estimate::sequential_crossfit::SequentialContrast
+impl core::clone::Clone for antecedent_estimate::sequential_crossfit::SequentialFitKey
+impl core::clone::Clone for antecedent_estimate::sequential_crossfit::SequentialIdentity
+impl core::clone::Clone for antecedent_estimate::sequential_crossfit::SequentialRole
+impl core::clone::Clone for antecedent_estimate::sequential_crossfit::StaticRegime
 impl core::clone::Clone for antecedent_estimate::smoothed_dose::LocalDoseSupport
 impl core::clone::Clone for antecedent_estimate::smoothed_dose::MembershipOverlap
 impl core::clone::Clone for antecedent_estimate::smoothed_dose::QuadratureRecord
@@ -857,6 +864,11 @@ impl core::cmp::Eq for antecedent_estimate::scenario_covariance::CovarianceMetho
 impl core::cmp::Eq for antecedent_estimate::scenario_covariance::RowDependence
 impl core::cmp::Eq for antecedent_estimate::scenario_invariance_report::EnvelopeSide
 impl core::cmp::Eq for antecedent_estimate::scenario_invariance_report::ScenarioInvariance
+impl core::cmp::Eq for antecedent_estimate::sequential_crossfit::ActionLevel
+impl core::cmp::Eq for antecedent_estimate::sequential_crossfit::SequentialFitKey
+impl core::cmp::Eq for antecedent_estimate::sequential_crossfit::SequentialIdentity
+impl core::cmp::Eq for antecedent_estimate::sequential_crossfit::SequentialRole
+impl core::cmp::Eq for antecedent_estimate::sequential_crossfit::StaticRegime
 impl core::cmp::Eq for antecedent_estimate::smoothed_dose::SmoothedDoseBounds
 impl core::cmp::Eq for antecedent_estimate::survival::SurvivalEndpoint
 impl core::cmp::Eq for antecedent_estimate::temporal_dependent_interval::IntervalMethod
@@ -904,6 +916,10 @@ impl core::cmp::Ord for antecedent_estimate::nuisance_cache::ProviderDependency
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::RequestColumns
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::cmp::Ord for antecedent_estimate::nuisance_cache::TreatmentDependency
+impl core::cmp::Ord for antecedent_estimate::sequential_crossfit::ActionLevel
+impl core::cmp::Ord for antecedent_estimate::sequential_crossfit::SequentialFitKey
+impl core::cmp::Ord for antecedent_estimate::sequential_crossfit::SequentialRole
+impl core::cmp::Ord for antecedent_estimate::sequential_crossfit::StaticRegime
 impl core::cmp::Ord for antecedent_estimate::temporal_refresh::FactorChange
 impl core::cmp::Ord for antecedent_estimate::temporal_refresh::ObservationCadence
 impl core::cmp::Ord for antecedent_estimate::temporal_refresh::ObservationPeriod
@@ -1333,6 +1349,12 @@ impl core::cmp::PartialEq for antecedent_estimate::scenario_invariance_report::E
 impl core::cmp::PartialEq for antecedent_estimate::scenario_invariance_report::EnvelopeSide
 impl core::cmp::PartialEq for antecedent_estimate::scenario_invariance_report::ScenarioInvariance
 impl core::cmp::PartialEq for antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport
+impl core::cmp::PartialEq for antecedent_estimate::sequential_crossfit::ActionLevel
+impl core::cmp::PartialEq for antecedent_estimate::sequential_crossfit::SequentialContrast
+impl core::cmp::PartialEq for antecedent_estimate::sequential_crossfit::SequentialFitKey
+impl core::cmp::PartialEq for antecedent_estimate::sequential_crossfit::SequentialIdentity
+impl core::cmp::PartialEq for antecedent_estimate::sequential_crossfit::SequentialRole
+impl core::cmp::PartialEq for antecedent_estimate::sequential_crossfit::StaticRegime
 impl core::cmp::PartialEq for antecedent_estimate::smoothed_dose::LocalDoseSupport
 impl core::cmp::PartialEq for antecedent_estimate::smoothed_dose::MembershipOverlap
 impl core::cmp::PartialEq for antecedent_estimate::smoothed_dose::QuadratureRecord
@@ -1435,6 +1457,10 @@ impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::ProviderDepe
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::RequestColumns
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::cmp::PartialOrd for antecedent_estimate::nuisance_cache::TreatmentDependency
+impl core::cmp::PartialOrd for antecedent_estimate::sequential_crossfit::ActionLevel
+impl core::cmp::PartialOrd for antecedent_estimate::sequential_crossfit::SequentialFitKey
+impl core::cmp::PartialOrd for antecedent_estimate::sequential_crossfit::SequentialRole
+impl core::cmp::PartialOrd for antecedent_estimate::sequential_crossfit::StaticRegime
 impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::FactorChange
 impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::ObservationCadence
 impl core::cmp::PartialOrd for antecedent_estimate::temporal_refresh::ObservationPeriod
@@ -1443,9 +1469,11 @@ impl core::convert::From<antecedent_core::query::error::QueryError> for antecede
 impl core::convert::From<antecedent_data::error::DataError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_estimate::SequentialNodeOverlay> for antecedent_estimate::SequentialMechanismOverlay
 impl core::convert::From<antecedent_estimate::joint_bayesian_transport::JointTransportRefusal> for antecedent_estimate::EstimationError
+impl core::convert::From<antecedent_estimate::nuisance_cache::NuisanceCacheError> for antecedent_estimate::sequential_crossfit::SequentialCrossfitError
 impl core::convert::From<antecedent_learn::fitted_effect::FittedEffectError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_prob::error::ProbError> for antecedent_estimate::EstimationError
 impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_estimate::EstimationError
+impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_estimate::sequential_crossfit::SequentialCrossfitError
 impl core::default::Default for antecedent_estimate::AipwAte
 impl core::default::Default for antecedent_estimate::AipwWorkspace
 impl core::default::Default for antecedent_estimate::AnalyticSeKind
@@ -1529,6 +1557,7 @@ impl core::default::Default for antecedent_estimate::nonlinear_mediation::Nonlin
 impl core::default::Default for antecedent_estimate::nuisance_cache::NuisanceCache
 impl core::default::Default for antecedent_estimate::nuisance_cache::SubplanReceipt
 impl core::default::Default for antecedent_estimate::policy_value::BinaryPolicyLimits
+impl core::default::Default for antecedent_estimate::sequential_crossfit::SequentialNuisanceStore
 impl core::default::Default for antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig
 impl core::default::Default for antecedent_estimate::temporal_link::FrequentistTemporalLink
 impl core::default::Default for antecedent_estimate::vector_treatment::VectorCovariance
@@ -1540,6 +1569,7 @@ impl core::error::Error for antecedent_estimate::cohort_linear_effect::CohortInt
 impl core::error::Error for antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
 impl core::error::Error for antecedent_estimate::measurement::MeasurementError
 impl core::error::Error for antecedent_estimate::nuisance_cache::NuisanceCacheError
+impl core::error::Error for antecedent_estimate::sequential_crossfit::SequentialCrossfitError
 impl core::error::Error for antecedent_estimate::tiled_prediction::TileError
 impl core::fmt::Debug for antecedent_estimate::AdjustedEstimate
 impl core::fmt::Debug for antecedent_estimate::AdmgConditionalExactPlan
@@ -2078,6 +2108,16 @@ impl core::fmt::Debug for antecedent_estimate::scenario_invariance_report::Envel
 impl core::fmt::Debug for antecedent_estimate::scenario_invariance_report::EnvelopeSide
 impl core::fmt::Debug for antecedent_estimate::scenario_invariance_report::ScenarioInvariance
 impl core::fmt::Debug for antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport
+impl core::fmt::Debug for antecedent_estimate::sequential_crossfit::ActionLevel
+impl core::fmt::Debug for antecedent_estimate::sequential_crossfit::FoldCoefficients
+impl core::fmt::Debug for antecedent_estimate::sequential_crossfit::SequentialContrast
+impl core::fmt::Debug for antecedent_estimate::sequential_crossfit::SequentialCrossfitError
+impl core::fmt::Debug for antecedent_estimate::sequential_crossfit::SequentialFit
+impl core::fmt::Debug for antecedent_estimate::sequential_crossfit::SequentialFitKey
+impl core::fmt::Debug for antecedent_estimate::sequential_crossfit::SequentialIdentity
+impl core::fmt::Debug for antecedent_estimate::sequential_crossfit::SequentialNuisanceStore
+impl core::fmt::Debug for antecedent_estimate::sequential_crossfit::SequentialRole
+impl core::fmt::Debug for antecedent_estimate::sequential_crossfit::StaticRegime
 impl core::fmt::Debug for antecedent_estimate::smoothed_dose::LocalDoseSupport
 impl core::fmt::Debug for antecedent_estimate::smoothed_dose::MembershipOverlap
 impl core::fmt::Debug for antecedent_estimate::smoothed_dose::QuadratureRecord
@@ -2191,6 +2231,7 @@ impl core::fmt::Display for antecedent_estimate::cohort_linear_effect::CohortInt
 impl core::fmt::Display for antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
 impl core::fmt::Display for antecedent_estimate::measurement::MeasurementError
 impl core::fmt::Display for antecedent_estimate::nuisance_cache::NuisanceCacheError
+impl core::fmt::Display for antecedent_estimate::sequential_crossfit::SequentialCrossfitError
 impl core::fmt::Display for antecedent_estimate::tiled_prediction::EvalAxis
 impl core::fmt::Display for antecedent_estimate::tiled_prediction::TileError
 impl core::hash::Hash for antecedent_estimate::AnalyticSeKind
@@ -2222,6 +2263,9 @@ impl core::hash::Hash for antecedent_estimate::nuisance_cache::ProviderDependenc
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::RequestColumns
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::TargetDependency
 impl core::hash::Hash for antecedent_estimate::nuisance_cache::TreatmentDependency
+impl core::hash::Hash for antecedent_estimate::sequential_crossfit::ActionLevel
+impl core::hash::Hash for antecedent_estimate::sequential_crossfit::SequentialRole
+impl core::hash::Hash for antecedent_estimate::sequential_crossfit::StaticRegime
 impl core::hash::Hash for antecedent_estimate::tiled_prediction::AxisOrder
 impl core::hash::Hash for antecedent_estimate::tiled_prediction::Encoding
 impl core::hash::Hash for antecedent_estimate::tiled_prediction::EvalAxis
@@ -2416,6 +2460,9 @@ impl core::marker::Copy for antecedent_estimate::scenario_covariance::ExactEnume
 impl core::marker::Copy for antecedent_estimate::scenario_covariance::RowDependence
 impl core::marker::Copy for antecedent_estimate::scenario_covariance::SharedRowBootstrapOptions
 impl core::marker::Copy for antecedent_estimate::scenario_invariance_report::EnvelopeSide
+impl core::marker::Copy for antecedent_estimate::sequential_crossfit::ActionLevel
+impl core::marker::Copy for antecedent_estimate::sequential_crossfit::SequentialRole
+impl core::marker::Copy for antecedent_estimate::sequential_crossfit::StaticRegime
 impl core::marker::Copy for antecedent_estimate::smoothed_dose::SmoothedDoseBounds
 impl core::marker::Copy for antecedent_estimate::staggered_event_study::GroupTimeAtt
 impl core::marker::Copy for antecedent_estimate::statistical_transport::BayesianStatisticalTransportOptions
@@ -2995,6 +3042,16 @@ impl core::marker::Freeze for antecedent_estimate::scenario_invariance_report::E
 impl core::marker::Freeze for antecedent_estimate::scenario_invariance_report::EnvelopeSide [auto]
 impl core::marker::Freeze for antecedent_estimate::scenario_invariance_report::ScenarioInvariance [auto]
 impl core::marker::Freeze for antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport [auto]
+impl core::marker::Freeze for antecedent_estimate::sequential_crossfit::ActionLevel [auto]
+impl core::marker::Freeze for antecedent_estimate::sequential_crossfit::FoldCoefficients [auto]
+impl core::marker::Freeze for antecedent_estimate::sequential_crossfit::SequentialContrast [auto]
+impl core::marker::Freeze for antecedent_estimate::sequential_crossfit::SequentialCrossfitError [auto]
+impl core::marker::Freeze for antecedent_estimate::sequential_crossfit::SequentialFit [auto]
+impl core::marker::Freeze for antecedent_estimate::sequential_crossfit::SequentialFitKey [auto]
+impl core::marker::Freeze for antecedent_estimate::sequential_crossfit::SequentialIdentity [auto]
+impl core::marker::Freeze for antecedent_estimate::sequential_crossfit::SequentialNuisanceStore [auto]
+impl core::marker::Freeze for antecedent_estimate::sequential_crossfit::SequentialRole [auto]
+impl core::marker::Freeze for antecedent_estimate::sequential_crossfit::StaticRegime [auto]
 impl core::marker::Freeze for antecedent_estimate::smoothed_dose::LocalDoseSupport [auto]
 impl core::marker::Freeze for antecedent_estimate::smoothed_dose::MembershipOverlap [auto]
 impl core::marker::Freeze for antecedent_estimate::smoothed_dose::QuadratureRecord [auto]
@@ -3639,6 +3696,16 @@ impl core::marker::Send for antecedent_estimate::scenario_invariance_report::Env
 impl core::marker::Send for antecedent_estimate::scenario_invariance_report::EnvelopeSide [auto]
 impl core::marker::Send for antecedent_estimate::scenario_invariance_report::ScenarioInvariance [auto]
 impl core::marker::Send for antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport [auto]
+impl core::marker::Send for antecedent_estimate::sequential_crossfit::ActionLevel [auto]
+impl core::marker::Send for antecedent_estimate::sequential_crossfit::FoldCoefficients [auto]
+impl core::marker::Send for antecedent_estimate::sequential_crossfit::SequentialContrast [auto]
+impl core::marker::Send for antecedent_estimate::sequential_crossfit::SequentialCrossfitError [auto]
+impl core::marker::Send for antecedent_estimate::sequential_crossfit::SequentialFit [auto]
+impl core::marker::Send for antecedent_estimate::sequential_crossfit::SequentialFitKey [auto]
+impl core::marker::Send for antecedent_estimate::sequential_crossfit::SequentialIdentity [auto]
+impl core::marker::Send for antecedent_estimate::sequential_crossfit::SequentialNuisanceStore [auto]
+impl core::marker::Send for antecedent_estimate::sequential_crossfit::SequentialRole [auto]
+impl core::marker::Send for antecedent_estimate::sequential_crossfit::StaticRegime [auto]
 impl core::marker::Send for antecedent_estimate::smoothed_dose::LocalDoseSupport [auto]
 impl core::marker::Send for antecedent_estimate::smoothed_dose::MembershipOverlap [auto]
 impl core::marker::Send for antecedent_estimate::smoothed_dose::QuadratureRecord [auto]
@@ -4168,6 +4235,12 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::scenario_invaria
 impl core::marker::StructuralPartialEq for antecedent_estimate::scenario_invariance_report::EnvelopeSide
 impl core::marker::StructuralPartialEq for antecedent_estimate::scenario_invariance_report::ScenarioInvariance
 impl core::marker::StructuralPartialEq for antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport
+impl core::marker::StructuralPartialEq for antecedent_estimate::sequential_crossfit::ActionLevel
+impl core::marker::StructuralPartialEq for antecedent_estimate::sequential_crossfit::SequentialContrast
+impl core::marker::StructuralPartialEq for antecedent_estimate::sequential_crossfit::SequentialFitKey
+impl core::marker::StructuralPartialEq for antecedent_estimate::sequential_crossfit::SequentialIdentity
+impl core::marker::StructuralPartialEq for antecedent_estimate::sequential_crossfit::SequentialRole
+impl core::marker::StructuralPartialEq for antecedent_estimate::sequential_crossfit::StaticRegime
 impl core::marker::StructuralPartialEq for antecedent_estimate::smoothed_dose::LocalDoseSupport
 impl core::marker::StructuralPartialEq for antecedent_estimate::smoothed_dose::MembershipOverlap
 impl core::marker::StructuralPartialEq for antecedent_estimate::smoothed_dose::QuadratureRecord
@@ -4791,6 +4864,16 @@ impl core::marker::Sync for antecedent_estimate::scenario_invariance_report::Env
 impl core::marker::Sync for antecedent_estimate::scenario_invariance_report::EnvelopeSide [auto]
 impl core::marker::Sync for antecedent_estimate::scenario_invariance_report::ScenarioInvariance [auto]
 impl core::marker::Sync for antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport [auto]
+impl core::marker::Sync for antecedent_estimate::sequential_crossfit::ActionLevel [auto]
+impl core::marker::Sync for antecedent_estimate::sequential_crossfit::FoldCoefficients [auto]
+impl core::marker::Sync for antecedent_estimate::sequential_crossfit::SequentialContrast [auto]
+impl core::marker::Sync for antecedent_estimate::sequential_crossfit::SequentialCrossfitError [auto]
+impl core::marker::Sync for antecedent_estimate::sequential_crossfit::SequentialFit [auto]
+impl core::marker::Sync for antecedent_estimate::sequential_crossfit::SequentialFitKey [auto]
+impl core::marker::Sync for antecedent_estimate::sequential_crossfit::SequentialIdentity [auto]
+impl core::marker::Sync for antecedent_estimate::sequential_crossfit::SequentialNuisanceStore [auto]
+impl core::marker::Sync for antecedent_estimate::sequential_crossfit::SequentialRole [auto]
+impl core::marker::Sync for antecedent_estimate::sequential_crossfit::StaticRegime [auto]
 impl core::marker::Sync for antecedent_estimate::smoothed_dose::LocalDoseSupport [auto]
 impl core::marker::Sync for antecedent_estimate::smoothed_dose::MembershipOverlap [auto]
 impl core::marker::Sync for antecedent_estimate::smoothed_dose::QuadratureRecord [auto]
@@ -5435,6 +5518,16 @@ impl core::marker::Unpin for antecedent_estimate::scenario_invariance_report::En
 impl core::marker::Unpin for antecedent_estimate::scenario_invariance_report::EnvelopeSide [auto]
 impl core::marker::Unpin for antecedent_estimate::scenario_invariance_report::ScenarioInvariance [auto]
 impl core::marker::Unpin for antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport [auto]
+impl core::marker::Unpin for antecedent_estimate::sequential_crossfit::ActionLevel [auto]
+impl core::marker::Unpin for antecedent_estimate::sequential_crossfit::FoldCoefficients [auto]
+impl core::marker::Unpin for antecedent_estimate::sequential_crossfit::SequentialContrast [auto]
+impl core::marker::Unpin for antecedent_estimate::sequential_crossfit::SequentialCrossfitError [auto]
+impl core::marker::Unpin for antecedent_estimate::sequential_crossfit::SequentialFit [auto]
+impl core::marker::Unpin for antecedent_estimate::sequential_crossfit::SequentialFitKey [auto]
+impl core::marker::Unpin for antecedent_estimate::sequential_crossfit::SequentialIdentity [auto]
+impl core::marker::Unpin for antecedent_estimate::sequential_crossfit::SequentialNuisanceStore [auto]
+impl core::marker::Unpin for antecedent_estimate::sequential_crossfit::SequentialRole [auto]
+impl core::marker::Unpin for antecedent_estimate::sequential_crossfit::StaticRegime [auto]
 impl core::marker::Unpin for antecedent_estimate::smoothed_dose::LocalDoseSupport [auto]
 impl core::marker::Unpin for antecedent_estimate::smoothed_dose::MembershipOverlap [auto]
 impl core::marker::Unpin for antecedent_estimate::smoothed_dose::QuadratureRecord [auto]
@@ -6078,6 +6171,16 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::scenario_i
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::scenario_invariance_report::EnvelopeSide [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::scenario_invariance_report::ScenarioInvariance [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::ActionLevel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::FoldCoefficients [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::SequentialContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::SequentialCrossfitError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::SequentialFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::SequentialFitKey [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::SequentialIdentity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::SequentialNuisanceStore [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::SequentialRole [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::StaticRegime [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::smoothed_dose::LocalDoseSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::smoothed_dose::MembershipOverlap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::smoothed_dose::QuadratureRecord [auto]
@@ -6721,6 +6824,16 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::scenario_inva
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::scenario_invariance_report::EnvelopeSide [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::scenario_invariance_report::ScenarioInvariance [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::ActionLevel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::FoldCoefficients [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::SequentialContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::SequentialCrossfitError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::SequentialFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::SequentialFitKey [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::SequentialIdentity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::SequentialNuisanceStore [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::SequentialRole [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::StaticRegime [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::smoothed_dose::LocalDoseSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::smoothed_dose::MembershipOverlap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::smoothed_dose::QuadratureRecord [auto]
@@ -6902,6 +7015,7 @@ impl<'a> core::clone::Clone for antecedent_estimate::policy_value::BinaryIpwDesi
 impl<'a> core::clone::Clone for antecedent_estimate::policy_value::BinaryPolicyDesign<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::policy_value::MultiActionIpwDesign<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::policy_value::MultiActionLimits<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::sequential_crossfit::SequentialPanel<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::survival::KnownCensoring<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::survival::SurvivalRows<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
@@ -6947,6 +7061,7 @@ impl<'a> core::fmt::Debug for antecedent_estimate::policy_value::BinaryIpwDesign
 impl<'a> core::fmt::Debug for antecedent_estimate::policy_value::BinaryPolicyDesign<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::policy_value::MultiActionIpwDesign<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::policy_value::MultiActionLimits<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::sequential_crossfit::SequentialPanel<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::survival::KnownCensoring<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::survival::SurvivalRows<'a>
@@ -6985,6 +7100,7 @@ impl<'a> core::marker::Copy for antecedent_estimate::policy_value::BinaryIpwDesi
 impl<'a> core::marker::Copy for antecedent_estimate::policy_value::BinaryPolicyDesign<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::policy_value::MultiActionIpwDesign<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::policy_value::MultiActionLimits<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::sequential_crossfit::SequentialPanel<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::survival::KnownCensoring<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::survival::SurvivalRows<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::tiled_prediction::OutcomeDraws<'a>
@@ -7025,6 +7141,7 @@ impl<'a> core::marker::Freeze for antecedent_estimate::policy_value::BinaryIpwDe
 impl<'a> core::marker::Freeze for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::policy_value::MultiActionIpwDesign<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::policy_value::MultiActionLimits<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::sequential_crossfit::SequentialPanel<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::survival::SurvivalRows<'a> [auto]
@@ -7066,6 +7183,7 @@ impl<'a> core::marker::Send for antecedent_estimate::policy_value::BinaryIpwDesi
 impl<'a> core::marker::Send for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::policy_value::MultiActionIpwDesign<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::policy_value::MultiActionLimits<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::sequential_crossfit::SequentialPanel<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::survival::SurvivalRows<'a> [auto]
@@ -7111,6 +7229,7 @@ impl<'a> core::marker::Sync for antecedent_estimate::policy_value::BinaryIpwDesi
 impl<'a> core::marker::Sync for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::policy_value::MultiActionIpwDesign<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::policy_value::MultiActionLimits<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::sequential_crossfit::SequentialPanel<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::survival::SurvivalRows<'a> [auto]
@@ -7152,6 +7271,7 @@ impl<'a> core::marker::Unpin for antecedent_estimate::policy_value::BinaryIpwDes
 impl<'a> core::marker::Unpin for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::policy_value::MultiActionIpwDesign<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::policy_value::MultiActionLimits<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::sequential_crossfit::SequentialPanel<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::survival::SurvivalRows<'a> [auto]
@@ -7190,6 +7310,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value::MultiActionIpwDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::policy_value::MultiActionLimits<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::sequential_crossfit::SequentialPanel<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::survival::SurvivalRows<'a> [auto]
@@ -7228,6 +7349,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_va
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value::BinaryPolicyDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value::MultiActionIpwDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::policy_value::MultiActionLimits<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::sequential_crossfit::SequentialPanel<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::statistical_transport::EvaluatedPointLaws<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::survival::KnownCensoring<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::survival::SurvivalRows<'a> [auto]
@@ -7501,6 +7623,7 @@ pub const antecedent_estimate::scenario_covariance::MAX_EXACT_ROWS: usize
 pub const antecedent_estimate::scenario_covariance::MAX_REPLICATES: usize
 pub const antecedent_estimate::scenario_covariance::MAX_SCENARIOS: usize
 pub const antecedent_estimate::scores::MIN_THRESHOLD_EVENTS: f64
+pub const antecedent_estimate::sequential_crossfit::MIN_PROBABILITY: &str
 pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_FOLD_SCHEME: &str
 pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_MAX_BASIS_DEGREE: u8
 pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_MAX_BOOTSTRAP: u32
@@ -7625,6 +7748,8 @@ pub enum antecedent_estimate::posterior_mean::ScalarNamespace
 pub enum antecedent_estimate::posterior_mean::ScoreNamespace
 pub enum antecedent_estimate::recovery_sampled::SampledIntervalMethod
 pub enum antecedent_estimate::scenario_invariance_report::EnvelopeSide
+pub enum antecedent_estimate::sequential_crossfit::ActionLevel
+pub enum antecedent_estimate::sequential_crossfit::SequentialRole
 pub enum antecedent_estimate::survival::SurvivalEndpoint
 pub enum antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod
 pub enum antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator
@@ -9963,6 +10088,19 @@ pub field antecedent_estimate::scenario_invariance_report::ScenarioInvariance::r
 pub field antecedent_estimate::scenario_invariance_report::ScenarioInvariance::result_status: &'static str
 pub field antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport::extremes: alloc::vec::Vec<antecedent_estimate::scenario_invariance_report::EnvelopeExtremeInvariance>
 pub field antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport::scenarios: alloc::vec::Vec<antecedent_estimate::scenario_invariance_report::ScenarioInvariance>
+pub field antecedent_estimate::sequential_crossfit::SequentialContrast::active_mean: f64
+pub field antecedent_estimate::sequential_crossfit::SequentialContrast::contrast: f64
+pub field antecedent_estimate::sequential_crossfit::SequentialContrast::control_mean: f64
+pub field antecedent_estimate::sequential_crossfit::SequentialContrast::evaluated_rows: u64
+pub field antecedent_estimate::sequential_crossfit::SequentialContrast::fits_computed: u64
+pub field antecedent_estimate::sequential_crossfit::SequentialContrast::fits_reused: u64
+pub field antecedent_estimate::sequential_crossfit::SequentialContrast::minimum_action_probability: f64
+pub field antecedent_estimate::sequential_crossfit::SequentialContrast::unmeasured_score_scale: f64
+pub field antecedent_estimate::sequential_crossfit::SequentialPanel::baseline: &'a [&'a [f64]]
+pub field antecedent_estimate::sequential_crossfit::SequentialPanel::first_treatment: &'a [f64]
+pub field antecedent_estimate::sequential_crossfit::SequentialPanel::intermediate: &'a [&'a [f64]]
+pub field antecedent_estimate::sequential_crossfit::SequentialPanel::outcome: &'a [f64]
+pub field antecedent_estimate::sequential_crossfit::SequentialPanel::second_treatment: &'a [f64]
 pub field antecedent_estimate::smoothed_dose::LocalDoseSupport::distinct_doses: usize
 pub field antecedent_estimate::smoothed_dose::LocalDoseSupport::effective_sample_size: f64
 pub field antecedent_estimate::smoothed_dose::LocalDoseSupport::max_kernel_weight: f64
@@ -11117,6 +11255,29 @@ pub fn <antecedent_estimate::scenario_covariance::ScenarioRowEstimator>::fn with
 pub fn <antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport>::fn canonical_text(&self) -> alloc::string::String
 pub fn <antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport>::fn extreme(&self, outcome: antecedent_core::ids::VariableId, side: antecedent_estimate::scenario_invariance_report::EnvelopeSide) -> core::option::Option<&antecedent_estimate::scenario_invariance_report::EnvelopeExtremeInvariance>
 pub fn <antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport>::fn scenario(&self, name: &str) -> core::option::Option<&antecedent_estimate::scenario_invariance_report::ScenarioInvariance>
+pub fn <antecedent_estimate::sequential_crossfit::ActionLevel>::const fn code(self) -> u8
+pub fn <antecedent_estimate::sequential_crossfit::ActionLevel>::const fn value(self) -> f64
+pub fn <antecedent_estimate::sequential_crossfit::FoldCoefficients>::const fn coefficients(&self) -> &[f64]
+pub fn <antecedent_estimate::sequential_crossfit::FoldCoefficients>::const fn evaluation_fold(&self) -> u32
+pub fn <antecedent_estimate::sequential_crossfit::FoldCoefficients>::fn try_new(evaluation_fold: u32, coefficients: &[f64]) -> core::result::Result<Self, antecedent_estimate::sequential_crossfit::SequentialCrossfitError>
+pub fn <antecedent_estimate::sequential_crossfit::SequentialFit>::const fn blocks(&self) -> &[antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions]
+pub fn <antecedent_estimate::sequential_crossfit::SequentialFit>::const fn folds(&self) -> &[antecedent_estimate::sequential_crossfit::FoldCoefficients]
+pub fn <antecedent_estimate::sequential_crossfit::SequentialFit>::fn coefficients(&self, evaluation_fold: u32) -> core::option::Option<&[f64]>
+pub fn <antecedent_estimate::sequential_crossfit::SequentialFit>::fn prediction(&self, row_id: u64) -> core::option::Option<f64>
+pub fn <antecedent_estimate::sequential_crossfit::SequentialFitKey>::const fn cache(&self) -> &antecedent_estimate::nuisance_cache::NuisanceCacheKey
+pub fn <antecedent_estimate::sequential_crossfit::SequentialFitKey>::const fn role(&self) -> antecedent_estimate::sequential_crossfit::SequentialRole
+pub fn <antecedent_estimate::sequential_crossfit::SequentialFitKey>::const fn source(&self) -> antecedent_estimate::nuisance_cache::CertifiedSource
+pub fn <antecedent_estimate::sequential_crossfit::SequentialIdentity>::const fn folds(&self) -> &antecedent_estimate::nuisance_cache::FoldAssignment
+pub fn <antecedent_estimate::sequential_crossfit::SequentialIdentity>::const fn source(&self) -> antecedent_estimate::nuisance_cache::CertifiedSource
+pub fn <antecedent_estimate::sequential_crossfit::SequentialIdentity>::fn fit_key(&self, role: antecedent_estimate::sequential_crossfit::SequentialRole) -> antecedent_estimate::sequential_crossfit::SequentialFitKey
+pub fn <antecedent_estimate::sequential_crossfit::SequentialIdentity>::fn try_new(source: antecedent_estimate::nuisance_cache::CertifiedSource, target: antecedent_estimate::nuisance_cache::TargetDependency, design: antecedent_estimate::nuisance_cache::DesignDependency, folds: antecedent_estimate::nuisance_cache::FoldAssignment, treatment: antecedent_estimate::nuisance_cache::TreatmentDependency, provider: antecedent_estimate::nuisance_cache::ProviderDependency, numerical: antecedent_estimate::nuisance_cache::NumericalDependencies) -> core::result::Result<Self, antecedent_estimate::sequential_crossfit::SequentialCrossfitError>
+pub fn <antecedent_estimate::sequential_crossfit::SequentialNuisanceStore>::const fn computed(&self) -> u64
+pub fn <antecedent_estimate::sequential_crossfit::SequentialNuisanceStore>::const fn new() -> Self
+pub fn <antecedent_estimate::sequential_crossfit::SequentialNuisanceStore>::fn certify(&mut self, key: antecedent_estimate::sequential_crossfit::SequentialFitKey, coefficients: &[antecedent_estimate::sequential_crossfit::FoldCoefficients], blocks: &[antecedent_estimate::nuisance_cache::BlockedOutOfFoldPredictions]) -> core::result::Result<(), antecedent_estimate::sequential_crossfit::SequentialCrossfitError>
+pub fn <antecedent_estimate::sequential_crossfit::SequentialNuisanceStore>::fn lookup(&self, key: &antecedent_estimate::sequential_crossfit::SequentialFitKey) -> core::option::Option<&antecedent_estimate::sequential_crossfit::SequentialFit>
+pub fn <antecedent_estimate::sequential_crossfit::StaticRegime>::const fn first(self) -> antecedent_estimate::sequential_crossfit::ActionLevel
+pub fn <antecedent_estimate::sequential_crossfit::StaticRegime>::const fn new(first: antecedent_estimate::sequential_crossfit::ActionLevel, second: antecedent_estimate::sequential_crossfit::ActionLevel) -> Self
+pub fn <antecedent_estimate::sequential_crossfit::StaticRegime>::const fn second(self) -> antecedent_estimate::sequential_crossfit::ActionLevel
 pub fn <antecedent_estimate::temporal_dependent_interval::DependentInterval>::fn calibration_basis(&self) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn <antecedent_estimate::temporal_dependent_interval::DependentInterval>::fn contains(&self, value: f64) -> bool
 pub fn <antecedent_estimate::temporal_dependent_interval::DependentInterval>::fn replicate_digest(&self) -> u64
@@ -11532,6 +11693,7 @@ pub fn antecedent_estimate::scenario_covariance::replicate_id(seed: u64, r: u64)
 pub fn antecedent_estimate::scenario_covariance::shared_row_bootstrap_covariance(scenarios: &[antecedent_estimate::scenario_covariance::ScenarioRowEstimator], options: &antecedent_estimate::scenario_covariance::SharedRowBootstrapOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::scenario_invariance_report::scenario_set_invariance_report(decision: &antecedent_identify::sid::scenarios::ScenarioSetDecision, report: &antecedent_estimate::transport_scenarios::ScenarioSetReport) -> core::result::Result<antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::score_effective_rows(scores: &[&[f64]], block_length: usize) -> f64
+pub fn antecedent_estimate::sequential_crossfit::estimate_sequential_contrast(panel: antecedent_estimate::sequential_crossfit::SequentialPanel<'_>, identity: &antecedent_estimate::sequential_crossfit::SequentialIdentity, active: antecedent_estimate::sequential_crossfit::StaticRegime, control: antecedent_estimate::sequential_crossfit::StaticRegime, store: &mut antecedent_estimate::sequential_crossfit::SequentialNuisanceStore) -> core::result::Result<antecedent_estimate::sequential_crossfit::SequentialContrast, antecedent_estimate::sequential_crossfit::SequentialCrossfitError>
 pub fn antecedent_estimate::serial_dependence::tempering_capped_from_notes(notes: &[alloc::sync::Arc<str>]) -> bool
 pub fn antecedent_estimate::serial_dependence::tempering_inestimable_from_notes(notes: &[alloc::sync::Arc<str>]) -> bool
 pub fn antecedent_estimate::serial_dependence::tempering_kappa_from_notes(notes: &[alloc::sync::Arc<str>]) -> core::option::Option<f64>
@@ -11698,6 +11860,7 @@ pub mod antecedent_estimate::scenario_covariance
 pub mod antecedent_estimate::scenario_invariance_report
 pub mod antecedent_estimate::scores
 pub mod antecedent_estimate::se
+pub mod antecedent_estimate::sequential_crossfit
 pub mod antecedent_estimate::serial_dependence
 pub mod antecedent_estimate::smoothed_dose
 pub mod antecedent_estimate::staggered_event_study
@@ -12250,6 +12413,20 @@ pub struct antecedent_estimate::scenario_covariance::SharedRowBootstrapOptions
 pub struct antecedent_estimate::scenario_invariance_report::EnvelopeExtremeInvariance
 pub struct antecedent_estimate::scenario_invariance_report::ScenarioInvariance
 pub struct antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport
+pub struct antecedent_estimate::sequential_crossfit::FoldCoefficients
+pub struct antecedent_estimate::sequential_crossfit::FoldCoefficients has private fields
+pub struct antecedent_estimate::sequential_crossfit::SequentialContrast
+pub struct antecedent_estimate::sequential_crossfit::SequentialFit
+pub struct antecedent_estimate::sequential_crossfit::SequentialFit has private fields
+pub struct antecedent_estimate::sequential_crossfit::SequentialFitKey
+pub struct antecedent_estimate::sequential_crossfit::SequentialFitKey has private fields
+pub struct antecedent_estimate::sequential_crossfit::SequentialIdentity
+pub struct antecedent_estimate::sequential_crossfit::SequentialIdentity has private fields
+pub struct antecedent_estimate::sequential_crossfit::SequentialNuisanceStore
+pub struct antecedent_estimate::sequential_crossfit::SequentialNuisanceStore has private fields
+pub struct antecedent_estimate::sequential_crossfit::SequentialPanel<'a>
+pub struct antecedent_estimate::sequential_crossfit::StaticRegime
+pub struct antecedent_estimate::sequential_crossfit::StaticRegime has private fields
 pub struct antecedent_estimate::smoothed_dose::LocalDoseSupport
 pub struct antecedent_estimate::smoothed_dose::MembershipOverlap
 pub struct antecedent_estimate::smoothed_dose::QuadratureRecord
@@ -13220,6 +13397,19 @@ pub variant antecedent_estimate::scenario_covariance::RowDependence::SharedRows
 pub variant antecedent_estimate::scenario_covariance::RowDependence::Unknown
 pub variant antecedent_estimate::scenario_invariance_report::EnvelopeSide::Lower
 pub variant antecedent_estimate::scenario_invariance_report::EnvelopeSide::Upper
+pub variant antecedent_estimate::sequential_crossfit::ActionLevel::One
+pub variant antecedent_estimate::sequential_crossfit::ActionLevel::Zero
+pub variant antecedent_estimate::sequential_crossfit::SequentialCrossfitError::Cache(antecedent_estimate::nuisance_cache::NuisanceCacheError)
+pub variant antecedent_estimate::sequential_crossfit::SequentialCrossfitError::MissingAction { fold: u32, decision: u8, action: u8 }
+pub variant antecedent_estimate::sequential_crossfit::SequentialCrossfitError::Positivity { row_id: u64, decision: u8 }
+pub variant antecedent_estimate::sequential_crossfit::SequentialCrossfitError::Rank { fold: u32 }
+pub variant antecedent_estimate::sequential_crossfit::SequentialCrossfitError::Refused { message: &'static str }
+pub variant antecedent_estimate::sequential_crossfit::SequentialCrossfitError::Stats(antecedent_stats::error::StatsError)
+pub variant antecedent_estimate::sequential_crossfit::SequentialCrossfitError::Underdetermined { fold: u32, rows: usize, columns: usize }
+pub variant antecedent_estimate::sequential_crossfit::SequentialRole::BaselinePropensity
+pub variant antecedent_estimate::sequential_crossfit::SequentialRole::FollowUpPropensity
+pub variant antecedent_estimate::sequential_crossfit::SequentialRole::NestedOutcome { first: antecedent_estimate::sequential_crossfit::ActionLevel, second: antecedent_estimate::sequential_crossfit::ActionLevel }
+pub variant antecedent_estimate::sequential_crossfit::SequentialRole::TerminalOutcome { second: antecedent_estimate::sequential_crossfit::ActionLevel }
 pub variant antecedent_estimate::survival::SurvivalEndpoint::CumulativeIncidence { target_cause: i64 }
 pub variant antecedent_estimate::survival::SurvivalEndpoint::Survival
 pub variant antecedent_estimate::synthetic_control::SyntheticConstantEffectMethod::AugmentedControl { ridge_penalty: f64 }
