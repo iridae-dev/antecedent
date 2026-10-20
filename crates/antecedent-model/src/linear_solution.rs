@@ -20,6 +20,11 @@
 //! A singular or non-finite block is a refusal. An ill-conditioned block stays
 //! ill-conditioned and is not reported unique.
 //!
+//! [`hard_clamp_mean_batch`] evaluates several assignments of one hard clamp.
+//! One factorization of the free block serves every row. That factor is
+//! overwritten and is not stored. The batch returns equilibrium means only.
+//! A disturbance law's mean and covariance belong to the Gaussian compile.
+//!
 //! Each assessment keeps four statuses apart:
 //!
 //! - [`QueryBlock`] — solvability and conditioning of one concrete free block,
@@ -351,6 +356,47 @@ impl HardClamp {
     }
 }
 
+/// Equilibrium means for several assignments of one [`HardClamp`].
+///
+/// Row `s` is the solution of [`FREE_BLOCK_EQUATION`] at `assignments[s]`.
+/// Clamped coordinates hold those assignments. Free coordinates are the solved
+/// block. The factor is not retained.
+#[derive(Clone, Debug, PartialEq)]
+#[must_use = "dropping it drops the intervened means"]
+pub struct HardClampMeanBatch {
+    rows: usize,
+    dimension: usize,
+    means: Vec<f64>,
+}
+
+impl HardClampMeanBatch {
+    /// Number of assignment rows.
+    #[must_use = "the row count selects an intervened mean"]
+    pub const fn rows(&self) -> usize {
+        self.rows
+    }
+
+    /// Model dimension, the width of each mean.
+    #[must_use = "the dimension is the width of each intervened mean"]
+    pub const fn dimension(&self) -> usize {
+        self.dimension
+    }
+
+    /// Row-major means, one equilibrium per assignment row.
+    #[must_use = "the means are the intervened batch"]
+    pub fn means(&self) -> &[f64] {
+        &self.means
+    }
+
+    /// Equilibrium mean for assignment row `row`, or `None` when `row` is past the batch.
+    #[must_use = "a missing row is outside the batch"]
+    pub fn row(&self, row: usize) -> Option<&[f64]> {
+        let start = row.checked_mul(self.dimension)?;
+        let end = start.checked_add(self.dimension)?;
+        self.means.get(start..end)
+    }
+}
+
 /// Solvability, conditioning, family certificate, physical stability, and
 /// solver convergence for one map and one hard clamp.
 ///
@@ -646,6 +692,153 @@ pub fn revalidate_free_block(
         return Err(LinearSolutionError::FreeBlockNotSolvable { refusal });
     }
     Ok(assessment.intervened)
+}
+
+/// Equilibrium means for every row of `assignment_rows` under one hard clamp.
+///
+/// `assignment_rows` is row-major. Each row has one entry per
+/// [`HardClamp::indices`] entry, in that order. `disturbance_mean` is the mean
+/// of `ε` in variable order and is added on the free right-hand side. The
+/// clamp's free block is rechecked with [`revalidate_free_block`] before the
+/// factor is built. One call to [`gauss_jordan_solve`] then serves every row.
+/// The factor is overwritten and is not stored. A covariance is not part of
+/// this batch: the level does not change it.
+///
+/// # Errors
+///
+/// [`LinearSolutionError::Shape`] when the disturbance mean or the assignment
+/// rows do not describe a non-empty batch for this clamp,
+/// [`LinearSolutionError::ClampDimension`], or
+/// [`LinearSolutionError::FreeBlockNotSolvable`].
+#[must_use = "a refused free block is not a batch of means"]
+pub fn hard_clamp_mean_batch(
+    model: &LinearStructuralMap,
+    clamp: &HardClamp,
+    assignment_rows: &[f64],
+    disturbance_mean: &[f64],
+) -> Result<HardClampMeanBatch, LinearSolutionError> {
+    let n = model.n;
+    if disturbance_mean.len() != n || disturbance_mean.iter().any(|value| !value.is_finite()) {
+        return Err(LinearSolutionError::Shape {
+            message: "disturbance mean must be finite and match the model dimension",
+        });
+    }
+    let rows = assignment_row_count(clamp.indices().len(), assignment_rows)?;
+    revalidate_free_block(model, clamp)?;
+    let free = free_indices(n, clamp.indices());
+    let means = if free.is_empty() {
+        scatter_clamp_means(n, rows, clamp.indices(), &free, assignment_rows, &[])
+    } else {
+        solve_free_means(model, clamp, &free, rows, assignment_rows, disturbance_mean)?
+    };
+    Ok(HardClampMeanBatch { rows, dimension: n, means })
+}
+
+fn assignment_row_count(
+    width: usize,
+    assignment_rows: &[f64],
+) -> Result<usize, LinearSolutionError> {
+    let shape = LinearSolutionError::Shape {
+        message: "assignments must be finite row-major rows of this clamp",
+    };
+    if width == 0 {
+        return Err(shape);
+    }
+    let rows = assignment_rows.chunks_exact(width).len();
+    let covered = rows.checked_mul(width);
+    if covered != Some(assignment_rows.len()) || rows == 0 {
+        return Err(shape);
+    }
+    if assignment_rows.iter().any(|value| !value.is_finite()) {
+        return Err(shape);
+    }
+    Ok(rows)
+}
+
+fn solve_free_means(
+    model: &LinearStructuralMap,
+    clamp: &HardClamp,
+    free: &[usize],
+    rows: usize,
+    assignment_rows: &[f64],
+    disturbance_mean: &[f64],
+) -> Result<Vec<f64>, LinearSolutionError> {
+    let n = model.n;
+    let m = free.len();
+    let mut factor = eye_minus_k(&principal(&model.coefficients, n, free), m);
+    let mut rhs = free_batch_rhs(model, clamp, free, rows, assignment_rows, disturbance_mean);
+    if !gauss_jordan_solve(&mut factor, &mut rhs, m, rows) {
+        return Err(LinearSolutionError::FreeBlockNotSolvable {
+            refusal: SolvabilityRefusal::NumericallySingular { members: free.to_vec() },
+        });
+    }
+    if rhs.iter().any(|value| !value.is_finite()) {
+        return Err(LinearSolutionError::FreeBlockNotSolvable {
+            refusal: SolvabilityRefusal::NonFinite,
+        });
+    }
+    Ok(scatter_clamp_means(n, rows, clamp.indices(), free, assignment_rows, &rhs))
+}
+
+fn eye_minus_k(k_ff: &[f64], order: usize) -> Vec<f64> {
+    let mut matrix = vec![0.0; order * order];
+    for row in 0..order {
+        for col in 0..order {
+            let coefficient = k_ff[row * order + col];
+            matrix[row * order + col] = if row == col { 1.0 - coefficient } else { -coefficient };
+        }
+    }
+    matrix
+}
+
+fn free_batch_rhs(
+    model: &LinearStructuralMap,
+    clamp: &HardClamp,
+    free: &[usize],
+    rows: usize,
+    assignment_rows: &[f64],
+    disturbance_mean: &[f64],
+) -> Vec<f64> {
+    let n = model.n;
+    let m = free.len();
+    let width = clamp.indices().len();
+    let k_fh = gather_k_fh(&model.coefficients, n, free, clamp.indices());
+    let mut rhs = vec![0.0; rows * m];
+    for (scenario, assignment) in assignment_rows.chunks_exact(width).enumerate() {
+        for (local, &node) in free.iter().enumerate() {
+            let mut value = model.intercept[node] + disturbance_mean[node];
+            let start = local * width;
+            for (coefficient, level) in k_fh[start..start + width].iter().zip(assignment) {
+                value += coefficient * level;
+            }
+            rhs[scenario * m + local] = value;
+        }
+    }
+    rhs
+}
+
+fn scatter_clamp_means(
+    n: usize,
+    rows: usize,
+    clamped: &[usize],
+    free: &[usize],
+    assignment_rows: &[f64],
+    solved: &[f64],
+) -> Vec<f64> {
+    let width = clamped.len();
+    let m = free.len();
+    let mut means = vec![0.0; rows * n];
+    for (scenario, assignment) in assignment_rows.chunks_exact(width).enumerate() {
+        let start = scenario * n;
+        let row = &mut means[start..start + n];
+        for (&node, &level) in clamped.iter().zip(assignment) {
+            row[node] = level;
+        }
+        for (local, &node) in free.iter().enumerate() {
+            row[node] = solved[scenario * m + local];
+        }
+    }
+    means
 }
 
 fn solvability_refusal(block: &QueryBlock) -> Option<SolvabilityRefusal> {
@@ -1027,8 +1220,11 @@ mod tests {
         Conditioning, ConsistencyWitness, FamilyCertificate, HardClamp, IdentificationStatus,
         LinearSolutionError, LinearStructuralMap, NONZERO_DIAGONAL_NEXT_ATTEMPT, NextAttempt,
         PhysicalStability, SolvabilityRefusal, SolverConvergence, Uniqueness, assess,
-        revalidate_free_block,
+        hard_clamp_mean_batch, revalidate_free_block,
     };
+    use crate::cyclic_component::CyclicComponent;
+    use crate::intervention_request::{InterventionRequest, compile_under_request};
+    use crate::scc_compile::{CompileBudget, GaussianDisturbance, compile_gaussian_equilibrium};
 
     fn close(left: f64, right: f64) -> bool {
         (left - right).abs() <= 1.0e-12
@@ -1038,37 +1234,109 @@ mod tests {
         LinearStructuralMap::try_new(coefficients, intercept).expect("fixture map")
     }
 
-    /// Observational `B`-on-`A` slope and the `B` response to a unit shift of
-    /// the mean of `ε_A`, for `A = k_ab B + ε_A`, `B = k_ba A + ε_B`, with
-    /// centered independent unit-variance disturbances. Local 2×2 algebra for
-    /// the fixture; [`assess`] does not invert.
-    fn two_node_association_and_mean_shift(k_ab: f64, k_ba: f64) -> (f64, f64) {
-        let det = 1.0 - k_ab * k_ba;
-        let response_a_from_a = 1.0 / det;
-        let response_a_from_b = k_ab / det;
-        let response_b_from_a = k_ba / det;
-        let response_b_from_b = 1.0 / det;
-        let var_a = response_a_from_a * response_a_from_a + response_a_from_b * response_a_from_b;
-        let cov_ab = response_a_from_a * response_b_from_a + response_a_from_b * response_b_from_b;
-        (cov_ab / var_a, response_b_from_a)
+    fn independent_unit(mean: Vec<f64>) -> GaussianDisturbance {
+        let n = mean.len();
+        let mut covariance = vec![0.0; n * n];
+        for node in 0..n {
+            covariance[node * n + node] = 1.0;
+        }
+        GaussianDisturbance::try_new(mean, covariance).expect("unit disturbance")
+    }
+
+    fn admitted_component(model: &LinearStructuralMap) -> CyclicComponent {
+        let family = assess(model, &HardClamp::none(model.dimension()).expect("no clamp"))
+            .expect("assessment")
+            .family;
+        CyclicComponent::try_new(
+            "feedback",
+            "source-measurements",
+            &["solve-note"],
+            model,
+            &family,
+        )
+        .expect("component")
     }
 
     #[test]
     fn two_cycle_association_clamp_derivative_and_mean_shift_are_different() {
         // A = 0.4 B + U_A, B = 0.5 A + U_B. Indices: A = 0, B = 1.
+        // Independent unit disturbances. The three responses come from the
+        // compiled equilibrium and the clamp batch, not from a local inverse.
         let model = map(vec![0.0, 0.4, 0.5, 0.0], vec![0.0, 0.0]);
         let clamp_a = HardClamp::try_new(2, &[0]).expect("clamp A");
         let report = assess(&model, &clamp_a).expect("assessment");
+        let component = admitted_component(&model);
+        let open = HardClamp::none(2).expect("no clamp");
 
-        let (association, mean_shift_b) = two_node_association_and_mean_shift(0.4, 0.5);
-        let clamp_derivative_b = model.coefficient(1, 0).expect("K[B, A]");
-
+        let observed = compile_gaussian_equilibrium(
+            &component,
+            &model,
+            &independent_unit(vec![0.0, 0.0]),
+            &open,
+            &[],
+            CompileBudget::unlimited(),
+        )
+        .expect("observational equilibrium");
+        assert!(close(observed.mean()[0], 0.0));
+        assert!(close(observed.mean()[1], 0.0));
+        let covariance = observed.covariance();
+        assert!(close(covariance[0], 1.8125));
+        assert!(close(covariance[1], 1.40625));
+        assert!(close(covariance[2], 1.40625));
+        assert!(close(covariance[3], 1.953_125));
+        // Observational regression of B on A is Cov(A, B) / Var(A).
+        let association = covariance[1] / covariance[0];
         assert!(close(association, 45.0 / 58.0));
         assert!((association - 0.776).abs() < 1.0e-3);
+
+        let shocked = compile_gaussian_equilibrium(
+            &component,
+            &model,
+            &independent_unit(vec![1.0, 0.0]),
+            &open,
+            &[],
+            CompileBudget::unlimited(),
+        )
+        .expect("unit disturbance shock");
+        assert!(close(shocked.mean()[0], 1.25));
+        let mean_shift_b = shocked.mean()[1];
         assert!(close(mean_shift_b, 0.625));
-        assert!(close(clamp_derivative_b, 0.5));
-        assert!((association - clamp_derivative_b).abs() > 0.2);
-        assert!((mean_shift_b - clamp_derivative_b).abs() > 0.1);
+
+        let batch = hard_clamp_mean_batch(&model, &clamp_a, &[0.0, 1.0, 2.0], &[0.0, 0.0])
+            .expect("clamp batch");
+        assert_eq!(batch.rows(), 3);
+        assert_eq!(batch.dimension(), 2);
+        let at_zero = batch.row(0).expect("do(A = 0)");
+        let at_one = batch.row(1).expect("do(A = 1)");
+        let at_two = batch.row(2).expect("do(A = 2)");
+        assert!(batch.row(3).is_none());
+        assert!(close(at_zero[0], 0.0));
+        assert!(close(at_zero[1], 0.0));
+        assert!(close(at_one[0], 1.0));
+        assert!(close(at_one[1], 0.5));
+        assert!(close(at_two[0], 2.0));
+        assert!(close(at_two[1], 1.0));
+        let clamp_response_b = at_one[1] - at_zero[1];
+        assert!(close(clamp_response_b, 0.5));
+        assert!(close(at_two[1] - at_one[1], 0.5));
+
+        let request = InterventionRequest::hard_clamp(2, &[0], &[1.0]).expect("do(A = 1)");
+        let intervened = compile_under_request(
+            &component,
+            &model,
+            &independent_unit(vec![0.0, 0.0]),
+            &request,
+            CompileBudget::unlimited(),
+        )
+        .expect("intervened equilibrium");
+        assert!(close(intervened.mean()[0], 1.0));
+        assert!(close(intervened.mean()[1], at_one[1]));
+        assert!(close(intervened.covariance()[0], 0.0));
+        assert!(close(intervened.covariance()[1], 0.0));
+        assert!(close(intervened.covariance()[3], 1.0));
+
+        assert!((association - clamp_response_b).abs() > 0.2);
+        assert!((mean_shift_b - clamp_response_b).abs() > 0.1);
         assert!((association - mean_shift_b).abs() > 0.1);
 
         assert!(report.family.is_admitted());
