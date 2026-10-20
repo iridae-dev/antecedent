@@ -753,7 +753,7 @@ pub fn delayed_action_of(
     }
     let operation = ExecutionSurface::Temporal
         .admit(intervention, Some(temporal))
-        .map_err(history_refusal)?;
+        .map_err(|error| history_refusal(&error))?;
     match operation {
         InterventionOperation::Pulse { at, action } => {
             DelayedAction::pulse(at, finite_set_level(action.as_ref())?)
@@ -805,11 +805,11 @@ pub fn refuse_initial_state_change(law_name: &str, level: f64) -> Result<(), His
     }
 }
 
-fn history_refusal(error: AdmitError) -> HistoryOperatorError {
+fn history_refusal(error: &AdmitError) -> HistoryOperatorError {
     match error {
-        AdmitError::Refused(refusal) => history_operation(refusal),
+        AdmitError::Refused(refusal) => history_operation(*refusal),
         AdmitError::Invalid(InterventionError::InvalidTemporalWindow { from, until }) => {
-            HistoryOperatorError::InvertedWindow { from_step: from, until_step: until }
+            HistoryOperatorError::InvertedWindow { from_step: *from, until_step: *until }
         }
         AdmitError::Invalid(InterventionError::NonFiniteLevel) => {
             HistoryOperatorError::NonFiniteLevel { value: f64::NAN }

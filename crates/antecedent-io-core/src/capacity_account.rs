@@ -756,6 +756,10 @@ fn byte_len(bytes: &[u8]) -> Result<u64, CapacityError> {
     u64::try_from(bytes.len()).map_err(|_| CapacityError::Overflow)
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the frame header is the fixed 48-byte format constant on every target"
+)]
 const HEADER_BYTES: usize = spill_file::FRAME_HEADER_BYTES as usize;
 
 /// Files written by one `retain_disk_backed` call, removed unless kept.

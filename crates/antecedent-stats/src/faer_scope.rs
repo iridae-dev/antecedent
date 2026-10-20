@@ -149,7 +149,7 @@ impl FaerScratch {
 /// [`crate::faer_backend::FaerBackend::least_squares`] does not receive the
 /// study context, so this lease is drawn from a fresh one-thread pool rather
 /// than the caller's admission pool.
-#[must_use]
+#[must_use = "keep the admission lease alive while the factor uses its worker"]
 pub fn detached_serial_lease() -> AdmissionLease {
     let pool = AdmissionPool::fixed(1, u64::MAX);
     let ctx = ExecutionContext::for_tests(0).with_admission(pool);

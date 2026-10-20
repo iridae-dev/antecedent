@@ -1086,12 +1086,7 @@ fn solve_vector(
     members: &[usize],
 ) -> Result<Vec<f64>, SccCompileError> {
     let m = members.len();
-    let solved = solve_row_major(matrix, rhs, m, 1, members)?;
-    let mut vector = Vec::with_capacity(m);
-    for row in 0..m {
-        vector.push(solved[row]);
-    }
-    Ok(vector)
+    solve_row_major(matrix, rhs, m, 1, members)
 }
 
 fn exact_infinity_kappa(matrix: &[f64], m: usize) -> Option<f64> {

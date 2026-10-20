@@ -319,7 +319,7 @@ pub fn revalidate_initial_state(
 ) -> Result<RevalidatedFreeBlock, InterventionRequestError> {
     let _ = model;
     let operation = InterventionOperation::initial_state(law_name, Value::f64(level))
-        .map_err(map_intervention_error)?;
+        .map_err(|error| map_intervention_error(&error))?;
     match ExecutionSurface::Cyclic.admit_operation(&operation) {
         Err(refusal) => Err(refused(refusal)),
         Ok(()) => Err(InterventionRequestError::UnsupportedSemantic {
@@ -361,7 +361,7 @@ fn clamp_for_set(
 fn map_admit_error(error: AdmitError) -> InterventionRequestError {
     match error {
         AdmitError::Refused(refusal) => refused(refusal),
-        AdmitError::Invalid(invalid) => map_intervention_error(invalid),
+        AdmitError::Invalid(invalid) => map_intervention_error(&invalid),
         _ => InterventionRequestError::UnsupportedSemantic {
             operation: "intervention",
             reason: "the intervention was not admitted",
@@ -369,7 +369,7 @@ fn map_admit_error(error: AdmitError) -> InterventionRequestError {
     }
 }
 
-fn map_intervention_error(error: InterventionError) -> InterventionRequestError {
+fn map_intervention_error(error: &InterventionError) -> InterventionRequestError {
     match error {
         InterventionError::NonFiniteLevel => InterventionRequestError::NonFiniteLevel,
         InterventionError::EmptyInitialLaw => InterventionRequestError::EmptyInitialLaw,

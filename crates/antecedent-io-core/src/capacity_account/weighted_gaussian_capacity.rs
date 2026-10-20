@@ -1341,6 +1341,10 @@ fn spill_summary(
 
 /// Reserve, encode, write, and read back one summary. `write` stores the frame
 /// in the temporary file, so a test can make that step fail.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "spilling consumes the in-memory summary and releases it after committing the frame"
+)]
 fn spill_with(
     result: WeightedCapacityResult,
     cancellation: Option<&CancellationToken>,
