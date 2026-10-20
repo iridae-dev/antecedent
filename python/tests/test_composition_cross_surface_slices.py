@@ -3,8 +3,9 @@
 Scientific inputs and hand values are `conformance/cross_surface/slice_cases.json`.
 Each case drops the producer and reads an independently loaded artifact.
 Specified feedback has no Python binding; the Rust contract test covers it. The finite-discrete
-horizon cell is a regime label on the same table, as on the Rust surface, because no facade
-producer builds a horizon table of counts.
+static cells are built through the statistical stage from rows of the fixture's counts. The
+finite-discrete horizon cells have no facade producer and are covered from the law artifact in
+the Rust io tests.
 """
 
 from __future__ import annotations
@@ -20,7 +21,6 @@ from antecedent import (
     Bayesian,
     Frequentist,
     PulseEffect,
-    ResponseCurve,
     analyze,
     load,
 )
@@ -114,58 +114,135 @@ def test_four_way_gaussian_cells_reload_from_independent_artifacts():
             _gaussian_cell(horizon, bayesian)
 
 
-def _discrete_program(regime: str):
-    discrete = CASES["finite_discrete"]
-    graph = Admg.from_edges(["t", "z", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
+def _discrete_rows(counts, level):
+    """The fixture's joint as rows, `t` slowest and `y` fastest, at one treatment level or all."""
+    rows = {"z": [], "t": [], "y": []}
+    for cell, copies in enumerate(counts):
+        treatment, confounder, outcome = cell // 4, (cell // 2) % 2, cell % 2
+        if level is not None and treatment != level:
+            continue
+        rows["z"] += [float(confounder)] * copies
+        rows["t"] += [float(treatment)] * copies
+        rows["y"] += [float(outcome)] * copies
+    return rows
+
+
+def _discrete_arm(counts, level, estimator):
+    """One arm `do(t = level)`: the trial rows at that level plus the whole table's confounder."""
+    graph = Admg.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")], [("t", "y")])
+    identified = transport.identify_classical(
+        graph,
+        transport.SelectionDiagram("source", "target", ["z"]),
+        outcomes=["y"],
+        treatments=["t"],
+    )
+    variables = [transport.VariableCoordinate(name, "binary") for name in ("z", "t", "y")]
     catalog = transport.EvidenceCatalog(
-        regimes=[transport.EvidenceRegime(regime, discrete["population"], measured=["t", "z", "y"])]
+        environments=[
+            transport.Environment("source", variables, selection_targets=["z"]),
+            transport.Environment("target", variables),
+        ],
+        regimes=[
+            transport.EvidenceRegime(
+                "trial", "source", kind="experimental", interventions=["t"], measured=["z", "y"]
+            ),
+            transport.EvidenceRegime("covariates", "target", measured=["z"]),
+        ],
+        bindings=[
+            transport.RegimeBinding(
+                name, name, sampling="independent", dependence="independent_studies"
+            )
+            for name in ("trial", "covariates")
+        ],
+        target_sampling="representative_sample",
     )
-    query = transport.TransportQuery(
-        ResponseCurve("t", "y", grid=[0.0, 1.0]),
-        transport.SelectionDiagram("source", discrete["population"], []),
-        catalog=catalog,
+    trial = _discrete_rows(counts, level)
+    data = transport.StatisticalTransportData(
+        samples=(
+            transport.RegimeSample(
+                "source",
+                "trial",
+                "trial",
+                {"z": trial["z"], "y": trial["y"]},
+                interventions=(("t", float(level)),),
+            ),
+            transport.RegimeSample(
+                "target", "covariates", "covariates", {"z": _discrete_rows(counts, None)["z"]}
+            ),
+        )
     )
-    identification = transport.identify(graph=graph, query=query)
-    return identification, transport.reload_lowered_program(identification), catalog
+    study = transport.prepare_statistical(
+        identified, catalog, data, at={"t": float(level)}, bootstrap=0, estimator=estimator
+    )
+    return load(study.estimate().export())
 
 
-def _law(counts, regime: str, snapshot: str):
+def _draw_means(loaded):
+    posterior = loaded.uncertainty["bayesian_posterior"]
+    assert posterior["draws_ok"] == posterior["draws_requested"] == len(posterior["probabilities"])
+    return [
+        math.fsum(atom[0] * p for atom, p in zip(loaded.atoms, draw, strict=True))
+        for draw in posterior["probabilities"]
+    ]
+
+
+def _mean_and_standard_error(draws):
+    mean = math.fsum(draws) / len(draws)
+    variance = math.fsum((draw - mean) ** 2 for draw in draws) / (len(draws) - 1)
+    return mean, math.sqrt(variance / len(draws))
+
+
+def _dirichlet_arm_mean(counts, level):
+    """Posterior mean of one arm under Dirichlet(count + 1) on the trial joint and the confounder.
+
+    The trial's (z, y) joint and the covariates' z law are independent, and a Dirichlet's
+    conditional y | z is a beta independent of its z marginal, so the mean of
+    sum_z P(z) P(y = 1 | z) is the product of the two posterior means.
+    """
+
+    def cell(t, z, y):
+        return counts[t * 4 + z * 2 + y]
+
+    def confounder_rows(z):
+        return sum(cell(t, z, 0) + cell(t, z, 1) for t in (0, 1))
+
+    rows = confounder_rows(0) + confounder_rows(1)
+    total = 0.0
+    for z in (0, 1):
+        positive = cell(level, z, 1) + 1
+        weight = (confounder_rows(z) + 1) / (rows + 2)
+        total += weight * positive / (cell(level, z, 0) + positive + 1)
+    return total
+
+
+def test_finite_discrete_static_frequentist_cell_reloads_from_independent_artifacts():
     discrete = CASES["finite_discrete"]
-    total = sum(counts)
-    return transport.ExactDiscreteLaw(
-        discrete["population"],
-        regime,
-        (("t", (0.0, 1.0)), ("z", (0.0, 1.0)), ("y", (0.0, 1.0))),
-        tuple(count / total for count in counts),
-        snapshot,
-        empirical_counts=tuple(counts) if snapshot == discrete["snapshot"] else None,
-    )
+    active = _discrete_arm(discrete["counts"], 1, "plugin")
+    control = _discrete_arm(discrete["counts"], 0, "plugin")
+    assert active.mean("y") == pytest.approx(discrete["active"], abs=1e-12)
+    assert control.mean("y") == pytest.approx(discrete["control"], abs=1e-12)
+    assert active.mean("y") - control.mean("y") == pytest.approx(discrete["contrast"], abs=1e-12)
+    assert active.uncertainty["bayesian_posterior"] is None
 
 
-def _contrast(program, catalog, law) -> float:
-    active = program.evaluate_exact(catalog, (law,), {"t": 1.0, "y": 1.0})
-    control = program.evaluate_exact(catalog, (law,), {"t": 0.0, "y": 1.0})
-    return active - control
-
-
-def test_finite_discrete_adjustment_reloads_at_each_regime_label():
+def test_finite_discrete_static_bayesian_cell_reloads_posterior_draws_around_the_dirichlet_mean():
+    # The state-space Dirichlet posterior is not the fixture's hand-built two-draw mixture, so its
+    # mean is the exact Dirichlet moment, within five standard errors of the draws.
     discrete = CASES["finite_discrete"]
-    assert discrete["static_regime"] != discrete["horizon_regime"]
-    for regime in (str(discrete["static_regime"]), str(discrete["horizon_regime"])):
-        identification, program, catalog = _discrete_program(regime)
-        law = _law(discrete["counts"], regime, discrete["snapshot"])
-        assert _contrast(program, catalog, law) == pytest.approx(discrete["contrast"])
-        wire = program.to_wire_json()
-        del program
-        restored = transport.restore_lowered_program(identification, wire)
-        assert _contrast(restored, catalog, law) == pytest.approx(discrete["contrast"])
-        mixed = 0.0
-        for index, draw in enumerate(discrete["posterior_draws"]):
-            draw_law = _law(draw["counts"], regime, f"draw-{index}")
-            contrast = _contrast(restored, catalog, draw_law)
-            assert contrast == pytest.approx(draw["contrast"])
-            mixed += draw["weight"] * contrast
-        assert mixed == pytest.approx(discrete["posterior_mean"])
+    counts = discrete["counts"]
+    active = _discrete_arm(counts, 1, "state_space_dirichlet")
+    control = _discrete_arm(counts, 0, "state_space_dirichlet")
+    active_mean, active_error = _mean_and_standard_error(_draw_means(active))
+    control_mean, control_error = _mean_and_standard_error(_draw_means(control))
+    assert active_mean == pytest.approx(
+        _dirichlet_arm_mean(counts, 1), abs=_MONTE_CARLO_STANDARD_ERRORS * active_error
+    )
+    assert control_mean == pytest.approx(
+        _dirichlet_arm_mean(counts, 0), abs=_MONTE_CARLO_STANDARD_ERRORS * control_error
+    )
+    # The point law each artifact carries is still the plug-in of the same rows.
+    assert active.mean("y") == pytest.approx(discrete["active"], abs=1e-12)
+    assert control.mean("y") == pytest.approx(discrete["control"], abs=1e-12)
 
 
 def _sources(session):

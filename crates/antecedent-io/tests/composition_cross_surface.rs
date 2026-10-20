@@ -612,8 +612,9 @@ fn assert_adjustment(law: &ExactDiscreteLaw, regime: RegimeId, discrete: &Finite
 /// evaluated at the static regime id and at the horizon regime id.
 ///
 /// This is a regime-label case, not a horizon producer: the table is the same and only its regime
-/// id differs, because no study-facade producer builds a horizon table of counts. The temporal
-/// facade is covered for Gaussian data by `composition_cross_surface_slices.rs`.
+/// id differs, because no study-facade producer builds a horizon table of counts. The static cells
+/// are produced through the study facade by `composition_cross_surface_slices.rs`, which also
+/// covers the temporal facade for Gaussian data.
 /// `gaussian` and `linear_gaussian` are not law origins.
 #[test]
 fn finite_discrete_adjustment_reloads_at_each_regime_label() {

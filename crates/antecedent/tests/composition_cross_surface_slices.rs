@@ -12,8 +12,14 @@
 //! `0.4` add their mean `0.2` and leave the unit scores two-valued, so the whole-unit standard
 //! error is `0.2 * sqrt(100 / 99) / 10`.
 //!
-//! The finite-discrete adjustment has no producer on the study facade, so it is covered in
-//! `antecedent-io/tests/composition_cross_surface.rs` from the law artifact.
+//! The finite-discrete static cells are produced by `StudyBuilder::statistical_transport` from
+//! tabular rows of the fixture's counts: a source trial per arm supplies `P(y | do(t), z)` and the
+//! whole table supplies `P(z)`, so the adjustment `sum_z P(z) P(y | t, z)` takes the hand values
+//! `9/16`, `1/4` and `5/16`. The Bayesian cell is the state-space Dirichlet posterior, whose mean is
+//! not the fixture's hand-built two-draw mixture: its arm means are the exact Dirichlet moments,
+//! checked within five standard errors of the draws. The finite-discrete horizon cells have no
+//! facade producer, so `antecedent-io/tests/composition_cross_surface.rs` covers them from the law
+//! artifact.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -26,6 +32,7 @@ use antecedent::analysis::evidence_ledger::{
     EvidenceLedgerSession, ObservationId, ResultStatus, Revalidation, SourceDeclaration, SourceId,
     SourceKind, SynthesisOutcome,
 };
+use antecedent::analysis::{PreparedStudy, StatisticalPreparedState, StatisticalStudyResult};
 use antecedent::{
     BayesianConfig, Dag, InferenceMode, IntervalEstimand, PoolingDeclaration, PoolingRequest,
     PublishedScalarUncertainty, RefuteSuite, SourceRevision, Study, StudyBuilder, StudyResult,
@@ -34,7 +41,10 @@ use antecedent::{
     temporal_dependent_interval, temporal_dependent_interval_candidate,
 };
 use antecedent_core::{
-    AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, IntervalMethod, Lag, VariableId,
+    AverageEffectQuery, CausalSchemaBuilder, DependenceGroup, DistributionAvailability,
+    Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext, IntervalMethod,
+    Lag, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, TargetSampling, Value,
+    VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_estimate::temporal_dependent_interval::{
@@ -44,9 +54,15 @@ use antecedent_estimate::temporal_dependent_interval::{
 use antecedent_estimate::temporal_initial_state::{
     InitialStateLaw, InitialStatePopulation, InitialStateSpec,
 };
-use antecedent_expr::{Assignment, ExactEvaluationLimits};
-use antecedent_graph::{Admg, DenseNodeId, NodeRef};
-use antecedent_identify::{RecoveredEffectQuery, RecoveryLimits};
+use antecedent_estimate::{
+    EmpiricalTableEstimator, EmpiricalTableOptions, RegimeSample, StatisticalTransportInput,
+};
+use antecedent_expr::{Assignment, ExactEvaluationLimits, InterventionAssignment};
+use antecedent_graph::{Admg, DenseNodeId, NodeRef, SelectionDiagram};
+use antecedent_identify::{
+    BoundTransportFunctional, CatalogTransportResult, ClassicalTransportQuery, RecoveredEffectQuery,
+    RecoveryLimits, SidLimits, identify_catalog_transport,
+};
 use antecedent_io::measured_inference::MeasuredInference;
 use antecedent_io::recovery_artifact::RecoveryConsumeLimits;
 use antecedent_io::temporal_interval_artifact::{
@@ -233,6 +249,286 @@ fn four_way_gaussian_cells_reload_from_independent_artifacts() {
     let fixture = slice_cases::load();
     for cell in GaussianCell::ALL {
         reload_gaussian(cell, &fixture.gaussian);
+    }
+}
+
+const CONFOUNDER: u32 = 0;
+const TREATMENT: u32 = 1;
+const OUTCOME: u32 = 2;
+const POSTERIOR_DRAWS: u32 = 500;
+
+/// The fixture's joint as rows, `t` slowest and `y` fastest, keeping the treatment levels `keep` accepts.
+fn discrete_table(counts: &[u32], keep: impl Fn(f64) -> bool) -> TabularData {
+    let (mut confounder, mut treatment, mut outcome) = (Vec::new(), Vec::new(), Vec::new());
+    for (cell, &rows) in counts.iter().enumerate() {
+        let level = |bit: usize| f64::from(u8::from(cell & bit != 0));
+        if !keep(level(4)) {
+            continue;
+        }
+        for _ in 0..rows {
+            treatment.push(level(4));
+            confounder.push(level(2));
+            outcome.push(level(1));
+        }
+    }
+    let schema = CausalSchemaBuilder::new()
+        .binary("z")
+        .context()
+        .binary("t")
+        .treatment()
+        .binary("y")
+        .outcome()
+        .build()
+        .unwrap();
+    TabularData::try_from_schema_f64(
+        schema,
+        [("z", confounder.as_slice()), ("t", treatment.as_slice()), ("y", outcome.as_slice())],
+    )
+    .unwrap()
+}
+
+fn discrete_environment(identity: &str) -> Environment {
+    let coordinate = |raw| VariableCoordinate {
+        variable: v(raw),
+        domain: VariableDomain::Binary,
+        unit: None,
+    };
+    Environment::try_new(
+        identity,
+        vec![coordinate(CONFOUNDER), coordinate(TREATMENT), coordinate(OUTCOME)],
+        vec![v(CONFOUNDER)],
+    )
+    .unwrap()
+}
+
+fn discrete_binding(regime: u32, snapshot: &str) -> RegimeBinding {
+    RegimeBinding {
+        dataset_identity: None,
+        regime: RegimeId::from_raw(regime),
+        snapshot_identity: Arc::from(snapshot),
+        schema_names: Arc::from([]),
+        sampling: SamplingDesign::Independent,
+        weights: None,
+        dependence: DependenceGroup::IndependentStudies,
+    }
+}
+
+/// `z -> t`, `z -> y`, `t -> y` with `t <-> y` confounded and a selection on `z`: the trial
+/// supplies `P(y | do(t), z)` and the target covariates supply `P(z)`.
+fn discrete_functional() -> (SelectionDiagram, BoundTransportFunctional) {
+    let node = DenseNodeId::from_raw;
+    let mut graph = Admg::with_variables(3);
+    graph.insert_directed(node(CONFOUNDER), node(TREATMENT)).unwrap();
+    graph.insert_directed(node(CONFOUNDER), node(OUTCOME)).unwrap();
+    graph.insert_directed(node(TREATMENT), node(OUTCOME)).unwrap();
+    graph.insert_bidirected(node(TREATMENT), node(OUTCOME)).unwrap();
+    let diagram = SelectionDiagram::try_new(graph, [v(CONFOUNDER)]).unwrap();
+    let query = ClassicalTransportQuery {
+        outcomes: Arc::from([v(OUTCOME)]),
+        treatments: Arc::from([v(TREATMENT)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    };
+    let regime = |id: u32,
+                  kind: RegimeKind,
+                  interventions: Vec<VariableId>,
+                  measured: Vec<VariableId>,
+                  population: &str| {
+        EvidenceRegime::try_new(
+            RegimeId::from_raw(id),
+            kind,
+            EvidenceKind::Available,
+            interventions,
+            [],
+            measured,
+            population,
+            DistributionAvailability::Joint,
+        )
+        .unwrap()
+    };
+    let catalog = EvidenceCatalog::try_new(
+        [discrete_environment("source"), discrete_environment("target")],
+        [
+            regime(
+                0,
+                RegimeKind::Experimental,
+                vec![v(TREATMENT)],
+                vec![v(CONFOUNDER), v(OUTCOME)],
+                "source",
+            ),
+            regime(1, RegimeKind::Observational, vec![], vec![v(CONFOUNDER)], "target"),
+        ],
+        [discrete_binding(0, "trial"), discrete_binding(1, "covariates")],
+        Some(TargetSampling::RepresentativeSample),
+    )
+    .unwrap();
+    let CatalogTransportResult::Identified(bound) =
+        identify_catalog_transport(&diagram, &query, &catalog, SidLimits::default(), &ctx())
+            .unwrap()
+    else {
+        panic!("the adjustment is identified from the trial and the covariates");
+    };
+    (diagram, *bound)
+}
+
+/// One arm `do(t = level)`: the trial rows at that level and the whole table's confounder.
+fn discrete_arm(
+    counts: &[u32],
+    level: u8,
+    options: EmpiricalTableOptions,
+) -> PreparedStudy<StatisticalPreparedState> {
+    let (diagram, functional) = discrete_functional();
+    let trial = RegimeSample::from_tabular(
+        "source",
+        RegimeId::from_raw(0),
+        "trial",
+        vec![InterventionAssignment {
+            variable: v(TREATMENT),
+            value: Value::Int64(i64::from(level)),
+        }],
+        &discrete_table(counts, |treatment| treatment == f64::from(level)),
+        &[v(CONFOUNDER), v(OUTCOME)],
+    )
+    .unwrap();
+    let covariates = RegimeSample::from_tabular(
+        "target",
+        RegimeId::from_raw(1),
+        "covariates",
+        Vec::<InterventionAssignment>::new(),
+        &discrete_table(counts, |_| true),
+        &[v(CONFOUNDER)],
+    )
+    .unwrap();
+    StudyBuilder::statistical_transport(
+        diagram,
+        functional,
+        StatisticalTransportInput { supplied: Vec::new(), samples: vec![trial, covariates] },
+        Assignment::from_pairs([(v(TREATMENT), Value::Int64(i64::from(level)))]),
+        ExactEvaluationLimits::default(),
+        options,
+        &ctx(),
+    )
+    .unwrap()
+}
+
+/// An arm's mean outcome as produced, and the artifact read back by a consumer that never saw the rows.
+struct DiscreteArm {
+    produced: f64,
+    consumed: StatisticalStudyResult,
+}
+
+impl DiscreteArm {
+    fn consumed_mean(&self) -> f64 {
+        self.consumed.distribution().mean(v(OUTCOME)).unwrap()
+    }
+
+    /// Mean outcome of each posterior draw, as the consumer reloaded it.
+    fn draw_means(&self) -> Vec<f64> {
+        let posterior = self.consumed.bayesian_estimate().expect("a posterior estimate");
+        posterior.distributions.iter().map(|law| law.mean(v(OUTCOME)).unwrap()).collect()
+    }
+}
+
+fn reload_discrete_arm(counts: &[u32], level: u8, options: EmpiricalTableOptions) -> DiscreteArm {
+    let study = discrete_arm(counts, level, options);
+    let result = study.estimate(&ctx()).unwrap();
+    let produced = result.distribution().mean(v(OUTCOME)).unwrap();
+    let bytes = study.export(&result).unwrap();
+    drop(study);
+    let (_, consumed) = PreparedStudy::<StatisticalPreparedState>::consume(
+        &bytes,
+        ExactEvaluationLimits::default(),
+        &ctx(),
+    )
+    .unwrap();
+    DiscreteArm { produced, consumed }
+}
+
+/// The posterior mean of one arm under a Dirichlet(count + 1) law on each fitted joint. The
+/// trial's `(z, y)` joint and the covariates' `z` law are independent, and a Dirichlet's
+/// conditional `y | z` is a beta independent of its `z` marginal, so the mean of
+/// `sum_z P(z) P(y = 1 | z)` is the product of the two posterior means.
+fn dirichlet_arm_mean(counts: &[u32], level: usize) -> f64 {
+    let cell = |t: usize, z: usize, y: usize| f64::from(counts[t * 4 + z * 2 + y]);
+    let confounder_rows = |z: usize| (0..2).map(|t| cell(t, z, 0) + cell(t, z, 1)).sum::<f64>();
+    let rows = confounder_rows(0) + confounder_rows(1);
+    (0..2)
+        .map(|z| {
+            let weight = (confounder_rows(z) + 1.0) / (rows + 2.0);
+            let positive = cell(level, z, 1) + 1.0;
+            weight * positive / (cell(level, z, 0) + positive + 1.0)
+        })
+        .sum()
+}
+
+fn mean_and_standard_error(draws: &[f64]) -> (f64, f64) {
+    let n = count(draws.len());
+    let mean = draws.iter().sum::<f64>() / n;
+    let variance = draws.iter().map(|draw| (draw - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    (mean, (variance / n).sqrt())
+}
+
+/// Plug-in rows at each arm reload from their artifacts as the fixture's hand values.
+#[test]
+fn finite_discrete_static_frequentist_cell_reloads_from_independent_artifacts() {
+    let discrete = slice_cases::load().finite_discrete;
+    let options =
+        EmpiricalTableOptions { bootstrap_replicates: 0, ..EmpiricalTableOptions::default() };
+    let active = reload_discrete_arm(&discrete.counts, 1, options);
+    let control = reload_discrete_arm(&discrete.counts, 0, options);
+    for arm in [&active, &control] {
+        assert_close(arm.consumed_mean(), arm.produced, EXACT);
+    }
+    assert_close(active.consumed_mean(), discrete.active, EXACT);
+    assert_close(control.consumed_mean(), discrete.control, EXACT);
+    let contrast = active
+        .consumed
+        .distribution()
+        .mean_difference(control.consumed.distribution(), v(OUTCOME))
+        .unwrap();
+    assert_close(contrast, discrete.contrast, EXACT);
+    assert!(active.consumed.bayesian_estimate().is_none());
+}
+
+/// The Dirichlet posterior of each arm reloads with its draws, and its mean is the exact
+/// Dirichlet moment within five standard errors of the draws.
+#[test]
+fn finite_discrete_static_bayesian_cell_reloads_posterior_draws_around_the_dirichlet_mean() {
+    let discrete = slice_cases::load().finite_discrete;
+    let options = EmpiricalTableOptions {
+        estimator: EmpiricalTableEstimator::StateSpaceDirichlet,
+        bootstrap_replicates: 0,
+        posterior_draws: POSTERIOR_DRAWS,
+        ..EmpiricalTableOptions::default()
+    };
+    let active = reload_discrete_arm(&discrete.counts, 1, options);
+    let control = reload_discrete_arm(&discrete.counts, 0, options);
+    let (active_draws, control_draws) = (active.draw_means(), control.draw_means());
+    let expected_draws = usize::try_from(POSTERIOR_DRAWS).unwrap();
+    assert_eq!(active_draws.len(), expected_draws);
+    assert_eq!(control_draws.len(), expected_draws);
+    let (active_mean, active_error) = mean_and_standard_error(&active_draws);
+    let (control_mean, control_error) = mean_and_standard_error(&control_draws);
+    assert_close(
+        active_mean,
+        dirichlet_arm_mean(&discrete.counts, 1),
+        MONTE_CARLO_STANDARD_ERRORS * active_error,
+    );
+    assert_close(
+        control_mean,
+        dirichlet_arm_mean(&discrete.counts, 0),
+        MONTE_CARLO_STANDARD_ERRORS * control_error,
+    );
+    assert_close(
+        active_mean - control_mean,
+        dirichlet_arm_mean(&discrete.counts, 1) - dirichlet_arm_mean(&discrete.counts, 0),
+        MONTE_CARLO_STANDARD_ERRORS * active_error.hypot(control_error),
+    );
+    // The point law each artifact carries is still the plug-in of the same rows.
+    assert_close(active.consumed_mean(), discrete.active, EXACT);
+    assert_close(control.consumed_mean(), discrete.control, EXACT);
+    for arm in [&active, &control] {
+        assert_close(arm.consumed_mean(), arm.produced, EXACT);
     }
 }
 
