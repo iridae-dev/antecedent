@@ -1122,6 +1122,7 @@ impl AipwAte {
             IpwTarget::from_population(&problem.target_population).ok(),
         ));
         let estimate = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_preparation(Some(problem.preparation_summary()))
             .with_se_kind(self.se_kind)
             .with_sampling_weights(used_sampling.as_ref().map(|s| s.record))
             .with_overlap_report(overlap_report)
@@ -1235,6 +1236,7 @@ impl AipwAte {
         };
         let mut result =
             EffectEstimate::new(contrast.value, se_analytic, assumptions, problem.overlap)
+                .with_preparation(Some(problem.preparation_summary()))
                 .with_se_kind(self.se_kind)
                 .with_sampling_weights(problem.sampling_weights.as_ref().map(|s| s.record))
                 .with_overlap_report(overlap_report)

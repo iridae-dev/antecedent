@@ -145,9 +145,9 @@ mod transport_effect_wire;
 
 pub use analysis_wire::{
     CandidateSelectionWire, ClipSensitivityWire, EffectEstimateWire, FirstStageDiagnosticsWire,
-    JointCovarianceWire, OverlapReportWire, PropensityIntervalWire, ScoreColumnWire,
-    ScoreInferenceWire, ScoreTableWire, effect_estimate_from_wire, effect_estimate_to_wire,
-    refutation_from_wire, refutation_to_wire,
+    JointCovarianceWire, OverlapReportWire, PreparationWire, PropensityIntervalWire,
+    ScoreColumnWire, ScoreInferenceWire, ScoreTableWire, effect_estimate_from_wire,
+    effect_estimate_to_wire, refutation_from_wire, refutation_to_wire,
 };
 
 pub mod adaptive_inference_result_artifact;

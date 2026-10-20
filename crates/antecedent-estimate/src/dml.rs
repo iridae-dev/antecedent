@@ -470,6 +470,7 @@ impl DmlAte {
             status: antecedent_core::AssumptionStatus::Declared,
         });
         let mut effect = EffectEstimate::new(theta, se, assumptions, problem.overlap)
+            .with_preparation(Some(problem.preparation_summary()))
             .with_overlap_report(Some(report))
             .with_n_obs(u64::try_from(keep.iter().filter(|&&v| v).count()).unwrap_or(u64::MAX))
             .with_se_kind(AnalyticSeKind::Homoskedastic)
@@ -940,6 +941,7 @@ pub(crate) fn finish_dml(
         None,
     );
     let mut effect = EffectEstimate::new(ate, se, assumptions, problem.overlap)
+        .with_preparation(Some(problem.preparation_summary()))
         .with_overlap_report(Some(report))
         .with_n_obs(u64::try_from(kept).unwrap_or(u64::MAX))
         .with_se_kind(AnalyticSeKind::Homoskedastic)

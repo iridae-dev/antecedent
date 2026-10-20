@@ -105,6 +105,9 @@ pub struct PreparedRdProblem {
     /// Complete rows on which `T = 1{R ≥ cutoff}` was checked and held (every one of them;
     /// a single violation refuses the problem).
     pub assignment_verified_rows: usize,
+    /// Preparation receipt for the finite table this problem was read from (before the
+    /// bandwidth window).
+    pub preparation: antecedent_data::materialize::PreparationReceipt,
 }
 
 /// Typed checked operation for the licensed sharp local-linear RD estimator.
@@ -317,7 +320,7 @@ impl SharpRegressionDiscontinuity {
         }
 
         let ids = [query.outcome, running_variable, query.treatment];
-        let crate::prepare::AdmittedColumns { data, row_mask, .. } =
+        let crate::prepare::AdmittedColumns { data, row_mask, receipt: preparation } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
         let outcome_full =
             data.float64_masked(query.outcome, &row_mask).map_err(EstimationError::from)?;
@@ -364,6 +367,7 @@ impl SharpRegressionDiscontinuity {
             bandwidth,
             overlap: self.overlap,
             assignment_verified_rows,
+            preparation,
         })
     }
 
@@ -567,6 +571,7 @@ impl SharpRegressionDiscontinuity {
         };
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_se_kind(self.se_kind)
             .with_bootstrap(boot))
     }
@@ -861,6 +866,7 @@ mod tests {
         assert!((effect.ate - TAU_AT_CUTOFF).abs() < 0.06, "jump={}", effect.ate);
         assert!((effect.ate - TAU_WINDOW_AVERAGE).abs() > 0.25, "jump={}", effect.ate);
         assert!((effect.ate - TAU_POPULATION).abs() > 5.0, "jump={}", effect.ate);
+        crate::prepare::assert_records_preparation(&effect, 60_000);
     }
 
     #[test]

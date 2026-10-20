@@ -758,6 +758,7 @@ impl LinearAdjustmentAte {
             .with_n_obs(u64::try_from(nrows).unwrap_or(u64::MAX))
             .with_se_kind(self.se_kind)
             .with_sampling_weights(problem.sampling_weights)
+            .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_influence(influence.map(Arc::from));
         let residuals =
             matches!(fit.variance, FitVariance::Ols).then(|| std::mem::take(&mut fit.residuals));
@@ -2186,6 +2187,19 @@ mod tests {
         assert!(!bootstrap_fit_failed(&EstimationError::data_msg(
             "row resample buffers must match the row map",
         )));
+    }
+
+    #[test]
+    fn the_estimate_records_the_preparation_it_was_fitted_on() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = LinearAdjustmentAte::new();
+        let prepared = est.prepare(&data, &estimand, &query).unwrap();
+        let point = est
+            .fit_point(&prepared, &mut EstimationWorkspace::default(), AssumptionSet::new())
+            .unwrap();
+        crate::prepare::assert_records_preparation(&point, 100);
     }
 
     #[test]

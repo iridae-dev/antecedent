@@ -323,6 +323,7 @@ impl MultiLevelAipw {
         }
         let effect = EffectEstimate::new(contrast.value, contrast.se, assumptions, self.overlap)
             .with_n_obs(u64::try_from(table.n_rows).unwrap_or(u64::MAX))
+            .with_preparation(Some(crate::prepare::preparation_summary(&prepared.preparation)))
             .with_influence(Some(Arc::from(influence)))
             .with_score_table(Some(table));
         Ok(MultiLevelEstimate {
@@ -592,6 +593,7 @@ struct PreparedLevels {
     row_index: Vec<antecedent_data::GlobalId>,
     adjustment_set: Arc<[antecedent_core::VariableId]>,
     rows_by_level: Vec<u64>,
+    preparation: antecedent_data::materialize::PreparationReceipt,
 }
 
 impl PreparedLevels {
@@ -621,7 +623,7 @@ impl PreparedLevels {
         ids.push(query.treatment);
         ids.push(query.outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let crate::prepare::AdmittedColumns { data, row_mask: mask, .. } =
+        let crate::prepare::AdmittedColumns { data, row_mask: mask, receipt: preparation } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
         let t = data.float64_masked(query.treatment, &mask).map_err(EstimationError::from)?;
         let outcome = data.float64_masked(query.outcome, &mask).map_err(EstimationError::from)?;
@@ -690,6 +692,7 @@ impl PreparedLevels {
             row_index,
             adjustment_set: Arc::clone(&estimand.adjustment_set),
             rows_by_level,
+            preparation,
         })
     }
 

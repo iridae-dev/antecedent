@@ -376,6 +376,7 @@ impl PropensityMatching {
         let overlap_report = Some(overlap_report);
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
+            .with_preparation(Some(problem.preparation_summary()))
             .with_se_kind(self.se_kind)
             .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)

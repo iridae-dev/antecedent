@@ -48,6 +48,7 @@ impl core::clone::Clone for antecedent_io::ModelBundle
 impl core::clone::Clone for antecedent_io::ModelBundleHeaderWire
 impl core::clone::Clone for antecedent_io::OverlapReportWire
 impl core::clone::Clone for antecedent_io::PosteriorPayload
+impl core::clone::Clone for antecedent_io::PreparationWire
 impl core::clone::Clone for antecedent_io::PropensityIntervalWire
 impl core::clone::Clone for antecedent_io::ScoreColumnWire
 impl core::clone::Clone for antecedent_io::ScoreInferenceWire
@@ -403,6 +404,7 @@ impl core::clone::Clone for antecedent_io::z_transport_artifact::ZTransportPoint
 impl core::cmp::Eq for antecedent_io::CandidateSelectionWire
 impl core::cmp::Eq for antecedent_io::ModelBundleHeaderWire
 impl core::cmp::Eq for antecedent_io::PosteriorPayload
+impl core::cmp::Eq for antecedent_io::PreparationWire
 impl core::cmp::Eq for antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError
 impl core::cmp::Eq for antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta
 impl core::cmp::Eq for antecedent_io::adaptive_inference_result_artifact::SpecWire
@@ -515,6 +517,7 @@ impl core::cmp::PartialEq for antecedent_io::JointCovarianceWire
 impl core::cmp::PartialEq for antecedent_io::ModelBundleHeaderWire
 impl core::cmp::PartialEq for antecedent_io::OverlapReportWire
 impl core::cmp::PartialEq for antecedent_io::PosteriorPayload
+impl core::cmp::PartialEq for antecedent_io::PreparationWire
 impl core::cmp::PartialEq for antecedent_io::PropensityIntervalWire
 impl core::cmp::PartialEq for antecedent_io::ScoreColumnWire
 impl core::cmp::PartialEq for antecedent_io::ScoreInferenceWire
@@ -902,6 +905,7 @@ impl core::fmt::Debug for antecedent_io::ModelBundle
 impl core::fmt::Debug for antecedent_io::ModelBundleHeaderWire
 impl core::fmt::Debug for antecedent_io::OverlapReportWire
 impl core::fmt::Debug for antecedent_io::PosteriorPayload
+impl core::fmt::Debug for antecedent_io::PreparationWire
 impl core::fmt::Debug for antecedent_io::PropensityIntervalWire
 impl core::fmt::Debug for antecedent_io::ScoreColumnWire
 impl core::fmt::Debug for antecedent_io::ScoreInferenceWire
@@ -1347,6 +1351,7 @@ impl core::marker::Freeze for antecedent_io::ModelBundle [auto]
 impl core::marker::Freeze for antecedent_io::ModelBundleHeaderWire [auto]
 impl core::marker::Freeze for antecedent_io::OverlapReportWire [auto]
 impl core::marker::Freeze for antecedent_io::PosteriorPayload [auto]
+impl core::marker::Freeze for antecedent_io::PreparationWire [auto]
 impl core::marker::Freeze for antecedent_io::PropensityIntervalWire [auto]
 impl core::marker::Freeze for antecedent_io::ScoreColumnWire [auto]
 impl core::marker::Freeze for antecedent_io::ScoreInferenceWire [auto]
@@ -1724,6 +1729,7 @@ impl core::marker::Send for antecedent_io::ModelBundle [auto]
 impl core::marker::Send for antecedent_io::ModelBundleHeaderWire [auto]
 impl core::marker::Send for antecedent_io::OverlapReportWire [auto]
 impl core::marker::Send for antecedent_io::PosteriorPayload [auto]
+impl core::marker::Send for antecedent_io::PreparationWire [auto]
 impl core::marker::Send for antecedent_io::PropensityIntervalWire [auto]
 impl core::marker::Send for antecedent_io::ScoreColumnWire [auto]
 impl core::marker::Send for antecedent_io::ScoreInferenceWire [auto]
@@ -2100,6 +2106,7 @@ impl core::marker::StructuralPartialEq for antecedent_io::JointCovarianceWire
 impl core::marker::StructuralPartialEq for antecedent_io::ModelBundleHeaderWire
 impl core::marker::StructuralPartialEq for antecedent_io::OverlapReportWire
 impl core::marker::StructuralPartialEq for antecedent_io::PosteriorPayload
+impl core::marker::StructuralPartialEq for antecedent_io::PreparationWire
 impl core::marker::StructuralPartialEq for antecedent_io::PropensityIntervalWire
 impl core::marker::StructuralPartialEq for antecedent_io::ScoreColumnWire
 impl core::marker::StructuralPartialEq for antecedent_io::ScoreInferenceWire
@@ -2411,6 +2418,7 @@ impl core::marker::Sync for antecedent_io::ModelBundle [auto]
 impl core::marker::Sync for antecedent_io::ModelBundleHeaderWire [auto]
 impl core::marker::Sync for antecedent_io::OverlapReportWire [auto]
 impl core::marker::Sync for antecedent_io::PosteriorPayload [auto]
+impl core::marker::Sync for antecedent_io::PreparationWire [auto]
 impl core::marker::Sync for antecedent_io::PropensityIntervalWire [auto]
 impl core::marker::Sync for antecedent_io::ScoreColumnWire [auto]
 impl core::marker::Sync for antecedent_io::ScoreInferenceWire [auto]
@@ -2788,6 +2796,7 @@ impl core::marker::Unpin for antecedent_io::ModelBundle [auto]
 impl core::marker::Unpin for antecedent_io::ModelBundleHeaderWire [auto]
 impl core::marker::Unpin for antecedent_io::OverlapReportWire [auto]
 impl core::marker::Unpin for antecedent_io::PosteriorPayload [auto]
+impl core::marker::Unpin for antecedent_io::PreparationWire [auto]
 impl core::marker::Unpin for antecedent_io::PropensityIntervalWire [auto]
 impl core::marker::Unpin for antecedent_io::ScoreColumnWire [auto]
 impl core::marker::Unpin for antecedent_io::ScoreInferenceWire [auto]
@@ -3164,6 +3173,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::JointCovarianceW
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::ModelBundleHeaderWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::OverlapReportWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::PosteriorPayload [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::PreparationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::PropensityIntervalWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::ScoreColumnWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::ScoreInferenceWire [auto]
@@ -3540,6 +3550,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::JointCovarianceWire
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::ModelBundleHeaderWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::OverlapReportWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::PosteriorPayload [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::PreparationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::PropensityIntervalWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::ScoreColumnWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::ScoreInferenceWire [auto]
@@ -3915,6 +3926,7 @@ impl serde_core::ser::Serialize for antecedent_io::FirstStageDiagnosticsWire
 impl serde_core::ser::Serialize for antecedent_io::JointCovarianceWire
 impl serde_core::ser::Serialize for antecedent_io::ModelBundleHeaderWire
 impl serde_core::ser::Serialize for antecedent_io::OverlapReportWire
+impl serde_core::ser::Serialize for antecedent_io::PreparationWire
 impl serde_core::ser::Serialize for antecedent_io::PropensityIntervalWire
 impl serde_core::ser::Serialize for antecedent_io::ScoreColumnWire
 impl serde_core::ser::Serialize for antecedent_io::ScoreInferenceWire
@@ -4290,6 +4302,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::FirstStageDiagnost
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::JointCovarianceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::ModelBundleHeaderWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::OverlapReportWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::PreparationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::PropensityIntervalWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::ScoreColumnWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::ScoreInferenceWire
@@ -4827,6 +4840,7 @@ pub field antecedent_io::EffectEstimateWire::overlap_clip: core::option::Option<
 pub field antecedent_io::EffectEstimateWire::overlap_policy: alloc::string::String
 pub field antecedent_io::EffectEstimateWire::overlap_report: core::option::Option<antecedent_io::OverlapReportWire>
 pub field antecedent_io::EffectEstimateWire::overlap_trim: core::option::Option<f64>
+pub field antecedent_io::EffectEstimateWire::preparation: core::option::Option<antecedent_io::PreparationWire>
 pub field antecedent_io::EffectEstimateWire::retained_memory_bytes: core::option::Option<u64>
 pub field antecedent_io::EffectEstimateWire::scenario_effects: core::option::Option<alloc::vec::Vec<f64>>
 pub field antecedent_io::EffectEstimateWire::scenario_intervals: core::option::Option<alloc::vec::Vec<(f64, f64)>>
@@ -4896,6 +4910,10 @@ pub field antecedent_io::OverlapReportWire::propensity_min: f64
 pub field antecedent_io::OverlapReportWire::retained_fraction: f64
 pub field antecedent_io::OverlapReportWire::target_population_support: f64
 pub field antecedent_io::OverlapReportWire::trim: core::option::Option<f64>
+pub field antecedent_io::PreparationWire::backend: alloc::string::String
+pub field antecedent_io::PreparationWire::receipt_digest: alloc::string::String
+pub field antecedent_io::PreparationWire::route_bound: alloc::string::String
+pub field antecedent_io::PreparationWire::rows_admitted: core::option::Option<u64>
 pub field antecedent_io::PropensityIntervalWire::high: f64
 pub field antecedent_io::PropensityIntervalWire::low: f64
 pub field antecedent_io::ScoreColumnWire::arm: u32
@@ -7633,6 +7651,7 @@ pub struct antecedent_io::ModelBundle
 pub struct antecedent_io::ModelBundleEncode<'a>
 pub struct antecedent_io::ModelBundleHeaderWire
 pub struct antecedent_io::OverlapReportWire
+pub struct antecedent_io::PreparationWire
 pub struct antecedent_io::PropensityIntervalWire
 pub struct antecedent_io::ScoreColumnWire
 pub struct antecedent_io::ScoreInferenceWire
@@ -8265,6 +8284,7 @@ pub use antecedent_io::analysis_wire::IdentificationResultWire = antecedent_io_c
 pub use antecedent_io::analysis_wire::IdentifiedEstimandWire = antecedent_io_core::analysis_wire::IdentifiedEstimandWire
 pub use antecedent_io::analysis_wire::JointCovarianceWire = antecedent_io::JointCovarianceWire
 pub use antecedent_io::analysis_wire::OverlapReportWire = antecedent_io::OverlapReportWire
+pub use antecedent_io::analysis_wire::PreparationWire = antecedent_io::PreparationWire
 pub use antecedent_io::analysis_wire::PropensityIntervalWire = antecedent_io::PropensityIntervalWire
 pub use antecedent_io::analysis_wire::RdDesignWire = antecedent_io_core::analysis_wire::RdDesignWire
 pub use antecedent_io::analysis_wire::RefutationReportWire = antecedent_io_core::analysis_wire::RefutationReportWire

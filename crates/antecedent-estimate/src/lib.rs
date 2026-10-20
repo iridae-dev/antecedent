@@ -162,7 +162,8 @@ pub use adjustment::{
 pub use effect_estimate::{
     AnalyticSe, BlockResampling, BlockSeRecord, BootstrapAccounting, CandidateSelectionRecord,
     CrossfitRecord, EffectEstimate, EstimateDiagnostics, EstimateHeterogeneity, EstimateProvenance,
-    EstimateScores, EstimateUncertainty, FamilyInference, JointRecord, ScenarioBand,
+    EstimateScores, EstimateUncertainty, FamilyInference, JointRecord, PreparationSummary,
+    ScenarioBand,
 };
 pub mod cluster_dml_aipw;
 pub mod descriptive_comparison;

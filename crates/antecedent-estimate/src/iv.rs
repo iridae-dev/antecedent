@@ -90,6 +90,8 @@ pub struct PreparedIvProblem {
     pub overlap: OverlapPolicy,
     /// Active − control treatment contrast that scales the per-unit IV effect.
     pub treatment_delta: f64,
+    /// Preparation receipt for the finite table this problem was read from.
+    pub preparation: antecedent_data::materialize::PreparationReceipt,
 }
 
 /// Estimator procedure retained by a checked IV lowering.
@@ -436,7 +438,7 @@ fn prepare_iv_problem(
     ids.push(outcome);
     ids.extend_from_slice(&estimand.instruments);
     ids.extend_from_slice(&estimand.adjustment_set);
-    let crate::prepare::AdmittedColumns { data, row_mask, .. } =
+    let crate::prepare::AdmittedColumns { data, row_mask, receipt: preparation } =
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
     let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
     let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
@@ -473,6 +475,7 @@ fn prepare_iv_problem(
         adjustment_set: Arc::clone(&estimand.adjustment_set),
         overlap,
         treatment_delta,
+        preparation,
     })
 }
 
@@ -704,6 +707,7 @@ impl WaldIv {
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(n).unwrap_or(u64::MAX))
+            .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_first_stage_diagnostics(first_stage_diagnostics)
             .with_se_kind(self.se_kind))
     }
@@ -1097,6 +1101,7 @@ impl TwoStageLeastSquares {
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(problem.nrows).unwrap_or(u64::MAX))
+            .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_first_stage_diagnostics(diagnostics)
             .with_se_kind(self.se_kind))
     }
@@ -1320,6 +1325,7 @@ mod tests {
         assert!((effect.ate - 2.0).abs() < 0.3, "ate={}", effect.ate);
         assert!(effect.se_bootstrap().is_none(), "IV must not publish bootstrap SE");
         assert!(!effect.se_analytic().is_finite(), "IV must not publish Wald SE");
+        crate::prepare::assert_records_preparation(&effect, 2000);
         let diag = effect.diagnostics.first_stage.as_ref().unwrap();
         let (lo, hi, level) = diag.anderson_rubin.expect("homoskedastic AR set");
         assert_eq!(level, 0.95);

@@ -49,6 +49,7 @@
 #[non_exhaustive] pub struct antecedent_estimate::JointRecord
 #[non_exhaustive] pub struct antecedent_estimate::PenalizedReport
 #[non_exhaustive] pub struct antecedent_estimate::PenalizedVarianceReport
+#[non_exhaustive] pub struct antecedent_estimate::PreparationSummary
 #[non_exhaustive] pub struct antecedent_estimate::ReplicatePenalties
 #[non_exhaustive] pub struct antecedent_estimate::ScenarioBand
 #[non_exhaustive] pub struct antecedent_estimate::ancova::SmallArmInterval
@@ -222,6 +223,7 @@ impl core::clone::Clone for antecedent_estimate::PenalizedReport
 impl core::clone::Clone for antecedent_estimate::PenalizedVarianceReport
 impl core::clone::Clone for antecedent_estimate::PointwiseCateEstimate
 impl core::clone::Clone for antecedent_estimate::PopulationLinearVariance
+impl core::clone::Clone for antecedent_estimate::PreparationSummary
 impl core::clone::Clone for antecedent_estimate::PreparedBayesianProblem
 impl core::clone::Clone for antecedent_estimate::PreparedEstimationProblem
 impl core::clone::Clone for antecedent_estimate::PreparedFrontDoorProblem
@@ -818,6 +820,7 @@ impl core::cmp::Eq for antecedent_estimate::NuisanceScopeUse
 impl core::cmp::Eq for antecedent_estimate::ObservationPattern
 impl core::cmp::Eq for antecedent_estimate::ObservationRow
 impl core::cmp::Eq for antecedent_estimate::OtherLevels
+impl core::cmp::Eq for antecedent_estimate::PreparationSummary
 impl core::cmp::Eq for antecedent_estimate::ProbabilityIntervalUnavailable
 impl core::cmp::Eq for antecedent_estimate::PropensityNuisance
 impl core::cmp::Eq for antecedent_estimate::PropensityPenalty
@@ -1109,6 +1112,7 @@ impl core::cmp::PartialEq for antecedent_estimate::OverlapReport
 impl core::cmp::PartialEq for antecedent_estimate::PenalizedReport
 impl core::cmp::PartialEq for antecedent_estimate::PenalizedVarianceReport
 impl core::cmp::PartialEq for antecedent_estimate::PointwiseCateEstimate
+impl core::cmp::PartialEq for antecedent_estimate::PreparationSummary
 impl core::cmp::PartialEq for antecedent_estimate::ProbabilityInterval
 impl core::cmp::PartialEq for antecedent_estimate::ProbabilityIntervalUnavailable
 impl core::cmp::PartialEq for antecedent_estimate::PropensityInterval
@@ -1872,6 +1876,7 @@ impl core::fmt::Debug for antecedent_estimate::PenalizedReport
 impl core::fmt::Debug for antecedent_estimate::PenalizedVarianceReport
 impl core::fmt::Debug for antecedent_estimate::PointwiseCateEstimate
 impl core::fmt::Debug for antecedent_estimate::PopulationLinearVariance
+impl core::fmt::Debug for antecedent_estimate::PreparationSummary
 impl core::fmt::Debug for antecedent_estimate::PreparedBayesianProblem
 impl core::fmt::Debug for antecedent_estimate::PreparedEstimationProblem
 impl core::fmt::Debug for antecedent_estimate::PreparedFrontDoorProblem
@@ -2912,6 +2917,7 @@ impl core::marker::Freeze for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Freeze for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Freeze for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::marker::Freeze for antecedent_estimate::PreparationSummary [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Freeze for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -3632,6 +3638,7 @@ impl core::marker::Send for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Send for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Send for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::marker::Send for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::marker::Send for antecedent_estimate::PreparationSummary [auto]
 impl core::marker::Send for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Send for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Send for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -4302,6 +4309,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::OverlapReport
 impl core::marker::StructuralPartialEq for antecedent_estimate::PenalizedReport
 impl core::marker::StructuralPartialEq for antecedent_estimate::PenalizedVarianceReport
 impl core::marker::StructuralPartialEq for antecedent_estimate::PointwiseCateEstimate
+impl core::marker::StructuralPartialEq for antecedent_estimate::PreparationSummary
 impl core::marker::StructuralPartialEq for antecedent_estimate::ProbabilityInterval
 impl core::marker::StructuralPartialEq for antecedent_estimate::ProbabilityIntervalUnavailable
 impl core::marker::StructuralPartialEq for antecedent_estimate::PropensityInterval
@@ -4931,6 +4939,7 @@ impl core::marker::Sync for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Sync for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Sync for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::marker::Sync for antecedent_estimate::PreparationSummary [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Sync for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -5654,6 +5663,7 @@ impl core::marker::Unpin for antecedent_estimate::PenalizedReport [auto]
 impl core::marker::Unpin for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::marker::Unpin for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::marker::Unpin for antecedent_estimate::PreparationSummary [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::marker::Unpin for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -6377,6 +6387,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PenalizedR
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparationSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -7099,6 +7110,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PenalizedRepo
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PenalizedVarianceReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PointwiseCateEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PopulationLinearVariance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparationSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedBayesianProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedEstimationProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::PreparedFrontDoorProblem [auto]
@@ -8939,6 +8951,7 @@ pub field antecedent_estimate::EstimateHeterogeneity::unit_effects_homogeneous: 
 pub field antecedent_estimate::EstimateProvenance::assumptions: antecedent_core::assumption::AssumptionSet
 pub field antecedent_estimate::EstimateProvenance::n_obs: core::option::Option<u64>
 pub field antecedent_estimate::EstimateProvenance::overlap: antecedent_estimate::OverlapPolicy
+pub field antecedent_estimate::EstimateProvenance::preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>
 pub field antecedent_estimate::EstimateProvenance::retained_memory_bytes: core::option::Option<u64>
 pub field antecedent_estimate::EstimateScores::inference: core::option::Option<antecedent_estimate::ScoreInference>
 pub field antecedent_estimate::EstimateScores::influence: core::option::Option<alloc::sync::Arc<[f64]>>
@@ -9251,6 +9264,10 @@ pub field antecedent_estimate::PopulationLinearVariance::noise_degrees_of_freedo
 pub field antecedent_estimate::PopulationLinearVariance::noise_scale: f64
 pub field antecedent_estimate::PopulationLinearVariance::outcome_model: &'static str
 pub field antecedent_estimate::PopulationLinearVariance::target: f64
+pub field antecedent_estimate::PreparationSummary::backend: alloc::string::String
+pub field antecedent_estimate::PreparationSummary::receipt_digest: alloc::string::String
+pub field antecedent_estimate::PreparationSummary::route_bound: alloc::string::String
+pub field antecedent_estimate::PreparationSummary::rows_admitted: core::option::Option<u64>
 pub field antecedent_estimate::PreparedBayesianProblem::active: f64
 pub field antecedent_estimate::PreparedBayesianProblem::adjustment_set: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent_estimate::PreparedBayesianProblem::coef_names: core::option::Option<alloc::sync::Arc<[alloc::sync::Arc<str>]>>
@@ -9278,6 +9295,7 @@ pub field antecedent_estimate::PreparedFrontDoorProblem::method: alloc::sync::Ar
 pub field antecedent_estimate::PreparedFrontDoorProblem::nrows: usize
 pub field antecedent_estimate::PreparedFrontDoorProblem::outcome: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::PreparedFrontDoorProblem::overlap: antecedent_estimate::OverlapPolicy
+pub field antecedent_estimate::PreparedFrontDoorProblem::preparation: antecedent_data::materialize::PreparationReceipt
 pub field antecedent_estimate::PreparedFrontDoorProblem::row_selection: alloc::sync::Arc<[usize]>
 pub field antecedent_estimate::PreparedFrontDoorProblem::treatment: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::PreparedFrontDoorProblem::treatment_delta: f64
@@ -9303,6 +9321,7 @@ pub field antecedent_estimate::PreparedGlmProblem::design: antecedent_stats::des
 pub field antecedent_estimate::PreparedGlmProblem::family: antecedent_stats::glm::GlmFamily
 pub field antecedent_estimate::PreparedGlmProblem::method: alloc::sync::Arc<str>
 pub field antecedent_estimate::PreparedGlmProblem::overlap: antecedent_estimate::OverlapPolicy
+pub field antecedent_estimate::PreparedGlmProblem::preparation: antecedent_data::materialize::PreparationReceipt
 pub field antecedent_estimate::PreparedGlmProblem::sampling: core::option::Option<antecedent_estimate::RetainedSamplingWeights>
 pub field antecedent_estimate::PreparedGlmProblem::target_population: antecedent_core::query::target::TargetPopulation
 pub field antecedent_estimate::PreparedGlmProblem::treatment: alloc::sync::Arc<[f64]>
@@ -9314,6 +9333,7 @@ pub field antecedent_estimate::PreparedIvProblem::method: alloc::sync::Arc<str>
 pub field antecedent_estimate::PreparedIvProblem::nrows: usize
 pub field antecedent_estimate::PreparedIvProblem::outcome: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::PreparedIvProblem::overlap: antecedent_estimate::OverlapPolicy
+pub field antecedent_estimate::PreparedIvProblem::preparation: antecedent_data::materialize::PreparationReceipt
 pub field antecedent_estimate::PreparedIvProblem::treatment: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::PreparedIvProblem::treatment_delta: f64
 pub field antecedent_estimate::PreparedIvProblem::x_ncols: usize
@@ -9330,6 +9350,7 @@ pub field antecedent_estimate::PreparedPropensityProblem::method: alloc::sync::A
 pub field antecedent_estimate::PreparedPropensityProblem::nrows: usize
 pub field antecedent_estimate::PreparedPropensityProblem::outcome: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::PreparedPropensityProblem::overlap: antecedent_estimate::OverlapPolicy
+pub field antecedent_estimate::PreparedPropensityProblem::preparation: antecedent_data::materialize::PreparationReceipt
 pub field antecedent_estimate::PreparedPropensityProblem::propensity: antecedent_estimate::PropensityNuisance
 pub field antecedent_estimate::PreparedPropensityProblem::row_index: alloc::sync::Arc<[antecedent_data::global_index::GlobalId]>
 pub field antecedent_estimate::PreparedPropensityProblem::sampling_weights: core::option::Option<antecedent_estimate::RetainedSamplingWeights>
@@ -9347,6 +9368,7 @@ pub field antecedent_estimate::PreparedRdProblem::method: alloc::sync::Arc<str>
 pub field antecedent_estimate::PreparedRdProblem::nrows: usize
 pub field antecedent_estimate::PreparedRdProblem::outcome: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::PreparedRdProblem::overlap: antecedent_estimate::OverlapPolicy
+pub field antecedent_estimate::PreparedRdProblem::preparation: antecedent_data::materialize::PreparationReceipt
 pub field antecedent_estimate::PropensityEstimationWorkspace::clip_scratch: alloc::vec::Vec<f64>
 pub field antecedent_estimate::PropensityEstimationWorkspace::matching_distances: alloc::vec::Vec<f64>
 pub field antecedent_estimate::PropensityEstimationWorkspace::matching_donor_rows: alloc::vec::Vec<usize>
@@ -11894,6 +11916,7 @@ pub fn <antecedent_estimate::EffectEstimate>::fn with_joint_covariance(self, cov
 pub fn <antecedent_estimate::EffectEstimate>::fn with_monotone_rearranged(self, rearranged: bool) -> Self
 pub fn <antecedent_estimate::EffectEstimate>::fn with_n_obs(self, n_obs: u64) -> Self
 pub fn <antecedent_estimate::EffectEstimate>::fn with_overlap_report(self, overlap_report: core::option::Option<antecedent_estimate::OverlapReport>) -> Self
+pub fn <antecedent_estimate::EffectEstimate>::fn with_preparation(self, preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>) -> Self
 pub fn <antecedent_estimate::EffectEstimate>::fn with_retained_memory_bytes(self, retained_memory_bytes: core::option::Option<u64>) -> Self
 pub fn <antecedent_estimate::EffectEstimate>::fn with_sampling_weights(self, record: core::option::Option<antecedent_estimate::SamplingWeightRecord>) -> Self
 pub fn <antecedent_estimate::EffectEstimate>::fn with_score_table(self, table: core::option::Option<antecedent_estimate::ScoreTable>) -> Self
@@ -12026,6 +12049,8 @@ pub fn <antecedent_estimate::OverlapPolicy>::const fn require_diagnostics() -> S
 pub fn <antecedent_estimate::OverlapPolicy>::fn validate(self) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::OverlapReport>::fn from_propensities(propensities: &[f64], weights: core::option::Option<&[f64]>, policy: antecedent_estimate::OverlapPolicy, treatment: core::option::Option<&[f64]>, target: core::option::Option<antecedent_estimate::IpwTarget>, observation_weights: core::option::Option<&[f64]>) -> Self
 pub fn <antecedent_estimate::PenalizedReport>::fn is_empty(&self) -> bool
+pub fn <antecedent_estimate::PreparationSummary>::fn from_parts(backend: alloc::string::String, route_bound: alloc::string::String, rows_admitted: core::option::Option<u64>, receipt_digest: alloc::string::String) -> Self
+pub fn <antecedent_estimate::PreparationSummary>::fn from_receipt(receipt: &antecedent_data::materialize::PreparationReceipt) -> Self
 pub fn <antecedent_estimate::PreparedBayesianProblem>::fn with_serial_dependence(self, dependence: antecedent_estimate::SerialDependence) -> Self
 pub fn <antecedent_estimate::PreparedFunctionalDistribution>::fn factor_snapshot(&self) -> core::result::Result<antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PreparedFunctionalDistribution>::fn program(&self) -> &antecedent_expr::program::FunctionalProgram
@@ -14048,6 +14073,7 @@ pub use antecedent_estimate::effect_estimate::EstimateScores = antecedent_estima
 pub use antecedent_estimate::effect_estimate::EstimateUncertainty = antecedent_estimate::EstimateUncertainty
 pub use antecedent_estimate::effect_estimate::FamilyInference = antecedent_estimate::FamilyInference
 pub use antecedent_estimate::effect_estimate::JointRecord = antecedent_estimate::JointRecord
+pub use antecedent_estimate::effect_estimate::PreparationSummary = antecedent_estimate::PreparationSummary
 pub use antecedent_estimate::effect_estimate::ScenarioBand = antecedent_estimate::ScenarioBand
 pub use antecedent_estimate::empirical_table::BayesianTransportLawProvider = antecedent_estimate::BayesianTransportLawProvider
 pub use antecedent_estimate::empirical_table::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP = antecedent_estimate::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP

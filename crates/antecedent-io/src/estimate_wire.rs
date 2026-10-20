@@ -130,6 +130,24 @@ pub struct EffectEstimateWire {
     /// Candidate-selection provenance, including screen/estimate row splits.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub candidate_selection: Option<CandidateSelectionWire>,
+    /// How the columns the estimator read were prepared, when it recorded a receipt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preparation: Option<PreparationWire>,
+}
+
+/// Preparation receipt summary recorded on an estimate.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PreparationWire {
+    /// Stable name of the preparation backend.
+    pub backend: String,
+    /// Stable name of the end-to-end route bound.
+    pub route_bound: String,
+    /// Rows the estimator read; absent when it was handed a scan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rows_admitted: Option<u64>,
+    /// Lower-case hex digest of the preparation plan.
+    pub receipt_digest: String,
 }
 
 /// Screen / estimate split recorded on a batch estimate artifact.
@@ -353,6 +371,12 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
             .collect(),
         evalue: e.diagnostics.evalue,
         evalue_threshold: e.diagnostics.evalue_threshold,
+        preparation: e.provenance.preparation.as_deref().map(|p| PreparationWire {
+            backend: p.backend.clone(),
+            route_bound: p.route_bound.clone(),
+            rows_admitted: p.rows_admitted,
+            receipt_digest: p.receipt_digest.clone(),
+        }),
         candidate_selection: e.family.candidate_selection.as_ref().map(|s| {
             CandidateSelectionWire {
                 screen_id: s.screen_id.to_string(),
@@ -519,6 +543,14 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.family.contrast_interval = w.family_contrast_interval;
     estimate.diagnostics.evalue = w.evalue;
     estimate.diagnostics.evalue_threshold = w.evalue_threshold;
+    estimate.provenance.preparation = w.preparation.as_ref().map(|p| {
+        std::sync::Arc::new(antecedent_estimate::PreparationSummary::from_parts(
+            p.backend.clone(),
+            p.route_bound.clone(),
+            p.rows_admitted,
+            p.receipt_digest.clone(),
+        ))
+    });
     estimate.family.candidate_selection =
         w.candidate_selection.as_ref().map(candidate_selection_from_wire).transpose()?;
     estimate.scenarios.effects = w.scenario_effects.clone().map(Into::into);
@@ -1104,9 +1136,27 @@ mod tests {
             evalue: None,
             evalue_threshold: None,
             candidate_selection: None,
+            preparation: Some(PreparationWire {
+                backend: "direct_arrow".into(),
+                route_bound: "rows_only".into(),
+                rows_admitted: Some(100),
+                receipt_digest: "ab".repeat(32),
+            }),
         };
         let domain = effect_estimate_from_wire(&wire).unwrap();
         assert_eq!(effect_estimate_to_wire(&domain), wire);
+        let summary = domain.provenance.preparation.as_ref().unwrap();
+        assert_eq!(summary.rows_admitted, Some(100));
+
+        let mut without = wire;
+        without.preparation = None;
+        let domain = effect_estimate_from_wire(&without).unwrap();
+        assert!(domain.provenance.preparation.is_none());
+        assert_eq!(effect_estimate_to_wire(&domain), without);
+        let json = serde_json::to_string(&without).unwrap();
+        assert!(!json.contains("preparation"), "an absent receipt must emit no key");
+        let old: EffectEstimateWire = serde_json::from_str(&json).unwrap();
+        assert_eq!(old, without);
     }
 
     #[test]

@@ -107,6 +107,8 @@ pub struct PreparedFrontDoorProblem {
     pub control: f64,
     /// Original row index of each complete-case row.
     pub row_selection: Arc<[usize]>,
+    /// Preparation receipt for the finite table this problem was read from.
+    pub preparation: antecedent_data::materialize::PreparationReceipt,
 }
 
 /// Typed functional and estimator roles checked for a front-door lowering.
@@ -418,7 +420,7 @@ pub(crate) fn prepare_frontdoor_problem(
     ids.push(treatment);
     ids.push(outcome);
     ids.extend_from_slice(&estimand.mediators);
-    let crate::prepare::AdmittedColumns { data, row_mask, .. } =
+    let crate::prepare::AdmittedColumns { data, row_mask, receipt: preparation } =
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
     let t = data.float64_masked(treatment, &row_mask).map_err(EstimationError::from)?;
     let y = data.float64_masked(outcome, &row_mask).map_err(EstimationError::from)?;
@@ -445,6 +447,7 @@ pub(crate) fn prepare_frontdoor_problem(
             .enumerate()
             .filter_map(|(row, keep)| keep.then_some(row))
             .collect(),
+        preparation,
     })
 }
 
@@ -610,6 +613,7 @@ impl FrontDoorTwoStage {
         let (ate, se_analytic) = self.point_estimate(problem, workspace)?;
         assumptions.extend_unique(&[linear_path_product_restriction()]);
         let point = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_se_kind(self.se_kind);
         self.attach_bootstrap(problem, workspace, ctx, point)
     }
@@ -1284,6 +1288,7 @@ pub(crate) mod tests {
         assert!((effect.ate - 6.0).abs() < 0.5, "ate={}", effect.ate);
         assert!(effect.se_bootstrap().is_some());
         assert!(effect.se_analytic().is_finite());
+        crate::prepare::assert_records_preparation(&effect, 4000);
     }
 
     #[test]

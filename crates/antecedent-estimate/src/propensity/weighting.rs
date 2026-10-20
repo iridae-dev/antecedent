@@ -531,6 +531,7 @@ impl PropensityWeighting {
 
         let n_obs = weights.iter().filter(|w| w.is_finite() && **w > 0.0).count();
         let mut estimate = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_preparation(Some(problem.preparation_summary()))
             .with_n_obs(u64::try_from(n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
             .with_treatment_levels(problem.treatment_levels)

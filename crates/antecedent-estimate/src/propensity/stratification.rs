@@ -349,6 +349,7 @@ impl PropensityStratification {
 
         let mut estimate =
             EffectEstimate::new(result.ate, se_analytic, assumptions, problem.overlap)
+                .with_preparation(Some(problem.preparation_summary()))
                 .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
                 .with_overlap_report(overlap_report)
                 .with_treatment_levels(problem.treatment_levels)

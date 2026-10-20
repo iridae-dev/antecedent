@@ -89,9 +89,16 @@ pub struct PreparedPropensityProblem {
     /// what they did to the analysis. `None` when none were declared. Every row of the
     /// problem has a positive weight: rows of weight zero never enter it.
     pub sampling_weights: Option<crate::sampling_weights::RetainedSamplingWeights>,
+    /// Preparation receipt for the finite table this problem was read from.
+    pub preparation: antecedent_data::materialize::PreparationReceipt,
 }
 
 impl PreparedPropensityProblem {
+    /// The summary an estimate built from this problem records for its preparation receipt.
+    pub(crate) fn preparation_summary(&self) -> Arc<crate::PreparationSummary> {
+        crate::prepare::preparation_summary(&self.preparation)
+    }
+
     /// The per-row weights the cross-fitted scores are averaged under: the target weights, the
     /// sampling weights, or their product; `None` when neither is declared.
     pub(crate) fn score_weights(&self) -> Option<std::borrow::Cow<'_, [f64]>> {
@@ -387,7 +394,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
     ids.push(treatment);
     ids.push(outcome);
     ids.extend_from_slice(&estimand.adjustment_set);
-    let crate::prepare::AdmittedColumns { data, mut row_mask, .. } =
+    let crate::prepare::AdmittedColumns { data, mut row_mask, receipt: preparation } =
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
     let n_full = data.row_count();
     let mut full_weights: Option<Arc<[f64]>> = None;
@@ -507,6 +514,7 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         shared_design: false,
         propensity: crate::propensity::PropensityNuisance::default(),
         sampling_weights,
+        preparation,
     }))
 }
 

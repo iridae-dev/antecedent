@@ -136,8 +136,28 @@ pub(crate) struct AdmittedColumns<'a> {
     pub row_mask: Vec<bool>,
     /// Preparation receipt. No byte budget is compared here, so the route is not
     /// described as bounded.
-    #[allow(dead_code, reason = "retained so callers that record a receipt can read it")]
     pub receipt: PreparationReceipt,
+}
+
+/// The summary an estimate records for the receipt its columns were admitted under.
+pub(crate) fn preparation_summary(
+    receipt: &PreparationReceipt,
+) -> std::sync::Arc<crate::PreparationSummary> {
+    std::sync::Arc::new(crate::PreparationSummary::from_receipt(receipt))
+}
+
+/// Test check that an estimate recorded the preparation of a table of `rows` rows.
+#[cfg(test)]
+pub(crate) fn assert_records_preparation(estimate: &crate::EffectEstimate, rows: u64) {
+    let summary = estimate
+        .provenance
+        .preparation
+        .as_ref()
+        .expect("the estimate must record its preparation receipt");
+    assert_eq!(summary.backend, "direct_arrow");
+    assert_eq!(summary.rows_admitted, Some(rows));
+    assert_eq!(summary.route_bound, "rows_only");
+    assert!(!summary.receipt_digest.is_empty());
 }
 
 /// Run the accepted preparation path, then hand the estimator the same finite table.

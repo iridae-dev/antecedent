@@ -130,6 +130,55 @@ pub struct EstimateProvenance {
     pub n_obs: Option<u64>,
     /// Estimated retained-memory cost of fitted scratch (bytes), when known.
     pub retained_memory_bytes: Option<u64>,
+    /// How the columns the estimator read were prepared, when it admitted them through the
+    /// preparation path. A physical fact about the run, so it is not part of any identity.
+    pub preparation: Option<Arc<PreparationSummary>>,
+}
+
+/// Plain summary of the preparation receipt behind an estimate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct PreparationSummary {
+    /// Stable name of the preparation backend.
+    pub backend: String,
+    /// Stable name of the end-to-end route bound.
+    pub route_bound: String,
+    /// Rows the estimator read. `None` when it was handed a scan.
+    pub rows_admitted: Option<u64>,
+    /// Lower-case hex digest of the preparation plan.
+    pub receipt_digest: String,
+}
+
+impl PreparationSummary {
+    /// Summarize `receipt`.
+    #[must_use]
+    pub fn from_receipt(receipt: &antecedent_data::materialize::PreparationReceipt) -> Self {
+        let route_bound = match receipt.route_bound() {
+            antecedent_data::materialize::RouteBound::Proved { .. } => "proved",
+            antecedent_data::materialize::RouteBound::RowsOnly { .. } => "rows_only",
+            antecedent_data::materialize::RouteBound::NotAnEndToEndRoute => {
+                "not_an_end_to_end_route"
+            }
+        };
+        Self {
+            backend: receipt.path().as_str().to_owned(),
+            route_bound: route_bound.to_owned(),
+            rows_admitted: receipt.proved_rows(),
+            receipt_digest: receipt.digest().to_owned(),
+        }
+    }
+
+    /// Plain summary from its parts (required outside this crate because the type is
+    /// `#[non_exhaustive]`).
+    #[must_use]
+    pub fn from_parts(
+        backend: String,
+        route_bound: String,
+        rows_admitted: Option<u64>,
+        receipt_digest: String,
+    ) -> Self {
+        Self { backend, route_bound, rows_admitted, receipt_digest }
+    }
 }
 
 /// Estimator-side diagnostics and sensitivity summaries recorded beside the point.
@@ -344,6 +393,7 @@ impl EffectEstimate {
                 overlap,
                 n_obs: None,
                 retained_memory_bytes,
+                preparation: None,
             },
             diagnostics: EstimateDiagnostics { overlap_report, ..EstimateDiagnostics::default() },
             crossfit: CrossfitRecord::default(),
@@ -491,6 +541,13 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_retained_memory_bytes(mut self, retained_memory_bytes: Option<u64>) -> Self {
         self.provenance.retained_memory_bytes = retained_memory_bytes;
+        self
+    }
+
+    /// Record the preparation receipt the estimator's columns were admitted under.
+    #[must_use]
+    pub fn with_preparation(mut self, preparation: Option<Arc<PreparationSummary>>) -> Self {
+        self.provenance.preparation = preparation;
         self
     }
 

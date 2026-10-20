@@ -66,6 +66,8 @@ pub struct PreparedGlmProblem {
     /// The design stays unscaled; the weighted fit, g-computation average and sandwich read
     /// these per-row weights directly.
     pub sampling: Option<RetainedSamplingWeights>,
+    /// Preparation receipt for the finite table this problem was read from.
+    pub preparation: antecedent_data::materialize::PreparationReceipt,
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -284,7 +286,7 @@ impl GlmAdjustmentAte {
         ids.push(treatment);
         ids.push(outcome);
         ids.extend_from_slice(&estimand.adjustment_set);
-        let crate::prepare::AdmittedColumns { data, mut row_mask, .. } =
+        let crate::prepare::AdmittedColumns { data, mut row_mask, receipt: preparation } =
             crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
         crate::prepare::intersect_predicate_mask(
             &mut row_mask,
@@ -349,6 +351,7 @@ impl GlmAdjustmentAte {
             target_population: query.target_population.clone(),
             treatment: Arc::from(t),
             sampling,
+            preparation,
         })
     }
 
@@ -494,6 +497,7 @@ impl GlmAdjustmentAte {
         };
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_preparation(Some(crate::prepare::preparation_summary(&problem.preparation)))
             .with_se_kind(self.se_kind)
             .with_sampling_weights(problem.sampling.as_ref().map(|s| s.record)))
     }
@@ -1241,6 +1245,7 @@ mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!(effect.ate > 0.0, "ate={}", effect.ate);
         assert!(effect.ate < 1.0, "ate={}", effect.ate);
+        crate::prepare::assert_records_preparation(&effect, 4000);
         assert!(effect.se_bootstrap().is_some());
     }
 

@@ -502,6 +502,8 @@ mod learned_preparation_tests {
             shared_design: false,
             propensity: PropensityNuisance::default(),
             sampling_weights: None,
+            preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(2)
+                .unwrap(),
         }
     }
     #[test]
