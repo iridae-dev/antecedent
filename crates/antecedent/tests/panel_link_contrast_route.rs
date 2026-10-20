@@ -334,10 +334,8 @@ fn the_link_estimators_name_their_inference_mode() {
     assert!(error.to_string().contains("estimator_inference_mismatch"));
     let error = builder(&units)
         .estimator(EstimatorId::TemporalGlmLinkContrast)
-        .inference(InferenceMode::Bayesian(
-            BayesianConfig::laplace().likelihood(BayesLikelihood::BernoulliLogit),
-        ))
+        .inference(InferenceMode::Bayesian(BayesianConfig::laplace()))
         .build()
         .unwrap_err();
-    assert!(error.to_string().contains("estimator_inference_mismatch"));
+    assert!(error.to_string().contains("estimator_inference_mismatch"), "{error}");
 }

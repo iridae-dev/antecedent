@@ -2209,7 +2209,7 @@
       "structure": "explicit",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": null,
+      "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
       ]
@@ -2220,7 +2220,7 @@
       "structure": "accepted",
       "inference": "Frequentist",
       "validation": "none",
-      "route_estimator": null,
+      "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
       ]
@@ -2231,7 +2231,7 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": null,
+      "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
       ]
@@ -2242,7 +2242,7 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": null,
+      "route_estimator": "functional.effect",
       "estimators": [
         "functional.effect"
       ]
@@ -4868,7 +4868,7 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": null,
+      "route_estimator": "bayesian.gcomp",
       "estimators": [
         "bayesian.gcomp"
       ]
@@ -4890,7 +4890,7 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": null,
+      "route_estimator": "bayesian.gcomp",
       "estimators": [
         "bayesian.gcomp"
       ]
@@ -6826,9 +6826,8 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "temporal.linear.adjustment",
+      "route_estimator": "bayesian.temporal.gcomp",
       "estimators": [
-        "temporal.linear.adjustment",
         "bayesian.temporal.gcomp"
       ]
     },
@@ -6849,9 +6848,8 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "temporal.linear.adjustment",
+      "route_estimator": "bayesian.temporal.gcomp",
       "estimators": [
-        "temporal.linear.adjustment",
         "bayesian.temporal.gcomp"
       ]
     },

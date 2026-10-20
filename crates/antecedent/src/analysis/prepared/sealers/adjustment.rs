@@ -604,7 +604,7 @@ pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
         analysis.identification_cache.as_ref(),
         &analysis.inference,
     ) {
-        (Some(query), Some(background), Some(cache), InferenceMode::Frequentist)
+        (Some(query), Some(background), Some(cache), inference)
             if background.within_tier == antecedent_graph::WithinTier::Unknown
                 && analysis.structure_source == crate::support::StructureSource::Explicit
                 && analysis.graph_posterior.is_none()
@@ -613,7 +613,10 @@ pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
                 && cx.binding.resolves_to(
                     RouteDefaults::STATIC_ATE,
                     IdentifierId::GeneralizedAdjustment,
-                    EstimatorId::LinearAdjustmentAte,
+                    match inference {
+                        InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
+                        InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
+                    },
                 )
                 && cache.identification.query == CausalQuery::AverageEffect(query.clone())
                 && cache.identification.estimands.len() == 2 =>
@@ -623,7 +626,10 @@ pub(super) fn unknown_tiered_average(cx: &SealContext<'_>) -> SealOutcome {
                 background: background.clone(),
                 cache: Arc::clone(cache),
                 identifier: crate::strategy_table::IdentifierId::GeneralizedAdjustment,
-                estimator: crate::strategy_table::EstimatorId::LinearAdjustmentAte,
+                estimator: match inference {
+                    InferenceMode::Frequentist => crate::strategy_table::EstimatorId::LinearAdjustmentAte,
+                    InferenceMode::Bayesian(_) => crate::strategy_table::EstimatorId::BayesianGcomp,
+                },
                 physical: plan.clone(),
             }))
         }

@@ -16,7 +16,6 @@ use crate::analysis::array_fits::{
     TemporalTreatmentScoreSpec, TreatmentScoreSpec,
 };
 use crate::analysis::builder::DataInput;
-use crate::analysis::helpers::project_for_ate_estimate;
 use crate::error::CausalError;
 use antecedent_core::{CausalQuery, ExecutionContext};
 use antecedent_data::{TableView, TabularData};
@@ -74,12 +73,13 @@ impl PreparedStudy {
                           static average effect",
             });
         };
-        let (projected, query, estimand) = project_for_ate_estimate(data, query, &cache.estimand)?;
-        let treatment: Vec<f64> = projected.float64_values(query.treatment)?.clone();
+        // The retained identification names the adjustment set in the ids of the prepared
+        // data, so the columns are read from it directly.
+        let treatment: Vec<f64> = data.float64_values(query.treatment)?.clone();
         let nrows = treatment.len();
         let mut x_colmajor = vec![1.0_f64; nrows];
-        for variable in estimand.adjustment_set.iter().copied() {
-            x_colmajor.extend_from_slice(&projected.float64_values(variable)?);
+        for variable in cache.estimand.adjustment_set.iter().copied() {
+            x_colmajor.extend_from_slice(&data.float64_values(variable)?);
         }
         let columns = x_colmajor.len().checked_div(nrows).unwrap_or(0);
         let mut rows = Vec::with_capacity(spec.summary_rows.len());

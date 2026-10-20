@@ -493,6 +493,26 @@ identifier = "backdoor.adjustment"
 estimator = "bayesian.gcomp"
 
 [[route]]
+coordinate = "ConditionalEffect:Admg:explicit:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ConditionalEffect:Admg:accepted:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ConditionalEffect:Admg:explicit:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ConditionalEffect:Admg:accepted:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
 coordinate = "ConditionalEffect:Dag:explicit:Frequentist:none"
 identifier = "backdoor.adjustment"
 estimator = "conditional.linear.adjustment"
@@ -1678,9 +1698,19 @@ identifier = "generalized.adjustment"
 estimator = "aipw"
 
 [[route]]
+coordinate = "AverageEffect:CoDetermined:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "bayesian.gcomp"
+
+[[route]]
 coordinate = "AverageEffect:Unknown:explicit:Frequentist:none"
 identifier = "generalized.adjustment"
 estimator = "linear.adjustment.ate"
+
+[[route]]
+coordinate = "AverageEffect:Unknown:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "bayesian.gcomp"
 
 [[route]]
 coordinate = "PulseEffect:TemporalCpdag:explicit:Bayesian:none"
@@ -2560,7 +2590,7 @@ estimator = "temporal.linear.adjustment"
 [[route]]
 coordinate = "Counterfactual:TemporalDag:explicit:Bayesian:none"
 identifier = "temporal.backdoor.unfolded"
-estimator = "temporal.linear.adjustment"
+estimator = "bayesian.temporal.gcomp"
 
 [[route]]
 coordinate = "Counterfactual:TemporalDag:accepted:Frequentist:none"
@@ -2570,7 +2600,7 @@ estimator = "temporal.linear.adjustment"
 [[route]]
 coordinate = "Counterfactual:TemporalDag:accepted:Bayesian:none"
 identifier = "temporal.backdoor.unfolded"
-estimator = "temporal.linear.adjustment"
+estimator = "bayesian.temporal.gcomp"
 
 [[route]]
 coordinate = "InterventionalDistribution:TemporalDag:explicit:Frequentist:none"

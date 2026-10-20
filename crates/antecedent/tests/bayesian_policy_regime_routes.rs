@@ -152,8 +152,8 @@ fn binary_policy_posterior_names_its_estimator_and_refuses_unread_shapes() {
         .prepare(&ctx)
         .err()
         .expect("refusal");
-    assert_eq!(refused.reason_code(), Some("invalid_argument"));
-    assert!(refused.to_string().contains("Next attempt"), "{refused}");
+    // The query refuses unowned predictions before the route sees them.
+    assert!(refused.to_string().contains("prediction ownership requires"), "{refused}");
     // Held-out predictions give the augmented scores [4, 8, 2, 2].
     let mut augmented = policy_query();
     augmented.mu0 = Arc::from([1.0; 4]);

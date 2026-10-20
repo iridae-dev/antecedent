@@ -65,7 +65,7 @@ fn the_product_matches_newton_modes_and_laplace_score_moments() {
     // Rows 0 and 150 are the two cells; Newton modes 0.305098 and 0.596960, score means
     // 0.306897 and 0.596070, sds 0.045356 and 0.048366, outside-band 0.8296 and 0.1330.
     let value = |name: &str| product.value(name).unwrap();
-    assert!((value("row0.at_mode") - 0.305_098).abs() < 1e-4);
+    assert!((value("row0.at_mode") - 0.305_098).abs() < 1e-4, "{} {} {:?} {:?} {:?}", value("row0.at_mode"), value("row1.at_mode"), product.value("mode.0"), product.value("mode.1"), product.value("mode.2"));
     assert!((value("row1.at_mode") - 0.596_960).abs() < 1e-4);
     assert!((value("row0.mean") - 0.306_897).abs() < 0.004);
     assert!((value("row1.mean") - 0.596_070).abs() < 0.004);
