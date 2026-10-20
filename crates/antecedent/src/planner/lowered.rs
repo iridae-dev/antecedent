@@ -1,9 +1,10 @@
-//! Layer-1 and layer-5 lowering for the static linear/Gaussian intervention route.
+//! Layer-1 and layer-5 descriptions for the static linear/Gaussian intervention route.
 //!
 //! The scientific target is the unconditional contrast of the query's two
 //! intervention worlds. The program operators are the read, the ordinary
 //! least-squares fit, and the intervention. The physical operators carry the
-//! byte estimates already on the physical plan. Nothing here identifies or fits.
+//! byte estimates already on the physical plan `Study::compile` returns.
+//! Nothing here identifies, prepares, or compiles a second plan.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

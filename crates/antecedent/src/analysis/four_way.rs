@@ -375,6 +375,8 @@ pub(crate) fn same_target_slice(
     {
         return Err(compile("compile did not return the lowered linear/Gaussian physical plan"));
     }
+    drop(compiled);
+    drop(static_study);
     let analytic_truth = line_effect();
     let claim = route.execute(ctx)?;
     let static_artifact = route.claim_artifact()?;

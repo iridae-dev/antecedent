@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Every licensed estimator must execute from a retained checked operation after
-# its builder is gone. Resolve every citation to an exact non-ignored libtest
-# identity, run each distinct assertion once, and attribute failures to every
-# licensing cell that cites it. The support-matrix gate validates the citation
-# schema and estimator coverage separately.
+# its builder is gone. The Python gate rejects a cell with no citation, a
+# citation that does not run the retained program, and a citation that builds
+# a public Study again before that run. It also rejects the linear/Gaussian
+# route when that route grows a second compiler or re-enters the public
+# builder. Then resolve every remaining citation to an exact non-ignored
+# libtest identity, run each distinct assertion once, and attribute failures
+# to every licensing cell that cites it.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

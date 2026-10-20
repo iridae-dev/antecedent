@@ -1,9 +1,8 @@
 //! Retained linear/Gaussian intervention route.
 //!
-//! Lowers the existing static `linear.adjustment.ate` contrast through the six
-//! compiler layers and executes the checked program that lowering retains.
-//! [`super::super::Study::compile`] builds the physical plan this route keeps.
-//! Admission, identification, and preparation stay here.
+//! Executes the static ordinary-least-squares contrast from the checked program
+//! [`Study::prepare`] retains. [`Study::compile`] builds the physical plan this
+//! route keeps. This module does not identify or prepare a second copy.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -15,7 +14,7 @@ use std::sync::Arc;
 use antecedent_contract::ExecutionPerformanceRecord;
 use antecedent_core::execution::{AdmissionError, AdmissionLease};
 use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionSet, AssumptionStatus, AverageEffectQuery, CausalQuery,
+    Assumption, AssumptionRecord, AssumptionSet, AssumptionStatus, AverageEffectQuery,
     EncodedWidth, ExecutionContext, Operator, RouteBudget, RouteMemoryDeclaration, ScientificTarget,
 };
 use antecedent_data::{design_layout::DesignLayout, GlobalId, TableView, TabularData};
@@ -28,7 +27,6 @@ use antecedent_io::{
     encode_analysis_result_artifact, identification_to_wire,
 };
 use antecedent_stats::CompiledDesign;
-use antecedent_graph::Dag;
 use antecedent_identify::{
     AssembledFunctionalObligation, CompiledIdentificationProduct, CompiledProductParts,
     IdentificationClaimClass, IdentificationOutcome, IdentificationResult, RequiredFactor,
@@ -42,9 +40,7 @@ use crate::planner::{
     PhysicalExecutionPlan, linear_gaussian_physical_operators, linear_gaussian_program_operators,
     linear_gaussian_scientific_problem,
 };
-use crate::strategy_table::{
-    EstimatorId, IdentifierId, identify_static_query_with_rd, select_claim,
-};
+use crate::strategy_table::EstimatorId;
 use crate::support::CellStatus;
 
 use super::super::Study;
@@ -452,34 +448,47 @@ fn analysis_wire(
 struct Admitted<'a> {
     data: &'a TabularData,
     query: &'a AverageEffectQuery,
-    graph: &'a Dag,
-    identifier: IdentifierId,
+}
+
+/// Whether [`Study::compile`] returns the lowered linear/Gaussian physical plan.
+pub(super) fn lowered_plan_admits(study: &Study) -> bool {
+    study.admit_linear_gaussian().is_ok()
 }
 
 impl Study {
     /// Lower the static ordinary-least-squares intervention route.
     ///
     /// The study must resolve to `linear.adjustment.ate` on a static DAG average
-    /// contrast with an empty modifier list. Population, pair, and identification
-    /// refusals are the ones the checked estimator already returns.
-    /// [`Self::compile`] builds the physical plan and does not identify again.
-    /// The retained program is what [`LoweredLinearGaussianRoute::execute`] fits.
+    /// contrast with an empty modifier list and an ordinary-least-squares fit.
+    /// [`Self::compile`] builds the physical plan. [`Self::prepare`] identifies
+    /// and retains the checked program this route fits.
     ///
     /// # Errors
     ///
     /// The study is a different route, the fit is not ordinary least squares, or
-    /// identification or preparation refuses.
+    /// preparation did not retain the checked linear program.
     pub(crate) fn lower_linear_gaussian_intervention(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<LoweredLinearGaussianRoute, CausalError> {
         let admitted = self.admit_linear_gaussian()?;
-        let logical =
-            self.compile_logical_ate_dag(admitted.data, admitted.query, admitted.graph)?;
-        let physical = logical.compile_physical(ctx)?;
-        let identification = self.identify_linear_gaussian(&admitted, ctx)?;
-        let (program, fitter, point_then_bootstrap) =
-            prepare_linear_gaussian(self, admitted.data, &identification)?;
+        let physical = self.lowered_physical_plan(ctx)?;
+        let prepared = self.prepare(ctx)?;
+        let operation = prepared.checked_linear_operation().ok_or_else(|| {
+            compile_error("linear/Gaussian route did not retain its checked program")
+        })?;
+        let identification = prepared
+            .study()
+            .identification_cache
+            .as_ref()
+            .ok_or_else(|| {
+                compile_error("linear/Gaussian route did not retain its identification")
+            })?
+            .identification
+            .clone();
+        let program = operation.preparation.clone();
+        let fitter = operation.fitter.clone();
+        let point_then_bootstrap = operation.default_id;
         let product = retain_linear_gaussian(&identification, &program)?;
         let resample = fitter.bootstrap_replicates > 0;
         let data = admitted.data.clone();
@@ -507,7 +516,12 @@ impl Study {
     }
 
     fn admit_linear_gaussian(&self) -> Result<Admitted<'_>, CausalError> {
-        let (identifier, estimator) = self.resolve_static_ids();
+        if self.graph_posterior.is_some() {
+            return Err(CausalError::Compile {
+                message: "linear/Gaussian lowering admits a single static DAG".into(),
+            });
+        }
+        let (_, estimator) = self.resolve_static_ids();
         if estimator != EstimatorId::LinearAdjustmentAte {
             return Err(CausalError::Compile {
                 message: format!(
@@ -517,7 +531,26 @@ impl Study {
                 ),
             });
         }
-        let super::super::RouteInput::StaticAteDag { data, query, graph } = self.route_input()?
+        match self.estimator_spec.as_deref() {
+            None | Some(EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte)) => {}
+            Some(EstimatorSpec::LinearAdjustmentAte(cfg)) => {
+                if !matches!(cfg.fit_kind, LinearFitKind::Ols) {
+                    return Err(CausalError::Compile {
+                        message: "linear/Gaussian lowering admits ordinary least squares".into(),
+                    });
+                }
+            }
+            Some(other) => {
+                return Err(CausalError::Compile {
+                    message: format!(
+                        "linear/Gaussian lowering admits estimator \"{}\"; got \"{}\"",
+                        EstimatorId::LinearAdjustmentAte.as_str(),
+                        other.id().as_str()
+                    ),
+                });
+            }
+        }
+        let super::super::RouteInput::StaticAteDag { data, query, .. } = self.route_input()?
         else {
             return Err(CausalError::Compile {
                 message: "linear/Gaussian lowering admits a static DAG average contrast".into(),
@@ -528,70 +561,7 @@ impl Study {
                 message: "linear/Gaussian lowering admits an unconditional average contrast".into(),
             });
         }
-        Ok(Admitted { data, query, graph, identifier })
-    }
-
-    fn identify_linear_gaussian(
-        &self,
-        admitted: &Admitted<'_>,
-        ctx: &ExecutionContext,
-    ) -> Result<IdentificationResult, CausalError> {
-        let rd = self.rd.map(|config| {
-            antecedent_identify::SharpRdConfig::new(
-                config.running_variable,
-                config.cutoff,
-                config.bandwidth,
-            )
-        });
-        let (identification, _, _) = super::super::identification_from_cache_or(
-            ctx,
-            self.identification_cache.as_deref(),
-            || {
-                let identification = identify_static_query_with_rd(
-                    admitted.identifier,
-                    admitted.graph,
-                    &CausalQuery::AverageEffect(admitted.query.clone()),
-                    rd,
-                )?;
-                select_claim(identification, EstimatorId::LinearAdjustmentAte)
-            },
-        )?;
-        Ok(identification)
-    }
-}
-
-fn prepare_linear_gaussian(
-    study: &Study,
-    data: &TabularData,
-    identification: &IdentificationResult,
-) -> Result<(CheckedLinearAdjustmentAte, LinearAdjustmentAte, bool), CausalError> {
-    let (fitter, point_then_bootstrap) = gaussian_fitter(study)?;
-    let program = fitter.prepare_checked(data, identification, 0).map_err(CausalError::from)?;
-    Ok((program, fitter, point_then_bootstrap))
-}
-
-fn gaussian_fitter(study: &Study) -> Result<(LinearAdjustmentAte, bool), CausalError> {
-    match study.estimator_spec.as_deref() {
-        None | Some(EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte)) => {
-            let mut fitter = LinearAdjustmentAte::new();
-            fitter.bootstrap_replicates = study.bootstrap_replicates;
-            Ok((fitter, true))
-        }
-        Some(EstimatorSpec::LinearAdjustmentAte(cfg)) => {
-            if !matches!(cfg.fit_kind, LinearFitKind::Ols) {
-                return Err(CausalError::Compile {
-                    message: "linear/Gaussian lowering admits ordinary least squares".into(),
-                });
-            }
-            Ok(((**cfg).clone(), false))
-        }
-        Some(other) => Err(CausalError::Compile {
-            message: format!(
-                "linear/Gaussian lowering admits estimator \"{}\"; got \"{}\"",
-                EstimatorId::LinearAdjustmentAte.as_str(),
-                other.id().as_str()
-            ),
-        }),
+        Ok(Admitted { data, query })
     }
 }
 

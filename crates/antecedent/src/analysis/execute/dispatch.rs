@@ -2258,7 +2258,12 @@ impl super::Study {
         {
             if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
                 if mean_all_observed(&query.outcome_functional, &query.target_population) {
-                    return self.prepare(ctx)?.estimate(data, ctx).map(Box::new).map(Some);
+                    return self.admit_sealed_tabular(
+                        data,
+                        ctx,
+                        |prepared| prepared.checked_linear_operation().is_some(),
+                        "one-shot linear adjustment did not retain its checked operation",
+                    );
                 }
             }
         }

@@ -1304,8 +1304,9 @@ impl super::Study {
 
     /// Compile logical → physical plan.
     ///
-    /// An admitted linear/Gaussian study keeps admission, identification, and
-    /// preparation on the lowered route. This function does not repeat them.
+    /// An admitted static ordinary-least-squares study returns the lowered
+    /// linear/Gaussian physical plan. Identification and the checked program
+    /// stay on [`Study::prepare`]; this function does not build them again.
     ///
     /// # Errors
     ///
@@ -1320,8 +1321,28 @@ impl super::Study {
         if self.graph_posterior.is_some() {
             return self.compile_graph_posterior(ctx);
         }
+        if lowered_route::lowered_plan_admits(self) {
+            return self.lowered_physical_plan(ctx);
+        }
         let input = self.route_input()?;
         self.compile_with_route(&input, ctx)
+    }
+
+    /// Physical plan of the admitted static ordinary-least-squares route.
+    ///
+    /// The same record [`Study::compile`] returns for that study. Callers that
+    /// already know the study is admitted use this directly so building the
+    /// retained route does not call [`Study::compile`] again.
+    fn lowered_physical_plan(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<PhysicalExecutionPlan, CausalError> {
+        let RouteInput::StaticAteDag { data, query, graph } = self.route_input()? else {
+            return Err(CausalError::Compile {
+                message: "linear/Gaussian lowering admits a static DAG average contrast".into(),
+            });
+        };
+        self.compile_logical_ate_dag(data, query, graph)?.compile_physical(ctx)
     }
 
     fn compile_with_route(
