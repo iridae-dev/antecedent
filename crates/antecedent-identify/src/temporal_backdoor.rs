@@ -675,7 +675,7 @@ fn resolve_schedule_active_level(
     }
 }
 
-fn template_max_lag(template: &TemporalDag) -> u32 {
+pub(crate) fn template_max_lag(template: &TemporalDag) -> u32 {
     template
         .nodes()
         .iter()
@@ -728,7 +728,7 @@ fn apply_history_lag_filter(
     config.history_lags = Arc::from(lags);
 }
 
-fn required_variable_count(
+pub(crate) fn required_variable_count(
     template: &TemporalDag,
     variables: impl IntoIterator<Item = VariableId>,
 ) -> u32 {

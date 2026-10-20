@@ -105,6 +105,9 @@ impl IdcIdentifier {
 
     /// Identify `P(Y | do(X), Z)` via IDC.
     ///
+    /// The intervened variables stay symbolic: the emitted functional reads their
+    /// level from the evaluation environment.
+    ///
     /// # Errors
     ///
     /// Unknown variables or ID failure plumbing.
@@ -116,6 +119,46 @@ impl IdcIdentifier {
         conditioning: &[VariableId],
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
+        self.identify_conditional_with(
+            prepared,
+            ConditionalRequest { outcomes, interventions, conditioning, bake_levels: false },
+            workspace,
+        )
+    }
+
+    /// Identify `P(Y | do(X = x), Z)` with the hard-set levels of `interventions` baked
+    /// into the emitted factors, so two calls at different levels give two different
+    /// functionals of the same observed law (the arms of a conditional contrast).
+    ///
+    /// A conditioning variable that rule 2 moves into the intervention set keeps no
+    /// level: it stays a free variable of the functional, bound to each observed value
+    /// of that variable by the evaluator, never to a stand-in constant.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variables or ID failure plumbing.
+    pub fn identify_conditional_at_levels(
+        &self,
+        prepared: &PreparedAdmg,
+        outcomes: &[VariableId],
+        interventions: &[Intervention],
+        conditioning: &[VariableId],
+        workspace: &mut IdentificationWorkspace,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        self.identify_conditional_with(
+            prepared,
+            ConditionalRequest { outcomes, interventions, conditioning, bake_levels: true },
+            workspace,
+        )
+    }
+
+    fn identify_conditional_with(
+        &self,
+        prepared: &PreparedAdmg,
+        request: ConditionalRequest<'_>,
+        workspace: &mut IdentificationWorkspace,
+    ) -> Result<IdentificationResult, IdentificationError> {
+        let ConditionalRequest { outcomes, interventions, conditioning, bake_levels } = request;
         crate::intervention_support::require_hard_set_interventions(interventions, "IDC")?;
         // Y, X and Z must be pairwise disjoint: an overlap is not a
         // conditional interventional law and the rule-2 search below would
@@ -151,7 +194,8 @@ impl IdcIdentifier {
         derivation.push("general.idc", "Shpitser–Pearl IDC");
         let mut perf = IdentificationPerformanceRecord::default();
 
-        let problem = IdcProblem { id: &self.inner, prepared, known_values: &known_values };
+        let problem =
+            IdcProblem { id: &self.inner, prepared, known_values: &known_values, bake_levels };
         let surgical = mutilate_bar_x(prepared.admg(), &x)?;
         let expr_result = idc_recurse(
             &problem,
@@ -203,12 +247,23 @@ enum IdcOk {
     NotIdentified(IdentificationResult),
 }
 
+/// One conditional interventional law to identify.
+#[derive(Clone, Copy)]
+struct ConditionalRequest<'a> {
+    outcomes: &'a [VariableId],
+    interventions: &'a [Intervention],
+    conditioning: &'a [VariableId],
+    /// Bake the caller's hard-set levels into the emitted factors.
+    bake_levels: bool,
+}
+
 /// The ID engine, prepared graph and caller-supplied intervention levels an IDC recursion
 /// reads.
 struct IdcProblem<'a> {
     id: &'a IdIdentifier,
     prepared: &'a PreparedAdmg,
     known_values: &'a std::collections::BTreeMap<VariableId, Value>,
+    bake_levels: bool,
 }
 
 /// Mutable workspaces and diagnostics shared by every step of one IDC search.
@@ -226,7 +281,7 @@ fn idc_recurse(
     surgical: &Admg,
     run: &mut IdcRun<'_>,
 ) -> Result<IdcOk, IdentificationError> {
-    let IdcProblem { id, prepared, known_values } = *problem;
+    let IdcProblem { id, prepared, known_values, bake_levels } = *problem;
     run.perf.candidates_examined = run.perf.candidates_examined.saturating_add(1);
 
     // Line 1: move Z∈Z into intervention when Y ⊥ Z | X, Z\{Z} in G_{\bar X \underline Z}.
@@ -262,7 +317,20 @@ fn idc_recurse(
     let mut yz = y.clone();
     yz.union_with(z);
     let q = distribution_query_from_sets(prepared, &yz, x, known_values)?;
-    let id_res = id.identify(prepared, &q, run.workspace)?;
+    let id_res = if bake_levels {
+        // Only the caller's own interventions have a level. A conditioning variable moved
+        // into the intervention set by line 1 has none and stays free.
+        let mut assignments = Vec::new();
+        for dense in x.iter() {
+            let variable = prepared.dense_to_var(dense)?;
+            if let Some(value) = known_values.get(&variable) {
+                assignments.push((dense, value.clone()));
+            }
+        }
+        IdIdentifier::identify_sets(prepared, &yz, x, q, run.workspace, Arc::from(assignments))?
+    } else {
+        id.identify(prepared, &q, run.workspace)?
+    };
     if id_res.status != IdentificationStatus::NonparametricallyIdentified {
         return Ok(IdcOk::NotIdentified(id_res));
     }

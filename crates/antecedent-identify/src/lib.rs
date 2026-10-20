@@ -55,6 +55,7 @@ pub(crate) mod selection_separation;
 pub mod sid;
 pub mod temporal_backdoor;
 pub mod temporal_generalized;
+pub mod temporal_iv;
 mod temporal_mag;
 pub mod temporal_mediation;
 mod temporal_window;
@@ -237,6 +238,7 @@ pub use temporal_backdoor::{
     PARENT_ADJUSTMENT_RULE, TemporalBackdoorIdentifier, TemporalIdentificationResult,
 };
 pub use temporal_generalized::{TemporalClassEnvelope, TemporalCompletionGraph};
+pub use temporal_iv::{TemporalIvIdentifier, TemporalIvResult};
 pub use temporal_mediation::TemporalMediationIdentifier;
 pub use tiered::{
     NO_LATENT_TO_OUTCOME, TIERED_JOINT_ADJUSTMENT_REFUSE, identify_tiered, identify_tiered_joint,

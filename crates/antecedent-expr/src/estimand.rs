@@ -25,6 +25,8 @@ pub enum EstimandMethod {
     RdSharp,
     /// Temporal backdoor after finite unfolding.
     TemporalBackdoorUnfolded,
+    /// Lagged instrument identified on the unfolded window graph.
+    TemporalIvUnfolded,
     /// Temporal mediation — total effect.
     TemporalMediationTotal,
     /// Temporal mediation — direct effect.
@@ -52,6 +54,7 @@ impl EstimandMethod {
             Self::Iv => "iv",
             Self::RdSharp => "rd.sharp",
             Self::TemporalBackdoorUnfolded => "temporal.backdoor.unfolded",
+            Self::TemporalIvUnfolded => "temporal.iv.unfolded",
             Self::TemporalMediationTotal => "temporal_mediation.total",
             Self::TemporalMediationDirect => "temporal_mediation.direct",
             Self::TemporalMediationMediated => "temporal_mediation.mediated",
@@ -97,6 +100,7 @@ impl FromStr for EstimandMethod {
             "iv" => Self::Iv,
             "rd.sharp" => Self::RdSharp,
             "temporal.backdoor.unfolded" => Self::TemporalBackdoorUnfolded,
+            "temporal.iv.unfolded" => Self::TemporalIvUnfolded,
             "temporal_mediation.total" => Self::TemporalMediationTotal,
             "temporal_mediation.direct" => Self::TemporalMediationDirect,
             "temporal_mediation.mediated" => Self::TemporalMediationMediated,

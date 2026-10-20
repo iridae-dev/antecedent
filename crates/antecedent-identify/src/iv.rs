@@ -226,7 +226,7 @@ fn iv_default(assumption: Assumption) -> AssumptionRecord {
 }
 
 /// The restriction that decides which effect the Wald ratio is.
-fn wald_effect_restriction() -> AssumptionRecord {
+pub(crate) fn wald_effect_restriction() -> AssumptionRecord {
     iv_default(Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
         id: Arc::from(IV_EFFECT_RESTRICTION_ID),
         description: Arc::from(
@@ -238,7 +238,9 @@ fn wald_effect_restriction() -> AssumptionRecord {
 }
 
 /// Records one instrument's ratio relies on: its exclusion restriction and relevance.
-fn instrument_assumptions(instrument: antecedent_core::VariableId) -> [AssumptionRecord; 2] {
+pub(crate) fn instrument_assumptions(
+    instrument: antecedent_core::VariableId,
+) -> [AssumptionRecord; 2] {
     [
         iv_default(Assumption::ExclusionRestriction { instrument }),
         iv_default(Assumption::Custom {
@@ -253,7 +255,7 @@ fn instrument_assumptions(instrument: antecedent_core::VariableId) -> [Assumptio
 }
 
 /// Whether `z` is a valid instrument for `t` -> `y`.
-fn is_valid_instrument(
+pub(crate) fn is_valid_instrument(
     dag: &Dag,
     z: DenseNodeId,
     t: DenseNodeId,

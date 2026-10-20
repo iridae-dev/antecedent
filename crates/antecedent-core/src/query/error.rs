@@ -29,6 +29,12 @@ pub enum QueryError {
     /// Invalid longitudinal regime value or subject-level fold contract.
     #[error("invalid longitudinal-regime query: {0}")]
     InvalidLongitudinalRegime(String),
+    /// Invalid within-period history match.
+    #[error("invalid history-match query: {0}")]
+    InvalidHistoryMatch(String),
+    /// Invalid observational sequential regime contrast.
+    #[error("invalid sequential-contrast query: {0}")]
+    InvalidSequentialContrast(String),
     /// Invalid fixed-cutoff local-polynomial ratio design.
     #[error("invalid local-polynomial ratio query: {0}")]
     InvalidLocalPolynomialRatio(String),

@@ -61,3 +61,11 @@ path = "tests/transport_exact_scm.rs"
 [[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
+
+[[test]]
+name = "idc_baked_levels"
+path = "tests/idc_baked_levels.rs"
+
+[[test]]
+name = "temporal_iv"
+path = "tests/temporal_iv.rs"

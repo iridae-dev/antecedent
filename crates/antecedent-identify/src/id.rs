@@ -715,7 +715,7 @@ impl IdIdentifier {
         ))
     }
 
-    fn identify_sets(
+    pub(crate) fn identify_sets(
         prepared: &PreparedAdmg,
         y: &BitSet,
         x: &BitSet,

@@ -154,6 +154,7 @@ pub use query::{
     FixedGroupDosePolicy, GridSpec, InterferenceFunctional, InterferenceQuery,
     InterventionAssignment, InterventionalDistributionQuery, KnownCensoringSurvival, LawOrigin,
     LicensedWeights, LocalPolynomialRatioQuery, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
+    SequentialContrastQuery, HistoryMatchQuery,
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,

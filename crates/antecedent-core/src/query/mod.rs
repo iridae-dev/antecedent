@@ -14,6 +14,7 @@ mod did;
 mod distribution;
 mod error;
 mod functional;
+mod history_match;
 mod interference;
 mod local_polynomial_ratio;
 mod longitudinal_regime;
@@ -23,6 +24,7 @@ mod policy_value;
 mod population;
 mod randomized;
 mod response;
+mod sequential_contrast;
 mod smoothed_dose;
 mod survival;
 mod synthetic_control;
@@ -75,6 +77,8 @@ pub use response::{
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
 };
+pub use history_match::HistoryMatchQuery;
+pub use sequential_contrast::SequentialContrastQuery;
 pub use smoothed_dose::{SmoothedDoseTransportQuery, SmoothingKernel};
 pub use survival::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};
 pub use synthetic_control::{SyntheticControlQuery, SyntheticPanelMethod};
@@ -146,6 +150,10 @@ pub enum CausalQuery {
     Survival(SurvivalQuery),
     /// Prespecified longitudinal regime value over subject histories.
     LongitudinalRegime(LongitudinalRegimeQuery),
+    /// Observational two-decision contrast of two static regimes.
+    SequentialContrast(SequentialContrastQuery),
+    /// Nearest-neighbor contrast on histories, matched within calendar periods.
+    HistoryMatch(HistoryMatchQuery),
 }
 
 /// The variant of a [`CausalQuery`] without its payload.
@@ -203,6 +211,10 @@ pub enum CausalQueryKind {
     Survival,
     /// [`CausalQuery::LongitudinalRegime`].
     LongitudinalRegime,
+    /// [`CausalQuery::SequentialContrast`].
+    SequentialContrast,
+    /// [`CausalQuery::HistoryMatch`].
+    HistoryMatch,
 }
 
 impl CausalQuery {
@@ -233,6 +245,8 @@ impl CausalQuery {
             Self::LocalPolynomialRatio(_) => CausalQueryKind::LocalPolynomialRatio,
             Self::Survival(_) => CausalQueryKind::Survival,
             Self::LongitudinalRegime(_) => CausalQueryKind::LongitudinalRegime,
+            Self::SequentialContrast(_) => CausalQueryKind::SequentialContrast,
+            Self::HistoryMatch(_) => CausalQueryKind::HistoryMatch,
         }
     }
 }
@@ -369,6 +383,18 @@ impl CausalQuery {
     pub fn longitudinal_regime(query: LongitudinalRegimeQuery) -> Self {
         Self::LongitudinalRegime(query)
     }
+
+    /// Construct a within-period history match query.
+    #[must_use]
+    pub fn history_match(query: HistoryMatchQuery) -> Self {
+        Self::HistoryMatch(query)
+    }
+
+    /// Construct an observational sequential regime contrast query.
+    #[must_use]
+    pub fn sequential_contrast(query: SequentialContrastQuery) -> Self {
+        Self::SequentialContrast(query)
+    }
 }
 
 impl From<AverageEffectQuery> for CausalQuery {
@@ -497,6 +523,18 @@ impl From<LongitudinalRegimeQuery> for CausalQuery {
     }
 }
 
+impl From<HistoryMatchQuery> for CausalQuery {
+    fn from(query: HistoryMatchQuery) -> Self {
+        Self::HistoryMatch(query)
+    }
+}
+
+impl From<SequentialContrastQuery> for CausalQuery {
+    fn from(query: SequentialContrastQuery) -> Self {
+        Self::SequentialContrast(query)
+    }
+}
+
 impl CausalQuery {
     /// Target population of a population-scoped query.
     ///
@@ -528,7 +566,9 @@ impl CausalQuery {
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
-            | Self::LongitudinalRegime(_) => None,
+            | Self::LongitudinalRegime(_)
+            | Self::SequentialContrast(_)
+            | Self::HistoryMatch(_) => None,
         }
     }
 
@@ -557,7 +597,9 @@ impl CausalQuery {
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
-            | Self::LongitudinalRegime(_) => None,
+            | Self::LongitudinalRegime(_)
+            | Self::SequentialContrast(_)
+            | Self::HistoryMatch(_) => None,
         }
     }
 
@@ -591,6 +633,8 @@ impl CausalQuery {
             Self::LocalPolynomialRatio(q) => q.validate(),
             Self::Survival(q) => q.validate(),
             Self::LongitudinalRegime(q) => q.validate(),
+            Self::SequentialContrast(q) => q.validate(),
+            Self::HistoryMatch(q) => q.validate(),
         }
     }
 }
