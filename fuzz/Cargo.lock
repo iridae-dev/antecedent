@@ -119,6 +119,7 @@ dependencies = [
  "antecedent-io-core",
  "antecedent-kernels",
  "antecedent-learn",
+ "antecedent-model",
  "antecedent-prob",
  "antecedent-stats",
  "serde",

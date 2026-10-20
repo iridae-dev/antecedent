@@ -807,7 +807,7 @@ fn slope_covariance(source_variance: f64) -> f64 {
 fn margin_contract(covariance: f64) -> BridgeContract {
     let source = scientific_quantity("trial:endpoint");
     let mut target = scientific_quantity("trial:margin");
-    target.variable_name = "trial:margin".to_owned();
+    "trial:margin".clone_into(&mut target.variable_name);
     BridgeContract {
         kind: BridgeKind::ScientificDecisionUtility,
         source: BridgeEndpoint { quantity: source, class: QuantityClass::ScientificEndpoint },
