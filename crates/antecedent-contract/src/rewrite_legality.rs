@@ -6,21 +6,31 @@
 //! nuisance reuse, a sufficient-statistics lowering, and a tiled evaluation
 //! are separate types. [`RewriteKind::check`] admits a rewrite only when it
 //! preserves sample selection, folds, population, history, dependence, and
-//! uncertainty. The check compares declared identities and the effect the
-//! caller attributes to the rewrite. It does not execute the rewrite, scan
-//! rows, or number them.
+//! uncertainty. The check compares a fingerprint of the frame contents and
+//! the effect the caller attributes to the rewrite. The fingerprint is the
+//! selected row ids, each row's fold id, the population id, and the history.
+//! An identity string the caller copies onto both sides is not that
+//! fingerprint. The check does not execute the rewrite, scan rows, or number
+//! them.
 //!
 //! An altered axis is a counterexample. The [`RewriteRefusal`] names that axis
 //! and the next attempt that keeps it. Copying the same identity text onto an
-//! altering effect does not make the rewrite legal. When several axes would
-//! change, the earliest axis in [`PreservationAxis`] order is the refusal.
+//! altering effect, or onto a frame whose fingerprint differs, does not make
+//! the rewrite legal. When several axes would change, the earliest axis in
+//! [`PreservationAxis`] order is the refusal.
 
-use std::{error::Error, fmt, sync::Arc};
+use std::{collections::BTreeSet, error::Error, fmt, sync::Arc};
 
-use antecedent_core::text::is_blank;
+use antecedent_core::{CanonicalWriter, SemanticDigest, text::is_blank};
 
 const INVALID_CODE: &str = antecedent_core::reason_code!("invalid_argument");
 const BLANK_DETAIL: &str = "rewrite_legality.blank_identity";
+const TAG_SELECTED_ROWS: &str = "rewrite_legality.selected_rows";
+const TAG_FOLDS: &str = "rewrite_legality.fold_assignment";
+const TAG_POPULATION: &str = "rewrite_legality.population_id";
+const TAG_HISTORY: &str = "rewrite_legality.history";
+const NO_FINGERPRINT: &str =
+    "it carries no fingerprint of the selected rows, folds, population, and history";
 
 /// An axis a legal rewrite leaves unchanged.
 ///
@@ -207,7 +217,9 @@ impl AxisId {
 
 /// The six identities a rewrite must carry unchanged.
 ///
-/// Each identity is a name. This contract does not assign row numbers.
+/// Each identity is a name the caller supplies. Matching names are not a
+/// fingerprint of the frame, and they do not admit a rewrite. This contract
+/// does not assign row numbers.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PreservedIdentities {
     sample_selection: AxisId,
@@ -256,6 +268,167 @@ impl PreservedIdentities {
             PreservationAxis::History => self.history.as_str(),
             PreservationAxis::Dependence => self.dependence.as_str(),
             PreservationAxis::Uncertainty => self.uncertainty.as_str(),
+        }
+    }
+}
+
+/// Contents of one scientific frame.
+///
+/// [`Self::fingerprint`] hashes these contents. It is not an identity string
+/// copied from [`PreservedIdentities`]. Row ids are stored in order, each with
+/// the fold id that assigns that row. Whitespace around a non-blank id is part
+/// of the content.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrameContents {
+    row_ids: Vec<Arc<str>>,
+    fold_ids: Vec<Arc<str>>,
+    population_id: Arc<str>,
+    history: Arc<str>,
+}
+
+impl FrameContents {
+    /// Frame whose selected rows are `row_ids`, each assigned `fold_ids` in
+    /// the same order, in `population_id`, with `history`.
+    ///
+    /// # Errors
+    ///
+    /// A blank id, a repeated row id, or a fold list whose length is not the
+    /// number of selected rows. The axis is the earliest one in
+    /// [`PreservationAxis`] order.
+    pub fn try_new(
+        row_ids: &[&str],
+        fold_ids: &[&str],
+        population_id: &str,
+        history: &str,
+    ) -> Result<Self, RewriteRefusal> {
+        let mut seen = BTreeSet::new();
+        for row in row_ids {
+            if is_blank(row) {
+                return Err(content_refusal(
+                    PreservationAxis::SampleSelection,
+                    "a selected row id is blank",
+                ));
+            }
+            if !seen.insert(*row) {
+                return Err(content_refusal(
+                    PreservationAxis::SampleSelection,
+                    "a selected row id is repeated",
+                ));
+            }
+        }
+        for fold in fold_ids {
+            if is_blank(fold) {
+                return Err(content_refusal(PreservationAxis::Folds, "a fold id is blank"));
+            }
+        }
+        if row_ids.len() != fold_ids.len() {
+            return Err(content_refusal(
+                PreservationAxis::Folds,
+                "the fold assignment does not cover the selected rows",
+            ));
+        }
+        if is_blank(population_id) {
+            return Err(content_refusal(PreservationAxis::Population, "the population id is blank"));
+        }
+        if is_blank(history) {
+            return Err(content_refusal(PreservationAxis::History, "the history is blank"));
+        }
+        let mut order: Vec<usize> = (0..row_ids.len()).collect();
+        order.sort_by_key(|&index| row_ids[index]);
+        let mut stored_rows = Vec::with_capacity(order.len());
+        let mut stored_folds = Vec::with_capacity(order.len());
+        for index in order {
+            stored_rows.push(Arc::from(row_ids[index]));
+            stored_folds.push(Arc::from(fold_ids[index]));
+        }
+        Ok(Self {
+            row_ids: stored_rows,
+            fold_ids: stored_folds,
+            population_id: Arc::from(population_id),
+            history: Arc::from(history),
+        })
+    }
+
+    /// Selected row ids, in canonical order.
+    #[must_use = "the selected row ids are the fingerprint input"]
+    pub fn row_ids(&self) -> impl Iterator<Item = &str> {
+        self.row_ids.iter().map(AsRef::as_ref)
+    }
+
+    /// Fold id of each [`Self::row_ids`] entry, in the same order.
+    #[must_use = "the fold ids are the fingerprint input"]
+    pub fn fold_ids(&self) -> impl Iterator<Item = &str> {
+        self.fold_ids.iter().map(AsRef::as_ref)
+    }
+
+    /// Population id.
+    #[must_use]
+    pub fn population_id(&self) -> &str {
+        &self.population_id
+    }
+
+    /// History window, horizon, or initial state.
+    #[must_use]
+    pub fn history(&self) -> &str {
+        &self.history
+    }
+
+    /// Fingerprint of these contents.
+    #[must_use]
+    pub fn fingerprint(&self) -> FrameFingerprint {
+        FrameFingerprint {
+            selected_rows: digest_texts(TAG_SELECTED_ROWS, &self.row_ids),
+            folds: digest_assignment(&self.row_ids, &self.fold_ids),
+            population: digest_text(TAG_POPULATION, &self.population_id),
+            history: digest_text(TAG_HISTORY, &self.history),
+        }
+    }
+}
+
+/// Fingerprint of one frame's selected rows, fold assignment, population, and history.
+///
+/// Each part is a digest of the contents. Two frames with the same identity
+/// strings and different contents do not share a fingerprint.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct FrameFingerprint {
+    selected_rows: SemanticDigest,
+    folds: SemanticDigest,
+    population: SemanticDigest,
+    history: SemanticDigest,
+}
+
+impl FrameFingerprint {
+    /// Digest of the selected row ids.
+    #[must_use]
+    pub const fn selected_rows(&self) -> SemanticDigest {
+        self.selected_rows
+    }
+
+    /// Digest of each selected row id paired with its fold id.
+    #[must_use]
+    pub const fn folds(&self) -> SemanticDigest {
+        self.folds
+    }
+
+    /// Digest of the population id.
+    #[must_use]
+    pub const fn population(&self) -> SemanticDigest {
+        self.population
+    }
+
+    /// Digest of the history.
+    #[must_use]
+    pub const fn history(&self) -> SemanticDigest {
+        self.history
+    }
+
+    const fn on_axis(self, axis: PreservationAxis) -> Option<SemanticDigest> {
+        match axis {
+            PreservationAxis::SampleSelection => Some(self.selected_rows),
+            PreservationAxis::Folds => Some(self.folds),
+            PreservationAxis::Population => Some(self.population),
+            PreservationAxis::History => Some(self.history),
+            PreservationAxis::Dependence | PreservationAxis::Uncertainty => None,
         }
     }
 }
@@ -531,6 +704,7 @@ pub struct ColumnFilterPushdown {
     cohort: PreservedIdentities,
     pushed: PreservedIdentities,
     effect: PushdownEffect,
+    frames: Option<Box<BoundFrames>>,
 }
 
 impl ColumnFilterPushdown {
@@ -544,7 +718,20 @@ impl ColumnFilterPushdown {
         pushed: PreservedIdentities,
         effect: PushdownEffect,
     ) -> Self {
-        Self { cohort, pushed, effect }
+        Self { cohort, pushed, effect, frames: None }
+    }
+
+    /// Bind the contents of the cohort and of the pushed frame.
+    ///
+    /// [`RewriteKind::check`] compares their fingerprints. Matching identity
+    /// strings are not those fingerprints.
+    #[must_use]
+    pub fn with_frames(mut self, cohort: &FrameContents, pushed: &FrameContents) -> Self {
+        self.frames = Some(Box::new(BoundFrames {
+            original: cohort.fingerprint(),
+            rewritten: pushed.fingerprint(),
+        }));
+        self
     }
 
     /// Frame before the pushdown.
@@ -573,6 +760,7 @@ pub struct SharedRowDesignPreparation {
     left: PreservedIdentities,
     right: PreservedIdentities,
     effect: PreparationEffect,
+    frames: Option<Box<BoundPreparation>>,
 }
 
 impl SharedRowDesignPreparation {
@@ -587,7 +775,26 @@ impl SharedRowDesignPreparation {
         right: PreservedIdentities,
         effect: PreparationEffect,
     ) -> Self {
-        Self { preparation, left, right, effect }
+        Self { preparation, left, right, effect, frames: None }
+    }
+
+    /// Bind the contents of the preparation and of both consumers.
+    ///
+    /// [`RewriteKind::check`] compares the preparation's fingerprint with each
+    /// consumer. Matching identity strings are not those fingerprints.
+    #[must_use]
+    pub fn with_frames(
+        mut self,
+        preparation: &FrameContents,
+        left: &FrameContents,
+        right: &FrameContents,
+    ) -> Self {
+        self.frames = Some(Box::new(BoundPreparation {
+            preparation: preparation.fingerprint(),
+            left: left.fingerprint(),
+            right: right.fingerprint(),
+        }));
+        self
     }
 
     /// Identities of the shared preparation.
@@ -621,6 +828,7 @@ pub struct NuisanceReuse {
     fit: PreservedIdentities,
     consumer: PreservedIdentities,
     effect: NuisanceEffect,
+    frames: Option<Box<BoundFrames>>,
 }
 
 impl NuisanceReuse {
@@ -634,7 +842,20 @@ impl NuisanceReuse {
         consumer: PreservedIdentities,
         effect: NuisanceEffect,
     ) -> Self {
-        Self { fit, consumer, effect }
+        Self { fit, consumer, effect, frames: None }
+    }
+
+    /// Bind the contents of the fit and of the consumer.
+    ///
+    /// [`RewriteKind::check`] compares their fingerprints. Matching identity
+    /// strings are not those fingerprints.
+    #[must_use]
+    pub fn with_frames(mut self, fit: &FrameContents, consumer: &FrameContents) -> Self {
+        self.frames = Some(Box::new(BoundFrames {
+            original: fit.fingerprint(),
+            rewritten: consumer.fingerprint(),
+        }));
+        self
     }
 
     /// Frame the nuisance was fit on.
@@ -662,6 +883,7 @@ pub struct SufficientStatistics {
     rows: PreservedIdentities,
     summary: PreservedIdentities,
     effect: SummaryEffect,
+    frames: Option<Box<BoundFrames>>,
 }
 
 impl SufficientStatistics {
@@ -675,7 +897,20 @@ impl SufficientStatistics {
         summary: PreservedIdentities,
         effect: SummaryEffect,
     ) -> Self {
-        Self { rows, summary, effect }
+        Self { rows, summary, effect, frames: None }
+    }
+
+    /// Bind the contents of the rows and of the summary.
+    ///
+    /// [`RewriteKind::check`] compares their fingerprints. Matching identity
+    /// strings are not those fingerprints.
+    #[must_use]
+    pub fn with_frames(mut self, rows: &FrameContents, summary: &FrameContents) -> Self {
+        self.frames = Some(Box::new(BoundFrames {
+            original: rows.fingerprint(),
+            rewritten: summary.fingerprint(),
+        }));
+        self
     }
 
     /// Frame of the rows.
@@ -703,6 +938,7 @@ pub struct TiledEvaluation {
     full: PreservedIdentities,
     tile: PreservedIdentities,
     effect: TileEffect,
+    frames: Option<Box<BoundFrames>>,
 }
 
 impl TiledEvaluation {
@@ -716,7 +952,20 @@ impl TiledEvaluation {
         tile: PreservedIdentities,
         effect: TileEffect,
     ) -> Self {
-        Self { full, tile, effect }
+        Self { full, tile, effect, frames: None }
+    }
+
+    /// Bind the contents of the full frame and of the tile.
+    ///
+    /// [`RewriteKind::check`] compares their fingerprints. Matching identity
+    /// strings are not those fingerprints.
+    #[must_use]
+    pub fn with_frames(mut self, full: &FrameContents, tile: &FrameContents) -> Self {
+        self.frames = Some(Box::new(BoundFrames {
+            original: full.fingerprint(),
+            rewritten: tile.fingerprint(),
+        }));
+        self
     }
 
     /// Frame of the full evaluation.
@@ -761,7 +1010,10 @@ pub trait RewriteKind: seal::Sealed {
     ///
     /// Axes are examined in [`PreservationAxis`] order. Within one axis, pairs
     /// are examined in the order the rewrite type documents. An effect that
-    /// names the axis is a refusal even when every identity string matches.
+    /// names the axis is a refusal even when every identity string matches. A
+    /// fingerprint of the frame contents that differs is a refusal even when
+    /// the identity strings match. Equal identity strings without a fingerprint
+    /// are a refusal.
     ///
     /// # Errors
     ///
@@ -776,7 +1028,14 @@ impl RewriteKind for ColumnFilterPushdown {
     }
 
     fn check(&self) -> Result<(), RewriteRefusal> {
-        admit(Self::NAME, &[(&self.cohort, &self.pushed)], self.effect.defect())
+        let identities = &[(&self.cohort, &self.pushed)];
+        let defect = self.effect.defect();
+        match &self.frames {
+            Some(frames) => {
+                admit(Self::NAME, identities, defect, &[(&frames.original, &frames.rewritten)])
+            }
+            None => admit(Self::NAME, identities, defect, &[]),
+        }
     }
 }
 
@@ -786,11 +1045,17 @@ impl RewriteKind for SharedRowDesignPreparation {
     }
 
     fn check(&self) -> Result<(), RewriteRefusal> {
-        admit(
-            Self::NAME,
-            &[(&self.preparation, &self.left), (&self.preparation, &self.right)],
-            self.effect.defect(),
-        )
+        let identities = &[(&self.preparation, &self.left), (&self.preparation, &self.right)];
+        let defect = self.effect.defect();
+        match &self.frames {
+            Some(frames) => admit(
+                Self::NAME,
+                identities,
+                defect,
+                &[(&frames.preparation, &frames.left), (&frames.preparation, &frames.right)],
+            ),
+            None => admit(Self::NAME, identities, defect, &[]),
+        }
     }
 }
 
@@ -800,7 +1065,14 @@ impl RewriteKind for NuisanceReuse {
     }
 
     fn check(&self) -> Result<(), RewriteRefusal> {
-        admit(Self::NAME, &[(&self.fit, &self.consumer)], self.effect.defect())
+        let identities = &[(&self.fit, &self.consumer)];
+        let defect = self.effect.defect();
+        match &self.frames {
+            Some(frames) => {
+                admit(Self::NAME, identities, defect, &[(&frames.original, &frames.rewritten)])
+            }
+            None => admit(Self::NAME, identities, defect, &[]),
+        }
     }
 }
 
@@ -810,7 +1082,14 @@ impl RewriteKind for SufficientStatistics {
     }
 
     fn check(&self) -> Result<(), RewriteRefusal> {
-        admit(Self::NAME, &[(&self.rows, &self.summary)], self.effect.defect())
+        let identities = &[(&self.rows, &self.summary)];
+        let defect = self.effect.defect();
+        match &self.frames {
+            Some(frames) => {
+                admit(Self::NAME, identities, defect, &[(&frames.original, &frames.rewritten)])
+            }
+            None => admit(Self::NAME, identities, defect, &[]),
+        }
     }
 }
 
@@ -820,7 +1099,14 @@ impl RewriteKind for TiledEvaluation {
     }
 
     fn check(&self) -> Result<(), RewriteRefusal> {
-        admit(Self::NAME, &[(&self.full, &self.tile)], self.effect.defect())
+        let identities = &[(&self.full, &self.tile)];
+        let defect = self.effect.defect();
+        match &self.frames {
+            Some(frames) => {
+                admit(Self::NAME, identities, defect, &[(&frames.original, &frames.rewritten)])
+            }
+            None => admit(Self::NAME, identities, defect, &[]),
+        }
     }
 }
 
@@ -915,6 +1201,7 @@ fn admit(
     kind: &'static str,
     pairs: &[(&PreservedIdentities, &PreservedIdentities)],
     defect: Option<(PreservationAxis, &str)>,
+    frames: &[(&FrameFingerprint, &FrameFingerprint)],
 ) -> Result<(), RewriteRefusal> {
     for axis in PreservationAxis::ALL {
         if let Some((forced, because)) = defect {
@@ -933,8 +1220,73 @@ fn admit(
                 ));
             }
         }
+        for (original, rewritten) in frames {
+            let Some(original_digest) = original.on_axis(axis) else {
+                continue;
+            };
+            let Some(rewritten_digest) = rewritten.on_axis(axis) else {
+                continue;
+            };
+            if original_digest != rewritten_digest {
+                return Err(altered(
+                    kind,
+                    axis,
+                    &format!("`{original_digest}` is not `{rewritten_digest}`"),
+                ));
+            }
+        }
+    }
+    if frames.is_empty() {
+        return Err(altered(kind, PreservationAxis::SampleSelection, NO_FINGERPRINT));
     }
     Ok(())
+}
+
+/// Fingerprints of the two frames one rewrite compares.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct BoundFrames {
+    original: FrameFingerprint,
+    rewritten: FrameFingerprint,
+}
+
+/// Fingerprints of a shared preparation and its two consumers.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct BoundPreparation {
+    preparation: FrameFingerprint,
+    left: FrameFingerprint,
+    right: FrameFingerprint,
+}
+
+fn content_refusal(axis: PreservationAxis, message: &str) -> RewriteRefusal {
+    RewriteRefusal {
+        code: INVALID_CODE,
+        detail: axis.detail(),
+        message: message.to_owned(),
+        kind: None,
+        axis,
+        next: axis.next_attempt(),
+    }
+}
+
+fn digest_text(tag: &str, text: &str) -> SemanticDigest {
+    let mut writer = CanonicalWriter::new(tag);
+    writer.text(text);
+    SemanticDigest::from_bytes(writer.finish())
+}
+
+fn digest_texts(tag: &str, texts: &[Arc<str>]) -> SemanticDigest {
+    let mut writer = CanonicalWriter::new(tag);
+    writer.texts(texts);
+    SemanticDigest::from_bytes(writer.finish())
+}
+
+fn digest_assignment(rows: &[Arc<str>], folds: &[Arc<str>]) -> SemanticDigest {
+    let mut writer = CanonicalWriter::new(TAG_FOLDS);
+    writer.word(rows.len() as u64);
+    for (row, fold) in rows.iter().zip(folds) {
+        writer.text(row).text(fold);
+    }
+    SemanticDigest::from_bytes(writer.finish())
 }
 
 #[cfg(test)]
@@ -942,8 +1294,8 @@ mod tests {
     use std::error::Error;
 
     use super::{
-        ColumnFilterPushdown, NextAttempt, NuisanceEffect, NuisanceReuse, PreparationEffect,
-        PreservationAxis, PreservedIdentities, PushdownEffect, RewriteKind,
+        ColumnFilterPushdown, FrameContents, NextAttempt, NuisanceEffect, NuisanceReuse,
+        PreparationEffect, PreservationAxis, PreservedIdentities, PushdownEffect, RewriteKind,
         SharedRowDesignPreparation, SufficientStatistics, SummaryEffect, TileEffect,
         TiledEvaluation,
     };
@@ -986,6 +1338,11 @@ mod tests {
         .expect("moved identity")
     }
 
+    fn contents() -> FrameContents {
+        FrameContents::try_new(&["row-a", "row-b"], &["fold-1", "fold-2"], "pop-1", "hist-1")
+            .expect("frame contents")
+    }
+
     #[track_caller]
     fn expect_refusal(rewrite: &impl RewriteKind, axis: PreservationAxis, because: &str) {
         let err = rewrite.check().expect_err(rewrite.name());
@@ -1007,18 +1364,24 @@ mod tests {
     #[test]
     fn preserved_frame_is_legal_for_every_rewrite() {
         let frame = identities();
+        let rows = contents();
         let pushdown =
-            ColumnFilterPushdown::new(frame.clone(), frame.clone(), PushdownEffect::Declared);
+            ColumnFilterPushdown::new(frame.clone(), frame.clone(), PushdownEffect::Declared)
+                .with_frames(&rows, &rows);
         let preparation = SharedRowDesignPreparation::new(
             frame.clone(),
             frame.clone(),
             frame.clone(),
             PreparationEffect::Shared,
-        );
-        let nuisance = NuisanceReuse::new(frame.clone(), frame.clone(), NuisanceEffect::Certified);
+        )
+        .with_frames(&rows, &rows, &rows);
+        let nuisance = NuisanceReuse::new(frame.clone(), frame.clone(), NuisanceEffect::Certified)
+            .with_frames(&rows, &rows);
         let summary =
-            SufficientStatistics::new(frame.clone(), frame.clone(), SummaryEffect::Sufficient);
-        let tiled = TiledEvaluation::new(frame.clone(), frame, TileEffect::Faithful);
+            SufficientStatistics::new(frame.clone(), frame.clone(), SummaryEffect::Sufficient)
+                .with_frames(&rows, &rows);
+        let tiled = TiledEvaluation::new(frame.clone(), frame, TileEffect::Faithful)
+            .with_frames(&rows, &rows);
         assert!(pushdown.effect().defect().is_none());
         assert!(preparation.effect().defect().is_none());
         assert!(nuisance.effect().defect().is_none());
@@ -1283,5 +1646,92 @@ mod tests {
             NextAttempt::from_name("name_preserved_identity"),
             Some(NextAttempt::NamePreservedIdentity)
         );
+    }
+
+    #[test]
+    fn equal_identity_strings_with_a_different_selected_row_fingerprint_are_refused() {
+        let frame = identities();
+        let original = contents();
+        let bare =
+            ColumnFilterPushdown::new(frame.clone(), frame.clone(), PushdownEffect::Declared);
+        expect_refusal(&bare, PreservationAxis::SampleSelection, "fingerprint");
+        assert_eq!(
+            bare.cohort().identity(PreservationAxis::SampleSelection),
+            bare.pushed().identity(PreservationAxis::SampleSelection),
+        );
+
+        let cases = [
+            (
+                &["row-a", "row-c"][..],
+                &["fold-1", "fold-2"][..],
+                "pop-1",
+                "hist-1",
+                PreservationAxis::SampleSelection,
+            ),
+            (
+                &["row-a", "row-b"][..],
+                &["fold-1", "fold-9"][..],
+                "pop-1",
+                "hist-1",
+                PreservationAxis::Folds,
+            ),
+            (
+                &["row-a", "row-b"][..],
+                &["fold-1", "fold-2"][..],
+                "pop-other",
+                "hist-1",
+                PreservationAxis::Population,
+            ),
+            (
+                &["row-a", "row-b"][..],
+                &["fold-1", "fold-2"][..],
+                "pop-1",
+                "hist-other",
+                PreservationAxis::History,
+            ),
+        ];
+        for (rows, folds, population, history, axis) in cases {
+            let rewritten = FrameContents::try_new(rows, folds, population, history)
+                .expect("rewritten contents");
+            let digest = rewritten.fingerprint().on_axis(axis).expect("content axis");
+            assert_ne!(original.fingerprint().on_axis(axis), Some(digest));
+            let declared = ColumnFilterPushdown::new(
+                frame.clone(),
+                frame.clone(),
+                PushdownEffect::Declared,
+            )
+            .with_frames(&original, &rewritten);
+            assert_eq!(
+                declared.cohort().identity(axis),
+                declared.pushed().identity(axis),
+            );
+            expect_refusal(&declared, axis, &digest.to_string());
+        }
+    }
+
+    #[test]
+    fn matching_frame_fingerprint_is_admitted() {
+        let frame = identities();
+        let original = FrameContents::try_new(
+            &["row-b", "row-a"],
+            &["fold-1", "fold-2"],
+            "pop-1",
+            "hist-1",
+        )
+        .expect("crossed assignment");
+        let same = FrameContents::try_new(
+            &["row-a", "row-b"],
+            &["fold-2", "fold-1"],
+            "pop-1",
+            "hist-1",
+        )
+        .expect("listed assignment");
+        assert_eq!(original.fingerprint(), same.fingerprint());
+        assert_eq!(original.row_ids().collect::<Vec<&str>>(), ["row-a", "row-b"]);
+        assert_eq!(original.fold_ids().collect::<Vec<&str>>(), ["fold-2", "fold-1"]);
+        let pushdown =
+            ColumnFilterPushdown::new(frame.clone(), frame, PushdownEffect::Declared)
+                .with_frames(&original, &same);
+        assert!(matches!(pushdown.check(), Ok(())));
     }
 }
