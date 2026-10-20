@@ -964,12 +964,20 @@ pub fn temporal_coefficient_names(
 /// History, action time, censoring and assignment weights, and horizon admitted
 /// together. The horizon is the operator's; a step count is only what that
 /// horizon covers after the cadence check.
+#[allow(
+    dead_code,
+    reason = "the adjustment reads the horizon steps; action time and weights are admitted with it"
+)]
 struct AdmittedTemporalHistory {
     history: HistoryConstruction,
     action: ActionTiming,
     weights: CensoringAssignmentWeight,
 }
 
+#[allow(
+    dead_code,
+    reason = "tests read the admitted history, action time, and weights beside the horizon"
+)]
 impl AdmittedTemporalHistory {
     const fn horizon(&self) -> Horizon {
         self.history.frame().horizon()
@@ -1022,10 +1030,10 @@ fn admit_temporal_history(
 ) -> Result<AdmittedTemporalHistory, EstimationError> {
     let history =
         HistoryConstruction::try_new(cadence.clone(), horizon, initial_law.clone(), history)
-            .map_err(history_operator_refusal)?;
+            .map_err(|error| history_operator_refusal(&error))?;
     let action =
         ActionTiming::try_new(cadence.clone(), horizon, initial_law.clone(), action_ns)
-            .map_err(history_operator_refusal)?;
+            .map_err(|error| history_operator_refusal(&error))?;
     let weights = CensoringAssignmentWeight::try_new(
         cadence.clone(),
         horizon,
@@ -1033,11 +1041,11 @@ fn admit_temporal_history(
         censoring,
         assignment,
     )
-    .map_err(history_operator_refusal)?;
+    .map_err(|error| history_operator_refusal(&error))?;
     Ok(AdmittedTemporalHistory { history, action, weights })
 }
 
-fn history_operator_refusal(error: HistoryOperatorError) -> EstimationError {
+fn history_operator_refusal(error: &HistoryOperatorError) -> EstimationError {
     EstimationError::data_msg(error.to_string())
 }
 
@@ -1049,7 +1057,7 @@ fn history_operator_refusal(error: HistoryOperatorError) -> EstimationError {
 /// # Errors
 ///
 /// `horizon_steps` times the regular interval does not fit in `u64`.
-const fn query_horizon_end(
+fn query_horizon_end(
     cadence: &TimeIndex,
     horizon_steps: u32,
 ) -> Result<Horizon, EstimationError> {
@@ -1631,7 +1639,7 @@ mod tests {
     fn an_off_cadence_horizon_is_refused() {
         let cadence =
             TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 10 }, length: 4 };
-        let error = admit_temporal_history(
+        let Err(error) = admit_temporal_history(
             &cadence,
             Horizon::ending_at(25),
             Some(InitialLaw::contemporaneous_observed()),
@@ -1639,8 +1647,9 @@ mod tests {
             0,
             1.0,
             1.0,
-        )
-        .unwrap_err();
+        ) else {
+            panic!("an off-cadence horizon was admitted");
+        };
         let message = error.to_string();
         assert!(message.contains("crosses the cadence"), "{message}");
         assert!(message.contains("25"), "{message}");
