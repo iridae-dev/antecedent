@@ -1,9 +1,14 @@
 //! Certified nuisance fits and blocked out-of-fold predictions.
 //!
-//! AIPW, DML, and policy estimation reuse a fit only when the cache key matches
-//! in every field: target, design, folds, treatment, provider, and numerical
-//! dependencies. A changed field is a miss. The cache does not return a fit
-//! stored under another key.
+//! AIPW, DML, and policy estimation share one cache. A fit is reused only when
+//! the cache key matches in every field. A changed field is a miss. The cache
+//! does not return a fit stored under another key.
+//!
+//! A key built from a prepared fit is the hash of that fit's outcome, treatment,
+//! design, options, and weights, plus the seed. Callers pass those values.
+//! They do not choose the digests. [`map_indexed`] hands each worker that same
+//! cache. The thread-local scope of [`with_certified_cache`] is not the lookup
+//! those workers use.
 //!
 //! Each blocked prediction belongs to the evaluation fold it was held out for.
 //! A prediction for a training row of that fold is refused. A held-out
@@ -21,7 +26,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use antecedent_core::{
-    DesignDependencyId, NumericalPolicy, ProviderId, SemanticDigest, SourceDependencyId,
+    CanonicalWriter, DesignDependencyId, ExecutionContext, NumericalPolicy, ProviderId,
+    SemanticDigest, SourceDependencyId,
 };
 use thiserror::Error;
 
@@ -98,6 +104,12 @@ pub enum NuisanceCacheError {
     NonFiniteDependency {
         /// Dependency name.
         name: String,
+    },
+    /// Outcome, treatment, design, options, or weights contained a non-finite value.
+    #[error("{field} is not finite; next attempt: pass finite values")]
+    NonFiniteInput {
+        /// Which input was not finite.
+        field: &'static str,
     },
     /// The row is not a member of the evaluation fold.
     #[error("row {row_id} is not in fold {fold}; next attempt: restore a row of that fold")]
@@ -200,6 +212,12 @@ pub enum KeyField {
     Provider,
     /// Numerical policy and named parameters.
     Numerical,
+    /// Outcome column the nuisance was fit to.
+    Outcome,
+    /// Sampling weights. Absence is distinct from any present vector.
+    Weights,
+    /// Seed of the fit.
+    Seed,
 }
 
 /// Scientific target the nuisance was certified for.
@@ -812,7 +830,146 @@ impl NuisanceCache {
     }
 }
 
+/// Outcome, treatment, design, options, and weights a prepared fit reads.
+///
+/// The slices are hashed by [`NuisanceCacheKey::from_inputs`]. Their lengths do
+/// not have to agree; a different length is a different key.
+#[derive(Clone, Copy, Debug)]
+pub struct NuisanceColumns<'a> {
+    outcome: &'a [f64],
+    treatment: &'a [f64],
+    design: &'a [f64],
+    options: &'a [f64],
+    weights: Option<&'a [f64]>,
+}
+
+impl<'a> NuisanceColumns<'a> {
+    /// Columns of one nuisance fit.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::NonFiniteInput`] when any value is not finite.
+    #[must_use = "a refused column set is not a cache key"]
+    pub fn try_new(
+        outcome: &'a [f64],
+        treatment: &'a [f64],
+        design: &'a [f64],
+        options: &'a [f64],
+        weights: Option<&'a [f64]>,
+    ) -> Result<Self, NuisanceCacheError> {
+        let columns = Self { outcome, treatment, design, options, weights };
+        columns.refuse_non_finite()?;
+        Ok(columns)
+    }
+
+    /// Outcome column.
+    #[must_use]
+    pub const fn outcome(&self) -> &[f64] {
+        self.outcome
+    }
+
+    /// Treatment column.
+    #[must_use]
+    pub const fn treatment(&self) -> &[f64] {
+        self.treatment
+    }
+
+    /// Design matrix, in the caller's layout.
+    #[must_use]
+    pub const fn design(&self) -> &[f64] {
+        self.design
+    }
+
+    /// Numerical options of the learners, in the caller's order.
+    #[must_use]
+    pub const fn options(&self) -> &[f64] {
+        self.options
+    }
+
+    /// Sampling weights, when the fit reads them.
+    #[must_use]
+    pub const fn weights(&self) -> Option<&[f64]> {
+        self.weights
+    }
+
+    fn refuse_non_finite(&self) -> Result<(), NuisanceCacheError> {
+        finite("outcome", self.outcome)?;
+        finite("treatment", self.treatment)?;
+        finite("design", self.design)?;
+        finite("options", self.options)?;
+        if let Some(weights) = self.weights {
+            finite("weights", weights)?;
+        }
+        Ok(())
+    }
+}
+
+/// Prepared fit inputs that [`NuisanceCacheKey::from_inputs`] hashes.
+#[derive(Clone, Copy, Debug)]
+pub struct NuisanceInputs<'a> {
+    columns: NuisanceColumns<'a>,
+    seed: u64,
+    folds: &'a FoldAssignment,
+    treatment_name: &'a str,
+    policy: NumericalPolicy,
+}
+
+impl<'a> NuisanceInputs<'a> {
+    /// Bind the columns, seed, folds, treatment name, and numerical policy.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::Blank`] when `treatment_name` is empty after trimming.
+    #[must_use = "a refused input set is not a cache key"]
+    pub fn try_new(
+        columns: NuisanceColumns<'a>,
+        seed: u64,
+        folds: &'a FoldAssignment,
+        treatment_name: &'a str,
+        policy: NumericalPolicy,
+    ) -> Result<Self, NuisanceCacheError> {
+        if treatment_name.trim().is_empty() {
+            return Err(NuisanceCacheError::Blank { field: "treatment" });
+        }
+        Ok(Self { columns, seed, folds, treatment_name, policy })
+    }
+
+    /// Columns hashed into the key.
+    #[must_use]
+    pub const fn columns(&self) -> NuisanceColumns<'_> {
+        self.columns
+    }
+
+    /// Fit seed.
+    #[must_use]
+    pub const fn seed(&self) -> u64 {
+        self.seed
+    }
+
+    /// Fold assignment copied into the key.
+    #[must_use]
+    pub const fn folds(&self) -> &FoldAssignment {
+        self.folds
+    }
+
+    /// Treatment name stored on the key.
+    #[must_use]
+    pub const fn treatment_name(&self) -> &str {
+        self.treatment_name
+    }
+
+    /// Numerical policy stored on the key.
+    #[must_use]
+    pub const fn policy(&self) -> NumericalPolicy {
+        self.policy
+    }
+}
+
 /// Cache key. A hit requires every field to match.
+///
+/// [`Self::new`] records dependencies the caller already checked and does not
+/// bind an outcome, a weight vector, or a seed. [`Self::from_inputs`] is the
+/// constructor for a prepared fit: those values are hashed into the key.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct NuisanceCacheKey {
     target: TargetDependency,
@@ -821,6 +978,12 @@ pub struct NuisanceCacheKey {
     treatment: TreatmentDependency,
     provider: ProviderDependency,
     numerical: NumericalDependencies,
+    outcome: SemanticDigest,
+    weights: SemanticDigest,
+    seed: u64,
+    design_payload: SemanticDigest,
+    treatment_payload: SemanticDigest,
+    options: SemanticDigest,
 }
 
 impl NuisanceCacheKey {
@@ -834,7 +997,74 @@ impl NuisanceCacheKey {
         provider: ProviderDependency,
         numerical: NumericalDependencies,
     ) -> Self {
-        Self { target, design, folds, treatment, provider, numerical }
+        Self {
+            target,
+            design,
+            folds,
+            treatment,
+            provider,
+            numerical,
+            outcome: UNBOUND,
+            weights: UNBOUND,
+            seed: 0,
+            design_payload: UNBOUND,
+            treatment_payload: UNBOUND,
+            options: UNBOUND,
+        }
+    }
+
+    /// Key of one prepared fit.
+    ///
+    /// Each column is a BLAKE3 digest of a domain-separated
+    /// [`CanonicalWriter`] stream. Reals are written with [`CanonicalWriter::reals`],
+    /// so equality is bitwise and `-0.0` differs from `0.0`.
+    ///
+    /// - outcome: tag `antecedent.estimate.nuisance.outcome`
+    /// - treatment: tag `antecedent.estimate.nuisance.treatment`, also stored as the
+    ///   treatment coding
+    /// - design: tag `antecedent.estimate.nuisance.design`; the design id is the
+    ///   first eight little-endian bytes, and the full digest is kept beside it
+    /// - options: tag `antecedent.estimate.nuisance.options`, the numerical-policy
+    ///   words, then the option reals
+    /// - weights: tag `antecedent.estimate.nuisance.weights`, a presence word, then
+    ///   the reals when weights are present
+    /// - seed: the `u64` itself
+    ///
+    /// The target digest and the provider version are the digest of an empty
+    /// stream under `antecedent.estimate.nuisance.derived`. They mark a derived
+    /// key. They do not carry the outcome, the weights, or the seed.
+    ///
+    /// # Errors
+    ///
+    /// [`NuisanceCacheError::Blank`] when the treatment name is empty after trimming.
+    #[must_use = "a refused key is not a cache lookup"]
+    pub fn from_inputs(inputs: &NuisanceInputs<'_>) -> Result<Self, NuisanceCacheError> {
+        let outcome = digest_reals("antecedent.estimate.nuisance.outcome", inputs.columns.outcome);
+        let treatment_payload =
+            digest_reals("antecedent.estimate.nuisance.treatment", inputs.columns.treatment);
+        let design_payload =
+            digest_reals("antecedent.estimate.nuisance.design", inputs.columns.design);
+        let options = digest_options(inputs.policy, inputs.columns.options);
+        let weights = digest_weights(inputs.columns.weights);
+        let marker = digest_reals("antecedent.estimate.nuisance.derived", &[]);
+        let treatment = TreatmentDependency::try_new(inputs.treatment_name, treatment_payload)?;
+        let numerical = NumericalDependencies::try_new(inputs.policy, &[])?;
+        Ok(Self {
+            target: TargetDependency::new(marker),
+            design: DesignDependency::new(DesignDependencyId::from_raw(leading_word(
+                design_payload,
+            ))),
+            folds: FoldAssignment::clone(inputs.folds),
+            treatment,
+            provider: ProviderDependency::new(ProviderId::from_raw(1), marker),
+            numerical,
+            outcome,
+            weights,
+            seed: inputs.seed,
+            design_payload,
+            treatment_payload,
+            options,
+        })
     }
 
     /// Target dependency.
@@ -873,6 +1103,35 @@ impl NuisanceCacheKey {
         &self.numerical
     }
 
+    /// Digest of the outcome column.
+    ///
+    /// All zeros when the key came from [`Self::new`] and no outcome was bound.
+    #[must_use]
+    pub const fn outcome_digest(&self) -> SemanticDigest {
+        self.outcome
+    }
+
+    /// Digest of the sampling weights.
+    ///
+    /// All zeros when the key came from [`Self::new`] and no weights were bound.
+    /// That zero digest is not the digest of absent weights.
+    #[must_use]
+    pub const fn weight_digest(&self) -> SemanticDigest {
+        self.weights
+    }
+
+    /// Fit seed. Zero when the key came from [`Self::new`] and did not bind one.
+    #[must_use]
+    pub const fn seed(&self) -> u64 {
+        self.seed
+    }
+
+    /// Digest of the numerical policy and option vector.
+    #[must_use]
+    pub const fn options_digest(&self) -> SemanticDigest {
+        self.options
+    }
+
     /// First field that differs, in [`KeyField`] order.
     ///
     /// `None` means every field matches.
@@ -881,20 +1140,29 @@ impl NuisanceCacheKey {
         if self.target != other.target {
             return Some(KeyField::Target);
         }
-        if self.design != other.design {
+        if self.design != other.design || self.design_payload != other.design_payload {
             return Some(KeyField::Design);
         }
         if self.folds != other.folds {
             return Some(KeyField::Folds);
         }
-        if self.treatment != other.treatment {
+        if self.treatment != other.treatment || self.treatment_payload != other.treatment_payload {
             return Some(KeyField::Treatment);
         }
         if self.provider != other.provider {
             return Some(KeyField::Provider);
         }
-        if self.numerical != other.numerical {
+        if self.numerical != other.numerical || self.options != other.options {
             return Some(KeyField::Numerical);
+        }
+        if self.outcome != other.outcome {
+            return Some(KeyField::Outcome);
+        }
+        if self.weights != other.weights {
+            return Some(KeyField::Weights);
+        }
+        if self.seed != other.seed {
+            return Some(KeyField::Seed);
         }
         None
     }
@@ -1442,7 +1710,9 @@ impl Drop for CertificationGuard<'_> {
 
 /// Run `work` with `cache` and `key` active on this thread.
 ///
-/// Estimators consult the cache only inside this scope. An empty cache misses
+/// The scope is thread-local. [`map_indexed`] does not install it and does not
+/// read it: a worker receives the cache as an argument. Estimators that consult
+/// this scope do so only on the thread that entered it. An empty cache misses
 /// and the estimator fits as it does with no scope. A panic restores `cache`
 /// and the enclosing scope.
 #[must_use = "the receipt counts scans, fits, and certified hits"]
@@ -1471,6 +1741,31 @@ pub fn with_certified_cache<R>(
     let result = work();
     guard.finish();
     (result, guard.receipt)
+}
+
+/// Run `work` once per index.
+///
+/// `ctx` schedules the indexes. When more than one thread is available, each
+/// worker runs on its own thread and receives `cache` as an argument. This
+/// function does not open [`with_certified_cache`] on the calling thread or on
+/// a worker, and the worker does not read that thread-local scope.
+///
+/// # Errors
+///
+/// Returns the lowest-index error produced by `work`.
+#[must_use = "a worker error is not a completed indexed fit"]
+pub fn map_indexed<T, E, F>(
+    ctx: &ExecutionContext,
+    cache: &NuisanceCache,
+    n: usize,
+    work: F,
+) -> Result<Vec<T>, E>
+where
+    T: Send,
+    E: Send,
+    F: Fn(usize, &ExecutionContext, &NuisanceCache) -> Result<T, E> + Sync,
+{
+    ctx.map_indexed(n, |index, inner| work(index, inner, cache))
 }
 
 /// Whether [`with_certified_cache`] is active on this thread.
@@ -1580,6 +1875,51 @@ fn record_active_work(scans: u64, fits: u64, hits: u64) {
     });
 }
 
+const UNBOUND: SemanticDigest = SemanticDigest::from_bytes([0; 32]);
+
+fn finite(field: &'static str, values: &[f64]) -> Result<(), NuisanceCacheError> {
+    if values.iter().any(|value| !value.is_finite()) {
+        return Err(NuisanceCacheError::NonFiniteInput { field });
+    }
+    Ok(())
+}
+
+fn digest_reals(tag: &str, values: &[f64]) -> SemanticDigest {
+    SemanticDigest::from_bytes(CanonicalWriter::new(tag).reals(values).finish())
+}
+
+fn digest_weights(weights: Option<&[f64]>) -> SemanticDigest {
+    let mut writer = CanonicalWriter::new("antecedent.estimate.nuisance.weights");
+    match weights {
+        Some(values) => {
+            writer.word(1).reals(values);
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+    SemanticDigest::from_bytes(writer.finish())
+}
+
+fn digest_options(policy: NumericalPolicy, options: &[f64]) -> SemanticDigest {
+    let (kind, absolute, relative) = policy_key(policy);
+    let bytes = CanonicalWriter::new("antecedent.estimate.nuisance.options")
+        .word(u64::from(kind))
+        .word(absolute)
+        .word(relative)
+        .reals(options)
+        .finish();
+    SemanticDigest::from_bytes(bytes)
+}
+
+const fn leading_word(digest: SemanticDigest) -> u64 {
+    let bytes = digest.as_bytes();
+    u64::from_le_bytes([
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6],
+        bytes[7],
+    ])
+}
+
 const fn canonical_bits(value: f64) -> u64 {
     let bits = value.to_bits();
     if bits == 0x8000_0000_0000_0000 { 0 } else { bits }
@@ -1656,16 +1996,18 @@ fn prepare_blocks(
 
 #[cfg(test)]
 mod tests {
-    use antecedent_core::{NumericalPolicy, PhysicalTolerance};
+    use antecedent_core::{
+        ExecutionContext, NonZeroThreadCount, NumericalPolicy, Parallelism, PhysicalTolerance,
+    };
 
     use super::{
         BatchExecution, BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency,
         DesignDependencyId, EstimatorFamily, FoldAssignment, FoldRow, KeyField, NuisanceCache,
-        NuisanceCacheError, NuisanceCacheKey, NuisanceRole, NumericalDependencies,
-        NumericalDependency, PredictedRow, PreparedFamilyRequest, ProviderDependency, ProviderId,
-        RequestColumns, SemanticDigest, SourceDependencyId, SubplanReceipt, TargetDependency,
-        TreatmentDependency, compile_shared_subplans, execute_compiled_subplans,
-        execute_family_requests,
+        NuisanceCacheError, NuisanceCacheKey, NuisanceColumns, NuisanceInputs, NuisanceRole,
+        NumericalDependencies, NumericalDependency, PredictedRow, PreparedFamilyRequest,
+        ProviderDependency, ProviderId, RequestColumns, SemanticDigest, SourceDependencyId,
+        SubplanReceipt, TargetDependency, TreatmentDependency, compile_shared_subplans,
+        execute_compiled_subplans, execute_family_requests, map_indexed,
     };
 
     fn digest(byte: u8) -> SemanticDigest {
@@ -2083,5 +2425,124 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error, NuisanceCacheError::TrainingLeakage { fold: 0, row_id: 40 });
+    }
+
+    fn parallel_context() -> ExecutionContext {
+        let mut ctx = ExecutionContext::for_tests(11);
+        ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(2).unwrap());
+        ctx
+    }
+
+    fn derived(
+        outcome: &[f64],
+        weights: Option<&[f64]>,
+        seed: u64,
+        folds: &FoldAssignment,
+    ) -> NuisanceCacheKey {
+        let treatment = [0.0f64, 1.0, 0.0, 1.0];
+        let design = [1.0f64, 1.0, 1.0, 1.0, 0.2, 0.4, 0.6, 0.8];
+        let options = [0.25f64];
+        let columns =
+            NuisanceColumns::try_new(outcome, &treatment, &design, &options, weights).unwrap();
+        let inputs =
+            NuisanceInputs::try_new(columns, seed, folds, "arm", NumericalPolicy::strict())
+                .unwrap();
+        NuisanceCacheKey::from_inputs(&inputs).unwrap()
+    }
+
+    fn expect_indexed_miss(base: &NuisanceCacheKey, changed: &NuisanceCacheKey, field: KeyField) {
+        assert_eq!(base.mismatch(changed), Some(field));
+        let mut cache = NuisanceCache::new();
+        cache
+            .store_certified(base, NuisanceRole::Treatment, &[fold_zero_predictions()])
+            .unwrap();
+        let ctx = parallel_context();
+        map_indexed(&ctx, &cache, 2, |_index, _inner, cache| {
+            assert!(!super::certification_requested());
+            let error = cache
+                .restore_rows(changed, NuisanceRole::Treatment, 0, &[30, 10, 20])
+                .unwrap_err();
+            assert_eq!(error, NuisanceCacheError::Miss);
+            Ok::<(), NuisanceCacheError>(())
+        })
+        .unwrap();
+        let restored =
+            cache.restore_rows(base, NuisanceRole::Treatment, 0, &[30, 10, 20]).unwrap();
+        assert_eq!(value_bits(&restored), stored_bits());
+    }
+
+    #[test]
+    fn y_change_misses_under_map_indexed() {
+        let folds = estimation_folds();
+        let outcome = [1.0f64, 2.0, 3.0, 4.0];
+        let changed_outcome = [1.0f64, 2.0, 3.0, 5.0];
+        let base = derived(&outcome, None, 11, &folds);
+        let changed = derived(&changed_outcome, None, 11, &folds);
+        assert_ne!(base.outcome_digest(), changed.outcome_digest());
+        assert_eq!(base.weight_digest(), changed.weight_digest());
+        assert_eq!(base.seed(), changed.seed());
+        expect_indexed_miss(&base, &changed, KeyField::Outcome);
+    }
+
+    #[test]
+    fn weights_change_misses_under_map_indexed() {
+        let folds = estimation_folds();
+        let outcome = [1.0f64, 2.0, 3.0, 4.0];
+        let weights = [1.0f64, 1.0, 1.0, 2.0];
+        let base = derived(&outcome, None, 11, &folds);
+        let changed = derived(&outcome, Some(&weights), 11, &folds);
+        assert_eq!(base.outcome_digest(), changed.outcome_digest());
+        assert_ne!(base.weight_digest(), changed.weight_digest());
+        assert_eq!(base.seed(), changed.seed());
+        expect_indexed_miss(&base, &changed, KeyField::Weights);
+    }
+
+    #[test]
+    fn seed_change_misses_under_map_indexed() {
+        let folds = estimation_folds();
+        let outcome = [1.0f64, 2.0, 3.0, 4.0];
+        let base = derived(&outcome, None, 11, &folds);
+        let changed = derived(&outcome, None, 29, &folds);
+        assert_eq!(base.outcome_digest(), changed.outcome_digest());
+        assert_eq!(base.weight_digest(), changed.weight_digest());
+        assert_ne!(base.seed(), changed.seed());
+        expect_indexed_miss(&base, &changed, KeyField::Seed);
+    }
+
+    #[test]
+    fn parallel_worker_sees_the_cache_it_was_passed() {
+        let folds = estimation_folds();
+        let outcome = [1.0f64, 2.0, 3.0, 4.0];
+        let key = derived(&outcome, None, 11, &folds);
+        let mut passed = NuisanceCache::new();
+        passed
+            .store_certified(&key, NuisanceRole::Treatment, &[fold_zero_predictions()])
+            .unwrap();
+        let decoy_block = BlockedOutOfFoldPredictions::try_new(
+            0,
+            &[
+                PredictedRow::try_new(10, 9.0).unwrap(),
+                PredictedRow::try_new(20, 8.0).unwrap(),
+                PredictedRow::try_new(30, 7.0).unwrap(),
+            ],
+        )
+        .unwrap();
+        let mut decoy = NuisanceCache::new();
+        decoy.store_certified(&key, NuisanceRole::Treatment, &[decoy_block]).unwrap();
+        let ctx = parallel_context();
+        let (seen, receipt) = super::with_certified_cache(&mut decoy, &key, || {
+            map_indexed(&ctx, &passed, 2, |_index, inner, cache| {
+                assert!(!super::certification_requested());
+                assert_eq!(inner.parallelism.max_threads.get(), 1u32);
+                cache.restore_rows(&key, NuisanceRole::Treatment, 0, &[30, 10, 20])
+            })
+            .unwrap()
+        });
+        assert_eq!(receipt, SubplanReceipt::default());
+        assert_eq!(value_bits(&seen[0]), stored_bits());
+        assert_eq!(value_bits(&seen[1]), stored_bits());
+        let decoy_values =
+            decoy.restore_rows(&key, NuisanceRole::Treatment, 0, &[30, 10, 20]).unwrap();
+        assert_ne!(value_bits(&decoy_values), stored_bits());
     }
 }

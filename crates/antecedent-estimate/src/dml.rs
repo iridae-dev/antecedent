@@ -1066,11 +1066,9 @@ mod tests {
     #[test]
     fn certified_dml_second_request_reuses_the_fit() {
         use crate::nuisance_cache::{
-            DesignDependency, FoldAssignment, FoldRow, NuisanceCache, NuisanceCacheKey,
-            NumericalDependencies, ProviderDependency, TargetDependency, TreatmentDependency,
-            with_certified_cache,
+            FoldAssignment, FoldRow, NuisanceCache, NuisanceCacheKey, NuisanceColumns,
+            NuisanceInputs, with_certified_cache,
         };
-        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest};
         let (t, y, z) = confounded_columns(240, 4);
         let (data, estimand) = build_dataset(t, y, z);
         let query =
@@ -1089,18 +1087,25 @@ mod tests {
             .zip(table.fold_ids.iter())
             .map(|(id, &fold)| FoldRow::new(id.get(), fold))
             .collect();
-        let mut bytes = [0u8; 32];
-        bytes[0] = 3;
-        let digest = SemanticDigest::from_bytes(bytes);
-        let key = NuisanceCacheKey::new(
-            TargetDependency::new(digest),
-            DesignDependency::new(DesignDependencyId::from_raw(11)),
-            FoldAssignment::try_new(table.n_folds, &rows, &[]).unwrap(),
-            TreatmentDependency::try_new("arm", digest).unwrap(),
-            ProviderDependency::new(ProviderId::from_raw(4), digest),
-            NumericalDependencies::try_new(antecedent_core::NumericalPolicy::strict(), &[])
-                .unwrap(),
-        );
+        let folds = FoldAssignment::try_new(table.n_folds, &rows, &[]).unwrap();
+        let options = [5.0f64];
+        let columns = NuisanceColumns::try_new(
+            &prep.outcome,
+            &prep.treatment,
+            &prep.design_matrix,
+            &options,
+            None,
+        )
+        .unwrap();
+        let inputs = NuisanceInputs::try_new(
+            columns,
+            ctx.rng.master_seed(),
+            &folds,
+            "arm",
+            antecedent_core::NumericalPolicy::strict(),
+        )
+        .unwrap();
+        let key = NuisanceCacheKey::from_inputs(&inputs).unwrap();
         prep.learner_cache.lock().unwrap().clear();
         let mut cache = NuisanceCache::new();
         let ((first, receipt), fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
@@ -1127,28 +1132,32 @@ mod tests {
         use std::cell::Cell;
 
         use crate::nuisance_cache::{
-            BlockedOutOfFoldPredictions, CertifiedSource, DesignDependency, EstimatorFamily,
-            FoldAssignment, FoldRow, NuisanceCache, NuisanceCacheKey, NuisanceRole,
-            NumericalDependencies, PredictedRow, PreparedFamilyRequest, ProviderDependency,
-            RequestColumns, TargetDependency, TreatmentDependency,
+            BlockedOutOfFoldPredictions, CertifiedSource, EstimatorFamily, FoldAssignment,
+            FoldRow, NuisanceCache, NuisanceCacheKey, NuisanceColumns, NuisanceInputs,
+            NuisanceRole, PredictedRow, PreparedFamilyRequest, RequestColumns,
         };
-        use antecedent_core::{DesignDependencyId, ProviderId, SemanticDigest, SourceDependencyId};
-        let mut bytes = [0u8; 32];
-        bytes[0] = 4;
-        let digest = SemanticDigest::from_bytes(bytes);
-        let key = NuisanceCacheKey::new(
-            TargetDependency::new(digest),
-            DesignDependency::new(DesignDependencyId::from_raw(7)),
-            FoldAssignment::try_new(2, &[FoldRow::new(10, 0), FoldRow::new(40, 1)], &[]).unwrap(),
-            TreatmentDependency::try_new("arm", digest).unwrap(),
-            ProviderDependency::new(ProviderId::from_raw(4), digest),
-            NumericalDependencies::try_new(antecedent_core::NumericalPolicy::strict(), &[])
-                .unwrap(),
-        );
+        use antecedent_core::SourceDependencyId;
+        let folds =
+            FoldAssignment::try_new(2, &[FoldRow::new(10, 0), FoldRow::new(40, 1)], &[]).unwrap();
+        let outcome = [0.2f64, 0.4];
+        let treatment = [0.0f64, 1.0];
+        let design = [1.0f64, 1.0, 0.2, 0.5];
+        let options = [1.0f64];
+        let columns =
+            NuisanceColumns::try_new(&outcome, &treatment, &design, &options, None).unwrap();
+        let inputs = NuisanceInputs::try_new(
+            columns,
+            4,
+            &folds,
+            "arm",
+            antecedent_core::NumericalPolicy::strict(),
+        )
+        .unwrap();
+        let key = NuisanceCacheKey::from_inputs(&inputs).unwrap();
         let prepared = PreparedFamilyRequest::try_new(
             EstimatorFamily::Dml,
             RequestColumns::try_new("outcome", "arm", &["z"]).unwrap(),
-            CertifiedSource::new(SourceDependencyId::from_raw(3), digest),
+            CertifiedSource::new(SourceDependencyId::from_raw(3), key.outcome_digest()),
             key,
             &[NuisanceRole::Treatment],
         )
