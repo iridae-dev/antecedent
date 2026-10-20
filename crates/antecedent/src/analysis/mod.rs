@@ -37,6 +37,7 @@ mod checked_bayesian_temporal_class_effect;
 mod checked_bayesian_temporal_effect;
 mod checked_class_graph_posterior_effect;
 mod checked_conditional;
+mod conditional_admg;
 mod checked_graph_posterior;
 mod checked_propensity;
 mod checked_temporal_class_effect;
