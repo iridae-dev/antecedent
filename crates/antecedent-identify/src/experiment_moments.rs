@@ -13,10 +13,13 @@
 //! experimental effect is the coefficient in the regression of a passive column
 //! on the intervened columns of that regime.
 //!
-//! The assembled blocks are the constraint system. This module does not solve
-//! it, does not form a pseudoinverse, does not test the rank of the constraint
-//! matrix, and does not recover a direct-effect matrix or a disturbance
-//! covariance. Weak stability is not checked.
+//! The assembled blocks are the constraint system. Column rank is the rank of
+//! each block's coefficient matrix ([`constraint_column_report`]). A deficient
+//! block returns the null directions of that matrix and no direct effects. A
+//! full-column-rank block whose rows agree returns those direct effects. This
+//! module does not form a pseudoinverse, does not fill a free direction, and
+//! does not recover a disturbance covariance. Weak stability is not checked,
+//! and it is not physical dynamical stability.
 //!
 //! A target is covered when, for every other unit `from`, some regime clamps
 //! `from` while the target stays passive. Blocks are assembled for covered
@@ -53,6 +56,13 @@ const F64_BYTES: u64 = 8;
 /// positive-definite sample covariance, so the canonical experimental effects are
 /// undefined. It is not a rank test of the constraint matrix.
 const INTERVENTION_PIVOT_FLOOR: f64 = 1e-12;
+
+/// Relative floor for a pivot of an assembled constraint matrix.
+///
+/// Multiplied by the largest absolute coefficient. A column that does not clear
+/// it is not a pivot. This is not [`INTERVENTION_PIVOT_FLOOR`] and not a test of
+/// weak stability.
+const CONSTRAINT_COLUMN_PIVOT_FLOOR: f64 = 1e-12;
 
 /// One observed column of a regime sample.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -208,6 +218,7 @@ pub struct ConstraintRow {
 /// `coefficients` is row-major with `sources.len()` entries per row. The
 /// unknown vector is the direct effects of `sources` into `target`, in that
 /// order. This block does not contain a solution of that system.
+/// [`constraint_column_report`] reads the column rank from `coefficients`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TargetConstraintBlock {
     /// Passive equation these rows constrain.
@@ -392,6 +403,62 @@ pub fn assemble_experiment_constraints(
     let effects = regime_effects(&unit_list, regimes, &moments)?;
     let blocks = assemble_blocks(&unit_list, &covered, &effects);
     Ok(AssembledExperimentConstraints { units: unit_list, moments, blocks, uncovered, bytes })
+}
+
+/// Column rank of one assembled experimental-effect block.
+///
+/// The rank is the number of pivot columns of `block.coefficients`. It is not a
+/// [`crate::experimental_recovery::DeclaredEquationRank`] and not
+/// [`crate::experimental_recovery::WeakStability::InvertibilityDeclared`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConstraintColumnReport {
+    /// The columns span the sources and the rows agree on one direct-effect vector.
+    Unique {
+        /// Direct effects in [`TargetConstraintBlock::sources`] order.
+        coefficients: Vec<f64>,
+    },
+    /// The coefficient matrix has a nontrivial nullspace. No direct effect was filled in.
+    Deficient {
+        /// Number of pivot columns.
+        column_rank: usize,
+        /// One basis vector per free column, in ascending source order.
+        ///
+        /// `directions[k][j]` is the weight of source `j` in direction `k`. The
+        /// free source of each direction has weight 1, and each pivot source has
+        /// the weight that cancels that free source in the reduced matrix.
+        directions: Vec<Vec<f64>>,
+    },
+    /// Full column rank, but the rows do not agree on a right-hand side.
+    Inconsistent {
+        /// Number of pivot columns, equal to the source count.
+        column_rank: usize,
+    },
+    /// The block is not a finite coefficient matrix of the stated shape.
+    NotAConstraint,
+}
+
+/// Column rank, null directions, or the unique direct effects of `block`.
+///
+/// Elimination runs on the coefficient matrix the assembly already built. A
+/// deficient matrix returns its null directions. No value is invented for a
+/// free source, and a minimum-norm completion is not applied.
+#[must_use]
+pub fn constraint_column_report(block: &TargetConstraintBlock) -> ConstraintColumnReport {
+    let columns = block.sources.len();
+    let rows = block.rhs.len();
+    let Some(cells) = rows.checked_mul(columns) else {
+        return ConstraintColumnReport::NotAConstraint;
+    };
+    if block.coefficients.len() != cells || block.rows.len() != rows {
+        return ConstraintColumnReport::NotAConstraint;
+    }
+    if block.coefficients.iter().chain(block.rhs.iter()).any(|value| !value.is_finite()) {
+        return ConstraintColumnReport::NotAConstraint;
+    }
+    if columns == 0 {
+        return vacuous_column_report(block);
+    }
+    reduce_constraint_columns(&block.coefficients, &block.rhs, rows, columns)
 }
 
 fn u64_len(len: usize) -> Result<u64, MomentAssemblyRefusal> {
@@ -830,6 +897,172 @@ fn swap_rhs_rows(rhs: &mut [f64], width: usize, left: usize, right: usize) {
     }
 }
 
+fn vacuous_column_report(block: &TargetConstraintBlock) -> ConstraintColumnReport {
+    let scale = block.rhs.iter().fold(0.0_f64, |scale, value| scale.max(value.abs()));
+    let floor = CONSTRAINT_COLUMN_PIVOT_FLOOR * scale.max(1.0);
+    if block.rhs.iter().any(|value| value.abs() > floor) {
+        ConstraintColumnReport::Inconsistent { column_rank: 0 }
+    } else {
+        ConstraintColumnReport::Unique { coefficients: Vec::new() }
+    }
+}
+
+/// Rank-revealing Gauss-Jordan on an assembled constraint.
+///
+/// The intervention covariance keeps a separate reduction: a singular
+/// intervention is refused there, while a singular constraint returns null
+/// directions here.
+fn reduce_constraint_columns(
+    coefficients: &[f64],
+    rhs: &[f64],
+    rows: usize,
+    columns: usize,
+) -> ConstraintColumnReport {
+    let mut global = 0.0_f64;
+    for value in coefficients {
+        global = global.max(value.abs());
+    }
+    if global == 0.0 {
+        return ConstraintColumnReport::Deficient {
+            column_rank: 0,
+            directions: identity_directions(columns),
+        };
+    }
+    let mut rhs_scale = 0.0_f64;
+    for value in rhs {
+        rhs_scale = rhs_scale.max(value.abs());
+    }
+    let pivot_floor = CONSTRAINT_COLUMN_PIVOT_FLOOR * global;
+    let residual_floor = CONSTRAINT_COLUMN_PIVOT_FLOOR * global.max(rhs_scale).max(1.0);
+    let mut factor = coefficients.to_vec();
+    let mut solved = rhs.to_vec();
+    let mut pivot_row_of = vec![None; columns];
+    let mut pivot_columns = Vec::new();
+    let mut next_row = 0_usize;
+    for col in 0..columns {
+        if next_row >= rows {
+            break;
+        }
+        let mut best_row = next_row;
+        let mut best = factor[next_row * columns + col].abs();
+        for row in (next_row + 1)..rows {
+            let value = factor[row * columns + col].abs();
+            if value > best {
+                best = value;
+                best_row = row;
+            }
+        }
+        if !best.is_finite() || best <= pivot_floor {
+            continue;
+        }
+        if best_row != next_row {
+            swap_factor_rows(&mut factor, columns, next_row, best_row);
+            solved.swap(next_row, best_row);
+        }
+        let pivot = factor[next_row * columns + col];
+        for index in 0..columns {
+            factor[next_row * columns + index] /= pivot;
+        }
+        solved[next_row] /= pivot;
+        eliminate_pivot_from_other_rows(&mut factor, &mut solved, rows, columns, next_row, col);
+        pivot_row_of[col] = Some(next_row);
+        pivot_columns.push(col);
+        next_row += 1;
+    }
+    let column_rank = pivot_columns.len();
+    if column_rank < columns {
+        return null_directions_of(&factor, &pivot_row_of, &pivot_columns, columns, column_rank);
+    }
+    unique_or_inconsistent(&solved, &pivot_row_of, &pivot_columns, column_rank, residual_floor)
+}
+
+fn eliminate_pivot_from_other_rows(
+    factor: &mut [f64],
+    solved: &mut [f64],
+    rows: usize,
+    columns: usize,
+    pivot_row: usize,
+    pivot_col: usize,
+) {
+    for row in 0..rows {
+        if row == pivot_row {
+            continue;
+        }
+        let multiplier = factor[row * columns + pivot_col];
+        for index in 0..columns {
+            factor[row * columns + index] -= multiplier * factor[pivot_row * columns + index];
+        }
+        solved[row] -= multiplier * solved[pivot_row];
+    }
+}
+
+fn null_directions_of(
+    factor: &[f64],
+    pivot_row_of: &[Option<usize>],
+    pivot_columns: &[usize],
+    columns: usize,
+    column_rank: usize,
+) -> ConstraintColumnReport {
+    let mut directions = Vec::with_capacity(columns - column_rank);
+    for free in 0..columns {
+        if pivot_row_of[free].is_some() {
+            continue;
+        }
+        let mut direction = vec![0.0; columns];
+        direction[free] = 1.0;
+        for &pivot_col in pivot_columns {
+            let Some(pivot_row) = pivot_row_of[pivot_col] else {
+                return ConstraintColumnReport::NotAConstraint;
+            };
+            direction[pivot_col] = -factor[pivot_row * columns + free];
+        }
+        if direction.iter().any(|weight| !weight.is_finite()) {
+            return ConstraintColumnReport::NotAConstraint;
+        }
+        directions.push(direction);
+    }
+    ConstraintColumnReport::Deficient { column_rank, directions }
+}
+
+fn unique_or_inconsistent(
+    solved: &[f64],
+    pivot_row_of: &[Option<usize>],
+    pivot_columns: &[usize],
+    column_rank: usize,
+    residual_floor: f64,
+) -> ConstraintColumnReport {
+    for value in solved.iter().skip(column_rank) {
+        if !value.is_finite() {
+            return ConstraintColumnReport::NotAConstraint;
+        }
+        if value.abs() > residual_floor {
+            return ConstraintColumnReport::Inconsistent { column_rank };
+        }
+    }
+    let mut coefficients = vec![0.0; pivot_row_of.len()];
+    for &pivot_col in pivot_columns {
+        let Some(pivot_row) = pivot_row_of[pivot_col] else {
+            return ConstraintColumnReport::NotAConstraint;
+        };
+        let value = solved[pivot_row];
+        if !value.is_finite() {
+            return ConstraintColumnReport::NotAConstraint;
+        }
+        coefficients[pivot_col] = value;
+    }
+    ConstraintColumnReport::Unique { coefficients }
+}
+
+fn identity_directions(columns: usize) -> Vec<Vec<f64>> {
+    (0..columns)
+        .map(|free| {
+            let mut direction = vec![0.0; columns];
+            direction[free] = 1.0;
+            direction
+        })
+        .collect()
+}
+
 /// Neumaier compensated sum. A running `f64` total drops a unit that sits next
 /// to a shift larger than the mantissa; the correction term keeps it.
 fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
@@ -858,9 +1091,10 @@ fn compensated_dot(left: &[f64], right: &[f64]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        AssembledExperimentConstraints, MissingPair, MomentAssemblyRefusal, RegimeInconsistency,
-        RegimeSample, TargetConstraintBlock, UnitColumn, assemble_experiment_constraints,
-        compensated_sum, experiment_constraint_bytes,
+        AssembledExperimentConstraints, ConstraintColumnReport, ConstraintRow, MissingPair,
+        MomentAssemblyRefusal, RegimeInconsistency, RegimeSample, TargetConstraintBlock, UnitColumn,
+        assemble_experiment_constraints, compensated_sum, constraint_column_report,
+        experiment_constraint_bytes,
     };
     use crate::experiment_regime::{
         DependencePremise, ExperimentRegime, PopulationId, RegimeContract, RegimeContractDecision,
@@ -1334,5 +1568,66 @@ mod tests {
         let (probe_w, rhs_w) = row(into_y, 0, 1);
         assert_eq!(probe_w, &[0.0, 1.0]);
         assert!((rhs_w - 3.0e7).abs() <= 3.0e7 * 1.0e-9, "effect of w on y: {rhs_w}");
+    }
+
+    #[test]
+    fn rank_deficient_constraint_returns_the_null_directions() {
+        // Both regimes observe z. Clamping x and clamping y produce the same row
+        // [1, 1] for the direct effects of (x, y) into z, so the column rank is 1.
+        let independent = DependencePremise::Independence;
+        let contract = accepted(
+            vec![
+                regime(&[0, 1, 2], &[0], independent, 1, 1),
+                regime(&[0, 1, 2], &[1], independent, 2, 1),
+            ],
+            &[],
+        );
+        let (x, y, z) = ([1.0, -1.0], [1.0, -1.0], [1.0, -1.0]);
+        let columns = three_unit_columns(&x, &y, &z);
+        let assembled = assemble_experiment_constraints(
+            &contract,
+            &[sample(&columns), sample(&columns)],
+            u64::MAX,
+        )
+        .expect("z is covered");
+        assert_eq!(assembled.blocks.len(), 1);
+        let into_z = &assembled.blocks[0];
+        assert_eq!(into_z.sources, vec![unit(0), unit(1)]);
+        assert_eq!(into_z.coefficients, vec![1.0, 1.0, 1.0, 1.0]);
+        let ConstraintColumnReport::Deficient { column_rank, directions } =
+            constraint_column_report(into_z)
+        else {
+            panic!("parallel constraint rows must not invent direct effects");
+        };
+        assert_eq!(column_rank, 1);
+        assert_eq!(directions, vec![vec![-1.0, 1.0]]);
+        let width = into_z.sources.len();
+        for row_index in 0..into_z.rhs.len() {
+            let mut total = 0.0;
+            for (col, weight) in directions[0].iter().enumerate() {
+                total += into_z.coefficients[row_index * width + col] * weight;
+            }
+            assert!(total.abs() <= 1e-12, "null direction missed the row: {total}");
+        }
+    }
+
+    #[test]
+    fn full_column_rank_constraint_returns_the_direct_effects() {
+        let block = TargetConstraintBlock {
+            target: unit(2),
+            sources: vec![unit(0), unit(1)],
+            rows: vec![
+                ConstraintRow { regime: 0, probe: unit(0) },
+                ConstraintRow { regime: 3, probe: unit(0) },
+                ConstraintRow { regime: 3, probe: unit(1) },
+            ],
+            coefficients: vec![1.0, 0.5, 1.0, 0.0, 0.0, 1.0],
+            rhs: vec![0.5, 0.25, 0.5],
+        };
+        let ConstraintColumnReport::Unique { coefficients } = constraint_column_report(&block)
+        else {
+            panic!("these rows pin both direct effects");
+        };
+        assert_eq!(coefficients, vec![0.25, 0.5]);
     }
 }

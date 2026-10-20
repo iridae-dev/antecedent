@@ -1,9 +1,10 @@
 //! Minimum experimental recovery recipe for fully observed linear Gaussian systems.
 //!
 //! This is the Hyttinen–Eberhardt–Hoyer multi-experiment specification for a
-//! declared set of randomized clamp experiments, not an estimator. It accepts or
-//! refuses the design. It does not read a sample, fit a coefficient, or assemble
-//! a mechanism matrix.
+//! declared set of randomized clamp experiments. The design judge accepts or
+//! refuses the design. It does not read a sample or assemble a mechanism matrix.
+//! Numeric direct effects come only from an assembled constraint block, and only
+//! for directions that block's column rank fixes.
 //!
 //! The system is `x = Kx + ε` on a fully observed node set, with `K[into, from]`
 //! the direct mechanism of `from` into `into` and a zero diagonal (canonical
@@ -26,7 +27,12 @@
 //! - **Rank.** When every pair into a target holds, generic experimental effects
 //!   give that row full column rank. A declared column rank below the row width
 //!   names the unresolved directions and leaves the recovery goal open. The
-//!   Moore-Penrose completion of that block is not applied.
+//!   Moore-Penrose completion of that block is not applied. That declaration is
+//!   not the column rank of an assembled constraint matrix. The matrix rank, its
+//!   null directions, and any direct effects are read from the matrix.
+//!   [`DeclaredEquationRank`] and [`WeakStability::InvertibilityDeclared`] do not
+//!   by themselves return coefficients, and a caller-asserted full rank does not
+//!   fill a free direction of a rank-deficient matrix.
 //! - **Finite-sample conditioning.** A declared sample rank or finite condition
 //!   number of the constraint matrix is not the population rank. Sampling error
 //!   can make an underdetermined system look full rank (Hyttinen, Eberhardt, and
@@ -48,6 +54,10 @@
 use std::collections::BTreeSet;
 
 use antecedent_core::VariableId;
+
+use crate::experiment_moments::{
+    ConstraintColumnReport, TargetConstraintBlock, constraint_column_report,
+};
 
 /// Name of this clamp-experiment recipe.
 ///
@@ -490,6 +500,130 @@ pub fn decide_experimental_recovery(design: &ExperimentDesign) -> ExperimentalRe
     }
 }
 
+/// What a rank declaration and an invertibility declaration return on their own.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum DeclarationRecovery {
+    /// No direct-effect vector was produced.
+    NoCoefficients,
+}
+
+/// [`DeclaredEquationRank`] and [`WeakStability::InvertibilityDeclared`] are not
+/// an assembled constraint matrix.
+///
+/// Both may be present, including a declaration of full column rank together
+/// with invertibility of `I − U K`. The result is still no coefficients.
+/// Physical dynamical stability is not an argument of this function and is not
+/// a substitute for either declaration.
+#[must_use]
+pub const fn recover_declared_coefficients(
+    equation_rank: Option<&DeclaredEquationRank>,
+    weak_stability: WeakStability,
+) -> DeclarationRecovery {
+    match (equation_rank, weak_stability) {
+        (Some(_) | None, WeakStability::InvertibilityDeclared | WeakStability::NotDeclared) => {
+            DeclarationRecovery::NoCoefficients
+        }
+    }
+}
+
+/// Direct effects read from one assembled block, or the directions the block leaves free.
+#[derive(Clone, Debug, PartialEq)]
+pub enum AssembledCoefficientRecovery {
+    /// Unique solution of a full-column-rank block whose rows agree.
+    Coefficients {
+        /// Passive equation the block constrains.
+        target: VariableId,
+        /// Sources, in the same order as `values`.
+        sources: Vec<VariableId>,
+        /// Direct effects of `sources` into `target`.
+        values: Vec<f64>,
+    },
+    /// Null directions of a rank-deficient coefficient matrix. No value was filled in.
+    NullDirections {
+        /// Passive equation the block constrains.
+        target: VariableId,
+        /// Sources, in the same order as each direction.
+        sources: Vec<VariableId>,
+        /// Rank of the coefficient matrix.
+        column_rank: usize,
+        /// Basis of the matrix nullspace, one vector per free source.
+        directions: Vec<Vec<f64>>,
+        /// The caller asserted full column rank for this target. The matrix did not have it.
+        full_rank_was_asserted: bool,
+    },
+    /// The columns span the sources, but the rows disagree.
+    Inconsistent {
+        /// Rank of the coefficient matrix.
+        column_rank: usize,
+    },
+    /// `block` is not a finite coefficient matrix of its stated shape.
+    NotAConstraint,
+}
+
+impl AssembledCoefficientRecovery {
+    /// Direct effects, when the matrix determined them.
+    #[must_use]
+    pub fn coefficients(&self) -> Option<&[f64]> {
+        match self {
+            Self::Coefficients { values, .. } => Some(values),
+            Self::NullDirections { .. } | Self::Inconsistent { .. } | Self::NotAConstraint => None,
+        }
+    }
+}
+
+/// Read direct effects from `block`, ignoring claims that are not the matrix.
+///
+/// `asserted_rank` and `weak_stability` do not supply coefficients.
+/// [`WeakStability::InvertibilityDeclared`] stays invertibility of `I − U K`;
+/// it is not physical dynamical stability and it does not select a null
+/// direction. When `asserted_rank` says this target has full column rank and
+/// the matrix does not, the result is the matrix nullspace.
+#[must_use]
+pub fn recover_assembled_coefficients(
+    block: &TargetConstraintBlock,
+    asserted_rank: Option<&DeclaredEquationRank>,
+    weak_stability: WeakStability,
+) -> AssembledCoefficientRecovery {
+    let report = constraint_column_report(block);
+    let asserted_full = asserted_rank.is_some_and(|rank| {
+        rank.target == block.target && rank.column_rank >= block.sources.len()
+    });
+    match weak_stability {
+        WeakStability::InvertibilityDeclared | WeakStability::NotDeclared => {
+            recovery_from_matrix(block, report, asserted_full)
+        }
+    }
+}
+
+fn recovery_from_matrix(
+    block: &TargetConstraintBlock,
+    report: ConstraintColumnReport,
+    full_rank_was_asserted: bool,
+) -> AssembledCoefficientRecovery {
+    match report {
+        ConstraintColumnReport::Unique { coefficients } => {
+            AssembledCoefficientRecovery::Coefficients {
+                target: block.target,
+                sources: block.sources.clone(),
+                values: coefficients,
+            }
+        }
+        ConstraintColumnReport::Deficient { column_rank, directions } => {
+            AssembledCoefficientRecovery::NullDirections {
+                target: block.target,
+                sources: block.sources.clone(),
+                column_rank,
+                directions,
+                full_rank_was_asserted,
+            }
+        }
+        ConstraintColumnReport::Inconsistent { column_rank } => {
+            AssembledCoefficientRecovery::Inconsistent { column_rank }
+        }
+        ConstraintColumnReport::NotAConstraint => AssembledCoefficientRecovery::NotAConstraint,
+    }
+}
+
 fn refuse(reason: RefusalReason) -> ExperimentalRecoveryDecision {
     ExperimentalRecoveryDecision::Refused(RecipeRefusal {
         reason,
@@ -765,14 +899,23 @@ fn incoming(nodes: &BTreeSet<VariableId>, target: VariableId) -> Vec<DirectCoeff
 #[cfg(test)]
 mod tests {
     use super::{
-        CLAMP_EXPERIMENT_RECIPE, ClampExogeneity, ClampExperimentSet, DeclaredClampExperiment,
-        DeclaredEquationRank, DeclaredNoiseLaw, DesignFault, DirectCoefficient, ExperimentDesign,
-        ExperimentalRecoveryDecision, FiniteSampleConditioning, LATENT_VARIABLE_EXPANSION_ATTEMPT,
-        NextAttempt, NotThisRecipe, PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability,
-        RecoveryAttempt, RefusalReason, RegimeAssumption, UniquenessRestriction, UnresolvedReason,
-        WeakStability, decide_experimental_recovery,
+        AssembledCoefficientRecovery, CLAMP_EXPERIMENT_RECIPE, ClampExogeneity, ClampExperimentSet,
+        DeclarationRecovery, DeclaredClampExperiment, DeclaredEquationRank, DeclaredNoiseLaw,
+        DesignFault, DirectCoefficient, ExperimentDesign, ExperimentalRecoveryDecision,
+        FiniteSampleConditioning, LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt, NotThisRecipe,
+        PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability, RecoveryAttempt, RefusalReason,
+        RegimeAssumption, UniquenessRestriction, UnresolvedReason, WeakStability,
+        decide_experimental_recovery, recover_assembled_coefficients, recover_declared_coefficients,
     };
-    use antecedent_core::VariableId;
+    use crate::experiment_moments::{
+        ConstraintRow, RegimeSample, TargetConstraintBlock, UnitColumn,
+        assemble_experiment_constraints,
+    };
+    use crate::experiment_regime::{
+        DependencePremise, ExperimentRegime, PopulationId, RegimeContract, RegimeContractDecision,
+        RegimeIntervention, SourceIdentity, UnitMask, validate_regime_contract,
+    };
+    use antecedent_core::{Value, VariableId};
 
     fn node(raw: u32) -> VariableId {
         VariableId::from_raw(raw)
@@ -1287,5 +1430,124 @@ mod tests {
                 panic!("expected a clamp-experiment attempt")
             }
         }
+    }
+
+    fn parallel_constraint_into_z() -> TargetConstraintBlock {
+        let independent = DependencePremise::Independence;
+        let contract = {
+            let decision = validate_regime_contract(&RegimeContract {
+                regimes: vec![
+                    clamp_regime(&[0, 1, 2], &[0], independent, 1),
+                    clamp_regime(&[0, 1, 2], &[1], independent, 2),
+                ],
+                mask: UnitMask { dropped: Vec::new() },
+            });
+            let RegimeContractDecision::Accepted(contract) = decision else {
+                panic!("the fixture regime contract was refused");
+            };
+            contract
+        };
+        let (x, y, z) = ([1.0, -1.0], [1.0, -1.0], [1.0, -1.0]);
+        let columns = [
+            UnitColumn { unit: node(0), values: &x },
+            UnitColumn { unit: node(1), values: &y },
+            UnitColumn { unit: node(2), values: &z },
+        ];
+        let samples = [RegimeSample { columns: &columns }, RegimeSample { columns: &columns }];
+        let assembled = assemble_experiment_constraints(&contract, &samples, u64::MAX)
+            .expect("z is covered");
+        assembled
+            .blocks
+            .into_iter()
+            .find(|block| block.target == node(2))
+            .expect("the block for z")
+    }
+
+    fn clamp_regime(
+        units: &[u32],
+        targets: &[u32],
+        premise: DependencePremise,
+        source: u64,
+    ) -> ExperimentRegime {
+        ExperimentRegime {
+            targets: targets
+                .iter()
+                .map(|&raw| RegimeIntervention { unit: node(raw), value: Value::Int64(0) })
+                .collect(),
+            units: units.iter().copied().map(node).collect(),
+            population: PopulationId::from_raw(1),
+            premise,
+            source: SourceIdentity::from_raw(source),
+        }
+    }
+
+    #[test]
+    fn declared_rank_and_invertibility_do_not_return_coefficients() {
+        let full = DeclaredEquationRank {
+            target: node(2),
+            column_rank: 2,
+            nullspace: Vec::new(),
+        };
+        assert_eq!(
+            recover_declared_coefficients(Some(&full), WeakStability::InvertibilityDeclared),
+            DeclarationRecovery::NoCoefficients
+        );
+        assert_eq!(
+            recover_declared_coefficients(None, WeakStability::InvertibilityDeclared),
+            DeclarationRecovery::NoCoefficients
+        );
+        let block = TargetConstraintBlock {
+            target: node(2),
+            sources: vec![node(0), node(1)],
+            rows: vec![
+                ConstraintRow { regime: 0, probe: node(0) },
+                ConstraintRow { regime: 1, probe: node(1) },
+            ],
+            coefficients: vec![1.0, 0.0, 0.0, 1.0],
+            rhs: vec![0.25, 0.5],
+        };
+        let from_matrix = recover_assembled_coefficients(
+            &block,
+            Some(&full),
+            WeakStability::InvertibilityDeclared,
+        );
+        assert_eq!(from_matrix.coefficients(), Some(&[0.25, 0.5][..]));
+    }
+
+    #[test]
+    fn caller_asserted_full_rank_on_a_deficient_matrix_does_not_recover_coefficients() {
+        let block = parallel_constraint_into_z();
+        assert_eq!(block.coefficients, vec![1.0, 1.0, 1.0, 1.0]);
+        // Full column rank, with a support that is not the matrix null direction.
+        let asserted = DeclaredEquationRank {
+            target: block.target,
+            column_rank: block.sources.len(),
+            nullspace: vec![vec![coefficient(2, 0)]],
+        };
+        let recovery = recover_assembled_coefficients(
+            &block,
+            Some(&asserted),
+            WeakStability::InvertibilityDeclared,
+        );
+        assert!(recovery.coefficients().is_none());
+        let AssembledCoefficientRecovery::NullDirections {
+            column_rank,
+            directions,
+            full_rank_was_asserted,
+            ..
+        } = recovery
+        else {
+            panic!("a full-rank claim must not replace the matrix nullspace");
+        };
+        assert!(full_rank_was_asserted);
+        assert_eq!(column_rank, 1);
+        assert_eq!(directions, vec![vec![-1.0, 1.0]]);
+        let without_invertibility =
+            recover_assembled_coefficients(&block, Some(&asserted), WeakStability::NotDeclared);
+        assert_eq!(without_invertibility.coefficients(), None);
+        assert!(matches!(
+            without_invertibility,
+            AssembledCoefficientRecovery::NullDirections { full_rank_was_asserted: true, .. }
+        ));
     }
 }
