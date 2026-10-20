@@ -4,7 +4,7 @@
     "full": true,
     "trials": 5,
     "max_iterations": 2000,
-    "script_sha256": "c646e1e0c7e0f6239515e41158f2c2a50c93f22975cee806ece5107bc8930549",
+    "script_sha256": "39edcfda76315caca7b13f89e1b21e491e2e8c0f2b7cc10c08f694ea2c3678d2",
     "protocol": "independent_paper_derived_data_and_native_public_workflows",
     "calibration": "separate_not_assessed",
     "attestation": "separate_not_performed"
@@ -261,7 +261,7 @@
           }
         }
       ],
-      "wall_seconds": 100.60842879209667
+      "wall_seconds": 56.975438291206956
     },
     {
       "lane": "bicycle",
@@ -514,7 +514,7 @@
           }
         }
       ],
-      "wall_seconds": 70.97547008376569
+      "wall_seconds": 65.37228162493557
     },
     {
       "lane": "bicycle",
@@ -767,7 +767,7 @@
           }
         }
       ],
-      "wall_seconds": 109.63254687469453
+      "wall_seconds": 79.18150341603905
     },
     {
       "lane": "bicycle",
@@ -1020,7 +1020,7 @@
           }
         }
       ],
-      "wall_seconds": 96.03712945943698
+      "wall_seconds": 86.20736770797521
     },
     {
       "lane": "bicycle",
@@ -1273,7 +1273,7 @@
           }
         }
       ],
-      "wall_seconds": 72.9640561658889
+      "wall_seconds": 68.8145206249319
     }
   ]
 }

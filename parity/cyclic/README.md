@@ -17,3 +17,21 @@ Paper protocols and their explicit deviations are in
 `examples/python/cyclic_paper_experiments.py`. Experiment metrics retain original
 convergence failures and model-conditional interpretation. Calibration and
 attestation are separate and are not asserted by these fixtures.
+
+
+Run the full paper-derived lanes with an installed wheel, NumPy and SciPy:
+
+```sh
+python examples/python/cyclic_paper_experiments.py --lane nodags-linear --full --trials 5 --max-iterations 1000 --output-dir /tmp/cyclic-papers/nodags-linear
+python examples/python/cyclic_paper_experiments.py --lane nodags-relu --full --trials 5 --max-iterations 100 --output-dir /tmp/cyclic-papers/nodags-relu
+python examples/python/cyclic_paper_experiments.py --lane bicycle --full --trials 5 --max-iterations 2000 --output-dir /tmp/cyclic-papers/bicycle
+python parity/cyclic/paper-experiments/ou_continuation_protocol.py --base-dir /tmp/cyclic-papers/bicycle --output-dir /tmp/cyclic-papers/continuations --workers 4
+python parity/cyclic/paper-experiments/ou_standardization_protocol.py --base-dir /tmp/cyclic-papers/continuations --output-dir /tmp/cyclic-papers/standardized
+```
+
+The tracked metrics record the executed results; output directories retain the
+request, full report, independent expected identity and replay artifact for each
+selected fit. `protocol_intervention_only.py` preserves the earlier experiment
+allocation; the accepted protocol includes the paper's observational training rows.
+See `docs/development/cyclic-systems.md` for results, explicit deviations and
+failed/unresolved outcomes.

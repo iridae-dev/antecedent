@@ -1323,3 +1323,23 @@ def test_structure_and_discovery_semantic_seeds_bind_replay():
         consume_family_artifact(graph.artifact, expected_identity=graph.identity).report
         == graph.report
     )
+
+
+def test_cyclic_logical_retention_and_projection_resource_limits():
+    from antecedent.cyclic import consume_evidence
+    from antecedent.errors import CausalSerializationError
+
+    prepared = OrnsteinUhlenbeck((-2.0,), (3.0,), (4.0,)).stationary()
+    result = prepared.execute()
+    assert prepared.inspect()["retained_bytes"] > len(result.artifact) * 4
+    schema = {"id": "physical", "population": "system", "variables": [["position", "meter"]]}
+    selector = {"kind": "ou_mean", "time": None, "variable": 0}
+    with pytest.raises(ValueError, match="schema"):
+        prepared.evidence({**schema, "id": "x" * 257}, [selector])
+    evidence = prepared.evidence(schema, [selector] * 128)
+    artifact = evidence.export()
+    # Repeated columns compress well; wire size is not the retained heap budget.
+    with pytest.raises(ValueError, match="admission|resource|limit|budget"):
+        prepared.evidence(schema, [selector] * 128, max_bytes=len(artifact) * 4)
+    with pytest.raises(CausalSerializationError, match="admission|resource|limit|budget"):
+        consume_evidence(artifact, expected_identity=evidence.identity, max_bytes=len(artifact) * 4)

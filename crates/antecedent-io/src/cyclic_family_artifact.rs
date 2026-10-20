@@ -989,8 +989,7 @@ pub fn consume_cyclic_family(
     if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES || expected_identity.len() != 64 {
         return Err(invalid("family byte limit or expected identity"));
     }
-    let _retention =
-        ctx.acquire_admission(0, (bytes.len() as u64).saturating_mul(4)).map_err(invalid)?;
+    let _retention = crate::cyclic_system_artifact::cyclic_decode_admission(bytes, ctx)?;
     let parts = crate::decode_container(
         "cyclic_family",
         MAX_CYCLIC_ARTIFACT_BYTES,
@@ -1042,6 +1041,7 @@ pub fn consume_cyclic_family_with_request(
     ctx: &ExecutionContext,
 ) -> Result<(CyclicFamilyRequest, CyclicFamilyReport), CyclicArtifactError> {
     let report = consume_cyclic_family(bytes, expected_identity, ctx)?;
+    let _retention = crate::cyclic_system_artifact::cyclic_decode_admission(bytes, ctx)?;
     let parts = crate::decode_container(
         "cyclic_family",
         MAX_CYCLIC_ARTIFACT_BYTES,

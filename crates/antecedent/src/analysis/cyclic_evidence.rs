@@ -14,7 +14,10 @@ use antecedent_io::{
         CyclicFamilyAnswer as A, CyclicFamilyReport, CyclicFamilyRequest as R,
         consume_cyclic_family_with_request,
     },
-    cyclic_system_artifact::{CyclicArtifactError, MAX_CYCLIC_ARTIFACT_BYTES},
+    cyclic_system_artifact::{
+        CyclicArtifactError, MAX_CYCLIC_ARTIFACT_BYTES, cyclic_decode_admission,
+        cyclic_serialized_size,
+    },
     distribution_artifact::{
         DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
         DistributionProvenance, DistributionTrust, DrawAlignment,
@@ -213,7 +216,7 @@ pub struct CyclicEvidence {
     schema: CyclicEvidenceSchema,
     selectors: Vec<CyclicEvidenceSelector>,
     envelopes: Vec<EvidenceEnvelope>,
-    _retention: Arc<antecedent_core::execution::AdmissionLease>,
+    _retention: Arc<Vec<antecedent_core::execution::AdmissionLease>>,
 }
 fn invalid(s: impl std::fmt::Display) -> CyclicArtifactError {
     CyclicArtifactError::Invalid(s.to_string())
@@ -768,12 +771,16 @@ impl CyclicEvidence {
             return Err(invalid("cancelled"));
         }
         if schema.id.trim().is_empty()
+            || schema.id.len() > 256
+            || schema.population.len() > 256
             || schema.population.trim().is_empty()
             || schema.variables.is_empty()
             || schema.variables.len() > 128
             || schema.variables.len() != source_order(request)
             || schema.variables.iter().enumerate().any(|(i, (id, units))| {
                 id.trim().is_empty()
+                    || id.len() > 256
+                    || units.len() > 128
                     || units.trim().is_empty()
                     || schema.variables[..i].iter().any(|(old, _)| old == id)
             })
@@ -795,16 +802,21 @@ impl CyclicEvidence {
         if selectors.len().saturating_mul(draws) > 1_000_000 {
             return Err(invalid("cyclic evidence projection cell limit"));
         }
-        let reserve = (artifact.len() as u64).saturating_mul(8).saturating_add(
-            (selectors.len() as u64).saturating_mul(draws as u64).saturating_mul(64),
-        );
-        let retention = ctx.acquire_admission(0, reserve).map_err(invalid)?;
+        let reserve = (artifact.len() as u64) * 4
+            + (cyclic_serialized_size(&(source, &schema, &selectors), ctx)? as u64) * 8
+            + 4096;
+        let mut retention = vec![ctx.acquire_admission(0, reserve).map_err(invalid)?];
         let identity =
             digest("antecedent.cyclic_evidence.v1", &(&source.identity, &schema, &selectors))?;
         let mut columns = Vec::new();
         let mut envelopes = Vec::new();
         for selector in &selectors {
             let p = project(request, &source.answer, selector)?;
+            let projection_bytes = cyclic_serialized_size(
+                &(&p.diagnostics, &p.samples, &p.bounds, &p.masses, &p.world, &p.time),
+                ctx,
+            )? as u64;
+            retention.push(ctx.acquire_admission(0, projection_bytes * 8 + 4096).map_err(invalid)?);
             let (name, units) = schema
                 .variables
                 .get(p.variable)
@@ -952,7 +964,11 @@ impl CyclicEvidence {
         let _admission = ctx
             .acquire_admission(
                 0,
-                (self.source.len() as u64).saturating_mul(8).saturating_add(65536),
+                (self.source.len() as u64) * 4
+                    + (cyclic_serialized_size(&(&self.report, &self.schema, &self.selectors), ctx)?
+                        as u64)
+                        * 8
+                    + 65536,
             )
             .map_err(invalid)?;
         let bytes = antecedent_io::to_cbor(&Record {
@@ -1001,8 +1017,7 @@ impl CyclicEvidence {
         if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES {
             return Err(invalid("cyclic evidence byte limit"));
         }
-        let _lease =
-            ctx.acquire_admission(0, (bytes.len() as u64).saturating_mul(8)).map_err(invalid)?;
+        let _lease = cyclic_decode_admission(bytes, ctx)?;
         let parts = antecedent_io::decode_container(
             "cyclic_evidence",
             MAX_CYCLIC_ARTIFACT_BYTES,

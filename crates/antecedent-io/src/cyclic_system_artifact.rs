@@ -337,18 +337,22 @@ impl PreparedCyclicExecution {
     }
 }
 
-// Count serialized size without first allocating a potentially large payload.
-// The multiplier covers dense vectors/row headers plus the retained fitted copy.
-fn retain_request(
-    request: &CyclicExecutionRequest,
+/// Count a bounded logical payload without allocating its serialized representation.
+/// # Errors
+/// Cancellation, serialization failure, or the cyclic logical byte limit.
+pub fn cyclic_serialized_size<T: Serialize>(
+    value: &T,
     ctx: &ExecutionContext,
-) -> Result<antecedent_core::execution::AdmissionLease, CyclicArtifactError> {
-    struct Counter(usize);
-    impl std::io::Write for Counter {
+) -> Result<usize, CyclicArtifactError> {
+    struct Counter<'a>(usize, &'a ExecutionContext);
+    impl std::io::Write for Counter<'_> {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.1.cancellation.is_cancelled() {
+                return Err(std::io::Error::other("cancelled"));
+            }
             self.0 = self.0.saturating_add(bytes.len());
             if self.0 > MAX_CYCLIC_ARTIFACT_BYTES {
-                return Err(std::io::Error::other("cyclic retained request byte limit"));
+                return Err(std::io::Error::other("cyclic logical byte limit"));
             }
             Ok(bytes.len())
         }
@@ -356,9 +360,47 @@ fn retain_request(
             Ok(())
         }
     }
-    let mut counter = Counter(0);
-    serde_json::to_writer(&mut counter, request).map_err(invalid)?;
-    let bytes = counter.0 * 4 + request.model.order().pow(2) * 32 + 4096;
+    let mut counter = Counter(0, ctx);
+    serde_json::to_writer(&mut counter, value).map_err(invalid)?;
+    Ok(counter.0)
+}
+
+/// Reserve logical decoding and heap expansion before inflating a cyclic container.
+/// The manifest is admitted separately before its metadata is allocated.
+/// # Errors
+/// Malformed framing, excessive declared logical sizes, cancellation or resources.
+pub fn cyclic_decode_admission(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, CyclicArtifactError> {
+    if bytes.len() < 16 || bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES {
+        return Err(invalid("cyclic container byte limit or framing"));
+    }
+    let manifest_len = u32::from_le_bytes(bytes[12..16].try_into().map_err(invalid)?) as usize;
+    if manifest_len > 16 * 1024 * 1024 || manifest_len > bytes.len() - 16 {
+        return Err(invalid("cyclic manifest byte limit"));
+    }
+    let metadata = ctx.acquire_admission(0, (manifest_len as u64) * 8 + 4096).map_err(invalid)?;
+    let reader = crate::ArtifactReader::open_seek(std::io::Cursor::new(bytes)).map_err(invalid)?;
+    let logical = reader.manifest().sections.iter().try_fold(0u64, |sum, section| {
+        sum.checked_add(section.uncompressed_size).ok_or_else(|| invalid("logical size overflow"))
+    })?;
+    if logical > MAX_CYCLIC_ARTIFACT_BYTES as u64 {
+        return Err(invalid("cyclic logical byte limit"));
+    }
+    drop(reader);
+    drop(metadata);
+    ctx.acquire_admission(0, (bytes.len() as u64 + logical + manifest_len as u64) * 8 + 4096)
+        .map_err(invalid)
+}
+
+// Covers row/vector headers, retained models and the fitted copy, even for zeros.
+fn retain_request(
+    request: &CyclicExecutionRequest,
+    ctx: &ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, CyclicArtifactError> {
+    let bytes =
+        cyclic_serialized_size(request, ctx)? * 8 + request.model.order().pow(2) * 32 + 4096;
     ctx.acquire_admission(0, bytes as u64).map_err(invalid)
 }
 
@@ -372,8 +414,7 @@ pub fn consume_cyclic_artifact(
     if bytes.len() > MAX_CYCLIC_ARTIFACT_BYTES || expected_identity.len() != 64 {
         return Err(invalid("byte limit or expected identity"));
     }
-    let _retention =
-        ctx.acquire_admission(0, (bytes.len() as u64).saturating_mul(4)).map_err(invalid)?;
+    let _retention = cyclic_decode_admission(bytes, ctx)?;
     let parts = crate::decode_container(KIND, MAX_CYCLIC_ARTIFACT_BYTES, &[SECTION], bytes)
         .map_err(|e| invalid(e.into_io("cyclic artifact layout")))?;
     let payload = parts.first().ok_or_else(|| invalid("missing section"))?;
@@ -431,6 +472,35 @@ mod tests {
             policy: SolvePolicy::default(),
             factual: Some(vec![0.3, 0.7]),
         }
+    }
+    #[test]
+    fn cyclic_compressed_payload_requires_logical_memory_before_inflation() {
+        let payload = vec![b'0'; 1024 * 1024];
+        let bytes = crate::encode_container(
+            &crate::ArtifactContainer {
+                kind: KIND,
+                note: "compression-budget",
+                max_bytes: MAX_CYCLIC_ARTIFACT_BYTES,
+                artifact_id: "budget",
+                library_version: env!("CARGO_PKG_VERSION"),
+            },
+            &[crate::OutSection {
+                id: SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: &payload,
+            }],
+        )
+        .unwrap();
+        assert!(bytes.len() < payload.len() / 8);
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 1024 * 1024);
+        let ctx = ExecutionContext::for_tests(0).with_admission(pool.clone());
+        assert!(cyclic_decode_admission(&bytes, &ctx).is_err());
+        assert_eq!(pool.available().bytes(), 1024 * 1024);
+        let lease = cyclic_decode_admission(&bytes, &ExecutionContext::for_tests(0)).unwrap();
+        drop(lease);
+        let cancelled = ExecutionContext::for_tests(0);
+        cancelled.cancellation.cancel();
+        assert!(cyclic_serialized_size(&payload, &cancelled).is_err());
     }
     #[test]
     fn retained_cyclic_products_hold_and_release_shared_admission() {

@@ -61,6 +61,18 @@ def inventory() -> None:
     source = hashlib.sha256(
         (ROOT / "examples/python/cyclic_paper_experiments.py").read_bytes()
     ).hexdigest()
+    selected = {
+        (r["lane"], r["seed"]): r
+        for r in json.loads(
+            (
+                ROOT / "parity/cyclic/paper-experiments/stopping-diagnostics.json"
+            ).read_text()
+        )["selected_fits"]
+    }
+    if set(selected) != {
+        (lane, seed) for lane in ("nodags-linear", "nodags-relu") for seed in range(5)
+    }:
+        raise ValueError("incomplete selected-fit stopping diagnostics")
     for lane in ("nodags-linear", "nodags-relu", "bicycle"):
         path = ROOT / f"parity/cyclic/paper-experiments/{lane}.json"
         result = json.loads(path.read_text())
@@ -90,6 +102,13 @@ def inventory() -> None:
                 if any(c["independent_law_max_absolute_error"] > 1e-7 for c in cases):
                     raise ValueError("OU reference law disagreement")
             elif (
+                selected[(lane, trial["seed"])]["identity"]
+                != trial["artifact"]["identity"]
+            ):
+                raise ValueError(
+                    "stopping diagnostics are not bound to the selected fit"
+                )
+            elif (
                 trial["nodes"],
                 trial["samples_per_single_intervention"],
                 trial["training_rows"],
@@ -114,13 +133,23 @@ def inventory() -> None:
         (r["seed"], r["case"]): r
         for r in json.loads((directory / "ou-standardized.json").read_text())["cases"]
     }
+    base_identities = {
+        (t["seed"], f"single-contexts-{c['single_contexts']}"): c["artifact"][
+            "identity"
+        ]
+        for t in bicycle["trials"]
+        for c in t["cases"]
+    }
     for row in continued:
+        if row["original_identity"] != base_identities[(row["seed"], row["case"])]:
+            raise ValueError("OU continuation is not bound to its original fit")
         if not row["artifact"]["fresh_process_cpu_replay"]:
             raise ValueError("OU continuation was not independently replayed")
         if not row["converged"]:
             retry = standardized.get((row["seed"], row["case"]))
             if (
                 retry is None
+                or retry["previous_identity"] != row["artifact"]["identity"]
                 or not retry["converged"]
                 or retry["original_score_upper_bound"]
                 > retry["original_score_tolerance"]

@@ -1,133 +1,133 @@
 {
-  "meaning": "The runner fit_converged alias means the selected algorithm reached its declared stopping rule. Validation patience is not training-score stationarity or a global optimum certificate.",
+  "meaning": "The runner fit_converged alias means the selected algorithm reached its declared stopping rule. Validation patience is not training-score stationarity or a global optimum certificate. All trials include the published observational-plus-intervention sample allocation.",
   "selected_fits": [
     {
       "lane": "nodags-linear",
       "seed": 0,
-      "identity": "1829c2c99ab7fd78cb1e6a12b4ef8974c29b78e5d4882002d7d587d4d1a95fc0",
+      "identity": "34b2cb97a3c1ea12d3506ae815532f20495c3565d3e2d141f60512a4f016934e",
       "diagnostics": {
         "converged": true,
-        "score_norm": 94.30674021793652,
-        "iterations": 24,
+        "score_norm": 117.55767295291594,
+        "iterations": 34,
         "line_search_exhausted": false
       }
     },
     {
       "lane": "nodags-linear",
       "seed": 1,
-      "identity": "d6a2a6f450f8d557c2aa143f74f9a9020a857fa436c569e6bbe1b2aa2e0c0bf2",
+      "identity": "272745d5d2ddeca4e1e02d781c4529fb90edf5a6a8fe7da6a49587fe84e5c3e1",
       "diagnostics": {
         "converged": true,
-        "score_norm": 74.90578293555131,
-        "iterations": 31,
+        "score_norm": 87.60338590777201,
+        "iterations": 36,
         "line_search_exhausted": false
       }
     },
     {
       "lane": "nodags-linear",
       "seed": 2,
-      "identity": "9c4dfb8f37c9ba25780626cd1be31447896b56418e768c7f6cb578255efb824c",
+      "identity": "7256edbfd65d15ae63e636578dbc2cff673017a5c9f1983a26bf65f8cb0c903f",
       "diagnostics": {
         "converged": true,
-        "score_norm": 87.44702826079404,
-        "iterations": 25,
+        "score_norm": 96.23741981877356,
+        "iterations": 36,
         "line_search_exhausted": false
       }
     },
     {
       "lane": "nodags-linear",
       "seed": 3,
-      "identity": "6cd46f57350390af5f646ef5e49f4cc3fad7ecd296afb84457bc4f7a5d8c36f3",
+      "identity": "4f47cc04451356ac8184678f58781559803e01cbbab74675ff7835ebda0c1ea1",
       "diagnostics": {
         "converged": true,
-        "score_norm": 94.8588172194452,
-        "iterations": 38,
+        "score_norm": 113.6178167550488,
+        "iterations": 45,
         "line_search_exhausted": false
       }
     },
     {
       "lane": "nodags-linear",
       "seed": 4,
-      "identity": "147f7c5346586c15ac829aa2e3e112e6991e3d60b1e86715a9c2ecda244c4f89",
+      "identity": "1935884d89223213da2dde049a85580b972d71db745dc75b28d2094533b15a4e",
       "diagnostics": {
         "converged": true,
-        "score_norm": 60.82085868234194,
-        "iterations": 31,
+        "score_norm": 118.9643674385725,
+        "iterations": 37,
         "line_search_exhausted": false
       }
     },
     {
       "lane": "nodags-relu",
       "seed": 0,
-      "identity": "bf3c026a559899baaf9029c839aaba3980d304f41dddec12fcc1f4307f1ab5c3",
+      "identity": "f83d51a5853406444d004decd9419848d4b203c7b94322e8e6a412fac88a13d4",
       "diagnostics": {
         "validation_converged": true,
         "training_score_converged": false,
-        "training_score_per_row": 0.061581728190470995,
+        "training_score_per_row": 0.08422608519576684,
         "stopping_reason": "validation_patience",
-        "best_epoch": 2,
-        "epochs": 20,
-        "gradient_steps": 7820,
+        "best_epoch": 13,
+        "epochs": 23,
+        "gradient_steps": 10787,
         "nonsmooth_convention": "Almost-everywhere ReLU Jacobians; zero derivative at the kink. Validation stopping and score stationarity are reported separately."
       }
     },
     {
       "lane": "nodags-relu",
       "seed": 1,
-      "identity": "d3322a63f07364355d9f1d6f873799575f56ac9cba58d692e093d59d3df70054",
+      "identity": "c61de76a952f8c3ef36f7cf4feb5fecc11547d7fc2f57f3b80b7e5371f175cbc",
       "diagnostics": {
         "validation_converged": true,
         "training_score_converged": false,
-        "training_score_per_row": 0.09956023489007952,
+        "training_score_per_row": 0.08716260135525757,
         "stopping_reason": "validation_patience",
-        "best_epoch": 29,
-        "epochs": 39,
-        "gradient_steps": 15249,
+        "best_epoch": 10,
+        "epochs": 20,
+        "gradient_steps": 9380,
         "nonsmooth_convention": "Almost-everywhere ReLU Jacobians; zero derivative at the kink. Validation stopping and score stationarity are reported separately."
       }
     },
     {
       "lane": "nodags-relu",
       "seed": 2,
-      "identity": "6f2b6e9fa7ebb39f7611a6f10444e66b532b9a0051baccf4763d27e29e2e68f9",
+      "identity": "0de055c4eaa48bea8a089bf9bfec42a1be621de883cb88b526a1abf9e95417d4",
       "diagnostics": {
         "validation_converged": true,
         "training_score_converged": false,
-        "training_score_per_row": 0.10137729470487335,
+        "training_score_per_row": 0.08213392694536208,
         "stopping_reason": "validation_patience",
-        "best_epoch": 3,
-        "epochs": 20,
-        "gradient_steps": 7820,
+        "best_epoch": 19,
+        "epochs": 29,
+        "gradient_steps": 13601,
         "nonsmooth_convention": "Almost-everywhere ReLU Jacobians; zero derivative at the kink. Validation stopping and score stationarity are reported separately."
       }
     },
     {
       "lane": "nodags-relu",
       "seed": 3,
-      "identity": "0372843aa0471e221afcfe193fd1be625f9f27d8b4ff84dac362318967f1aa88",
+      "identity": "4c8b071179e64ab69cb7fe577c97bce779e853f8df69fd18afb46d8e0181205d",
       "diagnostics": {
         "validation_converged": true,
         "training_score_converged": false,
-        "training_score_per_row": 0.13563469819721136,
+        "training_score_per_row": 0.08654310074743088,
         "stopping_reason": "validation_patience",
         "best_epoch": 1,
         "epochs": 20,
-        "gradient_steps": 7820,
+        "gradient_steps": 9380,
         "nonsmooth_convention": "Almost-everywhere ReLU Jacobians; zero derivative at the kink. Validation stopping and score stationarity are reported separately."
       }
     },
     {
       "lane": "nodags-relu",
       "seed": 4,
-      "identity": "98939baeb0690d087542fedb4f87b46a5124744292385dd138aab896fbfcbb23",
+      "identity": "992edad0223e523a109be5c50f1681790b7ef32b89812555d81dfe41cb5e031c",
       "diagnostics": {
         "validation_converged": true,
         "training_score_converged": false,
-        "training_score_per_row": 0.07925385586170615,
+        "training_score_per_row": 0.07699456459460109,
         "stopping_reason": "validation_patience",
-        "best_epoch": 3,
+        "best_epoch": 5,
         "epochs": 20,
-        "gradient_steps": 7820,
+        "gradient_steps": 9380,
         "nonsmooth_convention": "Almost-everywhere ReLU Jacobians; zero derivative at the kink. Validation stopping and score stationarity are reported separately."
       }
     }

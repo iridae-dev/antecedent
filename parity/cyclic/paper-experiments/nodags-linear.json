@@ -4,7 +4,7 @@
     "full": true,
     "trials": 5,
     "max_iterations": 1000,
-    "script_sha256": "c646e1e0c7e0f6239515e41158f2c2a50c93f22975cee806ece5107bc8930549",
+    "script_sha256": "39edcfda76315caca7b13f89e1b21e491e2e8c0f2b7cc10c08f694ea2c3678d2",
     "protocol": "independent_paper_derived_data_and_native_public_workflows",
     "calibration": "separate_not_assessed",
     "attestation": "separate_not_performed"
@@ -22,169 +22,174 @@
       ],
       "nodes": 20,
       "samples_per_single_intervention": 5000,
-      "training_rows": 100000,
+      "training_rows": 120000,
+      "observational_samples": 20000,
       "validation_targets": [
         [
-          1,
+          4,
+          11,
           19
         ],
         [
-          3,
-          6,
-          15
+          7,
+          11,
+          14
         ],
         [
-          2,
-          3,
+          13,
           17
         ],
         [
-          12,
+          7,
+          8,
           18
         ],
         [
-          8,
-          12,
+          2,
+          14
+        ],
+        [
+          2,
+          4,
           16
         ],
         [
-          0,
-          7,
-          12
-        ],
-        [
-          10,
-          13
-        ],
-        [
-          0,
           3,
-          18
+          14
         ],
         [
-          9,
-          15
+          8,
+          10
         ],
         [
-          6,
+          3,
           13
+        ],
+        [
+          2,
+          9,
+          19
         ]
       ],
       "test_targets": [
         [
-          7,
-          13
-        ],
-        [
-          3,
-          8
-        ],
-        [
-          5,
-          9,
-          17
-        ],
-        [
-          3,
-          9,
-          10
-        ],
-        [
-          7,
-          17
-        ],
-        [
-          5,
-          18
-        ],
-        [
-          2,
-          3,
-          13
-        ],
-        [
-          0,
-          1,
-          11
-        ],
-        [
-          11,
-          17
-        ],
-        [
           6,
-          14
-        ],
-        [
-          17,
+          9,
           19
         ],
         [
-          3,
-          8,
-          11
-        ],
-        [
-          0,
-          13
-        ],
-        [
-          2,
-          18
-        ],
-        [
-          7,
-          9,
-          11
-        ],
-        [
-          12,
+          6,
+          15,
           17
         ],
         [
-          2,
-          15,
-          16
-        ],
-        [
-          7,
-          15
+          1,
+          9,
+          19
         ],
         [
           6,
-          7
+          17,
+          18
         ],
         [
+          4,
+          16
+        ],
+        [
+          9,
+          13,
+          16
+        ],
+        [
+          6,
+          7,
+          14
+        ],
+        [
+          4,
+          11
+        ],
+        [
+          1,
+          5
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          7,
           12,
+          14
+        ],
+        [
+          2,
+          6,
+          18
+        ],
+        [
+          9,
           15,
           17
+        ],
+        [
+          9,
+          13,
+          19
+        ],
+        [
+          6,
+          7,
+          10
+        ],
+        [
+          3,
+          9
+        ],
+        [
+          11,
+          18
+        ],
+        [
+          14,
+          16
+        ],
+        [
+          6,
+          12
+        ],
+        [
+          8,
+          9,
+          13
         ]
       ],
       "heldout_regimes_disjoint_from_training": true,
       "attempts": [
         {
           "penalty_per_row": 0.001,
-          "validation_nll": 0.730486343417133,
+          "validation_nll": 0.7296376479340971,
           "converged": true,
-          "score_per_row": 0.0009430674021793652,
-          "iterations": 24,
+          "score_per_row": 0.0009796472746076328,
+          "iterations": 34,
           "line_search_exhausted": false
         },
         {
           "penalty_per_row": 0.01,
-          "validation_nll": 0.7305453917847367,
+          "validation_nll": 0.729722787299204,
           "converged": true,
-          "score_per_row": 0.0008313703326142786,
-          "iterations": 23,
+          "score_per_row": 0.0008413901331131427,
+          "iterations": 22,
           "line_search_exhausted": false
         }
       ],
       "fit_converged": true,
-      "auprc": 0.9784007679726943,
-      "weight_rmse": 0.0029166515508540517,
-      "heldout_nll_per_free_coordinate": 0.7300788800436887,
-      "oracle_nll_per_free_coordinate": 0.7300109492750174,
-      "null_nll_per_free_coordinate": 0.7793242094289207,
+      "auprc": 0.9950830564784053,
+      "weight_rmse": 0.002611282176054183,
+      "heldout_nll_per_free_coordinate": 0.7299947477290802,
+      "oracle_nll_per_free_coordinate": 0.7299364633571416,
+      "null_nll_per_free_coordinate": 0.779403802009661,
       "deviations": [
         "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
         "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
@@ -192,12 +197,12 @@
         "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
       ],
       "artifact": {
-        "identity": "1829c2c99ab7fd78cb1e6a12b4ef8974c29b78e5d4882002d7d587d4d1a95fc0",
-        "bytes": 20015622,
-        "artifact_sha256": "f470a6d0bdf35e48e6b00ffa0dca7cb761d450b9ed4b433376952e57d7c1f33e",
+        "identity": "34b2cb97a3c1ea12d3506ae815532f20495c3565d3e2d141f60512a4f016934e",
+        "bytes": 23879842,
+        "artifact_sha256": "1b2e8558eda5e66340c4ae763e7d3294545f91f9e9d0262e67f52951e497d0d2",
         "fresh_process_cpu_replay": true
       },
-      "wall_seconds": 21.52225675014779
+      "wall_seconds": 19.864266958087683
     },
     {
       "lane": "nodags-linear",
@@ -211,170 +216,177 @@
       ],
       "nodes": 20,
       "samples_per_single_intervention": 5000,
-      "training_rows": 100000,
+      "training_rows": 120000,
+      "observational_samples": 20000,
       "validation_targets": [
         [
-          4,
-          5,
-          10
-        ],
-        [
-          7,
+          2,
           8,
-          13
+          17
         ],
         [
-          9,
-          12,
-          15
-        ],
-        [
-          10,
-          16
+          0,
+          11,
+          19
         ],
         [
           14,
-          17
-        ],
-        [
-          2,
-          11,
-          18
-        ],
-        [
-          10,
-          14
-        ],
-        [
-          6,
-          7,
-          13
-        ],
-        [
-          18,
-          19
-        ],
-        [
-          2,
-          11
-        ]
-      ],
-      "test_targets": [
-        [
-          5,
-          9,
-          10
-        ],
-        [
-          2,
-          7,
-          17
-        ],
-        [
-          8,
-          15,
-          16
-        ],
-        [
-          4,
-          19
-        ],
-        [
-          12,
-          13,
-          16
-        ],
-        [
           16,
           19
         ],
         [
+          1,
           8,
-          16
-        ],
-        [
-          7,
-          10,
-          12
-        ],
-        [
-          11,
           19
         ],
         [
-          0,
           6,
-          7
+          13
         ],
         [
-          1,
-          7
+          2,
+          7,
+          11
         ],
         [
+          2,
+          12,
+          19
+        ],
+        [
+          8,
+          9,
+          17
+        ],
+        [
+          10,
+          11,
+          13
+        ],
+        [
+          11,
+          17,
+          18
+        ]
+      ],
+      "test_targets": [
+        [
+          7,
           8,
           11
         ],
         [
           0,
-          17
-        ],
-        [
-          0,
-          1
+          12
         ],
         [
           4,
-          11
+          10,
+          15
         ],
         [
-          11,
-          14
+          0,
+          7,
+          17
         ],
         [
           7,
           13,
-          19
+          16
         ],
         [
           3,
-          18
-        ],
-        [
-          5,
-          9,
-          12
+          14,
+          19
         ],
         [
           10,
-          12,
+          11,
+          16
+        ],
+        [
+          2,
           19
+        ],
+        [
+          4,
+          5,
+          11
+        ],
+        [
+          4,
+          18
+        ],
+        [
+          4,
+          19
+        ],
+        [
+          2,
+          13,
+          16
+        ],
+        [
+          4,
+          8,
+          17
+        ],
+        [
+          16,
+          17
+        ],
+        [
+          1,
+          3,
+          13
+        ],
+        [
+          11,
+          17
+        ],
+        [
+          8,
+          13,
+          16
+        ],
+        [
+          17,
+          18
+        ],
+        [
+          0,
+          8
+        ],
+        [
+          0,
+          13
         ]
       ],
       "heldout_regimes_disjoint_from_training": true,
       "attempts": [
         {
           "penalty_per_row": 0.001,
-          "validation_nll": 0.7277769353040919,
+          "validation_nll": 0.7275744989123651,
           "converged": true,
-          "score_per_row": 0.0007490578293555131,
-          "iterations": 31,
+          "score_per_row": 0.0007300282158981,
+          "iterations": 36,
           "line_search_exhausted": false
         },
         {
           "penalty_per_row": 0.01,
-          "validation_nll": 0.7278141453813076,
+          "validation_nll": 0.7276436994750666,
           "converged": true,
-          "score_per_row": 0.0009436390255829747,
-          "iterations": 23,
+          "score_per_row": 0.0008240909153776822,
+          "iterations": 24,
           "line_search_exhausted": false
         }
       ],
       "fit_converged": true,
-      "auprc": 0.977646451047309,
-      "weight_rmse": 0.002716099151113809,
-      "heldout_nll_per_free_coordinate": 0.7280210566544776,
-      "oracle_nll_per_free_coordinate": 0.7279498728651171,
-      "null_nll_per_free_coordinate": 0.7709765205882446,
+      "auprc": 0.9785892164207896,
+      "weight_rmse": 0.0024880695497672377,
+      "heldout_nll_per_free_coordinate": 0.7272128701912763,
+      "oracle_nll_per_free_coordinate": 0.727140974694555,
+      "null_nll_per_free_coordinate": 0.768806499947011,
       "deviations": [
         "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
         "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
@@ -382,12 +394,12 @@
         "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
       ],
       "artifact": {
-        "identity": "d6a2a6f450f8d557c2aa143f74f9a9020a857fa436c569e6bbe1b2aa2e0c0bf2",
-        "bytes": 20014470,
-        "artifact_sha256": "374991f14512e70ebb7f555ef1a4c86f3b834a0bf77f852113adee5156375f09",
+        "identity": "272745d5d2ddeca4e1e02d781c4529fb90edf5a6a8fe7da6a49587fe84e5c3e1",
+        "bytes": 23880368,
+        "artifact_sha256": "ec2f79d0e7cdf69d924a5a8ec026373cc72b4182fe957a234355239de9010663",
         "fresh_process_cpu_replay": true
       },
-      "wall_seconds": 21.717637792229652
+      "wall_seconds": 20.24387349979952
     },
     {
       "lane": "nodags-linear",
@@ -401,171 +413,174 @@
       ],
       "nodes": 20,
       "samples_per_single_intervention": 5000,
-      "training_rows": 100000,
+      "training_rows": 120000,
+      "observational_samples": 20000,
       "validation_targets": [
         [
-          2,
-          4
-        ],
-        [
-          6,
-          15,
-          19
-        ],
-        [
-          14,
-          17
-        ],
-        [
-          0,
-          10,
-          14
-        ],
-        [
-          4,
-          6,
+          9,
+          11,
           12
         ],
         [
-          0,
-          4,
-          11
-        ],
-        [
-          8,
-          18
+          7,
+          17
         ],
         [
           3,
-          9,
-          13
+          4
         ],
         [
-          9,
+          2,
           10
         ],
         [
-          0,
-          11,
-          19
+          2,
+          8
+        ],
+        [
+          3,
+          15
+        ],
+        [
+          3,
+          17
+        ],
+        [
+          9,
+          13,
+          15
+        ],
+        [
+          1,
+          16,
+          18
+        ],
+        [
+          2,
+          11
         ]
       ],
       "test_targets": [
         [
-          3,
-          11
+          4,
+          17,
+          18
         ],
         [
           1,
-          2,
-          8
+          3,
+          7
         ],
         [
-          3,
-          13,
-          14
-        ],
-        [
-          3,
           5,
-          8
-        ],
-        [
           7,
-          10,
-          14
-        ],
-        [
-          9,
-          14
-        ],
-        [
-          2,
-          11
-        ],
-        [
-          4,
           13
         ],
         [
+          2,
           11,
+          19
+        ],
+        [
+          2,
+          4,
+          8
+        ],
+        [
+          10,
           16
         ],
         [
-          13,
+          8,
+          9,
+          11
+        ],
+        [
+          2,
+          10,
+          16
+        ],
+        [
+          9,
+          15,
+          16
+        ],
+        [
+          9,
+          14,
+          19
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          0,
+          1,
+          10
+        ],
+        [
+          5,
+          10
+        ],
+        [
+          10,
+          12
+        ],
+        [
+          7,
+          19
+        ],
+        [
           14,
           17
         ],
         [
-          2,
-          14
-        ],
-        [
-          8,
-          17
-        ],
-        [
-          2,
-          7
-        ],
-        [
-          2,
-          11,
-          16
-        ],
-        [
-          0,
-          17
-        ],
-        [
-          0,
-          9,
-          18
+          1,
+          4,
+          19
         ],
         [
           5,
-          15,
-          17
-        ],
-        [
-          0,
-          2
-        ],
-        [
-          4,
-          8
+          12,
+          19
         ],
         [
           7,
-          10,
-          16
+          8,
+          9
+        ],
+        [
+          0,
+          18,
+          19
         ]
       ],
       "heldout_regimes_disjoint_from_training": true,
       "attempts": [
         {
           "penalty_per_row": 0.001,
-          "validation_nll": 0.7264335458281633,
+          "validation_nll": 0.7280271036917908,
           "converged": true,
-          "score_per_row": 0.0008744702826079404,
-          "iterations": 25,
+          "score_per_row": 0.0008019784984897797,
+          "iterations": 36,
           "line_search_exhausted": false
         },
         {
           "penalty_per_row": 0.01,
-          "validation_nll": 0.7265072960376069,
+          "validation_nll": 0.7280465742474176,
           "converged": true,
-          "score_per_row": 0.0007181365982781289,
-          "iterations": 21,
+          "score_per_row": 0.0008932819690035312,
+          "iterations": 30,
           "line_search_exhausted": false
         }
       ],
       "fit_converged": true,
-      "auprc": 0.9829749103942652,
-      "weight_rmse": 0.002635011649007662,
-      "heldout_nll_per_free_coordinate": 0.7291577868194952,
-      "oracle_nll_per_free_coordinate": 0.7290973542038286,
-      "null_nll_per_free_coordinate": 0.7809641610918053,
+      "auprc": 0.996031746031746,
+      "weight_rmse": 0.0025129597965007516,
+      "heldout_nll_per_free_coordinate": 0.7281606996838246,
+      "oracle_nll_per_free_coordinate": 0.7281123974235746,
+      "null_nll_per_free_coordinate": 0.7799831132233825,
       "deviations": [
         "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
         "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
@@ -573,12 +588,12 @@
         "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
       ],
       "artifact": {
-        "identity": "9c4dfb8f37c9ba25780626cd1be31447896b56418e768c7f6cb578255efb824c",
-        "bytes": 20015313,
-        "artifact_sha256": "7022d3f0d4f695412ce3f64e13ecd9e116c2c54d9930e960b06915d84b31a97f",
+        "identity": "7256edbfd65d15ae63e636578dbc2cff673017a5c9f1983a26bf65f8cb0c903f",
+        "bytes": 23880085,
+        "artifact_sha256": "b4ef29ea9ae67dbd39fc4650b1fc131ccc5071cabb90505d1d625bbfaa03eee5",
         "fresh_process_cpu_replay": true
       },
-      "wall_seconds": 26.036067083012313
+      "wall_seconds": 20.168860042002052
     },
     {
       "lane": "nodags-linear",
@@ -592,20 +607,58 @@
       ],
       "nodes": 20,
       "samples_per_single_intervention": 5000,
-      "training_rows": 100000,
+      "training_rows": 120000,
+      "observational_samples": 20000,
       "validation_targets": [
         [
+          2,
+          9
+        ],
+        [
+          1,
+          8
+        ],
+        [
           6,
-          17
+          7,
+          13
+        ],
+        [
+          2,
+          13,
+          14
+        ],
+        [
+          0,
+          1
         ],
         [
           3,
-          18,
-          19
+          15
+        ],
+        [
+          4,
+          9
         ],
         [
           9,
-          10
+          18
+        ],
+        [
+          8,
+          14
+        ],
+        [
+          1,
+          3,
+          19
+        ]
+      ],
+      "test_targets": [
+        [
+          0,
+          9,
+          16
         ],
         [
           3,
@@ -613,123 +666,86 @@
           13
         ],
         [
-          6,
-          7,
-          18
-        ],
-        [
-          15,
-          17
-        ],
-        [
-          6,
-          16,
-          18
-        ],
-        [
-          2,
-          17
-        ],
-        [
-          5,
-          19
-        ],
-        [
-          2,
-          8,
-          12
-        ]
-      ],
-      "test_targets": [
-        [
           7,
           10,
-          17
-        ],
-        [
-          7,
-          17
-        ],
-        [
-          6,
-          9
-        ],
-        [
-          7,
-          8,
           15
-        ],
-        [
-          6,
-          13,
-          18
-        ],
-        [
-          2,
-          7,
-          8
-        ],
-        [
-          0,
-          9
-        ],
-        [
-          4,
-          5,
-          16
-        ],
-        [
-          0,
-          18
-        ],
-        [
-          1,
-          4,
-          15
-        ],
-        [
-          0,
-          7
-        ],
-        [
-          8,
-          15
-        ],
-        [
-          11,
-          12
-        ],
-        [
-          4,
-          5
-        ],
-        [
-          13,
-          15,
-          17
-        ],
-        [
-          6,
-          11
-        ],
-        [
-          5,
-          11,
-          13
-        ],
-        [
-          2,
-          13,
-          17
         ],
         [
           3,
-          6,
           11
+        ],
+        [
+          4,
+          7
+        ],
+        [
+          6,
+          15
+        ],
+        [
+          0,
+          11,
+          16
+        ],
+        [
+          13,
+          19
+        ],
+        [
+          3,
+          5,
+          13
+        ],
+        [
+          0,
+          17
         ],
         [
           7,
           9,
+          18
+        ],
+        [
+          2,
+          9,
+          12
+        ],
+        [
+          9,
+          11,
+          19
+        ],
+        [
+          1,
+          10,
+          17
+        ],
+        [
+          6,
+          10
+        ],
+        [
+          5,
+          12
+        ],
+        [
+          4,
+          14,
+          16
+        ],
+        [
+          2,
+          15,
+          18
+        ],
+        [
+          14,
+          16,
+          17
+        ],
+        [
+          2,
+          17,
           19
         ]
       ],
@@ -737,27 +753,27 @@
       "attempts": [
         {
           "penalty_per_row": 0.001,
-          "validation_nll": 0.7265384582294966,
+          "validation_nll": 0.7257485211619997,
           "converged": true,
-          "score_per_row": 0.000948588172194452,
-          "iterations": 38,
+          "score_per_row": 0.0009468151396254068,
+          "iterations": 45,
           "line_search_exhausted": false
         },
         {
           "penalty_per_row": 0.01,
-          "validation_nll": 0.7265671738096152,
+          "validation_nll": 0.7258105810288961,
           "converged": true,
-          "score_per_row": 0.00041164745036698975,
-          "iterations": 27,
+          "score_per_row": 0.0001655241440657941,
+          "iterations": 26,
           "line_search_exhausted": false
         }
       ],
       "fit_converged": true,
-      "auprc": 0.9489271548095076,
-      "weight_rmse": 0.002468696422770413,
-      "heldout_nll_per_free_coordinate": 0.7257606195052628,
-      "oracle_nll_per_free_coordinate": 0.7256874114986726,
-      "null_nll_per_free_coordinate": 0.8288857706405924,
+      "auprc": 0.9208747192457274,
+      "weight_rmse": 0.0023771812212273185,
+      "heldout_nll_per_free_coordinate": 0.7251647017655517,
+      "oracle_nll_per_free_coordinate": 0.7250937778061725,
+      "null_nll_per_free_coordinate": 0.8272882200360211,
       "deviations": [
         "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
         "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
@@ -765,12 +781,12 @@
         "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
       ],
       "artifact": {
-        "identity": "6cd46f57350390af5f646ef5e49f4cc3fad7ecd296afb84457bc4f7a5d8c36f3",
-        "bytes": 20012789,
-        "artifact_sha256": "4e7b14733da0c133981cbe65ec4da63043b9c35b839d0995412160a20675543e",
+        "identity": "4f47cc04451356ac8184678f58781559803e01cbbab74675ff7835ebda0c1ea1",
+        "bytes": 23876329,
+        "artifact_sha256": "a68178c8de8240b02995723af43d06f7e8b1b5efc4765c48c68db5bf1f42a938",
         "fresh_process_cpu_replay": true
       },
-      "wall_seconds": 11.153372125234455
+      "wall_seconds": 20.205817584414035
     },
     {
       "lane": "nodags-linear",
@@ -784,173 +800,170 @@
       ],
       "nodes": 20,
       "samples_per_single_intervention": 5000,
-      "training_rows": 100000,
+      "training_rows": 120000,
+      "observational_samples": 20000,
       "validation_targets": [
         [
-          8,
+          1,
+          10,
+          11
+        ],
+        [
+          0,
+          11,
+          16
+        ],
+        [
+          3,
           9,
+          12
+        ],
+        [
+          6,
+          16
+        ],
+        [
+          3,
           15
         ],
         [
-          2,
+          5,
+          9
+        ],
+        [
+          5,
+          16
+        ],
+        [
           11,
           19
         ],
         [
-          1,
-          6,
-          10
-        ],
-        [
-          2,
-          7,
-          10
-        ],
-        [
-          0,
           4,
-          17
+          10
         ],
         [
           3,
-          8,
           11
-        ],
-        [
-          1,
-          13,
-          19
-        ],
-        [
-          0,
-          18
-        ],
-        [
-          3,
-          6,
-          18
-        ],
-        [
-          2,
-          14
         ]
       ],
       "test_targets": [
         [
-          12,
-          15,
-          18
-        ],
-        [
-          1,
-          14,
-          15
+          0,
+          4,
+          7
         ],
         [
           5,
-          6
+          8
         ],
         [
-          9,
-          17
+          3,
+          16
         ],
         [
-          8,
+          11,
+          18
+        ],
+        [
+          2,
           12
         ],
         [
           2,
-          3
-        ],
-        [
-          8,
-          14,
-          15
+          7
         ],
         [
           6,
-          7,
-          16
-        ],
-        [
-          5,
-          9,
-          13
-        ],
-        [
-          7,
-          13
-        ],
-        [
-          5,
-          7,
           8
-        ],
-        [
-          4,
-          18,
-          19
         ],
         [
           1,
-          3
+          4
+        ],
+        [
+          10,
+          11,
+          18
+        ],
+        [
+          8,
+          9,
+          18
+        ],
+        [
+          3,
+          4,
+          6
+        ],
+        [
+          0,
+          9
+        ],
+        [
+          1,
+          10
+        ],
+        [
+          10,
+          13,
+          17
         ],
         [
           4,
-          8
+          8,
+          19
         ],
         [
+          0,
           9,
-          14
+          18
         ],
         [
-          7,
-          14,
+          6,
+          11,
           16
         ],
         [
           2,
-          13,
-          19
+          5,
+          18
         ],
         [
-          7,
+          5,
+          6,
           8
         ],
         [
           12,
           13
-        ],
-        [
-          6,
-          18
         ]
       ],
       "heldout_regimes_disjoint_from_training": true,
       "attempts": [
         {
           "penalty_per_row": 0.001,
-          "validation_nll": 0.7292837329980493,
+          "validation_nll": 0.7297863975782254,
           "converged": true,
-          "score_per_row": 0.0006082085868234194,
-          "iterations": 31,
+          "score_per_row": 0.0009913697286547708,
+          "iterations": 37,
           "line_search_exhausted": false
         },
         {
           "penalty_per_row": 0.01,
-          "validation_nll": 0.7293004362436024,
+          "validation_nll": 0.7298543942006862,
           "converged": true,
-          "score_per_row": 0.0008004128956114345,
-          "iterations": 29,
+          "score_per_row": 0.00028188801447966133,
+          "iterations": 32,
           "line_search_exhausted": false
         }
       ],
       "fit_converged": true,
-      "auprc": 0.9748538011695906,
-      "weight_rmse": 0.0026302226539330386,
-      "heldout_nll_per_free_coordinate": 0.730344459786589,
-      "oracle_nll_per_free_coordinate": 0.7302865775335544,
-      "null_nll_per_free_coordinate": 0.7658511831133068,
+      "auprc": 1.0,
+      "weight_rmse": 0.0024325656289861876,
+      "heldout_nll_per_free_coordinate": 0.7314452197874569,
+      "oracle_nll_per_free_coordinate": 0.731408015894966,
+      "null_nll_per_free_coordinate": 0.7682218750300136,
       "deviations": [
         "Conservative infinity-operator-norm contraction normalization, not spectral rescaling.",
         "Known independent noise sd=0.5; uniform raw coefficients in [-0.5,0.5].",
@@ -958,12 +971,12 @@
         "Two predeclared penalties selected by disjoint joint-intervention validation; final joint test regimes never select a model."
       ],
       "artifact": {
-        "identity": "147f7c5346586c15ac829aa2e3e112e6991e3d60b1e86715a9c2ecda244c4f89",
-        "bytes": 20016031,
-        "artifact_sha256": "d64d4b1d938c1a3f18a3cba8c2b7b38c1b550936a5e666f3dbc6e115357b33b2",
+        "identity": "1935884d89223213da2dde049a85580b972d71db745dc75b28d2094533b15a4e",
+        "bytes": 23880859,
+        "artifact_sha256": "edbd86166ff4592ea2ce6d26e55c51f3980df33259d4efb02a20f38e90f89949",
         "fresh_process_cpu_replay": true
       },
-      "wall_seconds": 9.3041918752715
+      "wall_seconds": 11.42018958274275
     }
   ]
 }

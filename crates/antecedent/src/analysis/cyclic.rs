@@ -204,7 +204,12 @@ impl Study {
     ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
         let family = request.family_name().to_owned();
         let (report, artifact) = request.export(ctx)?;
-        let retained_bytes = (artifact.len() as u64).saturating_mul(4);
+        let retained_bytes = (antecedent_io::cyclic_system_artifact::cyclic_serialized_size(
+            &(request, &report),
+            ctx,
+        )? as u64)
+            .saturating_mul(8)
+            .saturating_add((artifact.len() as u64) * 4 + 4096);
         let retention = ctx
             .acquire_admission(0, retained_bytes)
             .map_err(|e| CyclicArtifactError::Invalid(e.to_string()))?;

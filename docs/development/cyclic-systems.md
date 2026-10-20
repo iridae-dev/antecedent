@@ -5,8 +5,9 @@ Y18 and all Y19 families are mandatory 3.0 implementation work, promoted on
 implementation closure. The acceptance parents remain open for the remaining
 non-calibration integration work listed below.
 
-Development is isolated on `codex/general-cyclic-systems`, based on `3.0.0`.
-The shared checkout and its uncommitted changes are preserved. `TODO.md` is a
+Development began on `codex/general-cyclic-systems`, based on `3.0.0`, and was
+merged into `3.0.0` at `232b007de` after the concurrent user commits. Those commits
+are preserved. `TODO.md` is a
 locally ignored planning file; the tracked roadmap, release-scope registry and
 this document preserve the promoted commitment independently.
 
@@ -165,26 +166,63 @@ it verifies full-size research-result integrity, runs the compiled component
 tests and installed Python acceptance, and consumes the retained integration
 fixture in a fresh CPU process. It does not run calibration or attestation.
 
-## Remaining non-calibration acceptance work
+## Implementation acceptance
 
-The following remain implementation commitments; calibration/attestation are not
-substitutes or blockers for them:
+The acceptance inventory covers the two Y18 and eight Y19 children independently.
+Checked functional consumers evaluate finite observational laws and continuous
+Gaussian densities, including fitted densities; source-bound native evidence
+connects the family outputs to existing decision contracts. Mechanism interoperability
+includes portable compositional expressions, exact eligible polynomial lowering,
+ODE sensitivities and explicitly local callback adapters. Finite cross-world
+selection laws support multiple-equilibrium abduction and prediction without
+inventing coupling from marginal selection probabilities.
 
-- Complete checked-route/evidence/decision composition integration of all new
-  families beyond the retained specified-model facade specialization. Generalized
-  ID now has a typed Rust/Python finite-law functional consumer; broader estimator
-  composition remains required.
-- Broaden mechanism interoperability beyond the current serializable smooth
-  equilibrium and polynomial equation families, with explicit callback execution
-  and portability contracts. The existing DAG dynamic-mechanism API is preserved.
-- Finish independently reproduced applicable NODAGS-Flow/Bicycle experiment
-  packages and broader adversarial/numerical reference fixtures. The current
-  clean likelihood/dynamics implementations do not reproduce their complete
-  neural/latent estimator architectures.
-- Complete the whole-family source/target invalidation and release-contract
-  acceptance inventory. Component passes and public declarations alone do not
-  close these parents. A failed approach retains its diagnostic and next named
-  approach; it does not move a promoted family back to optional research.
+The standalone gate checks retained source/target/seed invalidation, cancellation,
+logical-memory admission before compressed artifact inflation, projection retention,
+and independent artifact replay. Declared numerical and theorem limits remain
+explicit in each workflow; implementation acceptance does not broaden those claims.
+
+### Independent paper experiments
+
+Five independent seeds were executed for each applicable paper-derived lane.
+The NODAGS protocol uses 20 variables, 20,000 observational samples and 5,000
+samples for each of 20 single-intervention regimes (120,000 training rows), with
+disjoint validation and held-out joint interventions. Bicycle uses 10 variables,
+500 controls and 250 observations per single-intervention context, evaluating
+0, 1, 2, 4, 6, 8 and 10 training contexts against held-out joint regimes.
+
+| Lane | Mean edge average precision | Held-out comparison |
+| --- | ---: | --- |
+| NODAGS linear | 0.97812 | Mean excess NLL per free coordinate over independent truth: 0.0000573 |
+| NODAGS ReLU | 0.88981 | Mean excess NLL per free coordinate over independent truth: 0.0009465 |
+| Bicycle, all 10 contexts | 1.00000 | Mean-response absolute error across seeds: 0.00476–0.00983 |
+
+These reproduce applicable likelihood, intervention-allocation and evaluation
+experiments with independent generators and public native workflows. They do
+not copy the papers' neural architectures or assert their published scores.
+The NODAGS lanes use a known disturbance covariance and a global row-norm
+contraction constraint; the OU lane fits shared linear drift, forcing and diffusion.
+Every metrics record states the exact deviations and independently retained artifact
+identity. ReLU validation-patience stopping is reported separately from training-score
+stationarity. It supplies no global-optimum certificate.
+
+Initial smooth ReLU line searches and OU steepest-descent attempts are retained
+in `failed-approaches.json`; their executed replacements are projected Adam and
+symmetric-Lyapunov-adjoint L-BFGS. Eighteen weak-context OU fits reached their
+initial 2,000-iteration budgets. The named 20,000-step continuations resolved 17;
+the remaining fit reached its original score tolerance after an invertible,
+training-only coordinate standardization (original score upper bound 0.748862,
+tolerance 0.75). Some weak-context fitted models have unstable held-out worlds;
+these failures remain explicit, including all 16 failed worlds in that last
+continuation. All five full-context OU fits converged and evaluated every
+requested held-out world. Independent SciPy covariance/law disagreement was
+below 8e-15. No failed world or draw is silently discarded or renormalized.
+
+Metrics, stopping diagnostics, failed approaches and portable continuation
+protocols live in `parity/cyclic/paper-experiments/`. Each selected fit was refitted
+and replayed in a fresh CPU process. The retained first-milestone fixture separately
+covers nonlinear fitting, joint interventions and shared-noise counterfactuals.
+Calibration and attestation are outside this implementation gate.
 
 ## Research provenance
 
