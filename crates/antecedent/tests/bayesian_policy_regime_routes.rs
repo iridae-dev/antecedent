@@ -40,7 +40,7 @@ fn policy_query() -> PolicyValueQuery {
         costs: Arc::from([0.0]),
         reference_costs: Arc::from([0.0]),
         evaluation_subject_ids: Arc::from(["a", "b", "c", "d"].map(Arc::<str>::from)),
-        disjoint_training_subjects: true,
+        disjoint_training_subjects: false,
         crossfit_fold_ownership_valid: false,
         global_constraints_present: false,
         multi_action: None,

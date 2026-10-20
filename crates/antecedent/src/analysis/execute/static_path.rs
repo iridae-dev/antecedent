@@ -1849,6 +1849,10 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let CheckedUnknownTiered { background, identification } = retained;
         let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
+        if matches!(self.inference, crate::inference::InferenceMode::Bayesian(_)) {
+            // One posterior per canonical scenario, never a collapsed scalar.
+            return self.execute_tiered_bayesian_average(data, query, physical, ctx, background);
+        }
         if background.within_tier != antecedent_graph::WithinTier::Unknown
             || identification.query != CausalQuery::AverageEffect(query.clone())
             || identification.estimands.len() != 2

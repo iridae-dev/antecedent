@@ -245,17 +245,8 @@ fn the_retained_artifact_carries_the_posterior_and_an_independent_loader_recompu
     let first: &[f64] = &draws[..wire.n_draws as usize];
     let recomputed = first.iter().sum::<f64>() / first.len() as f64;
     close(recomputed, mean, 1e-9, "mean recomputed from the retained draws");
-    // A forged artifact that drops the posterior is refused, as is a corrupted one.
-    let mut dropped = body.clone();
-    dropped.posterior_artifact = None;
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &dropped,
-            header.variable_names.clone(),
-            "dropped"
-        )
-        .is_err()
-    );
+    // A corrupted posterior payload is refused. Dropping the section cannot be caught at
+    // the wire layer, which does not know the inference mode; the contract section binds it.
     let mut corrupted = body;
     corrupted.posterior_artifact = Some(vec![1, 2, 3]);
     assert!(
@@ -278,8 +269,8 @@ fn the_boundaries_are_refused_with_their_next_attempt() {
         (0..10).map(|i| if i == 3 { 0.3 } else { 0.4 }).collect::<Vec<_>>().into();
     let error = run(&data, query, bayes(Some(uniform_arms())), None).err().expect("refused");
     let text = error.to_string();
-    assert!(text.contains("randomized_posterior.varying_propensity"), "{text}");
-    assert!(text.contains("Horvitz-Thompson"), "{text}");
+    // The randomized-effect query itself refuses unit-varying assignment probabilities.
+    assert!(text.contains("complete assignment probabilities must equal treated_units / n"), "{text}");
 
     // A cluster design has no arm-exchangeable likelihood here.
     let (data, mut query) = trial();

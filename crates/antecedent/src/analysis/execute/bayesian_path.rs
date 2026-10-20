@@ -421,6 +421,7 @@ struct EffectRunConfig<'a> {
 fn tiered_unknown_scenarios(
     fits: Vec<(CausalPosterior, EffectEstimate)>,
     identification: &IdentificationResult,
+    rows: usize,
 ) -> Result<(EffectEstimate, crate::result::StructuralResponseMixture), CausalError> {
     let mut values = Vec::with_capacity(fits.len());
     let mut intervals = Vec::with_capacity(fits.len());
@@ -461,6 +462,11 @@ fn tiered_unknown_scenarios(
     let (lo, hi) = values
         .iter()
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| (lo.min(*v), hi.max(*v)));
+    let identified_set_interval = super::posterior_identified_set_interval(
+        atoms.iter().filter_map(|atom| atom.posterior.as_ref()),
+        rows,
+        false,
+    );
     let mixture = crate::result::StructuralResponseMixture {
         weight_basis: crate::result::StructuralWeightBasis::CompletionEnumeration,
         atoms,
@@ -469,7 +475,7 @@ fn tiered_unknown_scenarios(
         unevaluable_mass: 0.0,
         subsampled_out_mass: 0.0,
         identified_set: Some(super::scalar_identified_set(lo, hi)),
-        identified_set_interval: None,
+        identified_set_interval,
         conditional_on_identified: None,
         full_mass_scope: true,
         truncated_atoms: 0,
@@ -1183,7 +1189,7 @@ impl super::Study {
     /// weighted: each scenario keeps its own posterior of its own functional, none is mixed
     /// into another, no scenario weight is invented, and the scalar stays withheld. A prior
     /// alone never identifies the within-tier order.
-    pub(super) fn execute_tiered_bayesian_average(
+    pub(crate) fn execute_tiered_bayesian_average(
         &self,
         data: &TabularData,
         query: &AverageEffectQuery,
@@ -1246,6 +1252,7 @@ impl super::Study {
         let (estimate, mixture) = tiered_unknown_scenarios(
             fits.into_iter().map(|(_, posterior, estimate)| (posterior, estimate)).collect(),
             &identification,
+            data.row_count(),
         )?;
         let diagnostic = Diagnostic::new(
             "tiered.unknown.bayesian_scenarios",

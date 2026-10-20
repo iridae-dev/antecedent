@@ -112,7 +112,9 @@ pub(in crate::contract_section) fn note_checked_program_targets(
             && !((estimator_matches(&["functional.effect"])
                 && matches!(
                     contract.target.query,
-                    CausalQueryWire::AverageEffect { .. } | CausalQueryWire::PathSpecific(_)
+                    CausalQueryWire::AverageEffect { .. }
+                        | CausalQueryWire::ConditionalEffect { .. }
+                        | CausalQueryWire::PathSpecific(_)
                 ))
                 || (estimator_matches(&["functional.distribution"])
                     && matches!(contract.target.query, CausalQueryWire::Distribution(_))))
