@@ -11,7 +11,9 @@
 //! coefficient equal to the experimental effect of `from` on that source, and
 //! the right-hand side is the experimental effect of `from` on `into`. An
 //! experimental effect is the coefficient in the regression of a passive column
-//! on the intervened columns of that regime.
+//! on the intervened columns of that regime. Each sample records a
+//! [`crate::experiment_regime::SourceIdentity`]. Assembly refuses the sample
+//! when that identity is not the one the regime declared.
 //!
 //! The assembled blocks are the constraint system. Column rank is the rank of
 //! each block's coefficient matrix ([`constraint_column_report`]). A deficient
@@ -44,7 +46,9 @@ use std::fmt;
 
 use antecedent_core::VariableId;
 
-use crate::experiment_regime::{AcceptedRegimeContract, DependencePremise, ExperimentRegime};
+use crate::experiment_regime::{
+    AcceptedRegimeContract, DependencePremise, ExperimentRegime, SourceIdentity,
+};
 
 /// Bytes in one assembled `f64` entry.
 const F64_BYTES: u64 = 8;
@@ -77,10 +81,14 @@ pub struct UnitColumn<'a> {
 ///
 /// Columns are the units that remain after the accepted mask. A masked unit is
 /// not a column. Column order does not matter; each retained unit appears once.
+/// [`Self::source`] is the sample's source identity. Assembly refuses the sample
+/// when it disagrees with the regime's declared [`SourceIdentity`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RegimeSample<'a> {
     /// Columns of this regime.
     pub columns: &'a [UnitColumn<'a>],
+    /// Source the columns were drawn from.
+    pub source: SourceIdentity,
 }
 
 /// Why moment and constraint assembly stopped.
@@ -148,6 +156,15 @@ pub enum MomentAssemblyRefusal {
     DroppedUnitNotClamped {
         /// The dropped unit.
         unit: VariableId,
+    },
+    /// The sample's source identity is not the regime's declared source.
+    SourceMismatch {
+        /// Index into the accepted regimes.
+        regime: usize,
+        /// Source the regime declared.
+        declared: SourceIdentity,
+        /// Source recorded on the sample.
+        sample: SourceIdentity,
     },
 }
 
@@ -291,6 +308,9 @@ impl fmt::Display for MomentAssemblyRefusal {
             }
             Self::DroppedUnitNotClamped { unit } => {
                 write!(f, "mask drops {unit}, which is not clamped in every regime")
+            }
+            Self::SourceMismatch { regime, declared, sample } => {
+                write!(f, "regime {regime} declares {declared} but the sample is {sample}")
             }
         }
     }
@@ -566,6 +586,13 @@ fn prepare_one<'a>(
     dropped: &[VariableId],
     sample: &RegimeSample<'a>,
 ) -> Result<PreparedSample<'a>, MomentAssemblyRefusal> {
+    if sample.source != regime.source {
+        return Err(MomentAssemblyRefusal::SourceMismatch {
+            regime: index,
+            declared: regime.source,
+            sample: sample.source,
+        });
+    }
     let expected = retained_units(regime, dropped);
     let mut seen = BTreeSet::new();
     for column in sample.columns {
@@ -1139,8 +1166,8 @@ mod tests {
         contract
     }
 
-    fn sample<'a>(columns: &'a [UnitColumn<'a>]) -> RegimeSample<'a> {
-        RegimeSample { columns }
+    fn sample<'a>(columns: &'a [UnitColumn<'a>], source: u64) -> RegimeSample<'a> {
+        RegimeSample { columns, source: SourceIdentity::from_raw(source) }
     }
 
     fn assert_close(actual: f64, expected: f64) {
@@ -1218,7 +1245,7 @@ mod tests {
             UnitColumn { unit: unit(1), values: &y3 },
             UnitColumn { unit: unit(2), values: &z3 },
         ];
-        let samples = [sample(&c0), sample(&c1), sample(&c2), sample(&c3)];
+        let samples = [sample(&c0, 1), sample(&c1, 2), sample(&c2, 3), sample(&c3, 4)];
         let assembled = assemble_experiment_constraints(&synthetic_contract(), &samples, u64::MAX)
             .expect("covering independent regimes assemble");
         assert_eq!(assembled.units, vec![unit(0), unit(1), unit(2)]);
@@ -1279,7 +1306,7 @@ mod tests {
         ];
         let contract =
             accepted(vec![regime(&[0, 1, 2], &[0], DependencePremise::Independence, 1, 1)], &[]);
-        let refusal = assemble_experiment_constraints(&contract, &[sample(&columns)], u64::MAX)
+        let refusal = assemble_experiment_constraints(&contract, &[sample(&columns, 1)], u64::MAX)
             .expect_err("one clamp does not cover every ordered pair");
         let MomentAssemblyRefusal::InadequateInterventionCoverage { missing } = refusal else {
             panic!("expected inadequate coverage");
@@ -1302,7 +1329,7 @@ mod tests {
         let y = [0.5, -0.5];
         let columns =
             [UnitColumn { unit: unit(0), values: &x }, UnitColumn { unit: unit(1), values: &y }];
-        let samples = [sample(&columns), sample(&columns)];
+        let samples = [sample(&columns, 1), sample(&columns, 1)];
         let refusal = assemble_experiment_constraints(&contract, &samples, u64::MAX)
             .expect_err("a dependence premise is not this recipe");
         assert_eq!(
@@ -1326,7 +1353,7 @@ mod tests {
         let y = [1.0, -1.0];
         let columns =
             [UnitColumn { unit: unit(0), values: &x }, UnitColumn { unit: unit(1), values: &y }];
-        let samples = [sample(&columns), sample(&columns)];
+        let samples = [sample(&columns, 1), sample(&columns, 2)];
         assert_eq!(
             assemble_experiment_constraints(&populations, &samples, u64::MAX).unwrap_err(),
             MomentAssemblyRefusal::InconsistentRegime(RegimeInconsistency::PopulationMismatch {
@@ -1349,8 +1376,12 @@ mod tests {
             UnitColumn { unit: unit(2), values: &z },
         ];
         assert_eq!(
-            assemble_experiment_constraints(&units, &[sample(&columns), sample(&wider)], u64::MAX)
-                .expect_err("unit sets differ"),
+            assemble_experiment_constraints(
+                &units,
+                &[sample(&columns, 1), sample(&wider, 2)],
+                u64::MAX,
+            )
+            .expect_err("unit sets differ"),
             MomentAssemblyRefusal::InconsistentRegime(RegimeInconsistency::UnitSetMismatch {
                 left: 0,
                 right: 1,
@@ -1372,7 +1403,7 @@ mod tests {
             ],
             &[],
         );
-        let samples = [sample(&columns), sample(&columns), sample(&columns)];
+        let samples = [sample(&columns, 1), sample(&columns, 2), sample(&columns, 3)];
         let assembled = assemble_experiment_constraints(&contract, &samples, u64::MAX)
             .expect("duplicate covering rows are still constraints");
         let into_y = block(&assembled, 1);
@@ -1419,7 +1450,7 @@ mod tests {
         );
         let assembled = assemble_experiment_constraints(
             &contract,
-            &[sample(&shifted), sample(&other)],
+            &[sample(&shifted, 1), sample(&other, 2)],
             u64::MAX,
         )
         .expect("a shifted intervention column still has a second moment");
@@ -1470,7 +1501,7 @@ mod tests {
         let c2 = three_unit_columns(&x2, &y2, &z2);
         let assembled = assemble_experiment_constraints(
             &contract,
-            &[sample(&c0), sample(&c1), sample(&c2)],
+            &[sample(&c0, 1), sample(&c1, 2), sample(&c2, 3)],
             u64::MAX,
         )
         .expect("two targets are covered");
@@ -1500,7 +1531,7 @@ mod tests {
             [UnitColumn { unit: unit(0), values: &x }, UnitColumn { unit: unit(1), values: &y }];
         let refusal = assemble_experiment_constraints(
             &contract,
-            &[sample(&columns), sample(&columns)],
+            &[sample(&columns, 1), sample(&columns, 2)],
             u64::MAX,
         )
         .expect_err("a dropped passive unit loses its term");
@@ -1520,7 +1551,7 @@ mod tests {
             three_unit_columns(&x2, &y2, &z2),
             three_unit_columns(&x3, &y3, &z3),
         ];
-        let samples = [sample(&c[0]), sample(&c[1]), sample(&c[2]), sample(&c[3])];
+        let samples = [sample(&c[0], 1), sample(&c[1], 2), sample(&c[2], 3), sample(&c[3], 4)];
         // 576 bytes of moments and constraints plus 3 * 4 * 8 = 96 bytes of centered copies.
         let refusal = assemble_experiment_constraints(&synthetic_contract(), &samples, 671)
             .expect_err("one byte short");
@@ -1557,7 +1588,7 @@ mod tests {
         let third = three_unit_columns(&a, &w_c, &b);
         let assembled = assemble_experiment_constraints(
             &contract,
-            &[sample(&first), sample(&second), sample(&third)],
+            &[sample(&first, 1), sample(&second, 2), sample(&third, 3)],
             u64::MAX,
         )
         .expect("a badly scaled but orthogonal intervention is not degenerate");
@@ -1586,7 +1617,7 @@ mod tests {
         let columns = three_unit_columns(&x, &y, &z);
         let assembled = assemble_experiment_constraints(
             &contract,
-            &[sample(&columns), sample(&columns)],
+            &[sample(&columns, 1), sample(&columns, 2)],
             u64::MAX,
         )
         .expect("z is covered");
@@ -1629,5 +1660,27 @@ mod tests {
             panic!("these rows pin both direct effects");
         };
         assert_eq!(coefficients, vec![0.25, 0.5]);
+    }
+
+    #[test]
+    fn a_sample_source_that_disagrees_with_the_regime_is_refused() {
+        let x = [1.0, -1.0];
+        let y = [0.5, -0.5];
+        let columns =
+            [UnitColumn { unit: unit(0), values: &x }, UnitColumn { unit: unit(1), values: &y }];
+        let contract = accepted(
+            vec![regime(&[0, 1], &[0], DependencePremise::Independence, 4, 1)],
+            &[],
+        );
+        let refusal = assemble_experiment_constraints(&contract, &[sample(&columns, 9)], u64::MAX)
+            .expect_err("the sample source is not the declared source");
+        assert_eq!(
+            refusal,
+            MomentAssemblyRefusal::SourceMismatch {
+                regime: 0,
+                declared: SourceIdentity::from_raw(4),
+                sample: SourceIdentity::from_raw(9),
+            }
+        );
     }
 }

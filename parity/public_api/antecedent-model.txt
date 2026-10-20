@@ -176,6 +176,7 @@ impl core::clone::Clone for antecedent_model::information_time::AvailableOutcome
 impl core::clone::Clone for antecedent_model::information_time::CadenceTick
 impl core::clone::Clone for antecedent_model::information_time::ForwardOnly
 impl core::clone::Clone for antecedent_model::information_time::InformationRefusal
+impl core::clone::Clone for antecedent_model::information_time::InformationStanding
 impl core::clone::Clone for antecedent_model::information_time::InformationUse
 impl core::clone::Clone for antecedent_model::information_time::ObservedCadence
 impl core::clone::Clone for antecedent_model::information_time::RetrospectivePermission
@@ -287,6 +288,7 @@ impl core::cmp::Eq for antecedent_model::information_time::AvailableOutcome
 impl core::cmp::Eq for antecedent_model::information_time::CadenceTick
 impl core::cmp::Eq for antecedent_model::information_time::ForwardOnly
 impl core::cmp::Eq for antecedent_model::information_time::InformationRefusal
+impl core::cmp::Eq for antecedent_model::information_time::InformationStanding
 impl core::cmp::Eq for antecedent_model::information_time::InformationUse
 impl core::cmp::Eq for antecedent_model::information_time::ObservedCadence
 impl core::cmp::Eq for antecedent_model::information_time::RetrospectivePermission
@@ -431,6 +433,7 @@ impl core::cmp::PartialEq for antecedent_model::information_time::AvailableOutco
 impl core::cmp::PartialEq for antecedent_model::information_time::CadenceTick
 impl core::cmp::PartialEq for antecedent_model::information_time::ForwardOnly
 impl core::cmp::PartialEq for antecedent_model::information_time::InformationRefusal
+impl core::cmp::PartialEq for antecedent_model::information_time::InformationStanding
 impl core::cmp::PartialEq for antecedent_model::information_time::InformationUse
 impl core::cmp::PartialEq for antecedent_model::information_time::ObservedCadence
 impl core::cmp::PartialEq for antecedent_model::information_time::RetrospectivePermission
@@ -654,6 +657,7 @@ impl core::fmt::Debug for antecedent_model::information_time::AvailableOutcome
 impl core::fmt::Debug for antecedent_model::information_time::CadenceTick
 impl core::fmt::Debug for antecedent_model::information_time::ForwardOnly
 impl core::fmt::Debug for antecedent_model::information_time::InformationRefusal
+impl core::fmt::Debug for antecedent_model::information_time::InformationStanding
 impl core::fmt::Debug for antecedent_model::information_time::InformationUse
 impl core::fmt::Debug for antecedent_model::information_time::ObservedCadence
 impl core::fmt::Debug for antecedent_model::information_time::RetrospectivePermission
@@ -734,6 +738,7 @@ impl core::hash::Hash for antecedent_model::information_time::AvailableOutcome
 impl core::hash::Hash for antecedent_model::information_time::CadenceTick
 impl core::hash::Hash for antecedent_model::information_time::ForwardOnly
 impl core::hash::Hash for antecedent_model::information_time::InformationRefusal
+impl core::hash::Hash for antecedent_model::information_time::InformationStanding
 impl core::hash::Hash for antecedent_model::information_time::InformationUse
 impl core::hash::Hash for antecedent_model::information_time::ObservedCadence
 impl core::hash::Hash for antecedent_model::information_time::RetrospectivePermission
@@ -784,6 +789,7 @@ impl core::marker::Copy for antecedent_model::information_time::AvailableOutcome
 impl core::marker::Copy for antecedent_model::information_time::CadenceTick
 impl core::marker::Copy for antecedent_model::information_time::ForwardOnly
 impl core::marker::Copy for antecedent_model::information_time::InformationRefusal
+impl core::marker::Copy for antecedent_model::information_time::InformationStanding
 impl core::marker::Copy for antecedent_model::information_time::InformationUse
 impl core::marker::Copy for antecedent_model::information_time::ObservedCadence
 impl core::marker::Copy for antecedent_model::information_time::RetrospectivePermission
@@ -943,6 +949,7 @@ impl core::marker::Freeze for antecedent_model::information_time::AvailableOutco
 impl core::marker::Freeze for antecedent_model::information_time::CadenceTick [auto]
 impl core::marker::Freeze for antecedent_model::information_time::ForwardOnly [auto]
 impl core::marker::Freeze for antecedent_model::information_time::InformationRefusal [auto]
+impl core::marker::Freeze for antecedent_model::information_time::InformationStanding [auto]
 impl core::marker::Freeze for antecedent_model::information_time::InformationUse [auto]
 impl core::marker::Freeze for antecedent_model::information_time::ObservedCadence [auto]
 impl core::marker::Freeze for antecedent_model::information_time::RetrospectivePermission [auto]
@@ -1127,6 +1134,7 @@ impl core::marker::Send for antecedent_model::information_time::AvailableOutcome
 impl core::marker::Send for antecedent_model::information_time::CadenceTick [auto]
 impl core::marker::Send for antecedent_model::information_time::ForwardOnly [auto]
 impl core::marker::Send for antecedent_model::information_time::InformationRefusal [auto]
+impl core::marker::Send for antecedent_model::information_time::InformationStanding [auto]
 impl core::marker::Send for antecedent_model::information_time::InformationUse [auto]
 impl core::marker::Send for antecedent_model::information_time::ObservedCadence [auto]
 impl core::marker::Send for antecedent_model::information_time::RetrospectivePermission [auto]
@@ -1277,6 +1285,7 @@ impl core::marker::StructuralPartialEq for antecedent_model::information_time::A
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::CadenceTick
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::ForwardOnly
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::InformationRefusal
+impl core::marker::StructuralPartialEq for antecedent_model::information_time::InformationStanding
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::InformationUse
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::ObservedCadence
 impl core::marker::StructuralPartialEq for antecedent_model::information_time::RetrospectivePermission
@@ -1460,6 +1469,7 @@ impl core::marker::Sync for antecedent_model::information_time::AvailableOutcome
 impl core::marker::Sync for antecedent_model::information_time::CadenceTick [auto]
 impl core::marker::Sync for antecedent_model::information_time::ForwardOnly [auto]
 impl core::marker::Sync for antecedent_model::information_time::InformationRefusal [auto]
+impl core::marker::Sync for antecedent_model::information_time::InformationStanding [auto]
 impl core::marker::Sync for antecedent_model::information_time::InformationUse [auto]
 impl core::marker::Sync for antecedent_model::information_time::ObservedCadence [auto]
 impl core::marker::Sync for antecedent_model::information_time::RetrospectivePermission [auto]
@@ -1644,6 +1654,7 @@ impl core::marker::Unpin for antecedent_model::information_time::AvailableOutcom
 impl core::marker::Unpin for antecedent_model::information_time::CadenceTick [auto]
 impl core::marker::Unpin for antecedent_model::information_time::ForwardOnly [auto]
 impl core::marker::Unpin for antecedent_model::information_time::InformationRefusal [auto]
+impl core::marker::Unpin for antecedent_model::information_time::InformationStanding [auto]
 impl core::marker::Unpin for antecedent_model::information_time::InformationUse [auto]
 impl core::marker::Unpin for antecedent_model::information_time::ObservedCadence [auto]
 impl core::marker::Unpin for antecedent_model::information_time::RetrospectivePermission [auto]
@@ -1820,6 +1831,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_t
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::CadenceTick [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::ForwardOnly [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::InformationRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::InformationStanding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::InformationUse [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::ObservedCadence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_model::information_time::RetrospectivePermission [auto]
@@ -1996,6 +2008,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::CadenceTick [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::ForwardOnly [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::InformationRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::InformationStanding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::InformationUse [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::ObservedCadence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_model::information_time::RetrospectivePermission [auto]
@@ -2231,6 +2244,7 @@ pub enum antecedent_model::history_operators::FeedbackSearch
 pub enum antecedent_model::history_operators::ResponseTarget
 pub enum antecedent_model::history_operators::WeightRole
 pub enum antecedent_model::information_time::ForwardOnly
+pub enum antecedent_model::information_time::InformationStanding
 pub enum antecedent_model::information_time::InformationUse
 pub enum antecedent_model::information_time::RetrospectivePermission
 pub enum antecedent_model::intervention_request::InterventionRequest
@@ -2805,11 +2819,11 @@ pub fn <antecedent_model::discretized_scm::InferenceParadigm>::const fn as_str(s
 pub fn <antecedent_model::discretized_scm::ParityRoute>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::history_operators::ActionTiming>::const fn at_ns(&self) -> u64
 pub fn <antecedent_model::history_operators::ActionTiming>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
-pub fn <antecedent_model::history_operators::ActionTiming>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, at_ns: u64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::ActionTiming>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, at_ns: u64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn assignment(&self) -> f64
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn censoring(&self) -> f64
 pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
-pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, censoring: f64, assignment: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::CensoringAssignmentWeight>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, censoring: f64, assignment: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::DelayedAction>::const fn level_at(self, step: i32) -> f64
 pub fn <antecedent_model::history_operators::DelayedAction>::const fn permanent_level(self) -> f64
 pub fn <antecedent_model::history_operators::DelayedAction>::fn pulse(at_step: i32, level: f64) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
@@ -2837,21 +2851,21 @@ pub fn <antecedent_model::history_operators::FeedbackSearchCap>::const fn declar
 pub fn <antecedent_model::history_operators::FeedbackSearchCap>::const fn steps(self) -> u32
 pub fn <antecedent_model::history_operators::HistoryConstruction>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::HistoryConstruction>::const fn history(&self) -> antecedent_core::scientific_target::HistoryWindow
-pub fn <antecedent_model::history_operators::HistoryConstruction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, history: antecedent_core::scientific_target::HistoryWindow) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::HistoryConstruction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, history: antecedent_core::scientific_target::HistoryWindow) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::Horizon>::const fn end_ns(self) -> u64
 pub fn <antecedent_model::history_operators::Horizon>::const fn ending_at(end_ns: u64) -> Self
 pub fn <antecedent_model::history_operators::OperatorFrame>::const fn cadence(&self) -> &antecedent_data::temporal::TimeIndex
 pub fn <antecedent_model::history_operators::OperatorFrame>::const fn horizon(&self) -> antecedent_model::history_operators::Horizon
 pub fn <antecedent_model::history_operators::OperatorFrame>::const fn initial_law(&self) -> &antecedent_core::scientific_target::InitialLaw
 pub fn <antecedent_model::history_operators::OperatorFrame>::const fn interval_ns(&self) -> u64
-pub fn <antecedent_model::history_operators::OperatorFrame>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::OperatorFrame>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::PolicyEvaluation>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::PolicyEvaluation>::fn policy(&self) -> &str
-pub fn <antecedent_model::history_operators::PolicyEvaluation>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, policy: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::PolicyEvaluation>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, policy: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::ResponseTarget>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::history_operators::SequentialRegression>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::SequentialRegression>::fn outcome(&self) -> &str
-pub fn <antecedent_model::history_operators::SequentialRegression>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, outcome: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::SequentialRegression>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, outcome: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn action(self) -> antecedent_model::history_operators::DelayedAction
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn level(self) -> f64
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn level_bits(self) -> u64
@@ -2859,16 +2873,17 @@ pub fn <antecedent_model::history_operators::TargetResponse>::const fn spread_bi
 pub fn <antecedent_model::history_operators::TargetResponse>::const fn target(self) -> antecedent_model::history_operators::ResponseTarget
 pub fn <antecedent_model::history_operators::TrajectoryReduction>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn functional(&self) -> &str
-pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>, functional: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::TrajectoryReduction>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw, functional: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::Transition>::const fn frame(&self) -> &antecedent_model::history_operators::OperatorFrame
 pub fn <antecedent_model::history_operators::Transition>::const fn step_ns(&self) -> u64
-pub fn <antecedent_model::history_operators::Transition>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: core::option::Option<antecedent_core::scientific_target::InitialLaw>) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
+pub fn <antecedent_model::history_operators::Transition>::fn try_new(cadence: antecedent_data::temporal::TimeIndex, horizon: antecedent_model::history_operators::Horizon, initial_law: antecedent_core::scientific_target::InitialLaw) -> core::result::Result<Self, antecedent_model::history_operators::HistoryOperatorError>
 pub fn <antecedent_model::history_operators::TruncationCertificate>::const fn retained_ticks(self) -> u32
 pub fn <antecedent_model::history_operators::TruncationCertificate>::const fn retaining(retained_ticks: u32) -> Self
 pub fn <antecedent_model::history_operators::WeightRole>::const fn as_str(self) -> &'static str
 pub fn <antecedent_model::information_time::AvailableOutcome>::const fn decision(self) -> antecedent_model::information_time::CadenceTick
 pub fn <antecedent_model::information_time::AvailableOutcome>::const fn information_use(self) -> antecedent_model::information_time::InformationUse
 pub fn <antecedent_model::information_time::AvailableOutcome>::const fn outcome(self) -> antecedent_model::information_time::CadenceTick
+pub fn <antecedent_model::information_time::AvailableOutcome>::const fn standing(self) -> antecedent_model::information_time::InformationStanding
 pub fn <antecedent_model::information_time::CadenceTick>::const fn get(self) -> u32
 pub fn <antecedent_model::information_time::CadenceTick>::const fn new(tick: u32) -> Self
 pub fn <antecedent_model::information_time::ObservedCadence>::const fn interval_ns(self) -> u64
@@ -3617,6 +3632,8 @@ pub variant antecedent_model::information_time::InformationRefusal::OutcomeOffCa
 pub variant antecedent_model::information_time::InformationRefusal::ProspectiveFuture { decision: u32, outcome: u32 }
 pub variant antecedent_model::information_time::InformationRefusal::RetrospectiveDenied { decision: u32, outcome: u32 }
 pub variant antecedent_model::information_time::InformationRefusal::ZeroInterval
+pub variant antecedent_model::information_time::InformationStanding::CadenceChecked
+pub variant antecedent_model::information_time::InformationStanding::CallerGrantedRetrospective
 pub variant antecedent_model::information_time::InformationUse::HeldOut
 pub variant antecedent_model::information_time::InformationUse::Prospective
 pub variant antecedent_model::information_time::InformationUse::TrainingNuisance

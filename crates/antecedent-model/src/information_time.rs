@@ -147,11 +147,24 @@ pub enum ForwardOnly {
 ///
 /// Holding this value does not remove the row. A refused use is
 /// [`InformationRefusal`], not a missing row.
+/// [`Self::standing`] says whether the cadence check admitted the outcome or
+/// the caller granted a later training outcome. The grant is not a cadence proof.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct AvailableOutcome {
     decision: CadenceTick,
     outcome: CadenceTick,
     information_use: InformationUse,
+    standing: InformationStanding,
+}
+
+/// Why an outcome was admitted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum InformationStanding {
+    /// The outcome tick is on the observed cadence and not after the decision.
+    CadenceChecked,
+    /// A later training outcome was admitted because the caller granted
+    /// retrospective permission. The grant is the caller's declaration.
+    CallerGrantedRetrospective,
 }
 
 impl AvailableOutcome {
@@ -171,6 +184,12 @@ impl AvailableOutcome {
     #[must_use]
     pub const fn information_use(self) -> InformationUse {
         self.information_use
+    }
+
+    /// Whether the cadence check or a caller grant admitted the outcome.
+    #[must_use]
+    pub const fn standing(self) -> InformationStanding {
+        self.standing
     }
 }
 
@@ -307,6 +326,7 @@ pub fn admit_outcome(
     if outcome.get() >= tick_count {
         return Err(InformationRefusal::OutcomeOffCadence { tick: outcome.get(), tick_count });
     }
+    let mut standing = InformationStanding::CadenceChecked;
     if outcome.get() > decision.get() {
         match refuse_future(
             information_use,
@@ -315,11 +335,11 @@ pub fn admit_outcome(
             decision.get(),
             outcome.get(),
         ) {
-            Ok(()) => {}
+            Ok(()) => standing = InformationStanding::CallerGrantedRetrospective,
             Err(refusal) => return Err(refusal),
         }
     }
-    Ok(AvailableOutcome { decision, outcome, information_use })
+    Ok(AvailableOutcome { decision, outcome, information_use, standing })
 }
 
 /// Admit feedback generated at `generated` after `delay_ticks` for `information_use`.
@@ -442,6 +462,15 @@ mod tests {
         assert_eq!(available.decision().get(), 3);
         assert_eq!(available.outcome().get(), 5);
         assert_eq!(available.information_use(), InformationUse::TrainingNuisance);
+        assert_eq!(available.standing(), InformationStanding::CallerGrantedRetrospective);
+        let checked = at_decision(
+            3,
+            InformationUse::HeldOut,
+            RetrospectivePermission::Granted,
+            ForwardOnly::NotEnforced,
+        )
+        .unwrap();
+        assert_eq!(checked.standing(), InformationStanding::CadenceChecked);
     }
 
     #[test]

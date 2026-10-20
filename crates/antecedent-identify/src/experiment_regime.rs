@@ -52,8 +52,9 @@ pub const REPAIR_MASK_OR_PREMISE: &str = "experiment_regime.repair_mask_or_premi
 
 /// Caller-assigned identity of the sample a regime is drawn from.
 ///
-/// Equal values are the same source. This module does not hash a sample; the
-/// caller supplies the identity. Zero is a real identity, not an unset marker.
+/// Equal values are the same source. The caller supplies the identity. Assembly
+/// refuses a sample whose recorded source is not this identity. Zero is a real
+/// identity, not an unset marker.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SourceIdentity(u64);
 

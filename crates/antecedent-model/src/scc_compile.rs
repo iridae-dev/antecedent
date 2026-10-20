@@ -294,13 +294,14 @@ pub struct BlockDiagnostic {
     pub members: Vec<usize>,
     /// Infinity norm of `(I - K_SS) μ_S - rhs_S`.
     pub residual_inf: f64,
-    /// Infinity-norm condition number of `I - K_SS`.
+    /// Condition number of `I - K_SS`.
     ///
-    /// For order 1 and 2 this is the closed form and [`Self::exact`] is true.
-    /// For a larger block it is the lower bound `||A||∞ ||A^{-1} 1||∞` from one
-    /// extra right-hand side of the same solve, and [`Self::exact`] is false.
+    /// For order 1 and 2 this is the infinity-norm closed form and [`Self::exact`]
+    /// is true. For a larger block it is the Hager–Higham estimate of that
+    /// infinity-norm condition number, and [`Self::exact`] is false. The estimate
+    /// is a diagnostic. It is not the one-vector lower bound `||A||∞ ||A^{-1} 1||∞`.
     pub kappa_inf: f64,
-    /// Whether `kappa_inf` is the closed form rather than the one-vector lower bound.
+    /// Whether `kappa_inf` is the closed form rather than the Hager–Higham estimate.
     pub exact: bool,
 }
 
@@ -766,7 +767,6 @@ fn solve_block(
     let cov_at = 1;
     let cross_at = cov_at + m;
     let eps_at = cross_at + p;
-    let ones_at = eps_at + n;
     for row in 0..m {
         let base = row * cols;
         rhs[base] = mean_rhs[row];
@@ -779,7 +779,6 @@ fn solve_block(
         for col in 0..n {
             rhs[base + eps_at + col] = cov_u_eps[row * n + col];
         }
-        rhs[base + ones_at] = 1.0;
     }
     let solved = solve_row_major(&matrix, &rhs, m, cols, members)?;
     for (local, &node) in members.iter().enumerate() {
@@ -809,14 +808,14 @@ fn solve_block(
         }
     }
     let residual_inf = block_residual(&matrix, &solved, cols, &mean_rhs, m)?;
-    let (kappa_inf, exact) = condition_of(&matrix, &solved, cols, ones_at, m)?;
+    let (kappa_inf, exact) = condition_of(&matrix, m, members)?;
     Ok(BlockDiagnostic { members: members.to_vec(), residual_inf, kappa_inf, exact })
 }
 
 fn batch_columns(m: usize, earlier: usize, n: usize) -> Result<usize, SccCompileError> {
     m.checked_add(earlier)
         .and_then(|sum| sum.checked_add(n))
-        .and_then(|sum| sum.checked_add(2))
+        .and_then(|sum| sum.checked_add(1))
         .ok_or(SccCompileError::Shape { message: "block right-hand side width overflows usize" })
 }
 
@@ -1012,23 +1011,87 @@ pub(crate) fn eye_minus_block(
 
 fn condition_of(
     matrix: &[f64],
-    solved: &[f64],
-    cols: usize,
-    ones_at: usize,
     m: usize,
+    members: &[usize],
 ) -> Result<(f64, bool), SccCompileError> {
+    if m == 0 {
+        return Ok((1.0, true));
+    }
     if let Some(kappa) = exact_infinity_kappa(matrix, m) {
         return Ok((kappa, true));
     }
-    let mut inverse_bound = 0.0_f64;
-    for row in 0..m {
-        inverse_bound = inverse_bound.max(solved[row * cols + ones_at].abs());
-    }
-    let kappa = infinity_norm(matrix, m) * inverse_bound;
+    let transposed = transpose(matrix, m, m)?;
+    let inverse_inf = hager_one_norm_inverse(&transposed, members)?;
+    let kappa = infinity_norm(matrix, m) * inverse_inf;
     if !kappa.is_finite() {
         return Err(SccCompileError::NonFiniteEquilibrium);
     }
     Ok((kappa, false))
+}
+
+/// Hager's 1-norm estimate of `||A^{-1}||_1` (Higham, 1988).
+///
+/// Applied to `A^T`, the estimate is `||A^{-1}||_∞`.
+fn hager_one_norm_inverse(
+    matrix: &[f64],
+    members: &[usize],
+) -> Result<f64, SccCompileError> {
+    let m = members.len();
+    let Ok(count) = u32::try_from(m) else {
+        return Err(SccCompileError::NonFiniteEquilibrium);
+    };
+    if count == 0 {
+        return Err(SccCompileError::NonFiniteEquilibrium);
+    }
+    let mut x = vec![1.0 / f64::from(count); m];
+    let transposed = transpose(matrix, m, m)?;
+    let mut estimate = 0.0_f64;
+    for _step in 0..4 {
+        let y = solve_vector(matrix, &x, members)?;
+        let norm_y = y.iter().fold(0.0_f64, |acc, value| acc + value.abs());
+        if norm_y <= estimate {
+            break;
+        }
+        estimate = norm_y;
+        let mut xi = Vec::with_capacity(m);
+        for value in &y {
+            xi.push(if *value >= 0.0 { 1.0 } else { -1.0 });
+        }
+        let z = solve_vector(&transposed, &xi, members)?;
+        let mut dot = 0.0_f64;
+        let mut peak = 0.0_f64;
+        let mut peak_at = 0_usize;
+        for (index, value) in z.iter().enumerate() {
+            dot += value * x[index];
+            if value.abs() > peak {
+                peak = value.abs();
+                peak_at = index;
+            }
+        }
+        if peak <= dot {
+            break;
+        }
+        x = vec![0.0; m];
+        x[peak_at] = 1.0;
+    }
+    if !estimate.is_finite() {
+        return Err(SccCompileError::NonFiniteEquilibrium);
+    }
+    Ok(estimate)
+}
+
+fn solve_vector(
+    matrix: &[f64],
+    rhs: &[f64],
+    members: &[usize],
+) -> Result<Vec<f64>, SccCompileError> {
+    let m = members.len();
+    let solved = solve_row_major(matrix, rhs, m, 1, members)?;
+    let mut vector = Vec::with_capacity(m);
+    for row in 0..m {
+        vector.push(solved[row]);
+    }
+    Ok(vector)
 }
 
 fn exact_infinity_kappa(matrix: &[f64], m: usize) -> Option<f64> {
@@ -1642,6 +1705,54 @@ mod tests {
         assert!(law.blocks()[0].kappa_inf > 0.0);
         assert!(law.residual_inf() < 1e-8);
         assert_eq!(law.identification(), IdentificationStatus::NotMarkedUnidentified);
+    }
+
+    #[test]
+    fn a_third_order_block_uses_the_hager_higham_estimate() {
+        let mut coefficients = vec![0.0; 9];
+        coefficients[2] = 0.1;
+        coefficients[3] = 0.1;
+        coefficients[7] = 0.1;
+        let model = map(coefficients, vec![0.0; 3]);
+        let clamp = HardClamp::none(3).expect("none");
+        let law = compile(&model, vec![0.0; 3], identity(3), &clamp, &[]);
+        assert_eq!(law.blocks().len(), 1);
+        assert_eq!(law.blocks()[0].members, vec![0, 1, 2]);
+        assert!(!law.blocks()[0].exact);
+        let matrix = [
+            1.0, 0.0, -0.1, //
+            -0.1, 1.0, 0.0, //
+            0.0, -0.1, 1.0,
+        ];
+        assert!(close(law.blocks()[0].kappa_inf, infinity_condition(&matrix)));
+    }
+
+    fn infinity_condition(matrix: &[f64]) -> f64 {
+        let mut factor = matrix.to_vec();
+        let mut inverse = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        for pivot in 0..3 {
+            let mut scale = factor[pivot * 3 + pivot];
+            for column in 0..3 {
+                factor[pivot * 3 + column] /= scale;
+                inverse[pivot * 3 + column] /= scale;
+            }
+            for row in 0..3 {
+                if row == pivot {
+                    continue;
+                }
+                scale = factor[row * 3 + pivot];
+                for column in 0..3 {
+                    factor[row * 3 + column] -= scale * factor[pivot * 3 + column];
+                    inverse[row * 3 + column] -= scale * inverse[pivot * 3 + column];
+                }
+            }
+        }
+        let norm = |rows: &[f64]| {
+            rows.chunks(3).fold(0.0_f64, |best, row| {
+                best.max(row.iter().fold(0.0_f64, |acc, entry| acc + entry.abs()))
+            })
+        };
+        norm(matrix) * norm(&inverse)
     }
 
     #[test]

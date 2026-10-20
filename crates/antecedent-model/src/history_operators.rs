@@ -40,7 +40,7 @@ use antecedent_data::{SamplingRegularity, TimeIndex};
 use thiserror::Error;
 
 use crate::information_time::{
-    AvailableOutcome, CadenceTick, ForwardOnly, InformationRefusal, InformationUse,
+    AvailableOutcome, CadenceTick, ForwardOnly, InformationRefusal, InformationUse, ObservedCadence,
     RetrospectivePermission, admit_delayed_outcome,
 };
 
@@ -81,22 +81,19 @@ impl OperatorFrame {
     ///
     /// # Errors
     ///
-    /// [`HistoryOperatorError::MissingInitialLaw`] when `initial_law` is
-    /// absent. [`HistoryOperatorError::HorizonCrossesCadence`] when the
-    /// horizon does not end on a tick of `cadence` or runs past the ticks
-    /// `cadence` declares. [`HistoryOperatorError::CadenceSpanOverflow`] when
-    /// the declared tick count times the interval does not fit in `u64`.
-    /// [`HistoryOperatorError::CadenceUncountable`] when the tick count does
-    /// not fit in `u64`.
+    /// [`HistoryOperatorError::HorizonCrossesCadence`] when the horizon does
+    /// not end on a tick of `cadence` or runs past the ticks `cadence` declares.
+    /// [`HistoryOperatorError::CadenceSpanOverflow`] when the declared tick count
+    /// times the interval does not fit in `u64`.
+    /// [`HistoryOperatorError::CadenceUncountable`] when the tick count does not
+    /// fit in `u32`, the same grid [`crate::information_time::ObservedCadence`]
+    /// reads from [`TimeIndex`].
     #[must_use = "a refused frame is not a cadence, horizon, and initial law"]
     pub fn try_new(
         cadence: TimeIndex,
         horizon: Horizon,
-        initial_law: Option<InitialLaw>,
+        initial_law: InitialLaw,
     ) -> Result<Self, HistoryOperatorError> {
-        let Some(initial_law) = initial_law else {
-            return Err(HistoryOperatorError::MissingInitialLaw);
-        };
         let interval_ns = admit_horizon(&cadence, horizon)?;
         Ok(Self { cadence, horizon, initial_law, interval_ns })
     }
@@ -174,8 +171,10 @@ pub enum HistoryOperatorError {
         /// Declared tick count.
         ticks: u64,
     },
-    /// The tick count does not fit in `u64`.
-    #[error("cadence tick count exceeds u64; next attempt: shorten the cadence")]
+    /// The tick count does not fit in `u32`.
+    ///
+    /// This is the same limit as [`crate::information_time::ObservedCadence`].
+    #[error("cadence tick count does not fit in u32; next attempt: shorten the cadence")]
     CadenceUncountable,
     /// No initial-state law was supplied.
     #[error("initial law is missing; next attempt: supply it, a time column does not")]
@@ -373,7 +372,7 @@ impl HistoryConstruction {
     pub fn try_new(
         cadence: TimeIndex,
         horizon: Horizon,
-        initial_law: Option<InitialLaw>,
+        initial_law: InitialLaw,
         history: HistoryWindow,
     ) -> Result<Self, HistoryOperatorError> {
         let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
@@ -414,7 +413,7 @@ impl ActionTiming {
     pub fn try_new(
         cadence: TimeIndex,
         horizon: Horizon,
-        initial_law: Option<InitialLaw>,
+        initial_law: InitialLaw,
         at_ns: u64,
     ) -> Result<Self, HistoryOperatorError> {
         let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
@@ -453,7 +452,7 @@ impl PolicyEvaluation {
     pub fn try_new(
         cadence: TimeIndex,
         horizon: Horizon,
-        initial_law: Option<InitialLaw>,
+        initial_law: InitialLaw,
         policy: impl Into<Arc<str>>,
     ) -> Result<Self, HistoryOperatorError> {
         let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
@@ -490,7 +489,7 @@ impl Transition {
     pub fn try_new(
         cadence: TimeIndex,
         horizon: Horizon,
-        initial_law: Option<InitialLaw>,
+        initial_law: InitialLaw,
     ) -> Result<Self, HistoryOperatorError> {
         Ok(Self { frame: OperatorFrame::try_new(cadence, horizon, initial_law)? })
     }
@@ -529,7 +528,7 @@ impl SequentialRegression {
     pub fn try_new(
         cadence: TimeIndex,
         horizon: Horizon,
-        initial_law: Option<InitialLaw>,
+        initial_law: InitialLaw,
         outcome: impl Into<Arc<str>>,
     ) -> Result<Self, HistoryOperatorError> {
         let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
@@ -574,7 +573,7 @@ impl CensoringAssignmentWeight {
     pub fn try_new(
         cadence: TimeIndex,
         horizon: Horizon,
-        initial_law: Option<InitialLaw>,
+        initial_law: InitialLaw,
         censoring: f64,
         assignment: f64,
     ) -> Result<Self, HistoryOperatorError> {
@@ -621,7 +620,7 @@ impl TrajectoryReduction {
     pub fn try_new(
         cadence: TimeIndex,
         horizon: Horizon,
-        initial_law: Option<InitialLaw>,
+        initial_law: InitialLaw,
         functional: impl Into<Arc<str>>,
     ) -> Result<Self, HistoryOperatorError> {
         let frame = OperatorFrame::try_new(cadence, horizon, initial_law)?;
@@ -1161,6 +1160,7 @@ impl DelayedFeedback {
     ///
     /// # Errors
     ///
+    /// [`HistoryOperatorError::MissingInitialLaw`] when `initial_law` is absent.
     /// The frame errors of [`OperatorFrame::try_new`].
     /// [`HistoryOperatorError::UncertifiedTruncation`] when an explicit history
     /// is shorter than the delay or the action lag and `truncation` does not
@@ -1190,6 +1190,9 @@ impl DelayedFeedback {
             search_cap,
             ancestry_steps,
         } = request;
+        let Some(initial_law) = initial_law else {
+            return Err(HistoryOperatorError::MissingInitialLaw);
+        };
         if let Some(change) = &initial_state_change {
             refuse_initial_state_change(&change.law_name, change.level)?;
         }
@@ -1347,20 +1350,44 @@ pub fn horizon_ending_after(
 
 fn admit_horizon(cadence: &TimeIndex, horizon: Horizon) -> Result<u64, HistoryOperatorError> {
     let end_ns = horizon.end_ns();
-    let SamplingRegularity::Regular { interval_ns } = cadence.regularity else {
-        return Err(crosses(end_ns, None, None));
+    let grid = match ObservedCadence::from_observed(cadence) {
+        Ok(grid) => grid,
+        Err(InformationRefusal::IrregularCadence) => return Err(crosses(end_ns, None, None)),
+        Err(InformationRefusal::ZeroInterval) => {
+            return Err(crosses(end_ns, Some(0), u64::try_from(cadence.length).ok()));
+        }
+        Err(InformationRefusal::EmptyCadence) => {
+            let interval_ns = match cadence.regularity {
+                SamplingRegularity::Regular { interval_ns } => Some(interval_ns),
+                SamplingRegularity::Irregular => None,
+            };
+            return Err(crosses(end_ns, interval_ns, Some(0)));
+        }
+        Err(InformationRefusal::CadenceUncountable) => {
+            return Err(HistoryOperatorError::CadenceUncountable);
+        }
+        Err(InformationRefusal::CadenceSpanOverflow { interval_ns, tick_count }) => {
+            return Err(HistoryOperatorError::CadenceSpanOverflow {
+                interval_ns,
+                ticks: u64::from(tick_count),
+            });
+        }
+        Err(
+            InformationRefusal::DecisionOffCadence { .. }
+            | InformationRefusal::OutcomeOffCadence { .. }
+            | InformationRefusal::ProspectiveFuture { .. }
+            | InformationRefusal::HeldOutFuture { .. }
+            | InformationRefusal::RetrospectiveDenied { .. }
+            | InformationRefusal::ForwardOnlyDeployment { .. }
+            | InformationRefusal::DelayOverflow { .. },
+        ) => return Err(HistoryOperatorError::CadenceUncountable),
     };
-    let declared_ticks = u64::try_from(cadence.length).ok();
-    if interval_ns == 0 || end_ns == 0 || end_ns % interval_ns != 0 {
-        return Err(crosses(end_ns, Some(interval_ns), declared_ticks));
-    }
-    let Some(ticks) = declared_ticks else {
-        return Err(HistoryOperatorError::CadenceUncountable);
-    };
+    let interval_ns = grid.interval_ns();
+    let ticks = u64::from(grid.tick_count());
     let Some(covered) = ticks.checked_mul(interval_ns) else {
         return Err(HistoryOperatorError::CadenceSpanOverflow { interval_ns, ticks });
     };
-    if end_ns > covered {
+    if end_ns == 0 || end_ns % interval_ns != 0 || end_ns > covered {
         return Err(crosses(end_ns, Some(interval_ns), Some(ticks)));
     }
     Ok(interval_ns)
@@ -1660,8 +1687,8 @@ mod tests {
         InitialLaw::named("origin").unwrap()
     }
 
-    fn frame_inputs() -> (TimeIndex, Horizon, Option<InitialLaw>) {
-        (regular(10, 4), Horizon::ending_at(40), Some(origin()))
+    fn frame_inputs() -> (TimeIndex, Horizon, InitialLaw) {
+        (regular(10, 4), Horizon::ending_at(40), origin())
     }
 
     fn assert_crosses(error: HistoryOperatorError, end_ns: u64) {
@@ -1712,7 +1739,7 @@ mod tests {
     fn a_contemporaneous_initial_law_is_present() {
         let (cadence, horizon, _) = frame_inputs();
         let transition =
-            Transition::try_new(cadence, horizon, Some(InitialLaw::contemporaneous_observed()))
+            Transition::try_new(cadence, horizon, InitialLaw::contemporaneous_observed())
                 .unwrap();
         assert!(transition.frame().initial_law().name().is_none());
     }
@@ -1721,7 +1748,7 @@ mod tests {
     fn a_horizon_between_ticks_is_refused() {
         let cadence = regular(10, 4);
         let horizon = Horizon::ending_at(25);
-        let law = Some(origin());
+        let law = origin();
         assert_crosses(
             HistoryConstruction::try_new(
                 cadence.clone(),
@@ -1758,7 +1785,7 @@ mod tests {
 
     #[test]
     fn a_horizon_past_the_cadence_is_refused() {
-        let error = Transition::try_new(regular(10, 4), Horizon::ending_at(50), Some(origin()))
+        let error = Transition::try_new(regular(10, 4), Horizon::ending_at(50), origin())
             .unwrap_err();
         match error {
             HistoryOperatorError::HorizonCrossesCadence { end_ns, interval_ns, declared_ticks } => {
@@ -1774,7 +1801,7 @@ mod tests {
     fn an_irregular_or_zero_cadence_is_refused() {
         let irregular = TimeIndex { regularity: SamplingRegularity::Irregular, length: 4 };
         let irregular_error =
-            Transition::try_new(irregular, Horizon::ending_at(10), Some(origin())).unwrap_err();
+            Transition::try_new(irregular, Horizon::ending_at(10), origin()).unwrap_err();
         match irregular_error {
             HistoryOperatorError::HorizonCrossesCadence {
                 interval_ns: None, end_ns: 10, ..
@@ -1782,7 +1809,7 @@ mod tests {
             other => panic!("expected an irregular cadence to be crossed, got {other:?}"),
         }
         let zero =
-            Transition::try_new(regular(0, 4), Horizon::ending_at(10), Some(origin())).unwrap_err();
+            Transition::try_new(regular(0, 4), Horizon::ending_at(10), origin()).unwrap_err();
         match zero {
             HistoryOperatorError::HorizonCrossesCadence { interval_ns: Some(0), .. } => {}
             other => panic!("expected a zero interval to be crossed, got {other:?}"),
@@ -1792,20 +1819,16 @@ mod tests {
     #[test]
     fn an_empty_horizon_is_refused() {
         assert_crosses(
-            Transition::try_new(regular(10, 4), Horizon::ending_at(0), Some(origin())).unwrap_err(),
+            Transition::try_new(regular(10, 4), Horizon::ending_at(0), origin()).unwrap_err(),
             0,
         );
     }
 
     #[test]
     fn a_missing_initial_law_is_refused() {
-        let error = HistoryConstruction::try_new(
-            regular(10, 4),
-            Horizon::ending_at(40),
-            None,
-            HistoryWindow::max_lag(0),
-        )
-        .unwrap_err();
+        let mut request = delayed_request(DelayedAction::pulse(0, 1.0).unwrap());
+        request.initial_law = None;
+        let error = DelayedFeedback::try_new(request).unwrap_err();
         assert_eq!(error, HistoryOperatorError::MissingInitialLaw);
     }
 
@@ -1894,14 +1917,24 @@ mod tests {
     }
 
     #[test]
-    fn a_cadence_span_that_overflows_u64_is_refused() {
-        let ticks = u64::MAX;
-        let Ok(length) = usize::try_from(ticks) else {
+    fn a_cadence_uses_the_observed_tick_grid() {
+        let past_u32 = u64::from(u32::MAX) + 1;
+        let Ok(length) = usize::try_from(past_u32) else {
             return;
         };
-        let error = Transition::try_new(regular(2, length), Horizon::ending_at(2), Some(origin()))
-            .unwrap_err();
-        assert_eq!(error, HistoryOperatorError::CadenceSpanOverflow { interval_ns: 2, ticks });
+        let uncountable =
+            Transition::try_new(regular(2, length), Horizon::ending_at(2), origin()).unwrap_err();
+        assert_eq!(uncountable, HistoryOperatorError::CadenceUncountable);
+        let tick_count = u32::MAX;
+        let ticks = u64::from(tick_count);
+        let interval_ns = (1_u64 << 32) + 2;
+        let overflow = Transition::try_new(
+            regular(interval_ns, usize::try_from(tick_count).unwrap()),
+            Horizon::ending_at(interval_ns),
+            origin(),
+        )
+        .unwrap_err();
+        assert_eq!(overflow, HistoryOperatorError::CadenceSpanOverflow { interval_ns, ticks });
     }
 
     fn unit_dynamics() -> DelayedDynamics {

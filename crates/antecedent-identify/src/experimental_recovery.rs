@@ -25,14 +25,18 @@
 //!   experiment clamps `from` while `into` stays passive. If any source into a
 //!   target fails it, the whole incoming row is one unresolved direction.
 //! - **Rank.** When every pair into a target holds, generic experimental effects
-//!   give that row full column rank. A declared column rank below the row width
-//!   names the unresolved directions and leaves the recovery goal open. The
-//!   Moore-Penrose completion of that block is not applied. That declaration is
-//!   not the column rank of an assembled constraint matrix. The matrix rank, its
-//!   null directions, and any direct effects are read from the matrix.
-//!   [`DeclaredEquationRank`] and [`WeakStability::InvertibilityDeclared`] do not
-//!   by themselves return coefficients, and a caller-asserted full rank does not
-//!   fill a free direction of a rank-deficient matrix.
+//!   give that row full column rank. A measure-zero cancellation of those effects
+//!   can still drop the rank, so a closed report is generic identification, not a
+//!   verified rank. A declared column rank below the row width names the unresolved
+//!   directions and leaves the recovery goal open. The Moore-Penrose completion of
+//!   that block is not applied. That declaration is not the column rank of an
+//!   assembled constraint matrix. The matrix rank, its null directions, and any
+//!   direct effects are read from the matrix. [`DeclaredEquationRank`] and
+//!   [`WeakStability::InvertibilityDeclared`] do not by themselves return
+//!   coefficients, and a caller-asserted full rank does not fill a free direction
+//!   of a rank-deficient matrix. A rank declared on a target the pair condition
+//!   does not cover is a warning on a partial report. It does not refuse the
+//!   design and it does not solve that row.
 //! - **Finite-sample conditioning.** A declared sample rank or finite condition
 //!   number of the constraint matrix is not the population rank. Sampling error
 //!   can make an underdetermined system look full rank (Hyttinen, Eberhardt, and
@@ -307,11 +311,16 @@ pub struct UnresolvedDirection {
 /// stores a mechanism value. [`Self::finite_sample_conditioning`] and
 /// [`Self::uniqueness_restriction`] are the declarations that were offered.
 /// They do not move a coordinate between the two lists.
+///
+/// [`Self::generic`] is set when the closed report rests on generic experimental
+/// effects. [`WeakStability::InvertibilityDeclared`] and a full
+/// [`DeclaredEquationRank`] are not a verified column rank. Measure-zero
+/// cancellations can break that rank.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoefficientRecovery {
     /// Recipe that produced the report.
     pub recipe: &'static str,
-    /// Coordinates pinned down by coverage and rank.
+    /// Coordinates pinned down by coverage and generic rank.
     pub recoverable: Vec<DirectCoefficient>,
     /// Unresolved directions. Empty only when the coefficient goal is closed.
     pub unresolved: Vec<UnresolvedDirection>,
@@ -319,13 +328,43 @@ pub struct CoefficientRecovery {
     pub finite_sample_conditioning: FiniteSampleConditioning,
     /// Uniqueness restriction offered with the design. Not applied.
     pub uniqueness_restriction: UniquenessRestriction,
+    /// The closed report is generic identification, not a verified rank.
+    pub generic: bool,
+    /// Declarations that were recorded and not applied.
+    pub warnings: Vec<RecoveryWarning>,
+}
+
+/// A declaration recorded on a coefficient report. It does not close the goal.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum RecoveryWarning {
+    /// A rank was declared for a target the pair condition does not cover.
+    ///
+    /// The incoming row stays unresolved. The declaration is not a refusal of
+    /// the rest of the design.
+    RankDeclarationOnUncoveredTarget {
+        /// Equation the declaration named.
+        target: VariableId,
+    },
+}
+
+impl RecoveryWarning {
+    /// Design fault this warning records.
+    #[must_use]
+    pub const fn design_fault(self) -> DesignFault {
+        match self {
+            Self::RankDeclarationOnUncoveredTarget { .. } => {
+                DesignFault::RankDeclarationOnUncoveredTarget
+            }
+        }
+    }
 }
 
 impl CoefficientRecovery {
     /// Whether every direct coefficient is recoverable.
     ///
     /// Finite-sample conditioning and a uniqueness restriction do not close the
-    /// goal. A closed goal is coverage plus population rank.
+    /// goal. A closed goal is coverage plus generic rank. Measure-zero
+    /// cancellations can still break that rank; [`Self::generic`] records it.
     #[must_use]
     pub fn goal_closed(&self) -> bool {
         self.unresolved.is_empty()
@@ -395,9 +434,9 @@ pub enum DesignFault {
     EmptyDirection,
     /// A rank was declared for an equation the pair condition does not cover.
     ///
-    /// Coverage and rank stay separate diagnostics. A covered equation may
-    /// declare a deficient rank; an uncovered equation is already an unresolved
-    /// row and does not take a rank declaration.
+    /// The decision is [`ExperimentalRecoveryDecision::Partial`] with
+    /// [`RecoveryWarning::RankDeclarationOnUncoveredTarget`]. The row stays
+    /// unresolved. This fault is not a refusal of the rest of the design.
     RankDeclarationOnUncoveredTarget,
 }
 
@@ -451,7 +490,13 @@ impl NotThisRecipe {
 /// Outcome of judging a declared design against the minimum recipe.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExperimentalRecoveryDecision {
-    /// Every off-diagonal coordinate is recoverable. No mechanism matrix is attached.
+    /// Generic identification of every off-diagonal coordinate.
+    ///
+    /// Pair coverage holds and no declared deficiency remains. No mechanism
+    /// matrix is attached. Measure-zero cancellations of the experimental
+    /// effects can break the column rank, so this is not a verified rank.
+    /// [`WeakStability::InvertibilityDeclared`] and [`DeclaredEquationRank`]
+    /// do not supply that rank.
     Recovered(CoefficientRecovery),
     /// Coverage or rank leaves unresolved directions. The recovery goal stays open.
     Partial(CoefficientRecovery),
@@ -796,14 +841,15 @@ fn recover(nodes: &BTreeSet<VariableId>, set: &ClampExperimentSet) -> Experiment
     let width = nodes.len() - 1;
     let mut recoverable = Vec::new();
     let mut unresolved = Vec::new();
+    let mut warnings = Vec::new();
     for target in nodes {
         let missing = missing_clamps(nodes, &set.experiments, *target);
-        if !missing.is_empty() && set.equation_ranks.iter().any(|rank| rank.target == *target) {
-            return refuse(RefusalReason::DesignFault(
-                DesignFault::RankDeclarationOnUncoveredTarget,
-            ));
-        }
         if !missing.is_empty() {
+            if set.equation_ranks.iter().any(|rank| rank.target == *target) {
+                warnings.push(RecoveryWarning::RankDeclarationOnUncoveredTarget {
+                    target: *target,
+                });
+            }
             unresolved.push(UnresolvedDirection {
                 support: incoming(nodes, *target),
                 reason: UnresolvedReason::IncompletePairCoverage {
@@ -821,19 +867,80 @@ fn recover(nodes: &BTreeSet<VariableId>, set: &ClampExperimentSet) -> Experiment
         }
         recoverable.extend(incoming(nodes, *target));
     }
-    // Coverage and the declared population rank decide the coordinates.
-    // The sample condition and the uniqueness restriction are copied and not applied.
+    // Coverage decides the coordinates. A full declared rank is the generic rank,
+    // not a matrix factorization. The sample condition and the uniqueness
+    // restriction are copied and not applied.
+    let generic = unresolved.is_empty();
     let recovery = CoefficientRecovery {
         recipe: CLAMP_EXPERIMENT_RECIPE,
         recoverable,
         unresolved,
         finite_sample_conditioning: set.finite_sample_conditioning,
         uniqueness_restriction: set.uniqueness_restriction,
+        generic,
+        warnings,
     };
     if recovery.goal_closed() {
         return ExperimentalRecoveryDecision::Recovered(recovery);
     }
     ExperimentalRecoveryDecision::Partial(recovery)
+}
+
+/// Whether `regime` is an identified clamp in `design`.
+///
+/// A regime that clamps nothing is not identified. A regime that is not one of
+/// `design` was never clamped by this decision, including a joint intervention
+/// that the design did not run, and is not identified. Generic identification
+/// of other regimes does not transfer to it. A partial or refused decision
+/// identifies no regime.
+#[must_use]
+pub fn regime_is_identified(
+    decision: &ExperimentalRecoveryDecision,
+    design: &[DeclaredClampExperiment],
+    regime: &DeclaredClampExperiment,
+) -> bool {
+    if regime.clamped.is_empty() {
+        return false;
+    }
+    let Some(recovery) = decision.coefficient_recovery() else {
+        return false;
+    };
+    if !recovery.generic {
+        return false;
+    }
+    let ran = design.iter().any(|experiment| same_clamp(experiment, regime));
+    if !ran {
+        return false;
+    }
+    regime.clamped.iter().all(|from| {
+        regime.passive.iter().all(|into| {
+            recovery.recoverable.iter().any(|coefficient| {
+                coefficient.into == *into && coefficient.from == *from
+            })
+        })
+    })
+}
+
+fn same_clamp(left: &DeclaredClampExperiment, right: &DeclaredClampExperiment) -> bool {
+    if left.exogeneity != right.exogeneity {
+        return false;
+    }
+    let clamped = |experiment: &DeclaredClampExperiment| {
+        experiment.clamped.iter().copied().collect::<BTreeSet<_>>()
+    };
+    let passive = |experiment: &DeclaredClampExperiment| {
+        experiment.passive.iter().copied().collect::<BTreeSet<_>>()
+    };
+    clamped(left) == clamped(right) && passive(left) == passive(right)
+}
+
+/// Coefficients of an admissible draw.
+///
+/// An inadmissible draw, including one that still carries unresolved directions
+/// from a rank-deficient block, is not a recovered mechanism.
+#[must_use]
+pub fn as_recovered_mechanism(draw: &JointRecoveryDraw) -> Option<&[(DirectCoefficient, f64)]> {
+    if draw.is_inadmissible() { None } else { Some(draw.coefficients()) }
 }
 
 fn push_rank_deficiency(
@@ -1443,10 +1550,10 @@ mod tests {
         ExperimentalRecoveryDecision, FiniteSampleConditioning, InadmissibleCoefficientDraw,
         JointRecoveryDraw, LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt, NotThisRecipe,
         PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability, RecoveredCoefficientPoint,
-        RecoveredCoefficientUncertainty, RecoveryAttempt, RecoveryDrawInput, RefusalReason,
-        RegimeAssumption, UncertaintyFault, UniquenessRestriction, UnresolvedReason, WeakStability,
-        decide_experimental_recovery, joint_draw_from_blocks, recover_assembled_coefficients,
-        recover_declared_coefficients,
+        RecoveredCoefficientUncertainty, RecoveryAttempt, RecoveryDrawInput, RecoveryWarning,
+        RefusalReason, RegimeAssumption, UncertaintyFault, UniquenessRestriction, UnresolvedReason,
+        WeakStability, as_recovered_mechanism, decide_experimental_recovery, joint_draw_from_blocks,
+        recover_assembled_coefficients, recover_declared_coefficients, regime_is_identified,
     };
     use crate::experiment_moments::{
         ConstraintRow, RegimeSample, TargetConstraintBlock, UnitColumn,
@@ -1512,6 +1619,8 @@ mod tests {
         };
         assert_eq!(recovery.recipe, CLAMP_EXPERIMENT_RECIPE);
         assert!(recovery.goal_closed());
+        assert!(recovery.generic);
+        assert!(recovery.warnings.is_empty());
         assert!(recovery.unresolved.is_empty());
         assert_eq!(
             recovery.recoverable,
@@ -1801,13 +1910,26 @@ mod tests {
         clamp_set_mut(&mut design).finite_sample_conditioning =
             FiniteSampleConditioning::SampleFullColumnRank;
         let decision = decide_experimental_recovery(&design);
-        let ExperimentalRecoveryDecision::Refused(refusal) = decision else {
-            panic!("sample rank must not turn an uncovered row into a rank solve");
+        let ExperimentalRecoveryDecision::Partial(recovery) = decision else {
+            panic!("an uncovered rank declaration is a partial report, not a refusal");
         };
+        assert!(!recovery.goal_closed());
+        assert!(!recovery.generic);
         assert_eq!(
-            refusal.reason,
-            RefusalReason::DesignFault(DesignFault::RankDeclarationOnUncoveredTarget)
+            recovery.warnings,
+            vec![RecoveryWarning::RankDeclarationOnUncoveredTarget { target: node(1) }]
         );
+        assert_eq!(
+            recovery.warnings[0].design_fault(),
+            DesignFault::RankDeclarationOnUncoveredTarget
+        );
+        assert!(recovery.recoverable.iter().all(|coefficient| coefficient.into == node(0)));
+        assert!(recovery.unresolved.iter().any(|direction| {
+            matches!(
+                direction.reason,
+                UnresolvedReason::IncompletePairCoverage { target, .. } if target == node(1)
+            )
+        }));
     }
 
     #[test]
@@ -1994,7 +2116,10 @@ mod tests {
             UnitColumn { unit: node(1), values: &y },
             UnitColumn { unit: node(2), values: &z },
         ];
-        let samples = [RegimeSample { columns: &columns }, RegimeSample { columns: &columns }];
+        let samples = [
+            RegimeSample { columns: &columns, source: SourceIdentity::from_raw(1) },
+            RegimeSample { columns: &columns, source: SourceIdentity::from_raw(2) },
+        ];
         let assembled =
             assemble_experiment_constraints(&contract, &samples, u64::MAX).expect("z is covered");
         assembled.blocks.into_iter().find(|block| block.target == node(2)).expect("the block for z")
@@ -2161,6 +2286,7 @@ mod tests {
         assert_eq!(draw.unresolved()[0].support, vec![coefficient(1, 0)]);
         assert_eq!(draw.noise_covariance(), noise_covariance.as_slice());
         assert!(draw.coefficients().len() < nodes.len() * nodes.len());
+        assert!(as_recovered_mechanism(&draw).is_none());
     }
 
     fn draw_from(
@@ -2220,5 +2346,231 @@ mod tests {
         .expect_err("not a coefficient matrix");
         assert_eq!(refused, UncertaintyFault::BlockNotAConstraint { block: 1 });
         assert!(refused.to_string().contains("block 1"));
+    }
+
+    /// `x1 = 0.5 x0 + e1`, `x2 = 0.25 x0 + 0.4 x1 + e2`, `x0 = e0`.
+    fn simulate_chain(seed: u64, rows: usize, clamped: &[u32]) -> [Vec<f64>; 3] {
+        let mut rng = Lcg(seed);
+        let mut columns = [vec![0.0; rows], vec![0.0; rows], vec![0.0; rows]];
+        for row in 0..rows {
+            let x0 = rng.normal();
+            let x1 = if clamped.contains(&1) { rng.normal() } else { 0.5 * x0 + rng.normal() };
+            let x2 = if clamped.contains(&2) {
+                rng.normal()
+            } else {
+                0.25 * x0 + 0.4 * x1 + rng.normal()
+            };
+            columns[0][row] = x0;
+            columns[1][row] = x1;
+            columns[2][row] = x2;
+        }
+        columns
+    }
+
+    fn fixed_joint_holdout(rows: usize) -> [Vec<f64>; 3] {
+        let mut rng = Lcg(90);
+        let mut columns = [vec![2.0; rows], vec![1.25; rows], vec![0.0; rows]];
+        for row in 0..rows {
+            columns[2][row] = 0.25 * 2.0 + 0.4 * 1.25 + rng.normal();
+        }
+        columns
+    }
+
+    struct Lcg(u64);
+
+    impl Lcg {
+        fn next_u64(&mut self) -> u64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1);
+            self.0
+        }
+
+        fn uniform(&mut self) -> f64 {
+            let bits = (self.next_u64() >> 11) as f64;
+            bits / ((1_u64 << 53) as f64)
+        }
+
+        fn normal(&mut self) -> f64 {
+            let u1 = self.uniform().max(1.0e-12);
+            let u2 = self.uniform();
+            (-2.0 * u1.ln()).sqrt() * (std::f64::consts::PI * 2.0 * u2).cos()
+        }
+    }
+
+    fn single_clamp(clamped: u32) -> DeclaredClampExperiment {
+        let nodes = [0_u32, 1, 2];
+        DeclaredClampExperiment {
+            clamped: vec![node(clamped)],
+            passive: nodes.into_iter().filter(|other| *other != clamped).map(node).collect(),
+            exogeneity: ClampExogeneity::RandomizedIntervention,
+        }
+    }
+
+    fn effect(coefficients: &[(DirectCoefficient, f64)], into: u32, from: u32) -> f64 {
+        coefficients
+            .iter()
+            .find(|(coefficient, _)| {
+                coefficient.into == node(into) && coefficient.from == node(from)
+            })
+            .map(|(_, value)| *value)
+            .expect("recovered coefficient")
+    }
+
+    #[test]
+    fn held_out_joint_regime_uses_coefficient_uncertainty() {
+        let rows = 2_000_u16;
+        let row_count = usize::from(rows);
+        let training = [
+            simulate_chain(1, row_count, &[0]),
+            simulate_chain(2, row_count, &[1]),
+            simulate_chain(3, row_count, &[2]),
+        ];
+        let experiments = vec![single_clamp(0), single_clamp(1), single_clamp(2)];
+        let decision = decide_experimental_recovery(&clamp_design(
+            three(),
+            experiments.clone(),
+            Vec::new(),
+        ));
+        let ExperimentalRecoveryDecision::Recovered(report) = &decision else {
+            panic!("single-node clamps are generic identification");
+        };
+        assert!(report.generic);
+        assert!(regime_is_identified(&decision, &experiments, &experiments[0]));
+        let joint = DeclaredClampExperiment {
+            clamped: vec![node(0), node(1)],
+            passive: vec![node(2)],
+            exogeneity: ClampExogeneity::RandomizedIntervention,
+        };
+        assert!(!regime_is_identified(&decision, &experiments, &joint));
+        let null = DeclaredClampExperiment {
+            clamped: Vec::new(),
+            passive: three(),
+            exogeneity: ClampExogeneity::RandomizedIntervention,
+        };
+        assert!(!regime_is_identified(&decision, &experiments, &null));
+
+        let regimes = vec![
+            clamp_regime(&[0, 1, 2], &[0], DependencePremise::Independence, 11),
+            clamp_regime(&[0, 1, 2], &[1], DependencePremise::Independence, 12),
+            clamp_regime(&[0, 1, 2], &[2], DependencePremise::Independence, 13),
+        ];
+        let contract = {
+            let accepted = validate_regime_contract(&RegimeContract {
+                regimes,
+                mask: UnitMask { dropped: Vec::new() },
+            });
+            let RegimeContractDecision::Accepted(contract) = accepted else {
+                panic!("training regimes");
+            };
+            contract
+        };
+        let c0 = [
+            UnitColumn { unit: node(0), values: &training[0][0] },
+            UnitColumn { unit: node(1), values: &training[0][1] },
+            UnitColumn { unit: node(2), values: &training[0][2] },
+        ];
+        let c1 = [
+            UnitColumn { unit: node(0), values: &training[1][0] },
+            UnitColumn { unit: node(1), values: &training[1][1] },
+            UnitColumn { unit: node(2), values: &training[1][2] },
+        ];
+        let c2 = [
+            UnitColumn { unit: node(0), values: &training[2][0] },
+            UnitColumn { unit: node(1), values: &training[2][1] },
+            UnitColumn { unit: node(2), values: &training[2][2] },
+        ];
+        let samples = [
+            RegimeSample { columns: &c0, source: SourceIdentity::from_raw(11) },
+            RegimeSample { columns: &c1, source: SourceIdentity::from_raw(12) },
+            RegimeSample { columns: &c2, source: SourceIdentity::from_raw(13) },
+        ];
+        let assembled = assemble_experiment_constraints(&contract, &samples, u64::MAX)
+            .expect("single clamps cover every target");
+        let mut coefficients = Vec::new();
+        for block in &assembled.blocks {
+            let solved = recover_assembled_coefficients(block, None, WeakStability::NotDeclared);
+            let values = solved.coefficients().expect("a covered block is a mechanism row");
+            for (source, value) in block.sources.iter().zip(values) {
+                coefficients.push((
+                    DirectCoefficient { into: block.target, from: *source },
+                    *value,
+                ));
+            }
+        }
+        let close_to = |into: u32, from: u32, truth: f64| {
+            let got = effect(&coefficients, into, from);
+            assert!((got - truth).abs() < 0.12, "K[{into},{from}] = {got}, truth {truth}");
+        };
+        close_to(1, 0, 0.5);
+        close_to(2, 0, 0.25);
+        close_to(2, 1, 0.4);
+        close_to(0, 1, 0.0);
+        close_to(0, 2, 0.0);
+        close_to(1, 2, 0.0);
+
+        let perturb = |scale: f64, marked: bool, weight: f64| {
+            let shifted = coefficients
+                .iter()
+                .map(|(coefficient, value)| {
+                    let delta = if coefficient.into == node(2) && coefficient.from == node(0) {
+                        scale
+                    } else {
+                        0.0
+                    };
+                    (*coefficient, value + delta)
+                })
+                .collect();
+            RecoveryDrawInput {
+                coefficients: shifted,
+                intercept: vec![0.0, 0.0, 0.0],
+                noise_mean: vec![0.0, 0.0, 0.0],
+                noise_covariance: vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+                unresolved: Vec::new(),
+                weight,
+                marked_inadmissible: marked,
+            }
+        };
+        let nodes = three();
+        let uncertainty = RecoveredCoefficientUncertainty::retain(
+            &nodes,
+            vec![
+                perturb(0.0, false, 0.3),
+                perturb(0.05, false, 0.3),
+                perturb(-0.05, false, 0.3),
+                perturb(20.0, true, 0.1),
+            ],
+        )
+        .expect("coefficient law");
+        let held = fixed_joint_holdout(row_count);
+        let held_mean = held[2].iter().sum::<f64>() / f64::from(rows);
+        let predict = |mechanism: &[(DirectCoefficient, f64)]| {
+            effect(mechanism, 2, 0) * 2.0 + effect(mechanism, 2, 1) * 1.25
+        };
+        let admissible: Vec<_> =
+            uncertainty.draws().iter().filter_map(as_recovered_mechanism).collect();
+        assert_eq!(admissible.len(), 3);
+        assert!(uncertainty.draws().iter().any(|draw| as_recovered_mechanism(draw).is_none()));
+        let center = admissible.iter().map(|mechanism| predict(mechanism)).sum::<f64>() / 3.0;
+        let spread = admissible
+            .iter()
+            .map(|mechanism| (predict(mechanism) - center).abs())
+            .fold(0.0, f64::max);
+        assert!(spread > 0.05, "held-out check must use the coefficient draws");
+        assert!(
+            (held_mean - center).abs() < 0.25,
+            "held-out joint regime mean {held_mean} vs draw center {center}"
+        );
+    }
+
+    #[test]
+    fn an_unclamped_regime_and_a_deficient_design_are_not_recovered() {
+        let nodes = three();
+        let only_zero = vec![single_clamp(0)];
+        let decision =
+            decide_experimental_recovery(&clamp_design(nodes, only_zero.clone(), Vec::new()));
+        assert!(matches!(decision, ExperimentalRecoveryDecision::Partial(_)));
+        assert!(!decision.coefficient_recovery().is_some_and(|recovery| recovery.generic));
+        let never = single_clamp(1);
+        assert!(!regime_is_identified(&decision, &only_zero, &never));
+        assert!(!regime_is_identified(&decision, &only_zero, &only_zero[0]));
     }
 }

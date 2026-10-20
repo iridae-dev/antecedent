@@ -535,6 +535,38 @@ mod tests {
     }
 
     #[test]
+    fn a_caller_named_ancestor_list_does_not_certify() {
+        let bound = HistorySearchBound::declared(2);
+        let law = InitialLaw::named("origin").unwrap();
+        let named = [ancestor(0, 0), ancestor(1, 2), ancestor(2, 1)];
+        let mut graph = TemporalDag::empty();
+        let _focus = add(&mut graph, 0, 0);
+        let _past = add(&mut graph, 1, 2);
+        let _mid = add(&mut graph, 2, 1);
+        let product = identify(
+            HistoryIdentificationTarget::FeedbackAncestry,
+            &graph,
+            0,
+            0,
+            Some(&law),
+            bound,
+        )
+        .unwrap();
+        let HistoryIdentification::Certified(certified) = product else {
+            panic!("a node with no parents closes inside the bound");
+        };
+        let found: Vec<(u32, u32)> = certified
+            .ancestry()
+            .iter()
+            .map(|node| (node.node().variable.raw(), node.lag()))
+            .collect();
+        let caller_list: Vec<(u32, u32)> =
+            named.iter().map(|node| (node.node().variable.raw(), node.lag())).collect();
+        assert_ne!(found, caller_list);
+        assert_eq!(found, vec![(0, 0)]);
+    }
+
+    #[test]
     fn an_ancestor_absent_from_the_graph_is_uncertified() {
         let bound = HistorySearchBound::declared(2);
         let law = InitialLaw::named("origin").unwrap();

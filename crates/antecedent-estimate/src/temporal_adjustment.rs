@@ -21,10 +21,10 @@ use antecedent_data::{
     DiscoveryEstimationSplit, LaggedColumn, LaggedSampleWorkspace, SamplingRegularity,
     TemporalIndexer, TimeIndex, TimeSeriesData,
 };
+use antecedent_expr::IdentifiedEstimand;
 use antecedent_model::history_operators::{
     ActionTiming, CensoringAssignmentWeight, HistoryConstruction, HistoryOperatorError, Horizon,
 };
-use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{CompiledDesign, DenseLinearAlgebra};
 
 use crate::adjustment::{
@@ -1013,9 +1013,8 @@ impl AdmittedTemporalHistory {
     /// The tick count does not fit in `u32`.
     fn horizon_steps(&self) -> Result<u32, EstimationError> {
         let ticks = self.horizon().end_ns() / self.history.frame().interval_ns();
-        u32::try_from(ticks).map_err(|_| {
-            EstimationError::unsupported("admitted horizon does not fit in u32 steps")
-        })
+        u32::try_from(ticks)
+            .map_err(|_| EstimationError::unsupported("admitted horizon does not fit in u32 steps"))
     }
 }
 
@@ -1029,7 +1028,7 @@ impl AdmittedTemporalHistory {
 fn admit_temporal_history(
     cadence: &TimeIndex,
     horizon: Horizon,
-    initial_law: Option<InitialLaw>,
+    initial_law: InitialLaw,
     history: HistoryWindow,
     action_ns: u64,
     censoring: f64,
@@ -1038,9 +1037,8 @@ fn admit_temporal_history(
     let history =
         HistoryConstruction::try_new(cadence.clone(), horizon, initial_law.clone(), history)
             .map_err(|error| history_operator_refusal(&error))?;
-    let action =
-        ActionTiming::try_new(cadence.clone(), horizon, initial_law.clone(), action_ns)
-            .map_err(|error| history_operator_refusal(&error))?;
+    let action = ActionTiming::try_new(cadence.clone(), horizon, initial_law.clone(), action_ns)
+        .map_err(|error| history_operator_refusal(&error))?;
     let weights = CensoringAssignmentWeight::try_new(
         cadence.clone(),
         horizon,
@@ -1064,16 +1062,13 @@ fn history_operator_refusal(error: &HistoryOperatorError) -> EstimationError {
 /// # Errors
 ///
 /// `horizon_steps` times the regular interval does not fit in `u64`.
-fn query_horizon_end(
-    cadence: &TimeIndex,
-    horizon_steps: u32,
-) -> Result<Horizon, EstimationError> {
+fn query_horizon_end(cadence: &TimeIndex, horizon_steps: u32) -> Result<Horizon, EstimationError> {
     let SamplingRegularity::Regular { interval_ns } = cadence.regularity else {
         return Ok(Horizon::ending_at(1));
     };
-    let end_ns = u64::from(horizon_steps).checked_mul(interval_ns).ok_or(
-        EstimationError::unsupported("horizon end in nanoseconds does not fit in u64"),
-    )?;
+    let end_ns = u64::from(horizon_steps)
+        .checked_mul(interval_ns)
+        .ok_or(EstimationError::unsupported("horizon end in nanoseconds does not fit in u64"))?;
     Ok(Horizon::ending_at(end_ns))
 }
 
@@ -1093,7 +1088,7 @@ fn outcome_sample_anchor(
     let admitted = admit_temporal_history(
         cadence,
         query_horizon_end(cadence, query.horizon_steps)?,
-        Some(InitialLaw::contemporaneous_observed()),
+        InitialLaw::contemporaneous_observed(),
         history,
         0,
         1.0,
@@ -1528,13 +1523,13 @@ mod tests {
         MeasurementSpec, PredicateExpr, RoleHint, SmallRoleSet, TargetPopulation,
         TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
     };
-    use antecedent_model::history_operators::Horizon;
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
         TimeSeriesData, ValidityBitmap,
     };
     use antecedent_graph::{TemporalDag, ensure_lagged};
     use antecedent_identify::TemporalBackdoorIdentifier;
+    use antecedent_model::history_operators::Horizon;
 
     use super::*;
 
@@ -1605,7 +1600,7 @@ mod tests {
         let admitted = admit_temporal_history(
             &cadence,
             horizon,
-            Some(InitialLaw::contemporaneous_observed()),
+            InitialLaw::contemporaneous_observed(),
             HistoryWindow::max_lag(2),
             20,
             1.0,
@@ -1649,7 +1644,7 @@ mod tests {
         let Err(error) = admit_temporal_history(
             &cadence,
             Horizon::ending_at(25),
-            Some(InitialLaw::contemporaneous_observed()),
+            InitialLaw::contemporaneous_observed(),
             HistoryWindow::planner_default(),
             0,
             1.0,

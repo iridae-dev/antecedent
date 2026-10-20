@@ -1766,7 +1766,12 @@ mod recovery_intervention_tests {
         (vec![0.0, 0.0], vec![1.0, 0.3, 0.3, variance])
     }
 
-    fn draw_with(b: f64, variance: f64, weight: f64, marked_inadmissible: bool) -> RecoveryDrawInput {
+    fn draw_with(
+        b: f64,
+        variance: f64,
+        weight: f64,
+        marked_inadmissible: bool,
+    ) -> RecoveryDrawInput {
         let (noise_mean, noise_covariance) = noise(variance);
         RecoveryDrawInput {
             coefficients: vec![coefficient(0, 1, 0.4), coefficient(1, 0, b)],
@@ -2103,7 +2108,8 @@ mod recovery_intervention_tests {
 
     #[test]
     fn evaluation_exposes_within_draw_noise_and_between_draw_spread() {
-        let retained = plan(vec![draw_with(0.5, 1.0, 0.5, false), draw_with(0.25, 3.0, 0.5, false)]);
+        let retained =
+            plan(vec![draw_with(0.5, 1.0, 0.5, false), draw_with(0.25, 3.0, 0.5, false)]);
         let evaluation = consume_retained_recovery_plan(&retained);
         let moments = evaluation.draws()[1].outcome_moments(1).expect("moments");
         assert!(close(moments.mean, 0.5));
@@ -2349,10 +2355,8 @@ mod recovery_intervention_tests {
             asymptotic_normal_draws(&spec).expect_err("shape"),
             RecoveryInterventionFault::BlockCovariance { block: 0 }
         );
-        let unsolved = vec![
-            blocks[0].clone(),
-            AssembledCoefficientRecovery::Inconsistent { column_rank: 1 },
-        ];
+        let unsolved =
+            vec![blocks[0].clone(), AssembledCoefficientRecovery::Inconsistent { column_rank: 1 }];
         let spec = generation(&nodes, &unsolved, &covariances[..1], &noise, 2, 1);
         assert_eq!(
             asymptotic_normal_draws(&spec).expect_err("inconsistent block"),
@@ -2397,5 +2401,57 @@ mod recovery_intervention_tests {
             .sum::<f64>()
             / 1999.0;
         assert!((covariance - 0.036).abs() < 0.008, "covariance {covariance}");
+    }
+
+    #[test]
+    fn a_rank_deficient_draw_is_not_a_joint_intervention_mechanism() {
+        let nodes = [node(0), node(1), node(2)];
+        let block = AssembledCoefficientRecovery::NullDirections {
+            target: node(2),
+            sources: vec![node(0), node(1)],
+            column_rank: 1,
+            directions: vec![vec![-1.0, 1.0]],
+            full_rank_was_asserted: true,
+        };
+        let draw = joint_draw_from_blocks(
+            &nodes,
+            &[block],
+            vec![0.0; 3],
+            vec![0.0; 3],
+            vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            1.0,
+        )
+        .expect("null directions stay in the law");
+        assert!(
+            antecedent_identify::experimental_recovery::as_recovered_mechanism(&draw).is_none()
+        );
+        let uncertainty = RecoveredCoefficientUncertainty::retain(
+            &nodes,
+            vec![RecoveryDrawInput {
+                coefficients: draw.coefficients().to_vec(),
+                intercept: draw.intercept().to_vec(),
+                noise_mean: draw.noise_mean().to_vec(),
+                noise_covariance: draw.noise_covariance().to_vec(),
+                unresolved: draw.unresolved().to_vec(),
+                weight: 1.0,
+                marked_inadmissible: false,
+            }],
+        )
+        .expect("law");
+        let plan = RetainedRecoveryPlan::try_new(RecoveryPlanParts {
+            uncertainty,
+            clamp_nodes: vec![0, 1],
+            clamp_values: vec![2.0, 1.25],
+            outcome: 2,
+            source_id: "held-out-joint".to_owned(),
+            certifying_evidence: vec!["solve-note".to_owned()],
+        })
+        .expect("plan");
+        let evaluation = consume_retained_recovery_plan(&plan);
+        assert!(evaluation.draws()[0].equilibrium().is_none());
+        assert_eq!(
+            evaluation.draws()[0].inadmissible_reason(),
+            Some(InadmissibleCoefficientDraw::UnresolvedDirections)
+        );
     }
 }
